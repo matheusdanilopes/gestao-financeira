@@ -12,14 +12,14 @@ export interface TransacaoNubank {
   total_parcelas: number | null
 }
 
-export function processarCSV(csvText: string, responsavelOverride?: 'Matheus' | 'Jeniffer'): TransacaoNubank[] {
+export function processarCSV(csvText: string): TransacaoNubank[] {
   const result = Papa.parse(csvText, { header: true, skipEmptyLines: true })
   const transacoes: TransacaoNubank[] = []
 
   for (const row of result.data as any[]) {
     // Suporte ao formato novo (date, title, amount) e antigo (Data, Descrição, Valor)
     const descricao = row.title || row.descricao || row['Descrição'] || row.Descricao || ''
-    const responsavel = responsavelOverride ?? (descricao.toLowerCase().includes('jeniffer') ? 'Jeniffer' : 'Matheus')
+    const responsavel = descricao.toLowerCase().includes('jeniffer') ? 'Jeniffer' : 'Matheus'
 
     // Data: formato novo YYYY-MM-DD ou antigo DD/MM/YYYY
     let dataISO = ''

@@ -66,8 +66,13 @@ export default function Dashboard() {
       (planejamento?.find(p => p.item === 'NuBank Jeniffer Conjunto')?.valor_previsto || 0)
 
     const receitaTotal = planejamento?.find(p => p.item === 'Receita Total')?.valor_previsto || 0
-    const contasFixas = planejamento?.filter(p => p.categoria === 'Fixa').reduce((acc, p) => acc + p.valor_previsto, 0) || 0
-    const debitosExtras = planejamento?.filter(p => p.categoria === 'Extra').reduce((acc, p) => acc + p.valor_previsto, 0) || 0
+    // Exclui itens NuBank do fixo pois o gasto real já está em totalRealizado
+    const contasFixas = planejamento
+      ?.filter(p => p.categoria === 'Fixa' && !p.item.toLowerCase().startsWith('nubank'))
+      .reduce((acc, p) => acc + p.valor_previsto, 0) || 0
+    const debitosExtras = planejamento
+      ?.filter(p => p.categoria === 'Extra')
+      .reduce((acc, p) => acc + p.valor_previsto, 0) || 0
     const totalGastos = contasFixas + totalRealizado + debitosExtras
     const sobraLiquida = receitaTotal - totalGastos
     const percentualComprometimento = receitaTotal > 0 ? (totalGastos / receitaTotal) * 100 : 0
