@@ -23,3 +23,8 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-gray-500;
 }
+
+
+.on-login-page [data-bottom-nav='true'] {
+  display: none !important;
+}

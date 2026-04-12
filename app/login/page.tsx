@@ -1,7 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 
 export default function LoginPage() {
@@ -9,25 +8,32 @@ export default function LoginPage() {
   const [senha, setSenha] = useState('')
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
-  const router = useRouter()
+
+  useEffect(() => {
+    document.body.classList.add('on-login-page')
+
+    return () => {
+      document.body.classList.remove('on-login-page')
+    }
+  }, [])
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setErro('')
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password: senha,
     })
 
-    if (error) {
+    if (error || !data.session) {
       setErro('Email ou senha incorretos')
       setLoading(false)
-    } else {
-      router.push('/dashboard')
-      router.refresh()
+      return
     }
+
+    window.location.href = '/dashboard'
   }
 
   return (
