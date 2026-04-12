@@ -4,83 +4,74 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [senha, setSenha] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [erro, setErro] = useState('')
   const router = useRouter()
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-    setError('')
+    setErro('')
 
-    // Simulação de login: aceita qualquer email com '@' e senha não vazia
-    if (email.includes('@') && password.length > 0) {
-      // Aguarda 1 segundo para simular rede
-      setTimeout(() => {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ senha }),
+      })
+
+      if (res.ok) {
         router.push('/dashboard')
-      }, 1000)
-    } else {
-      setError('Email ou senha inválidos (teste: email@teste.com / 123)')
+        router.refresh()
+      } else {
+        const data = await res.json()
+        setErro(data.error || 'Senha incorreta')
+      }
+    } catch {
+      setErro('Erro ao conectar. Tente novamente.')
+    } finally {
       setLoading(false)
     }
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600 p-4">
-      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-8">
+      <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-8">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">Gestão Financeira</h1>
-          <p className="text-gray-500 mt-2">Matheus & Jeniffer</p>
-          <p className="text-xs text-gray-400 mt-1">(Modo de teste - login simulado)</p>
+          <div className="text-4xl mb-3">💰</div>
+          <h1 className="text-2xl font-bold text-gray-800">Gestão Financeira</h1>
+          <p className="text-gray-500 mt-1">Matheus & Jeniffer</p>
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-5">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="qualquer@email.com"
-              required
-            />
-          </div>
-
+        <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Senha
             </label>
             <input
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="qualquer senha"
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+              placeholder="••••••••"
+              autoFocus
               required
             />
           </div>
 
-          {error && (
-            <div className="text-red-500 text-sm text-center">{error}</div>
+          {erro && (
+            <p className="text-red-500 text-sm text-center">{erro}</p>
           )}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition disabled:opacity-50"
+            className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition disabled:opacity-50 text-lg"
           >
-            {loading ? 'Entrando...' : 'Entrar (modo teste)'}
+            {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
-
-        <div className="mt-6 text-center text-sm text-gray-500">
-          <p>Login simulado - qualquer email/senha funciona</p>
-        </div>
       </div>
     </div>
   )
