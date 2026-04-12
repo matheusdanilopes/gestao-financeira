@@ -31,10 +31,10 @@ export default function ImportarPage() {
           total: data.total
         })
       } else {
-        alert('Erro ao importar arquivo')
+        alert('Erro ao importar: ' + (data.error || 'Erro desconhecido'))
       }
     } catch (error) {
-      alert('Erro ao processar arquivo')
+      alert('Erro ao processar arquivo: ' + String(error))
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
