@@ -45,11 +45,11 @@ export default function Dashboard() {
     const ultimoDia = endOfMonth(mes)
     const mesRef = format(primeiroDia, 'yyyy-MM-dd')
 
+    // Filtra pelo mês de cobrança (projeto_fatura), não pela data da transação
     const { data: transacoes } = await supabase
       .from('transacoes_nubank')
       .select('valor, responsavel')
-      .gte('data', format(primeiroDia, 'yyyy-MM-dd'))
-      .lte('data', format(ultimoDia, 'yyyy-MM-dd'))
+      .eq('projeto_fatura', mesRef)
 
     const totalRealizado = transacoes?.reduce((acc, t) => acc + t.valor, 0) || 0
     const matheusAtual = transacoes?.filter(t => t.responsavel === 'Matheus').reduce((acc, t) => acc + t.valor, 0) || 0

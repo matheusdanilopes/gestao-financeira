@@ -2,8 +2,10 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabaseClient'
 
 export default function LoginPage() {
+  const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
@@ -14,24 +16,17 @@ export default function LoginPage() {
     setLoading(true)
     setErro('')
 
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ senha }),
-      })
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password: senha,
+    })
 
-      if (res.ok) {
-        router.push('/dashboard')
-        router.refresh()
-      } else {
-        const data = await res.json()
-        setErro(data.error || 'Senha incorreta')
-      }
-    } catch {
-      setErro('Erro ao conectar. Tente novamente.')
-    } finally {
+    if (error) {
+      setErro('Email ou senha incorretos')
       setLoading(false)
+    } else {
+      router.push('/dashboard')
+      router.refresh()
     }
   }
 
@@ -46,16 +41,26 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Senha
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="seu@email.com"
+              autoFocus
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
             <input
               type="password"
               value={senha}
               onChange={(e) => setSenha(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="••••••••"
-              autoFocus
               required
             />
           </div>

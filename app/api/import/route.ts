@@ -10,8 +10,13 @@ export async function POST(req: NextRequest) {
     const file = formData.get('file') as File
     if (!file) return NextResponse.json({ error: 'Nenhum arquivo' }, { status: 400 })
 
+    // Busca configurações de vencimento para calcular projeto_fatura corretamente
+    const { data: configs } = await supabase.from('configuracoes').select('chave, valor')
+    const diaVencimento = parseInt(configs?.find((c: any) => c.chave === 'dia_vencimento')?.valor || '10')
+    const ajusteFechamento = parseInt(configs?.find((c: any) => c.chave === 'ajuste_fechamento')?.valor || '0')
+
     const csvText = await file.text()
-    const transacoes = processarCSV(csvText)
+    const transacoes = processarCSV(csvText, diaVencimento, ajusteFechamento)
 
     if (transacoes.length === 0) {
       return NextResponse.json({
