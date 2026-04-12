@@ -7,6 +7,8 @@ import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabaseClient'
 
+const ROTAS_COM_MENU = ['/dashboard', '/contas', '/importar', '/configuracoes']
+
 export default function BottomNav() {
   const pathname = usePathname()
   const [session, setSession] = useState<Session | null>(null)
@@ -43,7 +45,9 @@ export default function BottomNav() {
     { href: '/configuracoes', label: 'Config', icon: Settings },
   ]
 
-  if (pathname === '/login' || isCheckingSession || !session) {
+  const deveExibirMenu = pathname ? ROTAS_COM_MENU.includes(pathname) : false
+
+  if (!deveExibirMenu || isCheckingSession || !session) {
     return null
   }
 

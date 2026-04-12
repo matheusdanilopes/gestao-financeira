@@ -1,13 +1,17 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
+
+const LOGIN_TIMEOUT_MS = 12000
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
+  const router = useRouter()
 
   useEffect(() => {
     document.body.classList.add('on-login-page')
@@ -22,18 +26,30 @@ export default function LoginPage() {
     setLoading(true)
     setErro('')
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password: senha,
-    })
+    try {
+      const loginPromise = supabase.auth.signInWithPassword({
+        email,
+        password: senha,
+      })
 
-    if (error || !data.session) {
-      setErro('Email ou senha incorretos')
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('timeout')), LOGIN_TIMEOUT_MS)
+      })
+
+      const { data, error } = await Promise.race([loginPromise, timeoutPromise])
+
+      if (error || !data.session) {
+        setErro('Email ou senha incorretos')
+        return
+      }
+
+      router.replace('/dashboard')
+      router.refresh()
+    } catch (_err) {
+      setErro('Não foi possível concluir o login. Verifique sua conexão e tente novamente.')
+    } finally {
       setLoading(false)
-      return
     }
-
-    window.location.href = '/dashboard'
   }
 
   return (
