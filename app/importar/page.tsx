@@ -7,6 +7,7 @@ import ImportResumo from '@/components/ImportResumo'
 export default function ImportarPage() {
   const [uploading, setUploading] = useState(false)
   const [resumo, setResumo] = useState<any>(null)
+  const [responsavel, setResponsavel] = useState<'Matheus' | 'Jeniffer'>('Matheus')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
@@ -16,19 +17,20 @@ export default function ImportarPage() {
     setUploading(true)
     const formData = new FormData()
     formData.append('file', file)
+    formData.append('responsavel', responsavel)
 
     try {
       const response = await fetch('/api/import', {
         method: 'POST',
-        body: formData
+        body: formData,
       })
       const data = await response.json()
-      
+
       if (data.success) {
         setResumo({
           matheus: data.matheus,
           jeniffer: data.jeniffer,
-          total: data.total
+          total: data.total,
         })
       } else {
         alert('Erro ao importar: ' + (data.error || 'Erro desconhecido'))
@@ -44,15 +46,44 @@ export default function ImportarPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-4 pb-20">
       <h1 className="text-2xl font-bold mb-6">Importação de CSV</h1>
-      
-      <div className="bg-white rounded-xl shadow p-8 text-center">
-        <div className="mb-6">
-          <FileText className="w-16 h-16 mx-auto text-gray-400 mb-2" />
-          <p className="text-gray-600">Importe o arquivo CSV do Nubank</p>
-          <p className="text-sm text-gray-400 mt-1">O sistema identifica automaticamente os responsáveis e evita duplicatas</p>
+
+      <div className="bg-white rounded-xl shadow p-6">
+        <div className="text-center mb-6">
+          <FileText className="w-14 h-14 mx-auto text-gray-400 mb-2" />
+          <p className="text-gray-600 font-medium">Importe o arquivo CSV do Nubank</p>
+          <p className="text-sm text-gray-400 mt-1">
+            Evita duplicatas automaticamente
+          </p>
         </div>
 
-        <label className="inline-block">
+        {/* Seletor de responsável */}
+        <div className="mb-6">
+          <p className="text-sm font-medium text-gray-700 mb-2">De quem é esse CSV?</p>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => setResponsavel('Matheus')}
+              className={`py-3 rounded-xl border-2 font-medium transition-all ${
+                responsavel === 'Matheus'
+                  ? 'border-blue-500 bg-blue-50 text-blue-700'
+                  : 'border-gray-200 text-gray-500 hover:border-gray-300'
+              }`}
+            >
+              Matheus
+            </button>
+            <button
+              onClick={() => setResponsavel('Jeniffer')}
+              className={`py-3 rounded-xl border-2 font-medium transition-all ${
+                responsavel === 'Jeniffer'
+                  ? 'border-pink-500 bg-pink-50 text-pink-700'
+                  : 'border-gray-200 text-gray-500 hover:border-gray-300'
+              }`}
+            >
+              Jeniffer
+            </button>
+          </div>
+        </div>
+
+        <label className="block">
           <input
             ref={fileInputRef}
             type="file"
@@ -61,9 +92,15 @@ export default function ImportarPage() {
             className="hidden"
             disabled={uploading}
           />
-          <div className="bg-blue-600 text-white px-6 py-3 rounded-lg cursor-pointer hover:bg-blue-700 transition flex items-center gap-2">
+          <div className={`w-full py-3 rounded-xl text-white font-medium flex items-center justify-center gap-2 cursor-pointer transition-colors ${
+            uploading
+              ? 'bg-gray-400 cursor-not-allowed'
+              : responsavel === 'Matheus'
+                ? 'bg-blue-600 hover:bg-blue-700'
+                : 'bg-pink-500 hover:bg-pink-600'
+          }`}>
             <Upload className="w-5 h-5" />
-            {uploading ? 'Processando...' : 'Selecionar CSV'}
+            {uploading ? 'Processando...' : `Selecionar CSV de ${responsavel}`}
           </div>
         </label>
       </div>

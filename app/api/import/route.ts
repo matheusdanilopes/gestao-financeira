@@ -10,8 +10,10 @@ export async function POST(req: NextRequest) {
     const file = formData.get('file') as File
     if (!file) return NextResponse.json({ error: 'Nenhum arquivo' }, { status: 400 })
 
+    const responsavelOverride = formData.get('responsavel') as 'Matheus' | 'Jeniffer' | null
+
     const csvText = await file.text()
-    const transacoes = processarCSV(csvText)
+    const transacoes = processarCSV(csvText, responsavelOverride ?? undefined)
 
     if (transacoes.length === 0) {
       return NextResponse.json({
