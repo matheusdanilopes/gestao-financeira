@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import BottomNav from '@/components/BottomNav'
 
 export const metadata: Metadata = {
   title: 'Gestão Financeira Familiar',
@@ -20,7 +19,6 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         <main className="max-w-md mx-auto relative">
           {children}
-          <BottomNav />
         </main>
       </body>
     </html>

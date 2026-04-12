@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { Upload, FileText } from 'lucide-react'
 import ImportResumo from '@/components/ImportResumo'
+import BottomNav from '@/components/BottomNav'
 
 export default function ImportarPage() {
   const [uploading, setUploading] = useState(false)
@@ -71,6 +72,7 @@ export default function ImportarPage() {
       </div>
 
       {resumo && <ImportResumo resumo={resumo} />}
+      <BottomNav />
     </div>
   )
 }

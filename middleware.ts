@@ -1,22 +1,32 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://placeholder.supabase.co'
+const supabaseAnonKey =
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+  process.env.NEXT_PUBLIC_SUPABASE_anon_key ??
+  'placeholder-key'
+
 export async function middleware(req: NextRequest) {
   let res = NextResponse.next({ request: { headers: req.headers } })
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://placeholder.supabase.co',
-    process.env.NEXT_PUBLIC_SUPABASE_anon_key ?? 'placeholder-key',
-    {
-      cookies: {
-        get(name) { return req.cookies.get(name)?.value },
-        set(name, value, options) { res.cookies.set({ name, value, ...options }) },
-        remove(name, options) { res.cookies.set({ name, value: '', ...options }) },
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return req.cookies.getAll()
       },
-    }
-  )
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value))
+        res = NextResponse.next({ request: req })
+        cookiesToSet.forEach(({ name, value, options }) => res.cookies.set(name, value, options))
+      },
+    },
+  })
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
   const isLoginPage = req.nextUrl.pathname === '/login'
 
   if (!user && !isLoginPage) {
@@ -31,5 +41,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon\\.ico|manifest\\.json|icons).*)'],
+  matcher: ['/((?!api|_next/static|_next/image|favicon\.ico|manifest\.json|icons).*)'],
 }

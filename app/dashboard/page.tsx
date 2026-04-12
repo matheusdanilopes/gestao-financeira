@@ -7,6 +7,7 @@ import { ptBR } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import GraficoProjecao from '@/components/GraficoProjecao'
 import DrawerDetalhes from '@/components/DrawerDetalhes'
+import BottomNav from '@/components/BottomNav'
 
 interface FaturaState {
   totalRealizado: number
@@ -241,6 +242,7 @@ export default function Dashboard() {
       </div>
 
       <DrawerDetalhes aberto={drawerAberto} onClose={() => setDrawerAberto(false)} dados={detalhesPonto} />
+      <BottomNav />
     </div>
   )
 }

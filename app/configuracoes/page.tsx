@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { descricaoFechamento } from '@/lib/fatura'
 import { Settings, LogOut } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import BottomNav from '@/components/BottomNav'
 
 export default function ConfiguracoesPage() {
   const [diaVencimento, setDiaVencimento] = useState(10)
@@ -138,6 +139,7 @@ export default function ConfiguracoesPage() {
           Sair da conta
         </button>
       </div>
+      <BottomNav />
     </div>
   )
 }
