@@ -59,7 +59,9 @@ export async function POST(req: NextRequest) {
     let totalValor = 0
 
     if (novas.length > 0) {
-      let insertResult = await supabase.from('transacoes_nubank').insert(novas)
+      let insertResult = await supabase
+        .from('transacoes_nubank')
+        .upsert(novas, { onConflict: 'hash_linha', ignoreDuplicates: true })
 
       // Compatibilidade com bancos antigos: coluna pode ser 'data' em vez de 'data_compra'.
       if (insertResult.error && insertResult.error.message.includes("data_compra")) {
@@ -67,7 +69,9 @@ export async function POST(req: NextRequest) {
           const { data_compra, ...resto } = t as any
           return { ...resto, data: data_compra }
         })
-        insertResult = await supabase.from('transacoes_nubank').insert(novasLegado)
+        insertResult = await supabase
+          .from('transacoes_nubank')
+          .upsert(novasLegado, { onConflict: 'hash_linha', ignoreDuplicates: true })
       }
 
       if (insertResult.error) {
