@@ -7,7 +7,7 @@ const CATEGORIAS = [
 ]
 
 const GEMINI_MODEL = 'gemini-3-flash'
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent`
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
 function getSupabase() {
   return createClient(
