@@ -18,12 +18,21 @@ export function processarCSV(
   diaVencimento: number = 10,
   ajusteFechamento: number = 0
 ): TransacaoNubank[] {
-  const result = Papa.parse(csvText, { header: true, skipEmptyLines: true })
+  // Remove null bytes e caracteres de controle que o PostgreSQL não aceita
+  const csvLimpo = csvText.replace(/\u0000/g, '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+  const result = Papa.parse(csvLimpo, { header: true, skipEmptyLines: true })
   const transacoes: TransacaoNubank[] = []
+
+  function sanitizar(str: string): string {
+    return str
+      .replace(/\u0000/g, '')
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+      .trim()
+  }
 
   for (const row of result.data as any[]) {
     // Suporte ao formato novo (date, title, amount) e antigo (Data, Descrição, Valor)
-    const descricao = row.title || row.descricao || row['Descrição'] || row.Descricao || ''
+    const descricao = sanitizar(row.title || row.descricao || row['Descrição'] || row.Descricao || '')
     const responsavel: 'Matheus' | 'Jeniffer' =
       descricao.toLowerCase().includes('jeniffer') ? 'Jeniffer' : 'Matheus'
 
