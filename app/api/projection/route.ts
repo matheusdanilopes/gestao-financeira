@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
 import { format, addMonths, startOfMonth } from 'date-fns'
 
+const PROJECAO_OFFSET_MESES = 1
+
 function extrairParcelamento(t: any) {
   if (t.parcela_atual && t.total_parcelas) {
     return { atual: Number(t.parcela_atual), total: Number(t.total_parcelas) }
@@ -23,7 +25,7 @@ export async function POST(req: NextRequest) {
   try {
     const supabase = criarSupabaseServer(req)
     const { meses } = await req.json()
-    const hoje = new Date()
+    const inicioProjecao = startOfMonth(addMonths(new Date(), PROJECAO_OFFSET_MESES))
     const resultados = {
       total: new Array(meses.length).fill(0),
       matheus: new Array(meses.length).fill(0),
@@ -35,7 +37,7 @@ export async function POST(req: NextRequest) {
     const { data: extras } = await supabase.from('planejamento').select('*').eq('categoria', 'Extra')
 
     for (let i = 0; i < meses.length; i++) {
-      const mesRef = startOfMonth(addMonths(hoje, i + 1))
+      const mesRef = startOfMonth(addMonths(inicioProjecao, i))
       const mesStr = format(mesRef, 'yyyy-MM-dd')
 
       for (const t of (transacoes || [])) {
