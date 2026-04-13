@@ -27,6 +27,13 @@ export default function LoginPage() {
     setErro('')
 
     try {
+
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder')) {
+      setErro('Configuração do Supabase ausente no deploy (NEXT_PUBLIC_SUPABASE_URL).')
+      setLoading(false)
+      return
+    }
+
       const loginPromise = supabase.auth.signInWithPassword({
         email,
         password: senha,

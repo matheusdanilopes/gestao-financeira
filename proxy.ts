@@ -7,6 +7,8 @@ const supabaseAnonKey =
   process.env.NEXT_PUBLIC_SUPABASE_anon_key ??
   'placeholder-key'
 
+const AUTH_CHECK_TIMEOUT_MS = 3000
+
 export async function proxy(req: NextRequest) {
   let res = NextResponse.next({ request: { headers: req.headers } })
 
@@ -23,18 +25,23 @@ export async function proxy(req: NextRequest) {
     },
   })
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
   const isLoginPage = req.nextUrl.pathname === '/login'
 
-  if (!user && !isLoginPage) {
-    return NextResponse.redirect(new URL('/login', req.url))
-  }
+  try {
+    const authPromise = supabase.auth.getUser()
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('timeout')), AUTH_CHECK_TIMEOUT_MS)
+    })
 
-  if (user && isLoginPage) {
-    return NextResponse.redirect(new URL('/dashboard', req.url))
+    const {
+      data: { user },
+    } = await Promise.race([authPromise, timeoutPromise])
+
+    if (user && isLoginPage) {
+      return NextResponse.redirect(new URL('/dashboard', req.url))
+    }
+  } catch {
+    // Em caso de timeout/falha de rede, não bloquear navegação.
   }
 
   return res
