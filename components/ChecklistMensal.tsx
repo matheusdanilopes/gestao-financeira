@@ -1,10 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
-import { CheckCircle, Circle, AlertCircle, Pencil, Trash2, Plus } from 'lucide-react'
+import { CheckCircle, AlertCircle, Pencil, Trash2, Plus } from 'lucide-react'
 
 interface ItemPlanejamento {
   id: string
@@ -24,14 +23,14 @@ interface Props {
 export default function ChecklistMensal({ mesSelecionado }: Props) {
   const [itens, setItens] = useState<ItemPlanejamento[]>([])
   const [apenasPendentes, setApenasPendentes] = useState(false)
-  const [modalAberto, setModalAberto] = useState<string | null>(null) // 'pagar', 'editar', 'excluir'
+  const [modalAberto, setModalAberto] = useState<string | null>(null)
   const [itemSelecionado, setItemSelecionado] = useState<ItemPlanejamento | null>(null)
   const [valorReal, setValorReal] = useState('')
   const [formData, setFormData] = useState({
     item: '',
     responsavel: 'Matheus',
     categoria: 'Fixa',
-    valor_previsto: ''
+    valor_previsto: '',
   })
 
   useEffect(() => {
@@ -54,7 +53,6 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
     setItens(data || [])
   }
 
-  // Marcar como pago
   async function marcarComoPago(id: string) {
     if (!valorReal) return
     const valorNumerico = parseFloat(valorReal.replace(',', '.'))
@@ -76,7 +74,6 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
     }
   }
 
-  // Excluir item
   async function excluirItem(id: string) {
     const { error } = await supabase.from('planejamento').delete().eq('id', id)
     if (!error) {
@@ -87,14 +84,13 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
     }
   }
 
-  // Editar item
   async function editarItem() {
     if (!itemSelecionado) return
     const updates = {
       item: formData.item,
       responsavel: formData.responsavel,
       categoria: formData.categoria,
-      valor_previsto: parseFloat(formData.valor_previsto.replace(',', '.'))
+      valor_previsto: parseFloat(formData.valor_previsto.replace(',', '.')),
     }
     const { error } = await supabase.from('planejamento').update(updates).eq('id', itemSelecionado.id)
     if (!error) {
@@ -106,7 +102,6 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
     }
   }
 
-  // Adicionar novo item
   async function adicionarItem() {
     const primeiroDia = startOfMonth(mesSelecionado)
     const novoItem = {
@@ -116,7 +111,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       categoria: formData.categoria,
       valor_previsto: parseFloat(formData.valor_previsto.replace(',', '.')),
       pago: false,
-      valor_real: null
+      valor_real: null,
     }
     const { error } = await supabase.from('planejamento').insert([novoItem])
     if (!error) {
@@ -134,32 +129,33 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       item: item.item,
       responsavel: item.responsavel,
       categoria: item.categoria,
-      valor_previsto: item.valor_previsto.toString()
+      valor_previsto: item.valor_previsto.toString(),
     })
     setModalAberto('editar')
   }
 
-  function abrirModalExcluir(item: ItemPlanejamento) {
-    setItemSelecionado(item)
-    setModalAberto('excluir')
-  }
+  const totalPrevisto = useMemo(
+    () => itens.reduce((acc, item) => acc + item.valor_previsto, 0),
+    [itens]
+  )
 
-  function abrirModalAdicionar() {
-    setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', valor_previsto: '' })
-    setModalAberto('adicionar')
-  }
+  const totalPago = useMemo(
+    () => itens.reduce((acc, item) => acc + (item.pago ? (item.valor_real ?? item.valor_previsto) : 0), 0),
+    [itens]
+  )
 
   return (
     <div className="space-y-3">
-      {/* Botão Adicionar */}
       <button
-        onClick={abrirModalAdicionar}
+        onClick={() => {
+          setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', valor_previsto: '' })
+          setModalAberto('adicionar')
+        }}
         className="w-full bg-green-600 text-white py-2 rounded-lg font-medium flex items-center justify-center gap-2"
       >
         <Plus className="w-5 h-5" /> Adicionar item
       </button>
 
-      {/* Filtro */}
       <button
         onClick={() => setApenasPendentes(!apenasPendentes)}
         className={`w-full py-2 rounded-lg font-medium transition ${
@@ -169,48 +165,57 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
         {apenasPendentes ? '✓ Mostrando apenas pendentes' : '🔘 Ver apenas pendentes'}
       </button>
 
-      {/* Lista de itens */}
-      {itens.map((item) => (
-        <div key={item.id} className={`bg-white rounded-xl shadow p-4 ${item.pago ? 'opacity-75 bg-gray-50' : ''}`}>
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <span className={`text-xs px-2 py-1 rounded ${
-                  item.categoria === 'Fixa' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
-                }`}>
-                  {item.categoria}
-                </span>
-                <span className="text-xs text-gray-500">{item.responsavel}</span>
-              </div>
-              <p className="font-semibold text-gray-800">{item.item}</p>
-              <div className="flex items-center gap-2 mt-2">
-                <span className="text-sm text-gray-600">Previsto: R$ {item.valor_previsto.toFixed(2)}</span>
-                {item.pago && item.valor_real && (
-                  <span className={`text-sm ${item.valor_real !== item.valor_previsto ? 'text-red-500' : 'text-green-600'}`}>
-                    | Pago: R$ {item.valor_real.toFixed(2)}
-                  </span>
-                )}
-                {item.pago && item.valor_real !== item.valor_previsto && <AlertCircle className="w-4 h-4 text-red-500" />}
-              </div>
-            </div>
-            <div className="flex gap-2">
-              {!item.pago && (
-                <button onClick={() => { setItemSelecionado(item); setModalAberto('pagar') }} className="text-green-600">
-                  <CheckCircle className="w-6 h-6" />
-                </button>
-              )}
-              <button onClick={() => abrirModalEditar(item)} className="text-blue-600">
-                <Pencil className="w-5 h-5" />
-              </button>
-              <button onClick={() => abrirModalExcluir(item)} className="text-red-600">
-                <Trash2 className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
+      <div className="bg-white rounded-xl shadow p-3 grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-xs text-gray-500">Total previsto</p>
+          <p className="text-lg font-bold text-gray-800">R$ {totalPrevisto.toFixed(2)}</p>
         </div>
-      ))}
+        <div>
+          <p className="text-xs text-gray-500">Total pago</p>
+          <p className="text-lg font-bold text-green-700">R$ {totalPago.toFixed(2)}</p>
+        </div>
+      </div>
 
-      {/* MODAL PAGAR */}
+      <div className="bg-white rounded-xl shadow divide-y">
+        {itens.map((item) => (
+          <div key={item.id} className={`p-3 ${item.pago ? 'bg-gray-50' : ''}`}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-gray-800 truncate">{item.item}</p>
+                <p className="text-xs text-gray-500">{item.categoria} · {item.responsavel}</p>
+              </div>
+
+              <div className="text-right shrink-0">
+                <p className="text-xs text-gray-500">Prev: R$ {item.valor_previsto.toFixed(2)}</p>
+                <p className={`text-xs font-semibold ${item.pago ? 'text-green-700' : 'text-gray-400'}`}>
+                  Pago: R$ {(item.valor_real ?? 0).toFixed(2)}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-1 shrink-0">
+                {!item.pago && (
+                  <button onClick={() => { setItemSelecionado(item); setModalAberto('pagar') }} className="text-green-600">
+                    <CheckCircle className="w-5 h-5" />
+                  </button>
+                )}
+                <button onClick={() => abrirModalEditar(item)} className="text-blue-600">
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button onClick={() => { setItemSelecionado(item); setModalAberto('excluir') }} className="text-red-600">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            {item.pago && item.valor_real !== null && Math.abs(item.valor_real - item.valor_previsto) > 0.01 && (
+              <div className="mt-1 flex items-center gap-1 text-xs text-red-500">
+                <AlertCircle className="w-3.5 h-3.5" />
+                Diferença: R$ {Math.abs(item.valor_real - item.valor_previsto).toFixed(2)}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
       {modalAberto === 'pagar' && itemSelecionado && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-sm w-full p-6">
@@ -224,22 +229,21 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
         </div>
       )}
 
-      {/* MODAL ADICIONAR/EDITAR */}
       {(modalAberto === 'adicionar' || modalAberto === 'editar') && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-sm w-full p-6">
             <h3 className="text-lg font-bold mb-4">{modalAberto === 'adicionar' ? 'Novo Item' : 'Editar Item'}</h3>
             <div className="space-y-3">
-              <input type="text" placeholder="Descrição" value={formData.item} onChange={(e) => setFormData({...formData, item: e.target.value})} className="w-full border rounded-lg p-3" />
-              <select value={formData.responsavel} onChange={(e) => setFormData({...formData, responsavel: e.target.value})} className="w-full border rounded-lg p-3">
+              <input type="text" placeholder="Descrição" value={formData.item} onChange={(e) => setFormData({ ...formData, item: e.target.value })} className="w-full border rounded-lg p-3" />
+              <select value={formData.responsavel} onChange={(e) => setFormData({ ...formData, responsavel: e.target.value })} className="w-full border rounded-lg p-3">
                 <option value="Matheus">Matheus</option>
                 <option value="Jeniffer">Jeniffer</option>
               </select>
-              <select value={formData.categoria} onChange={(e) => setFormData({...formData, categoria: e.target.value})} className="w-full border rounded-lg p-3">
+              <select value={formData.categoria} onChange={(e) => setFormData({ ...formData, categoria: e.target.value })} className="w-full border rounded-lg p-3">
                 <option value="Fixa">Fixa</option>
                 <option value="Extra">Extra</option>
               </select>
-              <input type="text" placeholder="Valor previsto (R$)" value={formData.valor_previsto} onChange={(e) => setFormData({...formData, valor_previsto: e.target.value})} className="w-full border rounded-lg p-3" />
+              <input type="text" placeholder="Valor previsto (R$)" value={formData.valor_previsto} onChange={(e) => setFormData({ ...formData, valor_previsto: e.target.value })} className="w-full border rounded-lg p-3" />
               <div className="flex gap-3">
                 <button onClick={() => setModalAberto(null)} className="flex-1 py-2 rounded-lg bg-gray-200">Cancelar</button>
                 <button onClick={modalAberto === 'adicionar' ? adicionarItem : editarItem} className="flex-1 py-2 rounded-lg bg-blue-600 text-white">Salvar</button>
@@ -249,7 +253,6 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
         </div>
       )}
 
-      {/* MODAL EXCLUIR */}
       {modalAberto === 'excluir' && itemSelecionado && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-sm w-full p-6">
