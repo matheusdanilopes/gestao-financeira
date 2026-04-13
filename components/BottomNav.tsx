@@ -8,7 +8,7 @@ import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabaseClient'
 import { AUTH_DISABLED } from '@/lib/authConfig'
 
-const ROTAS_COM_MENU = ['/dashboard', '/contas', '/importar', '/configuracoes']
+const ROTAS_COM_MENU = ['/dashboard', '/contas', '/receitas', '/compras', '/importar', '/configuracoes']
 
 export default function BottomNav() {
   const pathname = usePathname()
@@ -41,7 +41,9 @@ export default function BottomNav() {
 
   const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: Home },
-    { href: '/contas', label: 'Contas', icon: ListChecks },
+    { href: '/contas', label: 'Despesas', icon: ListChecks },
+    { href: '/receitas', label: 'Receitas', icon: ListChecks },
+    { href: '/compras', label: 'Compras', icon: ListChecks },
     { href: '/importar', label: 'Importar', icon: Upload },
     { href: '/configuracoes', label: 'Config', icon: Settings },
   ]

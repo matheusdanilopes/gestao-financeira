@@ -15,7 +15,7 @@ export default function ContasPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 pb-20">
-      <h1 className="text-2xl font-bold mb-4">Gestão de Contas</h1>
+      <h1 className="text-2xl font-bold mb-4">Gestão de Despesas</h1>
       
       {/* Seletor de meses estilo carrossel */}
       <div className="flex items-center justify-between bg-white rounded-xl shadow p-3 mb-6">

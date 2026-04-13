@@ -43,6 +43,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       .from('planejamento')
       .select('*')
       .eq('mes_referencia', format(primeiroDia, 'yyyy-MM-dd'))
+      .in('categoria', ['Fixa', 'Extra'])
       .order('categoria', { ascending: false })
 
     if (apenasPendentes) {
