@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns'
+import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import GraficoProjecao from '@/components/GraficoProjecao'
@@ -43,18 +43,24 @@ export default function Dashboard() {
   async function carregarDados(mes: Date) {
     setCarregando(true)
     const primeiroDia = startOfMonth(mes)
-    const ultimoDia = endOfMonth(mes)
     const mesRef = format(primeiroDia, 'yyyy-MM-dd')
+    const mesRefFatura = format(startOfMonth(addMonths(mes, 1)), 'yyyy-MM-dd')
 
-    // Filtra pelo mês de cobrança (projeto_fatura), não pela data da transação
-    const { data: transacoes } = await supabase
+    // Fatura considera sempre o mês selecionado + 1 (mês de cobrança do cartão).
+    const { data: transacoesFatura } = await supabase
       .from('transacoes_nubank')
       .select('valor, responsavel')
+      .eq('projeto_fatura', mesRefFatura)
+
+    // Resumo de caixa segue o mês selecionado normalmente.
+    const { data: transacoesResumo } = await supabase
+      .from('transacoes_nubank')
+      .select('valor')
       .eq('projeto_fatura', mesRef)
 
-    const totalRealizado = transacoes?.reduce((acc, t) => acc + t.valor, 0) || 0
-    const matheusAtual = transacoes?.filter(t => t.responsavel === 'Matheus').reduce((acc, t) => acc + t.valor, 0) || 0
-    const jenifferAtual = transacoes?.filter(t => t.responsavel === 'Jeniffer').reduce((acc, t) => acc + t.valor, 0) || 0
+    const totalRealizado = transacoesFatura?.reduce((acc, t) => acc + t.valor, 0) || 0
+    const matheusAtual = transacoesFatura?.filter(t => t.responsavel === 'Matheus').reduce((acc, t) => acc + t.valor, 0) || 0
+    const jenifferAtual = transacoesFatura?.filter(t => t.responsavel === 'Jeniffer').reduce((acc, t) => acc + t.valor, 0) || 0
 
     const { data: planejamento } = await supabase
       .from('planejamento')
@@ -74,7 +80,8 @@ export default function Dashboard() {
     const debitosExtras = planejamento
       ?.filter(p => p.categoria === 'Extra')
       .reduce((acc, p) => acc + p.valor_previsto, 0) || 0
-    const totalGastos = contasFixas + totalRealizado + debitosExtras
+    const totalRealizadoResumo = transacoesResumo?.reduce((acc, t) => acc + t.valor, 0) || 0
+    const totalGastos = contasFixas + totalRealizadoResumo + debitosExtras
     const sobraLiquida = receitaTotal - totalGastos
     const percentualComprometimento = receitaTotal > 0 ? (totalGastos / receitaTotal) * 100 : 0
 
