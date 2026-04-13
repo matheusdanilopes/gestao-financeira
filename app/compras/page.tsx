@@ -37,7 +37,7 @@ function borderColor(responsavel: string): string {
 }
 
 export default function ComprasPage() {
-  const [mesAtual, setMesAtual] = useState(new Date())
+  const [mesAtual, setMesAtual] = useState(() => addMonths(new Date(), 1))
   const [compras, setCompras] = useState<Compra[]>([])
   const [filtroResponsavel, setFiltroResponsavel] = useState('')
   const [filtroDescricao, setFiltroDescricao] = useState('')

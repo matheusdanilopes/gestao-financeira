@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabaseClient'
 import { descricaoFechamento } from '@/lib/fatura'
 import { Settings, LogOut, Upload } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -18,28 +17,36 @@ export default function ConfiguracoesPage() {
   useEffect(() => { carregarConfigs() }, [])
 
   async function carregarConfigs() {
-    const { data } = await supabase.from('configuracoes').select('chave, valor')
-    if (data) {
-      const dv = data.find((c: any) => c.chave === 'dia_vencimento')
-      const af = data.find((c: any) => c.chave === 'ajuste_fechamento')
-      if (dv) setDiaVencimento(parseInt(dv.valor))
-      if (af) setAjusteFechamento(parseInt(af.valor))
-    }
+    const res = await fetch('/api/configuracoes')
+    const data = await res.json()
+    const configs: Array<{ chave: string; valor: string }> = data.configuracoes ?? []
+    const dv = configs.find(c => c.chave === 'dia_vencimento')
+    const af = configs.find(c => c.chave === 'ajuste_fechamento')
+    if (dv) setDiaVencimento(parseInt(dv.valor))
+    if (af) setAjusteFechamento(parseInt(af.valor))
   }
 
   async function salvar() {
     setSalvando(true)
     setMensagem('')
-    await supabase.from('configuracoes').upsert(
-      [
-        { chave: 'dia_vencimento', valor: String(diaVencimento) },
-        { chave: 'ajuste_fechamento', valor: String(ajusteFechamento) },
-      ],
-      { onConflict: 'chave' }
-    )
-    setMensagem('Configurações salvas com sucesso!')
+    const res = await fetch('/api/configuracoes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        configuracoes: [
+          { chave: 'dia_vencimento', valor: String(diaVencimento) },
+          { chave: 'ajuste_fechamento', valor: String(ajusteFechamento) },
+        ],
+      }),
+    })
+    const data = await res.json()
+    if (data.ok) {
+      setMensagem('Configurações salvas com sucesso!')
+      setTimeout(() => setMensagem(''), 3000)
+    } else {
+      setMensagem('Erro ao salvar: ' + (data.error || 'desconhecido'))
+    }
     setSalvando(false)
-    setTimeout(() => setMensagem(''), 3000)
   }
 
   async function handleLogout() {

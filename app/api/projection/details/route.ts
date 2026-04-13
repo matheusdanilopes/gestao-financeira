@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
 import { format, addMonths, startOfMonth } from 'date-fns'
 
-const PROJECAO_OFFSET_MESES = 1
+const PROJECAO_OFFSET_MESES = 2
 
 function extrairParcelamento(t: any) {
   if (t.parcela_atual && t.total_parcelas) {

@@ -17,7 +17,7 @@ import ChartDataLabels from 'chartjs-plugin-datalabels'
 import { addMonths, format, startOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
-const PROJECAO_OFFSET_MESES = 1
+const PROJECAO_OFFSET_MESES = 2
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
 

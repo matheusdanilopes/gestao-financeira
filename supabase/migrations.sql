@@ -19,3 +19,15 @@ INSERT INTO configuracoes (chave, valor)
     ('dia_vencimento',    '10'),
     ('ajuste_fechamento', '0')
   ON CONFLICT (chave) DO NOTHING;
+
+-- Permite leitura e escrita para usuários autenticados (necessário se RLS estiver ativo)
+ALTER TABLE configuracoes ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "allow_all_authenticated" ON configuracoes;
+CREATE POLICY "allow_all_authenticated" ON configuracoes
+  FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+
+-- Permite leitura anônima também (para o servidor via anon key)
+DROP POLICY IF EXISTS "allow_anon_read" ON configuracoes;
+CREATE POLICY "allow_anon_read" ON configuracoes
+  FOR SELECT USING (true);
