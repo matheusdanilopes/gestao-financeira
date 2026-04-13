@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Bot, User, Sparkles } from 'lucide-react'
+import { Send, Bot, User, Sparkles, Trash2 } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 
 interface Mensagem {
@@ -14,7 +14,63 @@ const SUGESTOES = [
   'Quais foram os 5 maiores gastos?',
   'Compare esse mês com o anterior',
   'Quanto cada um gastou?',
+  'Quais categorias gastamos mais?',
+  'Estamos dentro do planejado?',
 ]
+
+function MarkdownContent({ text }: { text: string }) {
+  const lines = text.split('\n')
+  const elements: React.ReactNode[] = []
+  let i = 0
+
+  function parseInline(line: string): React.ReactNode {
+    const parts = line.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g)
+    return parts.map((part, idx) => {
+      if (part.startsWith('**') && part.endsWith('**'))
+        return <strong key={idx}>{part.slice(2, -2)}</strong>
+      if (part.startsWith('*') && part.endsWith('*'))
+        return <em key={idx}>{part.slice(1, -1)}</em>
+      if (part.startsWith('`') && part.endsWith('`'))
+        return <code key={idx} className="bg-gray-100 px-1 rounded text-[11px] font-mono">{part.slice(1, -1)}</code>
+      return part
+    })
+  }
+
+  while (i < lines.length) {
+    const line = lines[i]
+
+    if (line.startsWith('### ')) {
+      elements.push(<p key={i} className="font-bold text-gray-800 mt-2 mb-0.5">{parseInline(line.slice(4))}</p>)
+    } else if (line.startsWith('## ')) {
+      elements.push(<p key={i} className="font-bold text-gray-900 text-base mt-3 mb-1">{parseInline(line.slice(3))}</p>)
+    } else if (line.startsWith('# ')) {
+      elements.push(<p key={i} className="font-bold text-gray-900 text-base mt-3 mb-1">{parseInline(line.slice(2))}</p>)
+    } else if (line.match(/^[-*] /)) {
+      const listItems: React.ReactNode[] = []
+      while (i < lines.length && lines[i].match(/^[-*] /)) {
+        listItems.push(<li key={i}>{parseInline(lines[i].slice(2))}</li>)
+        i++
+      }
+      elements.push(<ul key={`ul-${i}`} className="list-disc pl-4 space-y-0.5 my-1">{listItems}</ul>)
+      continue
+    } else if (line.match(/^\d+\. /)) {
+      const listItems: React.ReactNode[] = []
+      while (i < lines.length && lines[i].match(/^\d+\. /)) {
+        listItems.push(<li key={i}>{parseInline(lines[i].replace(/^\d+\. /, ''))}</li>)
+        i++
+      }
+      elements.push(<ol key={`ol-${i}`} className="list-decimal pl-4 space-y-0.5 my-1">{listItems}</ol>)
+      continue
+    } else if (line.trim() === '') {
+      elements.push(<div key={i} className="h-1.5" />)
+    } else {
+      elements.push(<p key={i} className="leading-relaxed">{parseInline(line)}</p>)
+    }
+    i++
+  }
+
+  return <div className="text-sm space-y-0.5">{elements}</div>
+}
 
 export default function ChatPage() {
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
@@ -48,12 +104,12 @@ export default function ChatPage() {
       if (data.resposta) {
         setMensagens(prev => [...prev, { role: 'assistant', content: data.resposta }])
       } else if (data.error?.includes('GEMINI_API_KEY')) {
-        setMensagens(prev => [...prev, { role: 'assistant', content: '⚙️ A chave GEMINI_API_KEY não está configurada no Vercel.\n\nAdicione a variável de ambiente e faça um novo deploy.' }])
+        setMensagens(prev => [...prev, { role: 'assistant', content: 'A chave GEMINI_API_KEY não está configurada no Vercel.\n\nAdicione a variável de ambiente e faça um novo deploy.' }])
       } else {
-        setMensagens(prev => [...prev, { role: 'assistant', content: `Erro: ${data.error || 'tente novamente.'}` }])
+        setMensagens(prev => [...prev, { role: 'assistant', content: `Não consegui responder agora. Tente novamente.\n\n_Detalhe: ${data.error || 'erro desconhecido'}_` }])
       }
     } catch {
-      setMensagens(prev => [...prev, { role: 'assistant', content: 'Erro de conexão. Verifique sua internet.' }])
+      setMensagens(prev => [...prev, { role: 'assistant', content: 'Erro de conexão. Verifique sua internet e tente novamente.' }])
     } finally {
       setCarregando(false)
       inputRef.current?.focus()
@@ -74,29 +130,38 @@ export default function ChatPage() {
         <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center">
           <Sparkles className="w-5 h-5 text-blue-600" />
         </div>
-        <div>
+        <div className="flex-1">
           <p className="font-semibold text-gray-800">Assistente Financeiro</p>
           <p className="text-xs text-gray-400">Powered by Gemini</p>
         </div>
+        {mensagens.length > 0 && (
+          <button
+            onClick={() => setMensagens([])}
+            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition"
+            title="Limpar conversa"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Mensagens */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {mensagens.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-10 gap-4">
+          <div className="flex flex-col items-center justify-center py-8 gap-4">
             <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center">
               <Bot className="w-8 h-8 text-blue-400" />
             </div>
             <div className="text-center">
               <p className="font-semibold text-gray-700">Olá! Sou seu assistente financeiro.</p>
-              <p className="text-sm text-gray-400 mt-1">Pergunte qualquer coisa sobre as finanças do casal.</p>
+              <p className="text-sm text-gray-400 mt-1">Analiso os dados do mês e respondo suas perguntas.</p>
             </div>
-            <div className="w-full space-y-2 mt-2">
+            <div className="w-full grid grid-cols-2 gap-2 mt-1">
               {SUGESTOES.map((s) => (
                 <button
                   key={s}
                   onClick={() => enviar(s)}
-                  className="w-full text-left text-sm bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-gray-600 hover:border-blue-300 hover:bg-blue-50 transition"
+                  className="text-left text-xs bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-gray-600 hover:border-blue-300 hover:bg-blue-50 transition leading-snug"
                 >
                   {s}
                 </button>
@@ -115,12 +180,15 @@ export default function ChatPage() {
                 : <Bot className="w-4 h-4 text-gray-500" />
               }
             </div>
-            <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
+            <div className={`max-w-[82%] rounded-2xl px-4 py-2.5 ${
               m.role === 'user'
-                ? 'bg-blue-600 text-white rounded-tr-sm'
+                ? 'bg-blue-600 text-white rounded-tr-sm text-sm leading-relaxed'
                 : 'bg-white text-gray-800 shadow-sm rounded-tl-sm'
             }`}>
-              {m.content}
+              {m.role === 'user'
+                ? m.content
+                : <MarkdownContent text={m.content} />
+              }
             </div>
           </div>
         ))}
@@ -130,7 +198,7 @@ export default function ChatPage() {
             <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
               <Bot className="w-4 h-4 text-gray-500" />
             </div>
-            <div className="bg-white shadow-sm rounded-2xl rounded-tl-sm px-4 py-3 flex gap-1">
+            <div className="bg-white shadow-sm rounded-2xl rounded-tl-sm px-4 py-3 flex gap-1 items-center">
               <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
               <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
               <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />

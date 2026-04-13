@@ -25,7 +25,7 @@ async function geminiChat(apiKey: string, systemPrompt: string, mensagens: Array
 
   const body = {
     contents,
-    generationConfig: { maxOutputTokens: 1024 },
+    generationConfig: { maxOutputTokens: 2048 },
   }
 
   const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
