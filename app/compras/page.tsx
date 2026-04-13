@@ -21,6 +21,10 @@ type Compra = {
 export default function ComprasPage() {
   const [mesAtual, setMesAtual] = useState(new Date())
   const [compras, setCompras] = useState<Compra[]>([])
+  const [filtroResponsavel, setFiltroResponsavel] = useState('')
+  const [filtroDescricao, setFiltroDescricao] = useState('')
+  const [filtroValorMin, setFiltroValorMin] = useState('')
+  const [filtroDia, setFiltroDia] = useState('')
 
   useEffect(() => {
     carregarCompras()
@@ -35,7 +39,21 @@ export default function ComprasPage() {
     setCompras(data || [])
   }
 
-  const total = useMemo(() => compras.reduce((acc, c) => acc + c.valor, 0), [compras])
+  const comprasFiltradas = useMemo(() => {
+    return compras.filter((c) => {
+      const dataStr = (c.data_compra || c.data || '').toString().substring(0, 10)
+      const diaCompra = dataStr ? Number(dataStr.substring(8, 10)) : null
+
+      const passaResponsavel = !filtroResponsavel || c.responsavel === filtroResponsavel
+      const passaDescricao = !filtroDescricao || c.descricao.toLowerCase().includes(filtroDescricao.toLowerCase())
+      const passaValor = !filtroValorMin || c.valor >= Number(filtroValorMin)
+      const passaDia = !filtroDia || diaCompra === Number(filtroDia)
+
+      return passaResponsavel && passaDescricao && passaValor && passaDia
+    })
+  }, [compras, filtroResponsavel, filtroDescricao, filtroValorMin, filtroDia])
+
+  const total = useMemo(() => comprasFiltradas.reduce((acc, c) => acc + c.valor, 0), [comprasFiltradas])
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 pb-20">
@@ -47,13 +65,24 @@ export default function ComprasPage() {
         <button onClick={() => setMesAtual(addMonths(mesAtual, 1))} className="p-2 hover:bg-gray-100 rounded-full"><ChevronRight className="w-5 h-5" /></button>
       </div>
 
+      <div className="bg-white rounded-xl shadow p-3 mb-3 grid grid-cols-2 gap-2">
+        <select className="border rounded-lg p-2 text-sm" value={filtroResponsavel} onChange={(e) => setFiltroResponsavel(e.target.value)}>
+          <option value="">Responsável (todos)</option>
+          <option value="Matheus">Matheus</option>
+          <option value="Jeniffer">Jeniffer</option>
+        </select>
+        <input className="border rounded-lg p-2 text-sm" placeholder="Descrição" value={filtroDescricao} onChange={(e) => setFiltroDescricao(e.target.value)} />
+        <input className="border rounded-lg p-2 text-sm" type="number" min="0" placeholder="Valor mínimo" value={filtroValorMin} onChange={(e) => setFiltroValorMin(e.target.value)} />
+        <input className="border rounded-lg p-2 text-sm" type="number" min="1" max="31" placeholder="Dia" value={filtroDia} onChange={(e) => setFiltroDia(e.target.value)} />
+      </div>
+
       <div className="bg-white rounded-xl shadow p-3 mb-3">
-        <p className="text-xs text-gray-500">Total importado no mês</p>
+        <p className="text-xs text-gray-500">Total filtrado no mês</p>
         <p className="text-lg font-bold text-blue-700">R$ {total.toFixed(2)}</p>
       </div>
 
       <div className="bg-white rounded-xl shadow divide-y">
-        {compras.map((c) => (
+        {comprasFiltradas.map((c) => (
           <div key={c.hash_linha} className="p-3 flex items-center justify-between gap-2">
             <div className="min-w-0">
               <p className="text-sm font-medium truncate">{c.descricao}</p>
