@@ -47,8 +47,10 @@ export default function ChatPage() {
 
       if (data.resposta) {
         setMensagens(prev => [...prev, { role: 'assistant', content: data.resposta }])
+      } else if (data.error?.includes('GEMINI_API_KEY')) {
+        setMensagens(prev => [...prev, { role: 'assistant', content: '⚙️ A chave GEMINI_API_KEY não está configurada no Vercel.\n\nAdicione a variável de ambiente e faça um novo deploy.' }])
       } else {
-        setMensagens(prev => [...prev, { role: 'assistant', content: 'Erro ao processar sua pergunta. Tente novamente.' }])
+        setMensagens(prev => [...prev, { role: 'assistant', content: `Erro: ${data.error || 'tente novamente.'}` }])
       }
     } catch {
       setMensagens(prev => [...prev, { role: 'assistant', content: 'Erro de conexão. Verifique sua internet.' }])
@@ -74,7 +76,7 @@ export default function ChatPage() {
         </div>
         <div>
           <p className="font-semibold text-gray-800">Assistente Financeiro</p>
-          <p className="text-xs text-gray-400">Powered by Claude</p>
+          <p className="text-xs text-gray-400">Powered by Gemini</p>
         </div>
       </div>
 
