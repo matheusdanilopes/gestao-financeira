@@ -59,7 +59,17 @@ export async function POST(req: NextRequest) {
     let totalValor = 0
 
     if (novas.length > 0) {
-      const insertResult = await supabase.from('transacoes_nubank').insert(novas)
+      let insertResult = await supabase.from('transacoes_nubank').insert(novas)
+
+      // Compatibilidade com bancos antigos: coluna pode ser 'data' em vez de 'data_compra'.
+      if (insertResult.error && insertResult.error.message.includes("data_compra")) {
+        const novasLegado = novas.map((t) => {
+          const { data_compra, ...resto } = t as any
+          return { ...resto, data: data_compra }
+        })
+        insertResult = await supabase.from('transacoes_nubank').insert(novasLegado)
+      }
+
       if (insertResult.error) {
         console.error('[import] Erro insert:', JSON.stringify(insertResult.error))
         return NextResponse.json(
@@ -67,6 +77,7 @@ export async function POST(req: NextRequest) {
           { status: 500 }
         )
       }
+
       for (let k = 0; k < novas.length; k++) {
         const t = novas[k]
         if (t.responsavel === 'Matheus') novosMatheus++

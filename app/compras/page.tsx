@@ -30,7 +30,7 @@ export default function ComprasPage() {
     const mesRef = format(startOfMonth(mesAtual), 'yyyy-MM-dd')
     const { data } = await supabase
       .from('transacoes_nubank')
-      .select('hash_linha, data_compra, data, descricao, valor, responsavel, parcela_atual, total_parcelas')
+      .select('*')
       .eq('projeto_fatura', mesRef)
     setCompras(data || [])
   }
