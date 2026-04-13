@@ -6,6 +6,7 @@ import { Home, ListChecks, Upload, Settings } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabaseClient'
+import { AUTH_DISABLED } from '@/lib/authConfig'
 
 const ROTAS_COM_MENU = ['/dashboard', '/contas', '/importar', '/configuracoes']
 
@@ -47,7 +48,11 @@ export default function BottomNav() {
 
   const deveExibirMenu = pathname ? ROTAS_COM_MENU.includes(pathname) : false
 
-  if (!deveExibirMenu || isCheckingSession || !session) {
+  if (!deveExibirMenu) {
+    return null
+  }
+
+  if (!AUTH_DISABLED && (isCheckingSession || !session)) {
     return null
   }
 

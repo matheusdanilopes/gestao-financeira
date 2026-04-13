@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
+import { AUTH_DISABLED } from '@/lib/authConfig'
 
 const LOGIN_TIMEOUT_MS = 12000
 
@@ -27,6 +28,12 @@ export default function LoginPage() {
     setErro('')
 
     try {
+      if (AUTH_DISABLED) {
+        router.replace('/dashboard')
+        router.refresh()
+        return
+      }
+
 
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder')) {
       setErro('Configuração do Supabase ausente no deploy (NEXT_PUBLIC_SUPABASE_URL).')

@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
+import { AUTH_DISABLED } from '@/lib/authConfig'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://placeholder.supabase.co'
 const supabaseAnonKey =
@@ -11,6 +12,10 @@ const AUTH_CHECK_TIMEOUT_MS = 3000
 
 export async function proxy(req: NextRequest) {
   let res = NextResponse.next({ request: { headers: req.headers } })
+
+  if (AUTH_DISABLED) {
+    return res
+  }
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
