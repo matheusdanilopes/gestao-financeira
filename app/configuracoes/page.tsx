@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { descricaoFechamento } from '@/lib/fatura'
-import { Settings, LogOut } from 'lucide-react'
+import { Settings, LogOut, Upload } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import BottomNav from '@/components/BottomNav'
 
 export default function ConfiguracoesPage() {
@@ -127,6 +128,24 @@ export default function ConfiguracoesPage() {
             {salvando ? 'Salvando...' : 'Salvar Configurações'}
           </button>
         </div>
+      </div>
+
+      {/* Importar CSV */}
+      <div className="bg-white rounded-xl shadow p-4 mb-4">
+        <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+          <Upload className="w-5 h-5 text-gray-500" />
+          Importar Dados
+        </h2>
+        <p className="text-sm text-gray-500 mb-3">
+          Faça upload do CSV exportado pelo Nubank para importar suas transações.
+        </p>
+        <Link
+          href="/importar"
+          className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition"
+        >
+          <Upload className="w-4 h-4" />
+          Ir para Importação
+        </Link>
       </div>
 
       {/* Logout */}

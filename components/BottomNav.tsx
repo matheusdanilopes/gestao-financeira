@@ -8,7 +8,7 @@ import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabaseClient'
 import { AUTH_DISABLED } from '@/lib/authConfig'
 
-const ROTAS_COM_MENU = ['/dashboard', '/contas', '/receitas', '/compras', '/chat', '/configuracoes']
+const ROTAS_COM_MENU = ['/dashboard', '/contas', '/receitas', '/compras', '/chat', '/configuracoes', '/importar']
 
 const navItems = [
   { href: '/dashboard',     label: 'Dashboard', icon: LayoutDashboard },
