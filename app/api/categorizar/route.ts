@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { GoogleGenerativeAI } from '@google/generative-ai'
 import { createClient } from '@supabase/supabase-js'
 
 const CATEGORIAS = [
@@ -7,23 +6,24 @@ const CATEGORIAS = [
   'Educação', 'Moradia', 'Vestuário', 'Tecnologia', 'Serviços', 'Viagem', 'Pet', 'Outros',
 ]
 
-function getClients() {
-  const genai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '')
-  const supabase = createClient(
+const GEMINI_MODEL = 'gemini-1.5-flash'
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent`
+
+function getSupabase() {
+  return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://placeholder.supabase.co',
     process.env.NEXT_PUBLIC_SUPABASE_anon_key ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? 'placeholder'
   )
-  return { genai, supabase }
 }
 
 export async function POST(_req: NextRequest) {
   try {
-    if (!process.env.GEMINI_API_KEY) {
+    const apiKey = process.env.GEMINI_API_KEY
+    if (!apiKey) {
       return NextResponse.json({ error: 'GEMINI_API_KEY não configurada' }, { status: 500 })
     }
 
-    const { genai, supabase } = getClients()
-
+    const supabase = getSupabase()
     const { data: transacoes, error } = await supabase
       .from('transacoes_nubank')
       .select('hash_linha, descricao')
@@ -36,10 +36,7 @@ export async function POST(_req: NextRequest) {
     }
 
     const lista = transacoes.map((t: any, i: number) => `${i + 1}. ${t.descricao}`).join('\n')
-
-    const model = genai.getGenerativeModel({ model: 'gemini-1.5-flash' })
-    const result = await model.generateContent(
-      `Categorize cada transação abaixo com UMA das categorias: ${CATEGORIAS.join(', ')}.
+    const prompt = `Categorize cada transação abaixo com UMA das categorias: ${CATEGORIAS.join(', ')}.
 
 Transações:
 ${lista}
@@ -48,9 +45,20 @@ Responda APENAS com JSON no formato:
 {"categorias": ["Categoria1", "Categoria2", ...]}
 
 A lista deve ter exatamente ${transacoes.length} categorias, na mesma ordem das transações.`
-    )
 
-    const texto = result.response.text()
+    const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }] }),
+    })
+
+    if (!res.ok) {
+      const err = await res.text()
+      throw new Error(err)
+    }
+
+    const data = await res.json()
+    const texto = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
     const jsonMatch = texto.match(/\{[\s\S]*\}/)
     if (!jsonMatch) return NextResponse.json({ error: 'Resposta inválida da IA' }, { status: 500 })
 

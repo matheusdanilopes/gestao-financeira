@@ -1,19 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { GoogleGenerativeAI } from '@google/generative-ai'
 import { createClient } from '@supabase/supabase-js'
 import { format, startOfMonth, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
-function getClients() {
-  const genai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '')
-  const supabase = createClient(
+const GEMINI_MODEL = 'gemini-1.5-flash'
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent`
+
+function getSupabase() {
+  return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://placeholder.supabase.co',
     process.env.NEXT_PUBLIC_SUPABASE_anon_key ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? 'placeholder'
   )
-  return { genai, supabase }
 }
 
-async function buscarContextoFinanceiro(supabase: any): Promise<string> {
+async function geminiChat(apiKey: string, systemPrompt: string, mensagens: Array<{ role: string; content: string }>) {
+  const contents = mensagens.map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }))
+
+  const body = {
+    system_instruction: { parts: [{ text: systemPrompt }] },
+    contents,
+    generationConfig: { maxOutputTokens: 1024 },
+  }
+
+  const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(err)
+  }
+
+  const data = await res.json()
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+}
+
+async function buscarContextoFinanceiro(): Promise<string> {
+  const supabase = getSupabase()
   const hoje = new Date()
   const mesAtual = startOfMonth(hoje)
   const mesAnterior = startOfMonth(subMonths(hoje, 1))
@@ -36,7 +64,6 @@ async function buscarContextoFinanceiro(supabase: any): Promise<string> {
   const totalAnterior = transacoesAnterior.reduce((a, t) => a + t.valor, 0)
   const matheusAtual = transacoesAtual.filter(t => t.responsavel === 'Matheus').reduce((a, t) => a + t.valor, 0)
   const jenifferAtual = transacoesAtual.filter(t => t.responsavel === 'Jeniffer').reduce((a, t) => a + t.valor, 0)
-
   const receitaTotal = planejamento.find(p => p.item === 'Receita Total')?.valor_previsto ?? 0
   const matheusPrevisto = planejamento.find(p => p.item === 'NuBank Matheus')?.valor_previsto ?? 0
   const jenifferPrevisto =
@@ -87,13 +114,13 @@ Total de transações no mês: ${transacoesAtual.length}
 
 export async function POST(req: NextRequest) {
   try {
-    if (!process.env.GEMINI_API_KEY) {
+    const apiKey = process.env.GEMINI_API_KEY
+    if (!apiKey) {
       return NextResponse.json({ error: 'GEMINI_API_KEY não configurada' }, { status: 500 })
     }
 
     const { mensagens } = await req.json()
-    const { genai, supabase } = getClients()
-    const contexto = await buscarContextoFinanceiro(supabase)
+    const contexto = await buscarContextoFinanceiro()
 
     const systemPrompt = `Você é um assistente financeiro pessoal do casal Matheus e Jeniffer.
 Responda sempre em português brasileiro, de forma clara, objetiva e amigável.
@@ -102,23 +129,7 @@ Formate valores monetários sempre como R$ X.XX.
 
 ${contexto}`
 
-    const model = genai.getGenerativeModel({
-      model: 'gemini-1.5-flash',
-      systemInstruction: systemPrompt,
-    })
-
-    // Converte histórico para o formato do Gemini
-    const historico = mensagens.slice(0, -1).map((m: any) => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }],
-    }))
-
-    const ultimaMensagem = mensagens[mensagens.length - 1].content
-
-    const chat = model.startChat({ history: historico })
-    const result = await chat.sendMessage(ultimaMensagem)
-    const texto = result.response.text()
-
+    const texto = await geminiChat(apiKey, systemPrompt, mensagens)
     return NextResponse.json({ resposta: texto })
   } catch (error) {
     console.error('[chat]', error)
