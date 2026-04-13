@@ -32,7 +32,7 @@ export default function GraficoProjecao({ onPontoClicado }: Props) {
   async function carregarProjecao() {
     setCarregando(true)
     const meses: string[] = []
-    const inicio = startOfMonth(new Date())
+    const inicio = startOfMonth(addMonths(new Date(), 1))
     for (let i = 0; i < 6; i++) {
       meses.push(format(addMonths(inicio, i), 'MMM/yyyy', { locale: ptBR }))
     }

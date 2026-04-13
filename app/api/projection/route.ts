@@ -2,6 +2,23 @@ import { NextRequest, NextResponse } from 'next/server'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
 import { format, addMonths, startOfMonth } from 'date-fns'
 
+function extrairParcelamento(t: any) {
+  if (t.parcela_atual && t.total_parcelas) {
+    return { atual: Number(t.parcela_atual), total: Number(t.total_parcelas) }
+  }
+
+  const descricao = String(t.descricao || '')
+  const match = descricao.match(/parcela\s*(\d+)\s*\/\s*(\d+)/i) || descricao.match(/(\d+)\s*\/\s*(\d+)/)
+  if (!match) return null
+
+  return { atual: Number(match[1]), total: Number(match[2]) }
+}
+
+function mesOrigemTransacao(t: any) {
+  const base = t.projeto_fatura || t.data_compra || t.data
+  return startOfMonth(new Date(base))
+}
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = criarSupabaseServer(req)
@@ -18,19 +35,19 @@ export async function POST(req: NextRequest) {
     const { data: extras } = await supabase.from('planejamento').select('*').eq('categoria', 'Extra')
 
     for (let i = 0; i < meses.length; i++) {
-      const mesRef = startOfMonth(addMonths(hoje, i))
+      const mesRef = startOfMonth(addMonths(hoje, i + 1))
       const mesStr = format(mesRef, 'yyyy-MM-dd')
 
       for (const t of (transacoes || [])) {
-        const dataBase = t.data_compra || t.data
-        const dataTransacao = new Date(dataBase)
-        const mesTransacao = startOfMonth(dataTransacao)
-        const mesesDiff =
-          (mesRef.getMonth() - mesTransacao.getMonth()) +
-          (mesRef.getFullYear() - mesTransacao.getFullYear()) * 12
+        const parcela = extrairParcelamento(t)
 
-        if (t.parcela_atual && t.total_parcelas) {
-          const parcelasRestantes = t.total_parcelas - t.parcela_atual + 1
+        if (parcela && parcela.total >= parcela.atual) {
+          const mesOrigem = mesOrigemTransacao(t)
+          const mesesDiff =
+            (mesRef.getMonth() - mesOrigem.getMonth()) +
+            (mesRef.getFullYear() - mesOrigem.getFullYear()) * 12
+
+          const parcelasRestantes = parcela.total - parcela.atual + 1
           if (mesesDiff >= 0 && mesesDiff < parcelasRestantes) {
             resultados.total[i] += t.valor
             if (t.responsavel === 'Matheus') resultados.matheus[i] += t.valor
@@ -40,6 +57,7 @@ export async function POST(req: NextRequest) {
           const projetoFaturaStr = typeof t.projeto_fatura === 'string'
             ? t.projeto_fatura.substring(0, 10)
             : format(new Date(t.projeto_fatura), 'yyyy-MM-dd')
+
           if (mesStr === projetoFaturaStr) {
             resultados.total[i] += t.valor
             if (t.responsavel === 'Matheus') resultados.matheus[i] += t.valor
