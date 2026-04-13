@@ -20,7 +20,7 @@ async function geminiChat(apiKey: string, systemPrompt: string, mensagens: Array
   }))
 
   const body = {
-    system_instruction: { parts: [{ text: systemPrompt }] },
+    systemInstruction: { parts: [{ text: systemPrompt }] },
     contents,
     generationConfig: { maxOutputTokens: 1024 },
   }
