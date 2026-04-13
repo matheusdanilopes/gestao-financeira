@@ -14,13 +14,16 @@ function getSupabase() {
 }
 
 async function geminiChat(apiKey: string, systemPrompt: string, mensagens: Array<{ role: string; content: string }>) {
-  const contents = mensagens.map(m => ({
-    role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content }],
-  }))
+  const contents = [
+    { role: 'user', parts: [{ text: systemPrompt }] },
+    { role: 'model', parts: [{ text: 'Entendido! Estou pronto para responder suas perguntas sobre as finanças do casal.' }] },
+    ...mensagens.map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    })),
+  ]
 
   const body = {
-    systemInstruction: { parts: [{ text: systemPrompt }] },
     contents,
     generationConfig: { maxOutputTokens: 1024 },
   }
