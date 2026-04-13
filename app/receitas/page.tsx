@@ -18,7 +18,7 @@ export default function ReceitasPage() {
         <button onClick={() => setMesAtual(subMonths(mesAtual, 1))} className="p-2 hover:bg-gray-100 rounded-full">
           <ChevronLeft className="w-5 h-5" />
         </button>
-        <span className="text-lg font-semibold">{format(mesAtual, 'MMMM yyyy', { locale: ptBR })}</span>
+        <span className="text-lg font-semibold capitalize">{format(mesAtual, 'MMMM yyyy', { locale: ptBR })}</span>
         <button onClick={() => setMesAtual(addMonths(mesAtual, 1))} className="p-2 hover:bg-gray-100 rounded-full">
           <ChevronRight className="w-5 h-5" />
         </button>

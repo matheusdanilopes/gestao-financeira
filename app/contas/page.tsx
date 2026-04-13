@@ -22,7 +22,7 @@ export default function ContasPage() {
         <button onClick={mesAnterior} className="p-2 hover:bg-gray-100 rounded-full">
           <ChevronLeft className="w-5 h-5" />
         </button>
-        <span className="text-lg font-semibold">
+        <span className="text-lg font-semibold capitalize">
           {format(mesAtual, 'MMMM yyyy', { locale: ptBR })}
         </span>
         <button onClick={proximoMes} className="p-2 hover:bg-gray-100 rounded-full">
