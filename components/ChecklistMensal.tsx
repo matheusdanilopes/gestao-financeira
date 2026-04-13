@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth } from 'date-fns'
-import { CheckCircle, AlertCircle, Pencil, Trash2, Plus } from 'lucide-react'
+import { CheckCircle, AlertCircle, Pencil, Trash2, Plus, CreditCard } from 'lucide-react'
+
+const PREFIXO_CARTAO_1 = '[CARTAO1] '
+const PREFIXO_CARTAO_2 = '[CARTAO2] '
 
 interface ItemPlanejamento {
   id: string
@@ -20,6 +23,22 @@ interface Props {
   mesSelecionado: Date
 }
 
+function tipoCartaoPorItem(item: string): '' | 'cartao1' | 'cartao2' {
+  if (item.startsWith(PREFIXO_CARTAO_1)) return 'cartao1'
+  if (item.startsWith(PREFIXO_CARTAO_2)) return 'cartao2'
+  return ''
+}
+
+function removerPrefixoCartao(item: string) {
+  return item.replace(PREFIXO_CARTAO_1, '').replace(PREFIXO_CARTAO_2, '')
+}
+
+function aplicarPrefixoCartao(item: string, tipo: '' | 'cartao1' | 'cartao2') {
+  if (tipo === 'cartao1') return `${PREFIXO_CARTAO_1}${item}`
+  if (tipo === 'cartao2') return `${PREFIXO_CARTAO_2}${item}`
+  return item
+}
+
 export default function ChecklistMensal({ mesSelecionado }: Props) {
   const [itens, setItens] = useState<ItemPlanejamento[]>([])
   const [apenasPendentes, setApenasPendentes] = useState(false)
@@ -30,6 +49,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
     item: '',
     responsavel: 'Matheus',
     categoria: 'Fixa',
+    tipo_cartao: '' as '' | 'cartao1' | 'cartao2',
     valor_previsto: '',
   })
 
@@ -89,7 +109,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
   async function editarItem() {
     if (!itemSelecionado) return
     const updates = {
-      item: formData.item,
+      item: aplicarPrefixoCartao(formData.item, formData.tipo_cartao),
       responsavel: formData.responsavel,
       categoria: formData.categoria,
       valor_previsto: parseFloat(formData.valor_previsto.replace(',', '.')),
@@ -108,7 +128,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
     const primeiroDia = startOfMonth(mesSelecionado)
     const novoItem = {
       mes_referencia: format(primeiroDia, 'yyyy-MM-dd'),
-      item: formData.item,
+      item: aplicarPrefixoCartao(formData.item, formData.tipo_cartao),
       responsavel: formData.responsavel,
       categoria: formData.categoria,
       valor_previsto: parseFloat(formData.valor_previsto.replace(',', '.')),
@@ -118,7 +138,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
     const { error } = await supabase.from('planejamento').insert([novoItem])
     if (!error) {
       setModalAberto(null)
-      setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', valor_previsto: '' })
+      setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', tipo_cartao: '', valor_previsto: '' })
       carregarItens()
     } else {
       alert('Erro ao adicionar')
@@ -128,9 +148,10 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
   function abrirModalEditar(item: ItemPlanejamento) {
     setItemSelecionado(item)
     setFormData({
-      item: item.item,
+      item: removerPrefixoCartao(item.item),
       responsavel: item.responsavel,
       categoria: item.categoria,
+      tipo_cartao: tipoCartaoPorItem(item.item),
       valor_previsto: item.valor_previsto.toString(),
     })
     setModalAberto('editar')
@@ -150,7 +171,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
     <div className="space-y-3">
       <button
         onClick={() => {
-          setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', valor_previsto: '' })
+          setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', tipo_cartao: '', valor_previsto: '' })
           setModalAberto('adicionar')
         }}
         className="w-full bg-green-600 text-white py-2 rounded-lg font-medium flex items-center justify-center gap-2"
@@ -179,43 +200,53 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       </div>
 
       <div className="bg-white rounded-xl shadow divide-y">
-        {itens.map((item) => (
-          <div key={item.id} className={`p-3 ${item.pago ? 'bg-gray-50' : ''}`}>
-            <div className="flex items-center justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-gray-800 truncate">{item.item}</p>
-                <p className="text-xs text-gray-500">{item.categoria} · {item.responsavel}</p>
-              </div>
+        {itens.map((item) => {
+          const tipoCartao = tipoCartaoPorItem(item.item)
+          return (
+            <div key={item.id} className={`p-3 ${item.pago ? 'bg-gray-50' : ''}`}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-800 truncate">{removerPrefixoCartao(item.item)}</p>
+                  <p className="text-xs text-gray-500 flex items-center gap-2">
+                    {item.categoria} · {item.responsavel}
+                    {tipoCartao && (
+                      <span className="inline-flex items-center gap-1 text-[11px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                        <CreditCard className="w-3 h-3" /> {tipoCartao === 'cartao1' ? 'Cartão 1' : 'Cartão 2'}
+                      </span>
+                    )}
+                  </p>
+                </div>
 
-              <div className="text-right shrink-0">
-                <p className="text-xs text-gray-500">Prev: R$ {item.valor_previsto.toFixed(2)}</p>
-                <p className={`text-xs font-semibold ${item.pago ? 'text-green-700' : 'text-gray-400'}`}>
-                  Pago: R$ {(item.valor_real ?? 0).toFixed(2)}
-                </p>
-              </div>
+                <div className="text-right shrink-0">
+                  <p className="text-xs text-gray-500">Prev: R$ {item.valor_previsto.toFixed(2)}</p>
+                  <p className={`text-xs font-semibold ${item.pago ? 'text-green-700' : 'text-gray-400'}`}>
+                    Pago: R$ {(item.valor_real ?? 0).toFixed(2)}
+                  </p>
+                </div>
 
-              <div className="flex items-center gap-1 shrink-0">
-                {!item.pago && (
-                  <button onClick={() => { setItemSelecionado(item); setModalAberto('pagar') }} className="text-green-600">
-                    <CheckCircle className="w-5 h-5" />
+                <div className="flex items-center gap-1 shrink-0">
+                  {!item.pago && (
+                    <button onClick={() => { setItemSelecionado(item); setModalAberto('pagar') }} className="text-green-600">
+                      <CheckCircle className="w-5 h-5" />
+                    </button>
+                  )}
+                  <button onClick={() => abrirModalEditar(item)} className="text-blue-600">
+                    <Pencil className="w-4 h-4" />
                   </button>
-                )}
-                <button onClick={() => abrirModalEditar(item)} className="text-blue-600">
-                  <Pencil className="w-4 h-4" />
-                </button>
-                <button onClick={() => { setItemSelecionado(item); setModalAberto('excluir') }} className="text-red-600">
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                  <button onClick={() => { setItemSelecionado(item); setModalAberto('excluir') }} className="text-red-600">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
+              {item.pago && item.valor_real !== null && Math.abs(item.valor_real - item.valor_previsto) > 0.01 && (
+                <div className="mt-1 flex items-center gap-1 text-xs text-red-500">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  Diferença: R$ {Math.abs(item.valor_real - item.valor_previsto).toFixed(2)}
+                </div>
+              )}
             </div>
-            {item.pago && item.valor_real !== null && Math.abs(item.valor_real - item.valor_previsto) > 0.01 && (
-              <div className="mt-1 flex items-center gap-1 text-xs text-red-500">
-                <AlertCircle className="w-3.5 h-3.5" />
-                Diferença: R$ {Math.abs(item.valor_real - item.valor_previsto).toFixed(2)}
-              </div>
-            )}
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {modalAberto === 'pagar' && itemSelecionado && (
@@ -245,6 +276,11 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
                 <option value="Fixa">Fixa</option>
                 <option value="Extra">Extra</option>
               </select>
+              <select value={formData.tipo_cartao} onChange={(e) => setFormData({ ...formData, tipo_cartao: e.target.value as '' | 'cartao1' | 'cartao2' })} className="w-full border rounded-lg p-3">
+                <option value="">Não é despesa de cartão</option>
+                <option value="cartao1">Despesa de Cartão 1</option>
+                <option value="cartao2">Despesa de Cartão 2</option>
+              </select>
               <input type="text" placeholder="Valor previsto (R$)" value={formData.valor_previsto} onChange={(e) => setFormData({ ...formData, valor_previsto: e.target.value })} className="w-full border rounded-lg p-3" />
               <div className="flex gap-3">
                 <button onClick={() => setModalAberto(null)} className="flex-1 py-2 rounded-lg bg-gray-200">Cancelar</button>
@@ -259,7 +295,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-sm w-full p-6">
             <h3 className="text-lg font-bold mb-4">Confirmar exclusão</h3>
-            <p className="mb-4">Tem certeza que deseja excluir "{itemSelecionado.item}"?</p>
+            <p className="mb-4">Tem certeza que deseja excluir "{removerPrefixoCartao(itemSelecionado.item)}"?</p>
             <div className="flex gap-3">
               <button onClick={() => setModalAberto(null)} className="flex-1 py-2 rounded-lg bg-gray-200">Cancelar</button>
               <button onClick={() => excluirItem(itemSelecionado.id)} className="flex-1 py-2 rounded-lg bg-red-600 text-white">Excluir</button>

@@ -17,6 +17,10 @@ interface FaturaState {
   jenifferPrevisto: number
   sobraMatheus: number
   sobraJeniffer: number
+  cartao1Previsto: number
+  cartao1Pago: number
+  cartao2Previsto: number
+  cartao2Pago: number
 }
 
 interface ResumoCaixaState {
@@ -30,6 +34,7 @@ export default function Dashboard() {
   const [fatura, setFatura] = useState<FaturaState>({
     totalRealizado: 0, matheusAtual: 0, matheusPrevisto: 0,
     jenifferAtual: 0, jenifferPrevisto: 0, sobraMatheus: 0, sobraJeniffer: 0,
+    cartao1Previsto: 0, cartao1Pago: 0, cartao2Previsto: 0, cartao2Pago: 0,
   })
   const [resumoCaixa, setResumoCaixa] = useState<ResumoCaixaState>({
     totalGastos: 0, sobraLiquida: 0, percentualComprometimento: 0,
@@ -72,6 +77,17 @@ export default function Dashboard() {
       (planejamento?.find(p => p.item === 'NuBank Jeniffer')?.valor_previsto || 0) +
       (planejamento?.find(p => p.item === 'NuBank Jeniffer Conjunto')?.valor_previsto || 0)
 
+
+    const despesasCartao1 = planejamento
+      ?.filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO1]')) || []
+    const despesasCartao2 = planejamento
+      ?.filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]')) || []
+
+    const cartao1Previsto = despesasCartao1.reduce((acc, p) => acc + p.valor_previsto, 0)
+    const cartao1Pago = despesasCartao1.reduce((acc, p) => acc + (p.pago ? (p.valor_real ?? p.valor_previsto) : 0), 0)
+    const cartao2Previsto = despesasCartao2.reduce((acc, p) => acc + p.valor_previsto, 0)
+    const cartao2Pago = despesasCartao2.reduce((acc, p) => acc + (p.pago ? (p.valor_real ?? p.valor_previsto) : 0), 0)
+
     const receitaBase = planejamento?.find(p => p.item === 'Receita Total')?.valor_previsto || 0
     const receitasExtras = planejamento
       ?.filter(p => typeof p.item === 'string' && p.item.startsWith('[RECEITA]'))
@@ -94,6 +110,7 @@ export default function Dashboard() {
       jenifferAtual, jenifferPrevisto,
       sobraMatheus: matheusPrevisto - matheusAtual,
       sobraJeniffer: jenifferPrevisto - jenifferAtual,
+      cartao1Previsto, cartao1Pago, cartao2Previsto, cartao2Pago,
     })
     setResumoCaixa({ totalGastos, sobraLiquida, percentualComprometimento })
     setCarregando(false)
@@ -188,6 +205,19 @@ export default function Dashboard() {
                 <p className={`text-sm font-bold mt-2 ${fatura.sobraJeniffer >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {fatura.sobraJeniffer >= 0 ? '✓ Sobra' : '⚠ Excesso'}: R$ {Math.abs(fatura.sobraJeniffer).toFixed(2)}
                 </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div className="bg-purple-50 border border-purple-100 p-3 rounded-lg">
+                <p className="font-semibold text-purple-800 mb-2">Cartão 1</p>
+                <p className="text-sm text-gray-600">Pago: <span className="font-medium text-gray-800">R$ {fatura.cartao1Pago.toFixed(2)}</span></p>
+                <p className="text-sm text-gray-600">Previsto: <span className="font-medium text-gray-800">R$ {fatura.cartao1Previsto.toFixed(2)}</span></p>
+              </div>
+              <div className="bg-amber-50 border border-amber-100 p-3 rounded-lg">
+                <p className="font-semibold text-amber-800 mb-2">Cartão 2</p>
+                <p className="text-sm text-gray-600">Pago: <span className="font-medium text-gray-800">R$ {fatura.cartao2Pago.toFixed(2)}</span></p>
+                <p className="text-sm text-gray-600">Previsto: <span className="font-medium text-gray-800">R$ {fatura.cartao2Previsto.toFixed(2)}</span></p>
               </div>
             </div>
           </>
