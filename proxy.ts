@@ -45,8 +45,15 @@ export async function proxy(req: NextRequest) {
     if (user && isLoginPage) {
       return NextResponse.redirect(new URL('/dashboard', req.url))
     }
+
+    if (!user && !isLoginPage) {
+      return NextResponse.redirect(new URL('/login', req.url))
+    }
   } catch {
     // Em caso de timeout/falha de rede, não bloquear navegação.
+    if (!isLoginPage) {
+      return NextResponse.redirect(new URL('/login', req.url))
+    }
   }
 
   return res
