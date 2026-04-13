@@ -7,7 +7,7 @@ const supabaseAnonKey =
   process.env.NEXT_PUBLIC_SUPABASE_anon_key ??
   'placeholder-key'
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   let res = NextResponse.next({ request: { headers: req.headers } })
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
@@ -41,5 +41,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon\.ico|manifest\.json|icons).*)'],
+  matcher: ['/((?!api|_next/static|_next/image|favicon\\.ico|manifest\\.json|icons).*)'],
 }
