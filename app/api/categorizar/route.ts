@@ -8,9 +8,7 @@ const CATEGORIAS = [
 ]
 
 function getClients() {
-  const genai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '', {
-    apiVersion: 'v1',
-  } as any)
+  const genai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '')
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://placeholder.supabase.co',
     process.env.NEXT_PUBLIC_SUPABASE_anon_key ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? 'placeholder'
