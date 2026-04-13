@@ -51,8 +51,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const duplicatas = transacoes.filter(function(t) { return hashesExistentes.has(t.hash_linha) }).length
-    const novas = transacoes.filter(function(t) { return !hashesExistentes.has(t.hash_linha) })
+    // Deduplica por hash (remove duplicatas internas do CSV e já existentes no banco)
+    const vistos = new Set<string>()
+    const novas = transacoes.filter(function(t) {
+      if (hashesExistentes.has(t.hash_linha) || vistos.has(t.hash_linha)) return false
+      vistos.add(t.hash_linha)
+      return true
+    })
+    const duplicatas = transacoes.length - novas.length
 
     let novosMatheus = 0
     let novosJeniffer = 0
