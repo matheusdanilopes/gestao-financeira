@@ -2,13 +2,22 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, ListChecks, Upload, Settings } from 'lucide-react'
+import { LayoutDashboard, Receipt, TrendingUp, ShoppingCart, FileUp, SlidersHorizontal } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabaseClient'
 import { AUTH_DISABLED } from '@/lib/authConfig'
 
 const ROTAS_COM_MENU = ['/dashboard', '/contas', '/receitas', '/compras', '/importar', '/configuracoes']
+
+const navItems = [
+  { href: '/dashboard',     label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/contas',        label: 'Despesas',  icon: Receipt },
+  { href: '/receitas',      label: 'Receitas',  icon: TrendingUp },
+  { href: '/compras',       label: 'Compras',   icon: ShoppingCart },
+  { href: '/importar',      label: 'Importar',  icon: FileUp },
+  { href: '/configuracoes', label: 'Config',    icon: SlidersHorizontal },
+]
 
 export default function BottomNav() {
   const pathname = usePathname()
@@ -39,40 +48,35 @@ export default function BottomNav() {
     }
   }, [])
 
-  const navItems = [
-    { href: '/dashboard', label: 'Dashboard', icon: Home },
-    { href: '/contas', label: 'Despesas', icon: ListChecks },
-    { href: '/receitas', label: 'Receitas', icon: ListChecks },
-    { href: '/compras', label: 'Compras', icon: ListChecks },
-    { href: '/importar', label: 'Importar', icon: Upload },
-    { href: '/configuracoes', label: 'Config', icon: Settings },
-  ]
-
   const deveExibirMenu = pathname ? ROTAS_COM_MENU.includes(pathname) : false
 
-  if (!deveExibirMenu) {
-    return null
-  }
-
-  if (!AUTH_DISABLED && (isCheckingSession || !session)) {
-    return null
-  }
+  if (!deveExibirMenu) return null
+  if (!AUTH_DISABLED && (isCheckingSession || !session)) return null
 
   return (
-    <div data-bottom-nav="true" className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg">
-      <div className="flex justify-around items-center h-16">
+    <div data-bottom-nav="true" className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 shadow-[0_-2px_12px_rgba(0,0,0,0.06)]">
+      <div className="flex justify-around items-center h-16 px-1">
         {navItems.map(({ href, label, icon: Icon }) => {
           const isActive = pathname === href
           return (
             <Link
               key={href}
               href={href}
-              className={`flex flex-col items-center gap-1 transition ${
-                isActive ? 'text-blue-600' : 'text-gray-500'
-              }`}
+              className="flex flex-col items-center gap-0.5 flex-1 py-2 transition-all"
             >
-              <Icon className="w-5 h-5" />
-              <span className="text-xs">{label}</span>
+              <span className={`flex items-center justify-center w-10 h-6 rounded-full transition-all ${
+                isActive ? 'bg-blue-100' : ''
+              }`}>
+                <Icon
+                  className={`transition-all ${isActive ? 'w-5 h-5 text-blue-600' : 'w-5 h-5 text-gray-400'}`}
+                  strokeWidth={isActive ? 2.5 : 1.8}
+                />
+              </span>
+              <span className={`text-[10px] font-medium transition-colors ${
+                isActive ? 'text-blue-600' : 'text-gray-400'
+              }`}>
+                {label}
+              </span>
             </Link>
           )
         })}
