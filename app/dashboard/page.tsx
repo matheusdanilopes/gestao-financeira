@@ -9,6 +9,13 @@ import GraficoProjecao from '@/components/GraficoProjecao'
 import DrawerDetalhes from '@/components/DrawerDetalhes'
 import BottomNav from '@/components/BottomNav'
 
+interface CartaoItem {
+  nome: string
+  responsavel: string
+  previsto: number
+  pago: number
+}
+
 interface FaturaState {
   totalRealizado: number
   matheusAtual: number
@@ -17,10 +24,8 @@ interface FaturaState {
   jenifferPrevisto: number
   sobraMatheus: number
   sobraJeniffer: number
-  cartao1Previsto: number
-  cartao1Pago: number
-  cartao2Previsto: number
-  cartao2Pago: number
+  cartao1Items: CartaoItem[]
+  cartao2Items: CartaoItem[]
 }
 
 interface ResumoCaixaState {
@@ -34,7 +39,7 @@ export default function Dashboard() {
   const [fatura, setFatura] = useState<FaturaState>({
     totalRealizado: 0, matheusAtual: 0, matheusPrevisto: 0,
     jenifferAtual: 0, jenifferPrevisto: 0, sobraMatheus: 0, sobraJeniffer: 0,
-    cartao1Previsto: 0, cartao1Pago: 0, cartao2Previsto: 0, cartao2Pago: 0,
+    cartao1Items: [], cartao2Items: [],
   })
   const [resumoCaixa, setResumoCaixa] = useState<ResumoCaixaState>({
     totalGastos: 0, sobraLiquida: 0, percentualComprometimento: 0,
@@ -78,15 +83,20 @@ export default function Dashboard() {
       (planejamento?.find(p => p.item === 'NuBank Jeniffer Conjunto')?.valor_previsto || 0)
 
 
-    const despesasCartao1 = planejamento
-      ?.filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO1]')) || []
-    const despesasCartao2 = planejamento
-      ?.filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]')) || []
+    const toCartaoItem = (p: any, prefixo: string): CartaoItem => ({
+      nome: p.item.replace(prefixo, '').trim(),
+      responsavel: p.responsavel || '',
+      previsto: p.valor_previsto,
+      pago: p.pago ? (p.valor_real ?? p.valor_previsto) : 0,
+    })
 
-    const cartao1Previsto = despesasCartao1.reduce((acc, p) => acc + p.valor_previsto, 0)
-    const cartao1Pago = despesasCartao1.reduce((acc, p) => acc + (p.pago ? (p.valor_real ?? p.valor_previsto) : 0), 0)
-    const cartao2Previsto = despesasCartao2.reduce((acc, p) => acc + p.valor_previsto, 0)
-    const cartao2Pago = despesasCartao2.reduce((acc, p) => acc + (p.pago ? (p.valor_real ?? p.valor_previsto) : 0), 0)
+    const cartao1Items: CartaoItem[] = (planejamento || [])
+      .filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO1]'))
+      .map(p => toCartaoItem(p, '[CARTAO1]'))
+
+    const cartao2Items: CartaoItem[] = (planejamento || [])
+      .filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]'))
+      .map(p => toCartaoItem(p, '[CARTAO2]'))
 
     const receitaBase = planejamento?.find(p => p.item === 'Receita Total')?.valor_previsto || 0
     const receitasExtras = planejamento
@@ -110,7 +120,7 @@ export default function Dashboard() {
       jenifferAtual, jenifferPrevisto,
       sobraMatheus: matheusPrevisto - matheusAtual,
       sobraJeniffer: jenifferPrevisto - jenifferAtual,
-      cartao1Previsto, cartao1Pago, cartao2Previsto, cartao2Pago,
+      cartao1Items, cartao2Items,
     })
     setResumoCaixa({ totalGastos, sobraLiquida, percentualComprometimento })
     setCarregando(false)
@@ -208,18 +218,30 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 mt-3">
-              <div className="bg-purple-50 border border-purple-100 p-3 rounded-lg">
-                <p className="font-semibold text-purple-800 mb-2">Cartão 1</p>
-                <p className="text-sm text-gray-600">Pago: <span className="font-medium text-gray-800">R$ {fatura.cartao1Pago.toFixed(2)}</span></p>
-                <p className="text-sm text-gray-600">Previsto: <span className="font-medium text-gray-800">R$ {fatura.cartao1Previsto.toFixed(2)}</span></p>
+            {(fatura.cartao1Items.length > 0 || fatura.cartao2Items.length > 0) && (
+              <div className="mt-3 space-y-2">
+                {[...fatura.cartao1Items, ...fatura.cartao2Items].map((item, i) => {
+                  const isMatheus = item.responsavel === 'Matheus'
+                  const bg = isMatheus ? 'bg-blue-50 border-blue-100' : 'bg-pink-50 border-pink-100'
+                  const titleColor = isMatheus ? 'text-blue-800' : 'text-pink-800'
+                  const sobra = item.previsto - item.pago
+                  return (
+                    <div key={i} className={`border p-3 rounded-lg ${bg}`}>
+                      <p className={`font-semibold text-sm ${titleColor} mb-1`}>{item.nome}</p>
+                      <div className="flex justify-between text-sm text-gray-600">
+                        <span>Pago: <span className="font-medium text-gray-800">R$ {item.pago.toFixed(2)}</span></span>
+                        <span>Previsto: <span className="font-medium text-gray-800">R$ {item.previsto.toFixed(2)}</span></span>
+                      </div>
+                      {item.pago > 0 && (
+                        <p className={`text-xs font-bold mt-1 ${sobra >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {sobra >= 0 ? '✓ Sobra' : '⚠ Excesso'}: R$ {Math.abs(sobra).toFixed(2)}
+                        </p>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
-              <div className="bg-amber-50 border border-amber-100 p-3 rounded-lg">
-                <p className="font-semibold text-amber-800 mb-2">Cartão 2</p>
-                <p className="text-sm text-gray-600">Pago: <span className="font-medium text-gray-800">R$ {fatura.cartao2Pago.toFixed(2)}</span></p>
-                <p className="text-sm text-gray-600">Previsto: <span className="font-medium text-gray-800">R$ {fatura.cartao2Previsto.toFixed(2)}</span></p>
-              </div>
-            </div>
+            )}
           </>
         )}
       </div>
