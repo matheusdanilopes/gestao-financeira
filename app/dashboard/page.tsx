@@ -62,12 +62,6 @@ export default function Dashboard() {
       .select('valor, responsavel')
       .eq('projeto_fatura', mesRefFatura)
 
-    // Resumo de caixa segue o mês selecionado normalmente.
-    const { data: transacoesResumo } = await supabase
-      .from('transacoes_nubank')
-      .select('valor')
-      .eq('projeto_fatura', mesRef)
-
     const totalRealizado = transacoesFatura?.reduce((acc, t) => acc + t.valor, 0) || 0
     const matheusAtual = transacoesFatura?.filter(t => t.responsavel === 'Matheus').reduce((acc, t) => acc + t.valor, 0) || 0
     const jenifferAtual = transacoesFatura?.filter(t => t.responsavel === 'Jeniffer').reduce((acc, t) => acc + t.valor, 0) || 0
@@ -103,15 +97,22 @@ export default function Dashboard() {
       ?.filter(p => typeof p.item === 'string' && p.item.startsWith('[RECEITA]'))
       .reduce((acc, p) => acc + p.valor_previsto, 0) || 0
     const receitaTotal = receitaBase + receitasExtras
-    // Exclui itens NuBank do fixo pois o gasto real já está em totalRealizado
+
+    // Fixo: exclui NuBank e [CARTAO] pois o valor real já está em totalRealizado (mesRef+1)
     const contasFixas = planejamento
-      ?.filter(p => p.categoria === 'Fixa' && !p.item.toLowerCase().startsWith('nubank'))
+      ?.filter(p =>
+        p.categoria === 'Fixa' &&
+        !p.item.toLowerCase().startsWith('nubank') &&
+        !(typeof p.item === 'string' && p.item.startsWith('[CARTAO'))
+      )
       .reduce((acc, p) => acc + p.valor_previsto, 0) || 0
+
     const debitosExtras = planejamento
       ?.filter(p => p.categoria === 'Extra' && !(typeof p.item === 'string' && p.item.startsWith('[RECEITA]')))
       .reduce((acc, p) => acc + p.valor_previsto, 0) || 0
-    const totalRealizadoResumo = transacoesResumo?.reduce((acc, t) => acc + t.valor, 0) || 0
-    const totalGastos = contasFixas + totalRealizadoResumo + debitosExtras
+
+    // Fatura: usa totalRealizado (transações do mesRef+1, a fatura em aberto)
+    const totalGastos = contasFixas + totalRealizado + debitosExtras
     const sobraLiquida = receitaTotal - totalGastos
     const percentualComprometimento = receitaTotal > 0 ? (totalGastos / receitaTotal) * 100 : 0
 
