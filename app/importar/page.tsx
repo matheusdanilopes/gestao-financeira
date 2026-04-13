@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
-import { Upload, FileText, CheckCircle2, XCircle } from 'lucide-react'
+import { Upload, CheckCircle2, XCircle, Sparkles } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 
 interface Resumo {
@@ -18,8 +18,30 @@ export default function ImportarPage() {
   const [resumo, setResumo] = useState<Resumo | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [arrastando, setArrastando] = useState(false)
+  const [categorizando, setCategorizando] = useState(false)
+  const [categorizadoMsg, setCategorizadoMsg] = useState<string | null>(null)
   const [nomeArquivo, setNomeArquivo] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function categorizar() {
+    setCategorizando(true)
+    setCategorizadoMsg(null)
+    try {
+      const res = await fetch('/api/categorizar', { method: 'POST' })
+      const data = await res.json()
+      if (data.categorized !== undefined) {
+        setCategorizadoMsg(data.categorized === 0
+          ? 'Todas as transações já estão categorizadas!'
+          : `${data.categorized} transações categorizadas com IA`)
+      } else {
+        setCategorizadoMsg('Erro: ' + (data.error || 'desconhecido'))
+      }
+    } catch {
+      setCategorizadoMsg('Erro ao categorizar')
+    } finally {
+      setCategorizando(false)
+    }
+  }
 
   async function processarArquivo(file: File) {
     setNomeArquivo(file.name)
@@ -124,6 +146,21 @@ export default function ImportarPage() {
             <p className="font-semibold text-red-700 text-sm">Erro na importação</p>
             <p className="text-red-600 text-sm mt-0.5">{erro}</p>
           </div>
+        </div>
+      )}
+
+      <button
+        onClick={categorizar}
+        disabled={categorizando}
+        className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white py-3 rounded-xl font-semibold hover:bg-purple-700 transition disabled:opacity-50 mb-4"
+      >
+        <Sparkles className="w-4 h-4" />
+        {categorizando ? 'Categorizando...' : 'Categorizar com IA'}
+      </button>
+
+      {categorizadoMsg && (
+        <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 mb-4 text-sm text-purple-700 text-center">
+          {categorizadoMsg}
         </div>
       )}
 

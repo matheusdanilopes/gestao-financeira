@@ -16,6 +16,7 @@ type Compra = {
   responsavel: string
   parcela_atual: number | null
   total_parcelas: number | null
+  categoria: string | null
 }
 
 function formatarData(dataStr: string): string {
@@ -130,7 +131,10 @@ export default function ComprasPage() {
               <div key={c.hash_linha} className={`p-3 flex items-center justify-between gap-2 ${borderColor(c.responsavel)}`}>
                 <div className="min-w-0">
                   <p className="text-sm font-medium truncate">{c.descricao}</p>
-                  <p className="text-xs text-gray-500">{formatarData(dataStr)} · {c.responsavel}</p>
+                  <p className="text-xs text-gray-500">
+                    {formatarData(dataStr)} · {c.responsavel}
+                    {c.categoria && <span className="ml-1 bg-gray-100 px-1.5 py-0.5 rounded text-[10px] text-gray-500">{c.categoria}</span>}
+                  </p>
                 </div>
                 <div className="text-right shrink-0">
                   <p className="text-sm font-semibold">R$ {c.valor.toFixed(2)}</p>

@@ -2,20 +2,20 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Receipt, TrendingUp, ShoppingCart, FileUp, SlidersHorizontal } from 'lucide-react'
+import { LayoutDashboard, Receipt, TrendingUp, ShoppingCart, MessageCircle, SlidersHorizontal } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabaseClient'
 import { AUTH_DISABLED } from '@/lib/authConfig'
 
-const ROTAS_COM_MENU = ['/dashboard', '/contas', '/receitas', '/compras', '/importar', '/configuracoes']
+const ROTAS_COM_MENU = ['/dashboard', '/contas', '/receitas', '/compras', '/chat', '/configuracoes']
 
 const navItems = [
   { href: '/dashboard',     label: 'Dashboard', icon: LayoutDashboard },
   { href: '/contas',        label: 'Despesas',  icon: Receipt },
   { href: '/receitas',      label: 'Receitas',  icon: TrendingUp },
   { href: '/compras',       label: 'Compras',   icon: ShoppingCart },
-  { href: '/importar',      label: 'Importar',  icon: FileUp },
+  { href: '/chat',          label: 'IA',        icon: MessageCircle },
   { href: '/configuracoes', label: 'Config',    icon: SlidersHorizontal },
 ]
 
