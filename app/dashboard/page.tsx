@@ -29,6 +29,10 @@ interface FaturaState {
 }
 
 interface ResumoCaixaState {
+  receitaTotal: number
+  contasFixas: number
+  fatura: number
+  extras: number
   totalGastos: number
   sobraLiquida: number
   percentualComprometimento: number
@@ -42,6 +46,7 @@ export default function Dashboard() {
     cartao1Items: [], cartao2Items: [],
   })
   const [resumoCaixa, setResumoCaixa] = useState<ResumoCaixaState>({
+    receitaTotal: 0, contasFixas: 0, fatura: 0, extras: 0,
     totalGastos: 0, sobraLiquida: 0, percentualComprometimento: 0,
   })
   const [drawerAberto, setDrawerAberto] = useState(false)
@@ -98,21 +103,19 @@ export default function Dashboard() {
       .reduce((acc, p) => acc + p.valor_previsto, 0) || 0
     const receitaTotal = receitaBase + receitasExtras
 
-    // Fixo: exclui NuBank e [CARTAO] pois o valor real já está em totalRealizado (mesRef+1)
-    const contasFixas = planejamento
-      ?.filter(p =>
-        p.categoria === 'Fixa' &&
-        !p.item.toLowerCase().startsWith('nubank') &&
-        !(typeof p.item === 'string' && p.item.startsWith('[CARTAO'))
-      )
-      .reduce((acc, p) => acc + p.valor_previsto, 0) || 0
+    // Total de todas as despesas previstas (exclui itens de receita)
+    const totalPlanejado = (planejamento || [])
+      .filter(p => {
+        const item = typeof p.item === 'string' ? p.item : ''
+        return !item.startsWith('[RECEITA]') && item !== 'Receita Total'
+      })
+      .reduce((acc, p) => acc + (p.valor_previsto || 0), 0)
 
-    const debitosExtras = planejamento
-      ?.filter(p => p.categoria === 'Extra' && !(typeof p.item === 'string' && p.item.startsWith('[RECEITA]')))
-      .reduce((acc, p) => acc + p.valor_previsto, 0) || 0
+    // NuBank previsto no planejamento (será substituído pelo real)
+    const nuBankPrevisto = matheusPrevisto + jenifferPrevisto
 
-    // Fatura: usa totalRealizado (transações do mesRef+1, a fatura em aberto)
-    const totalGastos = contasFixas + totalRealizado + debitosExtras
+    // Resumo: planejado total − nubank previsto + fatura real (mesRef+1)
+    const totalGastos = totalPlanejado - nuBankPrevisto + totalRealizado
     const sobraLiquida = receitaTotal - totalGastos
     const percentualComprometimento = receitaTotal > 0 ? (totalGastos / receitaTotal) * 100 : 0
 
@@ -123,7 +126,11 @@ export default function Dashboard() {
       sobraJeniffer: jenifferPrevisto - jenifferAtual,
       cartao1Items, cartao2Items,
     })
-    setResumoCaixa({ totalGastos, sobraLiquida, percentualComprometimento })
+    setResumoCaixa({
+      receitaTotal, contasFixas: totalPlanejado - nuBankPrevisto,
+      fatura: totalRealizado, extras: 0,
+      totalGastos, sobraLiquida, percentualComprometimento,
+    })
     setCarregando(false)
   }
 
@@ -258,21 +265,33 @@ export default function Dashboard() {
             <div className="h-3 bg-gray-200 rounded-full w-full" />
           </div>
         ) : (
-          <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">Total de Gastos</span>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-gray-500">Receita prevista</span>
+              <span className="text-green-700 font-medium">R$ {resumoCaixa.receitaTotal.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-gray-500">Despesas planejadas</span>
+              <span className="text-gray-700 font-medium">− R$ {resumoCaixa.contasFixas.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-gray-500">Fatura NuBank (mês+1)</span>
+              <span className="text-gray-700 font-medium">− R$ {resumoCaixa.fatura.toFixed(2)}</span>
+            </div>
+            <div className="border-t pt-2 flex justify-between items-center">
+              <span className="text-gray-600 font-medium">Total de Gastos</span>
               <span className="font-bold text-gray-800">R$ {resumoCaixa.totalGastos.toFixed(2)}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-gray-600">Sobra Líquida</span>
-              <span className={`font-bold ${resumoCaixa.sobraLiquida >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <span className="text-gray-600 font-medium">Sobra Líquida</span>
+              <span className={`font-bold text-lg ${resumoCaixa.sobraLiquida >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 R$ {resumoCaixa.sobraLiquida.toFixed(2)}
               </span>
             </div>
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-gray-600">Comprometimento da Renda</span>
-                <span className={`font-bold ${comprometimentoColor}`}>
+            <div className="pt-1">
+              <div className="flex justify-between items-center mb-1.5">
+                <span className="text-xs text-gray-500">Comprometimento da renda</span>
+                <span className={`text-sm font-bold ${comprometimentoColor}`}>
                   {resumoCaixa.percentualComprometimento.toFixed(1)}%
                 </span>
               </div>

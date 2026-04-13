@@ -5,8 +5,12 @@ export const metadata: Metadata = {
   title: 'Gestão Financeira Familiar',
   description: 'Controle de finanças com Matheus e Jeniffer',
   manifest: '/manifest.json',
-  themeColor: '#3b82f6',
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=yes'
+  themeColor: '#000000',
+  viewport: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=yes',
+  icons: {
+    icon: '/icon.svg',
+    apple: '/icon.svg',
+  },
 }
 
 export default function RootLayout({

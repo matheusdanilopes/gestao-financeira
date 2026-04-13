@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#000000"/>
+  <!-- card sticking out -->
+  <rect x="148" y="52" width="104" height="136" rx="14"
+        fill="none" stroke="#006400" stroke-width="26" stroke-linejoin="round"/>
+  <!-- wallet body -->
+  <rect x="64" y="156" width="384" height="288" rx="36"
+        fill="none" stroke="#006400" stroke-width="26" stroke-linejoin="round"/>
+  <!-- clasp button -->
+  <rect x="368" y="268" width="80" height="64" rx="14"
+        fill="none" stroke="#006400" stroke-width="22" stroke-linejoin="round"/>
+  <circle cx="408" cy="300" r="10" fill="#006400"/>
+</svg>
