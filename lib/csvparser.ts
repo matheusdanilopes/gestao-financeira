@@ -3,7 +3,7 @@ import { createHash } from 'crypto'
 import { calcularProjetoFatura } from '@/lib/fatura'
 
 export interface TransacaoNubank {
-  data: string
+  data_compra: string
   descricao: string
   valor: number
   responsavel: 'Matheus' | 'Jeniffer'
@@ -41,11 +41,11 @@ export function processarCSV(
       continue
     }
 
-    // Valor: formato novo pode ser negativo (débito), antigo usa vírgula decimal
+    // Valor: desconsidera valores negativos (estornos/entradas) e zeros
     const valorRaw = row.amount || row.valor || row.Valor || '0'
     const valorStr = String(valorRaw).replace(',', '.')
-    const valor = Math.abs(parseFloat(valorStr))
-    if (isNaN(valor) || valor === 0) continue
+    const valor = parseFloat(valorStr)
+    if (isNaN(valor) || valor <= 0) continue
 
     // Calcula projeto_fatura com a lógica de ciclo de vencimento
     const dataCompra = new Date(dataISO + 'T12:00:00') // meio-dia para evitar problemas de fuso
@@ -64,7 +64,7 @@ export function processarCSV(
     }
 
     transacoes.push({
-      data: dataISO,
+      data_compra: dataISO,
       descricao,
       valor,
       responsavel,

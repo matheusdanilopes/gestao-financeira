@@ -22,7 +22,8 @@ export async function POST(req: NextRequest) {
       const mesStr = format(mesRef, 'yyyy-MM-dd')
 
       for (const t of (transacoes || [])) {
-        const dataTransacao = new Date(t.data)
+        const dataBase = t.data_compra || t.data
+        const dataTransacao = new Date(dataBase)
         const mesTransacao = startOfMonth(dataTransacao)
         const mesesDiff =
           (mesRef.getMonth() - mesTransacao.getMonth()) +
