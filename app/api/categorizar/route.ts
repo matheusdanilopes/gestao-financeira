@@ -41,15 +41,16 @@ export async function POST(_req: NextRequest) {
 Transações:
 ${lista}
 
-Responda APENAS com JSON no formato:
-{"categorias": ["Categoria1", "Categoria2", ...]}
-
+Retorne um JSON no formato: {"categorias": ["Categoria1", "Categoria2", ...]}
 A lista deve ter exatamente ${transacoes.length} categorias, na mesma ordem das transações.`
 
     const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }] }),
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: 'application/json' },
+      }),
     })
 
     if (!res.ok) {
@@ -59,10 +60,9 @@ A lista deve ter exatamente ${transacoes.length} categorias, na mesma ordem das 
 
     const data = await res.json()
     const texto = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-    const jsonMatch = texto.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) return NextResponse.json({ error: 'Resposta inválida da IA' }, { status: 500 })
+    if (!texto) return NextResponse.json({ error: 'Resposta inválida da IA' }, { status: 500 })
 
-    const { categorias } = JSON.parse(jsonMatch[0])
+    const { categorias } = JSON.parse(texto)
     if (!Array.isArray(categorias) || categorias.length !== transacoes.length) {
       return NextResponse.json({ error: 'Número de categorias não bate' }, { status: 500 })
     }
