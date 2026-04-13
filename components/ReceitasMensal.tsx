@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth } from 'date-fns'
 import { CheckCircle, Pencil, Trash2, Plus } from 'lucide-react'
 
+const RECEITA_PREFIXO = '[RECEITA] '
+
 interface ItemReceita {
   id: string
   item: string
@@ -13,6 +15,14 @@ interface ItemReceita {
   valor_real: number | null
   pago: boolean
   mes_referencia: string
+}
+
+function paraNomeInterno(nome: string) {
+  return `${RECEITA_PREFIXO}${nome}`
+}
+
+function paraNomeExibicao(nome: string) {
+  return nome.startsWith(RECEITA_PREFIXO) ? nome.replace(RECEITA_PREFIXO, '') : nome
 }
 
 export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Date }) {
@@ -30,7 +40,7 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
       .from('planejamento')
       .select('*')
       .eq('mes_referencia', mesRef)
-      .eq('categoria', 'Receita')
+      .ilike('item', '[RECEITA]%')
       .order('item', { ascending: true })
 
     setItens(data || [])
@@ -53,14 +63,14 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
 
   async function salvar() {
     const payload = {
-      item: formData.item,
+      item: paraNomeInterno(formData.item),
       responsavel: formData.responsavel,
       valor_previsto: parseFloat(formData.valor_previsto.replace(',', '.')),
     }
 
     if (modalAberto === 'adicionar') {
       const mesRef = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
-      await supabase.from('planejamento').insert([{ ...payload, categoria: 'Receita', mes_referencia: mesRef, pago: false, valor_real: null }])
+      await supabase.from('planejamento').insert([{ ...payload, categoria: 'Extra', mes_referencia: mesRef, pago: false, valor_real: null }])
     } else if (itemSelecionado) {
       await supabase.from('planejamento').update(payload).eq('id', itemSelecionado.id)
     }
@@ -89,7 +99,7 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
         {itens.map((item) => (
           <div key={item.id} className="p-3 flex items-center justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium truncate">{item.item}</p>
+              <p className="text-sm font-medium truncate">{paraNomeExibicao(item.item)}</p>
               <p className="text-xs text-gray-500">{item.responsavel}</p>
             </div>
             <div className="text-right text-xs">
@@ -98,7 +108,7 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
             </div>
             <div className="flex gap-1">
               {!item.pago && <button onClick={() => { setItemSelecionado(item); setModalAberto('receber') }} className="text-green-600"><CheckCircle className="w-5 h-5" /></button>}
-              <button onClick={() => { setItemSelecionado(item); setFormData({ item: item.item, responsavel: item.responsavel, valor_previsto: String(item.valor_previsto) }); setModalAberto('editar') }} className="text-blue-600"><Pencil className="w-4 h-4" /></button>
+              <button onClick={() => { setItemSelecionado(item); setFormData({ item: paraNomeExibicao(item.item), responsavel: item.responsavel, valor_previsto: String(item.valor_previsto) }); setModalAberto('editar') }} className="text-blue-600"><Pencil className="w-4 h-4" /></button>
               <button onClick={() => { setItemSelecionado(item); setModalAberto('excluir') }} className="text-red-600"><Trash2 className="w-4 h-4" /></button>
             </div>
           </div>
@@ -114,7 +124,7 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
       )}
 
       {modalAberto === 'excluir' && itemSelecionado && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"><div className="bg-white rounded-xl max-w-sm w-full p-6"><h3 className="text-lg font-bold mb-4">Confirmar exclusão</h3><p className="mb-4">Excluir "{itemSelecionado.item}"?</p><div className="flex gap-3"><button onClick={() => setModalAberto(null)} className="flex-1 py-2 rounded-lg bg-gray-200">Cancelar</button><button onClick={() => excluir(itemSelecionado.id)} className="flex-1 py-2 rounded-lg bg-red-600 text-white">Excluir</button></div></div></div>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"><div className="bg-white rounded-xl max-w-sm w-full p-6"><h3 className="text-lg font-bold mb-4">Confirmar exclusão</h3><p className="mb-4">Excluir "{paraNomeExibicao(itemSelecionado.item)}"?</p><div className="flex gap-3"><button onClick={() => setModalAberto(null)} className="flex-1 py-2 rounded-lg bg-gray-200">Cancelar</button><button onClick={() => excluir(itemSelecionado.id)} className="flex-1 py-2 rounded-lg bg-red-600 text-white">Excluir</button></div></div></div>
       )}
     </div>
   )

@@ -72,13 +72,17 @@ export default function Dashboard() {
       (planejamento?.find(p => p.item === 'NuBank Jeniffer')?.valor_previsto || 0) +
       (planejamento?.find(p => p.item === 'NuBank Jeniffer Conjunto')?.valor_previsto || 0)
 
-    const receitaTotal = planejamento?.find(p => p.item === 'Receita Total')?.valor_previsto || 0
+    const receitaBase = planejamento?.find(p => p.item === 'Receita Total')?.valor_previsto || 0
+    const receitasExtras = planejamento
+      ?.filter(p => typeof p.item === 'string' && p.item.startsWith('[RECEITA]'))
+      .reduce((acc, p) => acc + p.valor_previsto, 0) || 0
+    const receitaTotal = receitaBase + receitasExtras
     // Exclui itens NuBank do fixo pois o gasto real já está em totalRealizado
     const contasFixas = planejamento
       ?.filter(p => p.categoria === 'Fixa' && !p.item.toLowerCase().startsWith('nubank'))
       .reduce((acc, p) => acc + p.valor_previsto, 0) || 0
     const debitosExtras = planejamento
-      ?.filter(p => p.categoria === 'Extra')
+      ?.filter(p => p.categoria === 'Extra' && !(typeof p.item === 'string' && p.item.startsWith('[RECEITA]')))
       .reduce((acc, p) => acc + p.valor_previsto, 0) || 0
     const totalRealizadoResumo = transacoesResumo?.reduce((acc, t) => acc + t.valor, 0) || 0
     const totalGastos = contasFixas + totalRealizadoResumo + debitosExtras
