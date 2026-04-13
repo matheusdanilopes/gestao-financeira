@@ -2,23 +2,43 @@ import { NextRequest, NextResponse } from 'next/server'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
 import { format, addMonths, startOfMonth } from 'date-fns'
 
-const PROJECAO_OFFSET_MESES = 2
+const PROJECAO_OFFSET_MESES = 1
 
-function extrairParcelamento(t: any) {
+function extrairParcelamento(t: any): { atual: number; total: number } | null {
   if (t.parcela_atual && t.total_parcelas) {
     return { atual: Number(t.parcela_atual), total: Number(t.total_parcelas) }
   }
-
   const descricao = String(t.descricao || '')
   const match = descricao.match(/parcela\s*(\d+)\s*\/\s*(\d+)/i) || descricao.match(/(\d+)\s*\/\s*(\d+)/)
   if (!match) return null
-
   return { atual: Number(match[1]), total: Number(match[2]) }
 }
 
-function mesOrigemTransacao(t: any) {
-  const base = t.projeto_fatura || t.data_compra || t.data
-  return startOfMonth(new Date(base))
+function seriesKey(t: any, parcela: { atual: number; total: number }): string {
+  const desc = String(t.descricao || '')
+    .replace(/\s*\d+\s*\/\s*\d+/, '')
+    .replace(/parcela\s*/i, '')
+    .trim()
+  return `${desc}|${t.valor}|${parcela.total}`
+}
+
+/** Para cada série parcelada mantém apenas a transação com menor parcela_atual */
+function deduplicarParcelamentos(transacoes: any[]): any[] {
+  const map = new Map<string, any>()
+  for (const t of transacoes) {
+    const parcela = extrairParcelamento(t)
+    if (!parcela) continue
+    const key = seriesKey(t, parcela)
+    const existente = map.get(key)
+    if (!existente || parcela.atual < extrairParcelamento(existente)!.atual) {
+      map.set(key, t)
+    }
+  }
+  return [...transacoes.filter(t => !extrairParcelamento(t)), ...Array.from(map.values())]
+}
+
+function mesOrigem(t: any): Date {
+  return startOfMonth(new Date(t.projeto_fatura || t.data_compra || t.data))
 }
 
 export async function POST(req: NextRequest) {
@@ -33,34 +53,35 @@ export async function POST(req: NextRequest) {
       extra: new Array(meses.length).fill(0),
     }
 
-    const { data: transacoes } = await supabase.from('transacoes_nubank').select('*')
+    const { data: todasTransacoes } = await supabase.from('transacoes_nubank').select('*')
     const { data: extras } = await supabase.from('planejamento').select('*').eq('categoria', 'Extra')
+
+    // Deduplica séries parceladas — cada série conta uma única vez por mês projetado
+    const transacoes = deduplicarParcelamentos(todasTransacoes || [])
 
     for (let i = 0; i < meses.length; i++) {
       const mesRef = startOfMonth(addMonths(inicioProjecao, i))
       const mesStr = format(mesRef, 'yyyy-MM-dd')
 
-      for (const t of (transacoes || [])) {
+      for (const t of transacoes) {
         const parcela = extrairParcelamento(t)
 
-        if (parcela && parcela.total >= parcela.atual) {
-          const mesOrigem = mesOrigemTransacao(t)
+        if (parcela) {
+          const origem = mesOrigem(t)
           const mesesDiff =
-            (mesRef.getMonth() - mesOrigem.getMonth()) +
-            (mesRef.getFullYear() - mesOrigem.getFullYear()) * 12
-
-          const parcelasRestantes = parcela.total - parcela.atual + 1
-          if (mesesDiff >= 0 && mesesDiff < parcelasRestantes) {
+            (mesRef.getFullYear() - origem.getFullYear()) * 12 +
+            (mesRef.getMonth() - origem.getMonth())
+          const restantes = parcela.total - parcela.atual + 1
+          if (mesesDiff >= 0 && mesesDiff < restantes) {
             resultados.total[i] += t.valor
             if (t.responsavel === 'Matheus') resultados.matheus[i] += t.valor
             else if (t.responsavel === 'Jeniffer') resultados.jeniffer[i] += t.valor
           }
         } else {
-          const projetoFaturaStr = typeof t.projeto_fatura === 'string'
+          const faturaStr = typeof t.projeto_fatura === 'string'
             ? t.projeto_fatura.substring(0, 10)
             : format(new Date(t.projeto_fatura), 'yyyy-MM-dd')
-
-          if (mesStr === projetoFaturaStr) {
+          if (mesStr === faturaStr) {
             resultados.total[i] += t.valor
             if (t.responsavel === 'Matheus') resultados.matheus[i] += t.valor
             else if (t.responsavel === 'Jeniffer') resultados.jeniffer[i] += t.valor
@@ -72,10 +93,10 @@ export async function POST(req: NextRequest) {
         if (e.parcela_atual && e.total_parcelas) {
           const mesExtra = startOfMonth(new Date(e.mes_referencia))
           const mesesDiff =
-            (mesRef.getMonth() - mesExtra.getMonth()) +
-            (mesRef.getFullYear() - mesExtra.getFullYear()) * 12
-          const parcelasRestantes = e.total_parcelas - e.parcela_atual + 1
-          if (mesesDiff >= 0 && mesesDiff < parcelasRestantes) {
+            (mesRef.getFullYear() - mesExtra.getFullYear()) * 12 +
+            (mesRef.getMonth() - mesExtra.getMonth())
+          const restantes = e.total_parcelas - e.parcela_atual + 1
+          if (mesesDiff >= 0 && mesesDiff < restantes) {
             resultados.extra[i] += e.valor_previsto
             resultados.total[i] += e.valor_previsto
           }
