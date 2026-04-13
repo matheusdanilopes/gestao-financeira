@@ -37,7 +37,7 @@ export async function POST(_req: NextRequest) {
 
     const lista = transacoes.map((t: any, i: number) => `${i + 1}. ${t.descricao}`).join('\n')
 
-    const model = genai.getGenerativeModel({ model: 'gemini-1.5-flash' })
+    const model = genai.getGenerativeModel({ model: 'gemini-2.0-flash' })
     const result = await model.generateContent(
       `Categorize cada transação abaixo com UMA das categorias: ${CATEGORIAS.join(', ')}.
 
