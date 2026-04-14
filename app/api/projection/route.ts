@@ -28,7 +28,12 @@ function extrairParcelamento(t: any): { atual: number; total: number } | null {
 function seriesKey(t: any, parcela: { atual: number; total: number }): string {
   const fatura = startOfMonth(new Date(t.projeto_fatura || t.data_compra || t.data))
   const origem = subMonths(fatura, parcela.atual - 1)
-  return `${format(origem, 'yyyy-MM')}|${t.valor}|${parcela.total}|${t.responsavel}`
+  // Remove " - Parcela X/Y" suffix and normalize to avoid rounding differences breaking dedup
+  const descBase = String(t.descricao || '')
+    .replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '')
+    .trim()
+    .toLowerCase()
+  return `${format(origem, 'yyyy-MM')}|${descBase}|${parcela.total}|${t.responsavel}`
 }
 
 export async function POST(req: NextRequest) {

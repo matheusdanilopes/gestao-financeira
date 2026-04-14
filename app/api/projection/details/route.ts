@@ -23,7 +23,12 @@ function extrairParcelamento(t: any): { atual: number; total: number } | null {
 function seriesKey(t: any, parcela: { atual: number; total: number }): string {
   const fatura = startOfMonth(new Date(t.projeto_fatura || t.data_compra || t.data))
   const origem = subMonths(fatura, parcela.atual - 1)
-  return `${format(origem, 'yyyy-MM')}|${t.valor}|${parcela.total}|${t.responsavel}`
+  // Remove " - Parcela X/Y" suffix and normalize to avoid rounding differences breaking dedup
+  const descBase = String(t.descricao || '')
+    .replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '')
+    .trim()
+    .toLowerCase()
+  return `${format(origem, 'yyyy-MM')}|${descBase}|${parcela.total}|${t.responsavel}`
 }
 
 function estaNoMes(t: any, mesReferencia: Date): boolean {
@@ -84,11 +89,10 @@ export async function POST(req: NextRequest) {
       for (const t of (transacoesTodas || [])) {
         if (!estaNoMes(t, mesReferencia)) continue
         const parcela = extrairParcelamento(t)
-        if (parcela) {
-          const key = seriesKey(t, parcela)
-          if (seriesVistas.has(key)) continue
-          seriesVistas.add(key)
-        }
+        if (!parcela) continue  // só parcelamentos entram, igual à projeção
+        const key = seriesKey(t, parcela)
+        if (seriesVistas.has(key)) continue
+        seriesVistas.add(key)
         transacoesFiltradas.push({ ...t, tipo: 'cartao' })
       }
 
