@@ -47,10 +47,12 @@ function buildContracts(transacoes: any[]) {
 export async function POST(req: NextRequest) {
   try {
     const supabase = criarSupabaseServer(req)
-    const { serie, dataIndex } = await req.json()
+    const { serie, dataIndex, mesStr } = await req.json()
 
-    const inicioProjecao = startOfMonth(addMonths(new Date(), PROJECAO_OFFSET_MESES))
-    const mesReferencia = startOfMonth(addMonths(inicioProjecao, dataIndex))
+    // Prefere mesStr (data exata enviada pelo gráfico); cai no cálculo legado se ausente
+    const mesReferencia = mesStr
+      ? startOfMonth(new Date(mesStr))
+      : startOfMonth(addMonths(startOfMonth(addMonths(new Date(), PROJECAO_OFFSET_MESES)), dataIndex ?? 0))
     const mesFormatado = format(mesReferencia, 'yyyy-MM-dd')
 
     let itens: any[] = []

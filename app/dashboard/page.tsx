@@ -32,6 +32,7 @@ interface ResumoCaixaState {
   receitaTotal: number
   contasFixas: number
   fatura: number
+  faturaEhPrevisto: boolean
   extras: number
   totalGastos: number
   sobraLiquida: number
@@ -46,7 +47,7 @@ export default function Dashboard() {
     cartao1Items: [], cartao2Items: [],
   })
   const [resumoCaixa, setResumoCaixa] = useState<ResumoCaixaState>({
-    receitaTotal: 0, contasFixas: 0, fatura: 0, extras: 0,
+    receitaTotal: 0, contasFixas: 0, fatura: 0, faturaEhPrevisto: false, extras: 0,
     totalGastos: 0, sobraLiquida: 0, percentualComprometimento: 0,
   })
   const [drawerAberto, setDrawerAberto] = useState(false)
@@ -111,11 +112,14 @@ export default function Dashboard() {
       })
       .reduce((acc, p) => acc + (p.valor_previsto || 0), 0)
 
-    // NuBank previsto no planejamento (será substituído pelo real)
     const nuBankPrevisto = matheusPrevisto + jenifferPrevisto
 
-    // Resumo: planejado total − nubank previsto + fatura real (mesRef+1)
-    const totalGastos = totalPlanejado - nuBankPrevisto + totalRealizado
+    // Se não há compras reais, usa o valor previsto de NuBank como estimativa
+    const faturaEhPrevisto = totalRealizado === 0
+    const faturaEfetiva = faturaEhPrevisto ? nuBankPrevisto : totalRealizado
+
+    // Resumo: planejado total − nubank previsto + fatura efetiva
+    const totalGastos = totalPlanejado - nuBankPrevisto + faturaEfetiva
     const sobraLiquida = receitaTotal - totalGastos
     const percentualComprometimento = receitaTotal > 0 ? (totalGastos / receitaTotal) * 100 : 0
 
@@ -128,7 +132,7 @@ export default function Dashboard() {
     })
     setResumoCaixa({
       receitaTotal, contasFixas: totalPlanejado - nuBankPrevisto,
-      fatura: totalRealizado, extras: 0,
+      fatura: faturaEfetiva, faturaEhPrevisto, extras: 0,
       totalGastos, sobraLiquida, percentualComprometimento,
     })
     setCarregando(false)
@@ -275,7 +279,12 @@ export default function Dashboard() {
               <span className="text-gray-700 font-medium">− R$ {resumoCaixa.contasFixas.toFixed(2)}</span>
             </div>
             <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-500">Fatura NuBank (mês+1)</span>
+              <span className="text-gray-500">
+                Fatura NuBank (mês+1)
+                {resumoCaixa.faturaEhPrevisto && (
+                  <span className="ml-1 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">previsto</span>
+                )}
+              </span>
               <span className="text-gray-700 font-medium">− R$ {resumoCaixa.fatura.toFixed(2)}</span>
             </div>
             <div className="border-t pt-2 flex justify-between items-center">
@@ -317,6 +326,7 @@ export default function Dashboard() {
         <h2 className="text-lg font-semibold">📈 Projeção de Parcelamentos</h2>
         <p className="text-xs text-gray-400 mb-3">Próximos 6 meses · Toque em um ponto para ver detalhes</p>
         <GraficoProjecao
+          mesInicio={mesAtual}
           onPontoClicado={(serie, mes, valor, itens) => {
             setDetalhesPonto({ serie, mes, valor, itens })
             setDrawerAberto(true)

@@ -52,8 +52,10 @@ function buildContracts(transacoes: any[]) {
 export async function POST(req: NextRequest) {
   try {
     const supabase = criarSupabaseServer(req)
-    const { meses } = await req.json()
-    const inicioProjecao = startOfMonth(addMonths(new Date(), PROJECAO_OFFSET_MESES))
+    const { meses, inicioStr } = await req.json()
+    const inicioProjecao = inicioStr
+      ? startOfMonth(new Date(inicioStr))
+      : startOfMonth(addMonths(new Date(), PROJECAO_OFFSET_MESES))
     const resultados = {
       total: new Array(meses.length).fill(0),
       matheus: new Array(meses.length).fill(0),

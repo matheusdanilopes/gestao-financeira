@@ -22,29 +22,38 @@ const PROJECAO_OFFSET_MESES = 1
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
 
 interface Props {
+  mesInicio?: Date
   onPontoClicado: (serie: string, mes: string, valor: number, itens: any[]) => void
 }
 
-export default function GraficoProjecao({ onPontoClicado }: Props) {
+export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
   const [dadosGrafico, setDadosGrafico] = useState<any>(null)
+  const [mesesDatas, setMesesDatas] = useState<string[]>([])
   const [carregando, setCarregando] = useState(true)
 
-  useEffect(() => { carregarProjecao() }, [])
+  useEffect(() => { carregarProjecao() }, [mesInicio])
 
   async function carregarProjecao() {
     setCarregando(true)
+    const base = mesInicio ? startOfMonth(mesInicio) : new Date()
+    const inicio = startOfMonth(addMonths(base, PROJECAO_OFFSET_MESES))
+
     const meses: string[] = []
-    const inicio = startOfMonth(addMonths(new Date(), PROJECAO_OFFSET_MESES))
+    const datas: string[] = []
     for (let i = 0; i < 6; i++) {
-      meses.push(format(addMonths(inicio, i), 'MMM/yyyy', { locale: ptBR }))
+      const m = addMonths(inicio, i)
+      meses.push(format(m, 'MMM/yyyy', { locale: ptBR }))
+      datas.push(format(startOfMonth(m), 'yyyy-MM-dd'))
     }
+
     const res = await fetch('/api/projection', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ meses }),
+      body: JSON.stringify({ meses, inicioStr: datas[0] }),
     })
     const { total, matheus, jeniffer, extra } = await res.json()
 
+    setMesesDatas(datas)
     setDadosGrafico({
       labels: meses,
       datasets: [
@@ -58,7 +67,6 @@ export default function GraficoProjecao({ onPontoClicado }: Props) {
           fill: false,
           pointRadius: 5,
           pointHoverRadius: 7,
-          // mostrar labels apenas nesta série para evitar poluição visual
           datalabels: {
             display: true,
             backgroundColor: 'rgba(139, 92, 246, 0.1)',
@@ -147,10 +155,11 @@ export default function GraficoProjecao({ onPontoClicado }: Props) {
       const serie = dadosGrafico.datasets[datasetIndex].label
       const mes = dadosGrafico.labels[index]
       const valor = dadosGrafico.datasets[datasetIndex].data[index]
+      const mesStr = mesesDatas[index]
       const res = await fetch('/api/projection/details', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ serie, mes, dataIndex: index }),
+        body: JSON.stringify({ serie, mesStr }),
       })
       const { itens } = await res.json()
       onPontoClicado(serie, mes, valor, itens)
