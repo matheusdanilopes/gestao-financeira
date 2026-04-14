@@ -5,11 +5,18 @@ import { format, addMonths, startOfMonth, subMonths } from 'date-fns'
 const PROJECAO_OFFSET_MESES = 1
 
 function extrairParcelamento(t: any): { atual: number; total: number } | null {
+  const descricao = String(t.descricao || '')
+  if (!/parcela/i.test(descricao)) return null
   if (t.parcela_atual && t.total_parcelas) {
     const atual = Number(t.parcela_atual)
     const total = Number(t.total_parcelas)
     if (atual >= 1 && total >= atual) return { atual, total }
   }
+  const match = descricao.match(/parcela\s*(\d+)\s*\/\s*(\d+)/i)
+  if (!match) return null
+  const atual = Number(match[1])
+  const total = Number(match[2])
+  if (atual >= 1 && total >= atual) return { atual, total }
   return null
 }
 
