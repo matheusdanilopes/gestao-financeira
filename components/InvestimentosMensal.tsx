@@ -338,7 +338,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
                       R$ {aportado.toFixed(2)}
                     </p>
                     <p className="text-xs font-medium text-gray-500">
-                      meta R$ {meta.toFixed(2)}
+                      Meta R$ {meta.toFixed(2)}
                     </p>
                   </div>
                 </div>

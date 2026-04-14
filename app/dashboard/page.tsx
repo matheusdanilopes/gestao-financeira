@@ -6,6 +6,7 @@ import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import GraficoProjecao from '@/components/GraficoProjecao'
+import GraficosDashboard from '@/components/GraficosDashboard'
 import DrawerDetalhes from '@/components/DrawerDetalhes'
 import BottomNav from '@/components/BottomNav'
 import { PiggyBank } from 'lucide-react'
@@ -413,6 +414,9 @@ export default function Dashboard() {
           }}
         />
       </div>
+
+      {/* Gráficos de compras */}
+      <GraficosDashboard mesAtual={mesAtual} />
 
       <DrawerDetalhes aberto={drawerAberto} onClose={() => setDrawerAberto(false)} dados={detalhesPonto} />
       <BottomNav />
