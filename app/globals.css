@@ -34,28 +34,36 @@ body {
   color-scheme: dark;
 }
 
+/* ── Backgrounds neutros ── */
 .dark body,
 .dark .min-h-screen {
   background-color: #111827 !important; /* gray-900 */
 }
+.dark .bg-white   { background-color: #1f2937 !important; }
+.dark .bg-gray-50 { background-color: #111827 !important; }
+.dark .bg-gray-100 { background-color: #374151 !important; }
+.dark .bg-gray-200 { background-color: #4b5563 !important; }
 
-.dark .bg-white {
-  background-color: #1f2937 !important; /* gray-800 */
-}
+/* ── Backgrounds coloridos (cards internos) ── */
+.dark .bg-blue-50   { background-color: #172554 !important; }
+.dark .bg-blue-100  { background-color: #1e3a8a !important; }
+.dark .bg-pink-50   { background-color: #3b0764 !important; }
+.dark .bg-pink-100  { background-color: #500724 !important; }
+.dark .bg-red-50    { background-color: #450a0a !important; }
+.dark .bg-red-100   { background-color: #7f1d1d !important; }
+.dark .bg-green-50  { background-color: #052e16 !important; }
+.dark .bg-green-100 { background-color: #14532d !important; }
+.dark .bg-emerald-50  { background-color: #022c22 !important; }
+.dark .bg-emerald-100 { background-color: #064e3b !important; }
+.dark .bg-teal-50   { background-color: #042f2e !important; }
+.dark .bg-teal-100  { background-color: #134e4a !important; }
+.dark .bg-amber-50  { background-color: #451a03 !important; }
+.dark .bg-amber-100 { background-color: #78350f !important; }
+.dark .bg-yellow-50 { background-color: #422006 !important; }
+.dark .bg-violet-50  { background-color: #2e1065 !important; }
+.dark .bg-violet-100 { background-color: #3b0764 !important; }
 
-.dark .bg-gray-50 {
-  background-color: #111827 !important; /* gray-900 */
-}
-
-.dark .bg-gray-100 {
-  background-color: #374151 !important; /* gray-700 */
-}
-
-.dark .bg-gray-200 {
-  background-color: #4b5563 !important; /* gray-600 */
-}
-
-/* Text */
+/* ── Texto neutro ── */
 .dark .text-gray-900 { color: #f9fafb !important; }
 .dark .text-gray-800 { color: #f3f4f6 !important; }
 .dark .text-gray-700 { color: #e5e7eb !important; }
@@ -63,13 +71,35 @@ body {
 .dark .text-gray-500 { color: #9ca3af !important; }
 .dark .text-gray-400 { color: #6b7280 !important; }
 
-/* Borders */
+/* ── Texto colorido (garantir legibilidade sobre fundos escuros) ── */
+.dark .text-blue-800  { color: #bfdbfe !important; }
+.dark .text-blue-700  { color: #93c5fd !important; }
+.dark .text-blue-600  { color: #60a5fa !important; }
+.dark .text-blue-500  { color: #60a5fa !important; }
+.dark .text-pink-800  { color: #fbcfe8 !important; }
+.dark .text-pink-700  { color: #f9a8d4 !important; }
+.dark .text-red-600   { color: #fca5a5 !important; }
+.dark .text-red-400   { color: #f87171 !important; }
+.dark .text-green-700 { color: #86efac !important; }
+.dark .text-green-600 { color: #4ade80 !important; }
+.dark .text-emerald-700 { color: #6ee7b7 !important; }
+.dark .text-teal-700  { color: #5eead4 !important; }
+.dark .text-amber-700 { color: #fcd34d !important; }
+.dark .text-yellow-500 { color: #fde68a !important; }
+.dark .text-violet-700 { color: #c4b5fd !important; }
+.dark .text-violet-600 { color: #a78bfa !important; }
+
+/* ── Bordas ── */
 .dark .border-gray-50  { border-color: #1f2937 !important; }
 .dark .border-gray-100 { border-color: #374151 !important; }
 .dark .border-gray-200 { border-color: #4b5563 !important; }
 .dark .border-gray-300 { border-color: #6b7280 !important; }
+.dark .border-blue-100 { border-color: #1e3a8a !important; }
+.dark .border-blue-500 { border-color: #3b82f6 !important; }
+.dark .border-pink-100 { border-color: #500724 !important; }
+.dark .border-t        { border-color: #374151 !important; }
 
-/* Inputs / Selects / Textareas */
+/* ── Inputs / Selects / Textareas ── */
 .dark input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
 .dark select,
 .dark textarea {
@@ -77,19 +107,12 @@ body {
   color: #f9fafb !important;
   border-color: #4b5563 !important;
 }
-
 .dark input::placeholder,
 .dark textarea::placeholder {
   color: #6b7280 !important;
 }
 
-/* Scrollbar */
-.dark ::-webkit-scrollbar-track {
-  background-color: #1f2937;
-}
-.dark ::-webkit-scrollbar-thumb {
-  background-color: #4b5563;
-}
-.dark ::-webkit-scrollbar-thumb:hover {
-  background-color: #6b7280;
-}
+/* ── Scrollbar ── */
+.dark ::-webkit-scrollbar-track  { background-color: #1f2937; }
+.dark ::-webkit-scrollbar-thumb  { background-color: #4b5563; }
+.dark ::-webkit-scrollbar-thumb:hover { background-color: #6b7280; }
