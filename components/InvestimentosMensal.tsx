@@ -47,6 +47,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
     observacao: '',
   })
   const [modalHistorico, setModalHistorico] = useState<Investimento | null>(null)
+  const [aportePendingDelete, setAportePendingDelete] = useState<string | null>(null)
 
   // Importar
   const [previewImport, setPreviewImport] = useState<{ itens: Investimento[]; mesOrigem: string } | null>(null)
@@ -486,27 +487,48 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
           <div className="bg-white rounded-2xl w-full max-w-sm p-6">
             <div className="flex items-start justify-between mb-1">
               <h3 className="text-lg font-bold">Histórico de Aportes</h3>
-              <button onClick={() => setModalHistorico(null)} className="p-1 text-gray-400 hover:text-gray-600">
+              <button onClick={() => { setModalHistorico(null); setAportePendingDelete(null) }} className="p-1 text-gray-400 hover:text-gray-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <p className="text-sm text-gray-500 mb-4">{modalHistorico.descricao}</p>
             <div className="space-y-2 max-h-72 overflow-y-auto">
               {(aportes[modalHistorico.id] || []).map((a) => (
-                <div key={a.id} className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2.5">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-800">R$ {a.valor.toFixed(2)}</p>
-                    <p className="text-xs text-gray-400">
-                      {format(new Date(a.data_aporte + 'T12:00:00'), "dd 'de' MMMM", { locale: ptBR })}
-                      {a.observacao && <span className="ml-1">· {a.observacao}</span>}
-                    </p>
+                <div key={a.id} className={`rounded-xl overflow-hidden transition-all ${
+                  aportePendingDelete === a.id ? 'ring-2 ring-red-300' : ''
+                }`}>
+                  <div className="flex items-center gap-3 bg-gray-50 px-3 py-2.5">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800">R$ {a.valor.toFixed(2)}</p>
+                      <p className="text-xs text-gray-400">
+                        {format(new Date(a.data_aporte + 'T12:00:00'), "dd 'de' MMMM", { locale: ptBR })}
+                        {a.observacao && <span className="ml-1">· {a.observacao}</span>}
+                      </p>
+                    </div>
+                    {aportePendingDelete === a.id ? (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          onClick={() => setAportePendingDelete(null)}
+                          className="px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-200 text-gray-600 hover:bg-gray-300 transition"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={() => { excluirAporte(a); setAportePendingDelete(null) }}
+                          className="px-2.5 py-1 rounded-lg text-xs font-medium bg-red-500 text-white hover:bg-red-600 transition"
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setAportePendingDelete(a.id)}
+                        className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition shrink-0"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
-                  <button
-                    onClick={() => excluirAporte(a)}
-                    className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition shrink-0"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
                 </div>
               ))}
             </div>
