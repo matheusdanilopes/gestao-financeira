@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import GraficoProjecao from '@/components/GraficoProjecao'
 import DrawerDetalhes from '@/components/DrawerDetalhes'
 import BottomNav from '@/components/BottomNav'
+import { PiggyBank } from 'lucide-react'
 
 interface CartaoItem {
   nome: string
@@ -50,6 +51,7 @@ export default function Dashboard() {
     receitaTotal: 0, contasFixas: 0, fatura: 0, faturaEhPrevisto: false, extras: 0,
     totalGastos: 0, sobraLiquida: 0, percentualComprometimento: 0,
   })
+  const [investimentos, setInvestimentos] = useState<{ descricao: string; percentual: number }[]>([])
   const [drawerAberto, setDrawerAberto] = useState(false)
   const [detalhesPonto, setDetalhesPonto] = useState<any>(null)
   const [carregando, setCarregando] = useState(true)
@@ -135,6 +137,14 @@ export default function Dashboard() {
       fatura: faturaEfetiva, faturaEhPrevisto, extras: 0,
       totalGastos, sobraLiquida, percentualComprometimento,
     })
+
+    const { data: invData } = await supabase
+      .from('investimentos')
+      .select('descricao, percentual')
+      .eq('mes_referencia', mesRef)
+      .order('created_at', { ascending: true })
+    setInvestimentos(invData || [])
+
     setCarregando(false)
   }
 
@@ -320,6 +330,55 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* Investimentos */}
+      {(carregando || investimentos.length > 0) && (
+        <div className="bg-white rounded-xl shadow p-4 mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <PiggyBank className="w-5 h-5 text-violet-600" />
+              <h2 className="text-lg font-semibold">Investimentos</h2>
+            </div>
+            <a href="/investimentos" className="text-xs text-violet-600 hover:underline">Ver tudo</a>
+          </div>
+          {carregando ? (
+            <div className="animate-pulse space-y-2">
+              <div className="h-5 bg-gray-200 rounded w-3/4" />
+              <div className="h-5 bg-gray-200 rounded w-1/2" />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {investimentos.map((inv, i) => {
+                const valor = resumoCaixa.sobraLiquida > 0
+                  ? resumoCaixa.sobraLiquida * inv.percentual / 100
+                  : 0
+                return (
+                  <div key={i} className="flex justify-between items-center text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-violet-400" />
+                      <span className="text-gray-700">{inv.descricao}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-semibold text-violet-700">R$ {valor.toFixed(2)}</span>
+                      <span className="text-gray-400 text-xs ml-1">({inv.percentual.toFixed(1)}%)</span>
+                    </div>
+                  </div>
+                )
+              })}
+              {investimentos.length > 0 && (
+                <div className="border-t pt-2 flex justify-between items-center text-sm">
+                  <span className="text-gray-500 font-medium">Total</span>
+                  <span className="font-bold text-violet-700">
+                    R$ {(resumoCaixa.sobraLiquida > 0
+                      ? resumoCaixa.sobraLiquida * investimentos.reduce((a, i) => a + i.percentual, 0) / 100
+                      : 0).toFixed(2)}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Gráfico de Projeção de Parcelamentos */}
       <div className="bg-white rounded-xl shadow p-4">
