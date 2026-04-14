@@ -61,10 +61,25 @@ export async function POST(req: NextRequest) {
       extra: new Array(meses.length).fill(0),
     }
 
-    const { data: todasTransacoes } = await supabase.from('transacoes_nubank').select('*')
+    // Busca apenas a fatura mais recente disponível no banco
+    const { data: maxRow } = await supabase
+      .from('transacoes_nubank')
+      .select('projeto_fatura')
+      .order('projeto_fatura', { ascending: false })
+      .limit(1)
+
+    const ultimaFaturaStr = maxRow?.[0]?.projeto_fatura
+    if (!ultimaFaturaStr) return NextResponse.json(resultados)
+
+    const { data: transacoesUltimaFatura } = await supabase
+      .from('transacoes_nubank')
+      .select('*')
+      .eq('projeto_fatura', ultimaFaturaStr)
+
     const { data: extras } = await supabase.from('planejamento').select('*').eq('categoria', 'Extra')
 
-    const contratos = buildContracts(todasTransacoes || [])
+    // Contratos: apenas parcelamentos da última fatura, deduplicados por série
+    const contratos = buildContracts(transacoesUltimaFatura || [])
 
     for (let i = 0; i < meses.length; i++) {
       const mesRef = startOfMonth(addMonths(inicioProjecao, i))

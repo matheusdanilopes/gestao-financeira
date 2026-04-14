@@ -75,12 +75,24 @@ export async function POST(req: NextRequest) {
         .map(e => ({ ...e, descricao: e.item, valor: e.valor_previsto, tipo: 'extra' }))
 
     } else {
-      const query = serie === 'Matheus' || serie === 'Jeniffer'
-        ? supabase.from('transacoes_nubank').select('*').eq('responsavel', serie)
-        : supabase.from('transacoes_nubank').select('*')
+      // Usa apenas a fatura mais recente como base de contratos
+      const { data: maxRow } = await supabase
+        .from('transacoes_nubank')
+        .select('projeto_fatura')
+        .order('projeto_fatura', { ascending: false })
+        .limit(1)
 
-      const { data: transacoesTodas } = await query
-      const contratos = buildContracts(transacoesTodas || [])
+      const ultimaFaturaStr = maxRow?.[0]?.projeto_fatura
+      let transacoesBase: any[] = []
+      if (ultimaFaturaStr) {
+        const query = serie === 'Matheus' || serie === 'Jeniffer'
+          ? supabase.from('transacoes_nubank').select('*').eq('projeto_fatura', ultimaFaturaStr).eq('responsavel', serie)
+          : supabase.from('transacoes_nubank').select('*').eq('projeto_fatura', ultimaFaturaStr)
+        const { data } = await query
+        transacoesBase = data || []
+      }
+
+      const contratos = buildContracts(transacoesBase)
       const transacoesFiltradas: any[] = []
 
       for (const { row, fatura, parcela } of contratos.values()) {
