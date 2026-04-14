@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { format, startOfMonth } from 'date-fns'
-import { CheckCircle, AlertCircle, Pencil, Trash2, Plus, CreditCard } from 'lucide-react'
+import { format, startOfMonth, subMonths } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+import { CheckCircle, AlertCircle, Pencil, Trash2, Plus, CreditCard, Download } from 'lucide-react'
 
 const PREFIXO_CARTAO_1 = '[CARTAO1] '
 const PREFIXO_CARTAO_2 = '[CARTAO2] '
@@ -52,6 +53,8 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
     tipo_cartao: '' as '' | 'cartao1' | 'cartao2',
     valor_previsto: '',
   })
+  const [importandoMesAnterior, setImportandoMesAnterior] = useState(false)
+  const [previewImport, setPreviewImport] = useState<{ itens: any[]; mesOrigem: string } | null>(null)
 
   useEffect(() => {
     carregarItens()
@@ -145,6 +148,68 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
     }
   }
 
+  async function abrirModalImportar() {
+    const mesAnterior = startOfMonth(subMonths(mesSelecionado, 1))
+    const mesAnteriorStr = format(mesAnterior, 'yyyy-MM-dd')
+
+    const { data: itensAnteriores } = await supabase
+      .from('planejamento')
+      .select('*')
+      .eq('mes_referencia', mesAnteriorStr)
+      .in('categoria', ['Fixa', 'Extra'])
+      .not('item', 'ilike', '[RECEITA]%')
+
+    const candidatos = (itensAnteriores || []).filter(i => {
+      // Remove parcelas que encerraram no mês anterior
+      if (i.parcela_atual && i.total_parcelas) {
+        return i.parcela_atual < i.total_parcelas
+      }
+      return true
+    })
+
+    setPreviewImport({
+      itens: candidatos,
+      mesOrigem: format(mesAnterior, 'MMMM yyyy', { locale: ptBR }),
+    })
+    setModalAberto('importar')
+  }
+
+  async function confirmarImportarMesAnterior() {
+    if (!previewImport) return
+    setImportandoMesAnterior(true)
+    try {
+      const mesAtualStr = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
+
+      // 1. Apaga todos os itens do mês atual (Fixa + Extra, exceto [RECEITA])
+      await supabase
+        .from('planejamento')
+        .delete()
+        .eq('mes_referencia', mesAtualStr)
+        .in('categoria', ['Fixa', 'Extra'])
+        .not('item', 'ilike', '[RECEITA]%')
+
+      // 2. Insere os itens do mês anterior, avançando parcelas quando aplicável
+      const novosItens = previewImport.itens.map(({ id, mes_referencia, pago, valor_real, parcela_atual, total_parcelas, ...resto }) => ({
+        ...resto,
+        mes_referencia: mesAtualStr,
+        pago: false,
+        valor_real: null,
+        parcela_atual: parcela_atual ? parcela_atual + 1 : null,
+        total_parcelas: total_parcelas ?? null,
+      }))
+
+      if (novosItens.length > 0) {
+        await supabase.from('planejamento').insert(novosItens)
+      }
+
+      setModalAberto(null)
+      setPreviewImport(null)
+      carregarItens()
+    } finally {
+      setImportandoMesAnterior(false)
+    }
+  }
+
   function abrirModalEditar(item: ItemPlanejamento) {
     setItemSelecionado(item)
     setFormData({
@@ -169,15 +234,24 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
 
   return (
     <div className="space-y-3">
-      <button
-        onClick={() => {
-          setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', tipo_cartao: '', valor_previsto: '' })
-          setModalAberto('adicionar')
-        }}
-        className="w-full bg-green-600 text-white py-2 rounded-lg font-medium flex items-center justify-center gap-2"
-      >
-        <Plus className="w-5 h-5" /> Adicionar item
-      </button>
+      <div className="flex gap-2">
+        <button
+          onClick={() => {
+            setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', tipo_cartao: '', valor_previsto: '' })
+            setModalAberto('adicionar')
+          }}
+          className="flex-1 bg-green-600 text-white py-2 rounded-lg font-medium flex items-center justify-center gap-2"
+        >
+          <Plus className="w-5 h-5" /> Adicionar
+        </button>
+
+        <button
+          onClick={abrirModalImportar}
+          className="flex-1 bg-orange-500 text-white py-2 rounded-lg font-medium flex items-center justify-center gap-2"
+        >
+          <Download className="w-4 h-4" /> Mês anterior
+        </button>
+      </div>
 
       <button
         onClick={() => setApenasPendentes(!apenasPendentes)}
@@ -286,6 +360,60 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
                 <button onClick={() => setModalAberto(null)} className="flex-1 py-2 rounded-lg bg-gray-200">Cancelar</button>
                 <button onClick={modalAberto === 'adicionar' ? adicionarItem : editarItem} className="flex-1 py-2 rounded-lg bg-blue-600 text-white">Salvar</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalAberto === 'importar' && previewImport && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-sm w-full p-6 max-h-[80vh] flex flex-col">
+            <h3 className="text-lg font-bold mb-1">Importar do mês anterior</h3>
+            <p className="text-sm text-gray-500 mb-3">
+              Origem: <span className="font-semibold capitalize">{previewImport.mesOrigem}</span>
+            </p>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3 text-xs text-amber-800 space-y-1">
+              <p className="font-semibold">⚠️ Atenção — esta ação irá:</p>
+              <p>• Apagar todos os itens Fixa/Extra do mês atual</p>
+              <p>• Copiar {previewImport.itens.length} item(ns) do mês anterior</p>
+              <p>• Parcelas serão avançadas em +1 automaticamente</p>
+              <p>• Parcelas encerradas não serão copiadas</p>
+            </div>
+
+            <div className="overflow-y-auto flex-1 mb-4 space-y-1">
+              {previewImport.itens.map((i, idx) => {
+                const parcelaLabel = i.parcela_atual && i.total_parcelas
+                  ? ` (${i.parcela_atual + 1}/${i.total_parcelas})`
+                  : ''
+                return (
+                  <div key={idx} className="text-xs flex justify-between bg-gray-50 px-2 py-1.5 rounded">
+                    <span className="truncate max-w-[180px] text-gray-700">
+                      {removerPrefixoCartao(i.item)}{parcelaLabel}
+                    </span>
+                    <span className="text-gray-500 shrink-0 ml-2">R$ {i.valor_previsto.toFixed(2)}</span>
+                  </div>
+                )
+              })}
+              {previewImport.itens.length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-4">Nenhum item encontrado no mês anterior.</p>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setModalAberto(null); setPreviewImport(null) }}
+                className="flex-1 py-2 rounded-lg bg-gray-200 font-medium"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarImportarMesAnterior}
+                disabled={importandoMesAnterior || previewImport.itens.length === 0}
+                className="flex-1 py-2 rounded-lg bg-orange-500 text-white font-medium disabled:opacity-50"
+              >
+                {importandoMesAnterior ? 'Importando…' : 'Confirmar'}
+              </button>
             </div>
           </div>
         </div>
