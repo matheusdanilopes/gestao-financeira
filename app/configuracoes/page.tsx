@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { descricaoFechamento } from '@/lib/fatura'
-import { Settings, LogOut, Upload, Activity, ChevronDown } from 'lucide-react'
+import { Settings, LogOut, Upload, Activity, ChevronDown, Sun, Moon, Monitor } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import BottomNav from '@/components/BottomNav'
+import { useTheme } from '@/components/ThemeProvider'
 
 interface LogEntry {
   id: string
@@ -39,6 +40,7 @@ export default function ConfiguracoesPage() {
   const [logsPage, setLogsPage] = useState(0)
   const [logsCarregando, setLogsCarregando] = useState(false)
   const router = useRouter()
+  const { theme, setTheme } = useTheme()
 
   useEffect(() => { carregarConfigs(); carregarLogs(0) }, [])
 
@@ -249,6 +251,34 @@ export default function ConfiguracoesPage() {
             )}
           </div>
         )}
+      </div>
+
+      {/* Tema */}
+      <div className="bg-white rounded-xl shadow p-4 mb-4">
+        <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+          <Sun className="w-5 h-5 text-gray-500" />
+          Tema
+        </h2>
+        <div className="flex gap-3">
+          {([
+            { value: 'light',  label: 'Claro',   Icon: Sun },
+            { value: 'dark',   label: 'Escuro',  Icon: Moon },
+            { value: 'system', label: 'Sistema', Icon: Monitor },
+          ] as const).map(({ value, label, Icon }) => (
+            <button
+              key={value}
+              onClick={() => setTheme(value)}
+              className={`flex-1 flex flex-col items-center gap-1.5 py-3 rounded-xl border-2 font-semibold text-sm transition ${
+                theme === value
+                  ? 'border-blue-500 bg-blue-50 text-blue-700'
+                  : 'border-gray-200 text-gray-500 hover:border-gray-300'
+              }`}
+            >
+              <Icon className="w-5 h-5" />
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Logout */}
