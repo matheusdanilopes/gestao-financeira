@@ -118,15 +118,26 @@ export async function POST(req: NextRequest) {
       }
 
       if (serie === 'Total') {
-        const { data: planejamentos } = await supabase
+        // Extras parcelados que caem neste mês — mesma lógica da série Extra e do projection/route.ts
+        const { data: todosExtras } = await supabase
           .from('planejamento')
-          .select('item, responsavel, valor_previsto, categoria')
-          .eq('mes_referencia', mesFormatado)
+          .select('item, responsavel, valor_previsto, categoria, parcela_atual, total_parcelas, mes_referencia')
+          .eq('categoria', 'Extra')
 
-        itens = [
-          ...(planejamentos || []).map(p => ({ ...p, descricao: p.item, valor: p.valor_previsto, tipo: 'planejamento' })),
-          ...transacoesFiltradas,
-        ]
+        const extrasDoMes = (todosExtras || [])
+          .filter(e => {
+            if (e.parcela_atual && e.total_parcelas) {
+              const mesExtra = startOfMonth(new Date(e.mes_referencia))
+              const mesesDiff =
+                (mesReferencia.getFullYear() - mesExtra.getFullYear()) * 12 +
+                (mesReferencia.getMonth() - mesExtra.getMonth())
+              return mesesDiff >= 0 && mesesDiff < (e.total_parcelas - e.parcela_atual + 1)
+            }
+            return false
+          })
+          .map(e => ({ ...e, descricao: e.item, valor: e.valor_previsto, tipo: 'extra' }))
+
+        itens = [...transacoesFiltradas, ...extrasDoMes]
       } else {
         itens = transacoesFiltradas
       }
