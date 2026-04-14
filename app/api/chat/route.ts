@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { format, startOfMonth, subMonths } from 'date-fns'
+import { format, startOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 const GEMINI_MODEL = 'gemini-3-flash-preview'
@@ -25,7 +25,7 @@ async function geminiChat(apiKey: string, systemPrompt: string, mensagens: Array
 
   const body = {
     contents,
-    generationConfig: { maxOutputTokens: 2048 },
+    generationConfig: { maxOutputTokens: 4096 },
   }
 
   const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
@@ -45,73 +45,112 @@ async function geminiChat(apiKey: string, systemPrompt: string, mensagens: Array
 
 async function buscarContextoFinanceiro(): Promise<string> {
   const supabase = getSupabase()
-  const hoje = new Date()
-  const mesAtual = startOfMonth(hoje)
-  const mesAnterior = startOfMonth(subMonths(hoje, 1))
-  const mesRef = format(mesAtual, 'yyyy-MM-dd')
-  const mesRefAnterior = format(mesAnterior, 'yyyy-MM-dd')
-  const nomeMes = format(mesAtual, 'MMMM yyyy', { locale: ptBR })
-  const nomeMesAnterior = format(mesAnterior, 'MMMM yyyy', { locale: ptBR })
 
-  const [resAtual, resAnterior, resPlan] = await Promise.all([
-    supabase.from('transacoes_nubank').select('descricao, valor, responsavel, categoria').eq('projeto_fatura', mesRef),
-    supabase.from('transacoes_nubank').select('valor, responsavel').eq('projeto_fatura', mesRefAnterior),
-    supabase.from('planejamento').select('item, valor_previsto').eq('mes_referencia', mesRef),
+  const [resTransacoes, resPlanejamento, resConfig] = await Promise.all([
+    supabase.from('transacoes_nubank').select('descricao, valor, responsavel, categoria, projeto_fatura, data').order('projeto_fatura', { ascending: false }),
+    supabase.from('planejamento').select('item, responsavel, valor_previsto, categoria, mes_referencia, parcela_atual, total_parcelas').order('mes_referencia', { ascending: false }),
+    supabase.from('configuracoes').select('chave, valor'),
   ])
 
-  const transacoesAtual = (resAtual.data ?? []) as Array<{ descricao: string; valor: number; responsavel: string; categoria: string | null }>
-  const transacoesAnterior = (resAnterior.data ?? []) as Array<{ valor: number; responsavel: string }>
-  const planejamento = (resPlan.data ?? []) as Array<{ item: string; valor_previsto: number }>
+  const transacoes = (resTransacoes.data ?? []) as Array<{
+    descricao: string; valor: number; responsavel: string; categoria: string | null
+    projeto_fatura: string; data: string
+  }>
+  const planejamento = (resPlanejamento.data ?? []) as Array<{
+    item: string; responsavel: string | null; valor_previsto: number; categoria: string | null
+    mes_referencia: string; parcela_atual: number | null; total_parcelas: number | null
+  }>
+  const configuracoes = (resConfig.data ?? []) as Array<{ chave: string; valor: string }>
 
-  const totalAtual = transacoesAtual.reduce((a, t) => a + t.valor, 0)
-  const totalAnterior = transacoesAnterior.reduce((a, t) => a + t.valor, 0)
-  const matheusAtual = transacoesAtual.filter(t => t.responsavel === 'Matheus').reduce((a, t) => a + t.valor, 0)
-  const jenifferAtual = transacoesAtual.filter(t => t.responsavel === 'Jeniffer').reduce((a, t) => a + t.valor, 0)
-  const receitaTotal = planejamento.find(p => p.item === 'Receita Total')?.valor_previsto ?? 0
-  const matheusPrevisto = planejamento.find(p => p.item === 'NuBank Matheus')?.valor_previsto ?? 0
-  const jenifferPrevisto =
-    (planejamento.find(p => p.item === 'NuBank Jeniffer')?.valor_previsto ?? 0) +
-    (planejamento.find(p => p.item === 'NuBank Jeniffer Conjunto')?.valor_previsto ?? 0)
+  const hoje = new Date()
+  const mesAtualStr = format(startOfMonth(hoje), 'yyyy-MM-dd')
 
-  const porCategoria: Record<string, number> = {}
-  for (const t of transacoesAtual) {
-    const cat = t.categoria || 'Sem categoria'
-    porCategoria[cat] = (porCategoria[cat] ?? 0) + t.valor
+  // ── Configurações ────────────────────────────────────────────────
+  const configStr = configuracoes.length > 0
+    ? configuracoes.map(c => `  ${c.chave}: ${c.valor}`).join('\n')
+    : '  (nenhuma)'
+
+  // ── Transações agrupadas por mês de fatura ───────────────────────
+  const transacoesPorMes: Record<string, typeof transacoes> = {}
+  for (const t of transacoes) {
+    const mes = (t.projeto_fatura ?? '').substring(0, 7)
+    if (!transacoesPorMes[mes]) transacoesPorMes[mes] = []
+    transacoesPorMes[mes].push(t)
   }
-  const categoriasStr = Object.entries(porCategoria)
-    .sort((a, b) => b[1] - a[1])
-    .map(([cat, val]) => `  - ${cat}: R$ ${val.toFixed(2)}`)
-    .join('\n')
 
-  const top5 = [...transacoesAtual]
-    .sort((a, b) => b.valor - a.valor)
-    .slice(0, 5)
-    .map(t => `  - ${t.descricao} (${t.responsavel}): R$ ${t.valor.toFixed(2)}`)
-    .join('\n')
+  const mesesTransacoes = Object.keys(transacoesPorMes).sort().reverse()
+
+  let transacoesStr = ''
+  for (const mes of mesesTransacoes) {
+    const lista = transacoesPorMes[mes]
+    const total = lista.reduce((a, t) => a + t.valor, 0)
+    const matheus = lista.filter(t => t.responsavel === 'Matheus').reduce((a, t) => a + t.valor, 0)
+    const jeniffer = lista.filter(t => t.responsavel === 'Jeniffer').reduce((a, t) => a + t.valor, 0)
+    const nomeMes = format(new Date(mes + '-02'), 'MMMM yyyy', { locale: ptBR })
+
+    transacoesStr += `\n### Fatura ${nomeMes.toUpperCase()} — Total: R$ ${total.toFixed(2)} | Matheus: R$ ${matheus.toFixed(2)} | Jeniffer: R$ ${jeniffer.toFixed(2)}\n`
+
+    // Totais por categoria
+    const porCat: Record<string, number> = {}
+    for (const t of lista) {
+      const cat = t.categoria || 'Sem categoria'
+      porCat[cat] = (porCat[cat] ?? 0) + t.valor
+    }
+    transacoesStr += 'Categorias: ' + Object.entries(porCat).sort((a,b) => b[1]-a[1])
+      .map(([c, v]) => `${c} R$ ${v.toFixed(2)}`).join(' | ') + '\n'
+
+    // Lista completa de transações
+    const linhas = [...lista].sort((a, b) => b.valor - a.valor)
+      .map(t => `  [${t.responsavel}] ${t.descricao} — R$ ${t.valor.toFixed(2)}${t.categoria ? ` (${t.categoria})` : ''}`)
+    transacoesStr += linhas.join('\n') + '\n'
+  }
+
+  // ── Planejamento agrupado por mês ────────────────────────────────
+  const planPorMes: Record<string, typeof planejamento> = {}
+  for (const p of planejamento) {
+    const mes = (p.mes_referencia ?? '').substring(0, 7)
+    if (!planPorMes[mes]) planPorMes[mes] = []
+    planPorMes[mes].push(p)
+  }
+
+  const mesesPlan = Object.keys(planPorMes).sort().reverse()
+
+  let planejamentoStr = ''
+  for (const mes of mesesPlan) {
+    const lista = planPorMes[mes]
+    const nomeMes = format(new Date(mes + '-02'), 'MMMM yyyy', { locale: ptBR })
+    planejamentoStr += `\n### Planejamento ${nomeMes.toUpperCase()}\n`
+    for (const p of lista) {
+      const parc = p.parcela_atual && p.total_parcelas ? ` (parcela ${p.parcela_atual}/${p.total_parcelas})` : ''
+      planejamentoStr += `  ${p.item}${parc}: R$ ${p.valor_previsto.toFixed(2)}${p.categoria ? ` [${p.categoria}]` : ''}\n`
+    }
+  }
+
+  // ── Resumo geral ─────────────────────────────────────────────────
+  const totalGeral = transacoes.reduce((a, t) => a + t.valor, 0)
+  const totalMatheus = transacoes.filter(t => t.responsavel === 'Matheus').reduce((a, t) => a + t.valor, 0)
+  const totalJeniffer = transacoes.filter(t => t.responsavel === 'Jeniffer').reduce((a, t) => a + t.valor, 0)
 
   return `
-DADOS FINANCEIROS — ${nomeMes.toUpperCase()}
+ASSISTENTE FINANCEIRO — DADOS COMPLETOS DO CASAL MATHEUS E JENIFFER
+Data de referência: ${format(hoje, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
 
-Receita total prevista: R$ ${receitaTotal.toFixed(2)}
-Gasto total no cartão: R$ ${totalAtual.toFixed(2)}
-Sobra estimada: R$ ${(receitaTotal - totalAtual).toFixed(2)}
-Comprometimento: ${receitaTotal > 0 ? ((totalAtual / receitaTotal) * 100).toFixed(1) : 0}%
+CONFIGURAÇÕES:
+${configStr}
 
-NUBANK POR PESSOA:
-- Matheus: R$ ${matheusAtual.toFixed(2)} (previsto R$ ${matheusPrevisto.toFixed(2)})
-- Jeniffer: R$ ${jenifferAtual.toFixed(2)} (previsto R$ ${jenifferPrevisto.toFixed(2)})
+RESUMO HISTÓRICO GERAL:
+  Total histórico de gastos no cartão: R$ ${totalGeral.toFixed(2)}
+  Total Matheus: R$ ${totalMatheus.toFixed(2)}
+  Total Jeniffer: R$ ${totalJeniffer.toFixed(2)}
+  Meses com dados: ${mesesTransacoes.length}
+  Total de transações: ${transacoes.length}
 
-GASTOS POR CATEGORIA:
-${categoriasStr || '  (sem categorias ainda)'}
-
-TOP 5 MAIORES COMPRAS:
-${top5 || '  (sem compras)'}
-
-MÊS ANTERIOR (${nomeMesAnterior}):
-- Total gasto: R$ ${totalAnterior.toFixed(2)}
-- Variação: ${totalAnterior > 0 ? ((totalAtual - totalAnterior) / totalAnterior * 100).toFixed(1) : 'N/A'}%
-
-Total de transações no mês: ${transacoesAtual.length}
+═══════════════════════════════════════
+TRANSAÇÕES POR MÊS DE FATURA:
+${transacoesStr}
+═══════════════════════════════════════
+PLANEJAMENTO MENSAL:
+${planejamentoStr}
 `.trim()
 }
 
@@ -127,8 +166,10 @@ export async function POST(req: NextRequest) {
 
     const systemPrompt = `Você é um assistente financeiro pessoal do casal Matheus e Jeniffer.
 Responda sempre em português brasileiro, de forma clara, objetiva e amigável.
-Use os dados financeiros abaixo para responder perguntas sobre gastos, orçamento e finanças.
+Use os dados financeiros abaixo para responder perguntas sobre gastos, orçamento, tendências e finanças em geral.
+Você tem acesso ao histórico completo de todas as transações e planejamentos, sem limitação de período.
 Formate valores monetários sempre como R$ X.XX.
+Quando comparar períodos, use os dados históricos disponíveis.
 
 ${contexto}`
 
