@@ -65,16 +65,8 @@ export async function POST(req: NextRequest) {
               else if (t.responsavel === 'Jeniffer') resultados.jeniffer[i] += t.valor
             }
           }
-        } else {
-          const faturaStr = typeof t.projeto_fatura === 'string'
-            ? t.projeto_fatura.substring(0, 10)
-            : format(new Date(t.projeto_fatura), 'yyyy-MM-dd')
-          if (mesStr === faturaStr) {
-            resultados.total[i] += t.valor
-            if (t.responsavel === 'Matheus') resultados.matheus[i] += t.valor
-            else if (t.responsavel === 'Jeniffer') resultados.jeniffer[i] += t.valor
-          }
         }
+        // Compras avulsas (não parceladas) são ignoradas na projeção
       }
 
       for (const e of (extras || [])) {
