@@ -52,7 +52,7 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
     observacao: '',
   })
   const [modalHistorico, setModalHistorico] = useState<ItemReceita | null>(null)
-  const [recebimentoPendingDelete, setRecebimentoPendingDelete] = useState<string | null>(null)
+  const [recebimentoPendingDelete, setRecebimentoPendingDelete] = useState<string | null>(null) // id do recebimento ou 'legado'
 
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null)
 
@@ -143,6 +143,16 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
       carregarItens()
     }
     setRecebimentoPendingDelete(null)
+  }
+
+  // Desfaz um recebimento registrado pelo método legado (pago=true sem entradas na tabela)
+  async function excluirLegado(item: ItemReceita) {
+    await supabase.from('planejamento').update({ pago: false, valor_real: null }).eq('id', item.id)
+    log('excluir', 'receitas', `Recebimento desfeito: ${paraNomeExibicao(item.item)}`)
+    showToast('Recebimento desfeito')
+    setRecebimentoPendingDelete(null)
+    setModalHistorico(null)
+    carregarItens()
   }
 
   async function excluir(id: string) {
@@ -244,6 +254,8 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
             const concluido = recebido > 0 && recebido >= item.valor_previsto
             const parcial = recebido > 0 && !concluido
             const hasRecs = (recebimentos[item.id] || []).length > 0
+            // Legado: pago=true sem entradas na tabela — também mostra histórico
+            const showHistory = hasRecs || (item.pago && !hasRecs)
 
             return (
               <div key={item.id} className={`px-4 py-3 transition-colors ${concluido ? 'bg-green-50/60' : 'bg-white'}`}>
@@ -285,7 +297,7 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
                     >
                       <CirclePlus className="w-5 h-5" />
                     </button>
-                    {hasRecs && (
+                    {showHistory && (
                       <button
                         onClick={() => { setModalHistorico(item); setRecebimentoPendingDelete(null) }}
                         className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition"
@@ -425,6 +437,7 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
             </div>
             <p className="text-sm text-gray-500 mb-4">{paraNomeExibicao(modalHistorico.item)}</p>
             <div className="space-y-2 max-h-72 overflow-y-auto">
+              {/* Entradas da tabela (novo sistema) */}
               {(recebimentos[modalHistorico.id] || []).map((r) => (
                 <div key={r.id} className={`rounded-xl overflow-hidden transition-all ${
                   recebimentoPendingDelete === r.id ? 'ring-2 ring-red-300' : ''
@@ -463,11 +476,52 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
                   </div>
                 </div>
               ))}
+
+              {/* Entrada legada: pago=true sem registros na tabela */}
+              {(recebimentos[modalHistorico.id] || []).length === 0 && modalHistorico.pago && (
+                <div className={`rounded-xl overflow-hidden transition-all ${
+                  recebimentoPendingDelete === 'legado' ? 'ring-2 ring-red-300' : ''
+                }`}>
+                  <div className="flex items-center gap-3 bg-gray-50 px-3 py-2.5">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800">
+                        R$ {(modalHistorico.valor_real ?? modalHistorico.valor_previsto).toFixed(2)}
+                      </p>
+                      <p className="text-xs text-gray-400">Recebido integralmente</p>
+                    </div>
+                    {recebimentoPendingDelete === 'legado' ? (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          onClick={() => setRecebimentoPendingDelete(null)}
+                          className="px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-200 text-gray-600 hover:bg-gray-300 transition"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={() => excluirLegado(modalHistorico)}
+                          className="px-2.5 py-1 rounded-lg text-xs font-medium bg-red-500 text-white hover:bg-red-600 transition"
+                        >
+                          Desfazer
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setRecebimentoPendingDelete('legado')}
+                        className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition shrink-0"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="border-t mt-3 pt-3 flex justify-between text-sm font-medium text-gray-600">
               <span>Total recebido</span>
               <span className="text-green-700 font-bold">
-                R$ {(recebimentos[modalHistorico.id] || []).reduce((a, r) => a + r.valor, 0).toFixed(2)}
+                R$ {(recebimentos[modalHistorico.id] || []).length > 0
+                  ? (recebimentos[modalHistorico.id] || []).reduce((a, r) => a + r.valor, 0).toFixed(2)
+                  : (modalHistorico.pago ? (modalHistorico.valor_real ?? modalHistorico.valor_previsto) : 0).toFixed(2)}
               </span>
             </div>
             <button
