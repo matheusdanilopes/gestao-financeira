@@ -19,12 +19,14 @@ export function log(
   descricao: string,
   valor?: number
 ) {
-  supabase.from('activity_logs').insert([{
-    acao,
-    tabela,
-    descricao,
-    valor: valor ?? null,
-  }]).then() // intencional: não aguarda, não propaga erro
+  void (async () => {
+    await supabase.from('activity_logs').insert([{
+      acao,
+      tabela,
+      descricao,
+      valor: valor ?? null,
+    }])
+  })()
 }
 
 /**
