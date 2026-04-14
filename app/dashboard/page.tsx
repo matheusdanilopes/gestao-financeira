@@ -51,7 +51,7 @@ export default function Dashboard() {
     receitaTotal: 0, contasFixas: 0, fatura: 0, faturaEhPrevisto: false, extras: 0,
     totalGastos: 0, sobraLiquida: 0, percentualComprometimento: 0,
   })
-  const [investimentos, setInvestimentos] = useState<{ descricao: string; percentual: number }[]>([])
+  const [investimentos, setInvestimentos] = useState<{ id: string; descricao: string; percentual: number; aportado: number }[]>([])
   const [drawerAberto, setDrawerAberto] = useState(false)
   const [detalhesPonto, setDetalhesPonto] = useState<any>(null)
   const [carregando, setCarregando] = useState(true)
@@ -140,10 +140,23 @@ export default function Dashboard() {
 
     const { data: invData } = await supabase
       .from('investimentos')
-      .select('descricao, percentual')
+      .select('id, descricao, percentual')
       .eq('mes_referencia', mesRef)
       .order('created_at', { ascending: true })
-    setInvestimentos(invData || [])
+
+    const ids = (invData || []).map(i => i.id)
+    let aportadoMap: Record<string, number> = {}
+    if (ids.length > 0) {
+      const { data: aportesData } = await supabase
+        .from('investimentos_aportes')
+        .select('investimento_id, valor')
+        .in('investimento_id', ids)
+      for (const a of (aportesData || [])) {
+        aportadoMap[a.investimento_id] = (aportadoMap[a.investimento_id] || 0) + a.valor
+      }
+    }
+
+    setInvestimentos((invData || []).map(i => ({ ...i, aportado: aportadoMap[i.id] || 0 })))
 
     setCarregando(false)
   }
@@ -347,31 +360,39 @@ export default function Dashboard() {
               <div className="h-5 bg-gray-200 rounded w-1/2" />
             </div>
           ) : (
-            <div className="space-y-2">
-              {investimentos.map((inv, i) => {
-                const valor = resumoCaixa.sobraLiquida > 0
-                  ? resumoCaixa.sobraLiquida * inv.percentual / 100
-                  : 0
+            <div className="space-y-3">
+              {investimentos.map((inv) => {
+                const meta = resumoCaixa.sobraLiquida > 0 ? resumoCaixa.sobraLiquida * inv.percentual / 100 : 0
+                const progresso = meta > 0 ? Math.min((inv.aportado / meta) * 100, 100) : 0
+                const concluido = meta > 0 && inv.aportado >= meta
                 return (
-                  <div key={i} className="flex justify-between items-center text-sm">
-                    <div className="flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-violet-400" />
-                      <span className="text-gray-700">{inv.descricao}</span>
+                  <div key={inv.id}>
+                    <div className="flex justify-between items-center text-sm mb-1">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-1.5 h-1.5 rounded-full ${concluido ? 'bg-green-500' : 'bg-violet-400'}`} />
+                        <span className="text-gray-700">{inv.descricao}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className={`font-semibold ${concluido ? 'text-green-600' : 'text-violet-700'}`}>
+                          R$ {inv.aportado.toFixed(2)}
+                        </span>
+                        <span className="text-gray-400 text-xs ml-1">/ R$ {meta.toFixed(2)}</span>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <span className="font-semibold text-violet-700">R$ {valor.toFixed(2)}</span>
-                      <span className="text-gray-400 text-xs ml-1">({inv.percentual.toFixed(1)}%)</span>
+                    <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className={`h-1.5 rounded-full transition-all duration-500 ${concluido ? 'bg-green-500' : 'bg-violet-400'}`}
+                        style={{ width: `${progresso}%` }}
+                      />
                     </div>
                   </div>
                 )
               })}
               {investimentos.length > 0 && (
                 <div className="border-t pt-2 flex justify-between items-center text-sm">
-                  <span className="text-gray-500 font-medium">Total</span>
+                  <span className="text-gray-500 font-medium">Total aportado</span>
                   <span className="font-bold text-violet-700">
-                    R$ {(resumoCaixa.sobraLiquida > 0
-                      ? resumoCaixa.sobraLiquida * investimentos.reduce((a, i) => a + i.percentual, 0) / 100
-                      : 0).toFixed(2)}
+                    R$ {investimentos.reduce((a, i) => a + i.aportado, 0).toFixed(2)}
                   </span>
                 </div>
               )}
