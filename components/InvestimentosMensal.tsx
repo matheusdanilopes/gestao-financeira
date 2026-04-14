@@ -331,13 +331,15 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
                   <div className={`w-2 h-2 rounded-full shrink-0 ${concluido ? 'bg-green-500' : 'bg-violet-400'}`} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-800 truncate">{item.descricao}</p>
-                    <p className="text-xs text-gray-400">{item.percentual.toFixed(2)}% · Meta: R$ {meta.toFixed(2)}</p>
+                    <p className="text-xs text-gray-400">{item.percentual.toFixed(2)}% do saldo</p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className={`text-sm font-semibold ${concluido ? 'text-green-600' : 'text-violet-700'}`}>
+                    <p className={`text-sm font-bold ${concluido ? 'text-green-600' : 'text-violet-700'}`}>
                       R$ {aportado.toFixed(2)}
                     </p>
-                    {concluido && <p className="text-xs text-green-500">Concluído</p>}
+                    <p className="text-xs font-medium text-gray-500">
+                      meta R$ {meta.toFixed(2)}
+                    </p>
                   </div>
                 </div>
 
