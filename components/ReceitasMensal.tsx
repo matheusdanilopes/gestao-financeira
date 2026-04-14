@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth } from 'date-fns'
-import { CheckCircle, Pencil, Trash2, Plus } from 'lucide-react'
+import { CheckCircle2, Pencil, Trash2, Plus, TrendingUp } from 'lucide-react'
 
 const RECEITA_PREFIXO = '[RECEITA] '
 
@@ -42,7 +42,6 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
       .eq('mes_referencia', mesRef)
       .ilike('item', '[RECEITA]%')
       .order('item', { ascending: true })
-
     setItens(data || [])
   }
 
@@ -67,64 +66,248 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
       responsavel: formData.responsavel,
       valor_previsto: parseFloat(formData.valor_previsto.replace(',', '.')),
     }
-
     if (modalAberto === 'adicionar') {
       const mesRef = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
-      await supabase.from('planejamento').insert([{ ...payload, categoria: 'Extra', mes_referencia: mesRef, pago: false, valor_real: null }])
+      await supabase.from('planejamento').insert([{
+        ...payload,
+        categoria: 'Extra',
+        mes_referencia: mesRef,
+        pago: false,
+        valor_real: null,
+      }])
     } else if (itemSelecionado) {
       await supabase.from('planejamento').update(payload).eq('id', itemSelecionado.id)
     }
-
     setModalAberto(null)
     setItemSelecionado(null)
     setFormData({ item: '', responsavel: 'Matheus', valor_previsto: '' })
     carregarItens()
   }
 
+  function abrirEditar(item: ItemReceita) {
+    setItemSelecionado(item)
+    setFormData({
+      item: paraNomeExibicao(item.item),
+      responsavel: item.responsavel,
+      valor_previsto: String(item.valor_previsto),
+    })
+    setModalAberto('editar')
+  }
+
   const totalPrevisto = useMemo(() => itens.reduce((acc, i) => acc + i.valor_previsto, 0), [itens])
-  const totalRecebido = useMemo(() => itens.reduce((acc, i) => acc + (i.pago ? (i.valor_real ?? i.valor_previsto) : 0), 0), [itens])
+  const totalRecebido = useMemo(
+    () => itens.reduce((acc, i) => acc + (i.pago ? (i.valor_real ?? i.valor_previsto) : 0), 0),
+    [itens]
+  )
+  const percentual = totalPrevisto > 0 ? Math.min((totalRecebido / totalPrevisto) * 100, 100) : 0
 
   return (
     <div className="space-y-3">
-      <button onClick={() => setModalAberto('adicionar')} className="w-full bg-green-600 text-white py-2 rounded-lg font-medium flex items-center justify-center gap-2">
-        <Plus className="w-5 h-5" /> Adicionar receita
+
+      {/* Resumo */}
+      <div className="bg-white rounded-2xl shadow p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <TrendingUp className="w-5 h-5 text-green-600" />
+          <span className="font-semibold text-gray-800">Resumo de Receitas</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="bg-gray-50 rounded-xl p-3 text-center">
+            <p className="text-xs text-gray-500 mb-0.5">Previsto</p>
+            <p className="text-lg font-bold text-gray-800">R$ {totalPrevisto.toFixed(2)}</p>
+          </div>
+          <div className="bg-green-50 rounded-xl p-3 text-center">
+            <p className="text-xs text-gray-500 mb-0.5">Recebido</p>
+            <p className="text-lg font-bold text-green-700">R$ {totalRecebido.toFixed(2)}</p>
+          </div>
+        </div>
+        <div>
+          <div className="flex justify-between text-xs text-gray-500 mb-1">
+            <span>Progresso do mês</span>
+            <span className="font-semibold text-green-700">{percentual.toFixed(0)}%</span>
+          </div>
+          <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+            <div
+              className="h-2 rounded-full bg-green-500 transition-all duration-700"
+              style={{ width: `${percentual}%` }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Lista */}
+      <div className="bg-white rounded-2xl shadow overflow-hidden divide-y divide-gray-100">
+        {itens.length === 0 ? (
+          <div className="py-12 flex flex-col items-center gap-2 text-gray-300">
+            <TrendingUp className="w-10 h-10" />
+            <p className="text-sm">Nenhuma receita cadastrada</p>
+          </div>
+        ) : (
+          itens.map((item) => {
+            const recebidoValor = item.pago ? (item.valor_real ?? item.valor_previsto) : 0
+            return (
+              <div
+                key={item.id}
+                className={`px-4 py-3 flex items-center gap-3 transition-colors ${
+                  item.pago ? 'bg-green-50/60' : 'bg-white'
+                }`}
+              >
+                {/* Status dot */}
+                <div className={`w-2 h-2 rounded-full shrink-0 ${item.pago ? 'bg-green-500' : 'bg-gray-300'}`} />
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800 truncate">
+                    {paraNomeExibicao(item.item)}
+                  </p>
+                  <p className="text-xs text-gray-400">{item.responsavel}</p>
+                </div>
+
+                {/* Valores */}
+                <div className="text-right shrink-0 mr-2">
+                  <p className="text-sm font-semibold text-gray-800">
+                    R$ {item.valor_previsto.toFixed(2)}
+                  </p>
+                  {item.pago && (
+                    <p className="text-xs text-green-600 font-medium">
+                      ✓ R$ {recebidoValor.toFixed(2)}
+                    </p>
+                  )}
+                </div>
+
+                {/* Ações */}
+                <div className="flex items-center gap-1 shrink-0">
+                  {!item.pago && (
+                    <button
+                      onClick={() => { setItemSelecionado(item); setModalAberto('receber') }}
+                      className="p-1.5 rounded-lg text-green-600 hover:bg-green-100 transition"
+                    >
+                      <CheckCircle2 className="w-5 h-5" />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => abrirEditar(item)}
+                    className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 transition"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => { setItemSelecionado(item); setModalAberto('excluir') }}
+                    className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      {/* Botão adicionar */}
+      <button
+        onClick={() => setModalAberto('adicionar')}
+        className="w-full bg-green-600 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-green-700 transition"
+      >
+        <Plus className="w-5 h-5" />
+        Adicionar receita
       </button>
 
-      <div className="bg-white rounded-xl shadow p-3 grid grid-cols-2 gap-3">
-        <div><p className="text-xs text-gray-500">Total previsto</p><p className="text-lg font-bold">R$ {totalPrevisto.toFixed(2)}</p></div>
-        <div><p className="text-xs text-gray-500">Total recebido</p><p className="text-lg font-bold text-green-700">R$ {totalRecebido.toFixed(2)}</p></div>
-      </div>
-
-      <div className="bg-white rounded-xl shadow divide-y">
-        {itens.map((item) => (
-          <div key={item.id} className="p-3 flex items-center justify-between gap-2">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium truncate">{paraNomeExibicao(item.item)}</p>
-              <p className="text-xs text-gray-500">{item.responsavel}</p>
-            </div>
-            <div className="text-right text-xs">
-              <p>Prev: R$ {item.valor_previsto.toFixed(2)}</p>
-              <p className={item.pago ? 'text-green-700 font-semibold' : 'text-gray-400'}>Rec: R$ {(item.valor_real ?? 0).toFixed(2)}</p>
-            </div>
-            <div className="flex gap-1">
-              {!item.pago && <button onClick={() => { setItemSelecionado(item); setModalAberto('receber') }} className="text-green-600"><CheckCircle className="w-5 h-5" /></button>}
-              <button onClick={() => { setItemSelecionado(item); setFormData({ item: paraNomeExibicao(item.item), responsavel: item.responsavel, valor_previsto: String(item.valor_previsto) }); setModalAberto('editar') }} className="text-blue-600"><Pencil className="w-4 h-4" /></button>
-              <button onClick={() => { setItemSelecionado(item); setModalAberto('excluir') }} className="text-red-600"><Trash2 className="w-4 h-4" /></button>
+      {/* Modal: registrar recebimento */}
+      {modalAberto === 'receber' && itemSelecionado && (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6">
+            <h3 className="text-lg font-bold mb-1">Registrar Recebimento</h3>
+            <p className="text-sm text-gray-500 mb-4">{paraNomeExibicao(itemSelecionado.item)}</p>
+            <label className="text-xs font-medium text-gray-600 mb-1 block">Valor recebido (R$)</label>
+            <input
+              className="w-full border border-gray-200 rounded-xl p-3 text-lg font-semibold mb-5 focus:outline-none focus:ring-2 focus:ring-green-400"
+              value={valorRecebido}
+              onChange={(e) => setValorRecebido(e.target.value)}
+              placeholder={`Previsto: R$ ${itemSelecionado.valor_previsto.toFixed(2)}`}
+              autoFocus
+              inputMode="decimal"
+            />
+            <div className="flex gap-3">
+              <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600">
+                Cancelar
+              </button>
+              <button onClick={() => salvarRecebimento(itemSelecionado.id)} className="flex-1 py-3 rounded-xl bg-green-600 text-white font-semibold">
+                Confirmar
+              </button>
             </div>
           </div>
-        ))}
-      </div>
-
-      {modalAberto === 'receber' && itemSelecionado && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"><div className="bg-white rounded-xl max-w-sm w-full p-6"><h3 className="text-lg font-bold mb-4">Registrar Recebimento</h3><input className="w-full border rounded-lg p-3 mb-4" value={valorRecebido} onChange={(e) => setValorRecebido(e.target.value)} placeholder="Valor recebido" /><div className="flex gap-3"><button onClick={() => setModalAberto(null)} className="flex-1 py-2 rounded-lg bg-gray-200">Cancelar</button><button onClick={() => salvarRecebimento(itemSelecionado.id)} className="flex-1 py-2 rounded-lg bg-green-600 text-white">Confirmar</button></div></div></div>
+        </div>
       )}
 
+      {/* Modal: adicionar / editar */}
       {(modalAberto === 'adicionar' || modalAberto === 'editar') && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"><div className="bg-white rounded-xl max-w-sm w-full p-6"><h3 className="text-lg font-bold mb-4">{modalAberto === 'adicionar' ? 'Nova Receita' : 'Editar Receita'}</h3><div className="space-y-3"><input className="w-full border rounded-lg p-3" placeholder="Descrição" value={formData.item} onChange={(e) => setFormData({ ...formData, item: e.target.value })} /><select className="w-full border rounded-lg p-3" value={formData.responsavel} onChange={(e) => setFormData({ ...formData, responsavel: e.target.value })}><option value="Matheus">Matheus</option><option value="Jeniffer">Jeniffer</option></select><input className="w-full border rounded-lg p-3" placeholder="Valor previsto" value={formData.valor_previsto} onChange={(e) => setFormData({ ...formData, valor_previsto: e.target.value })} /><div className="flex gap-3"><button onClick={() => setModalAberto(null)} className="flex-1 py-2 rounded-lg bg-gray-200">Cancelar</button><button onClick={salvar} className="flex-1 py-2 rounded-lg bg-blue-600 text-white">Salvar</button></div></div></div></div>
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6">
+            <h3 className="text-lg font-bold mb-5">
+              {modalAberto === 'adicionar' ? 'Nova Receita' : 'Editar Receita'}
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Descrição</label>
+                <input
+                  className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-green-400"
+                  placeholder="Ex: Salário Matheus"
+                  value={formData.item}
+                  onChange={(e) => setFormData({ ...formData, item: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Responsável</label>
+                <select
+                  className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-green-400"
+                  value={formData.responsavel}
+                  onChange={(e) => setFormData({ ...formData, responsavel: e.target.value })}
+                >
+                  <option value="Matheus">Matheus</option>
+                  <option value="Jeniffer">Jeniffer</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Valor previsto (R$)</label>
+                <input
+                  className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-green-400"
+                  placeholder="0,00"
+                  value={formData.valor_previsto}
+                  onChange={(e) => setFormData({ ...formData, valor_previsto: e.target.value })}
+                  inputMode="decimal"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600">
+                Cancelar
+              </button>
+              <button onClick={salvar} className="flex-1 py-3 rounded-xl bg-green-600 text-white font-semibold">
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
+      {/* Modal: excluir */}
       {modalAberto === 'excluir' && itemSelecionado && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"><div className="bg-white rounded-xl max-w-sm w-full p-6"><h3 className="text-lg font-bold mb-4">Confirmar exclusão</h3><p className="mb-4">Excluir "{paraNomeExibicao(itemSelecionado.item)}"?</p><div className="flex gap-3"><button onClick={() => setModalAberto(null)} className="flex-1 py-2 rounded-lg bg-gray-200">Cancelar</button><button onClick={() => excluir(itemSelecionado.id)} className="flex-1 py-2 rounded-lg bg-red-600 text-white">Excluir</button></div></div></div>
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6">
+            <h3 className="text-lg font-bold mb-2">Excluir receita</h3>
+            <p className="text-sm text-gray-500 mb-6">
+              Tem certeza que deseja excluir <span className="font-semibold text-gray-800">"{paraNomeExibicao(itemSelecionado.item)}"</span>?
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600">
+                Cancelar
+              </button>
+              <button onClick={() => excluir(itemSelecionado.id)} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-semibold">
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
