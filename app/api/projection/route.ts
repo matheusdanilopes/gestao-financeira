@@ -111,14 +111,6 @@ export async function POST(req: NextRequest) {
             resultados.extra[i] += e.valor_previsto
             resultados.total[i] += e.valor_previsto
           }
-        } else {
-          const mesExtraStr = typeof e.mes_referencia === 'string'
-            ? e.mes_referencia.substring(0, 10)
-            : format(new Date(e.mes_referencia), 'yyyy-MM-dd')
-          if (mesStr === mesExtraStr) {
-            resultados.extra[i] += e.valor_previsto
-            resultados.total[i] += e.valor_previsto
-          }
         }
       }
     }

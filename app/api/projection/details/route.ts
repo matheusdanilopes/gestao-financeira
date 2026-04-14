@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
               (mesReferencia.getMonth() - mesExtra.getMonth())
             return mesesDiff >= 0 && mesesDiff < (e.total_parcelas - e.parcela_atual + 1)
           }
-          return e.mes_referencia === mesFormatado
+          return false
         })
         .map(e => ({ ...e, descricao: e.item, valor: e.valor_previsto, tipo: 'extra' }))
 
