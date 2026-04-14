@@ -46,3 +46,19 @@ ALTER TABLE investimentos ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "allow_all_investimentos" ON investimentos;
 CREATE POLICY "allow_all_investimentos" ON investimentos
   FOR ALL USING (true) WITH CHECK (true);
+
+-- 4. Tabela de aportes por investimento
+CREATE TABLE IF NOT EXISTS investimentos_aportes (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  investimento_id  UUID NOT NULL REFERENCES investimentos(id) ON DELETE CASCADE,
+  valor            NUMERIC(12,2) NOT NULL,
+  data_aporte      DATE NOT NULL DEFAULT CURRENT_DATE,
+  observacao       TEXT,
+  created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE investimentos_aportes ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "allow_all_aportes" ON investimentos_aportes;
+CREATE POLICY "allow_all_aportes" ON investimentos_aportes
+  FOR ALL USING (true) WITH CHECK (true);
