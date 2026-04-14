@@ -21,19 +21,32 @@ function extrairParcelamento(t: any): { atual: number; total: number } | null {
 }
 
 /**
- * Chave única por série: mês de origem da compra + valor + total de parcelas + responsável.
- * O mês de origem é calculado retrocedendo (parcela_atual - 1) meses a partir do projeto_fatura,
- * o que é robusto independente do texto da descrição.
+ * Para cada série de parcelamento, guarda apenas a linha mais recente do banco
+ * (maior projeto_fatura). Isso garante que a projeção parta do estado atual
+ * de cada contrato, sem reprocessar linhas antigas da mesma série.
  */
-function seriesKey(t: any, parcela: { atual: number; total: number }): string {
-  const fatura = startOfMonth(new Date(t.projeto_fatura || t.data_compra || t.data))
-  const origem = subMonths(fatura, parcela.atual - 1)
-  // Remove " - Parcela X/Y" suffix and normalize to avoid rounding differences breaking dedup
-  const descBase = String(t.descricao || '')
-    .replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '')
-    .trim()
-    .toLowerCase()
-  return `${format(origem, 'yyyy-MM')}|${descBase}|${parcela.total}|${t.responsavel}`
+function buildContracts(transacoes: any[]) {
+  const map = new Map<string, { row: any; fatura: Date; parcela: { atual: number; total: number } }>()
+
+  for (const t of transacoes) {
+    const parcela = extrairParcelamento(t)
+    if (!parcela) continue
+
+    const fatura = startOfMonth(new Date(t.projeto_fatura || t.data_compra || t.data))
+    const origem = subMonths(fatura, parcela.atual - 1)
+    const descBase = String(t.descricao || '')
+      .replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '')
+      .trim()
+      .toLowerCase()
+    const key = `${format(origem, 'yyyy-MM')}|${descBase}|${parcela.total}|${t.responsavel}`
+
+    const existing = map.get(key)
+    if (!existing || fatura > existing.fatura) {
+      map.set(key, { row: t, fatura, parcela })
+    }
+  }
+
+  return map
 }
 
 export async function POST(req: NextRequest) {
@@ -51,36 +64,25 @@ export async function POST(req: NextRequest) {
     const { data: todasTransacoes } = await supabase.from('transacoes_nubank').select('*')
     const { data: extras } = await supabase.from('planejamento').select('*').eq('categoria', 'Extra')
 
+    const contratos = buildContracts(todasTransacoes || [])
+
     for (let i = 0; i < meses.length; i++) {
       const mesRef = startOfMonth(addMonths(inicioProjecao, i))
-      const mesStr = format(mesRef, 'yyyy-MM-dd')
 
-      // Deduplica por série dentro de cada mês projetado
-      const seriesContadas = new Set<string>()
+      for (const { row, fatura, parcela } of contratos.values()) {
+        // Qual parcela cai neste mês de projeção?
+        const deltaM = (mesRef.getFullYear() - fatura.getFullYear()) * 12 +
+          (mesRef.getMonth() - fatura.getMonth())
+        const parcelaNoMes = parcela.atual + deltaM
 
-      for (const t of (todasTransacoes || [])) {
-        const parcela = extrairParcelamento(t)
-
-        if (parcela) {
-          const fatura = startOfMonth(new Date(t.projeto_fatura || t.data_compra || t.data))
-          const mesesDiff =
-            (mesRef.getFullYear() - fatura.getFullYear()) * 12 +
-            (mesRef.getMonth() - fatura.getMonth())
-          const restantes = parcela.total - parcela.atual + 1
-
-          if (mesesDiff >= 0 && mesesDiff < restantes) {
-            const key = seriesKey(t, parcela)
-            if (!seriesContadas.has(key)) {
-              seriesContadas.add(key)
-              resultados.total[i] += t.valor
-              if (t.responsavel === 'Matheus') resultados.matheus[i] += t.valor
-              else if (t.responsavel === 'Jeniffer') resultados.jeniffer[i] += t.valor
-            }
-          }
+        if (parcelaNoMes >= 1 && parcelaNoMes <= parcela.total) {
+          resultados.total[i] += row.valor
+          if (row.responsavel === 'Matheus') resultados.matheus[i] += row.valor
+          else if (row.responsavel === 'Jeniffer') resultados.jeniffer[i] += row.valor
         }
-        // Compras avulsas (não parceladas) são ignoradas na projeção
       }
 
+      const mesStr = format(mesRef, 'yyyy-MM-dd')
       for (const e of (extras || [])) {
         if (e.parcela_atual && e.total_parcelas) {
           const mesExtra = startOfMonth(new Date(e.mes_referencia))

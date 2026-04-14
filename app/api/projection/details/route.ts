@@ -20,31 +20,28 @@ function extrairParcelamento(t: any): { atual: number; total: number } | null {
   return null
 }
 
-function seriesKey(t: any, parcela: { atual: number; total: number }): string {
-  const fatura = startOfMonth(new Date(t.projeto_fatura || t.data_compra || t.data))
-  const origem = subMonths(fatura, parcela.atual - 1)
-  // Remove " - Parcela X/Y" suffix and normalize to avoid rounding differences breaking dedup
-  const descBase = String(t.descricao || '')
-    .replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '')
-    .trim()
-    .toLowerCase()
-  return `${format(origem, 'yyyy-MM')}|${descBase}|${parcela.total}|${t.responsavel}`
-}
+function buildContracts(transacoes: any[]) {
+  const map = new Map<string, { row: any; fatura: Date; parcela: { atual: number; total: number } }>()
 
-function estaNoMes(t: any, mesReferencia: Date): boolean {
-  const parcela = extrairParcelamento(t)
-  if (!parcela) {
-    const proj = typeof t.projeto_fatura === 'string'
-      ? t.projeto_fatura.substring(0, 10)
-      : format(new Date(t.projeto_fatura), 'yyyy-MM-dd')
-    return proj === format(mesReferencia, 'yyyy-MM-dd')
+  for (const t of transacoes) {
+    const parcela = extrairParcelamento(t)
+    if (!parcela) continue
+
+    const fatura = startOfMonth(new Date(t.projeto_fatura || t.data_compra || t.data))
+    const origem = subMonths(fatura, parcela.atual - 1)
+    const descBase = String(t.descricao || '')
+      .replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '')
+      .trim()
+      .toLowerCase()
+    const key = `${format(origem, 'yyyy-MM')}|${descBase}|${parcela.total}|${t.responsavel}`
+
+    const existing = map.get(key)
+    if (!existing || fatura > existing.fatura) {
+      map.set(key, { row: t, fatura, parcela })
+    }
   }
-  const fatura = startOfMonth(new Date(t.projeto_fatura || t.data_compra || t.data))
-  const mesesDiff =
-    (mesReferencia.getFullYear() - fatura.getFullYear()) * 12 +
-    (mesReferencia.getMonth() - fatura.getMonth())
-  const restantes = parcela.total - parcela.atual + 1
-  return mesesDiff >= 0 && mesesDiff < restantes
+
+  return map
 }
 
 export async function POST(req: NextRequest) {
@@ -83,17 +80,27 @@ export async function POST(req: NextRequest) {
         : supabase.from('transacoes_nubank').select('*')
 
       const { data: transacoesTodas } = await query
-      const seriesVistas = new Set<string>()
+      const contratos = buildContracts(transacoesTodas || [])
       const transacoesFiltradas: any[] = []
 
-      for (const t of (transacoesTodas || [])) {
-        if (!estaNoMes(t, mesReferencia)) continue
-        const parcela = extrairParcelamento(t)
-        if (!parcela) continue  // só parcelamentos entram, igual à projeção
-        const key = seriesKey(t, parcela)
-        if (seriesVistas.has(key)) continue
-        seriesVistas.add(key)
-        transacoesFiltradas.push({ ...t, tipo: 'cartao' })
+      for (const { row, fatura, parcela } of contratos.values()) {
+        const deltaM =
+          (mesReferencia.getFullYear() - fatura.getFullYear()) * 12 +
+          (mesReferencia.getMonth() - fatura.getMonth())
+        const parcelaNoMes = parcela.atual + deltaM
+
+        if (parcelaNoMes >= 1 && parcelaNoMes <= parcela.total) {
+          // Exibe o número correto da parcela para este mês projetado
+          const descAjustada = String(row.descricao || '')
+            .replace(/parcela\s+\d+\/\d+/i, `Parcela ${parcelaNoMes}/${parcela.total}`)
+          const { ...rowClean } = row
+          transacoesFiltradas.push({
+            ...rowClean,
+            descricao: descAjustada,
+            parcela_atual: parcelaNoMes,
+            tipo: 'cartao',
+          })
+        }
       }
 
       if (serie === 'Total') {
