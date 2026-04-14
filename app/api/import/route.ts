@@ -25,40 +25,35 @@ export async function POST(req: NextRequest) {
       }, { status: 422 })
     }
 
-    // Busca hashes existentes em lotes de 200 (evita URLs muito longas)
-    const LOTE = 200
-    const hashesExistentes = new Set<string>()
-    const todosHashes = transacoes.map(function(t) { return t.hash_linha })
+    // Detecta todos os meses (projeto_fatura) presentes no arquivo
+    const mesesNoArquivo = [...new Set(transacoes.map(t => t.projeto_fatura))].sort()
 
-    for (let i = 0; i < todosHashes.length; i += LOTE) {
-      const lote = todosHashes.slice(i, i + LOTE)
-      const resultado = await supabase
+    // Apaga TODOS os registros desses meses antes de reinserir (overwrite completo)
+    const mesesApagados: string[] = []
+    for (const mes of mesesNoArquivo) {
+      const { error: deleteError, count } = await supabase
         .from('transacoes_nubank')
-        .select('hash_linha')
-        .in('hash_linha', lote)
+        .delete()
+        .eq('projeto_fatura', mes)
 
-      if (resultado.error) {
-        console.error('[import] Erro consulta hashes:', JSON.stringify(resultado.error))
+      if (deleteError) {
+        console.error('[import] Erro ao apagar mês:', mes, deleteError)
         return NextResponse.json(
-          { error: 'Erro ao consultar banco: ' + resultado.error.message },
+          { error: 'Erro ao limpar mês ' + mes + ': ' + deleteError.message },
           { status: 500 }
         )
       }
-
-      const rows = resultado.data ?? []
-      for (let j = 0; j < rows.length; j++) {
-        hashesExistentes.add(rows[j].hash_linha)
-      }
+      mesesApagados.push(mes)
     }
 
-    // Deduplica por hash (remove duplicatas internas do CSV e já existentes no banco)
-    const vistos = new Set<string>()
-    const novas = transacoes.filter(function(t) {
-      if (hashesExistentes.has(t.hash_linha) || vistos.has(t.hash_linha)) return false
-      vistos.add(t.hash_linha)
+    // Deduplica por hash dentro do arquivo (mesmo CSV pode ter linhas iguais)
+    const vistosNoArquivo = new Set<string>()
+    const novas = transacoes.filter(t => {
+      if (vistosNoArquivo.has(t.hash_linha)) return false
+      vistosNoArquivo.add(t.hash_linha)
       return true
     })
-    const duplicatas = transacoes.length - novas.length
+    const duplicatasNoArquivo = transacoes.length - novas.length
 
     let novosMatheus = 0
     let novosJeniffer = 0
@@ -67,17 +62,17 @@ export async function POST(req: NextRequest) {
     if (novas.length > 0) {
       let insertResult = await supabase
         .from('transacoes_nubank')
-        .upsert(novas, { onConflict: 'hash_linha', ignoreDuplicates: true })
+        .insert(novas)
 
       // Compatibilidade com bancos antigos: coluna pode ser 'data' em vez de 'data_compra'.
-      if (insertResult.error && insertResult.error.message.includes("data_compra")) {
+      if (insertResult.error && insertResult.error.message.includes('data_compra')) {
         const novasLegado = novas.map((t) => {
           const { data_compra, ...resto } = t as any
           return { ...resto, data: data_compra }
         })
         insertResult = await supabase
           .from('transacoes_nubank')
-          .upsert(novasLegado, { onConflict: 'hash_linha', ignoreDuplicates: true })
+          .insert(novasLegado)
       }
 
       if (insertResult.error) {
@@ -88,8 +83,7 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      for (let k = 0; k < novas.length; k++) {
-        const t = novas[k]
+      for (const t of novas) {
         if (t.responsavel === 'Matheus') novosMatheus++
         else novosJeniffer++
         totalValor += t.valor
@@ -100,10 +94,11 @@ export async function POST(req: NextRequest) {
       success: true,
       totalLidas: transacoes.length,
       novas: novas.length,
-      duplicatas,
+      duplicatasNoArquivo,
       matheus: novosMatheus,
       jeniffer: novosJeniffer,
       total: totalValor.toFixed(2),
+      mesesSobrescritos: mesesApagados,
     })
   } catch (error) {
     console.error('[import] Excecao:', error)

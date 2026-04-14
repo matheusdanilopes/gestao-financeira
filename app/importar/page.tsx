@@ -9,8 +9,9 @@ interface Resumo {
   jeniffer: number
   total: string
   novas: number
-  duplicatas: number
+  duplicatasNoArquivo: number
   totalLidas: number
+  mesesSobrescritos: string[]
 }
 
 export default function ImportarPage() {
@@ -62,8 +63,9 @@ export default function ImportarPage() {
           jeniffer: data.jeniffer,
           total: data.total,
           novas: data.novas,
-          duplicatas: data.duplicatas,
+          duplicatasNoArquivo: data.duplicatasNoArquivo,
           totalLidas: data.totalLidas,
+          mesesSobrescritos: data.mesesSobrescritos ?? [],
         })
       } else {
         setErro(data.error || 'Erro desconhecido')
@@ -195,9 +197,21 @@ export default function ImportarPage() {
             <span className="font-bold text-gray-800">R$ {resumo.total}</span>
           </div>
 
-          {resumo.duplicatas > 0 && (
-            <p className="text-xs text-amber-600 text-center">
-              {resumo.duplicatas} transação(ões) já existiam e foram ignoradas
+          {resumo.mesesSobrescritos.length > 0 && (
+            <div className="pt-2 border-t">
+              <p className="text-xs text-amber-700 font-semibold mb-1">Meses sobrescritos:</p>
+              <div className="flex flex-wrap gap-1">
+                {resumo.mesesSobrescritos.map(m => (
+                  <span key={m} className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                    {m.substring(0, 7)}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {resumo.duplicatasNoArquivo > 0 && (
+            <p className="text-xs text-gray-400 text-center">
+              {resumo.duplicatasNoArquivo} linha(s) duplicada(s) no arquivo ignoradas
             </p>
           )}
         </div>
