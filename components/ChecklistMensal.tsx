@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { CheckCircle2, AlertCircle, Pencil, Trash2, Plus, CreditCard, Download, ListFilter, X } from 'lucide-react'
+import { log, numericOnly } from '@/lib/logger'
 
 const PREFIXO_CARTAO_1 = '[CARTAO1] '
 const PREFIXO_CARTAO_2 = '[CARTAO2] '
@@ -97,6 +98,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       setModalAberto(null)
       setValorReal('')
       carregarItens()
+      log('pagar', 'planejamento', `Pago: ${item ? removerPrefixoCartao(item.item) : id} — R$ ${valorNumerico.toFixed(2)}`, valorNumerico)
       if (diff > 0.01) {
         showToast(`Diferença de R$ ${diff.toFixed(2)} em relação ao previsto`, 'erro')
       } else {
@@ -108,10 +110,12 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
   }
 
   async function excluirItem(id: string) {
+    const item = itens.find(i => i.id === id)
     const { error } = await supabase.from('planejamento').delete().eq('id', id)
     if (!error) {
       setModalAberto(null)
       carregarItens()
+      log('excluir', 'planejamento', `Excluído: ${item ? removerPrefixoCartao(item.item) : id}`)
       showToast('Item excluído')
     } else {
       showToast('Erro ao excluir', 'erro')
@@ -120,30 +124,33 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
 
   async function editarItem() {
     if (!itemSelecionado) return
+    const valor = parseFloat(formData.valor_previsto.replace(',', '.'))
     const updates = {
       item: aplicarPrefixoCartao(formData.item, formData.tipo_cartao),
       responsavel: formData.responsavel,
       categoria: formData.categoria,
-      valor_previsto: parseFloat(formData.valor_previsto.replace(',', '.')),
+      valor_previsto: valor,
     }
     const { error } = await supabase.from('planejamento').update(updates).eq('id', itemSelecionado.id)
     if (!error) {
       setModalAberto(null)
       setItemSelecionado(null)
       carregarItens()
+      log('editar', 'planejamento', `Editado: ${formData.item} — R$ ${valor.toFixed(2)}`, valor)
     } else {
-      alert('Erro ao editar')
+      showToast('Erro ao editar', 'erro')
     }
   }
 
   async function adicionarItem() {
+    const valor = parseFloat(formData.valor_previsto.replace(',', '.'))
     const primeiroDia = startOfMonth(mesSelecionado)
     const novoItem = {
       mes_referencia: format(primeiroDia, 'yyyy-MM-dd'),
       item: aplicarPrefixoCartao(formData.item, formData.tipo_cartao),
       responsavel: formData.responsavel,
       categoria: formData.categoria,
-      valor_previsto: parseFloat(formData.valor_previsto.replace(',', '.')),
+      valor_previsto: valor,
       pago: false,
       valor_real: null,
     }
@@ -152,8 +159,9 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       setModalAberto(null)
       setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', tipo_cartao: '', valor_previsto: '' })
       carregarItens()
+      log('inserir', 'planejamento', `Novo item: ${formData.item} — R$ ${valor.toFixed(2)}`, valor)
     } else {
-      alert('Erro ao adicionar')
+      showToast('Erro ao adicionar', 'erro')
     }
   }
 
@@ -211,6 +219,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
         await supabase.from('planejamento').insert(novosItens)
       }
 
+      log('importar', 'planejamento', `Importados ${novosItens.length} item(ns) de ${previewImport.mesOrigem}`)
       setModalAberto(null)
       setPreviewImport(null)
       carregarItens()
@@ -406,7 +415,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
               inputMode="decimal"
               placeholder={`Previsto: R$ ${itemSelecionado.valor_previsto.toFixed(2)}`}
               value={valorReal}
-              onChange={(e) => setValorReal(e.target.value)}
+              onChange={(e) => setValorReal(numericOnly(e.target.value))}
               className="w-full border border-gray-200 rounded-xl p-3 text-lg font-semibold mb-5 focus:outline-none focus:ring-2 focus:ring-green-400"
               autoFocus
             />
@@ -451,7 +460,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
               </div>
               <div>
                 <label className="text-xs font-medium text-gray-600 mb-1 block">Valor previsto (R$)</label>
-                <input type="text" inputMode="decimal" value={formData.valor_previsto} onChange={(e) => setFormData({ ...formData, valor_previsto: e.target.value })} className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-400" placeholder="0,00" />
+                <input type="text" inputMode="decimal" value={formData.valor_previsto} onChange={(e) => setFormData({ ...formData, valor_previsto: numericOnly(e.target.value) })} className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-400" placeholder="0,00" />
               </div>
             </div>
             <div className="flex gap-3 mt-6">

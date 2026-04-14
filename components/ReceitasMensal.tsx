@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth } from 'date-fns'
 import { CheckCircle2, Pencil, Trash2, Plus, TrendingUp } from 'lucide-react'
+import { log, numericOnly } from '@/lib/logger'
 
 const RECEITA_PREFIXO = '[RECEITA] '
 
@@ -48,23 +49,28 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
   async function salvarRecebimento(id: string) {
     const valor = parseFloat(valorRecebido.replace(',', '.'))
     if (!valor) return
+    const item = itens.find(i => i.id === id)
     await supabase.from('planejamento').update({ pago: true, valor_real: valor }).eq('id', id)
+    log('receber', 'receitas', `Recebido: ${item ? paraNomeExibicao(item.item) : id} — R$ ${valor.toFixed(2)}`, valor)
     setModalAberto(null)
     setValorRecebido('')
     carregarItens()
   }
 
   async function excluir(id: string) {
+    const item = itens.find(i => i.id === id)
     await supabase.from('planejamento').delete().eq('id', id)
+    log('excluir', 'receitas', `Excluída: ${item ? paraNomeExibicao(item.item) : id}`)
     setModalAberto(null)
     carregarItens()
   }
 
   async function salvar() {
+    const valor = parseFloat(formData.valor_previsto.replace(',', '.'))
     const payload = {
       item: paraNomeInterno(formData.item),
       responsavel: formData.responsavel,
-      valor_previsto: parseFloat(formData.valor_previsto.replace(',', '.')),
+      valor_previsto: valor,
     }
     if (modalAberto === 'adicionar') {
       const mesRef = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
@@ -75,8 +81,10 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
         pago: false,
         valor_real: null,
       }])
+      log('inserir', 'receitas', `Nova receita: ${formData.item} — R$ ${valor.toFixed(2)}`, valor)
     } else if (itemSelecionado) {
       await supabase.from('planejamento').update(payload).eq('id', itemSelecionado.id)
+      log('editar', 'receitas', `Editada: ${formData.item} — R$ ${valor.toFixed(2)}`, valor)
     }
     setModalAberto(null)
     setItemSelecionado(null)
@@ -220,12 +228,13 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
             <p className="text-sm text-gray-500 mb-4">{paraNomeExibicao(itemSelecionado.item)}</p>
             <label className="text-xs font-medium text-gray-600 mb-1 block">Valor recebido (R$)</label>
             <input
+              type="text"
+              inputMode="decimal"
               className="w-full border border-gray-200 rounded-xl p-3 text-lg font-semibold mb-5 focus:outline-none focus:ring-2 focus:ring-green-400"
               value={valorRecebido}
-              onChange={(e) => setValorRecebido(e.target.value)}
+              onChange={(e) => setValorRecebido(numericOnly(e.target.value))}
               placeholder={`Previsto: R$ ${itemSelecionado.valor_previsto.toFixed(2)}`}
               autoFocus
-              inputMode="decimal"
             />
             <div className="flex gap-3">
               <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600">
@@ -270,11 +279,12 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
               <div>
                 <label className="text-xs font-medium text-gray-600 mb-1 block">Valor previsto (R$)</label>
                 <input
+                  type="text"
+                  inputMode="decimal"
                   className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-green-400"
                   placeholder="0,00"
                   value={formData.valor_previsto}
-                  onChange={(e) => setFormData({ ...formData, valor_previsto: e.target.value })}
-                  inputMode="decimal"
+                  onChange={(e) => setFormData({ ...formData, valor_previsto: numericOnly(e.target.value) })}
                 />
               </div>
             </div>

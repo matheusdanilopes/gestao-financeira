@@ -62,3 +62,19 @@ ALTER TABLE investimentos_aportes ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "allow_all_aportes" ON investimentos_aportes;
 CREATE POLICY "allow_all_aportes" ON investimentos_aportes
   FOR ALL USING (true) WITH CHECK (true);
+
+-- 5. Tabela de logs de atividade do usuário
+CREATE TABLE IF NOT EXISTS activity_logs (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  acao        TEXT NOT NULL,      -- 'inserir' | 'editar' | 'excluir' | 'pagar' | 'receber' | 'aporte' | 'importar'
+  tabela      TEXT NOT NULL,      -- 'planejamento' | 'receitas' | 'investimentos'
+  descricao   TEXT NOT NULL,
+  valor       NUMERIC(12,2),
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "allow_all_logs" ON activity_logs;
+CREATE POLICY "allow_all_logs" ON activity_logs
+  FOR ALL USING (true) WITH CHECK (true);

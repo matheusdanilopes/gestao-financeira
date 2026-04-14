@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { PiggyBank, Pencil, Trash2, Plus, Download, CirclePlus, History, X } from 'lucide-react'
+import { log, numericOnly } from '@/lib/logger'
 
 interface Investimento {
   id: string
@@ -115,15 +116,17 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
   }
 
   function handlePercentualChange(v: string) {
+    const clean = numericOnly(v)
     setUltimoCampo('percentual')
-    const pct = parseFloat(v.replace(',', '.'))
-    setFormData(f => ({ ...f, percentual: v, valor: !isNaN(pct) && saldo > 0 ? (saldo * pct / 100).toFixed(2) : '' }))
+    const pct = parseFloat(clean.replace(',', '.'))
+    setFormData(f => ({ ...f, percentual: clean, valor: !isNaN(pct) && saldo > 0 ? (saldo * pct / 100).toFixed(2) : '' }))
   }
 
   function handleValorChange(v: string) {
+    const clean = numericOnly(v)
     setUltimoCampo('valor')
-    const val = parseFloat(v.replace(',', '.'))
-    setFormData(f => ({ ...f, valor: v, percentual: !isNaN(val) && saldo > 0 ? (val / saldo * 100).toFixed(2) : '' }))
+    const val = parseFloat(clean.replace(',', '.'))
+    setFormData(f => ({ ...f, valor: clean, percentual: !isNaN(val) && saldo > 0 ? (val / saldo * 100).toFixed(2) : '' }))
   }
 
   // ── Salvar investimento ──────────────────────────────────────
@@ -144,12 +147,14 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
         descricao: formData.descricao.trim(), percentual: pct, mes_referencia: mesRef,
       }])
       if (error) { showToast('Erro ao adicionar', 'erro'); return }
+      log('inserir', 'investimentos', `Novo investimento: ${formData.descricao.trim()} — ${pct}%`)
       showToast('Investimento adicionado!')
     } else if (itemSelecionado) {
       const { error } = await supabase.from('investimentos')
         .update({ descricao: formData.descricao.trim(), percentual: pct })
         .eq('id', itemSelecionado.id)
       if (error) { showToast('Erro ao salvar', 'erro'); return }
+      log('editar', 'investimentos', `Editado: ${formData.descricao.trim()} — ${pct}%`)
       showToast('Atualizado!')
     }
 
@@ -158,9 +163,12 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
   }
 
   async function excluir(id: string) {
+    const item = itens.find(i => i.id === id)
     const { error } = await supabase.from('investimentos').delete().eq('id', id)
-    if (!error) { fecharModal(); carregarItens(); showToast('Excluído') }
-    else showToast('Erro ao excluir', 'erro')
+    if (!error) {
+      log('excluir', 'investimentos', `Excluído: ${item?.descricao ?? id}`)
+      fecharModal(); carregarItens(); showToast('Excluído')
+    } else showToast('Erro ao excluir', 'erro')
   }
 
   function abrirEditar(item: Investimento) {
@@ -194,6 +202,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
     }])
 
     if (error) { showToast('Erro ao registrar aporte', 'erro'); return }
+    log('aporte', 'investimentos', `Aporte em ${modalAporte.descricao} — R$ ${valor.toFixed(2)}`, valor)
     showToast(`Aporte de R$ ${valor.toFixed(2)} registrado!`)
     setModalAporte(null)
     setFormAporte({ valor: '', data_aporte: format(new Date(), 'yyyy-MM-dd'), observacao: '' })
@@ -201,9 +210,12 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
   }
 
   async function excluirAporte(aporte: Aporte) {
+    const inv = itens.find(i => i.id === aporte.investimento_id)
     const { error } = await supabase.from('investimentos_aportes').delete().eq('id', aporte.id)
-    if (!error) { carregarItens(); showToast('Aporte removido') }
-    else showToast('Erro ao remover aporte', 'erro')
+    if (!error) {
+      log('excluir', 'investimentos', `Aporte removido de ${inv?.descricao ?? 'investimento'} — R$ ${aporte.valor.toFixed(2)}`, aporte.valor)
+      carregarItens(); showToast('Aporte removido')
+    } else showToast('Erro ao remover aporte', 'erro')
   }
 
   // ── Importar mês anterior ────────────────────────────────────
@@ -227,6 +239,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
       descricao: i.descricao, percentual: i.percentual, mes_referencia: mesAtualStr,
     }))
     if (novos.length > 0) await supabase.from('investimentos').insert(novos)
+    log('importar', 'investimentos', `Importados ${novos.length} investimento(s) de ${previewImport.mesOrigem}`)
     setImportando(false)
     fecharModal()
     setPreviewImport(null)
@@ -427,11 +440,12 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
               <div>
                 <label className="text-xs font-medium text-gray-600 mb-1 block">Valor do aporte (R$)</label>
                 <input
+                  type="text"
+                  inputMode="decimal"
                   className="w-full border border-gray-200 rounded-xl p-3 text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-violet-400"
                   placeholder="0,00"
                   value={formAporte.valor}
-                  onChange={(e) => setFormAporte(f => ({ ...f, valor: e.target.value }))}
-                  inputMode="decimal"
+                  onChange={(e) => setFormAporte(f => ({ ...f, valor: numericOnly(e.target.value) }))}
                   autoFocus
                 />
               </div>
@@ -528,6 +542,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
               <div>
                 <label className="text-xs font-medium text-gray-600 mb-1 block">Descrição</label>
                 <input
+                  type="text"
                   className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-violet-400"
                   placeholder="Ex: Tesouro Direto, Renda Fixa…"
                   value={formData.descricao}
@@ -542,11 +557,12 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
                   </span>
                 </label>
                 <input
+                  type="text"
+                  inputMode="decimal"
                   className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-violet-400"
                   placeholder="Ex: 20"
                   value={formData.percentual}
                   onChange={(e) => handlePercentualChange(e.target.value)}
-                  inputMode="decimal"
                 />
               </div>
               <div>
@@ -555,11 +571,12 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
                   <span className="ml-1 text-gray-400 font-normal">— saldo: R$ {saldo.toFixed(2)}</span>
                 </label>
                 <input
+                  type="text"
+                  inputMode="decimal"
                   className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-violet-400"
                   placeholder="0,00"
                   value={formData.valor}
                   onChange={(e) => handleValorChange(e.target.value)}
-                  inputMode="decimal"
                 />
               </div>
             </div>

@@ -3,19 +3,44 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { descricaoFechamento } from '@/lib/fatura'
-import { Settings, LogOut, Upload } from 'lucide-react'
+import { Settings, LogOut, Upload, Activity, ChevronDown } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import BottomNav from '@/components/BottomNav'
+
+interface LogEntry {
+  id: string
+  acao: string
+  tabela: string
+  descricao: string
+  valor: number | null
+  created_at: string
+}
+
+const ACAO_CONFIG: Record<string, { label: string; color: string }> = {
+  inserir:  { label: 'Inserção',  color: 'bg-green-100 text-green-700' },
+  editar:   { label: 'Edição',    color: 'bg-blue-100 text-blue-700' },
+  excluir:  { label: 'Exclusão',  color: 'bg-red-100 text-red-600' },
+  pagar:    { label: 'Pagamento', color: 'bg-emerald-100 text-emerald-700' },
+  receber:  { label: 'Recebimento', color: 'bg-teal-100 text-teal-700' },
+  aporte:   { label: 'Aporte',    color: 'bg-violet-100 text-violet-700' },
+  importar: { label: 'Importação', color: 'bg-amber-100 text-amber-700' },
+}
+
+const PAGE_SIZE = 20
 
 export default function ConfiguracoesPage() {
   const [diaVencimento, setDiaVencimento] = useState(10)
   const [ajusteFechamento, setAjusteFechamento] = useState(0)
   const [salvando, setSalvando] = useState(false)
   const [mensagem, setMensagem] = useState('')
+  const [logs, setLogs] = useState<LogEntry[]>([])
+  const [logsTotal, setLogsTotal] = useState(0)
+  const [logsPage, setLogsPage] = useState(0)
+  const [logsCarregando, setLogsCarregando] = useState(false)
   const router = useRouter()
 
-  useEffect(() => { carregarConfigs() }, [])
+  useEffect(() => { carregarConfigs(); carregarLogs(0) }, [])
 
   async function carregarConfigs() {
     const res = await fetch('/api/configuracoes')
@@ -48,6 +73,25 @@ export default function ConfiguracoesPage() {
       setMensagem('Erro ao salvar: ' + (data.error || 'desconhecido'))
     }
     setSalvando(false)
+  }
+
+  async function carregarLogs(page: number) {
+    setLogsCarregando(true)
+    const from = page * PAGE_SIZE
+    const to = from + PAGE_SIZE - 1
+    const { data, count } = await supabase
+      .from('activity_logs')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(from, to)
+    if (page === 0) {
+      setLogs(data || [])
+    } else {
+      setLogs(prev => [...prev, ...(data || [])])
+    }
+    setLogsTotal(count || 0)
+    setLogsPage(page)
+    setLogsCarregando(false)
   }
 
   async function handleLogout() {
@@ -154,6 +198,57 @@ export default function ConfiguracoesPage() {
           <Upload className="w-4 h-4" />
           Ir para Importação
         </Link>
+      </div>
+
+      {/* Logs de Atividade */}
+      <div className="bg-white rounded-xl shadow p-4 mb-4">
+        <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+          <Activity className="w-5 h-5 text-gray-500" />
+          Atividade Recente
+          {logsTotal > 0 && (
+            <span className="ml-auto text-xs text-gray-400 font-normal">{logsTotal} registro(s)</span>
+          )}
+        </h2>
+
+        {logs.length === 0 && !logsCarregando ? (
+          <p className="text-sm text-gray-400 text-center py-6">Nenhuma atividade registrada ainda</p>
+        ) : (
+          <div className="space-y-2">
+            {logs.map((entry) => {
+              const cfg = ACAO_CONFIG[entry.acao] ?? { label: entry.acao, color: 'bg-gray-100 text-gray-600' }
+              const dt = new Date(entry.created_at)
+              const dataStr = dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+              const horaStr = dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+              return (
+                <div key={entry.id} className="flex items-start gap-3 py-2 border-b border-gray-50 last:border-0">
+                  <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full mt-0.5 ${cfg.color}`}>
+                    {cfg.label}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-700 leading-snug">{entry.descricao}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{entry.tabela} · {dataStr} às {horaStr}</p>
+                  </div>
+                  {entry.valor != null && (
+                    <span className="shrink-0 text-sm font-medium text-gray-600">
+                      R$ {entry.valor.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+
+            {logs.length < logsTotal && (
+              <button
+                onClick={() => carregarLogs(logsPage + 1)}
+                disabled={logsCarregando}
+                className="w-full mt-1 py-2 text-sm text-blue-600 hover:text-blue-700 flex items-center justify-center gap-1 disabled:opacity-50"
+              >
+                <ChevronDown className="w-4 h-4" />
+                {logsCarregando ? 'Carregando…' : `Ver mais (${logsTotal - logs.length} restantes)`}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Logout */}
