@@ -62,6 +62,7 @@ export default function Dashboard() {
 
   async function carregarDados(mes: Date) {
     setCarregando(true)
+    try {
     const primeiroDia = startOfMonth(mes)
     const mesRef = format(primeiroDia, 'yyyy-MM-dd')
     const mesRefFatura = format(startOfMonth(addMonths(mes, 1)), 'yyyy-MM-dd')
@@ -167,7 +168,11 @@ export default function Dashboard() {
       .eq('projeto_fatura', mesRefFatura)
     setTransacoesGraficos(graficosData || [])
 
-    setCarregando(false)
+    } catch (e) {
+      console.error('Erro ao carregar dashboard:', e)
+    } finally {
+      setCarregando(false)
+    }
   }
 
   const isMesAtual = format(mesAtual, 'yyyy-MM') === format(new Date(), 'yyyy-MM')

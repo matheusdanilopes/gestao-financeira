@@ -197,15 +197,16 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
     try {
       const mesAtualStr = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
 
-      // 1. Apaga todos os itens do mês atual (Fixa + Extra, exceto [RECEITA])
-      await supabase
+      // 1. Busca os IDs dos itens que serão substituídos (antes de apagar)
+      const { data: existentes } = await supabase
         .from('planejamento')
-        .delete()
+        .select('id')
         .eq('mes_referencia', mesAtualStr)
         .in('categoria', ['Fixa', 'Extra'])
         .not('item', 'ilike', '[RECEITA]%')
+      const idsExistentes = (existentes || []).map(i => i.id)
 
-      // 2. Insere os itens do mês anterior, avançando parcelas quando aplicável
+      // 2. Insere os itens do mês anterior primeiro — se falhar, os dados existentes são preservados
       const novosItens = previewImport.itens.map(({ id, mes_referencia, pago, valor_real, parcela_atual, total_parcelas, ...resto }) => ({
         ...resto,
         mes_referencia: mesAtualStr,
@@ -216,13 +217,23 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       }))
 
       if (novosItens.length > 0) {
-        await supabase.from('planejamento').insert(novosItens)
+        const { error: insertError } = await supabase.from('planejamento').insert(novosItens)
+        if (insertError) throw insertError
+      }
+
+      // 3. Só apaga os itens antigos pelos IDs coletados após o insert ser bem-sucedido
+      if (idsExistentes.length > 0) {
+        await supabase.from('planejamento').delete().in('id', idsExistentes)
       }
 
       log('importar', 'planejamento', `Importados ${novosItens.length} item(ns) de ${previewImport.mesOrigem}`)
       setModalAberto(null)
       setPreviewImport(null)
       carregarItens()
+      showToast('Importação concluída!')
+    } catch (e) {
+      console.error('Erro ao importar mês anterior:', e)
+      showToast('Erro ao importar. Os dados existentes foram preservados.', 'erro')
     } finally {
       setImportandoMesAnterior(false)
     }

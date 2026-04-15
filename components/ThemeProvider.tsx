@@ -23,9 +23,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   // Load from localStorage on mount
   useEffect(() => {
-    const stored = localStorage.getItem('theme') as Theme | null
-    if (stored === 'light' || stored === 'dark' || stored === 'system') {
-      setThemeState(stored)
+    try {
+      const stored = localStorage.getItem('theme') as Theme | null
+      if (stored === 'light' || stored === 'dark' || stored === 'system') {
+        setThemeState(stored)
+      }
+    } catch {
+      // localStorage unavailable (private/restricted browsers)
     }
   }, [])
 
@@ -51,7 +55,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   function setTheme(t: Theme) {
     setThemeState(t)
-    localStorage.setItem('theme', t)
+    try {
+      localStorage.setItem('theme', t)
+    } catch {
+      // Ignore localStorage errors
+    }
   }
 
   return (

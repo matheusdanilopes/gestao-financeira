@@ -20,12 +20,13 @@ export function log(
   valor?: number
 ) {
   void (async () => {
-    await supabase.from('activity_logs').insert([{
+    const { error } = await supabase.from('activity_logs').insert([{
       acao,
       tabela,
       descricao,
       valor: valor ?? null,
     }])
+    if (error) console.error('[log] Falha ao registrar atividade:', error)
   })()
 }
 
