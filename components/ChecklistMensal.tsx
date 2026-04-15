@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { CheckCircle2, AlertCircle, Pencil, Trash2, Plus, CreditCard, Download, ListFilter, X } from 'lucide-react'
+import { CheckCircle2, AlertCircle, Pencil, Trash2, Plus, CreditCard, Download, ListFilter, X, RotateCcw } from 'lucide-react'
 import { log, numericOnly } from '@/lib/logger'
 
 const PREFIXO_CARTAO_1 = '[CARTAO1] '
@@ -106,6 +106,23 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       }
     } else {
       showToast('Erro ao registrar pagamento', 'erro')
+    }
+  }
+
+  async function desfazerPagamento(id: string) {
+    const item = itens.find(i => i.id === id)
+    const { error } = await supabase
+      .from('planejamento')
+      .update({ pago: false, valor_real: null })
+      .eq('id', id)
+
+    if (!error) {
+      setModalAberto(null)
+      carregarItens()
+      log('editar', 'planejamento', `Pagamento desfeito: ${item ? removerPrefixoCartao(item.item) : id}`)
+      showToast('Pagamento removido')
+    } else {
+      showToast('Erro ao desfazer pagamento', 'erro')
     }
   }
 
@@ -379,12 +396,20 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
 
                   {/* Ações */}
                   <div className="flex items-center gap-0.5 shrink-0">
-                    {!item.pago && (
+                    {!item.pago ? (
                       <button
                         onClick={() => { setItemSelecionado(item); setModalAberto('pagar') }}
                         className="p-1.5 rounded-lg text-green-600 hover:bg-green-100 transition"
                       >
                         <CheckCircle2 className="w-5 h-5" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => { setItemSelecionado(item); setModalAberto('desfazer') }}
+                        className="p-1.5 rounded-lg text-amber-500 hover:bg-amber-50 transition"
+                        title="Desfazer pagamento"
+                      >
+                        <RotateCcw className="w-4 h-4" />
                       </button>
                     )}
                     <button
@@ -546,6 +571,29 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
             <div className="flex gap-3">
               <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600">Cancelar</button>
               <button onClick={() => excluirItem(itemSelecionado.id)} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-semibold">Excluir</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalAberto === 'desfazer' && itemSelecionado && (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6">
+            <h3 className="text-lg font-bold mb-2">Desfazer pagamento</h3>
+            <p className="text-sm text-gray-500 mb-1">
+              <span className="font-semibold text-gray-800">{removerPrefixoCartao(itemSelecionado.item)}</span>
+            </p>
+            {itemSelecionado.valor_real !== null && (
+              <p className="text-sm text-gray-400 mb-5">
+                Valor registrado: R$ {itemSelecionado.valor_real.toFixed(2)}
+              </p>
+            )}
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-5">
+              O item voltará para o status de pendente e o valor registrado será apagado.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600">Cancelar</button>
+              <button onClick={() => desfazerPagamento(itemSelecionado.id)} className="flex-1 py-3 rounded-xl bg-amber-500 text-white font-semibold">Desfazer</button>
             </div>
           </div>
         </div>
