@@ -53,6 +53,7 @@ export default function Dashboard() {
     totalGastos: 0, sobraLiquida: 0, percentualComprometimento: 0,
   })
   const [investimentos, setInvestimentos] = useState<{ id: string; descricao: string; percentual: number; aportado: number }[]>([])
+  const [transacoesGraficos, setTransacoesGraficos] = useState<{ valor: number; responsavel: string; categoria: string; data_compra: string }[]>([])
   const [drawerAberto, setDrawerAberto] = useState(false)
   const [detalhesPonto, setDetalhesPonto] = useState<any>(null)
   const [carregando, setCarregando] = useState(true)
@@ -68,8 +69,10 @@ export default function Dashboard() {
     // Fatura considera sempre o mês selecionado + 1 (mês de cobrança do cartão).
     const { data: transacoesFatura } = await supabase
       .from('transacoes_nubank')
-      .select('valor, responsavel')
+      .select('valor, responsavel, categoria, data_compra')
       .eq('projeto_fatura', mesRefFatura)
+
+    setTransacoesGraficos(transacoesFatura || [])
 
     const totalRealizado = transacoesFatura?.reduce((acc, t) => acc + t.valor, 0) || 0
     const matheusAtual = transacoesFatura?.filter(t => t.responsavel === 'Matheus').reduce((acc, t) => acc + t.valor, 0) || 0
@@ -416,7 +419,7 @@ export default function Dashboard() {
       </div>
 
       {/* Gráficos de compras */}
-      <GraficosDashboard mesAtual={mesAtual} />
+      <GraficosDashboard transacoes={transacoesGraficos} carregando={carregando} />
 
       <DrawerDetalhes aberto={drawerAberto} onClose={() => setDrawerAberto(false)} dados={detalhesPonto} />
       <BottomNav />
