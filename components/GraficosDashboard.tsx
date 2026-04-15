@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Bar, Doughnut } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
@@ -29,22 +29,29 @@ const CAT_COLORS = [
   '#84cc16', '#f97316', '#14b8a6', '#a855f7',
 ]
 
-const BAR_OPTIONS_BASE = {
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: { legend: { display: false } },
-  scales: {
-    x: {
-      grid: { display: false },
-      ticks: { font: { size: 11 }, color: '#9ca3af' },
+function barOptions(labelFn: (v: number) => string) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: { label: (ctx: any) => ` ${labelFn(ctx.parsed.y)}` },
+      },
     },
-    y: {
-      grid: { color: '#f3f4f6' },
-      ticks: { font: { size: 11 }, color: '#9ca3af', precision: 0 },
-      beginAtZero: true,
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: { font: { size: 11 }, color: '#9ca3af' },
+      },
+      y: {
+        grid: { color: '#f3f4f6' },
+        ticks: { font: { size: 11 }, color: '#9ca3af', stepSize: 1 },
+        beginAtZero: true,
+      },
     },
-  },
-} as const
+  }
+}
 
 export default function GraficosDashboard({ mesAtual }: { mesAtual: Date }) {
   const [transacoes, setTransacoes] = useState<Transacao[]>([])
@@ -55,11 +62,11 @@ export default function GraficosDashboard({ mesAtual }: { mesAtual: Date }) {
   async function carregar() {
     setCarregando(true)
     const mesRefFatura = format(startOfMonth(addMonths(mesAtual, 1)), 'yyyy-MM-dd')
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('transacoes_nubank')
       .select('valor, responsavel, categoria, data_compra')
       .eq('projeto_fatura', mesRefFatura)
-    setTransacoes(data || [])
+    if (!error) setTransacoes(data || [])
     setCarregando(false)
   }
 
@@ -68,7 +75,7 @@ export default function GraficosDashboard({ mesAtual }: { mesAtual: Date }) {
       <div className="space-y-4">
         {[1, 2, 3].map(i => (
           <div key={i} className="bg-white rounded-xl shadow p-4 animate-pulse">
-            <div className="h-4 bg-gray-200 rounded w-1/3 mb-4" />
+            <div className="h-4 bg-gray-200 rounded w-2/5 mb-3" />
             <div className="h-36 bg-gray-100 rounded" />
           </div>
         ))}
@@ -78,7 +85,7 @@ export default function GraficosDashboard({ mesAtual }: { mesAtual: Date }) {
 
   if (transacoes.length === 0) return null
 
-  // ── Gráfico 1: Quantidade por pessoa ────────────────────────────
+  // ── Dados: compras por pessoa ────────────────────────────────────
   const matheusQtd = transacoes.filter(t => t.responsavel === 'Matheus').length
   const jenifferQtd = transacoes.filter(t => t.responsavel === 'Jeniffer').length
   const matheusVal = transacoes.filter(t => t.responsavel === 'Matheus').reduce((a, t) => a + t.valor, 0)
@@ -95,7 +102,7 @@ export default function GraficosDashboard({ mesAtual }: { mesAtual: Date }) {
     }],
   }
 
-  // ── Gráfico 2: Compras por dia ───────────────────────────────────
+  // ── Dados: compras por dia ───────────────────────────────────────
   const dayMap: Record<string, number> = {}
   for (const t of transacoes) {
     if (!t.data_compra) continue
@@ -115,7 +122,7 @@ export default function GraficosDashboard({ mesAtual }: { mesAtual: Date }) {
     }],
   }
 
-  // ── Gráfico 3: Valor por categoria ──────────────────────────────
+  // ── Dados: valor por categoria ───────────────────────────────────
   const catMap: Record<string, number> = {}
   for (const t of transacoes) {
     const cat = t.categoria || 'Outros'
@@ -130,95 +137,68 @@ export default function GraficosDashboard({ mesAtual }: { mesAtual: Date }) {
       data: cats.map(([, v]) => v),
       backgroundColor: cats.map((_, i) => CAT_COLORS[i % CAT_COLORS.length]),
       borderWidth: 0,
-      hoverOffset: 6,
+      hoverOffset: 8,
     }],
   }
+
+  const qtdLabel = (v: number) => `${v} compra${v !== 1 ? 's' : ''}`
 
   return (
     <div className="space-y-4">
 
-      {/* ── Compras por pessoa ── */}
+      {/* Compras por pessoa */}
       <div className="bg-white rounded-xl shadow p-4">
         <h2 className="text-base font-semibold text-gray-800 mb-0.5">🛒 Compras por pessoa</h2>
         <p className="text-xs text-gray-400 mb-3">Quantidade de compras na fatura do mês</p>
-        <div className="relative h-36">
-          <Bar
-            data={dadosPessoa}
-            options={{
-              ...BAR_OPTIONS_BASE,
-              plugins: {
-                legend: { display: false },
-                tooltip: {
-                  callbacks: {
-                    label: (ctx) => ` ${ctx.parsed.y} compra${ctx.parsed.y !== 1 ? 's' : ''}`,
-                  },
-                },
-              },
-            }}
-          />
+        <div style={{ position: 'relative', height: 144 }}>
+          <Bar data={dadosPessoa} options={barOptions(qtdLabel)} />
         </div>
         <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-gray-100">
           <div>
             <div className="flex items-center gap-1.5 mb-0.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0" />
+              <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
               <span className="text-xs font-medium text-gray-700">Matheus</span>
             </div>
-            <p className="text-xs text-gray-500 pl-4">
-              {matheusQtd} compras · R$ {matheusVal.toFixed(2)}
-            </p>
+            <p className="text-xs text-gray-500 pl-4">{matheusQtd} compras · R$ {matheusVal.toFixed(2)}</p>
           </div>
           <div>
             <div className="flex items-center gap-1.5 mb-0.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-pink-500 shrink-0" />
+              <div className="w-2.5 h-2.5 rounded-full bg-pink-500" />
               <span className="text-xs font-medium text-gray-700">Jeniffer</span>
             </div>
-            <p className="text-xs text-gray-500 pl-4">
-              {jenifferQtd} compras · R$ {jenifferVal.toFixed(2)}
-            </p>
+            <p className="text-xs text-gray-500 pl-4">{jenifferQtd} compras · R$ {jenifferVal.toFixed(2)}</p>
           </div>
         </div>
       </div>
 
-      {/* ── Compras por dia ── */}
+      {/* Compras por dia */}
       {dias.length > 0 && (
         <div className="bg-white rounded-xl shadow p-4">
           <h2 className="text-base font-semibold text-gray-800 mb-0.5">📅 Compras por dia</h2>
           <p className="text-xs text-gray-400 mb-3">Quantidade de compras por dia do mês</p>
-          <div className="relative h-40">
-            <Bar
-              data={dadosDia}
-              options={{
-                ...BAR_OPTIONS_BASE,
-                plugins: {
-                  legend: { display: false },
-                  tooltip: {
-                    callbacks: {
-                      label: (ctx) => ` ${ctx.parsed.y} compra${ctx.parsed.y !== 1 ? 's' : ''}`,
-                    },
-                  },
-                },
-              }}
-            />
+          <div style={{ position: 'relative', height: 160 }}>
+            <Bar data={dadosDia} options={barOptions(qtdLabel)} />
           </div>
         </div>
       )}
 
-      {/* ── Valor por categoria ── */}
+      {/* Valor por categoria */}
       {cats.length > 0 && (
         <div className="bg-white rounded-xl shadow p-4">
           <h2 className="text-base font-semibold text-gray-800 mb-0.5">🏷️ Valor por categoria</h2>
           <p className="text-xs text-gray-400 mb-3">Total gasto em cada categoria</p>
           <div className="flex gap-4 items-center">
-            <div className="relative shrink-0" style={{ width: 140, height: 140 }}>
+            <div style={{ position: 'relative', width: 140, height: 140, flexShrink: 0 }}>
               <Doughnut
                 data={dadosCategoria}
                 options={{
-                  responsive: false,
+                  responsive: true,
+                  maintainAspectRatio: false,
                   plugins: {
                     legend: { display: false },
                     tooltip: {
                       callbacks: {
-                        label: (ctx) => {
+                        label: (ctx: any) => {
                           const val = ctx.parsed as number
                           const pct = totalCat > 0 ? ((val / totalCat) * 100).toFixed(1) : '0'
                           return ` R$ ${val.toFixed(2)} (${pct}%)`
@@ -230,7 +210,7 @@ export default function GraficosDashboard({ mesAtual }: { mesAtual: Date }) {
                 }}
               />
             </div>
-            <div className="flex-1 space-y-1.5 max-h-36 overflow-y-auto">
+            <div className="flex-1 space-y-1.5 overflow-y-auto" style={{ maxHeight: 140 }}>
               {cats.map(([cat, val], i) => (
                 <div key={cat} className="flex items-center gap-2">
                   <div
