@@ -69,10 +69,8 @@ export default function Dashboard() {
     // Fatura considera sempre o mês selecionado + 1 (mês de cobrança do cartão).
     const { data: transacoesFatura } = await supabase
       .from('transacoes_nubank')
-      .select('valor, responsavel, categoria, data_compra')
+      .select('valor, responsavel')
       .eq('projeto_fatura', mesRefFatura)
-
-    setTransacoesGraficos(transacoesFatura || [])
 
     const totalRealizado = transacoesFatura?.reduce((acc, t) => acc + t.valor, 0) || 0
     const matheusAtual = transacoesFatura?.filter(t => t.responsavel === 'Matheus').reduce((acc, t) => acc + t.valor, 0) || 0
@@ -161,6 +159,13 @@ export default function Dashboard() {
     }
 
     setInvestimentos((invData || []).map(i => ({ ...i, aportado: aportadoMap[i.id] || 0 })))
+
+    // Query separada para os gráficos (não afeta os cálculos do dashboard)
+    const { data: graficosData } = await supabase
+      .from('transacoes_nubank')
+      .select('valor, responsavel, categoria, data_compra')
+      .eq('projeto_fatura', mesRefFatura)
+    setTransacoesGraficos(graficosData || [])
 
     setCarregando(false)
   }
