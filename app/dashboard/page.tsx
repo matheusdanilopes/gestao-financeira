@@ -241,27 +241,33 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-blue-50 border border-blue-100 p-3 rounded-lg">
                 <p className="font-semibold text-blue-800 mb-2">Matheus</p>
-                <p className="text-sm text-gray-600">
-                  Atual: <span className="font-medium text-gray-800">R$ {fatura.matheusAtual.toFixed(2)}</span>
-                </p>
-                <p className="text-sm text-gray-600">
-                  Previsto: <span className="font-medium text-gray-800">R$ {fatura.matheusPrevisto.toFixed(2)}</span>
-                </p>
-                <p className={`text-sm font-bold mt-2 ${fatura.sobraMatheus >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {fatura.sobraMatheus >= 0 ? '✓ Sobra' : '⚠ Excesso'}: R$ {Math.abs(fatura.sobraMatheus).toFixed(2)}
-                </p>
+                <div className="flex justify-between text-sm gap-1">
+                  <span className="text-gray-600">Atual</span>
+                  <span className="font-medium text-gray-800 whitespace-nowrap">R$ {fatura.matheusAtual.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm gap-1 mt-0.5">
+                  <span className="text-gray-600">Previsto</span>
+                  <span className="font-medium text-gray-800 whitespace-nowrap">R$ {fatura.matheusPrevisto.toFixed(2)}</span>
+                </div>
+                <div className={`flex justify-between text-sm font-bold mt-2 ${fatura.sobraMatheus >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <span>{fatura.sobraMatheus >= 0 ? '✓ Sobra' : '⚠ Excesso'}</span>
+                  <span className="whitespace-nowrap">R$ {Math.abs(fatura.sobraMatheus).toFixed(2)}</span>
+                </div>
               </div>
               <div className="bg-pink-50 border border-pink-100 p-3 rounded-lg">
                 <p className="font-semibold text-pink-800 mb-2">Jeniffer</p>
-                <p className="text-sm text-gray-600">
-                  Atual: <span className="font-medium text-gray-800">R$ {fatura.jenifferAtual.toFixed(2)}</span>
-                </p>
-                <p className="text-sm text-gray-600">
-                  Previsto: <span className="font-medium text-gray-800">R$ {fatura.jenifferPrevisto.toFixed(2)}</span>
-                </p>
-                <p className={`text-sm font-bold mt-2 ${fatura.sobraJeniffer >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {fatura.sobraJeniffer >= 0 ? '✓ Sobra' : '⚠ Excesso'}: R$ {Math.abs(fatura.sobraJeniffer).toFixed(2)}
-                </p>
+                <div className="flex justify-between text-sm gap-1">
+                  <span className="text-gray-600">Atual</span>
+                  <span className="font-medium text-gray-800 whitespace-nowrap">R$ {fatura.jenifferAtual.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm gap-1 mt-0.5">
+                  <span className="text-gray-600">Previsto</span>
+                  <span className="font-medium text-gray-800 whitespace-nowrap">R$ {fatura.jenifferPrevisto.toFixed(2)}</span>
+                </div>
+                <div className={`flex justify-between text-sm font-bold mt-2 ${fatura.sobraJeniffer >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <span>{fatura.sobraJeniffer >= 0 ? '✓ Sobra' : '⚠ Excesso'}</span>
+                  <span className="whitespace-nowrap">R$ {Math.abs(fatura.sobraJeniffer).toFixed(2)}</span>
+                </div>
               </div>
             </div>
 
