@@ -67,12 +67,18 @@ export default function Dashboard() {
     const mesRef = format(primeiroDia, 'yyyy-MM-dd')
     const mesRefFatura = format(startOfMonth(addMonths(mes, 1)), 'yyyy-MM-dd')
 
-    // Batch 1: 3 queries independentes em paralelo.
-    // transacoesRaw cobre tanto os cálculos da fatura quanto os gráficos (superset de colunas).
-    const [{ data: transacoesRaw }, { data: planejamento }, { data: invData }] = await Promise.all([
+    // Batch 1: 4 queries independentes em paralelo.
+    // transacoesFatura e graficosData são queries separadas intencionalmente —
+    // unir categoria/data_compra na query de cálculos causa type mismatch no Supabase.
+    const [
+      { data: transacoesFatura },
+      { data: planejamento },
+      { data: invData },
+      { data: graficosData },
+    ] = await Promise.all([
       supabase
         .from('transacoes_nubank')
-        .select('valor, responsavel, categoria, data_compra')
+        .select('valor, responsavel')
         .eq('projeto_fatura', mesRefFatura),
       supabase
         .from('planejamento')
@@ -83,11 +89,15 @@ export default function Dashboard() {
         .select('id, descricao, percentual')
         .eq('mes_referencia', mesRef)
         .order('created_at', { ascending: true }),
+      supabase
+        .from('transacoes_nubank')
+        .select('valor, responsavel, categoria, data_compra')
+        .eq('projeto_fatura', mesRefFatura),
     ])
 
-    const totalRealizado = transacoesRaw?.reduce((acc, t) => acc + t.valor, 0) || 0
-    const matheusAtual = transacoesRaw?.filter(t => t.responsavel === 'Matheus').reduce((acc, t) => acc + t.valor, 0) || 0
-    const jenifferAtual = transacoesRaw?.filter(t => t.responsavel === 'Jeniffer').reduce((acc, t) => acc + t.valor, 0) || 0
+    const totalRealizado = transacoesFatura?.reduce((acc, t) => acc + t.valor, 0) || 0
+    const matheusAtual = transacoesFatura?.filter(t => t.responsavel === 'Matheus').reduce((acc, t) => acc + t.valor, 0) || 0
+    const jenifferAtual = transacoesFatura?.filter(t => t.responsavel === 'Jeniffer').reduce((acc, t) => acc + t.valor, 0) || 0
 
     const matheusPrevisto = planejamento?.find(p => p.item === 'NuBank Matheus')?.valor_previsto || 0
     const jenifferPrevisto =
@@ -163,8 +173,7 @@ export default function Dashboard() {
 
     setInvestimentos((invData || []).map(i => ({ ...i, aportado: aportadoMap[i.id] || 0 })))
 
-    // Reutiliza transacoesRaw (já carregado no batch 1) — sem query extra
-    setTransacoesGraficos(transacoesRaw || [])
+    setTransacoesGraficos(graficosData || [])
 
     } catch (e) {
       console.error('Erro ao carregar dashboard:', e)
