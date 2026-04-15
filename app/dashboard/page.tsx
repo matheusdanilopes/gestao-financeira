@@ -67,20 +67,27 @@ export default function Dashboard() {
     const mesRef = format(primeiroDia, 'yyyy-MM-dd')
     const mesRefFatura = format(startOfMonth(addMonths(mes, 1)), 'yyyy-MM-dd')
 
-    // Fatura considera sempre o mês selecionado + 1 (mês de cobrança do cartão).
-    const { data: transacoesFatura } = await supabase
-      .from('transacoes_nubank')
-      .select('valor, responsavel')
-      .eq('projeto_fatura', mesRefFatura)
+    // Batch 1: 3 queries independentes em paralelo.
+    // transacoesRaw cobre tanto os cálculos da fatura quanto os gráficos (superset de colunas).
+    const [{ data: transacoesRaw }, { data: planejamento }, { data: invData }] = await Promise.all([
+      supabase
+        .from('transacoes_nubank')
+        .select('valor, responsavel, categoria, data_compra')
+        .eq('projeto_fatura', mesRefFatura),
+      supabase
+        .from('planejamento')
+        .select('item, responsavel, valor_previsto, pago, valor_real')
+        .eq('mes_referencia', mesRef),
+      supabase
+        .from('investimentos')
+        .select('id, descricao, percentual')
+        .eq('mes_referencia', mesRef)
+        .order('created_at', { ascending: true }),
+    ])
 
-    const totalRealizado = transacoesFatura?.reduce((acc, t) => acc + t.valor, 0) || 0
-    const matheusAtual = transacoesFatura?.filter(t => t.responsavel === 'Matheus').reduce((acc, t) => acc + t.valor, 0) || 0
-    const jenifferAtual = transacoesFatura?.filter(t => t.responsavel === 'Jeniffer').reduce((acc, t) => acc + t.valor, 0) || 0
-
-    const { data: planejamento } = await supabase
-      .from('planejamento')
-      .select('*')
-      .eq('mes_referencia', mesRef)
+    const totalRealizado = transacoesRaw?.reduce((acc, t) => acc + t.valor, 0) || 0
+    const matheusAtual = transacoesRaw?.filter(t => t.responsavel === 'Matheus').reduce((acc, t) => acc + t.valor, 0) || 0
+    const jenifferAtual = transacoesRaw?.filter(t => t.responsavel === 'Jeniffer').reduce((acc, t) => acc + t.valor, 0) || 0
 
     const matheusPrevisto = planejamento?.find(p => p.item === 'NuBank Matheus')?.valor_previsto || 0
     const jenifferPrevisto =
@@ -141,12 +148,7 @@ export default function Dashboard() {
       totalGastos, sobraLiquida, percentualComprometimento,
     })
 
-    const { data: invData } = await supabase
-      .from('investimentos')
-      .select('id, descricao, percentual')
-      .eq('mes_referencia', mesRef)
-      .order('created_at', { ascending: true })
-
+    // Batch 2: aportes depende dos IDs de investimentos
     const ids = (invData || []).map(i => i.id)
     let aportadoMap: Record<string, number> = {}
     if (ids.length > 0) {
@@ -161,12 +163,8 @@ export default function Dashboard() {
 
     setInvestimentos((invData || []).map(i => ({ ...i, aportado: aportadoMap[i.id] || 0 })))
 
-    // Query separada para os gráficos (não afeta os cálculos do dashboard)
-    const { data: graficosData } = await supabase
-      .from('transacoes_nubank')
-      .select('valor, responsavel, categoria, data_compra')
-      .eq('projeto_fatura', mesRefFatura)
-    setTransacoesGraficos(graficosData || [])
+    // Reutiliza transacoesRaw (já carregado no batch 1) — sem query extra
+    setTransacoesGraficos(transacoesRaw || [])
 
     } catch (e) {
       console.error('Erro ao carregar dashboard:', e)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Line } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
@@ -133,7 +133,7 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
     }
   }
 
-  const options = {
+  const options = useMemo(() => ({
     responsive: true,
     maintainAspectRatio: false,
     interaction: { mode: 'index' as const, intersect: false },
@@ -185,15 +185,19 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
       const mes = dadosGrafico.labels[index]
       const valor = dadosGrafico.datasets[datasetIndex].data[index]
       const mesStr = mesesDatas[index]
-      const res = await fetch('/api/projection/details', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ serie, mesStr }),
-      })
-      const { itens } = await res.json()
-      onPontoClicado(serie, mes, valor, itens)
+      try {
+        const res = await fetch('/api/projection/details', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ serie, mesStr }),
+        })
+        const { itens } = await res.json()
+        onPontoClicado(serie, mes, valor, itens)
+      } catch (e) {
+        console.error('[GraficoProjecao] Erro ao carregar detalhes:', e)
+      }
     },
-  }
+  }), [dadosGrafico, mesesDatas, onPontoClicado])
 
   if (carregando) {
     return (

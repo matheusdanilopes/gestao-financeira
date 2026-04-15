@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { format, startOfMonth } from 'date-fns'
+import { format, startOfMonth, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 const GEMINI_MODEL = 'gemini-3-flash-preview'
@@ -46,9 +46,18 @@ async function geminiChat(apiKey: string, systemPrompt: string, mensagens: Array
 async function buscarContextoFinanceiro(): Promise<string> {
   const supabase = getSupabase()
 
+  // Limita a janela de dados a 24 meses para evitar context overflow no LLM
+  const limiteHistorico = format(startOfMonth(subMonths(new Date(), 24)), 'yyyy-MM-dd')
+
   const [resTransacoes, resPlanejamento, resConfig] = await Promise.all([
-    supabase.from('transacoes_nubank').select('descricao, valor, responsavel, categoria, projeto_fatura, data').order('projeto_fatura', { ascending: false }),
-    supabase.from('planejamento').select('item, responsavel, valor_previsto, categoria, mes_referencia, parcela_atual, total_parcelas').order('mes_referencia', { ascending: false }),
+    supabase.from('transacoes_nubank')
+      .select('descricao, valor, responsavel, categoria, projeto_fatura, data')
+      .gte('projeto_fatura', limiteHistorico)
+      .order('projeto_fatura', { ascending: false }),
+    supabase.from('planejamento')
+      .select('item, responsavel, valor_previsto, categoria, mes_referencia, parcela_atual, total_parcelas')
+      .gte('mes_referencia', limiteHistorico)
+      .order('mes_referencia', { ascending: false }),
     supabase.from('configuracoes').select('chave, valor'),
   ])
 

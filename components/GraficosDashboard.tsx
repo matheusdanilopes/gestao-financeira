@@ -1,5 +1,7 @@
 'use client'
 
+import { useMemo } from 'react'
+
 interface Transacao {
   valor: number
   responsavel: string
@@ -120,32 +122,40 @@ function Skeleton() {
 
 // ── Componente principal ───────────────────────────────────────────────────────
 export default function GraficosDashboard({ transacoes, carregando }: Props) {
+  const dados = useMemo(() => {
+    if (transacoes.length === 0) return null
+
+    // Por pessoa
+    const matheusQtd = transacoes.filter(t => t.responsavel === 'Matheus').length
+    const jenifferQtd = transacoes.filter(t => t.responsavel === 'Jeniffer').length
+    const matheusVal = transacoes.filter(t => t.responsavel === 'Matheus').reduce((a, t) => a + t.valor, 0)
+    const jenifferVal = transacoes.filter(t => t.responsavel === 'Jeniffer').reduce((a, t) => a + t.valor, 0)
+
+    // Por dia
+    const dayMap: Record<string, number> = {}
+    for (const t of transacoes) {
+      if (!t.data_compra) continue
+      const day = t.data_compra.slice(8, 10)
+      dayMap[day] = (dayMap[day] || 0) + 1
+    }
+    const dias = Object.keys(dayMap).sort()
+
+    // Por categoria
+    const catMap: Record<string, number> = {}
+    for (const t of transacoes) {
+      const cat = t.categoria || 'Outros'
+      catMap[cat] = (catMap[cat] || 0) + t.valor
+    }
+    const cats = Object.entries(catMap).sort(([, a], [, b]) => b - a)
+    const totalCat = cats.reduce((a, [, v]) => a + v, 0)
+
+    return { matheusQtd, jenifferQtd, matheusVal, jenifferVal, dayMap, dias, cats, totalCat }
+  }, [transacoes])
+
   if (carregando) return <Skeleton />
-  if (transacoes.length === 0) return null
+  if (!dados) return null
 
-  // Dados: por pessoa
-  const matheusQtd = transacoes.filter(t => t.responsavel === 'Matheus').length
-  const jenifferQtd = transacoes.filter(t => t.responsavel === 'Jeniffer').length
-  const matheusVal = transacoes.filter(t => t.responsavel === 'Matheus').reduce((a, t) => a + t.valor, 0)
-  const jenifferVal = transacoes.filter(t => t.responsavel === 'Jeniffer').reduce((a, t) => a + t.valor, 0)
-
-  // Dados: por dia
-  const dayMap: Record<string, number> = {}
-  for (const t of transacoes) {
-    if (!t.data_compra) continue
-    const day = t.data_compra.slice(8, 10)
-    dayMap[day] = (dayMap[day] || 0) + 1
-  }
-  const dias = Object.keys(dayMap).sort()
-
-  // Dados: por categoria
-  const catMap: Record<string, number> = {}
-  for (const t of transacoes) {
-    const cat = t.categoria || 'Outros'
-    catMap[cat] = (catMap[cat] || 0) + t.valor
-  }
-  const cats = Object.entries(catMap).sort(([, a], [, b]) => b - a)
-  const totalCat = cats.reduce((a, [, v]) => a + v, 0)
+  const { matheusQtd, jenifferQtd, matheusVal, jenifferVal, dayMap, dias, cats, totalCat } = dados
 
   return (
     <div className="space-y-4">

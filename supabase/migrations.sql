@@ -3,6 +3,32 @@
 -- Execute no SQL Editor do Supabase (https://app.supabase.com)
 -- ============================================================
 
+-- 0. Índices de performance
+-- Execute estas instruções ANTES de criar as tabelas (ou separadamente, se já existirem)
+CREATE INDEX IF NOT EXISTS idx_transacoes_fatura
+  ON transacoes_nubank(projeto_fatura);
+
+CREATE INDEX IF NOT EXISTS idx_transacoes_fatura_responsavel
+  ON transacoes_nubank(projeto_fatura, responsavel);
+
+CREATE INDEX IF NOT EXISTS idx_transacoes_responsavel
+  ON transacoes_nubank(responsavel);
+
+CREATE INDEX IF NOT EXISTS idx_planejamento_mes
+  ON planejamento(mes_referencia);
+
+CREATE INDEX IF NOT EXISTS idx_investimentos_mes
+  ON investimentos(mes_referencia);
+
+CREATE INDEX IF NOT EXISTS idx_aportes_investimento
+  ON investimentos_aportes(investimento_id);
+
+CREATE INDEX IF NOT EXISTS idx_activity_logs_created
+  ON activity_logs(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_receitas_recebimentos_planejamento
+  ON receitas_recebimentos(planejamento_id);
+
 -- 1. Coluna de categoria nas transações
 ALTER TABLE transacoes_nubank
   ADD COLUMN IF NOT EXISTS categoria TEXT;

@@ -67,13 +67,15 @@ A lista deve ter exatamente ${transacoes.length} categorias, na mesma ordem das 
       return NextResponse.json({ error: 'Número de categorias não bate' }, { status: 500 })
     }
 
-    for (let i = 0; i < transacoes.length; i++) {
-      const categoria = CATEGORIAS.includes(categorias[i]) ? categorias[i] : 'Outros'
-      await supabase
-        .from('transacoes_nubank')
-        .update({ categoria })
-        .eq('hash_linha', (transacoes[i] as any).hash_linha)
-    }
+    await Promise.all(
+      transacoes.map((t, i) => {
+        const categoria = CATEGORIAS.includes(categorias[i]) ? categorias[i] : 'Outros'
+        return supabase
+          .from('transacoes_nubank')
+          .update({ categoria })
+          .eq('hash_linha', (t as any).hash_linha)
+      })
+    )
 
     return NextResponse.json({ categorized: transacoes.length })
   } catch (error) {
