@@ -55,6 +55,7 @@ export default function ComprasPage() {
   // Compras usa sempre mês global + 1 (fatura do próximo mês)
   const { mesAtual: mesGlobal, setMesAtual } = useMes()
   const mesAtual = addMonths(mesGlobal, 1)
+  const isMesAtual = format(mesAtual, 'yyyy-MM') === format(addMonths(new Date(), 1), 'yyyy-MM')
   const [compras, setCompras] = useState<Compra[]>([])
   const [filtroResponsavel, setFiltroResponsavel] = useState('')
   const [filtroDescricao, setFiltroDescricao] = useState('')
@@ -188,9 +189,21 @@ export default function ComprasPage() {
         <button onClick={() => setMesAtual(subMonths(mesAtual, 1))} className="p-2 hover:bg-gray-100 rounded-full">
           <ChevronLeft className="w-5 h-5" />
         </button>
-        <span className="text-lg font-semibold capitalize">
-          {format(mesAtual, 'MMMM yyyy', { locale: ptBR })}
-        </span>
+        <div className="text-center flex-1">
+          <span className="text-lg font-semibold capitalize">
+            {format(mesAtual, 'MMMM yyyy', { locale: ptBR })}
+          </span>
+          {!isMesAtual && (
+            <div>
+              <button
+                onClick={() => setMesAtual(new Date())}
+                className="text-xs text-blue-500 hover:underline"
+              >
+                Voltar ao mês atual
+              </button>
+            </div>
+          )}
+        </div>
         <button onClick={() => setMesAtual(addMonths(mesAtual, 1))} className="p-2 hover:bg-gray-100 rounded-full">
           <ChevronRight className="w-5 h-5" />
         </button>
