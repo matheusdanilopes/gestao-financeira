@@ -38,6 +38,7 @@ interface ResumoCaixaState {
   extras: number
   totalGastos: number
   sobraLiquida: number
+  saldoPrevisto: number
   percentualComprometimento: number
 }
 
@@ -50,7 +51,7 @@ export default function Dashboard() {
   })
   const [resumoCaixa, setResumoCaixa] = useState<ResumoCaixaState>({
     receitaTotal: 0, contasFixas: 0, fatura: 0, faturaEhPrevisto: false, extras: 0,
-    totalGastos: 0, sobraLiquida: 0, percentualComprometimento: 0,
+    totalGastos: 0, sobraLiquida: 0, saldoPrevisto: 0, percentualComprometimento: 0,
   })
   const [investimentos, setInvestimentos] = useState<{ id: string; descricao: string; percentual: number; aportado: number }[]>([])
   const [transacoesGraficos, setTransacoesGraficos] = useState<{ valor: number; responsavel: string; categoria: string; data_compra: string }[]>([])
@@ -143,6 +144,8 @@ export default function Dashboard() {
     // Resumo: planejado total − nubank previsto + fatura efetiva
     const totalGastos = totalPlanejado - nuBankPrevisto + faturaEfetiva
     const sobraLiquida = receitaTotal - totalGastos
+    // Saldo puramente previsto: sempre usa nuBankPrevisto, independente de transações reais
+    const saldoPrevisto = receitaTotal - totalPlanejado
     const percentualComprometimento = receitaTotal > 0 ? (totalGastos / receitaTotal) * 100 : 0
 
     setFatura({
@@ -155,7 +158,7 @@ export default function Dashboard() {
     setResumoCaixa({
       receitaTotal, contasFixas: totalPlanejado - nuBankPrevisto,
       fatura: faturaEfetiva, faturaEhPrevisto, extras: 0,
-      totalGastos, sobraLiquida, percentualComprometimento,
+      totalGastos, sobraLiquida, saldoPrevisto, percentualComprometimento,
     })
 
     // Batch 2: aportes depende dos IDs de investimentos
@@ -337,11 +340,23 @@ export default function Dashboard() {
               </span>
               <span className="text-gray-700 font-medium">− R$ {resumoCaixa.fatura.toFixed(2)}</span>
             </div>
-            <div className="border-t pt-2 flex justify-between items-center py-1.5 px-3 rounded-lg bg-blue-50 border border-blue-100">
-              <span className="text-sm font-medium text-blue-700">Saldo Previsto</span>
-              <span className={`text-sm font-bold ${resumoCaixa.sobraLiquida >= 0 ? 'text-blue-700' : 'text-red-600'}`}>
-                R$ {resumoCaixa.sobraLiquida.toFixed(2)}
-              </span>
+            <div className="border-t pt-2 grid grid-cols-2 gap-2">
+              <div className="flex flex-col items-center py-2 px-3 rounded-lg bg-gray-50 border border-gray-100">
+                <span className="text-xs text-gray-500 mb-1">Saldo Previsto</span>
+                <span className={`text-base font-bold ${resumoCaixa.saldoPrevisto >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                  R$ {resumoCaixa.saldoPrevisto.toFixed(2)}
+                </span>
+                <span className="text-[10px] text-gray-400 mt-0.5">só previsões</span>
+              </div>
+              <div className="flex flex-col items-center py-2 px-3 rounded-lg bg-blue-50 border border-blue-100">
+                <span className="text-xs text-blue-600 mb-1">Saldo Atual</span>
+                <span className={`text-base font-bold ${resumoCaixa.sobraLiquida >= 0 ? 'text-blue-700' : 'text-red-600'}`}>
+                  R$ {resumoCaixa.sobraLiquida.toFixed(2)}
+                </span>
+                <span className="text-[10px] text-blue-400 mt-0.5">
+                  {resumoCaixa.faturaEhPrevisto ? 'fatura estimada' : 'fatura real'}
+                </span>
+              </div>
             </div>
             <div className="pt-1">
               <div className="flex justify-between items-center mb-1.5">
