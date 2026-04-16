@@ -70,7 +70,9 @@ export default function ComprasPage() {
   const [salvando, setSalvando] = useState(false)
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null)
 
-  useEffect(() => { carregarCompras() }, [mesAtual])
+  const mesAtualKey = format(startOfMonth(mesAtual), 'yyyy-MM')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { carregarCompras() }, [mesAtualKey])
 
   function showToast(msg: string, tipo: 'ok' | 'erro' = 'ok') {
     setToast({ msg, tipo })
