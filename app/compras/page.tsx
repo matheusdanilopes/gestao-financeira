@@ -188,7 +188,7 @@ export default function ComprasPage() {
 
       {/* Navegação de mês */}
       <div className="flex items-center justify-between bg-white rounded-xl shadow p-3 mb-4">
-        <button onClick={() => setMesAtual(subMonths(mesAtual, 1))} className="p-2 hover:bg-gray-100 rounded-full">
+        <button onClick={() => setMesAtual(subMonths(mesGlobal, 1))} className="p-2 hover:bg-gray-100 rounded-full">
           <ChevronLeft className="w-5 h-5" />
         </button>
         <div className="text-center flex-1">
@@ -206,7 +206,7 @@ export default function ComprasPage() {
             </div>
           )}
         </div>
-        <button onClick={() => setMesAtual(addMonths(mesAtual, 1))} className="p-2 hover:bg-gray-100 rounded-full">
+        <button onClick={() => setMesAtual(addMonths(mesGlobal, 1))} className="p-2 hover:bg-gray-100 rounded-full">
           <ChevronRight className="w-5 h-5" />
         </button>
       </div>
