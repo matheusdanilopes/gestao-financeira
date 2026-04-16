@@ -7,6 +7,7 @@ import { ptBR } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 import InvestimentosMensal from '@/components/InvestimentosMensal'
+import { useMes } from '@/components/MesProvider'
 
 async function calcularSaldo(mes: Date): Promise<number> {
   const primeiroDia = startOfMonth(mes)
@@ -46,7 +47,7 @@ async function calcularSaldo(mes: Date): Promise<number> {
 }
 
 export default function InvestimentosPage() {
-  const [mesAtual, setMesAtual] = useState(new Date())
+  const { mesAtual, setMesAtual } = useMes()
   const [saldo, setSaldo] = useState(0)
   const [carregando, setCarregando] = useState(true)
 
@@ -68,7 +69,7 @@ export default function InvestimentosPage() {
         <h1 className="text-2xl font-bold mb-3">Investimentos</h1>
         <div className="flex items-center justify-between bg-white rounded-xl shadow-sm px-2 py-1">
           <button
-            onClick={() => setMesAtual(prev => subMonths(prev, 1))}
+            onClick={() => setMesAtual(subMonths(mesAtual, 1))}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <ChevronLeft className="w-5 h-5 text-gray-600" />
@@ -87,7 +88,7 @@ export default function InvestimentosPage() {
             )}
           </div>
           <button
-            onClick={() => setMesAtual(prev => addMonths(prev, 1))}
+            onClick={() => setMesAtual(addMonths(mesAtual, 1))}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <ChevronRight className="w-5 h-5 text-gray-600" />

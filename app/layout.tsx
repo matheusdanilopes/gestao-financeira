@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { ThemeProvider } from '@/components/ThemeProvider'
+import { MesProvider } from '@/components/MesProvider'
 
 export const metadata: Metadata = {
   title: 'Gestão Financeira Familiar',
@@ -38,9 +39,11 @@ export default function RootLayout({
       </head>
       <body className="font-sans antialiased">
         <ThemeProvider>
-          <main className="max-w-md mx-auto relative">
-            {children}
-          </main>
+          <MesProvider>
+            <main className="max-w-md mx-auto relative">
+              {children}
+            </main>
+          </MesProvider>
         </ThemeProvider>
       </body>
     </html>

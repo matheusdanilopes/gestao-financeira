@@ -1,12 +1,14 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
+import { useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { ChevronLeft, ChevronRight, Pencil, Trash2, X } from 'lucide-react'
 import { addMonths, subMonths, format, startOfMonth, parse } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import BottomNav from '@/components/BottomNav'
 import { log, numericOnly } from '@/lib/logger'
+import { useMes } from '@/components/MesProvider'
 
 type Compra = {
   hash_linha: string
@@ -50,7 +52,9 @@ function dataParaInput(dataStr: string | null): string {
 }
 
 export default function ComprasPage() {
-  const [mesAtual, setMesAtual] = useState(() => addMonths(new Date(), 1))
+  // Compras usa sempre mês global + 1 (fatura do próximo mês)
+  const { mesAtual: mesGlobal, setMesAtual } = useMes()
+  const mesAtual = addMonths(mesGlobal, 1)
   const [compras, setCompras] = useState<Compra[]>([])
   const [filtroResponsavel, setFiltroResponsavel] = useState('')
   const [filtroDescricao, setFiltroDescricao] = useState('')

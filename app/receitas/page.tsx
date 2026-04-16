@@ -1,14 +1,14 @@
 'use client'
 
-import { useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { addMonths, subMonths, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import BottomNav from '@/components/BottomNav'
 import ReceitasMensal from '@/components/ReceitasMensal'
+import { useMes } from '@/components/MesProvider'
 
 export default function ReceitasPage() {
-  const [mesAtual, setMesAtual] = useState(new Date())
+  const { mesAtual, setMesAtual } = useMes()
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 pb-20">

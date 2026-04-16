@@ -1,10 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
+import { useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useMes } from '@/components/MesProvider'
 import GraficoProjecao from '@/components/GraficoProjecao'
 import GraficosDashboard from '@/components/GraficosDashboard'
 import DrawerDetalhes from '@/components/DrawerDetalhes'
@@ -43,7 +45,7 @@ interface ResumoCaixaState {
 }
 
 export default function Dashboard() {
-  const [mesAtual, setMesAtual] = useState(new Date())
+  const { mesAtual, setMesAtual } = useMes()
   const [fatura, setFatura] = useState<FaturaState>({
     totalRealizado: 0, matheusAtual: 0, matheusPrevisto: 0,
     jenifferAtual: 0, jenifferPrevisto: 0, sobraMatheus: 0, sobraJeniffer: 0,
@@ -141,11 +143,20 @@ export default function Dashboard() {
     const faturaEhPrevisto = totalRealizado === 0
     const faturaEfetiva = faturaEhPrevisto ? nuBankPrevisto : totalRealizado
 
-    // Resumo: planejado total − nubank previsto + fatura efetiva
-    const totalGastos = totalPlanejado - nuBankPrevisto + faturaEfetiva
-    const sobraLiquida = receitaTotal - totalGastos
-    // Saldo puramente previsto: sempre usa nuBankPrevisto, independente de transações reais
+    // Saldo Previsto: usa apenas valores planejados (nuBankPrevisto sempre)
     const saldoPrevisto = receitaTotal - totalPlanejado
+
+    // Saldo Atual: usa valor_real quando pago=true (igual à lógica da fatura)
+    const NUBANK_ITEMS = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto'])
+    const contasFixasAtual = (planejamento || [])
+      .filter(p => {
+        const item = typeof p.item === 'string' ? p.item : ''
+        return !item.startsWith('[RECEITA]') && item !== 'Receita Total' && !NUBANK_ITEMS.has(item)
+      })
+      .reduce((acc, p) => acc + (p.pago ? (p.valor_real ?? p.valor_previsto) : p.valor_previsto), 0)
+
+    const totalGastos = contasFixasAtual + faturaEfetiva
+    const sobraLiquida = receitaTotal - totalGastos
     const percentualComprometimento = receitaTotal > 0 ? (totalGastos / receitaTotal) * 100 : 0
 
     setFatura({
@@ -205,7 +216,7 @@ export default function Dashboard() {
         <h1 className="text-2xl font-bold mb-3">Dashboard Financeiro</h1>
         <div className="flex items-center justify-between bg-white rounded-xl shadow-sm px-2 py-1">
           <button
-            onClick={() => setMesAtual(prev => subMonths(prev, 1))}
+            onClick={() => setMesAtual(subMonths(mesAtual, 1))}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             aria-label="Mês anterior"
           >
@@ -225,7 +236,7 @@ export default function Dashboard() {
             )}
           </div>
           <button
-            onClick={() => setMesAtual(prev => addMonths(prev, 1))}
+            onClick={() => setMesAtual(addMonths(mesAtual, 1))}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             aria-label="Próximo mês"
           >

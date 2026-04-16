@@ -1,14 +1,14 @@
 'use client'
 
-import { useState } from 'react'
 import ChecklistMensal from '@/components/ChecklistMensal'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { addMonths, subMonths, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import BottomNav from '@/components/BottomNav'
+import { useMes } from '@/components/MesProvider'
 
 export default function ContasPage() {
-  const [mesAtual, setMesAtual] = useState(new Date())
+  const { mesAtual, setMesAtual } = useMes()
 
   const mesAnterior = () => setMesAtual(subMonths(mesAtual, 1))
   const proximoMes = () => setMesAtual(addMonths(mesAtual, 1))
