@@ -328,17 +328,6 @@ export default function Dashboard() {
               <span className="text-gray-500">Despesas planejadas</span>
               <span className="text-gray-700 font-medium">− R$ {resumoCaixa.contasFixas.toFixed(2)}</span>
             </div>
-            {(() => {
-              const saldo = resumoCaixa.receitaTotal - resumoCaixa.contasFixas
-              return (
-                <div className="flex justify-between items-center py-1.5 px-3 rounded-lg bg-blue-50 border border-blue-100">
-                  <span className="text-sm font-medium text-blue-700">Saldo Previsto</span>
-                  <span className={`text-sm font-bold ${saldo >= 0 ? 'text-blue-700' : 'text-red-600'}`}>
-                    R$ {saldo.toFixed(2)}
-                  </span>
-                </div>
-              )
-            })()}
             <div className="flex justify-between items-center text-sm">
               <span className="text-gray-500">
                 Fatura NuBank (mês+1)
@@ -348,13 +337,9 @@ export default function Dashboard() {
               </span>
               <span className="text-gray-700 font-medium">− R$ {resumoCaixa.fatura.toFixed(2)}</span>
             </div>
-            <div className="border-t pt-2 flex justify-between items-center">
-              <span className="text-gray-600 font-medium">Total de Gastos</span>
-              <span className="font-bold text-gray-800">R$ {resumoCaixa.totalGastos.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600 font-medium">Sobra Líquida</span>
-              <span className={`font-bold text-lg ${resumoCaixa.sobraLiquida >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <div className="border-t pt-2 flex justify-between items-center py-1.5 px-3 rounded-lg bg-blue-50 border border-blue-100">
+              <span className="text-sm font-medium text-blue-700">Saldo Previsto</span>
+              <span className={`text-sm font-bold ${resumoCaixa.sobraLiquida >= 0 ? 'text-blue-700' : 'text-red-600'}`}>
                 R$ {resumoCaixa.sobraLiquida.toFixed(2)}
               </span>
             </div>
