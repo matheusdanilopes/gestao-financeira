@@ -78,6 +78,7 @@ export default function ComprasPage() {
       .from('transacoes_nubank')
       .select('*')
       .eq('projeto_fatura', mesRef)
+      .order('data_compra', { ascending: false })
     setCompras(data || [])
   }
 
