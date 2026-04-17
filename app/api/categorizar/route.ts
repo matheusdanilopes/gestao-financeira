@@ -78,7 +78,7 @@ export async function POST(_req: NextRequest) {
 
       const categorias = await categorizarLote(apiKey, transacoes)
 
-      await Promise.all(
+      const results = await Promise.all(
         transacoes.map((t, i) => {
           const categoria = CATEGORIAS.includes(categorias[i]) ? categorias[i] : 'Outros'
           return supabase
@@ -87,6 +87,9 @@ export async function POST(_req: NextRequest) {
             .eq('hash_linha', t.hash_linha)
         })
       )
+
+      const updateError = results.find(r => r.error)
+      if (updateError) throw new Error(updateError.error!.message)
 
       totalCategorizado += transacoes.length
 
