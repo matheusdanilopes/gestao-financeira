@@ -182,7 +182,7 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
       log('inserir', 'receitas', `Nova receita: ${formData.item} — R$ ${valor.toFixed(2)}`, valor)
     } else if (itemSelecionado) {
       await supabase.from('planejamento').update(payload).eq('id', itemSelecionado.id)
-      log('editar', 'receitas', `Editada: ${formData.item} — R$ ${valor.toFixed(2)}`, valor)
+      log('editar', 'receitas', `Editada: ${formData.item} — R$ ${valor.toFixed(2)}`, valor, itemSelecionado.valor_previsto)
     }
     setModalAberto(null)
     setItemSelecionado(null)

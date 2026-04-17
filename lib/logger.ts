@@ -17,14 +17,20 @@ export function log(
   acao: AcaoLog,
   tabela: string,
   descricao: string,
-  valor?: number
+  valor?: number,
+  valorAnterior?: number
 ) {
   void (async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    const usuario = user?.email ?? null
+
     const { error } = await supabase.from('activity_logs').insert([{
       acao,
       tabela,
       descricao,
       valor: valor ?? null,
+      valor_anterior: valorAnterior ?? null,
+      usuario,
     }])
     if (error) console.error('[log] Falha ao registrar atividade:', error)
   })()

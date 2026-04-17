@@ -122,7 +122,8 @@ export default function ComprasPage() {
 
     log('editar', 'transacoes_nubank',
       `Editado: ${formEditar.descricao.trim()} — R$ ${valor.toFixed(2)} (${formEditar.responsavel})`,
-      valor
+      valor,
+      modalEditar.valor
     )
     showToast('Compra atualizada!')
     setModalEditar(null)

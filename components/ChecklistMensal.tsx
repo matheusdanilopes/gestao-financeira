@@ -153,7 +153,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       setModalAberto(null)
       setItemSelecionado(null)
       carregarItens()
-      log('editar', 'planejamento', `Editado: ${formData.item} — R$ ${valor.toFixed(2)}`, valor)
+      log('editar', 'planejamento', `Editado: ${formData.item} — R$ ${valor.toFixed(2)}`, valor, itemSelecionado.valor_previsto)
     } else {
       showToast('Erro ao editar', 'erro')
     }

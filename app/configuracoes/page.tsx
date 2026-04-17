@@ -15,6 +15,8 @@ interface LogEntry {
   tabela: string
   descricao: string
   valor: number | null
+  valor_anterior: number | null
+  usuario: string | null
   created_at: string
 }
 
@@ -228,9 +230,21 @@ export default function ConfiguracoesPage() {
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-gray-700 leading-snug">{entry.descricao}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{entry.tabela} · {dataStr} às {horaStr}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {entry.tabela} · {dataStr} às {horaStr}
+                      {entry.usuario && (
+                        <span className="ml-1 text-gray-500">· {entry.usuario}</span>
+                      )}
+                    </p>
+                    {entry.valor_anterior != null && entry.valor != null && Math.abs(entry.valor_anterior - entry.valor) > 0.001 && (
+                      <p className="text-xs mt-0.5">
+                        <span className="text-red-400 line-through">R$ {entry.valor_anterior.toFixed(2)}</span>
+                        <span className="text-gray-400 mx-1">→</span>
+                        <span className="text-green-600 font-medium">R$ {entry.valor.toFixed(2)}</span>
+                      </p>
+                    )}
                   </div>
-                  {entry.valor != null && (
+                  {entry.valor != null && entry.valor_anterior == null && (
                     <span className="shrink-0 text-sm font-medium text-gray-600">
                       R$ {entry.valor.toFixed(2)}
                     </span>
