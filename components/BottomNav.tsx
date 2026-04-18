@@ -2,33 +2,82 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, ListChecks, Upload, Settings } from 'lucide-react'
+import { LayoutDashboard, Receipt, TrendingUp, ShoppingCart, MessageCircle, SlidersHorizontal, PiggyBank } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import type { Session } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabaseClient'
+import { AUTH_DISABLED } from '@/lib/authConfig'
+
+const ROTAS_COM_MENU = ['/dashboard', '/contas', '/receitas', '/investimentos', '/compras', '/chat', '/configuracoes', '/importar']
+
+const navItems = [
+  { href: '/dashboard',      label: 'Dashboard',   icon: LayoutDashboard },
+  { href: '/contas',         label: 'Despesas',    icon: Receipt },
+  { href: '/receitas',       label: 'Receitas',    icon: TrendingUp },
+  { href: '/investimentos',  label: 'Investir',    icon: PiggyBank },
+  { href: '/compras',        label: 'Compras',     icon: ShoppingCart },
+  { href: '/chat',           label: 'IA',          icon: MessageCircle },
+  { href: '/configuracoes',  label: 'Config',      icon: SlidersHorizontal },
+]
 
 export default function BottomNav() {
   const pathname = usePathname()
+  const [session, setSession] = useState<Session | null>(null)
+  const [isCheckingSession, setIsCheckingSession] = useState(true)
 
-  const navItems = [
-    { href: '/dashboard', label: 'Dashboard', icon: Home },
-    { href: '/contas', label: 'Contas', icon: ListChecks },
-    { href: '/importar', label: 'Importar', icon: Upload },
-    { href: '/configuracoes', label: 'Config', icon: Settings },
-  ]
+  useEffect(() => {
+    let isMounted = true
+
+    async function carregarSessao() {
+      const { data } = await supabase.auth.getSession()
+      if (isMounted) {
+        setSession(data.session)
+        setIsCheckingSession(false)
+      }
+    }
+
+    carregarSessao()
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      setSession(currentSession)
+      setIsCheckingSession(false)
+    })
+
+    return () => {
+      isMounted = false
+      authListener.subscription.unsubscribe()
+    }
+  }, [])
+
+  const deveExibirMenu = pathname ? ROTAS_COM_MENU.includes(pathname) : false
+
+  if (!deveExibirMenu) return null
+  if (!AUTH_DISABLED && (isCheckingSession || !session)) return null
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg">
-      <div className="flex justify-around items-center h-16">
+    <div data-bottom-nav="true" className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 shadow-[0_-2px_12px_rgba(0,0,0,0.06)]">
+      <div className="flex justify-around items-center h-16 px-1">
         {navItems.map(({ href, label, icon: Icon }) => {
           const isActive = pathname === href
           return (
             <Link
               key={href}
               href={href}
-              className={`flex flex-col items-center gap-1 transition ${
-                isActive ? 'text-blue-600' : 'text-gray-500'
-              }`}
+              className="flex flex-col items-center gap-0.5 flex-1 py-2 transition-all"
             >
-              <Icon className="w-5 h-5" />
-              <span className="text-xs">{label}</span>
+              <span className={`flex items-center justify-center w-10 h-6 rounded-full transition-all ${
+                isActive ? 'bg-blue-100' : ''
+              }`}>
+                <Icon
+                  className={`transition-all ${isActive ? 'w-5 h-5 text-blue-600' : 'w-5 h-5 text-gray-400'}`}
+                  strokeWidth={isActive ? 2.5 : 1.8}
+                />
+              </span>
+              <span className={`text-[10px] font-medium transition-colors ${
+                isActive ? 'text-blue-600' : 'text-gray-400'
+              }`}>
+                {label}
+              </span>
             </Link>
           )
         })}
