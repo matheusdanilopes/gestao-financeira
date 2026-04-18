@@ -30,12 +30,15 @@ export default function ImportarPage() {
     try {
       const res = await fetch('/api/categorizar', { method: 'POST' })
       const data = await res.json()
-      if (data.categorized !== undefined) {
-        setCategorizadoMsg(data.categorized === 0
-          ? 'Todas as transações já estão categorizadas!'
-          : `${data.categorized} transações categorizadas com IA`)
+      if (data.error) {
+        setCategorizadoMsg('Erro: ' + data.error)
+      } else if (data.total === 0) {
+        setCategorizadoMsg('Nenhuma transação encontrada')
+      } else if (data.erros?.length) {
+        const falhas = data.erros.join(' | ')
+        setCategorizadoMsg(`${data.categorized}/${data.total} categorizadas. Erros: ${falhas}`)
       } else {
-        setCategorizadoMsg('Erro: ' + (data.error || 'desconhecido'))
+        setCategorizadoMsg(`${data.categorized} transações categorizadas com IA`)
       }
     } catch {
       setCategorizadoMsg('Erro ao categorizar')

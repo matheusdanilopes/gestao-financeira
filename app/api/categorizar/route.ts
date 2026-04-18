@@ -97,7 +97,9 @@ export async function POST(_req: NextRequest) {
 
         totalCategorized += lote.length
       } catch (err) {
-        erros.push(`Lote ${Math.floor(i / LOTE) + 1}: ${String(err)}`)
+        const msg = `Lote ${Math.floor(i / LOTE) + 1}: ${String(err)}`
+        console.error('[categorizar]', msg)
+        erros.push(msg)
       }
     }
 
