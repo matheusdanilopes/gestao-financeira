@@ -159,7 +159,11 @@ export default function ComprasPage() {
       .eq('hash_linha', modalEditar.hash_linha)
 
     setSalvando(false)
-    if (error) { showToast('Erro ao salvar', 'erro'); return }
+    if (error) {
+      console.error('[salvarEdicao]', error)
+      showToast(`Erro: ${error.message}`, 'erro')
+      return
+    }
 
     log('editar', 'transacoes_nubank',
       `Editado: ${formEditar.descricao.trim()} — R$ ${valor.toFixed(2)} (${formEditar.responsavel})`,
