@@ -33,10 +33,13 @@ export default function ImportarPage() {
       if (data.error) {
         setCategorizadoMsg('Erro: ' + data.error)
       } else if (data.total === 0) {
-        setCategorizadoMsg('Nenhuma transação encontrada')
+        setCategorizadoMsg('Todas as transações já estão categorizadas!')
+      } else if (data.cotaDiariaEsgotada) {
+        setCategorizadoMsg(
+          `Cota diária do Gemini esgotada. ${data.categorized} de ${data.total} categorizadas. Tente novamente amanhã.`
+        )
       } else if (data.erros?.length) {
-        const falhas = data.erros.join(' | ')
-        setCategorizadoMsg(`${data.categorized}/${data.total} categorizadas. Erros: ${falhas}`)
+        setCategorizadoMsg(`${data.categorized}/${data.total} categorizadas com erros em alguns lotes.`)
       } else {
         setCategorizadoMsg(`${data.categorized} transações categorizadas com IA`)
       }
