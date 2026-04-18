@@ -127,6 +127,13 @@ export default function ChatPage() {
 
       if (data.resposta) {
         setMensagens(prev => [...prev, { role: 'assistant', content: data.resposta, ts: Date.now() }])
+      } else if (data.errorCode === 'QUOTA_429') {
+        const msg = data.diaria
+          ? 'A cota diária da IA foi atingida. Tente novamente amanhã.'
+          : data.segundos
+            ? `Muitas requisições em pouco tempo. Aguarde ${data.segundos} segundos e tente novamente.`
+            : 'Muitas requisições em pouco tempo. Aguarde um momento e tente novamente.'
+        setMensagens(prev => [...prev, { role: 'assistant', content: msg, ts: Date.now() }])
       } else if (data.error?.includes('GEMINI_API_KEY')) {
         setMensagens(prev => [...prev, {
           role: 'assistant',
@@ -136,7 +143,7 @@ export default function ChatPage() {
       } else {
         setMensagens(prev => [...prev, {
           role: 'assistant',
-          content: `Não consegui responder agora. Tente novamente.\n\n_Detalhe: ${data.error || 'erro desconhecido'}_`,
+          content: 'Não consegui responder agora. Tente novamente em instantes.',
           ts: Date.now(),
         }])
       }

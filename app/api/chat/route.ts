@@ -40,7 +40,14 @@ async function geminiChat(
   })
 
   if (!res.ok) {
-    throw new Error(await res.text())
+    const body = await res.text()
+    if (res.status === 429) {
+      const retryMatch = body.match(/"retryDelay":\s*"(\d+)s"/)
+      const segundos = retryMatch ? parseInt(retryMatch[1]) : null
+      const diaria = body.includes('GenerateRequestsPerDayPerProjectPerModel')
+      throw Object.assign(new Error('QUOTA_429'), { diaria, segundos })
+    }
+    throw new Error(body)
   }
 
   const data = await res.json()
@@ -180,6 +187,14 @@ ${contexto}`
     return NextResponse.json({ resposta: texto })
   } catch (err) {
     console.error('[chat]', err)
+    if (err instanceof Error && err.message === 'QUOTA_429') {
+      const e = err as Error & { diaria?: boolean; segundos?: number | null }
+      return NextResponse.json({
+        errorCode: 'QUOTA_429',
+        diaria: e.diaria ?? false,
+        segundos: e.segundos ?? null,
+      }, { status: 429 })
+    }
     const msg = err instanceof Error ? err.message : String(err)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
