@@ -1,32 +1,26 @@
 'use client'
 
-import ChecklistMensal from '@/components/ChecklistMensal'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { addMonths, subMonths, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import BottomNav from '@/components/BottomNav'
+import ReceitasMensal from '@/components/ReceitasMensal'
 import { useMes } from '@/components/MesProvider'
 
-export default function ContasPage() {
+export default function ReceitasPage() {
   const { mesAtual, setMesAtual } = useMes()
-
-  const mesAnterior = () => setMesAtual(subMonths(mesAtual, 1))
-  const proximoMes = () => setMesAtual(addMonths(mesAtual, 1))
   const isMesAtual = format(mesAtual, 'yyyy-MM') === format(new Date(), 'yyyy-MM')
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 pb-20">
-      <h1 className="text-2xl font-bold mb-4">Gestão de Despesas</h1>
+      <h1 className="text-2xl font-bold mb-4">Gestão de Receitas</h1>
 
-      {/* Seletor de meses estilo carrossel */}
       <div className="flex items-center justify-between bg-white rounded-xl shadow p-3 mb-6">
-        <button onClick={mesAnterior} className="p-2 hover:bg-gray-100 rounded-full">
+        <button onClick={() => setMesAtual(subMonths(mesAtual, 1))} className="p-2 hover:bg-gray-100 rounded-full">
           <ChevronLeft className="w-5 h-5" />
         </button>
         <div className="text-center flex-1">
-          <span className="text-lg font-semibold capitalize">
-            {format(mesAtual, 'MMMM yyyy', { locale: ptBR })}
-          </span>
+          <span className="text-lg font-semibold capitalize">{format(mesAtual, 'MMMM yyyy', { locale: ptBR })}</span>
           {!isMesAtual && (
             <div>
               <button
@@ -38,12 +32,12 @@ export default function ContasPage() {
             </div>
           )}
         </div>
-        <button onClick={proximoMes} className="p-2 hover:bg-gray-100 rounded-full">
+        <button onClick={() => setMesAtual(addMonths(mesAtual, 1))} className="p-2 hover:bg-gray-100 rounded-full">
           <ChevronRight className="w-5 h-5" />
         </button>
       </div>
 
-      <ChecklistMensal mesSelecionado={mesAtual} />
+      <ReceitasMensal mesSelecionado={mesAtual} />
       <BottomNav />
     </div>
   )

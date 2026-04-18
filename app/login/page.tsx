@@ -1,8 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
+import { AUTH_DISABLED } from '@/lib/authConfig'
+
+const LOGIN_TIMEOUT_MS = 12000
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -11,22 +14,55 @@ export default function LoginPage() {
   const [erro, setErro] = useState('')
   const router = useRouter()
 
+  useEffect(() => {
+    document.body.classList.add('on-login-page')
+
+    return () => {
+      document.body.classList.remove('on-login-page')
+    }
+  }, [])
+
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setErro('')
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password: senha,
-    })
+    try {
+      if (AUTH_DISABLED) {
+        router.replace('/dashboard')
+        router.refresh()
+        return
+      }
 
-    if (error) {
-      setErro('Email ou senha incorretos')
+
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder')) {
+      setErro('Configuração do Supabase ausente no deploy (NEXT_PUBLIC_SUPABASE_URL).')
       setLoading(false)
-    } else {
-      router.push('/dashboard')
+      return
+    }
+
+      const loginPromise = supabase.auth.signInWithPassword({
+        email,
+        password: senha,
+      })
+
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('timeout')), LOGIN_TIMEOUT_MS)
+      })
+
+      const { data, error } = await Promise.race([loginPromise, timeoutPromise])
+
+      if (error || !data.session) {
+        setErro('Email ou senha incorretos')
+        return
+      }
+
+      router.replace('/dashboard')
       router.refresh()
+    } catch (_err) {
+      setErro('Não foi possível concluir o login. Verifique sua conexão e tente novamente.')
+    } finally {
+      setLoading(false)
     }
   }
 

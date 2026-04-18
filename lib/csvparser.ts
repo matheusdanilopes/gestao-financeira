@@ -3,7 +3,7 @@ import { createHash } from 'crypto'
 import { calcularProjetoFatura } from '@/lib/fatura'
 
 export interface TransacaoNubank {
-  data: string
+  data_compra: string
   descricao: string
   valor: number
   responsavel: 'Matheus' | 'Jeniffer'
@@ -18,12 +18,21 @@ export function processarCSV(
   diaVencimento: number = 10,
   ajusteFechamento: number = 0
 ): TransacaoNubank[] {
-  const result = Papa.parse(csvText, { header: true, skipEmptyLines: true })
+  // Remove null bytes e caracteres de controle que o PostgreSQL não aceita
+  const csvLimpo = csvText.replace(/\u0000/g, '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+  const result = Papa.parse(csvLimpo, { header: true, skipEmptyLines: true })
   const transacoes: TransacaoNubank[] = []
+
+  function sanitizar(str: string): string {
+    return str
+      .replace(/\u0000/g, '')
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+      .trim()
+  }
 
   for (const row of result.data as any[]) {
     // Suporte ao formato novo (date, title, amount) e antigo (Data, Descrição, Valor)
-    const descricao = row.title || row.descricao || row['Descrição'] || row.Descricao || ''
+    const descricao = sanitizar(row.title || row.descricao || row['Descrição'] || row.Descricao || '')
     const responsavel: 'Matheus' | 'Jeniffer' =
       descricao.toLowerCase().includes('jeniffer') ? 'Jeniffer' : 'Matheus'
 
@@ -41,11 +50,11 @@ export function processarCSV(
       continue
     }
 
-    // Valor: formato novo pode ser negativo (débito), antigo usa vírgula decimal
+    // Valor: desconsidera valores negativos (estornos/entradas) e zeros
     const valorRaw = row.amount || row.valor || row.Valor || '0'
     const valorStr = String(valorRaw).replace(',', '.')
-    const valor = Math.abs(parseFloat(valorStr))
-    if (isNaN(valor) || valor === 0) continue
+    const valor = parseFloat(valorStr)
+    if (isNaN(valor) || valor <= 0) continue
 
     // Calcula projeto_fatura com a lógica de ciclo de vencimento
     const dataCompra = new Date(dataISO + 'T12:00:00') // meio-dia para evitar problemas de fuso
@@ -64,7 +73,7 @@ export function processarCSV(
     }
 
     transacoes.push({
-      data: dataISO,
+      data_compra: dataISO,
       descricao,
       valor,
       responsavel,

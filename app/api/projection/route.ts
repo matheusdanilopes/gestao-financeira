@@ -1,12 +1,61 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
-import { format, addMonths, startOfMonth } from 'date-fns'
+import { format, addMonths, startOfMonth, subMonths } from 'date-fns'
+
+const PROJECAO_OFFSET_MESES = 1
+
+function extrairParcelamento(t: any): { atual: number; total: number } | null {
+  const descricao = String(t.descricao || '')
+  if (!/parcela/i.test(descricao)) return null
+  if (t.parcela_atual && t.total_parcelas) {
+    const atual = Number(t.parcela_atual)
+    const total = Number(t.total_parcelas)
+    if (atual >= 1 && total >= atual) return { atual, total }
+  }
+  const match = descricao.match(/parcela\s*(\d+)\s*\/\s*(\d+)/i)
+  if (!match) return null
+  const atual = Number(match[1])
+  const total = Number(match[2])
+  if (atual >= 1 && total >= atual) return { atual, total }
+  return null
+}
+
+/**
+ * Para cada série de parcelamento, guarda apenas a linha mais recente do banco
+ * (maior projeto_fatura). Isso garante que a projeção parta do estado atual
+ * de cada contrato, sem reprocessar linhas antigas da mesma série.
+ */
+function buildContracts(transacoes: any[]) {
+  const map = new Map<string, { row: any; fatura: Date; parcela: { atual: number; total: number } }>()
+
+  for (const t of transacoes) {
+    const parcela = extrairParcelamento(t)
+    if (!parcela) continue
+
+    const fatura = startOfMonth(new Date(t.projeto_fatura || t.data_compra || t.data))
+    const origem = subMonths(fatura, parcela.atual - 1)
+    const descBase = String(t.descricao || '')
+      .replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '')
+      .trim()
+      .toLowerCase()
+    const key = `${format(origem, 'yyyy-MM')}|${descBase}|${parcela.total}|${t.responsavel}`
+
+    const existing = map.get(key)
+    if (!existing || fatura > existing.fatura) {
+      map.set(key, { row: t, fatura, parcela })
+    }
+  }
+
+  return map
+}
 
 export async function POST(req: NextRequest) {
   try {
     const supabase = criarSupabaseServer(req)
-    const { meses } = await req.json()
-    const hoje = new Date()
+    const { meses, inicioStr } = await req.json()
+    const inicioProjecao = inicioStr
+      ? startOfMonth(new Date(inicioStr))
+      : startOfMonth(addMonths(new Date(), PROJECAO_OFFSET_MESES))
     const resultados = {
       total: new Array(meses.length).fill(0),
       matheus: new Array(meses.length).fill(0),
@@ -14,55 +63,51 @@ export async function POST(req: NextRequest) {
       extra: new Array(meses.length).fill(0),
     }
 
-    const { data: transacoes } = await supabase.from('transacoes_nubank').select('*')
+    // Busca apenas a fatura mais recente disponível no banco
+    const { data: maxRow } = await supabase
+      .from('transacoes_nubank')
+      .select('projeto_fatura')
+      .order('projeto_fatura', { ascending: false })
+      .limit(1)
+
+    const ultimaFaturaStr = maxRow?.[0]?.projeto_fatura
+    if (!ultimaFaturaStr) return NextResponse.json(resultados)
+
+    const { data: transacoesUltimaFatura } = await supabase
+      .from('transacoes_nubank')
+      .select('*')
+      .eq('projeto_fatura', ultimaFaturaStr)
+
     const { data: extras } = await supabase.from('planejamento').select('*').eq('categoria', 'Extra')
 
+    // Contratos: apenas parcelamentos da última fatura, deduplicados por série
+    const contratos = buildContracts(transacoesUltimaFatura || [])
+
     for (let i = 0; i < meses.length; i++) {
-      const mesRef = startOfMonth(addMonths(hoje, i))
-      const mesStr = format(mesRef, 'yyyy-MM-dd')
+      const mesRef = startOfMonth(addMonths(inicioProjecao, i))
 
-      for (const t of (transacoes || [])) {
-        const dataTransacao = new Date(t.data)
-        const mesTransacao = startOfMonth(dataTransacao)
-        const mesesDiff =
-          (mesRef.getMonth() - mesTransacao.getMonth()) +
-          (mesRef.getFullYear() - mesTransacao.getFullYear()) * 12
+      for (const { row, fatura, parcela } of contratos.values()) {
+        // Qual parcela cai neste mês de projeção?
+        const deltaM = (mesRef.getFullYear() - fatura.getFullYear()) * 12 +
+          (mesRef.getMonth() - fatura.getMonth())
+        const parcelaNoMes = parcela.atual + deltaM
 
-        if (t.parcela_atual && t.total_parcelas) {
-          const parcelasRestantes = t.total_parcelas - t.parcela_atual + 1
-          if (mesesDiff >= 0 && mesesDiff < parcelasRestantes) {
-            resultados.total[i] += t.valor
-            if (t.responsavel === 'Matheus') resultados.matheus[i] += t.valor
-            else if (t.responsavel === 'Jeniffer') resultados.jeniffer[i] += t.valor
-          }
-        } else {
-          const projetoFaturaStr = typeof t.projeto_fatura === 'string'
-            ? t.projeto_fatura.substring(0, 10)
-            : format(new Date(t.projeto_fatura), 'yyyy-MM-dd')
-          if (mesStr === projetoFaturaStr) {
-            resultados.total[i] += t.valor
-            if (t.responsavel === 'Matheus') resultados.matheus[i] += t.valor
-            else if (t.responsavel === 'Jeniffer') resultados.jeniffer[i] += t.valor
-          }
+        if (parcelaNoMes >= 1 && parcelaNoMes <= parcela.total) {
+          resultados.total[i] += row.valor
+          if (row.responsavel === 'Matheus') resultados.matheus[i] += row.valor
+          else if (row.responsavel === 'Jeniffer') resultados.jeniffer[i] += row.valor
         }
       }
 
+      const mesStr = format(mesRef, 'yyyy-MM-dd')
       for (const e of (extras || [])) {
         if (e.parcela_atual && e.total_parcelas) {
           const mesExtra = startOfMonth(new Date(e.mes_referencia))
           const mesesDiff =
-            (mesRef.getMonth() - mesExtra.getMonth()) +
-            (mesRef.getFullYear() - mesExtra.getFullYear()) * 12
-          const parcelasRestantes = e.total_parcelas - e.parcela_atual + 1
-          if (mesesDiff >= 0 && mesesDiff < parcelasRestantes) {
-            resultados.extra[i] += e.valor_previsto
-            resultados.total[i] += e.valor_previsto
-          }
-        } else {
-          const mesExtraStr = typeof e.mes_referencia === 'string'
-            ? e.mes_referencia.substring(0, 10)
-            : format(new Date(e.mes_referencia), 'yyyy-MM-dd')
-          if (mesStr === mesExtraStr) {
+            (mesRef.getFullYear() - mesExtra.getFullYear()) * 12 +
+            (mesRef.getMonth() - mesExtra.getMonth())
+          const restantes = e.total_parcelas - e.parcela_atual + 1
+          if (mesesDiff >= 0 && mesesDiff < restantes) {
             resultados.extra[i] += e.valor_previsto
             resultados.total[i] += e.valor_previsto
           }
