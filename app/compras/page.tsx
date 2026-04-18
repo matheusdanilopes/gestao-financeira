@@ -4,7 +4,7 @@ import { useEffect, useMemo } from 'react'
 import { useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { ChevronLeft, ChevronRight, Pencil, Trash2, X } from 'lucide-react'
-import { addMonths, subMonths, format, startOfMonth, parse } from 'date-fns'
+import { addMonths, subMonths, format, startOfMonth, parse, isToday, isYesterday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import BottomNav from '@/components/BottomNav'
 import { log, numericOnly } from '@/lib/logger'
@@ -30,20 +30,37 @@ type FormEditar = {
   data_compra: string
 }
 
-function formatarData(dataStr: string): string {
-  const raw = dataStr.substring(0, 10)
-  if (!raw || raw.length < 10) return raw
-  try {
-    return format(parse(raw, 'yyyy-MM-dd', new Date()), 'dd/MM')
-  } catch {
-    return raw
-  }
+const CATEGORIA_CORES: Record<string, string> = {
+  'Alimentação': 'bg-orange-100 text-orange-700',
+  'Mercado':     'bg-green-100 text-green-700',
+  'Transporte':  'bg-blue-100 text-blue-700',
+  'Saúde':       'bg-red-100 text-red-700',
+  'Lazer':       'bg-purple-100 text-purple-700',
+  'Educação':    'bg-indigo-100 text-indigo-700',
+  'Moradia':     'bg-amber-100 text-amber-700',
+  'Vestuário':   'bg-pink-100 text-pink-700',
+  'Tecnologia':  'bg-cyan-100 text-cyan-700',
+  'Serviços':    'bg-slate-100 text-slate-600',
+  'Viagem':      'bg-teal-100 text-teal-700',
+  'Pet':         'bg-lime-100 text-lime-700',
+  'Outros':      'bg-gray-100 text-gray-500',
 }
 
-function borderColor(responsavel: string): string {
-  if (responsavel === 'Matheus') return 'border-l-4 border-l-blue-400'
-  if (responsavel === 'Jeniffer') return 'border-l-4 border-l-pink-400'
-  return 'border-l-4 border-l-gray-200'
+function categoriaCor(cat: string | null): string {
+  if (!cat) return 'bg-gray-100 text-gray-400'
+  return CATEGORIA_CORES[cat] ?? 'bg-gray-100 text-gray-500'
+}
+
+function formatarCabecalhoData(dataStr: string): string {
+  if (!dataStr || dataStr.length < 10) return dataStr
+  try {
+    const d = parse(dataStr, 'yyyy-MM-dd', new Date())
+    if (isToday(d)) return 'Hoje'
+    if (isYesterday(d)) return 'Ontem'
+    return format(d, "EEEE, dd 'de' MMMM", { locale: ptBR })
+  } catch {
+    return dataStr
+  }
 }
 
 function dataParaInput(dataStr: string | null): string {
@@ -52,7 +69,6 @@ function dataParaInput(dataStr: string | null): string {
 }
 
 export default function ComprasPage() {
-  // Compras usa sempre mês global + 1 (fatura do próximo mês)
   const { mesAtual: mesGlobal, setMesAtual } = useMes()
   const mesAtual = addMonths(mesGlobal, 1)
   const isMesAtual = format(mesAtual, 'yyyy-MM') === format(addMonths(new Date(), 1), 'yyyy-MM')
@@ -173,10 +189,28 @@ export default function ComprasPage() {
 
   const total = useMemo(() => comprasFiltradas.reduce((acc, c) => acc + c.valor, 0), [comprasFiltradas])
 
+  const totaisPorResponsavel = useMemo(() => {
+    const matheus = comprasFiltradas.filter(c => c.responsavel === 'Matheus')
+    const jeniffer = comprasFiltradas.filter(c => c.responsavel === 'Jeniffer')
+    return {
+      matheus: { valor: matheus.reduce((acc, c) => acc + c.valor, 0), qtd: matheus.length },
+      jeniffer: { valor: jeniffer.reduce((acc, c) => acc + c.valor, 0), qtd: jeniffer.length },
+    }
+  }, [comprasFiltradas])
+
+  const comprasPorData = useMemo(() => {
+    const grupos: Record<string, Compra[]> = {}
+    comprasFiltradas.forEach((c) => {
+      const key = (c.data_compra || c.data || '').toString().substring(0, 10)
+      if (!grupos[key]) grupos[key] = []
+      grupos[key].push(c)
+    })
+    return Object.entries(grupos).sort(([a], [b]) => b.localeCompare(a))
+  }, [comprasFiltradas])
+
   return (
     <div className="min-h-screen bg-gray-50 p-4 pb-20">
 
-      {/* Toast */}
       {toast && (
         <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl text-sm font-medium shadow-lg ${
           toast.tipo === 'ok' ? 'bg-green-600 text-white' : 'bg-red-500 text-white'
@@ -230,67 +264,118 @@ export default function ComprasPage() {
       </div>
 
       {/* Resumo */}
-      <div className="bg-white rounded-xl shadow p-3 mb-3 flex items-center justify-between">
-        <p className="text-xs text-gray-500">Total filtrado no mês</p>
-        <div className="text-right">
-          <p className="text-lg font-bold text-blue-700">R$ {total.toFixed(2)}</p>
-          <p className="text-xs text-gray-400">{comprasFiltradas.length} compras</p>
+      <div className="mb-4 space-y-2">
+        <div className="grid grid-cols-2 gap-2">
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+            <p className="text-xs font-semibold text-blue-700 mb-1">Matheus</p>
+            <p className="text-base font-bold text-blue-800">R$ {totaisPorResponsavel.matheus.valor.toFixed(2)}</p>
+            <p className="text-xs text-blue-400">{totaisPorResponsavel.matheus.qtd} compras</p>
+          </div>
+          <div className="bg-pink-50 border border-pink-100 rounded-xl p-3">
+            <p className="text-xs font-semibold text-pink-700 mb-1">Jeniffer</p>
+            <p className="text-base font-bold text-pink-800">R$ {totaisPorResponsavel.jeniffer.valor.toFixed(2)}</p>
+            <p className="text-xs text-pink-400">{totaisPorResponsavel.jeniffer.qtd} compras</p>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl shadow p-3 flex items-center justify-between">
+          <p className="text-xs text-gray-500">Total filtrado no mês</p>
+          <div className="text-right">
+            <p className="text-lg font-bold text-blue-700">R$ {total.toFixed(2)}</p>
+            <p className="text-xs text-gray-400">{comprasFiltradas.length} compras</p>
+          </div>
         </div>
       </div>
 
-      {/* Lista */}
-      <div className="bg-white rounded-xl shadow divide-y overflow-hidden">
-        {comprasFiltradas.length === 0 ? (
-          <div className="p-10 flex flex-col items-center justify-center gap-2">
-            <p className="text-gray-300 text-4xl">🛒</p>
-            <p className="text-sm text-gray-400">Nenhuma compra encontrada</p>
-          </div>
-        ) : (
-          comprasFiltradas.map((c) => {
-            const dataStr = (c.data_compra || c.data || '').toString()
+      {/* Lista agrupada por data */}
+      {comprasPorData.length === 0 ? (
+        <div className="bg-white rounded-xl shadow p-10 flex flex-col items-center justify-center gap-2">
+          <p className="text-gray-300 text-4xl">🛒</p>
+          <p className="text-sm text-gray-400">Nenhuma compra encontrada</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {comprasPorData.map(([dataKey, itens]) => {
+            const subtotal = itens.reduce((acc, c) => acc + c.valor, 0)
             return (
-              <div key={c.hash_linha} className={`p-3 flex items-center gap-2 ${borderColor(c.responsavel)}`}>
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{c.descricao}</p>
-                  <p className="text-xs text-gray-500">
-                    {formatarData(dataStr)} · {c.responsavel}
-                    {c.categoria && (
-                      <span className="ml-1 bg-gray-100 px-1.5 py-0.5 rounded text-[10px] text-gray-500">{c.categoria}</span>
-                    )}
-                  </p>
+              <div key={dataKey} className="bg-white rounded-xl shadow overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-100">
+                  <span className="text-xs font-semibold text-gray-500 capitalize">
+                    {formatarCabecalhoData(dataKey)}
+                  </span>
+                  <span className="text-xs font-semibold text-gray-600">
+                    R$ {subtotal.toFixed(2)}
+                  </span>
                 </div>
 
-                {/* Valor + parcela */}
-                <div className="text-right shrink-0">
-                  <p className="text-sm font-semibold">R$ {c.valor.toFixed(2)}</p>
-                  {c.parcela_atual && c.total_parcelas && (
-                    <p className="text-xs text-gray-400">{c.parcela_atual}/{c.total_parcelas}</p>
-                  )}
-                </div>
+                <div className="divide-y divide-gray-50">
+                  {itens.map((c) => (
+                    <div
+                      key={c.hash_linha}
+                      className={`flex items-center gap-3 px-4 py-3 ${
+                        c.responsavel === 'Matheus'
+                          ? 'border-l-4 border-l-blue-400'
+                          : c.responsavel === 'Jeniffer'
+                          ? 'border-l-4 border-l-pink-400'
+                          : 'border-l-4 border-l-gray-200'
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate leading-snug">
+                          {c.descricao}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                            c.responsavel === 'Matheus'
+                              ? 'bg-blue-100 text-blue-700'
+                              : 'bg-pink-100 text-pink-700'
+                          }`}>
+                            {c.responsavel}
+                          </span>
 
-                {/* Ações */}
-                <div className="flex items-center gap-0.5 shrink-0">
-                  <button
-                    onClick={() => abrirEditar(c)}
-                    className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 transition"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setModalExcluir(c)}
-                    className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                          {c.categoria && (
+                            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${categoriaCor(c.categoria)}`}>
+                              {c.categoria}
+                            </span>
+                          )}
+
+                          {c.parcela_atual && c.total_parcelas && (
+                            <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                              {c.parcela_atual}/{c.total_parcelas}x
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-bold text-gray-800">
+                          R$ {c.valor.toFixed(2)}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <button
+                          onClick={() => abrirEditar(c)}
+                          className="p-1.5 rounded-lg text-blue-400 hover:bg-blue-50 transition"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setModalExcluir(c)}
+                          className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )
-          })
-        )}
-      </div>
+          })}
+        </div>
+      )}
 
-      {/* ── Modal: editar compra ── */}
+      {/* Modal: editar compra */}
       {modalEditar && (
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-6">
@@ -373,7 +458,7 @@ export default function ComprasPage() {
         </div>
       )}
 
-      {/* ── Modal: excluir compra ── */}
+      {/* Modal: excluir compra */}
       {modalExcluir && (
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-6">
