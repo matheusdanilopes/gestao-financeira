@@ -153,7 +153,11 @@ export default function GraficosDashboard({ transacoes, carregando }: Props) {
   }, [transacoes])
 
   if (carregando) return <Skeleton />
-  if (!dados) return null
+  if (!dados) return (
+    <div className="bg-white rounded-xl shadow p-6 text-center text-gray-400 text-sm">
+      Nenhuma transação encontrada para o mês selecionado.
+    </div>
+  )
 
   const { matheusQtd, jenifferQtd, matheusVal, jenifferVal, dayMap, dias, cats, totalCat } = dados
 
