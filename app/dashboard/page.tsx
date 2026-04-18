@@ -451,7 +451,7 @@ export default function Dashboard() {
       )}
 
       {/* Gráfico de Projeção de Parcelamentos */}
-      <div className="bg-white rounded-xl shadow p-4">
+      <div className="bg-white rounded-xl shadow p-4 mb-4">
         <h2 className="text-lg font-semibold">📈 Projeção de Parcelamentos</h2>
         <p className="text-xs text-gray-400 mb-3">Próximos 6 meses · Toque em um ponto para ver detalhes</p>
         <GraficoProjecao
