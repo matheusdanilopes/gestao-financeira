@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Bell, X, Check, CheckCheck, PiggyBank, CreditCard, TrendingUp } from 'lucide-react'
+import { Bell, X, Check, CheckCheck, PiggyBank, CreditCard, TrendingUp, BellOff, BellRing } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -18,7 +18,9 @@ interface Notificacao {
   created_at: string
 }
 
-const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
+// Chave pública VAPID — segura para ser embutida no código do cliente
+const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+  || 'BDnHVc8WTIUWZKjh2tuazldgVjCXrhN8FrsZHfovhmIhW1Rm5_j-iDWtzEqrAQMzogD7KvBd9sgFkkQpV34tO-M'
 
 function iconeAcao(acao: string) {
   if (acao === 'aporte') return <PiggyBank className="w-4 h-4 text-green-500" />
@@ -39,27 +41,6 @@ function formatarValor(valor: number | null): string {
   return ` — R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
 }
 
-async function registrarPush(usuarioEmail: string) {
-  if (!VAPID_PUBLIC) return
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
-
-  try {
-    const reg = await navigator.serviceWorker.ready
-    let sub = await reg.pushManager.getSubscription()
-    if (!sub) {
-      sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
-      })
-    }
-    await fetch('/api/push/subscribe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ usuario: usuarioEmail, subscription: sub }),
-    })
-  } catch (_) {}
-}
-
 function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
@@ -69,11 +50,41 @@ function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
   return arr.buffer
 }
 
+async function registrarPush(usuarioEmail: string): Promise<'ok' | 'sem-suporte' | 'erro'> {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return 'sem-suporte'
+
+  try {
+    // Garante que o service worker está ativo antes de assinar
+    const reg = await navigator.serviceWorker.ready
+
+    let sub = await reg.pushManager.getSubscription()
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
+      })
+    }
+
+    const res = await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // sub.toJSON() serializa endpoint + keys corretamente
+      body: JSON.stringify({ usuario: usuarioEmail, subscription: sub.toJSON() }),
+    })
+
+    return res.ok ? 'ok' : 'erro'
+  } catch (err) {
+    console.error('[push] Falha ao registrar subscription:', err)
+    return 'erro'
+  }
+}
+
 export default function NotificacoesBell() {
   const [aberto, setAberto] = useState(false)
   const [notificacoes, setNotificacoes] = useState<Notificacao[]>([])
   const [usuarioEmail, setUsuarioEmail] = useState<string | null>(null)
   const [permissaoPush, setPermissaoPush] = useState<NotificationPermission | null>(null)
+  const [pushStatus, setPushStatus] = useState<'idle' | 'registrando' | 'ativo' | 'erro'>('idle')
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const naoLidas = notificacoes.filter(n => !n.lida).length
@@ -88,7 +99,7 @@ export default function NotificacoesBell() {
       if (!user?.email) return
       setUsuarioEmail(user.email)
       await carregarNotificacoes(user.email)
-      registrarServiceWorker(user.email)
+      await inicializarServiceWorker(user.email)
     }
     init()
   }, [])
@@ -97,26 +108,16 @@ export default function NotificacoesBell() {
     if (!usuarioEmail) return
     const channel = supabase
       .channel('notificacoes_realtime')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'notificacoes' },
-        (payload) => {
-          const nova = payload.new as Notificacao
-          if (nova.de_usuario !== usuarioEmail) {
-            setNotificacoes(prev => [nova, ...prev])
-          }
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notificacoes' }, (payload) => {
+        const nova = payload.new as Notificacao
+        if (nova.de_usuario !== usuarioEmail) {
+          setNotificacoes(prev => [nova, ...prev])
         }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'notificacoes' },
-        (payload) => {
-          const atualizada = payload.new as Notificacao
-          setNotificacoes(prev =>
-            prev.map(n => n.id === atualizada.id ? atualizada : n)
-          )
-        }
-      )
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notificacoes' }, (payload) => {
+        const atualizada = payload.new as Notificacao
+        setNotificacoes(prev => prev.map(n => n.id === atualizada.id ? atualizada : n))
+      })
       .subscribe()
 
     return () => { void supabase.removeChannel(channel) }
@@ -142,16 +143,20 @@ export default function NotificacoesBell() {
     setNotificacoes(data ?? [])
   }
 
-  async function registrarServiceWorker(email: string) {
+  async function inicializarServiceWorker(email: string) {
     if (!('serviceWorker' in navigator)) return
     try {
       await navigator.serviceWorker.register('/sw.js')
       const perm = Notification.permission
       setPermissaoPush(perm)
       if (perm === 'granted') {
-        await registrarPush(email)
+        setPushStatus('registrando')
+        const resultado = await registrarPush(email)
+        setPushStatus(resultado === 'ok' ? 'ativo' : 'erro')
       }
-    } catch (_) {}
+    } catch (err) {
+      console.error('[sw] Falha ao registrar service worker:', err)
+    }
   }
 
   async function solicitarPermissaoPush() {
@@ -159,7 +164,11 @@ export default function NotificacoesBell() {
     const perm = await Notification.requestPermission()
     setPermissaoPush(perm)
     if (perm === 'granted') {
-      await registrarPush(usuarioEmail)
+      setPushStatus('registrando')
+      const resultado = await registrarPush(usuarioEmail)
+      setPushStatus(resultado === 'ok' ? 'ativo' : 'erro')
+    } else {
+      setPushStatus('idle')
     }
   }
 
@@ -181,7 +190,7 @@ export default function NotificacoesBell() {
     <div ref={dropdownRef} className="relative">
       <button
         onClick={() => setAberto(v => !v)}
-        className="relative p-2 rounded-full hover:bg-white/20 transition-colors"
+        className="relative p-2 rounded-full hover:bg-black/10 transition-colors"
         aria-label="Notificações"
       >
         <Bell className="w-6 h-6 text-gray-700 dark:text-gray-200" />
@@ -194,6 +203,7 @@ export default function NotificacoesBell() {
 
       {aberto && (
         <div className="absolute right-0 top-full mt-2 w-[340px] max-w-[calc(100vw-16px)] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700 z-50 overflow-hidden">
+
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
             <div className="flex items-center gap-2">
@@ -225,22 +235,57 @@ export default function NotificacoesBell() {
             </div>
           </div>
 
-          {/* Push notification prompt */}
+          {/* Status do push */}
           {permissaoPush === 'default' && (
             <div className="px-4 py-3 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800">
               <p className="text-xs text-blue-700 dark:text-blue-300 mb-2">
-                Ative as notificações para ser avisado no celular quando o outro usuário fizer uma operação.
+                Ative para receber alertas no celular quando o outro usuário registrar uma operação.
               </p>
               <button
                 onClick={solicitarPermissaoPush}
-                className="w-full py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors"
+                className="w-full py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors"
               >
                 Ativar notificações no celular
               </button>
             </div>
           )}
 
-          {/* List */}
+          {permissaoPush === 'granted' && pushStatus === 'registrando' && (
+            <div className="px-4 py-2 bg-yellow-50 border-b border-yellow-100 flex items-center gap-2">
+              <span className="text-xs text-yellow-700">Ativando notificações…</span>
+            </div>
+          )}
+
+          {permissaoPush === 'granted' && pushStatus === 'ativo' && (
+            <div className="px-4 py-2 bg-green-50 dark:bg-green-900/20 border-b border-green-100 dark:border-green-800 flex items-center gap-2">
+              <BellRing className="w-3.5 h-3.5 text-green-600" />
+              <span className="text-xs text-green-700 dark:text-green-300">Notificações ativas neste dispositivo</span>
+            </div>
+          )}
+
+          {permissaoPush === 'granted' && pushStatus === 'erro' && (
+            <div className="px-4 py-3 bg-red-50 dark:bg-red-900/20 border-b border-red-100 dark:border-red-800">
+              <div className="flex items-center gap-2 mb-1.5">
+                <BellOff className="w-3.5 h-3.5 text-red-500" />
+                <span className="text-xs font-semibold text-red-700 dark:text-red-300">Falha ao ativar push</span>
+              </div>
+              <button
+                onClick={solicitarPermissaoPush}
+                className="w-full py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-semibold rounded-lg transition-colors"
+              >
+                Tentar novamente
+              </button>
+            </div>
+          )}
+
+          {permissaoPush === 'denied' && (
+            <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+              <BellOff className="w-3.5 h-3.5 text-gray-400" />
+              <span className="text-xs text-gray-500">Notificações bloqueadas nas configurações do navegador</span>
+            </div>
+          )}
+
+          {/* Lista */}
           <div className="max-h-[360px] overflow-y-auto divide-y divide-gray-50 dark:divide-gray-800">
             {notificacoes.length === 0 ? (
               <div className="py-10 text-center">
@@ -252,9 +297,7 @@ export default function NotificacoesBell() {
                 <div
                   key={n.id}
                   className={`flex items-start gap-3 px-4 py-3 border-l-4 transition-colors ${corAcao(n.acao)} ${
-                    n.lida
-                      ? 'bg-white dark:bg-gray-900 opacity-60'
-                      : 'bg-blue-50/40 dark:bg-blue-900/10'
+                    n.lida ? 'bg-white dark:bg-gray-900 opacity-60' : 'bg-blue-50/40 dark:bg-blue-900/10'
                   }`}
                 >
                   <div className="mt-0.5 flex-shrink-0">{iconeAcao(n.acao)}</div>
