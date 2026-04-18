@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Bot, User, Sparkles, Trash2 } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
+import { supabase } from '@/lib/supabaseClient'
 
 interface Mensagem {
   role: 'user' | 'assistant'
@@ -72,16 +73,42 @@ function MarkdownContent({ text }: { text: string }) {
   return <div className="text-sm space-y-0.5">{elements}</div>
 }
 
+function storageKey(userId: string) {
+  return `chat_history_${userId}`
+}
+
 export default function ChatPage() {
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
   const [input, setInput] = useState('')
   const [carregando, setCarregando] = useState(false)
   const fimRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const userIdRef = useRef<string>('anonymous')
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const uid = data.user?.id ?? 'anonymous'
+      userIdRef.current = uid
+      try {
+        const saved = localStorage.getItem(storageKey(uid))
+        if (saved) setMensagens(JSON.parse(saved))
+      } catch {
+        // ignore parse errors
+      }
+    })
+  }, [])
 
   useEffect(() => {
     fimRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [mensagens, carregando])
+
+  function salvar(msgs: Mensagem[]) {
+    try {
+      localStorage.setItem(storageKey(userIdRef.current), JSON.stringify(msgs))
+    } catch {
+      // ignore storage errors (quota, private mode)
+    }
+  }
 
   async function enviar(texto?: string) {
     const conteudo = (texto ?? input).trim()
@@ -90,6 +117,7 @@ export default function ChatPage() {
     const novaMensagem: Mensagem = { role: 'user', content: conteudo }
     const historico = [...mensagens, novaMensagem]
     setMensagens(historico)
+    salvar(historico)
     setInput('')
     setCarregando(true)
 
@@ -101,15 +129,22 @@ export default function ChatPage() {
       })
       const data = await res.json()
 
+      let resposta: Mensagem
       if (data.resposta) {
-        setMensagens(prev => [...prev, { role: 'assistant', content: data.resposta }])
+        resposta = { role: 'assistant', content: data.resposta }
       } else if (data.error?.includes('GEMINI_API_KEY')) {
-        setMensagens(prev => [...prev, { role: 'assistant', content: 'A chave GEMINI_API_KEY não está configurada no Vercel.\n\nAdicione a variável de ambiente e faça um novo deploy.' }])
+        resposta = { role: 'assistant', content: 'A chave GEMINI_API_KEY não está configurada no Vercel.\n\nAdicione a variável de ambiente e faça um novo deploy.' }
       } else {
-        setMensagens(prev => [...prev, { role: 'assistant', content: `Não consegui responder agora. Tente novamente.\n\n_Detalhe: ${data.error || 'erro desconhecido'}_` }])
+        resposta = { role: 'assistant', content: `Não consegui responder agora. Tente novamente.\n\n_Detalhe: ${data.error || 'erro desconhecido'}_` }
       }
+      const completo = [...historico, resposta]
+      setMensagens(completo)
+      salvar(completo)
     } catch {
-      setMensagens(prev => [...prev, { role: 'assistant', content: 'Erro de conexão. Verifique sua internet e tente novamente.' }])
+      const errMsg: Mensagem = { role: 'assistant', content: 'Erro de conexão. Verifique sua internet e tente novamente.' }
+      const completo = [...historico, errMsg]
+      setMensagens(completo)
+      salvar(completo)
     } finally {
       setCarregando(false)
       inputRef.current?.focus()
@@ -136,7 +171,10 @@ export default function ChatPage() {
         </div>
         {mensagens.length > 0 && (
           <button
-            onClick={() => setMensagens([])}
+            onClick={() => {
+              setMensagens([])
+              try { localStorage.removeItem(storageKey(userIdRef.current)) } catch { /* ignore */ }
+            }}
             className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition"
             title="Limpar conversa"
           >
