@@ -189,6 +189,15 @@ export default function ComprasPage() {
 
   const total = useMemo(() => comprasFiltradas.reduce((acc, c) => acc + c.valor, 0), [comprasFiltradas])
 
+  const totaisPorResponsavel = useMemo(() => {
+    const matheus = comprasFiltradas.filter(c => c.responsavel === 'Matheus')
+    const jeniffer = comprasFiltradas.filter(c => c.responsavel === 'Jeniffer')
+    return {
+      matheus: { valor: matheus.reduce((acc, c) => acc + c.valor, 0), qtd: matheus.length },
+      jeniffer: { valor: jeniffer.reduce((acc, c) => acc + c.valor, 0), qtd: jeniffer.length },
+    }
+  }, [comprasFiltradas])
+
   const comprasPorData = useMemo(() => {
     const grupos: Record<string, Compra[]> = {}
     comprasFiltradas.forEach((c) => {
@@ -255,11 +264,25 @@ export default function ComprasPage() {
       </div>
 
       {/* Resumo */}
-      <div className="bg-white rounded-xl shadow p-3 mb-4 flex items-center justify-between">
-        <p className="text-xs text-gray-500">Total filtrado no mês</p>
-        <div className="text-right">
-          <p className="text-lg font-bold text-blue-700">R$ {total.toFixed(2)}</p>
-          <p className="text-xs text-gray-400">{comprasFiltradas.length} compras</p>
+      <div className="mb-4 space-y-2">
+        <div className="grid grid-cols-2 gap-2">
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+            <p className="text-xs font-semibold text-blue-700 mb-1">Matheus</p>
+            <p className="text-base font-bold text-blue-800">R$ {totaisPorResponsavel.matheus.valor.toFixed(2)}</p>
+            <p className="text-xs text-blue-400">{totaisPorResponsavel.matheus.qtd} compras</p>
+          </div>
+          <div className="bg-pink-50 border border-pink-100 rounded-xl p-3">
+            <p className="text-xs font-semibold text-pink-700 mb-1">Jeniffer</p>
+            <p className="text-base font-bold text-pink-800">R$ {totaisPorResponsavel.jeniffer.valor.toFixed(2)}</p>
+            <p className="text-xs text-pink-400">{totaisPorResponsavel.jeniffer.qtd} compras</p>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl shadow p-3 flex items-center justify-between">
+          <p className="text-xs text-gray-500">Total filtrado no mês</p>
+          <div className="text-right">
+            <p className="text-lg font-bold text-blue-700">R$ {total.toFixed(2)}</p>
+            <p className="text-xs text-gray-400">{comprasFiltradas.length} compras</p>
+          </div>
         </div>
       </div>
 
