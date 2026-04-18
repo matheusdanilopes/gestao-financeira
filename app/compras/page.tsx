@@ -154,16 +154,12 @@ export default function ComprasPage() {
         valor,
         responsavel: formEditar.responsavel,
         categoria: formEditar.categoria || null,
-        data_compra: formEditar.data_compra,
+        data: formEditar.data_compra,
       })
       .eq('hash_linha', modalEditar.hash_linha)
 
     setSalvando(false)
-    if (error) {
-      console.error('[salvarEdicao]', error)
-      showToast(`Erro: ${error.message}`, 'erro')
-      return
-    }
+    if (error) { showToast('Erro ao salvar', 'erro'); return }
 
     log('editar', 'transacoes_nubank',
       `Editado: ${formEditar.descricao.trim()} — R$ ${valor.toFixed(2)} (${formEditar.responsavel})`,
