@@ -8,7 +8,6 @@ import { ptBR } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useMes } from '@/components/MesProvider'
 import GraficoProjecao from '@/components/GraficoProjecao'
-import GraficosDashboard from '@/components/GraficosDashboard'
 import DrawerDetalhes from '@/components/DrawerDetalhes'
 import BottomNav from '@/components/BottomNav'
 import { PiggyBank } from 'lucide-react'
@@ -56,7 +55,6 @@ export default function Dashboard() {
     totalGastos: 0, sobraLiquida: 0, saldoPrevisto: 0, percentualComprometimento: 0,
   })
   const [investimentos, setInvestimentos] = useState<{ id: string; descricao: string; percentual: number; aportado: number }[]>([])
-  const [transacoesGraficos, setTransacoesGraficos] = useState<{ valor: number; responsavel: string; categoria: string; data_compra: string }[]>([])
   const [drawerAberto, setDrawerAberto] = useState(false)
   const [detalhesPonto, setDetalhesPonto] = useState<any>(null)
   const [carregando, setCarregando] = useState(true)
@@ -70,14 +68,10 @@ export default function Dashboard() {
     const mesRef = format(primeiroDia, 'yyyy-MM-dd')
     const mesRefFatura = format(startOfMonth(addMonths(mes, 1)), 'yyyy-MM-dd')
 
-    // Batch 1: 4 queries independentes em paralelo.
-    // transacoesFatura e graficosData são queries separadas intencionalmente —
-    // unir categoria/data_compra na query de cálculos causa type mismatch no Supabase.
     const [
       { data: transacoesFatura },
       { data: planejamento },
       { data: invData },
-      { data: graficosData },
     ] = await Promise.all([
       supabase
         .from('transacoes_nubank')
@@ -92,10 +86,6 @@ export default function Dashboard() {
         .select('id, descricao, percentual')
         .eq('mes_referencia', mesRef)
         .order('created_at', { ascending: true }),
-      supabase
-        .from('transacoes_nubank')
-        .select('valor, responsavel, categoria, data_compra')
-        .eq('projeto_fatura', mesRefFatura),
     ])
 
     const totalRealizado = transacoesFatura?.reduce((acc, t) => acc + t.valor, 0) || 0
@@ -187,9 +177,7 @@ export default function Dashboard() {
 
     setInvestimentos((invData || []).map(i => ({ ...i, aportado: aportadoMap[i.id] || 0 })))
 
-    setTransacoesGraficos(graficosData || [])
-
-    } catch (e) {
+} catch (e) {
       console.error('Erro ao carregar dashboard:', e)
     } finally {
       setCarregando(false)
@@ -463,10 +451,7 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Gráficos de compras */}
-      <GraficosDashboard transacoes={transacoesGraficos} carregando={carregando} />
-
-      <DrawerDetalhes aberto={drawerAberto} onClose={() => setDrawerAberto(false)} dados={detalhesPonto} />
+<DrawerDetalhes aberto={drawerAberto} onClose={() => setDrawerAberto(false)} dados={detalhesPonto} />
       <BottomNav />
     </div>
   )
