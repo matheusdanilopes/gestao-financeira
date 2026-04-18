@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient'
+import { notificar } from './notificacoes'
 
 export type AcaoLog =
   | 'inserir'
@@ -9,10 +10,6 @@ export type AcaoLog =
   | 'aporte'
   | 'importar'
 
-/**
- * Registra uma ação do usuário na tabela activity_logs.
- * Fire-and-forget — nunca lança exceção para não bloquear a UI.
- */
 export function log(
   acao: AcaoLog,
   tabela: string,
@@ -33,14 +30,13 @@ export function log(
       usuario,
     }])
     if (error) console.error('[log] Falha ao registrar atividade:', error)
+
+    if (usuario) {
+      notificar(acao, descricao, valor, usuario)
+    }
   })()
 }
 
-/**
- * Remove caracteres não numéricos de um campo monetário/percentual.
- * Permite: dígitos, vírgula e ponto.
- * Use no onChange de inputs de valor.
- */
 export function numericOnly(value: string): string {
   return value.replace(/[^0-9,.]/g, '')
 }

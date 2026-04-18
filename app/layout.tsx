@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { ThemeProvider } from '@/components/ThemeProvider'
 import { MesProvider } from '@/components/MesProvider'
+import ClientShell from '@/components/ClientShell'
 
 export const metadata: Metadata = {
   title: 'Gestão Financeira Familiar',
@@ -40,9 +41,11 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         <ThemeProvider>
           <MesProvider>
-            <main className="max-w-md mx-auto relative">
-              {children}
-            </main>
+            <ClientShell>
+              <main className="max-w-md mx-auto relative">
+                {children}
+              </main>
+            </ClientShell>
           </MesProvider>
         </ThemeProvider>
       </body>

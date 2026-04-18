@@ -3,6 +3,43 @@
 -- Execute no SQL Editor do Supabase (https://app.supabase.com)
 -- ============================================================
 
+-- 8. Tabela de notificações entre usuários
+CREATE TABLE IF NOT EXISTS notificacoes (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  de_usuario    TEXT NOT NULL,
+  nome_usuario  TEXT,
+  acao          TEXT NOT NULL,
+  descricao     TEXT NOT NULL,
+  valor         NUMERIC(12,2),
+  lida          BOOLEAN DEFAULT FALSE,
+  created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE notificacoes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "allow_all_notificacoes" ON notificacoes;
+CREATE POLICY "allow_all_notificacoes" ON notificacoes
+  FOR ALL USING (true) WITH CHECK (true);
+
+CREATE INDEX IF NOT EXISTS idx_notificacoes_created
+  ON notificacoes(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_notificacoes_de_usuario
+  ON notificacoes(de_usuario);
+
+-- 9. Tabela de push subscriptions para notificações móveis
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  usuario      TEXT NOT NULL,
+  subscription JSONB NOT NULL,
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT push_subscriptions_usuario_unique UNIQUE (usuario)
+);
+
+ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "allow_all_push_subs" ON push_subscriptions;
+CREATE POLICY "allow_all_push_subs" ON push_subscriptions
+  FOR ALL USING (true) WITH CHECK (true);
+
 -- 0. Índices de performance
 -- Execute estas instruções ANTES de criar as tabelas (ou separadamente, se já existirem)
 CREATE INDEX IF NOT EXISTS idx_transacoes_fatura
