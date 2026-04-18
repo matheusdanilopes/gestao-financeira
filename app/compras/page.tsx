@@ -100,6 +100,7 @@ export default function ComprasPage() {
   const [filtroDescricao, setFiltroDescricao] = useState('')
   const [filtroValorMin, setFiltroValorMin] = useState('')
   const [filtroDia, setFiltroDia] = useState('')
+  const [filtroCategoria, setFiltroCategoria] = useState('')
 
   const [modalEditar, setModalEditar] = useState<Compra | null>(null)
   const [modalExcluir, setModalExcluir] = useState<Compra | null>(null)
@@ -191,13 +192,14 @@ export default function ComprasPage() {
     carregarCompras()
   }
 
-  const filtrosAtivos = !!filtroResponsavel || !!filtroDescricao || !!filtroValorMin || !!filtroDia
+  const filtrosAtivos = !!filtroResponsavel || !!filtroDescricao || !!filtroValorMin || !!filtroDia || !!filtroCategoria
 
   function limparFiltros() {
     setFiltroResponsavel('')
     setFiltroDescricao('')
     setFiltroValorMin('')
     setFiltroDia('')
+    setFiltroCategoria('')
   }
 
   const comprasFiltradas = useMemo(() => {
@@ -208,10 +210,11 @@ export default function ComprasPage() {
         (!filtroResponsavel || c.responsavel === filtroResponsavel) &&
         (!filtroDescricao || c.descricao.toLowerCase().includes(filtroDescricao.toLowerCase())) &&
         (!filtroValorMin || c.valor >= Number(filtroValorMin)) &&
-        (!filtroDia || diaCompra === Number(filtroDia))
+        (!filtroDia || diaCompra === Number(filtroDia)) &&
+        (!filtroCategoria || c.categoria === filtroCategoria)
       )
     })
-  }, [compras, filtroResponsavel, filtroDescricao, filtroValorMin, filtroDia])
+  }, [compras, filtroResponsavel, filtroDescricao, filtroValorMin, filtroDia, filtroCategoria])
 
   const grupos = useMemo(() => {
     const map = new Map<string, Compra[]>()
@@ -304,6 +307,16 @@ export default function ComprasPage() {
           value={filtroDescricao}
           onChange={(e) => setFiltroDescricao(e.target.value)}
         />
+        <select
+          className="bg-gray-50 rounded-lg p-2 text-sm col-span-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          value={filtroCategoria}
+          onChange={(e) => setFiltroCategoria(e.target.value)}
+        >
+          <option value="">Categoria (todas)</option>
+          {CATEGORIAS.map(cat => (
+            <option key={cat} value={cat}>{cat}</option>
+          ))}
+        </select>
         <input
           type="text"
           inputMode="decimal"
