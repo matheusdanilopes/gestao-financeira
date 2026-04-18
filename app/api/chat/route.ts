@@ -13,7 +13,11 @@ function getSupabase() {
   )
 }
 
-async function geminiChat(apiKey: string, systemPrompt: string, mensagens: Array<{ role: string; content: string }>) {
+async function geminiChat(
+  apiKey: string,
+  systemPrompt: string,
+  mensagens: Array<{ role: string; content: string }>
+) {
   const contents = [
     { role: 'user', parts: [{ text: systemPrompt }] },
     { role: 'model', parts: [{ text: 'Entendido! Estou pronto para responder suas perguntas sobre as finanças do casal.' }] },
@@ -23,20 +27,27 @@ async function geminiChat(apiKey: string, systemPrompt: string, mensagens: Array
     })),
   ]
 
-  const body = {
-    contents,
-    generationConfig: { maxOutputTokens: 4096 },
-  }
-
   const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      contents,
+      generationConfig: {
+        maxOutputTokens: 8192,
+        temperature: 0.7,
+      },
+    }),
   })
 
   if (!res.ok) {
-    const err = await res.text()
-    throw new Error(err)
+    const body = await res.text()
+    if (res.status === 429) {
+      const retryMatch = body.match(/"retryDelay":\s*"(\d+)s"/)
+      const segundos = retryMatch ? parseInt(retryMatch[1]) : null
+      const diaria = body.includes('GenerateRequestsPerDayPerProjectPerModel')
+      throw Object.assign(new Error('QUOTA_429'), { diaria, segundos })
+    }
+    throw new Error(body)
   }
 
   const data = await res.json()
@@ -46,7 +57,6 @@ async function geminiChat(apiKey: string, systemPrompt: string, mensagens: Array
 async function buscarContextoFinanceiro(): Promise<string> {
   const supabase = getSupabase()
 
-  // Limita a janela de dados a 24 meses para evitar context overflow no LLM
   const limiteHistorico = format(startOfMonth(subMonths(new Date(), 24)), 'yyyy-MM-dd')
 
   const [resTransacoes, resPlanejamento, resConfig] = await Promise.all([
@@ -72,14 +82,11 @@ async function buscarContextoFinanceiro(): Promise<string> {
   const configuracoes = (resConfig.data ?? []) as Array<{ chave: string; valor: string }>
 
   const hoje = new Date()
-  const mesAtualStr = format(startOfMonth(hoje), 'yyyy-MM-dd')
 
-  // ── Configurações ────────────────────────────────────────────────
   const configStr = configuracoes.length > 0
     ? configuracoes.map(c => `  ${c.chave}: ${c.valor}`).join('\n')
     : '  (nenhuma)'
 
-  // ── Transações agrupadas por mês de fatura ───────────────────────
   const transacoesPorMes: Record<string, typeof transacoes> = {}
   for (const t of transacoes) {
     const mes = (t.projeto_fatura ?? '').substring(0, 7)
@@ -99,22 +106,19 @@ async function buscarContextoFinanceiro(): Promise<string> {
 
     transacoesStr += `\n### Fatura ${nomeMes.toUpperCase()} — Total: R$ ${total.toFixed(2)} | Matheus: R$ ${matheus.toFixed(2)} | Jeniffer: R$ ${jeniffer.toFixed(2)}\n`
 
-    // Totais por categoria
     const porCat: Record<string, number> = {}
     for (const t of lista) {
       const cat = t.categoria || 'Sem categoria'
       porCat[cat] = (porCat[cat] ?? 0) + t.valor
     }
-    transacoesStr += 'Categorias: ' + Object.entries(porCat).sort((a,b) => b[1]-a[1])
+    transacoesStr += 'Categorias: ' + Object.entries(porCat).sort((a, b) => b[1] - a[1])
       .map(([c, v]) => `${c} R$ ${v.toFixed(2)}`).join(' | ') + '\n'
 
-    // Lista completa de transações
     const linhas = [...lista].sort((a, b) => b.valor - a.valor)
       .map(t => `  [${t.responsavel}] ${t.descricao} — R$ ${t.valor.toFixed(2)}${t.categoria ? ` (${t.categoria})` : ''}`)
     transacoesStr += linhas.join('\n') + '\n'
   }
 
-  // ── Planejamento agrupado por mês ────────────────────────────────
   const planPorMes: Record<string, typeof planejamento> = {}
   for (const p of planejamento) {
     const mes = (p.mes_referencia ?? '').substring(0, 7)
@@ -122,10 +126,8 @@ async function buscarContextoFinanceiro(): Promise<string> {
     planPorMes[mes].push(p)
   }
 
-  const mesesPlan = Object.keys(planPorMes).sort().reverse()
-
   let planejamentoStr = ''
-  for (const mes of mesesPlan) {
+  for (const mes of Object.keys(planPorMes).sort().reverse()) {
     const lista = planPorMes[mes]
     const nomeMes = format(new Date(mes + '-02'), 'MMMM yyyy', { locale: ptBR })
     planejamentoStr += `\n### Planejamento ${nomeMes.toUpperCase()}\n`
@@ -135,7 +137,6 @@ async function buscarContextoFinanceiro(): Promise<string> {
     }
   }
 
-  // ── Resumo geral ─────────────────────────────────────────────────
   const totalGeral = transacoes.reduce((a, t) => a + t.valor, 0)
   const totalMatheus = transacoes.filter(t => t.responsavel === 'Matheus').reduce((a, t) => a + t.valor, 0)
   const totalJeniffer = transacoes.filter(t => t.responsavel === 'Jeniffer').reduce((a, t) => a + t.valor, 0)
@@ -176,17 +177,25 @@ export async function POST(req: NextRequest) {
     const systemPrompt = `Você é um assistente financeiro pessoal do casal Matheus e Jeniffer.
 Responda sempre em português brasileiro, de forma clara, objetiva e amigável.
 Use os dados financeiros abaixo para responder perguntas sobre gastos, orçamento, tendências e finanças em geral.
-Você tem acesso ao histórico completo de todas as transações e planejamentos, sem limitação de período.
 Formate valores monetários sempre como R$ X.XX.
 Quando comparar períodos, use os dados históricos disponíveis.
+IMPORTANTE: Nunca corte ou trunce suas respostas. Sempre conclua completamente o que começou a escrever.
 
 ${contexto}`
 
     const texto = await geminiChat(apiKey, systemPrompt, mensagens)
     return NextResponse.json({ resposta: texto })
-  } catch (error) {
-    console.error('[chat]', error)
-    const msg = error instanceof Error ? error.message : String(error)
+  } catch (err) {
+    console.error('[chat]', err)
+    if (err instanceof Error && err.message === 'QUOTA_429') {
+      const e = err as Error & { diaria?: boolean; segundos?: number | null }
+      return NextResponse.json({
+        errorCode: 'QUOTA_429',
+        diaria: e.diaria ?? false,
+        segundos: e.segundos ?? null,
+      }, { status: 429 })
+    }
+    const msg = err instanceof Error ? err.message : String(err)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
