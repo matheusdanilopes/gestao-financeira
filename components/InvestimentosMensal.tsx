@@ -12,6 +12,7 @@ interface Investimento {
   descricao: string
   percentual: number
   mes_referencia: string
+  saldo_atual: number | null
   created_at: string
 }
 
@@ -36,7 +37,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
   // Modais de investimento
   const [modalAberto, setModalAberto] = useState<string | null>(null)
   const [itemSelecionado, setItemSelecionado] = useState<Investimento | null>(null)
-  const [formData, setFormData] = useState({ descricao: '', percentual: '', valor: '' })
+  const [formData, setFormData] = useState({ descricao: '', percentual: '', valor: '', saldo_atual: '' })
   const [ultimoCampo, setUltimoCampo] = useState<'percentual' | 'valor'>('percentual')
 
   // Modais de aporte
@@ -142,17 +143,18 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
     }
 
     const mesRef = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
+    const saldo_atual = formData.saldo_atual ? parseFloat(formData.saldo_atual.replace(',', '.')) : null
 
     if (modalAberto === 'adicionar') {
       const { error } = await supabase.from('investimentos').insert([{
-        descricao: formData.descricao.trim(), percentual: pct, mes_referencia: mesRef,
+        descricao: formData.descricao.trim(), percentual: pct, mes_referencia: mesRef, saldo_atual,
       }])
       if (error) { showToast('Erro ao adicionar', 'erro'); return }
       log('inserir', 'investimentos', `Novo investimento: ${formData.descricao.trim()} — ${pct}%`)
       showToast('Investimento adicionado!')
     } else if (itemSelecionado) {
       const { error } = await supabase.from('investimentos')
-        .update({ descricao: formData.descricao.trim(), percentual: pct })
+        .update({ descricao: formData.descricao.trim(), percentual: pct, saldo_atual })
         .eq('id', itemSelecionado.id)
       if (error) { showToast('Erro ao salvar', 'erro'); return }
       log('editar', 'investimentos', `Editado: ${formData.descricao.trim()} — ${pct}%`)
@@ -178,6 +180,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
       descricao: item.descricao,
       percentual: String(item.percentual),
       valor: saldo > 0 ? (saldo * item.percentual / 100).toFixed(2) : '',
+      saldo_atual: item.saldo_atual != null ? String(item.saldo_atual) : '',
     })
     setUltimoCampo('percentual')
     setModalAberto('editar')
@@ -186,7 +189,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
   function fecharModal() {
     setModalAberto(null)
     setItemSelecionado(null)
-    setFormData({ descricao: '', percentual: '', valor: '' })
+    setFormData({ descricao: '', percentual: '', valor: '', saldo_atual: '' })
   }
 
   // ── Aportes ──────────────────────────────────────────────────
@@ -340,6 +343,11 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
                     <p className="text-xs font-medium text-gray-500">
                       Meta R$ {meta.toFixed(2)}
                     </p>
+                    {item.saldo_atual != null && (
+                      <p className="text-xs text-blue-600 font-medium mt-0.5">
+                        Saldo R$ {item.saldo_atual.toFixed(2)}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -601,6 +609,20 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
                   placeholder="0,00"
                   value={formData.valor}
                   onChange={(e) => handleValorChange(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">
+                  Saldo atual (R$)
+                  <span className="ml-1 text-gray-400 font-normal">— apenas para registro</span>
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                  placeholder="0,00"
+                  value={formData.saldo_atual}
+                  onChange={(e) => setFormData(f => ({ ...f, saldo_atual: numericOnly(e.target.value) }))}
                 />
               </div>
             </div>

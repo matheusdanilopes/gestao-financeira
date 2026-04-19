@@ -141,3 +141,7 @@ ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "allow_all_logs" ON activity_logs;
 CREATE POLICY "allow_all_logs" ON activity_logs
   FOR ALL USING (true) WITH CHECK (true);
+
+-- 6. Saldo atual de cada investimento (apenas para registro)
+ALTER TABLE investimentos
+  ADD COLUMN IF NOT EXISTS saldo_atual NUMERIC(15,2);
