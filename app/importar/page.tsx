@@ -12,7 +12,6 @@ interface Resumo {
   duplicatasNoArquivo: number
   totalLidas: number
   mesesSobrescritos: string[]
-  mesesFuturos: string[]
 }
 
 export default function ImportarPage() {
@@ -73,7 +72,6 @@ export default function ImportarPage() {
           duplicatasNoArquivo: data.duplicatasNoArquivo,
           totalLidas: data.totalLidas,
           mesesSobrescritos: data.mesesSobrescritos ?? [],
-          mesesFuturos: data.mesesFuturos ?? [],
         })
       } else {
         setErro(data.error || 'Erro desconhecido')
@@ -211,18 +209,6 @@ export default function ImportarPage() {
               <div className="flex flex-wrap gap-1">
                 {resumo.mesesSobrescritos.map(m => (
                   <span key={m} className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
-                    {m.substring(0, 7)}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-          {resumo.mesesFuturos.length > 0 && (
-            <div className="pt-2 border-t">
-              <p className="text-xs text-blue-700 font-semibold mb-1">Meses futuros (mesclados sem apagar existentes):</p>
-              <div className="flex flex-wrap gap-1">
-                {resumo.mesesFuturos.map(m => (
-                  <span key={m} className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                     {m.substring(0, 7)}
                   </span>
                 ))}
