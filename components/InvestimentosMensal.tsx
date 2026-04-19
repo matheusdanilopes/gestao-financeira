@@ -151,17 +151,18 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
       : null
 
     if (modalAberto === 'adicionar') {
-      const { error } = await supabase.from('investimentos').insert([{
+      const payload: Record<string, unknown> = {
         descricao: formData.descricao.trim(), percentual: pct, mes_referencia: mesRef,
-        saldo_atual: saldoAtualVal,
-      }])
+      }
+      if (saldoAtualVal !== null) payload.saldo_atual = saldoAtualVal
+      const { error } = await supabase.from('investimentos').insert([payload])
       if (error) { showToast('Erro ao adicionar', 'erro'); return }
       log('inserir', 'investimentos', `Novo investimento: ${formData.descricao.trim()} — ${pct}%`)
       showToast('Investimento adicionado!')
     } else if (itemSelecionado) {
-      const { error } = await supabase.from('investimentos')
-        .update({ descricao: formData.descricao.trim(), percentual: pct, saldo_atual: saldoAtualVal })
-        .eq('id', itemSelecionado.id)
+      const patch: Record<string, unknown> = { descricao: formData.descricao.trim(), percentual: pct }
+      if (saldoAtualVal !== null) patch.saldo_atual = saldoAtualVal
+      const { error } = await supabase.from('investimentos').update(patch).eq('id', itemSelecionado.id)
       if (error) { showToast('Erro ao salvar', 'erro'); return }
       log('editar', 'investimentos', `Editado: ${formData.descricao.trim()} — ${pct}%`)
       showToast('Atualizado!')
