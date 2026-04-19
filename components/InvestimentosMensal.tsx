@@ -12,6 +12,7 @@ interface Investimento {
   descricao: string
   percentual: number
   mes_referencia: string
+  saldo_atual: number | null
   created_at: string
 }
 
@@ -36,7 +37,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
   // Modais de investimento
   const [modalAberto, setModalAberto] = useState<string | null>(null)
   const [itemSelecionado, setItemSelecionado] = useState<Investimento | null>(null)
-  const [formData, setFormData] = useState({ descricao: '', percentual: '', valor: '' })
+  const [formData, setFormData] = useState({ descricao: '', percentual: '', valor: '', saldoAtual: '' })
   const [ultimoCampo, setUltimoCampo] = useState<'percentual' | 'valor'>('percentual')
 
   // Modais de aporte
@@ -111,6 +112,8 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
   const totalMeta = useMemo(() => saldo > 0 ? saldo * itens.reduce((acc, i) => acc + i.percentual, 0) / 100 : 0, [saldo, itens])
   const totalPercentual = useMemo(() => itens.reduce((acc, i) => acc + i.percentual, 0), [itens])
   const totalAportadoGeral = useMemo(() => itens.reduce((acc, i) => acc + totalAportado(i.id), 0), [itens, aportes])
+  const totalSaldoAtual = useMemo(() => itens.reduce((acc, i) => acc + (i.saldo_atual ?? 0), 0), [itens])
+  const temSaldoAtual = useMemo(() => itens.some(i => i.saldo_atual != null), [itens])
 
   function percentualDisponivel(excludeId?: string) {
     return 100 - itens.filter(i => i.id !== excludeId).reduce((acc, i) => acc + i.percentual, 0)
@@ -143,16 +146,21 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
 
     const mesRef = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
 
+    const saldoAtualVal = formData.saldoAtual
+      ? parseFloat(formData.saldoAtual.replace(',', '.'))
+      : null
+
     if (modalAberto === 'adicionar') {
       const { error } = await supabase.from('investimentos').insert([{
         descricao: formData.descricao.trim(), percentual: pct, mes_referencia: mesRef,
+        saldo_atual: saldoAtualVal,
       }])
       if (error) { showToast('Erro ao adicionar', 'erro'); return }
       log('inserir', 'investimentos', `Novo investimento: ${formData.descricao.trim()} — ${pct}%`)
       showToast('Investimento adicionado!')
     } else if (itemSelecionado) {
       const { error } = await supabase.from('investimentos')
-        .update({ descricao: formData.descricao.trim(), percentual: pct })
+        .update({ descricao: formData.descricao.trim(), percentual: pct, saldo_atual: saldoAtualVal })
         .eq('id', itemSelecionado.id)
       if (error) { showToast('Erro ao salvar', 'erro'); return }
       log('editar', 'investimentos', `Editado: ${formData.descricao.trim()} — ${pct}%`)
@@ -178,6 +186,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
       descricao: item.descricao,
       percentual: String(item.percentual),
       valor: saldo > 0 ? (saldo * item.percentual / 100).toFixed(2) : '',
+      saldoAtual: item.saldo_atual != null ? String(item.saldo_atual) : '',
     })
     setUltimoCampo('percentual')
     setModalAberto('editar')
@@ -186,7 +195,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
   function fecharModal() {
     setModalAberto(null)
     setItemSelecionado(null)
-    setFormData({ descricao: '', percentual: '', valor: '' })
+    setFormData({ descricao: '', percentual: '', valor: '', saldoAtual: '' })
   }
 
   // ── Aportes ──────────────────────────────────────────────────
@@ -284,6 +293,11 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
           <div className="bg-green-50 rounded-xl p-3 text-center">
             <p className="text-xs text-gray-500 mb-0.5">Total aportado</p>
             <p className="text-lg font-bold text-green-700">R$ {totalAportadoGeral.toFixed(2)}</p>
+            {temSaldoAtual && (
+              <p className="text-xs text-emerald-600 font-medium mt-0.5">
+                Carteira R$ {totalSaldoAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </p>
+            )}
           </div>
           <div className="bg-gray-50 rounded-xl p-3 text-center">
             <p className="text-xs text-gray-500 mb-0.5">Restante</p>
@@ -340,6 +354,11 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
                     <p className="text-xs font-medium text-gray-500">
                       Meta R$ {meta.toFixed(2)}
                     </p>
+                    {item.saldo_atual != null && (
+                      <p className="text-xs text-emerald-600 font-medium mt-0.5">
+                        Saldo R$ {item.saldo_atual.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -602,6 +621,21 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
                   value={formData.valor}
                   onChange={(e) => handleValorChange(e.target.value)}
                 />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">
+                  Saldo atual
+                  <span className="ml-1 text-gray-400 font-normal">— opcional</span>
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                  placeholder="Valor de mercado hoje"
+                  value={formData.saldoAtual}
+                  onChange={(e) => setFormData(f => ({ ...f, saldoAtual: numericOnly(e.target.value) }))}
+                />
+                <p className="text-xs text-gray-400 mt-0.5">Fotografia do valor atual do investimento</p>
               </div>
             </div>
             <div className="flex gap-3 mt-6">
