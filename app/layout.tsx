@@ -8,11 +8,17 @@ export const metadata: Metadata = {
   title: 'Gestão Financeira Familiar',
   description: 'Controle de finanças com Matheus e Jeniffer',
   manifest: '/manifest.json',
-  themeColor: '#000000',
+  themeColor: '#3b82f6',
   viewport: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=yes',
   icons: {
-    icon: '/icon.svg',
-    apple: '/icon.svg',
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
   },
 }
 
@@ -24,6 +30,11 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <head>
+        {/* iOS PWA */}
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="Finanças" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         {/* Anti-FOUC: aplica a classe dark antes da hidratação */}
         <script
           dangerouslySetInnerHTML={{
