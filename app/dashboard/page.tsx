@@ -166,7 +166,7 @@ export default function Dashboard() {
             total = Number(match[2])
           }
           if (atual < 1 || total < atual) continue
-          const faturaDate = startOfMonth(new Date(t.projeto_fatura))
+          const faturaDate = startOfMonth(new Date(t.projeto_fatura + 'T12:00:00'))
           const origem = subMonths(faturaDate, atual - 1)
           const descBase = descricao.replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '').trim().toLowerCase()
           const key = `${format(origem, 'yyyy-MM')}|${descBase}|${total}|${t.responsavel}`
