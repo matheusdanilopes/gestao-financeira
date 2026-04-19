@@ -432,6 +432,11 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
           Adicionar investimento
         </button>
       </div>
+      {totalPercentual >= 100 && (
+        <p className="text-xs text-center text-gray-400">
+          100% do saldo já alocado — edite um investimento para liberar percentual
+        </p>
+      )}
 
       {/* ── Modal: registrar aporte ── */}
       {modalAporte && (
