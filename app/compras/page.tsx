@@ -148,16 +148,26 @@ export default function ComprasPage() {
     if (!formEditar.descricao.trim() || isNaN(valor) || valor <= 0) return
 
     setSalvando(true)
-    const { error } = await supabase
+    const payload = {
+      descricao: formEditar.descricao.trim(),
+      valor,
+      responsavel: formEditar.responsavel,
+      categoria: formEditar.categoria || null,
+      data_compra: formEditar.data_compra,
+    }
+    let { error } = await supabase
       .from('transacoes_nubank')
-      .update({
-        descricao: formEditar.descricao.trim(),
-        valor,
-        responsavel: formEditar.responsavel,
-        categoria: formEditar.categoria || null,
-        data_compra: formEditar.data_compra,
-      })
+      .update(payload)
       .eq('hash_linha', modalEditar.hash_linha)
+
+    // Compatibilidade com bancos antigos: coluna pode ser 'data' em vez de 'data_compra'
+    if (error?.message?.includes('data_compra')) {
+      const { data_compra, ...resto } = payload as any
+      ;({ error } = await supabase
+        .from('transacoes_nubank')
+        .update({ ...resto, data: data_compra })
+        .eq('hash_linha', modalEditar.hash_linha))
+    }
 
     setSalvando(false)
     if (error) { showToast('Erro ao salvar', 'erro'); return }
