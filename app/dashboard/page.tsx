@@ -23,8 +23,10 @@ interface FaturaState {
   totalRealizado: number
   matheusAtual: number
   matheusPrevisto: number
+  matheusProjecaoParcelas: number
   jenifferAtual: number
   jenifferPrevisto: number
+  jenifferProjecaoParcelas: number
   sobraMatheus: number
   sobraJeniffer: number
   cartao1Items: CartaoItem[]
@@ -46,9 +48,9 @@ interface ResumoCaixaState {
 export default function Dashboard() {
   const { mesAtual, setMesAtual } = useMes()
   const [fatura, setFatura] = useState<FaturaState>({
-    totalRealizado: 0, matheusAtual: 0, matheusPrevisto: 0,
-    jenifferAtual: 0, jenifferPrevisto: 0, sobraMatheus: 0, sobraJeniffer: 0,
-    cartao1Items: [], cartao2Items: [],
+    totalRealizado: 0, matheusAtual: 0, matheusPrevisto: 0, matheusProjecaoParcelas: 0,
+    jenifferAtual: 0, jenifferPrevisto: 0, jenifferProjecaoParcelas: 0,
+    sobraMatheus: 0, sobraJeniffer: 0, cartao1Items: [], cartao2Items: [],
   })
   const [resumoCaixa, setResumoCaixa] = useState<ResumoCaixaState>({
     receitaTotal: 0, contasFixas: 0, fatura: 0, faturaEhPrevisto: false, extras: 0,
@@ -129,8 +131,65 @@ export default function Dashboard() {
 
     const nuBankPrevisto = matheusPrevisto + jenifferPrevisto
 
-    // Se não há compras reais, usa o valor previsto de NuBank como estimativa
     const faturaEhPrevisto = totalRealizado === 0
+
+    // Quando sem lançamentos, projeta parcelas vigentes para mesRefFatura por responsável
+    let matheusProjecaoParcelas = 0
+    let jenifferProjecaoParcelas = 0
+    if (faturaEhPrevisto) {
+      const { data: maxFaturaRow } = await supabase
+        .from('transacoes_nubank')
+        .select('projeto_fatura')
+        .order('projeto_fatura', { ascending: false })
+        .limit(1)
+
+      if (maxFaturaRow?.[0]?.projeto_fatura) {
+        const { data: transacoesBase } = await supabase
+          .from('transacoes_nubank')
+          .select('projeto_fatura, descricao, valor, responsavel, parcela_atual, total_parcelas')
+          .eq('projeto_fatura', maxFaturaRow[0].projeto_fatura)
+
+        const mesProjecao = startOfMonth(addMonths(mes, 1))
+        const contratos = new Map<string, { fatura: Date; atual: number; total: number; valor: number; responsavel: string }>()
+
+        for (const t of (transacoesBase || [])) {
+          const descricao = String(t.descricao || '')
+          if (!/parcela/i.test(descricao)) continue
+          let atual: number, total: number
+          if (t.parcela_atual && t.total_parcelas) {
+            atual = Number(t.parcela_atual)
+            total = Number(t.total_parcelas)
+          } else {
+            const match = descricao.match(/parcela\s*(\d+)\s*\/\s*(\d+)/i)
+            if (!match) continue
+            atual = Number(match[1])
+            total = Number(match[2])
+          }
+          if (atual < 1 || total < atual) continue
+          const faturaDate = startOfMonth(new Date(t.projeto_fatura))
+          const origem = subMonths(faturaDate, atual - 1)
+          const descBase = descricao.replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '').trim().toLowerCase()
+          const key = `${format(origem, 'yyyy-MM')}|${descBase}|${total}|${t.responsavel}`
+          const existing = contratos.get(key)
+          if (!existing || faturaDate > existing.fatura) {
+            contratos.set(key, { fatura: faturaDate, atual, total, valor: t.valor, responsavel: t.responsavel })
+          }
+        }
+
+        for (const { fatura: faturaDate, atual, total, valor, responsavel } of contratos.values()) {
+          const deltaM =
+            (mesProjecao.getFullYear() - faturaDate.getFullYear()) * 12 +
+            (mesProjecao.getMonth() - faturaDate.getMonth())
+          const parcelaNoMes = atual + deltaM
+          if (parcelaNoMes >= 1 && parcelaNoMes <= total) {
+            if (responsavel === 'Matheus') matheusProjecaoParcelas += valor
+            else jenifferProjecaoParcelas += valor
+          }
+        }
+      }
+    }
+
+    // Se não há compras reais, usa o valor previsto de NuBank como estimativa
     const faturaEfetiva = faturaEhPrevisto ? nuBankPrevisto : totalRealizado
 
     // Saldo Previsto: usa apenas valores planejados (nuBankPrevisto sempre)
@@ -150,10 +209,10 @@ export default function Dashboard() {
     const percentualComprometimento = receitaTotal > 0 ? (totalGastos / receitaTotal) * 100 : 0
 
     setFatura({
-      totalRealizado, matheusAtual, matheusPrevisto,
-      jenifferAtual, jenifferPrevisto,
-      sobraMatheus: matheusPrevisto - matheusAtual,
-      sobraJeniffer: jenifferPrevisto - jenifferAtual,
+      totalRealizado, matheusAtual, matheusPrevisto, matheusProjecaoParcelas,
+      jenifferAtual, jenifferPrevisto, jenifferProjecaoParcelas,
+      sobraMatheus: matheusPrevisto - matheusAtual - matheusProjecaoParcelas,
+      sobraJeniffer: jenifferPrevisto - jenifferAtual - jenifferProjecaoParcelas,
       cartao1Items, cartao2Items,
     })
     setResumoCaixa({
@@ -260,6 +319,12 @@ export default function Dashboard() {
                   <span className="text-gray-600">Previsto</span>
                   <span className="font-medium text-gray-800 whitespace-nowrap">R$ {fatura.matheusPrevisto.toFixed(2)}</span>
                 </div>
+                {fatura.matheusProjecaoParcelas > 0 && (
+                  <div className="flex justify-between text-sm gap-1 mt-0.5">
+                    <span className="text-gray-600">Parc. prev.</span>
+                    <span className="font-medium text-orange-700 whitespace-nowrap">− R$ {fatura.matheusProjecaoParcelas.toFixed(2)}</span>
+                  </div>
+                )}
                 <div className={`flex justify-between text-sm font-bold mt-2 ${fatura.sobraMatheus >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   <span>{fatura.sobraMatheus >= 0 ? '✓ Sobra' : '⚠ Excesso'}</span>
                   <span className="whitespace-nowrap">R$ {Math.abs(fatura.sobraMatheus).toFixed(2)}</span>
@@ -275,6 +340,12 @@ export default function Dashboard() {
                   <span className="text-gray-600">Previsto</span>
                   <span className="font-medium text-gray-800 whitespace-nowrap">R$ {fatura.jenifferPrevisto.toFixed(2)}</span>
                 </div>
+                {fatura.jenifferProjecaoParcelas > 0 && (
+                  <div className="flex justify-between text-sm gap-1 mt-0.5">
+                    <span className="text-gray-600">Parc. prev.</span>
+                    <span className="font-medium text-orange-700 whitespace-nowrap">− R$ {fatura.jenifferProjecaoParcelas.toFixed(2)}</span>
+                  </div>
+                )}
                 <div className={`flex justify-between text-sm font-bold mt-2 ${fatura.sobraJeniffer >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   <span>{fatura.sobraJeniffer >= 0 ? '✓ Sobra' : '⚠ Excesso'}</span>
                   <span className="whitespace-nowrap">R$ {Math.abs(fatura.sobraJeniffer).toFixed(2)}</span>
