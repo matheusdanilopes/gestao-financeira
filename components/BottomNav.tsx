@@ -10,6 +10,8 @@ import { AUTH_DISABLED } from '@/lib/authConfig'
 
 const ROTAS_COM_MENU = ['/dashboard', '/contas', '/receitas', '/investimentos', '/compras', '/chat', '/configuracoes', '/importar']
 
+const NAV_ORDER = ['/dashboard', '/contas', '/receitas', '/investimentos', '/compras', '/chat', '/configuracoes']
+
 const navItems = [
   { href: '/dashboard',      label: 'Dashboard',   icon: LayoutDashboard },
   { href: '/contas',         label: 'Despesas',    icon: Receipt },
@@ -59,10 +61,14 @@ export default function BottomNav() {
       <div className="flex justify-around items-center h-16 px-1">
         {navItems.map(({ href, label, icon: Icon }) => {
           const isActive = pathname === href
+          const currentIndex = NAV_ORDER.indexOf(pathname ?? '')
+          const targetIndex  = NAV_ORDER.indexOf(href)
+          const transitionTypes = targetIndex > currentIndex ? ['nav-forward'] : ['nav-back']
           return (
             <Link
               key={href}
               href={href}
+              transitionTypes={transitionTypes}
               className="flex flex-col items-center gap-0.5 flex-1 py-2 transition-all"
             >
               <span className={`flex items-center justify-center w-10 h-6 rounded-full transition-all ${

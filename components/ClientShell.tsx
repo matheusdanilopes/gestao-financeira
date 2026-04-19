@@ -1,5 +1,6 @@
 'use client'
 
+import { ViewTransition } from 'react'
 import { usePathname } from 'next/navigation'
 import NotificacoesBell from './NotificacoesBell'
 
@@ -19,7 +20,12 @@ export default function ClientShell({ children }: { children: React.ReactNode })
           <NotificacoesBell />
         </div>
       )}
-      {children}
+      <ViewTransition
+        enter={{ 'nav-forward': 'slide-from-right', 'nav-back': 'slide-from-left', default: 'fade' }}
+        exit={{  'nav-forward': 'slide-to-left',    'nav-back': 'slide-to-right',  default: 'fade' }}
+      >
+        {children}
+      </ViewTransition>
     </>
   )
 }
