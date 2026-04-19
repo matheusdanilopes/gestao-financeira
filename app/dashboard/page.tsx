@@ -36,7 +36,6 @@ interface ResumoCaixaState {
   contasFixas: number
   fatura: number
   faturaEhPrevisto: boolean
-  projecaoParcelas: number
   extras: number
   totalGastos: number
   sobraLiquida: number
@@ -52,8 +51,8 @@ export default function Dashboard() {
     cartao1Items: [], cartao2Items: [],
   })
   const [resumoCaixa, setResumoCaixa] = useState<ResumoCaixaState>({
-    receitaTotal: 0, contasFixas: 0, fatura: 0, faturaEhPrevisto: false, projecaoParcelas: 0,
-    extras: 0, totalGastos: 0, sobraLiquida: 0, saldoPrevisto: 0, percentualComprometimento: 0,
+    receitaTotal: 0, contasFixas: 0, fatura: 0, faturaEhPrevisto: false, extras: 0,
+    totalGastos: 0, sobraLiquida: 0, saldoPrevisto: 0, percentualComprometimento: 0,
   })
   const [investimentos, setInvestimentos] = useState<{ id: string; descricao: string; percentual: number; aportado: number }[]>([])
   const [drawerAberto, setDrawerAberto] = useState(false)
@@ -130,61 +129,9 @@ export default function Dashboard() {
 
     const nuBankPrevisto = matheusPrevisto + jenifferPrevisto
 
-    // Se não há compras reais, usa o valor previsto + projeção de parcelas como estimativa
+    // Se não há compras reais, usa o valor previsto de NuBank como estimativa
     const faturaEhPrevisto = totalRealizado === 0
-    let projecaoParcelas = 0
-    if (faturaEhPrevisto) {
-      const { data: maxFaturaRow } = await supabase
-        .from('transacoes_nubank')
-        .select('projeto_fatura')
-        .order('projeto_fatura', { ascending: false })
-        .limit(1)
-
-      if (maxFaturaRow?.[0]?.projeto_fatura) {
-        const { data: transacoesBase } = await supabase
-          .from('transacoes_nubank')
-          .select('projeto_fatura, descricao, valor, responsavel, parcela_atual, total_parcelas')
-          .eq('projeto_fatura', maxFaturaRow[0].projeto_fatura)
-
-        const mesProjecao = startOfMonth(addMonths(mes, 1))
-        const contratos = new Map<string, { fatura: Date; atual: number; total: number; valor: number }>()
-
-        for (const t of (transacoesBase || [])) {
-          const descricao = String(t.descricao || '')
-          if (!/parcela/i.test(descricao)) continue
-          let atual: number, total: number
-          if (t.parcela_atual && t.total_parcelas) {
-            atual = Number(t.parcela_atual)
-            total = Number(t.total_parcelas)
-          } else {
-            const match = descricao.match(/parcela\s*(\d+)\s*\/\s*(\d+)/i)
-            if (!match) continue
-            atual = Number(match[1])
-            total = Number(match[2])
-          }
-          if (atual < 1 || total < atual) continue
-          const fatura = startOfMonth(new Date(t.projeto_fatura))
-          const origem = subMonths(fatura, atual - 1)
-          const descBase = descricao.replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '').trim().toLowerCase()
-          const key = `${format(origem, 'yyyy-MM')}|${descBase}|${total}|${t.responsavel}`
-          const existing = contratos.get(key)
-          if (!existing || fatura > existing.fatura) {
-            contratos.set(key, { fatura, atual, total, valor: t.valor })
-          }
-        }
-
-        for (const { fatura, atual, total, valor } of contratos.values()) {
-          const deltaM =
-            (mesProjecao.getFullYear() - fatura.getFullYear()) * 12 +
-            (mesProjecao.getMonth() - fatura.getMonth())
-          const parcelaNoMes = atual + deltaM
-          if (parcelaNoMes >= 1 && parcelaNoMes <= total) {
-            projecaoParcelas += valor
-          }
-        }
-      }
-    }
-    const faturaEfetiva = faturaEhPrevisto ? nuBankPrevisto + projecaoParcelas : totalRealizado
+    const faturaEfetiva = faturaEhPrevisto ? nuBankPrevisto : totalRealizado
 
     // Saldo Previsto: usa apenas valores planejados (nuBankPrevisto sempre)
     const saldoPrevisto = receitaTotal - totalPlanejado
@@ -211,8 +158,8 @@ export default function Dashboard() {
     })
     setResumoCaixa({
       receitaTotal, contasFixas: totalPlanejado - nuBankPrevisto,
-      fatura: faturaEfetiva, faturaEhPrevisto, projecaoParcelas,
-      extras: 0, totalGastos, sobraLiquida, saldoPrevisto, percentualComprometimento,
+      fatura: faturaEfetiva, faturaEhPrevisto, extras: 0,
+      totalGastos, sobraLiquida, saldoPrevisto, percentualComprometimento,
     })
 
     // Batch 2: aportes depende dos IDs de investimentos
@@ -388,11 +335,6 @@ export default function Dashboard() {
                 Fatura NuBank (mês+1)
                 {resumoCaixa.faturaEhPrevisto && (
                   <span className="ml-1 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">previsto</span>
-                )}
-                {resumoCaixa.faturaEhPrevisto && resumoCaixa.projecaoParcelas > 0 && (
-                  <span className="ml-1 text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
-                    +R${resumoCaixa.projecaoParcelas.toFixed(0)} parcelas
-                  </span>
                 )}
               </span>
               <span className="text-gray-700 font-medium">− R$ {resumoCaixa.fatura.toFixed(2)}</span>
