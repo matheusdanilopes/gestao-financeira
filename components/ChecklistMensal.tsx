@@ -319,28 +319,28 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       {/* Resumo */}
       <div className="bg-white rounded-2xl shadow p-4">
         <div className="grid grid-cols-3 gap-2 mb-3">
-          <div className="bg-gray-50 rounded-xl p-3 text-center">
+          <div className="bg-gray-50 rounded-xl p-2.5 text-center">
             <p className="text-[11px] text-gray-500 mb-0.5">Previsto</p>
-            <p className="text-base font-bold text-gray-800">{formatarMoeda(totalPrevisto)}</p>
+            <p className="text-xs font-bold text-gray-800 break-all leading-tight">{formatarMoeda(totalPrevisto)}</p>
           </div>
-          <div className="bg-blue-50 rounded-xl p-3 text-center">
+          <div className="bg-blue-50 rounded-xl p-2.5 text-center">
             <p className="text-[11px] text-gray-500 mb-0.5">Pago</p>
-            <p className="text-base font-bold text-blue-700">{formatarMoeda(totalPago)}</p>
+            <p className="text-xs font-bold text-blue-700 break-all leading-tight">{formatarMoeda(totalPago)}</p>
           </div>
           {(() => {
             const aRestante = totalPrevisto - totalPago
             if (aRestante <= 0.009) {
               return (
-                <div className="bg-green-50 rounded-xl p-3 text-center">
+                <div className="bg-green-50 rounded-xl p-2.5 text-center">
                   <p className="text-[11px] text-green-600 mb-0.5">A pagar</p>
-                  <p className="text-base font-bold text-green-600">Quitado ✓</p>
+                  <p className="text-xs font-bold text-green-600 leading-tight">Quitado ✓</p>
                 </div>
               )
             }
             return (
-              <div className="bg-red-50 rounded-xl p-3 text-center">
+              <div className="bg-red-50 rounded-xl p-2.5 text-center">
                 <p className="text-[11px] text-red-500 mb-0.5">A pagar</p>
-                <p className="text-base font-bold text-red-600">{formatarMoeda(aRestante)}</p>
+                <p className="text-xs font-bold text-red-600 break-all leading-tight">{formatarMoeda(aRestante)}</p>
               </div>
             )
           })()}
@@ -451,13 +451,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
 
                           {/* Valores */}
                           <div className="text-right shrink-0 mr-1">
-                            <p className={`text-sm font-semibold ${
-                              !item.pago && item.valor_previsto >= 200
-                                ? 'text-rose-600'
-                                : !item.pago && item.valor_previsto >= 100
-                                  ? 'text-orange-500'
-                                  : 'text-gray-800'
-                            }`}>
+                            <p className="text-sm font-semibold text-gray-800">
                               {formatarMoeda(item.valor_previsto)}
                             </p>
                             {item.pago && (
