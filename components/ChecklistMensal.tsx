@@ -25,6 +25,10 @@ interface Props {
   mesSelecionado: Date
 }
 
+function formatarMoeda(v: number): string {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
+}
+
 function tipoCartaoPorItem(item: string): '' | 'cartao1' | 'cartao2' {
   if (item.startsWith(PREFIXO_CARTAO_1)) return 'cartao1'
   if (item.startsWith(PREFIXO_CARTAO_2)) return 'cartao2'
@@ -100,7 +104,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       carregarItens()
       log('pagar', 'planejamento', `Pago: ${item ? removerPrefixoCartao(item.item) : id} — R$ ${valorNumerico.toFixed(2)}`, valorNumerico)
       if (diff > 0.01) {
-        showToast(`Diferença de R$ ${diff.toFixed(2)} em relação ao previsto`, 'erro')
+        showToast(`Diferença de ${formatarMoeda(diff)} em relação ao previsto`, 'erro')
       } else {
         showToast('Pagamento registrado!')
       }
@@ -281,6 +285,24 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
   const percentualPago = totalPrevisto > 0 ? Math.min((totalPago / totalPrevisto) * 100, 100) : 0
   const itensPagos = itens.filter(i => i.pago).length
 
+  const gruposPorCategoria = useMemo(() => {
+    const ordem: string[] = []
+    const map = new Map<string, ItemPlanejamento[]>()
+    for (const item of itens) {
+      if (!map.has(item.categoria)) {
+        ordem.push(item.categoria)
+        map.set(item.categoria, [])
+      }
+      map.get(item.categoria)!.push(item)
+    }
+    return ordem.map((cat) => {
+      const grupo = map.get(cat)!
+      const pendentes = grupo.filter(i => !i.pago)
+      const pagos = grupo.filter(i => i.pago)
+      return { categoria: cat, itens: [...pendentes, ...pagos] }
+    })
+  }, [itens])
+
   return (
     <div className="space-y-3">
 
@@ -296,15 +318,32 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
 
       {/* Resumo */}
       <div className="bg-white rounded-2xl shadow p-4">
-        <div className="grid grid-cols-2 gap-3 mb-3">
-          <div className="bg-gray-50 rounded-xl p-3 text-center">
-            <p className="text-xs text-gray-500 mb-0.5">Previsto</p>
-            <p className="text-lg font-bold text-gray-800">R$ {totalPrevisto.toFixed(2)}</p>
+        <div className="grid grid-cols-3 gap-2 mb-3">
+          <div className="bg-gray-50 rounded-xl p-2.5 text-center">
+            <p className="text-[11px] text-gray-500 mb-0.5">Previsto</p>
+            <p className="text-xs font-bold text-gray-800 break-all leading-tight">{formatarMoeda(totalPrevisto)}</p>
           </div>
-          <div className="bg-blue-50 rounded-xl p-3 text-center">
-            <p className="text-xs text-gray-500 mb-0.5">Pago</p>
-            <p className="text-lg font-bold text-blue-700">R$ {totalPago.toFixed(2)}</p>
+          <div className="bg-blue-50 rounded-xl p-2.5 text-center">
+            <p className="text-[11px] text-gray-500 mb-0.5">Pago</p>
+            <p className="text-xs font-bold text-blue-700 break-all leading-tight">{formatarMoeda(totalPago)}</p>
           </div>
+          {(() => {
+            const aRestante = totalPrevisto - totalPago
+            if (aRestante <= 0.009) {
+              return (
+                <div className="bg-green-50 rounded-xl p-2.5 text-center">
+                  <p className="text-[11px] text-green-600 mb-0.5">A pagar</p>
+                  <p className="text-xs font-bold text-green-600 leading-tight">Quitado ✓</p>
+                </div>
+              )
+            }
+            return (
+              <div className="bg-red-50 rounded-xl p-2.5 text-center">
+                <p className="text-[11px] text-red-500 mb-0.5">A pagar</p>
+                <p className="text-xs font-bold text-red-600 break-all leading-tight">{formatarMoeda(aRestante)}</p>
+              </div>
+            )
+          })()}
         </div>
         <div>
           <div className="flex justify-between text-xs text-gray-500 mb-1">
@@ -349,96 +388,128 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
         </button>
       </div>
 
-      {/* Lista */}
-      <div className="bg-white rounded-2xl shadow overflow-hidden divide-y divide-gray-100">
-        {itens.length === 0 ? (
-          <div className="py-12 flex flex-col items-center gap-2 text-gray-300">
-            <CheckCircle2 className="w-10 h-10" />
-            <p className="text-sm">Nenhum item encontrado</p>
-          </div>
-        ) : (
-          itens.map((item) => {
-            const tipoCartao = tipoCartaoPorItem(item.item)
-            const diff = item.pago && item.valor_real !== null ? Math.abs(item.valor_real - item.valor_previsto) : 0
+      {/* Lista agrupada por categoria */}
+      {itens.length === 0 ? (
+        <div className="bg-white rounded-2xl shadow py-12 flex flex-col items-center gap-2 text-gray-300">
+          <CheckCircle2 className="w-10 h-10" />
+          <p className="text-sm">Nenhum item encontrado</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {gruposPorCategoria.map(({ categoria, itens: grupoItens }) => {
+            const subtotalGrupo = grupoItens.reduce((acc, i) => acc + i.valor_previsto, 0)
+            const pendentesGrupo = grupoItens.filter(i => !i.pago).length
             return (
-              <div key={item.id} className={`px-4 py-3 transition-colors ${item.pago ? 'bg-gray-50/70' : 'bg-white'}`}>
-                <div className="flex items-center gap-3">
-                  {/* Status dot */}
-                  <div className={`w-2 h-2 rounded-full shrink-0 ${item.pago ? 'bg-green-500' : 'bg-gray-300'}`} />
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium truncate ${item.pago ? 'text-gray-500 line-through' : 'text-gray-800'}`}>
-                      {removerPrefixoCartao(item.item)}
-                    </p>
-                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                        item.categoria === 'Extra' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'
-                      }`}>{item.categoria}</span>
-                      <span className="text-[10px] text-gray-400">{item.responsavel}</span>
-                      {tipoCartao && (
-                        <span className="inline-flex items-center gap-0.5 text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">
-                          <CreditCard className="w-2.5 h-2.5" /> {tipoCartao === 'cartao1' ? 'Cartão 1' : 'Cartão 2'}
-                        </span>
-                      )}
-                    </div>
+              <div key={categoria} className="bg-white rounded-2xl shadow overflow-hidden">
+                {/* Cabeçalho do grupo */}
+                <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                      categoria === 'Extra' ? 'bg-amber-100 text-amber-700' : 'bg-gray-200 text-gray-600'
+                    }`}>
+                      {categoria}
+                    </span>
+                    <span className="text-[10px] text-gray-400">
+                      {pendentesGrupo > 0 ? `${pendentesGrupo} pendente${pendentesGrupo > 1 ? 's' : ''}` : 'Tudo pago ✓'}
+                    </span>
                   </div>
-
-                  {/* Valores */}
-                  <div className="text-right shrink-0 mr-1">
-                    <p className="text-sm font-semibold text-gray-800">R$ {item.valor_previsto.toFixed(2)}</p>
-                    {item.pago && (
-                      <p className={`text-xs font-medium ${diff > 0.01 ? 'text-red-500' : 'text-green-600'}`}>
-                        ✓ R$ {(item.valor_real ?? item.valor_previsto).toFixed(2)}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Ações */}
-                  <div className="flex items-center gap-0.5 shrink-0">
-                    {!item.pago ? (
-                      <button
-                        onClick={() => { setItemSelecionado(item); setModalAberto('pagar') }}
-                        className="p-1.5 rounded-lg text-green-600 hover:bg-green-100 transition"
-                      >
-                        <CheckCircle2 className="w-5 h-5" />
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => { setItemSelecionado(item); setModalAberto('desfazer') }}
-                        className="p-1.5 rounded-lg text-amber-500 hover:bg-amber-50 transition"
-                        title="Desfazer pagamento"
-                      >
-                        <RotateCcw className="w-4 h-4" />
-                      </button>
-                    )}
-                    <button
-                      onClick={() => abrirModalEditar(item)}
-                      className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 transition"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => { setItemSelecionado(item); setModalAberto('excluir') }}
-                      className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                  <span className="text-xs font-semibold text-gray-700">{formatarMoeda(subtotalGrupo)}</span>
                 </div>
 
-                {/* Alerta de diferença */}
-                {diff > 0.01 && (
-                  <div className="mt-1.5 ml-5 flex items-center gap-1 text-xs text-red-500">
-                    <AlertCircle className="w-3 h-3" />
-                    Diferença de R$ {diff.toFixed(2)} em relação ao previsto
-                  </div>
-                )}
+                {/* Itens do grupo */}
+                <div className="divide-y divide-gray-100">
+                  {grupoItens.map((item) => {
+                    const tipoCartao = tipoCartaoPorItem(item.item)
+                    const diff = item.pago && item.valor_real !== null ? Math.abs(item.valor_real - item.valor_previsto) : 0
+                    return (
+                      <div
+                        key={item.id}
+                        className={`px-4 py-3 transition-colors border-l-4 ${
+                          item.responsavel === 'Jeniffer'
+                            ? 'border-l-pink-400'
+                            : 'border-l-blue-400'
+                        } ${item.pago ? 'bg-gray-50/70' : 'bg-white'}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          {/* Status dot */}
+                          <div className={`w-2 h-2 rounded-full shrink-0 ${item.pago ? 'bg-green-500' : 'bg-gray-300'}`} />
+
+                          {/* Info */}
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-medium truncate ${item.pago ? 'text-gray-500 line-through' : 'text-gray-800'}`}>
+                              {removerPrefixoCartao(item.item)}
+                            </p>
+                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                              <span className="text-[10px] text-gray-400">{item.responsavel}</span>
+                              {tipoCartao && (
+                                <span className="inline-flex items-center gap-0.5 text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">
+                                  <CreditCard className="w-2.5 h-2.5" /> {tipoCartao === 'cartao1' ? 'Cartão 1' : 'Cartão 2'}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Valores */}
+                          <div className="text-right shrink-0 mr-1">
+                            <p className="text-sm font-semibold text-gray-800">
+                              {formatarMoeda(item.valor_previsto)}
+                            </p>
+                            {item.pago && (
+                              <p className={`text-xs font-medium ${diff > 0.01 ? 'text-red-500' : 'text-green-600'}`}>
+                                ✓ {formatarMoeda(item.valor_real ?? item.valor_previsto)}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Ações */}
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            {!item.pago ? (
+                              <button
+                                onClick={() => { setItemSelecionado(item); setModalAberto('pagar') }}
+                                className="p-1.5 rounded-lg text-green-600 hover:bg-green-100 transition"
+                              >
+                                <CheckCircle2 className="w-5 h-5" />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => { setItemSelecionado(item); setModalAberto('desfazer') }}
+                                className="p-1.5 rounded-lg text-amber-500 hover:bg-amber-50 transition"
+                                title="Desfazer pagamento"
+                              >
+                                <RotateCcw className="w-4 h-4" />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => abrirModalEditar(item)}
+                              className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 transition"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => { setItemSelecionado(item); setModalAberto('excluir') }}
+                              className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Alerta de diferença */}
+                        {diff > 0.01 && (
+                          <div className="mt-1.5 ml-5 flex items-center gap-1 text-xs text-red-500">
+                            <AlertCircle className="w-3 h-3" />
+                            Diferença de {formatarMoeda(diff)} em relação ao previsto
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             )
-          })
-        )}
-      </div>
+          })}
+        </div>
+      )}
 
       {modalAberto === 'pagar' && itemSelecionado && (
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
@@ -449,7 +520,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
             <input
               type="text"
               inputMode="decimal"
-              placeholder={`Previsto: R$ ${itemSelecionado.valor_previsto.toFixed(2)}`}
+              placeholder={`Previsto: ${formatarMoeda(itemSelecionado.valor_previsto)}`}
               value={valorReal}
               onChange={(e) => setValorReal(numericOnly(e.target.value))}
               className="w-full border border-gray-200 rounded-xl p-3 text-lg font-semibold mb-5 focus:outline-none focus:ring-2 focus:ring-green-400"
@@ -533,7 +604,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
                     <span className="truncate max-w-[180px] text-gray-700">
                       {removerPrefixoCartao(i.item)}{parcelaLabel}
                     </span>
-                    <span className="text-gray-500 shrink-0 ml-2">R$ {i.valor_previsto.toFixed(2)}</span>
+                    <span className="text-gray-500 shrink-0 ml-2">{formatarMoeda(i.valor_previsto)}</span>
                   </div>
                 )
               })}
@@ -585,7 +656,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
             </p>
             {itemSelecionado.valor_real !== null && (
               <p className="text-sm text-gray-400 mb-5">
-                Valor registrado: R$ {itemSelecionado.valor_real.toFixed(2)}
+                Valor registrado: {formatarMoeda(itemSelecionado.valor_real)}
               </p>
             )}
             <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-5">
