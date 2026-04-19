@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { format, startOfMonth } from 'date-fns'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
 import { processarCSV } from '@/lib/csvparser'
 
@@ -28,9 +29,14 @@ export async function POST(req: NextRequest) {
     // Detecta todos os meses (projeto_fatura) presentes no arquivo
     const mesesNoArquivo = [...new Set(transacoes.map(t => t.projeto_fatura))].sort()
 
-    // Apaga TODOS os registros desses meses antes de reinserir (overwrite completo)
+    // Meses futuros (projeto_fatura > mês atual) não são apagados — só mesclados
+    const mesAtualStr = format(startOfMonth(new Date()), 'yyyy-MM-dd')
+    const mesesFuturos  = mesesNoArquivo.filter(m => m >  mesAtualStr)
+    const mesesPassados = mesesNoArquivo.filter(m => m <= mesAtualStr)
+
+    // Apaga TODOS os registros dos meses passados/atuais antes de reinserir (overwrite completo)
     const mesesApagados: string[] = []
-    for (const mes of mesesNoArquivo) {
+    for (const mes of mesesPassados) {
       const { error: deleteError, count } = await supabase
         .from('transacoes_nubank')
         .delete()
@@ -55,18 +61,32 @@ export async function POST(req: NextRequest) {
     })
     const duplicatasNoArquivo = transacoes.length - novas.length
 
+    // Para meses futuros: filtra transações que já existem no banco (evita duplicar sem apagar)
+    let novasParaInserir = novas
+    if (mesesFuturos.length > 0) {
+      const { data: existentes } = await supabase
+        .from('transacoes_nubank')
+        .select('hash_linha')
+        .in('projeto_fatura', mesesFuturos)
+
+      const hashesExistentes = new Set((existentes ?? []).map((e: any) => e.hash_linha))
+      novasParaInserir = novas.filter(t =>
+        !mesesFuturos.includes(t.projeto_fatura) || !hashesExistentes.has(t.hash_linha)
+      )
+    }
+
     let novosMatheus = 0
     let novosJeniffer = 0
     let totalValor = 0
 
-    if (novas.length > 0) {
+    if (novasParaInserir.length > 0) {
       let insertResult = await supabase
         .from('transacoes_nubank')
-        .insert(novas)
+        .insert(novasParaInserir)
 
       // Compatibilidade com bancos antigos: coluna pode ser 'data' em vez de 'data_compra'.
       if (insertResult.error && insertResult.error.message.includes('data_compra')) {
-        const novasLegado = novas.map((t) => {
+        const novasLegado = novasParaInserir.map((t) => {
           const { data_compra, ...resto } = t as any
           return { ...resto, data: data_compra }
         })
@@ -83,7 +103,7 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      for (const t of novas) {
+      for (const t of novasParaInserir) {
         if (t.responsavel === 'Matheus') novosMatheus++
         else novosJeniffer++
         totalValor += t.valor
@@ -93,12 +113,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       totalLidas: transacoes.length,
-      novas: novas.length,
+      novas: novasParaInserir.length,
       duplicatasNoArquivo,
       matheus: novosMatheus,
       jeniffer: novosJeniffer,
       total: totalValor.toFixed(2),
       mesesSobrescritos: mesesApagados,
+      mesesFuturos,
     })
   } catch (error) {
     console.error('[import] Excecao:', error)
