@@ -152,3 +152,6 @@ ALTER TABLE planejamento ALTER COLUMN categoria TYPE TEXT;
 
 -- Atualiza itens sem categoria para 'Fixa' como fallback
 UPDATE planejamento SET categoria = 'Fixa' WHERE categoria IS NULL OR categoria = '';
+
+-- 11. Remover constraint de categoria em transacoes_nubank
+ALTER TABLE transacoes_nubank DROP CONSTRAINT IF EXISTS transacoes_nubank_categoria_check;
