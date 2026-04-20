@@ -155,7 +155,7 @@ export default function ComprasPage() {
         valor,
         responsavel: formEditar.responsavel,
         categoria: formEditar.categoria || null,
-        data_compra: formEditar.data_compra,
+        data: formEditar.data_compra,
       })
       .eq('hash_linha', modalEditar.hash_linha)
 
