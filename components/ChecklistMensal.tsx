@@ -180,7 +180,8 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       carregarItens()
       log('editar', 'planejamento', `Editado: ${formData.item} — R$ ${valor.toFixed(2)}`, valor, itemSelecionado.valor_previsto)
     } else {
-      showToast('Erro ao editar', 'erro')
+      console.error('[editarItem] Supabase error:', error)
+      showToast(error.message || 'Erro ao editar', 'erro')
     }
   }
 
