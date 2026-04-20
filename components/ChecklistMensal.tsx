@@ -95,7 +95,6 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       .from('planejamento')
       .select('*')
       .eq('mes_referencia', format(primeiroDia, 'yyyy-MM-dd'))
-      .in('categoria', CATEGORIAS_PLANEJAMENTO)
       .not('item', 'ilike', '[RECEITA]%')
       .order('categoria', { ascending: false })
 
@@ -166,6 +165,8 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
   async function editarItem() {
     if (!itemSelecionado) return
     const valor = parseFloat(formData.valor_previsto.replace(',', '.'))
+    if (!formData.item.trim()) return
+    if (isNaN(valor) || valor <= 0) { showToast('Informe um valor válido', 'erro'); return }
     const updates = {
       item: aplicarPrefixoCartao(formData.item, formData.tipo_cartao),
       responsavel: formData.responsavel,
@@ -214,7 +215,6 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       .from('planejamento')
       .select('*')
       .eq('mes_referencia', mesAnteriorStr)
-      .in('categoria', CATEGORIAS_PLANEJAMENTO)
       .not('item', 'ilike', '[RECEITA]%')
 
     const candidatos = (itensAnteriores || []).filter(i => {
@@ -243,7 +243,6 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
         .from('planejamento')
         .select('id')
         .eq('mes_referencia', mesAtualStr)
-        .in('categoria', CATEGORIAS_PLANEJAMENTO)
         .not('item', 'ilike', '[RECEITA]%')
       const idsExistentes = (existentes || []).map(i => i.id)
 
@@ -280,14 +279,14 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
     }
   }
 
-  function abrirModalEditar(item: ItemPlanejamento) {
-    setItemSelecionado(item)
+  function abrirModalEditar(itemEdit: ItemPlanejamento) {
+    setItemSelecionado(itemEdit)
     setFormData({
-      item: removerPrefixoCartao(item.item),
-      responsavel: item.responsavel,
-      categoria: item.categoria,
-      tipo_cartao: tipoCartaoPorItem(item.item),
-      valor_previsto: item.valor_previsto.toString(),
+      item: removerPrefixoCartao(itemEdit.item ?? ''),
+      responsavel: itemEdit.responsavel ?? 'Matheus',
+      categoria: itemEdit.categoria ?? 'Fixa',
+      tipo_cartao: tipoCartaoPorItem(itemEdit.item ?? ''),
+      valor_previsto: (itemEdit.valor_previsto ?? 0).toString(),
     })
     setModalAberto('editar')
   }
