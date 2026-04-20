@@ -315,12 +315,14 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       }
       map.get(item.categoria)!.push(item)
     }
-    return ordem.map((cat) => {
-      const grupo = map.get(cat)!
-      const pendentes = grupo.filter(i => !i.pago)
-      const pagos = grupo.filter(i => i.pago)
-      return { categoria: cat, itens: [...pendentes, ...pagos] }
-    })
+    return ordem
+      .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+      .map((cat) => {
+        const grupo = map.get(cat)!
+        const pendentes = grupo.filter(i => !i.pago)
+        const pagos = grupo.filter(i => i.pago)
+        return { categoria: cat, itens: [...pendentes, ...pagos] }
+      })
   }, [itens])
 
   return (
