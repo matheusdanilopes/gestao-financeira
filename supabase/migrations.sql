@@ -141,3 +141,17 @@ ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "allow_all_logs" ON activity_logs;
 CREATE POLICY "allow_all_logs" ON activity_logs
   FOR ALL USING (true) WITH CHECK (true);
+
+-- 10. Expandir categorias permitidas em planejamento
+-- Remove o constraint antigo que só permitia 'Fixa' e 'Extra'
+ALTER TABLE planejamento DROP CONSTRAINT IF EXISTS planejamento_categoria_check;
+ALTER TABLE planejamento DROP CONSTRAINT IF EXISTS planejamento_categoria_fkey;
+
+-- Garante que o campo aceita qualquer valor de texto
+ALTER TABLE planejamento ALTER COLUMN categoria TYPE TEXT;
+
+-- Atualiza itens sem categoria para 'Fixa' como fallback
+UPDATE planejamento SET categoria = 'Fixa' WHERE categoria IS NULL OR categoria = '';
+
+-- 11. Remover constraint de categoria em transacoes_nubank
+ALTER TABLE transacoes_nubank DROP CONSTRAINT IF EXISTS transacoes_nubank_categoria_check;

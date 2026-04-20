@@ -10,6 +10,26 @@ import { log, numericOnly } from '@/lib/logger'
 const PREFIXO_CARTAO_1 = '[CARTAO1] '
 const PREFIXO_CARTAO_2 = '[CARTAO2] '
 
+const CATEGORIAS_PLANEJAMENTO = [
+  'Fixa', 'Extra', 'Cartão', 'Moradia', 'Alimentação',
+  'Saúde', 'Transporte', 'Educação', 'Lazer', 'Pet', 'Seguros', 'Outros',
+]
+
+const CATEGORIA_CORES_PLAN: Record<string, string> = {
+  Fixa:        'bg-gray-200 text-gray-600',
+  Extra:       'bg-amber-100 text-amber-700',
+  'Cartão':    'bg-purple-100 text-purple-700',
+  Moradia:     'bg-blue-100 text-blue-700',
+  'Alimentação': 'bg-orange-100 text-orange-700',
+  'Saúde':     'bg-red-100 text-red-600',
+  Transporte:  'bg-sky-100 text-sky-700',
+  'Educação':  'bg-indigo-100 text-indigo-700',
+  Lazer:       'bg-green-100 text-green-700',
+  Pet:         'bg-lime-100 text-lime-700',
+  Seguros:     'bg-teal-100 text-teal-700',
+  Outros:      'bg-gray-100 text-gray-500',
+}
+
 interface ItemPlanejamento {
   id: string
   item: string
@@ -75,7 +95,6 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       .from('planejamento')
       .select('*')
       .eq('mes_referencia', format(primeiroDia, 'yyyy-MM-dd'))
-      .in('categoria', ['Fixa', 'Extra'])
       .not('item', 'ilike', '[RECEITA]%')
       .order('categoria', { ascending: false })
 
@@ -146,6 +165,8 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
   async function editarItem() {
     if (!itemSelecionado) return
     const valor = parseFloat(formData.valor_previsto.replace(',', '.'))
+    if (!formData.item.trim()) return
+    if (isNaN(valor) || valor <= 0) { showToast('Informe um valor válido', 'erro'); return }
     const updates = {
       item: aplicarPrefixoCartao(formData.item, formData.tipo_cartao),
       responsavel: formData.responsavel,
@@ -159,7 +180,8 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       carregarItens()
       log('editar', 'planejamento', `Editado: ${formData.item} — R$ ${valor.toFixed(2)}`, valor, itemSelecionado.valor_previsto)
     } else {
-      showToast('Erro ao editar', 'erro')
+      console.error('[editarItem] Supabase error:', error)
+      showToast(error.message || 'Erro ao editar', 'erro')
     }
   }
 
@@ -194,7 +216,6 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       .from('planejamento')
       .select('*')
       .eq('mes_referencia', mesAnteriorStr)
-      .in('categoria', ['Fixa', 'Extra'])
       .not('item', 'ilike', '[RECEITA]%')
 
     const candidatos = (itensAnteriores || []).filter(i => {
@@ -223,7 +244,6 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
         .from('planejamento')
         .select('id')
         .eq('mes_referencia', mesAtualStr)
-        .in('categoria', ['Fixa', 'Extra'])
         .not('item', 'ilike', '[RECEITA]%')
       const idsExistentes = (existentes || []).map(i => i.id)
 
@@ -260,14 +280,14 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
     }
   }
 
-  function abrirModalEditar(item: ItemPlanejamento) {
-    setItemSelecionado(item)
+  function abrirModalEditar(itemEdit: ItemPlanejamento) {
+    setItemSelecionado(itemEdit)
     setFormData({
-      item: removerPrefixoCartao(item.item),
-      responsavel: item.responsavel,
-      categoria: item.categoria,
-      tipo_cartao: tipoCartaoPorItem(item.item),
-      valor_previsto: item.valor_previsto.toString(),
+      item: removerPrefixoCartao(itemEdit.item ?? ''),
+      responsavel: itemEdit.responsavel ?? 'Matheus',
+      categoria: itemEdit.categoria ?? 'Fixa',
+      tipo_cartao: tipoCartaoPorItem(itemEdit.item ?? ''),
+      valor_previsto: (itemEdit.valor_previsto ?? 0).toString(),
     })
     setModalAberto('editar')
   }
@@ -295,12 +315,14 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       }
       map.get(item.categoria)!.push(item)
     }
-    return ordem.map((cat) => {
-      const grupo = map.get(cat)!
-      const pendentes = grupo.filter(i => !i.pago)
-      const pagos = grupo.filter(i => i.pago)
-      return { categoria: cat, itens: [...pendentes, ...pagos] }
-    })
+    return ordem
+      .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+      .map((cat) => {
+        const grupo = map.get(cat)!
+        const pendentes = grupo.filter(i => !i.pago)
+        const pagos = grupo.filter(i => i.pago)
+        return { categoria: cat, itens: [...pendentes, ...pagos] }
+      })
   }, [itens])
 
   return (
@@ -405,7 +427,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
                 <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
                   <div className="flex items-center gap-2">
                     <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                      categoria === 'Extra' ? 'bg-amber-100 text-amber-700' : 'bg-gray-200 text-gray-600'
+                      CATEGORIA_CORES_PLAN[categoria] ?? 'bg-gray-100 text-gray-500'
                     }`}>
                       {categoria}
                     </span>
@@ -553,8 +575,9 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
               <div>
                 <label className="text-xs font-medium text-gray-600 mb-1 block">Categoria</label>
                 <select value={formData.categoria} onChange={(e) => setFormData({ ...formData, categoria: e.target.value })} className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-400">
-                  <option value="Fixa">Fixa</option>
-                  <option value="Extra">Extra</option>
+                  {CATEGORIAS_PLANEJAMENTO.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -588,7 +611,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
 
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3 text-xs text-amber-800 space-y-1">
               <p className="font-semibold">⚠️ Atenção — esta ação irá:</p>
-              <p>• Apagar todos os itens Fixa/Extra do mês atual</p>
+              <p>• Apagar todos os itens de despesa do mês atual</p>
               <p>• Copiar {previewImport.itens.length} item(ns) do mês anterior</p>
               <p>• Parcelas serão avançadas em +1 automaticamente</p>
               <p>• Parcelas encerradas não serão copiadas</p>
