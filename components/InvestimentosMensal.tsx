@@ -19,6 +19,7 @@ interface Aporte {
   id: string
   investimento_id: string
   valor: number
+  saldo_atual: number | null
   data_aporte: string
   observacao: string | null
   created_at: string
@@ -43,6 +44,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
   const [modalAporte, setModalAporte] = useState<Investimento | null>(null)
   const [formAporte, setFormAporte] = useState({
     valor: '',
+    saldo_atual: '',
     data_aporte: format(new Date(), 'yyyy-MM-dd'),
     observacao: '',
   })
@@ -106,6 +108,14 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
 
   function totalAportado(id: string) {
     return (aportes[id] || []).reduce((acc, a) => acc + a.valor, 0)
+  }
+
+  function ultimoSaldoAtual(id: string) {
+    const lista = aportes[id] || []
+    for (let i = lista.length - 1; i >= 0; i--) {
+      if (lista[i].saldo_atual !== null) return lista[i].saldo_atual
+    }
+    return null
   }
 
   const totalMeta = useMemo(() => saldo > 0 ? saldo * itens.reduce((acc, i) => acc + i.percentual, 0) / 100 : 0, [saldo, itens])
@@ -194,10 +204,13 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
     if (!modalAporte) return
     const valor = parseFloat(formAporte.valor.replace(',', '.'))
     if (isNaN(valor) || valor <= 0) return
+    const saldoAtualInformado = parseFloat(formAporte.saldo_atual.replace(',', '.'))
+    const saldoAtualValido = !isNaN(saldoAtualInformado) && saldoAtualInformado >= 0
 
     const { error } = await supabase.from('investimentos_aportes').insert([{
       investimento_id: modalAporte.id,
       valor,
+      saldo_atual: saldoAtualValido ? saldoAtualInformado : null,
       data_aporte: formAporte.data_aporte,
       observacao: formAporte.observacao.trim() || null,
     }])
@@ -206,7 +219,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
     log('aporte', 'investimentos', `Aporte em ${modalAporte.descricao} — R$ ${valor.toFixed(2)}`, valor)
     showToast(`Aporte de R$ ${valor.toFixed(2)} registrado!`)
     setModalAporte(null)
-    setFormAporte({ valor: '', data_aporte: format(new Date(), 'yyyy-MM-dd'), observacao: '' })
+    setFormAporte({ valor: '', saldo_atual: '', data_aporte: format(new Date(), 'yyyy-MM-dd'), observacao: '' })
     carregarItens()
   }
 
@@ -321,6 +334,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
           itens.map((item) => {
             const meta = saldo > 0 ? saldo * item.percentual / 100 : 0
             const aportado = totalAportado(item.id)
+            const saldoAtualItem = ultimoSaldoAtual(item.id)
             const progresso = meta > 0 ? Math.min((aportado / meta) * 100, 100) : 0
             const concluido = aportado >= meta && meta > 0
 
@@ -340,6 +354,9 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
                     <p className="text-xs font-medium text-gray-500">
                       Meta R$ {meta.toFixed(2)}
                     </p>
+                    {saldoAtualItem !== null && (
+                      <p className="text-xs text-gray-400">Saldo atual R$ {saldoAtualItem.toFixed(2)}</p>
+                    )}
                   </div>
                 </div>
 
@@ -358,7 +375,12 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
                   <button
                     onClick={() => {
                       setModalAporte(item)
-                      setFormAporte({ valor: '', data_aporte: format(new Date(), 'yyyy-MM-dd'), observacao: '' })
+                      setFormAporte({
+                        valor: '',
+                        saldo_atual: ultimoSaldoAtual(item.id)?.toFixed(2) || '',
+                        data_aporte: format(new Date(), 'yyyy-MM-dd'),
+                        observacao: '',
+                      })
                     }}
                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-violet-700 bg-violet-50 hover:bg-violet-100 transition"
                   >
@@ -462,6 +484,17 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
                 />
               </div>
               <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Saldo atual (R$) — apenas consulta</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                  placeholder="Ex: 1500,00"
+                  value={formAporte.saldo_atual}
+                  onChange={(e) => setFormAporte(f => ({ ...f, saldo_atual: numericOnly(e.target.value) }))}
+                />
+              </div>
+              <div>
                 <label className="text-xs font-medium text-gray-600 mb-1 block">Observação (opcional)</label>
                 <input
                   className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-violet-400"
@@ -506,6 +539,9 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
                         {format(new Date(a.data_aporte + 'T12:00:00'), "dd 'de' MMMM", { locale: ptBR })}
                         {a.observacao && <span className="ml-1">· {a.observacao}</span>}
                       </p>
+                      {a.saldo_atual !== null && (
+                        <p className="text-xs text-gray-500">Saldo atual no aporte: R$ {a.saldo_atual.toFixed(2)}</p>
+                      )}
                     </div>
                     {aportePendingDelete === a.id ? (
                       <div className="flex items-center gap-1.5 shrink-0">
@@ -544,7 +580,12 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
               onClick={() => {
                 setModalHistorico(null)
                 setModalAporte(modalHistorico)
-                setFormAporte({ valor: '', data_aporte: format(new Date(), 'yyyy-MM-dd'), observacao: '' })
+                setFormAporte({
+                  valor: '',
+                  saldo_atual: ultimoSaldoAtual(modalHistorico.id)?.toFixed(2) || '',
+                  data_aporte: format(new Date(), 'yyyy-MM-dd'),
+                  observacao: '',
+                })
               }}
               className="w-full mt-4 py-3 rounded-xl bg-violet-600 text-white font-semibold flex items-center justify-center gap-2"
             >
