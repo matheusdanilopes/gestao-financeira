@@ -8,11 +8,7 @@ import { ptBR } from 'date-fns/locale'
 import BottomNav from '@/components/BottomNav'
 import { log, numericOnly } from '@/lib/logger'
 import { useMes } from '@/components/MesProvider'
-
-const CATEGORIAS = [
-  'Alimentação', 'Mercado', 'Transporte', 'Saúde', 'Lazer',
-  'Educação', 'Moradia', 'Vestuário', 'Tecnologia', 'Serviços', 'Viagem', 'Pet', 'Outros',
-]
+import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
 
 const CATEGORIA_CORES: Record<string, string> = {
   Alimentação: 'bg-orange-100 text-orange-700',
@@ -101,6 +97,7 @@ export default function ComprasPage() {
   const [filtroValorMin, setFiltroValorMin] = useState('')
   const [filtroDia, setFiltroDia] = useState('')
   const [filtroCategoria, setFiltroCategoria] = useState('')
+  const [categorias, setCategorias] = useState<string[]>(CATEGORIAS_PADRAO)
 
   const [modalEditar, setModalEditar] = useState<Compra | null>(null)
   const [modalExcluir, setModalExcluir] = useState<Compra | null>(null)
@@ -111,8 +108,6 @@ export default function ComprasPage() {
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null)
 
   const mesAtualKey = format(startOfMonth(mesAtual), 'yyyy-MM')
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { carregarCompras() }, [mesAtualKey])
 
   function showToast(msg: string, tipo: 'ok' | 'erro' = 'ok') {
     setToast({ msg, tipo })
@@ -129,6 +124,14 @@ export default function ComprasPage() {
       .order('data', { ascending: false })
     setCompras(data || [])
     setLoading(false)
+  }
+
+  async function carregarCategorias() {
+    const res = await fetch('/api/configuracoes')
+    const data = await res.json()
+    const configs: Array<{ chave: string; valor: string }> = data.configuracoes ?? []
+    const categoriasConfig = configs.find(c => c.chave === 'categorias_compras')
+    setCategorias(parseCategoriasConfig(categoriasConfig?.valor))
   }
 
   function abrirEditar(c: Compra) {
@@ -232,6 +235,10 @@ export default function ComprasPage() {
   const totalMatheus = useMemo(() => comprasFiltradas.filter(c => c.responsavel === 'Matheus').reduce((acc, c) => acc + c.valor, 0), [comprasFiltradas])
   const totalJeniffer = useMemo(() => comprasFiltradas.filter(c => c.responsavel === 'Jeniffer').reduce((acc, c) => acc + c.valor, 0), [comprasFiltradas])
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { carregarCompras() }, [mesAtualKey])
+  useEffect(() => { carregarCategorias() }, [])
+
   return (
     <div className="min-h-screen bg-gray-50 p-4 pb-24">
 
@@ -315,7 +322,7 @@ export default function ComprasPage() {
           onChange={(e) => setFiltroCategoria(e.target.value)}
         >
           <option value="">Categoria (todas)</option>
-          {CATEGORIAS.map(cat => (
+          {categorias.map(cat => (
             <option key={cat} value={cat}>{cat}</option>
           ))}
         </select>
@@ -519,7 +526,7 @@ export default function ComprasPage() {
                   onChange={(e) => setFormEditar(f => ({ ...f, categoria: e.target.value }))}
                 >
                   <option value="">Sem categoria</option>
-                  {CATEGORIAS.map(cat => (
+                  {categorias.map(cat => (
                     <option key={cat} value={cat}>{cat}</option>
                   ))}
                 </select>

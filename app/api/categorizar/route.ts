@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
 
 export const maxDuration = 300
-
-const CATEGORIAS = [
-  'Alimentação', 'Mercado', 'Transporte', 'Saúde', 'Lazer',
-  'Educação', 'Moradia', 'Vestuário', 'Tecnologia', 'Serviços', 'Viagem', 'Pet', 'Outros',
-]
 
 const LOTE = 20
 const DELAY_ENTRE_LOTES_MS = 5000
@@ -36,11 +32,12 @@ function isCotaDiaria(errText: string): boolean {
 
 async function categorizarLote(
   transacoes: { hash_linha: string; descricao: string }[],
-  apiKey: string
+  apiKey: string,
+  categoriasPermitidas: string[]
 ): Promise<string[]> {
   const lista = transacoes.map((t, i) => `${i + 1}. ${t.descricao}`).join('\n')
 
-  const prompt = `Categorize cada transação abaixo com UMA das categorias: ${CATEGORIAS.join(', ')}.
+  const prompt = `Categorize cada transação abaixo com UMA das categorias: ${categoriasPermitidas.join(', ')}.
 
 Transações:
 ${lista}
@@ -71,17 +68,19 @@ A lista deve ter exatamente ${transacoes.length} itens, na mesma ordem das trans
     throw new Error(`Número de categorias retornado (${categorias?.length}) diferente do esperado (${transacoes.length})`)
   }
 
-  return categorias.map((c: string) => (CATEGORIAS.includes(c) ? c : 'Outros'))
+  const fallback = categoriasPermitidas.includes('Outros') ? 'Outros' : categoriasPermitidas[0]
+  return categorias.map((c: string) => (categoriasPermitidas.includes(c) ? c : fallback))
 }
 
 async function categorizarLoteComRetry(
   transacoes: { hash_linha: string; descricao: string }[],
   apiKey: string,
+  categoriasPermitidas: string[],
   maxRetries = 2
 ): Promise<string[]> {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      return await categorizarLote(transacoes, apiKey)
+      return await categorizarLote(transacoes, apiKey, categoriasPermitidas)
     } catch (err) {
       const errStr = String(err)
       const is429 = errStr.includes('429')
@@ -105,6 +104,12 @@ export async function POST(_req: NextRequest) {
     }
 
     const supabase = getSupabase()
+    const { data: configuracoes } = await supabase
+      .from('configuracoes')
+      .select('chave, valor')
+      .eq('chave', 'categorias_compras')
+      .maybeSingle()
+    const categoriasPermitidas = parseCategoriasConfig(configuracoes?.valor) || CATEGORIAS_PADRAO
 
     const { data: transacoes, error } = await supabase
       .from('transacoes_nubank')
@@ -128,7 +133,7 @@ export async function POST(_req: NextRequest) {
       const numLote = Math.floor(i / LOTE) + 1
 
       try {
-        const categorias = await categorizarLoteComRetry(lote, apiKey)
+        const categorias = await categorizarLoteComRetry(lote, apiKey, categoriasPermitidas)
 
         await Promise.all(
           lote.map((t, j) =>
