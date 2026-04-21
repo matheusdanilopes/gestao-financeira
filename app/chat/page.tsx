@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Bot, User, Sparkles, Trash2, Plus } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
+import NotificacoesBell from '@/components/NotificacoesBell'
 import { supabase } from '@/lib/supabaseClient'
 
 interface Mensagem {
@@ -192,24 +193,27 @@ export default function ChatPage() {
           <p className="font-semibold text-gray-800">Assistente Financeiro</p>
           <p className="text-xs text-gray-400">Powered by Gemini</p>
         </div>
-        {mensagens.length > 0 && (
-          <div className="flex items-center gap-1">
-            <button
-              onClick={novaConversa}
-              className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-full transition"
-              title="Nova conversa"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-            <button
-              onClick={novaConversa}
-              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition"
-              title="Limpar conversa"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-        )}
+        <div className="flex items-center gap-1">
+          {mensagens.length > 0 && (
+            <>
+              <button
+                onClick={novaConversa}
+                className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-full transition"
+                title="Nova conversa"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+              <button
+                onClick={novaConversa}
+                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition"
+                title="Limpar conversa"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </>
+          )}
+          <NotificacoesBell />
+        </div>
       </div>
 
       {/* Mensagens */}
