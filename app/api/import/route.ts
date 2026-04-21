@@ -28,24 +28,6 @@ export async function POST(req: NextRequest) {
     // Detecta todos os meses (projeto_fatura) presentes no arquivo
     const mesesNoArquivo = [...new Set(transacoes.map(t => t.projeto_fatura))].sort()
 
-    // Apaga TODOS os registros desses meses antes de reinserir (overwrite completo)
-    const mesesApagados: string[] = []
-    for (const mes of mesesNoArquivo) {
-      const { error: deleteError, count } = await supabase
-        .from('transacoes_nubank')
-        .delete()
-        .eq('projeto_fatura', mes)
-
-      if (deleteError) {
-        console.error('[import] Erro ao apagar mês:', mes, deleteError)
-        return NextResponse.json(
-          { error: 'Erro ao limpar mês ' + mes + ': ' + deleteError.message },
-          { status: 500 }
-        )
-      }
-      mesesApagados.push(mes)
-    }
-
     // Deduplica por hash dentro do arquivo (mesmo CSV pode ter linhas iguais)
     const vistosNoArquivo = new Set<string>()
     const novas = transacoes.filter(t => {
@@ -62,7 +44,7 @@ export async function POST(req: NextRequest) {
     if (novas.length > 0) {
       let insertResult = await supabase
         .from('transacoes_nubank')
-        .insert(novas)
+        .upsert(novas, { onConflict: 'hash_linha' })
 
       // Compatibilidade com bancos antigos: coluna pode ser 'data' em vez de 'data_compra'.
       if (insertResult.error && insertResult.error.message.includes('data_compra')) {
@@ -72,7 +54,7 @@ export async function POST(req: NextRequest) {
         })
         insertResult = await supabase
           .from('transacoes_nubank')
-          .insert(novasLegado)
+          .upsert(novasLegado, { onConflict: 'hash_linha' })
       }
 
       if (insertResult.error) {
@@ -98,7 +80,7 @@ export async function POST(req: NextRequest) {
       matheus: novosMatheus,
       jeniffer: novosJeniffer,
       total: totalValor.toFixed(2),
-      mesesSobrescritos: mesesApagados,
+      mesesReprocessados: mesesNoArquivo,
     })
   } catch (error) {
     console.error('[import] Excecao:', error)

@@ -70,6 +70,10 @@ CREATE INDEX IF NOT EXISTS idx_receitas_recebimentos_planejamento
 ALTER TABLE transacoes_nubank
   ADD COLUMN IF NOT EXISTS categoria TEXT;
 
+ALTER TABLE transacoes_nubank
+  ADD COLUMN IF NOT EXISTS categoria_origem TEXT DEFAULT 'IA',
+  ADD COLUMN IF NOT EXISTS categoria_confianca NUMERIC(3,2);
+
 -- 2. Tabela de configurações (dia de vencimento, ajuste de fechamento, etc.)
 CREATE TABLE IF NOT EXISTS configuracoes (
   chave  TEXT PRIMARY KEY,
