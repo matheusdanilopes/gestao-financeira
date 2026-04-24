@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Bot, User, Sparkles, Trash2, Plus } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
-import NotificacoesBell from '@/components/NotificacoesBell'
 import { supabase } from '@/lib/supabaseClient'
 
 interface Mensagem {
@@ -212,7 +211,6 @@ export default function ChatPage() {
               </button>
             </>
           )}
-          <NotificacoesBell />
         </div>
       </div>
 

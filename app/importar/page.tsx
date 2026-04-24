@@ -105,8 +105,10 @@ export default function ImportarPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 pb-20">
-      <h1 className="text-2xl font-bold mb-2">Importar CSV</h1>
-      <p className="text-sm text-gray-500 mb-6">Faça upload do arquivo exportado pelo Nubank</p>
+      <div className="sticky top-0 bg-gray-50 pt-2 pb-3 z-10">
+        <h1 className="text-2xl font-bold mb-1">Importar CSV</h1>
+        <p className="text-sm text-gray-500">Faça upload do arquivo exportado pelo Nubank</p>
+      </div>
 
       <div
         onDrop={handleDrop}

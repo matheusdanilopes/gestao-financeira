@@ -5,7 +5,7 @@ import NotificacoesBell from './NotificacoesBell'
 
 const ROTAS_COM_BELL = [
   '/dashboard', '/contas', '/receitas', '/investimentos',
-  '/compras', '/configuracoes', '/importar',
+  '/compras', '/configuracoes', '/importar', '/chat',
 ]
 
 export default function ClientShell({ children }: { children: React.ReactNode }) {

@@ -267,9 +267,11 @@ export default function ConfiguracoesPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 pb-24">
-      <h1 className="text-2xl font-bold mb-4">Configurações</h1>
+      <div className="sticky top-0 bg-gray-50 pt-2 pb-3 z-10">
+        <h1 className="text-2xl font-bold mb-0">Configurações</h1>
+      </div>
 
-      <div className="grid grid-cols-3 gap-2 mb-4">
+      <div className="grid grid-cols-3 gap-2 mb-4 mt-3">
         {([
           { key: 'geral', label: 'Geral', icon: Settings },
           { key: 'atividades', label: 'Atividades', icon: Activity },
