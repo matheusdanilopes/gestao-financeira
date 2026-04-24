@@ -272,10 +272,11 @@ export default function ComprasPage() {
         </div>
       )}
 
-      <h1 className="text-2xl font-bold mb-4">Compras do Cartão</h1>
+      <div className="sticky top-0 bg-gray-50 pt-2 pb-3 z-10">
+        <h1 className="text-2xl font-bold mb-3">Compras do Cartão</h1>
 
-      {/* Navegação de mês */}
-      <div className="flex items-center justify-between bg-white rounded-2xl shadow-sm border border-gray-100 p-3 mb-4">
+        {/* Navegação de mês */}
+        <div className="flex items-center justify-between bg-white rounded-2xl shadow-sm border border-gray-100 p-3">
         <button
           onClick={() => setMesAtual(subMonths(mesGlobal, 1))}
           className="p-2 hover:bg-gray-100 rounded-full transition"
@@ -303,6 +304,7 @@ export default function ComprasPage() {
         >
           <ChevronRight className="w-5 h-5 text-gray-500" />
         </button>
+        </div>
       </div>
 
       {/* Filtro de responsável como pills */}

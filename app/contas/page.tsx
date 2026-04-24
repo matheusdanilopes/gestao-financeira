@@ -16,10 +16,11 @@ export default function ContasPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 pb-20">
-      <h1 className="text-2xl font-bold mb-4">Gestão de Despesas</h1>
+      <div className="sticky top-0 bg-gray-50 pt-2 pb-3 z-10">
+        <h1 className="text-2xl font-bold mb-3">Gestão de Despesas</h1>
 
-      {/* Seletor de meses estilo carrossel */}
-      <div className="flex items-center justify-between bg-white rounded-xl shadow p-3 mb-6">
+        {/* Seletor de meses estilo carrossel */}
+        <div className="flex items-center justify-between bg-white rounded-xl shadow p-3">
         <button onClick={mesAnterior} className="p-2 hover:bg-gray-100 rounded-full">
           <ChevronLeft className="w-5 h-5" />
         </button>
@@ -38,9 +39,10 @@ export default function ContasPage() {
             </div>
           )}
         </div>
-        <button onClick={proximoMes} className="p-2 hover:bg-gray-100 rounded-full">
-          <ChevronRight className="w-5 h-5" />
-        </button>
+          <button onClick={proximoMes} className="p-2 hover:bg-gray-100 rounded-full">
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       <ChecklistMensal mesSelecionado={mesAtual} />
