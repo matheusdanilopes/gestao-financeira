@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { ChevronLeft, ChevronRight, Pencil, Trash2, X, ShoppingBag } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Pencil, Trash2, X, ShoppingBag, Lock } from 'lucide-react'
 import { addMonths, subMonths, format, startOfMonth, isToday, isYesterday, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import BottomNav from '@/components/BottomNav'
 import { log, numericOnly } from '@/lib/logger'
 import { useMes } from '@/components/MesProvider'
 import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
+import { calcularProjetoFatura } from '@/lib/fatura'
 
 const CATEGORIA_CORES: Record<string, string> = {
   Alimentação: 'bg-orange-100 text-orange-700',
@@ -106,6 +107,9 @@ export default function ComprasPage() {
   })
   const [salvando, setSalvando] = useState(false)
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null)
+  const [faturaFechada, setFaturaFechada] = useState(false)
+  const [diaVencimento, setDiaVencimento] = useState(10)
+  const [ajusteFechamento, setAjusteFechamento] = useState(0)
 
   const mesAtualKey = format(startOfMonth(mesAtual), 'yyyy-MM')
 
@@ -132,6 +136,18 @@ export default function ComprasPage() {
     const configs: Array<{ chave: string; valor: string }> = data.configuracoes ?? []
     const categoriasConfig = configs.find(c => c.chave === 'categorias_compras')
     setCategorias(parseCategoriasConfig(categoriasConfig?.valor))
+    setDiaVencimento(parseInt(configs.find(c => c.chave === 'dia_vencimento')?.valor || '10'))
+    setAjusteFechamento(parseInt(configs.find(c => c.chave === 'ajuste_fechamento')?.valor || '0'))
+  }
+
+  async function verificarFaturaFechada() {
+    const mesRef = format(startOfMonth(mesGlobal), 'yyyy-MM-dd')
+    const { data } = await supabase
+      .from('planejamento')
+      .select('pago')
+      .eq('mes_referencia', mesRef)
+      .ilike('item', 'NuBank%')
+    setFaturaFechada((data || []).some(p => p.pago))
   }
 
   function abrirEditar(c: Compra) {
@@ -151,6 +167,11 @@ export default function ComprasPage() {
     if (!formEditar.descricao.trim() || isNaN(valor) || valor <= 0) return
 
     setSalvando(true)
+    const novoProjetoFatura = calcularProjetoFatura(
+      new Date(formEditar.data_compra + 'T12:00:00'),
+      diaVencimento,
+      ajusteFechamento
+    )
     const { error } = await supabase
       .from('transacoes_nubank')
       .update({
@@ -161,6 +182,7 @@ export default function ComprasPage() {
         categoria_origem: formEditar.categoria ? 'MANUAL' : null,
         categoria_confianca: formEditar.categoria ? 1 : null,
         data: formEditar.data_compra,
+        projeto_fatura: novoProjetoFatura,
       })
       .eq('hash_linha', modalEditar.hash_linha)
 
@@ -236,7 +258,7 @@ export default function ComprasPage() {
   const totalJeniffer = useMemo(() => comprasFiltradas.filter(c => c.responsavel === 'Jeniffer').reduce((acc, c) => acc + c.valor, 0), [comprasFiltradas])
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { carregarCompras() }, [mesAtualKey])
+  useEffect(() => { carregarCompras(); verificarFaturaFechada() }, [mesAtualKey])
   useEffect(() => { carregarCategorias() }, [])
 
   return (
@@ -369,6 +391,14 @@ export default function ComprasPage() {
         </div>
       </div>
 
+      {/* Banner de fatura fechada */}
+      {faturaFechada && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 flex items-center gap-2">
+          <Lock className="w-4 h-4 text-amber-600 shrink-0" />
+          <p className="text-sm text-amber-700 font-medium">Fatura paga — inclusão de novas compras bloqueada</p>
+        </div>
+      )}
+
       {/* Lista agrupada por data */}
       {loading ? (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y">
@@ -439,22 +469,24 @@ export default function ComprasPage() {
                           <p className="text-sm font-bold text-gray-800">R$ {c.valor.toFixed(2)}</p>
                         </div>
 
-                        <div className="flex items-center gap-0.5 shrink-0">
-                          <button
-                            onClick={() => abrirEditar(c)}
-                            className="p-2 rounded-xl text-blue-400 hover:bg-blue-50 active:bg-blue-100 transition"
-                            aria-label="Editar"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => setModalExcluir(c)}
-                            className="p-2 rounded-xl text-red-400 hover:bg-red-50 active:bg-red-100 transition"
-                            aria-label="Excluir"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
+                        {!faturaFechada && (
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            <button
+                              onClick={() => abrirEditar(c)}
+                              className="p-2 rounded-xl text-blue-400 hover:bg-blue-50 active:bg-blue-100 transition"
+                              aria-label="Editar"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => setModalExcluir(c)}
+                              className="p-2 rounded-xl text-red-400 hover:bg-red-50 active:bg-red-100 transition"
+                              aria-label="Excluir"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )
                   })}

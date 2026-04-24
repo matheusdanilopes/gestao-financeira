@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { format, startOfMonth, subMonths } from 'date-fns'
+import { format, startOfMonth, subMonths, addMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { CheckCircle2, AlertCircle, Pencil, Trash2, Plus, CreditCard, Download, ListFilter, X, RotateCcw } from 'lucide-react'
 import { log, numericOnly } from '@/lib/logger'
@@ -129,6 +129,32 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       }
     } else {
       showToast('Erro ao registrar pagamento', 'erro')
+    }
+  }
+
+  function responsavelNuBank(item: string): string | null {
+    if (item.startsWith('NuBank Matheus')) return 'Matheus'
+    if (item.startsWith('NuBank Jeniffer')) return 'Jeniffer'
+    return null
+  }
+
+  async function abrirModalPagamento(item: ItemPlanejamento) {
+    setItemSelecionado(item)
+    setValorReal('')
+    setModalAberto('pagar')
+
+    const responsavel = responsavelNuBank(item.item)
+    if (responsavel) {
+      const mesRefFatura = format(startOfMonth(addMonths(mesSelecionado, 1)), 'yyyy-MM-dd')
+      const { data } = await supabase
+        .from('transacoes_nubank')
+        .select('valor')
+        .eq('projeto_fatura', mesRefFatura)
+        .eq('responsavel', responsavel)
+      if (data && data.length > 0) {
+        const total = data.reduce((acc, t) => acc + t.valor, 0)
+        setValorReal(total.toFixed(2).replace('.', ','))
+      }
     }
   }
 
@@ -302,6 +328,11 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
     [itens]
   )
 
+  const totalPendente = useMemo(
+    () => itens.reduce((acc, item) => acc + (!item.pago ? item.valor_previsto : 0), 0),
+    [itens]
+  )
+
   const percentualPago = totalPrevisto > 0 ? Math.min((totalPago / totalPrevisto) * 100, 100) : 0
   const itensPagos = itens.filter(i => i.pago).length
 
@@ -349,23 +380,17 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
             <p className="text-[11px] text-gray-500 mb-0.5">Pago</p>
             <p className="text-xs font-bold text-blue-700 break-all leading-tight">{formatarMoeda(totalPago)}</p>
           </div>
-          {(() => {
-            const aRestante = totalPrevisto - totalPago
-            if (aRestante <= 0.009) {
-              return (
-                <div className="bg-green-50 rounded-xl p-2.5 text-center">
-                  <p className="text-[11px] text-green-600 mb-0.5">A pagar</p>
-                  <p className="text-xs font-bold text-green-600 leading-tight">Quitado ✓</p>
-                </div>
-              )
-            }
-            return (
-              <div className="bg-red-50 rounded-xl p-2.5 text-center">
-                <p className="text-[11px] text-red-500 mb-0.5">A pagar</p>
-                <p className="text-xs font-bold text-red-600 break-all leading-tight">{formatarMoeda(aRestante)}</p>
-              </div>
-            )
-          })()}
+          {totalPendente <= 0.009 ? (
+            <div className="bg-green-50 rounded-xl p-2.5 text-center">
+              <p className="text-[11px] text-green-600 mb-0.5">A pagar</p>
+              <p className="text-xs font-bold text-green-600 leading-tight">Quitado ✓</p>
+            </div>
+          ) : (
+            <div className="bg-red-50 rounded-xl p-2.5 text-center">
+              <p className="text-[11px] text-red-500 mb-0.5">A pagar</p>
+              <p className="text-xs font-bold text-red-600 break-all leading-tight">{formatarMoeda(totalPendente)}</p>
+            </div>
+          )}
         </div>
         <div>
           <div className="flex justify-between text-xs text-gray-500 mb-1">
@@ -487,7 +512,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
                           <div className="flex items-center gap-0.5 shrink-0">
                             {!item.pago ? (
                               <button
-                                onClick={() => { setItemSelecionado(item); setModalAberto('pagar') }}
+                                onClick={() => abrirModalPagamento(item)}
                                 className="p-1.5 rounded-lg text-green-600 hover:bg-green-100 transition"
                               >
                                 <CheckCircle2 className="w-5 h-5" />
