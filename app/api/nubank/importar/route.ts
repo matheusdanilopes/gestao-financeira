@@ -197,7 +197,8 @@ export async function POST(req: NextRequest) {
           const resultado = await categorizarTransacoes(
             supabase,
             geminiKey,
-            resultadoImportacao.hashesImportados
+            resultadoImportacao.hashesImportados,
+            true // somenteSemCategoria: não reprocessa no Gemini o que já foi categorizado por IA
           )
           categorizacao = resultado
         } catch (err) {
@@ -215,6 +216,17 @@ export async function POST(req: NextRequest) {
     }
 
     const { hashesImportados: _, ...importacaoPublica } = resultadoImportacao
+
+    // Registra no log de atividades para exibição na tela
+    const mesesStr = importacaoPublica.mesesReprocessados
+      .map(m => m.substring(0, 7))
+      .join(', ')
+    await supabase.from('activity_logs').insert({
+      acao: 'importar',
+      tabela: 'transacoes_nubank',
+      descricao: `${importacaoPublica.novas} novas via API (${importacaoPublica.matheus}M + ${importacaoPublica.jeniffer}J)${mesesStr ? ' · ' + mesesStr : ''}`,
+      valor: parseFloat(importacaoPublica.total),
+    })
 
     return NextResponse.json({
       success: true,

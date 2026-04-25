@@ -95,13 +95,16 @@ export interface ResultadoCategorizar {
 
 /**
  * Categoriza transações via Gemini AI.
- * Se `hashLinhas` for fornecido, categoriza apenas essas transações;
- * caso contrário, categoriza todas as sem categoria ou com origem IA.
+ * - `hashLinhas`: se fornecido, restringe às transações com esses hashes.
+ * - `somenteSemCategoria`: quando true, categoriza apenas linhas com categoria NULL
+ *   (ignorando as já categorizadas por IA). Use true ao chamar do fluxo de importação
+ *   para não reprocessar no Gemini transações que já foram categorizadas.
  */
 export async function categorizarTransacoes(
   supabase: SupabaseClient,
   apiKey: string,
-  hashLinhas?: string[]
+  hashLinhas?: string[],
+  somenteSemCategoria = false
 ): Promise<ResultadoCategorizar> {
   const { data: configuracoes } = await supabase
     .from('configuracoes')
@@ -113,7 +116,12 @@ export async function categorizarTransacoes(
   let query = supabase
     .from('transacoes_nubank')
     .select('hash_linha, descricao')
-    .or('categoria.is.null,categoria_origem.eq.IA')
+
+  if (somenteSemCategoria) {
+    query = query.is('categoria', null)
+  } else {
+    query = query.or('categoria.is.null,categoria_origem.eq.IA')
+  }
 
   if (hashLinhas && hashLinhas.length > 0) {
     query = query.in('hash_linha', hashLinhas)
@@ -139,7 +147,7 @@ export async function categorizarTransacoes(
     try {
       const categorias = await categorizarLoteComRetry(lote, apiKey, categoriasPermitidas)
 
-      await Promise.all(
+      const updateResults = await Promise.all(
         lote.map((t, j) =>
           supabase
             .from('transacoes_nubank')
@@ -151,6 +159,14 @@ export async function categorizarTransacoes(
             .eq('hash_linha', t.hash_linha)
         )
       )
+
+      const updateErrors = updateResults
+        .map((r, i) => (r.error ? `${lote[i].hash_linha.slice(0, 8)}: ${r.error.message}` : null))
+        .filter((e): e is string => e !== null)
+
+      if (updateErrors.length > 0) {
+        throw new Error(`Falha ao salvar ${updateErrors.length} categoria(s): ${updateErrors.join('; ')}`)
+      }
 
       totalCategorized += lote.length
 
