@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
-import { Upload, CheckCircle2, XCircle, Sparkles } from 'lucide-react'
+import { useState, useRef, useCallback, useEffect } from 'react'
+import { Upload, CheckCircle2, XCircle, Sparkles, Clock, AlertCircle } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 
 interface Resumo {
@@ -14,6 +14,13 @@ interface Resumo {
   mesesSobrescritos: string[]
 }
 
+interface Atividade {
+  id: string
+  descricao: string
+  valor: number | null
+  created_at: string
+}
+
 export default function ImportarPage() {
   const [uploading, setUploading] = useState(false)
   const [resumo, setResumo] = useState<Resumo | null>(null)
@@ -22,7 +29,22 @@ export default function ImportarPage() {
   const [categorizando, setCategorizando] = useState(false)
   const [categorizadoMsg, setCategorizadoMsg] = useState<string | null>(null)
   const [nomeArquivo, setNomeArquivo] = useState<string | null>(null)
+  const [atividades, setAtividades] = useState<Atividade[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function carregarAtividades() {
+    try {
+      const res = await fetch('/api/nubank/atividades')
+      if (res.ok) {
+        const data = await res.json()
+        setAtividades(data.atividades ?? [])
+      }
+    } catch { /* silencioso */ }
+  }
+
+  useEffect(() => {
+    carregarAtividades()
+  }, [])
 
   async function categorizar() {
     setCategorizando(true)
@@ -224,6 +246,53 @@ export default function ImportarPage() {
           )}
         </div>
       )}
+
+      <div className="mt-6">
+        <div className="flex items-center gap-2 mb-3">
+          <Clock className="w-4 h-4 text-gray-400" />
+          <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Atividades Recentes via API</h2>
+        </div>
+
+        {atividades.length === 0 ? (
+          <div className="bg-white rounded-xl p-6 text-center text-sm text-gray-400">
+            Nenhuma importação via API registrada ainda.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {atividades.map(a => {
+              const isErro = a.descricao.startsWith('ERRO:')
+              const descricaoExibida = isErro ? a.descricao.slice(6).trim() : a.descricao
+              const data = new Date(a.created_at)
+              const dataStr = data.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+              const horaStr = data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+              return (
+                <div
+                  key={a.id}
+                  className={`rounded-xl px-4 py-3 flex items-start gap-3 ${isErro ? 'bg-red-50' : 'bg-white'}`}
+                >
+                  <div className="shrink-0 mt-0.5">
+                    {isErro
+                      ? <AlertCircle className="w-4 h-4 text-red-400" />
+                      : <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    }
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium truncate ${isErro ? 'text-red-700' : 'text-gray-800'}`}>
+                      {descricaoExibida}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">{dataStr} · {horaStr}</p>
+                  </div>
+                  {!isErro && a.valor != null && (
+                    <span className="text-sm font-semibold text-green-700 whitespace-nowrap">
+                      R$ {Number(a.valor).toFixed(2).replace('.', ',')}
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
 
       <BottomNav />
     </div>
