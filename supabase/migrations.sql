@@ -159,3 +159,23 @@ UPDATE planejamento SET categoria = 'Fixa' WHERE categoria IS NULL OR categoria 
 
 -- 11. Remover constraint de categoria em transacoes_nubank
 ALTER TABLE transacoes_nubank DROP CONSTRAINT IF EXISTS transacoes_nubank_categoria_check;
+
+-- 12. Tabela de jobs de categorização (permite rastrear progresso mesmo com o app fechado)
+CREATE TABLE IF NOT EXISTS categorization_jobs (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  status                TEXT NOT NULL DEFAULT 'running',  -- 'running' | 'done' | 'error'
+  total                 INT,
+  categorized           INT DEFAULT 0,
+  cota_diaria_esgotada  BOOLEAN DEFAULT FALSE,
+  erros                 JSONB,
+  started_at            TIMESTAMPTZ DEFAULT NOW(),
+  finished_at           TIMESTAMPTZ
+);
+
+ALTER TABLE categorization_jobs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "allow_all_categorization_jobs" ON categorization_jobs;
+CREATE POLICY "allow_all_categorization_jobs" ON categorization_jobs
+  FOR ALL USING (true) WITH CHECK (true);
+
+CREATE INDEX IF NOT EXISTS idx_categorization_jobs_started
+  ON categorization_jobs(started_at DESC);

@@ -9,6 +9,7 @@ const DELAY_ENTRE_LOTES_MS = 5000
 const GEMINI_MODEL = 'gemini-3-flash-preview'
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 const CONFIANCA_PADRAO_IA = 0.85
+const JOB_STALE_MS = 6 * 60 * 1000
 
 function getSupabase() {
   return createClient(
@@ -19,6 +20,10 @@ function getSupabase() {
 
 function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+function isStaleJob(startedAt: string): boolean {
+  return Date.now() - new Date(startedAt).getTime() > JOB_STALE_MS
 }
 
 function extrairRetryDelay(errText: string): number {
@@ -97,13 +102,35 @@ async function categorizarLoteComRetry(
 }
 
 export async function POST(_req: NextRequest) {
-  try {
-    const apiKey = process.env.GEMINI_API_KEY
-    if (!apiKey) {
-      return NextResponse.json({ error: 'GEMINI_API_KEY não configurada' }, { status: 500 })
-    }
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey) {
+    return NextResponse.json({ error: 'GEMINI_API_KEY não configurada' }, { status: 500 })
+  }
 
-    const supabase = getSupabase()
+  const supabase = getSupabase()
+
+  // Evita iniciar dois jobs simultâneos
+  const { data: runningJob } = await supabase
+    .from('categorization_jobs')
+    .select('id, started_at')
+    .eq('status', 'running')
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (runningJob && !isStaleJob(runningJob.started_at)) {
+    return NextResponse.json({ running: true, message: 'Categorização já em andamento' })
+  }
+
+  // Cria o job imediatamente para que o cliente possa rastreá-lo
+  const { data: job } = await supabase
+    .from('categorization_jobs')
+    .insert({ status: 'running' })
+    .select('id')
+    .single()
+  const jobId: string | undefined = job?.id
+
+  try {
     const { data: configuracoes } = await supabase
       .from('configuracoes')
       .select('chave, valor')
@@ -117,9 +144,23 @@ export async function POST(_req: NextRequest) {
       .or('categoria.is.null,categoria_origem.eq.IA')
       .order('data', { ascending: false })
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) {
+      if (jobId) await supabase.from('categorization_jobs').update({ status: 'error', finished_at: new Date().toISOString() }).eq('id', jobId)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
     if (!transacoes || transacoes.length === 0) {
+      if (jobId) {
+        await supabase.from('categorization_jobs')
+          .update({ status: 'done', total: 0, categorized: 0, finished_at: new Date().toISOString() })
+          .eq('id', jobId)
+      }
       return NextResponse.json({ categorized: 0, total: 0, message: 'Nenhuma transação sem categoria' })
+    }
+
+    // Atualiza o total para que o cliente veja o progresso esperado
+    if (jobId) {
+      await supabase.from('categorization_jobs').update({ total: transacoes.length }).eq('id', jobId)
     }
 
     let totalCategorized = 0
@@ -166,6 +207,16 @@ export async function POST(_req: NextRequest) {
       }
     }
 
+    if (jobId) {
+      await supabase.from('categorization_jobs').update({
+        status: 'done',
+        categorized: totalCategorized,
+        cota_diaria_esgotada: cotaDiariaEsgotada,
+        erros: erros.length > 0 ? erros : null,
+        finished_at: new Date().toISOString(),
+      }).eq('id', jobId)
+    }
+
     return NextResponse.json({
       categorized: totalCategorized,
       total: transacoes.length,
@@ -174,6 +225,11 @@ export async function POST(_req: NextRequest) {
     })
   } catch (error) {
     console.error('[categorizar]', error)
+    if (jobId) {
+      await supabase.from('categorization_jobs')
+        .update({ status: 'error', finished_at: new Date().toISOString() })
+        .eq('id', jobId)
+    }
     return NextResponse.json({ error: String(error) }, { status: 500 })
   }
 }
