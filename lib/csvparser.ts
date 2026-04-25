@@ -70,7 +70,10 @@ export function processarCSV(
     const dataCompra = new Date(dataISO + 'T12:00:00') // meio-dia para evitar problemas de fuso
     const projetoFatura = calcularProjetoFatura(dataCompra, diaVencimento, ajusteFechamento)
 
-    const hashString = `${dataISO}|${descricao}|${valorStr}`
+    // Normaliza para 2 casas decimais para garantir hash consistente
+    // independente de o valor vir como "150", "150.5" ou "150.00"
+    const valorHash = valor.toFixed(2)
+    const hashString = `${dataISO}|${descricao}|${valorHash}`
     const hash_linha = createHash('sha256').update(hashString).digest('hex')
 
     // Identificação de parcelas no formato X/Y
@@ -139,7 +142,10 @@ export function processarTransacoesJSON(
     const dataCompra = new Date(dataISO + 'T12:00:00')
     const projetoFatura = calcularProjetoFatura(dataCompra, diaVencimento, ajusteFechamento)
 
-    const hashString = `${dataISO}|${descricao}|${valorStr}`
+    // Normaliza para 2 casas decimais para garantir hash idêntico ao gerado por processarCSV.
+    // O CSV do Nubank sempre exporta 2 casas ("150.00"), então toFixed(2) alinha os dois caminhos.
+    const valorHash = valor.toFixed(2)
+    const hashString = `${dataISO}|${descricao}|${valorHash}`
     const hash_linha = createHash('sha256').update(hashString).digest('hex')
 
     let parcela_atual = null
