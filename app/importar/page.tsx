@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { Upload, CheckCircle2, XCircle, Sparkles, Clock, AlertCircle } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
+import { useCategorizacao } from '@/components/CategorizacaoProvider'
 
 interface Resumo {
   matheus: number
@@ -26,11 +27,10 @@ export default function ImportarPage() {
   const [resumo, setResumo] = useState<Resumo | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [arrastando, setArrastando] = useState(false)
-  const [categorizando, setCategorizando] = useState(false)
-  const [categorizadoMsg, setCategorizadoMsg] = useState<string | null>(null)
   const [nomeArquivo, setNomeArquivo] = useState<string | null>(null)
   const [atividades, setAtividades] = useState<Atividade[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { categorizando, categorizadoMsg, categorizar } = useCategorizacao()
 
   async function carregarAtividades() {
     try {
@@ -45,32 +45,6 @@ export default function ImportarPage() {
   useEffect(() => {
     carregarAtividades()
   }, [])
-
-  async function categorizar() {
-    setCategorizando(true)
-    setCategorizadoMsg(null)
-    try {
-      const res = await fetch('/api/categorizar', { method: 'POST' })
-      const data = await res.json()
-      if (data.error) {
-        setCategorizadoMsg('Erro: ' + data.error)
-      } else if (data.total === 0) {
-        setCategorizadoMsg('Todas as transações já estão categorizadas!')
-      } else if (data.cotaDiariaEsgotada) {
-        setCategorizadoMsg(
-          `Cota diária do Gemini esgotada. ${data.categorized} de ${data.total} categorizadas. Tente novamente amanhã.`
-        )
-      } else if (data.erros?.length) {
-        setCategorizadoMsg(`${data.categorized}/${data.total} categorizadas com erros em alguns lotes.`)
-      } else {
-        setCategorizadoMsg(`${data.categorized} transações categorizadas com IA`)
-      }
-    } catch {
-      setCategorizadoMsg('Erro ao categorizar')
-    } finally {
-      setCategorizando(false)
-    }
-  }
 
   async function processarArquivo(file: File) {
     setNomeArquivo(file.name)

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { ThemeProvider } from '@/components/ThemeProvider'
 import { MesProvider } from '@/components/MesProvider'
+import { CategorizacaoProvider } from '@/components/CategorizacaoProvider'
 import ClientShell from '@/components/ClientShell'
 
 export const metadata: Metadata = {
@@ -41,11 +42,13 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         <ThemeProvider>
           <MesProvider>
-            <ClientShell>
-              <main className="max-w-md mx-auto relative">
-                {children}
-              </main>
-            </ClientShell>
+            <CategorizacaoProvider>
+              <ClientShell>
+                <main className="max-w-md mx-auto relative">
+                  {children}
+                </main>
+              </ClientShell>
+            </CategorizacaoProvider>
           </MesProvider>
         </ThemeProvider>
       </body>

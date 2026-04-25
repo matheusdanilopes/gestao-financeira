@@ -2,11 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Receipt, TrendingUp, ShoppingCart, MessageCircle, SlidersHorizontal, PiggyBank } from 'lucide-react'
+import { LayoutDashboard, Receipt, TrendingUp, ShoppingCart, MessageCircle, SlidersHorizontal, PiggyBank, Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabaseClient'
 import { AUTH_DISABLED } from '@/lib/authConfig'
+import { useCategorizacao } from '@/components/CategorizacaoProvider'
 
 const ROTAS_COM_MENU = ['/dashboard', '/contas', '/receitas', '/investimentos', '/compras', '/chat', '/configuracoes', '/importar']
 
@@ -24,6 +25,7 @@ export default function BottomNav() {
   const pathname = usePathname()
   const [session, setSession] = useState<Session | null>(null)
   const [isCheckingSession, setIsCheckingSession] = useState(true)
+  const { categorizando } = useCategorizacao()
 
   useEffect(() => {
     let isMounted = true
@@ -56,6 +58,12 @@ export default function BottomNav() {
 
   return (
     <div data-bottom-nav="true" className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 shadow-[0_-2px_12px_rgba(0,0,0,0.06)]">
+      {categorizando && (
+        <div className="flex items-center justify-center gap-1.5 bg-purple-50 border-b border-purple-100 py-1 text-xs text-purple-700 font-medium">
+          <Sparkles className="w-3 h-3 animate-pulse" />
+          Categorizando com IA...
+        </div>
+      )}
       <div className="flex justify-around items-center h-16 px-1">
         {navItems.map(({ href, label, icon: Icon }) => {
           const isActive = pathname === href
