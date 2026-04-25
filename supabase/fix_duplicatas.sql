@@ -117,3 +117,69 @@ WHERE id IN (
 -- ─────────────────────────────────────────────────────────────
 -- DELETE FROM transacoes_nubank
 -- WHERE projeto_fatura = '2026-04-01';
+
+
+-- ─────────────────────────────────────────────────────────────
+-- SEÇÃO B: DUPLICATAS POR HASH DIVERGENTE (mesma transação,
+-- hash_linha diferente por normalização de valor)
+--
+-- Causa: antes da correção do toFixed(2), importar via API JSON
+-- com amount:150 (número) e via CSV com "150.00" (string) gerava
+-- hash_linhas distintos para a mesma compra, criando duas linhas
+-- com data_compra + descricao + valor idênticos.
+--
+-- Execute B1 para inspecionar, B2 para remover.
+-- ─────────────────────────────────────────────────────────────
+
+-- B1: relatório — transações com mesmo (data_compra, descricao, valor)
+-- e mais de um hash_linha
+SELECT
+  data_compra,
+  descricao,
+  valor,
+  COUNT(*)                    AS total,
+  array_agg(hash_linha)       AS hashes,
+  array_agg(categoria_origem) AS origens,
+  array_agg(categoria)        AS categorias
+FROM transacoes_nubank
+GROUP BY data_compra, descricao, valor
+HAVING COUNT(*) > 1
+ORDER BY total DESC, data_compra DESC;
+
+
+-- B2: remoção — mantém o melhor registro por grupo lógico
+-- Prioridade: MANUAL > IA > sem categoria; desempate pelo hash DESC
+WITH ranked AS (
+  SELECT
+    hash_linha,
+    ROW_NUMBER() OVER (
+      PARTITION BY data_compra, descricao, valor
+      ORDER BY
+        CASE categoria_origem
+          WHEN 'MANUAL' THEN 1
+          WHEN 'IA'     THEN 2
+          ELSE               3
+        END,
+        CASE WHEN categoria IS NOT NULL THEN 1 ELSE 2 END,
+        hash_linha DESC
+    ) AS rn
+  FROM transacoes_nubank
+)
+DELETE FROM transacoes_nubank
+WHERE hash_linha IN (
+  SELECT hash_linha FROM ranked WHERE rn > 1
+);
+
+
+-- B3: verificação — confirma que não restam duplicatas lógicas
+SELECT
+  CASE
+    WHEN COUNT(*) = 0 THEN 'OK — nenhuma duplicata restante'
+    ELSE 'ATENÇÃO — ' || COUNT(*) || ' grupo(s) ainda com duplicata'
+  END AS resultado
+FROM (
+  SELECT data_compra, descricao, valor
+  FROM transacoes_nubank
+  GROUP BY data_compra, descricao, valor
+  HAVING COUNT(*) > 1
+) sub;
