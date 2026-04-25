@@ -102,12 +102,24 @@ async function salvarTransacoes(
 export async function POST(req: NextRequest) {
   const auth = autenticar(req)
   if (!auth.ok) {
+    // Erros de auth não são logados — supabase ainda não está disponível
     return NextResponse.json({ error: auth.message }, { status: auth.status })
   }
 
-  try {
-    const supabase = criarSupabaseServer(req)
+  const supabase = criarSupabaseServer(req)
 
+  async function registrarLog(descricao: string, valor?: number) {
+    try {
+      await supabase.from('activity_logs').insert({
+        acao: 'importar',
+        tabela: 'transacoes_nubank',
+        descricao,
+        valor: valor ?? null,
+      })
+    } catch { /* falha no log nunca deve interromper a resposta */ }
+  }
+
+  try {
     const { data: configs } = await supabase.from('configuracoes').select('chave, valor')
     const diaVencimento = parseInt(
       configs?.find((c: any) => c.chave === 'dia_vencimento')?.valor || '10'
@@ -120,59 +132,44 @@ export async function POST(req: NextRequest) {
     let transacoes: TransacaoNubank[]
 
     if (contentType.includes('multipart/form-data')) {
-      // Formato 1: arquivo CSV via multipart/form-data (campo "file")
       const formData = await req.formData()
       const file = formData.get('file') as File | null
       if (!file) {
-        return NextResponse.json(
-          { error: 'Campo "file" ausente no formulário.' },
-          { status: 400 }
-        )
+        const msg = 'Campo "file" ausente no formulário.'
+        await registrarLog(`ERRO: ${msg}`)
+        return NextResponse.json({ error: msg }, { status: 400 })
       }
       const csvText = await file.text()
       transacoes = processarCSV(csvText, diaVencimento, ajusteFechamento)
     } else {
-      // Formato 2 e 3: corpo JSON
       let body: any
       try {
         body = await req.json()
       } catch {
-        return NextResponse.json(
-          { error: 'Body inválido: esperado JSON ou multipart/form-data com campo "file".' },
-          { status: 400 }
-        )
+        const msg = 'Body inválido: esperado JSON ou multipart/form-data com campo "file".'
+        await registrarLog(`ERRO: ${msg}`)
+        return NextResponse.json({ error: msg }, { status: 400 })
       }
 
       if (typeof body?.csv === 'string') {
-        // Formato 2: CSV como texto no campo "csv"
         transacoes = processarCSV(body.csv, diaVencimento, ajusteFechamento)
       } else if (Array.isArray(body?.transacoes)) {
-        // Formato 3: array de objetos de transação
         transacoes = processarTransacoesJSON(
           body.transacoes as TransacaoInputJSON[],
           diaVencimento,
           ajusteFechamento
         )
       } else {
-        return NextResponse.json(
-          {
-            error:
-              'Body deve conter "csv" (string com conteúdo CSV) ou "transacoes" (array de objetos).',
-          },
-          { status: 400 }
-        )
+        const msg = 'Body deve conter "csv" (string com conteúdo CSV) ou "transacoes" (array de objetos).'
+        await registrarLog(`ERRO: ${msg}`)
+        return NextResponse.json({ error: msg }, { status: 400 })
       }
     }
 
     if (transacoes.length === 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            'Nenhuma transação válida encontrada. Verifique o formato e se os valores são positivos.',
-        },
-        { status: 422 }
-      )
+      const msg = 'Nenhuma transação válida encontrada. Verifique o formato e se os valores são positivos.'
+      await registrarLog(`ERRO: ${msg}`)
+      return NextResponse.json({ success: false, error: msg }, { status: 422 })
     }
 
     const resultadoImportacao = await salvarTransacoes(supabase, transacoes)
@@ -217,16 +214,11 @@ export async function POST(req: NextRequest) {
 
     const { hashesImportados: _, ...importacaoPublica } = resultadoImportacao
 
-    // Registra no log de atividades para exibição na tela
-    const mesesStr = importacaoPublica.mesesReprocessados
-      .map(m => m.substring(0, 7))
-      .join(', ')
-    await supabase.from('activity_logs').insert({
-      acao: 'importar',
-      tabela: 'transacoes_nubank',
-      descricao: `${importacaoPublica.novas} novas via API (${importacaoPublica.matheus}M + ${importacaoPublica.jeniffer}J)${mesesStr ? ' · ' + mesesStr : ''}`,
-      valor: parseFloat(importacaoPublica.total),
-    })
+    const mesesStr = importacaoPublica.mesesReprocessados.map(m => m.substring(0, 7)).join(', ')
+    await registrarLog(
+      `${importacaoPublica.novas} novas via API (${importacaoPublica.matheus}M + ${importacaoPublica.jeniffer}J)${mesesStr ? ' · ' + mesesStr : ''}`,
+      parseFloat(importacaoPublica.total)
+    )
 
     return NextResponse.json({
       success: true,
@@ -236,6 +228,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('[nubank/importar] Exceção:', error)
     const msg = error instanceof Error ? error.message : String(error)
+    await registrarLog(`ERRO: ${msg}`)
     return NextResponse.json({ error: 'Erro interno: ' + msg }, { status: 500 })
   }
 }

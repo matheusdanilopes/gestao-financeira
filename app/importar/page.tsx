@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { Upload, CheckCircle2, XCircle, Sparkles, Clock } from 'lucide-react'
+import { Upload, CheckCircle2, XCircle, Sparkles, Clock, AlertCircle } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 
 interface Resumo {
@@ -260,16 +260,29 @@ export default function ImportarPage() {
         ) : (
           <div className="space-y-2">
             {atividades.map(a => {
+              const isErro = a.descricao.startsWith('ERRO:')
+              const descricaoExibida = isErro ? a.descricao.slice(6).trim() : a.descricao
               const data = new Date(a.created_at)
               const dataStr = data.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
               const horaStr = data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
               return (
-                <div key={a.id} className="bg-white rounded-xl px-4 py-3 flex items-start justify-between gap-3">
+                <div
+                  key={a.id}
+                  className={`rounded-xl px-4 py-3 flex items-start gap-3 ${isErro ? 'bg-red-50' : 'bg-white'}`}
+                >
+                  <div className="shrink-0 mt-0.5">
+                    {isErro
+                      ? <AlertCircle className="w-4 h-4 text-red-400" />
+                      : <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    }
+                  </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-800 font-medium truncate">{a.descricao}</p>
+                    <p className={`text-sm font-medium truncate ${isErro ? 'text-red-700' : 'text-gray-800'}`}>
+                      {descricaoExibida}
+                    </p>
                     <p className="text-xs text-gray-400 mt-0.5">{dataStr} · {horaStr}</p>
                   </div>
-                  {a.valor != null && (
+                  {!isErro && a.valor != null && (
                     <span className="text-sm font-semibold text-green-700 whitespace-nowrap">
                       R$ {Number(a.valor).toFixed(2).replace('.', ',')}
                     </span>
