@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
 
       if (insertResult.error) {
         console.error('[import] Erro insert:', JSON.stringify(insertResult.error))
-        void notificarImportacao(supabase, 'erro')
+        await notificarImportacao(supabase, 'erro')
         return NextResponse.json(
           { error: 'Erro ao salvar: ' + insertResult.error.message },
           { status: 500 }
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    void notificarImportacao(supabase, 'sucesso', novas.length)
+    await notificarImportacao(supabase, 'sucesso', novas.length)
 
     return NextResponse.json({
       success: true,
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('[import] Excecao:', error)
     const msg = error instanceof Error ? error.message : String(error)
-    void notificarImportacao(supabase, 'erro')
+    await notificarImportacao(supabase, 'erro')
     return NextResponse.json({ error: 'Erro interno: ' + msg }, { status: 500 })
   }
 }

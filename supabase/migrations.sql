@@ -179,3 +179,7 @@ CREATE POLICY "allow_all_categorization_jobs" ON categorization_jobs
 
 CREATE INDEX IF NOT EXISTS idx_categorization_jobs_started
   ON categorization_jobs(started_at DESC);
+
+-- 13. Garantir unicidade de hash_linha para que o upsert deduplication funcione corretamente
+ALTER TABLE transacoes_nubank
+  ADD CONSTRAINT transacoes_nubank_hash_linha_unique UNIQUE (hash_linha);
