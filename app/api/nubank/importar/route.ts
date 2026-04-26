@@ -57,8 +57,17 @@ async function salvarTransacoes(
   let novosJeniffer = 0
   let totalValor = 0
   const hashesImportados: string[] = []
+  let verdadeiramenteNovas = 0
 
   if (novas.length > 0) {
+    // Descobre quais hashes já existem no banco para calcular o delta real
+    const { data: jaExistentes } = await supabase
+      .from('transacoes_nubank')
+      .select('hash_linha')
+      .in('hash_linha', novas.map(t => t.hash_linha))
+    const hashesExistentes = new Set((jaExistentes ?? []).map(r => r.hash_linha))
+    verdadeiramenteNovas = novas.filter(t => !hashesExistentes.has(t.hash_linha)).length
+
     let insertResult = await supabase
       .from('transacoes_nubank')
       .upsert(novas, { onConflict: 'hash_linha' })
@@ -90,7 +99,7 @@ async function salvarTransacoes(
 
   return {
     totalLidas: transacoes.length,
-    novas: novas.length,
+    novas: verdadeiramenteNovas,
     duplicatasNoArquivo,
     matheus: novosMatheus,
     jeniffer: novosJeniffer,
