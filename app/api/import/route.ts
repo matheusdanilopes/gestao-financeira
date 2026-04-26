@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
 import { processarCSV } from '@/lib/csvparser'
+import { notificarImportacao } from '@/lib/pushImportacao'
 
 export async function POST(req: NextRequest) {
-  try {
-    const supabase = criarSupabaseServer(req)
+  const supabase = criarSupabaseServer(req)
 
+  try {
     const formData = await req.formData()
     const file = formData.get('file') as File
     if (!file) return NextResponse.json({ error: 'Nenhum arquivo' }, { status: 400 })
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest) {
 
       if (insertResult.error) {
         console.error('[import] Erro insert:', JSON.stringify(insertResult.error))
+        void notificarImportacao(supabase, 'erro')
         return NextResponse.json(
           { error: 'Erro ao salvar: ' + insertResult.error.message },
           { status: 500 }
@@ -71,6 +73,8 @@ export async function POST(req: NextRequest) {
         totalValor += t.valor
       }
     }
+
+    void notificarImportacao(supabase, 'sucesso', novas.length)
 
     return NextResponse.json({
       success: true,
@@ -85,6 +89,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('[import] Excecao:', error)
     const msg = error instanceof Error ? error.message : String(error)
+    void notificarImportacao(supabase, 'erro')
     return NextResponse.json({ error: 'Erro interno: ' + msg }, { status: 500 })
   }
 }
