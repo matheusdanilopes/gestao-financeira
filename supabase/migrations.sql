@@ -182,4 +182,4 @@ CREATE INDEX IF NOT EXISTS idx_categorization_jobs_started
 
 -- 13. Garantir unicidade de hash_linha para que o upsert deduplication funcione corretamente
 ALTER TABLE transacoes_nubank
-  ADD CONSTRAINT IF NOT EXISTS transacoes_nubank_hash_linha_unique UNIQUE (hash_linha);
+  ADD CONSTRAINT transacoes_nubank_hash_linha_unique UNIQUE (hash_linha);
