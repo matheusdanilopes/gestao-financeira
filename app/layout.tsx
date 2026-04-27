@@ -9,11 +9,11 @@ export const metadata: Metadata = {
   title: 'Gestão Financeira Familiar',
   description: 'Controle de finanças com Matheus e Jeniffer',
   manifest: '/manifest.json',
-  themeColor: '#000000',
+  themeColor: '#0d8053',
   viewport: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=yes',
   icons: {
     icon: '/icon.svg',
-    apple: '/icon.svg',
+    apple: '/apple-icon',
   },
 }
 
