@@ -2,6 +2,8 @@ import Papa from 'papaparse'
 import { createHash } from 'crypto'
 import { calcularProjetoFatura } from '@/lib/fatura'
 
+type CsvRow = Record<string, string | number | undefined>
+
 export interface TransacaoInputJSON {
   date?: string
   title?: string
@@ -23,6 +25,50 @@ export interface TransacaoNubank {
   total_parcelas: number | null
 }
 
+function normalizarDescricaoParaHash(descricao: string): string {
+  return descricao
+    .normalize('NFKC')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
+
+function parseValorMonetario(valorRaw: number | string | null | undefined): number | null {
+  if (typeof valorRaw === 'number') {
+    return Number.isFinite(valorRaw) && valorRaw > 0 ? valorRaw : null
+  }
+
+  const valorStr = String(valorRaw ?? '')
+    .trim()
+    .replace(/[^\d,.-]/g, '')
+
+  if (!valorStr) return null
+
+  const ultimaVirgula = valorStr.lastIndexOf(',')
+  const ultimoPonto = valorStr.lastIndexOf('.')
+
+  let normalizado = valorStr
+
+  // Se houver ponto e vírgula, usa o último separador como decimal e remove
+  // separadores de milhar do trecho inteiro.
+  if (ultimaVirgula !== -1 && ultimoPonto !== -1) {
+    const idxDecimal = Math.max(ultimaVirgula, ultimoPonto)
+    const parteInteira = valorStr.slice(0, idxDecimal).replace(/[.,]/g, '')
+    const parteDecimal = valorStr.slice(idxDecimal + 1).replace(/[.,]/g, '')
+    normalizado = `${parteInteira}.${parteDecimal}`
+  } else if (ultimaVirgula !== -1) {
+    // Só vírgula: trata como separador decimal.
+    normalizado = valorStr.replace(/\./g, '').replace(',', '.')
+  } else {
+    // Só ponto (ou nenhum): remove possíveis vírgulas residuais.
+    normalizado = valorStr.replace(/,/g, '')
+  }
+
+  const valor = Number(normalizado)
+  if (!Number.isFinite(valor) || valor <= 0) return null
+  return valor
+}
+
 export function processarCSV(
   csvText: string,
   diaVencimento: number = 10,
@@ -40,7 +86,7 @@ export function processarCSV(
       .trim()
   }
 
-  for (const row of result.data as any[]) {
+  for (const row of result.data as CsvRow[]) {
     // Suporte ao formato novo (date, title, amount) e antigo (Data, Descrição, Valor)
     const descricao = sanitizar(row.title || row.descricao || row['Descrição'] || row.Descricao || '')
     const responsavel: 'Matheus' | 'Jeniffer' =
@@ -62,9 +108,8 @@ export function processarCSV(
 
     // Valor: desconsidera valores negativos (estornos/entradas) e zeros
     const valorRaw = row.amount || row.valor || row.Valor || '0'
-    const valorStr = String(valorRaw).replace(',', '.')
-    const valor = parseFloat(valorStr)
-    if (isNaN(valor) || valor <= 0) continue
+    const valor = parseValorMonetario(valorRaw)
+    if (valor === null) continue
 
     // Calcula projeto_fatura com a lógica de ciclo de vencimento
     const dataCompra = new Date(dataISO + 'T12:00:00') // meio-dia para evitar problemas de fuso
@@ -73,7 +118,8 @@ export function processarCSV(
     // Normaliza para 2 casas decimais para garantir hash consistente
     // independente de o valor vir como "150", "150.5" ou "150.00"
     const valorHash = valor.toFixed(2)
-    const hashString = `${dataISO}|${descricao}|${valorHash}`
+    const descricaoHash = normalizarDescricaoParaHash(descricao)
+    const hashString = `${dataISO}|${descricaoHash}|${valorHash}`
     const hash_linha = createHash('sha256').update(hashString).digest('hex')
 
     // Identificação de parcelas no formato X/Y
@@ -132,9 +178,8 @@ export function processarTransacoesJSON(
     }
 
     const valorRaw = row.amount ?? row.valor ?? '0'
-    const valorStr = String(valorRaw).replace(',', '.')
-    const valor = parseFloat(valorStr)
-    if (isNaN(valor) || valor <= 0) continue
+    const valor = parseValorMonetario(valorRaw)
+    if (valor === null) continue
 
     const responsavel: 'Matheus' | 'Jeniffer' =
       descricao.toLowerCase().includes('jeniffer') ? 'Jeniffer' : 'Matheus'
@@ -145,7 +190,8 @@ export function processarTransacoesJSON(
     // Normaliza para 2 casas decimais para garantir hash idêntico ao gerado por processarCSV.
     // O CSV do Nubank sempre exporta 2 casas ("150.00"), então toFixed(2) alinha os dois caminhos.
     const valorHash = valor.toFixed(2)
-    const hashString = `${dataISO}|${descricao}|${valorHash}`
+    const descricaoHash = normalizarDescricaoParaHash(descricao)
+    const hashString = `${dataISO}|${descricaoHash}|${valorHash}`
     const hash_linha = createHash('sha256').update(hashString).digest('hex')
 
     let parcela_atual = null
