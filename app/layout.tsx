@@ -6,7 +6,7 @@ import { CategorizacaoProvider } from '@/components/CategorizacaoProvider'
 import ClientShell from '@/components/ClientShell'
 
 export const viewport: Viewport = {
-  themeColor: '#3b82f6',
+  themeColor: '#0a5a3c',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
