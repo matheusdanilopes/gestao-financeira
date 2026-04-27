@@ -88,12 +88,14 @@ export function processarCSV(
 
   for (const row of result.data as CsvRow[]) {
     // Suporte ao formato novo (date, title, amount) e antigo (Data, Descrição, Valor)
-    const descricao = sanitizar(row.title || row.descricao || row['Descrição'] || row.Descricao || '')
+    const descricao = sanitizar(
+      String(row.title || row.descricao || row['Descrição'] || row.Descricao || '')
+    )
     const responsavel: 'Matheus' | 'Jeniffer' =
       descricao.toLowerCase().includes('jeniffer') ? 'Jeniffer' : 'Matheus'
 
     // Data: formato novo YYYY-MM-DD ou antigo DD/MM/YYYY
-    const dataRaw = row.date || row.data || row.Data || ''
+    const dataRaw = String(row.date || row.data || row.Data || '')
     if (!dataRaw) continue
 
     let dataISO = ''
