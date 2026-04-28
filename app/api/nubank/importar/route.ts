@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createHash } from 'crypto'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
 import {
   processarCSV,
@@ -7,8 +8,14 @@ import {
   TransacaoNubank,
 } from '@/lib/csvparser'
 import { categorizarTransacoes, ResultadoCategorizar } from '@/lib/categorizarTransacoes'
+import { notificarImportacao } from '@/lib/pushImportacao'
 
 export const maxDuration = 300
+
+function hashLegacyPorValorSemFixed(t: Pick<TransacaoNubank, 'data_compra' | 'descricao' | 'valor'>): string {
+  const hashString = `${t.data_compra}|${t.descricao}|${String(t.valor)}`
+  return createHash('sha256').update(hashString).digest('hex')
+}
 
 type AuthResult =
   | { ok: true }
@@ -56,15 +63,33 @@ async function salvarTransacoes(
   let novosJeniffer = 0
   let totalValor = 0
   const hashesImportados: string[] = []
+  let verdadeiramenteNovas = 0
 
   if (novas.length > 0) {
+    const hashesAtuais = novas.map(t => t.hash_linha)
+    const hashesLegado = novas.map(hashLegacyPorValorSemFixed)
+    const hashesParaConsulta = [...new Set([...hashesAtuais, ...hashesLegado])]
+
+    // Descobre quais hashes já existem no banco para calcular o delta real
+    const { data: jaExistentes } = await supabase
+      .from('transacoes_nubank')
+      .select('hash_linha')
+      .in('hash_linha', hashesParaConsulta)
+    const hashesExistentes = new Set((jaExistentes ?? []).map(r => r.hash_linha))
+
+    const novasParaInserir = novas.filter(t => {
+      const hashLegado = hashLegacyPorValorSemFixed(t)
+      return !hashesExistentes.has(t.hash_linha) && !hashesExistentes.has(hashLegado)
+    })
+    verdadeiramenteNovas = novasParaInserir.length
+
     let insertResult = await supabase
       .from('transacoes_nubank')
-      .upsert(novas, { onConflict: 'hash_linha' })
+      .upsert(novasParaInserir, { onConflict: 'hash_linha' })
 
     // Compatibilidade com schema legado (coluna 'data' em vez de 'data_compra')
     if (insertResult.error && insertResult.error.message.includes('data_compra')) {
-      const novasLegado = novas.map(t => {
+      const novasLegado = novasParaInserir.map(t => {
         const { data_compra, ...resto } = t as any
         return { ...resto, data: data_compra }
       })
@@ -77,7 +102,7 @@ async function salvarTransacoes(
       throw new Error('Erro ao salvar transações: ' + insertResult.error.message)
     }
 
-    for (const t of novas) {
+    for (const t of novasParaInserir) {
       if (t.responsavel === 'Matheus') novosMatheus++
       else novosJeniffer++
       totalValor += t.valor
@@ -89,7 +114,7 @@ async function salvarTransacoes(
 
   return {
     totalLidas: transacoes.length,
-    novas: novas.length,
+    novas: verdadeiramenteNovas,
     duplicatasNoArquivo,
     matheus: novosMatheus,
     jeniffer: novosJeniffer,
@@ -137,6 +162,7 @@ export async function POST(req: NextRequest) {
       if (!file) {
         const msg = 'Campo "file" ausente no formulário.'
         await registrarLog(`ERRO: ${msg}`)
+        await notificarImportacao(supabase, 'erro')
         return NextResponse.json({ error: msg }, { status: 400 })
       }
       const csvText = await file.text()
@@ -148,6 +174,7 @@ export async function POST(req: NextRequest) {
       } catch {
         const msg = 'Body inválido: esperado JSON ou multipart/form-data com campo "file".'
         await registrarLog(`ERRO: ${msg}`)
+        await notificarImportacao(supabase, 'erro')
         return NextResponse.json({ error: msg }, { status: 400 })
       }
 
@@ -162,6 +189,7 @@ export async function POST(req: NextRequest) {
       } else {
         const msg = 'Body deve conter "csv" (string com conteúdo CSV) ou "transacoes" (array de objetos).'
         await registrarLog(`ERRO: ${msg}`)
+        await notificarImportacao(supabase, 'erro')
         return NextResponse.json({ error: msg }, { status: 400 })
       }
     }
@@ -169,6 +197,7 @@ export async function POST(req: NextRequest) {
     if (transacoes.length === 0) {
       const msg = 'Nenhuma transação válida encontrada. Verifique o formato e se os valores são positivos.'
       await registrarLog(`ERRO: ${msg}`)
+      await notificarImportacao(supabase, 'erro')
       return NextResponse.json({ success: false, error: msg }, { status: 422 })
     }
 
@@ -220,6 +249,8 @@ export async function POST(req: NextRequest) {
       parseFloat(importacaoPublica.total)
     )
 
+    await notificarImportacao(supabase, 'sucesso', importacaoPublica.novas)
+
     return NextResponse.json({
       success: true,
       importacao: importacaoPublica,
@@ -229,6 +260,7 @@ export async function POST(req: NextRequest) {
     console.error('[nubank/importar] Exceção:', error)
     const msg = error instanceof Error ? error.message : String(error)
     await registrarLog(`ERRO: ${msg}`)
+    await notificarImportacao(supabase, 'erro')
     return NextResponse.json({ error: 'Erro interno: ' + msg }, { status: 500 })
   }
 }

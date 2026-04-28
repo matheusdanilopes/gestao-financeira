@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createHash } from 'crypto'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
 import { processarCSV } from '@/lib/csvparser'
+import { notificarImportacao } from '@/lib/pushImportacao'
+
+function hashLegacyPorValorSemFixed(t: { data_compra: string; descricao: string; valor: number }): string {
+  const hashString = `${t.data_compra}|${t.descricao}|${String(t.valor)}`
+  return createHash('sha256').update(hashString).digest('hex')
+}
 
 export async function POST(req: NextRequest) {
-  try {
-    const supabase = criarSupabaseServer(req)
+  const supabase = criarSupabaseServer(req)
 
+  try {
     const formData = await req.formData()
     const file = formData.get('file') as File
     if (!file) return NextResponse.json({ error: 'Nenhum arquivo' }, { status: 400 })
@@ -40,15 +47,33 @@ export async function POST(req: NextRequest) {
     let novosMatheus = 0
     let novosJeniffer = 0
     let totalValor = 0
+    let verdadeiramenteNovas = 0
 
     if (novas.length > 0) {
+      const hashesAtuais = novas.map(t => t.hash_linha)
+      const hashesLegado = novas.map(hashLegacyPorValorSemFixed)
+      const hashesParaConsulta = [...new Set([...hashesAtuais, ...hashesLegado])]
+
+      // Descobre quais hashes já existem no banco para calcular o delta real
+      const { data: jaExistentes } = await supabase
+        .from('transacoes_nubank')
+        .select('hash_linha')
+        .in('hash_linha', hashesParaConsulta)
+      const hashesExistentes = new Set((jaExistentes ?? []).map(r => r.hash_linha))
+
+      const novasParaInserir = novas.filter(t => {
+        const hashLegado = hashLegacyPorValorSemFixed(t)
+        return !hashesExistentes.has(t.hash_linha) && !hashesExistentes.has(hashLegado)
+      })
+      verdadeiramenteNovas = novasParaInserir.length
+
       let insertResult = await supabase
         .from('transacoes_nubank')
-        .upsert(novas, { onConflict: 'hash_linha' })
+        .upsert(novasParaInserir, { onConflict: 'hash_linha' })
 
       // Compatibilidade com bancos antigos: coluna pode ser 'data' em vez de 'data_compra'.
       if (insertResult.error && insertResult.error.message.includes('data_compra')) {
-        const novasLegado = novas.map((t) => {
+        const novasLegado = novasParaInserir.map((t) => {
           const { data_compra, ...resto } = t as any
           return { ...resto, data: data_compra }
         })
@@ -59,23 +84,26 @@ export async function POST(req: NextRequest) {
 
       if (insertResult.error) {
         console.error('[import] Erro insert:', JSON.stringify(insertResult.error))
+        await notificarImportacao(supabase, 'erro')
         return NextResponse.json(
           { error: 'Erro ao salvar: ' + insertResult.error.message },
           { status: 500 }
         )
       }
 
-      for (const t of novas) {
+      for (const t of novasParaInserir) {
         if (t.responsavel === 'Matheus') novosMatheus++
         else novosJeniffer++
         totalValor += t.valor
       }
     }
 
+    await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas)
+
     return NextResponse.json({
       success: true,
       totalLidas: transacoes.length,
-      novas: novas.length,
+      novas: verdadeiramenteNovas,
       duplicatasNoArquivo,
       matheus: novosMatheus,
       jeniffer: novosJeniffer,
@@ -85,6 +113,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('[import] Excecao:', error)
     const msg = error instanceof Error ? error.message : String(error)
+    await notificarImportacao(supabase, 'erro')
     return NextResponse.json({ error: 'Erro interno: ' + msg }, { status: 500 })
   }
 }
