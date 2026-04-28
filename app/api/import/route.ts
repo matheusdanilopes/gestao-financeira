@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
-import { processarCSV } from '@/lib/csvparser'
+import { gerarHashLinhaLegado, processarCSV } from '@/lib/csvparser'
+import { notificarImportacao } from '@/lib/pushImportacao'
+
+function chaveCanonica(t: { data_compra: string; descricao: string; valor: number }): string {
+  return `${t.data_compra}|${t.descricao}|${t.valor.toFixed(2)}`
+}
 
 export async function POST(req: NextRequest) {
-  try {
-    const supabase = criarSupabaseServer(req)
+  const supabase = criarSupabaseServer(req)
 
+  try {
     const formData = await req.formData()
     const file = formData.get('file') as File
     if (!file) return NextResponse.json({ error: 'Nenhum arquivo' }, { status: 400 })
@@ -40,15 +45,55 @@ export async function POST(req: NextRequest) {
     let novosMatheus = 0
     let novosJeniffer = 0
     let totalValor = 0
+    let verdadeiramenteNovas = 0
 
     if (novas.length > 0) {
+      const hashesAtuais = novas.map(t => t.hash_linha)
+      const hashesLegado = novas.map(t => gerarHashLinhaLegado(t.data_compra, t.descricao, t.valor))
+      const hashesParaConsulta = [...new Set([...hashesAtuais, ...hashesLegado])]
+      const mesesParaConsulta = [...new Set(novas.map(t => t.projeto_fatura))]
+
+      // Descobre quais hashes já existem no banco para calcular o delta real
+      const { data: jaExistentes } = await supabase
+        .from('transacoes_nubank')
+        .select('hash_linha')
+        .in('hash_linha', hashesParaConsulta)
+      const hashesExistentes = new Set((jaExistentes ?? []).map(r => r.hash_linha))
+
+      // Backstop adicional: dedupe por chave canônica (data + descrição + valor com 2 casas),
+      // protegendo contra quaisquer variações históricas de hash_linha.
+      const { data: existentesCanonicos } = await supabase
+        .from('transacoes_nubank')
+        .select('data_compra, descricao, valor')
+        .in('projeto_fatura', mesesParaConsulta)
+      const chavesCanonicasExistentes = new Set(
+        (existentesCanonicos ?? []).map((r: any) =>
+          chaveCanonica({
+            data_compra: String(r.data_compra ?? ''),
+            descricao: String(r.descricao ?? ''),
+            valor: Number(r.valor ?? 0),
+          })
+        )
+      )
+
+      const novasParaInserir = novas.filter(t => {
+        const hashLegado = gerarHashLinhaLegado(t.data_compra, t.descricao, t.valor)
+        const canonica = chaveCanonica(t)
+        return (
+          !hashesExistentes.has(t.hash_linha) &&
+          !hashesExistentes.has(hashLegado) &&
+          !chavesCanonicasExistentes.has(canonica)
+        )
+      })
+      verdadeiramenteNovas = novasParaInserir.length
+
       let insertResult = await supabase
         .from('transacoes_nubank')
-        .upsert(novas, { onConflict: 'hash_linha' })
+        .upsert(novasParaInserir, { onConflict: 'hash_linha' })
 
       // Compatibilidade com bancos antigos: coluna pode ser 'data' em vez de 'data_compra'.
       if (insertResult.error && insertResult.error.message.includes('data_compra')) {
-        const novasLegado = novas.map((t) => {
+        const novasLegado = novasParaInserir.map((t) => {
           const { data_compra, ...resto } = t as any
           return { ...resto, data: data_compra }
         })
@@ -59,23 +104,26 @@ export async function POST(req: NextRequest) {
 
       if (insertResult.error) {
         console.error('[import] Erro insert:', JSON.stringify(insertResult.error))
+        await notificarImportacao(supabase, 'erro')
         return NextResponse.json(
           { error: 'Erro ao salvar: ' + insertResult.error.message },
           { status: 500 }
         )
       }
 
-      for (const t of novas) {
+      for (const t of novasParaInserir) {
         if (t.responsavel === 'Matheus') novosMatheus++
         else novosJeniffer++
         totalValor += t.valor
       }
     }
 
+    await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas)
+
     return NextResponse.json({
       success: true,
       totalLidas: transacoes.length,
-      novas: novas.length,
+      novas: verdadeiramenteNovas,
       duplicatasNoArquivo,
       matheus: novosMatheus,
       jeniffer: novosJeniffer,
@@ -85,6 +133,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('[import] Excecao:', error)
     const msg = error instanceof Error ? error.message : String(error)
+    await notificarImportacao(supabase, 'erro')
     return NextResponse.json({ error: 'Erro interno: ' + msg }, { status: 500 })
   }
 }
