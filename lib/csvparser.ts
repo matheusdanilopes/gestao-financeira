@@ -92,6 +92,12 @@ export function gerarHashLinhaLegado(dataISO: string, descricao: string, valor: 
   return createHash('sha256').update(hashString).digest('hex')
 }
 
+// Gen2: usada entre a adição de toFixed(2) e a adição de normalização de descrição
+export function gerarHashLinhaLegadoV2(dataISO: string, descricao: string, valor: number): string {
+  const hashString = `${dataISO}|${descricao}|${valor.toFixed(2)}`
+  return createHash('sha256').update(hashString).digest('hex')
+}
+
 export function processarCSV(
   csvText: string,
   diaVencimento: number = 10,

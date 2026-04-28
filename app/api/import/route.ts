@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
-import { gerarHashLinhaLegado, processarCSV } from '@/lib/csvparser'
+import { gerarHashLinhaLegado, gerarHashLinhaLegadoV2, processarCSV } from '@/lib/csvparser'
 import { notificarImportacao } from '@/lib/pushImportacao'
 
+function normalizarDesc(descricao: string): string {
+  return descricao.normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
 function chaveCanonica(t: { data_compra: string; descricao: string; valor: number }): string {
-  return `${t.data_compra}|${t.descricao}|${t.valor.toFixed(2)}`
+  return `${t.data_compra}|${normalizarDesc(t.descricao)}|${t.valor.toFixed(2)}`
 }
 
 export async function POST(req: NextRequest) {
@@ -50,7 +54,8 @@ export async function POST(req: NextRequest) {
     if (novas.length > 0) {
       const hashesAtuais = novas.map(t => t.hash_linha)
       const hashesLegado = novas.map(t => gerarHashLinhaLegado(t.data_compra, t.descricao, t.valor))
-      const hashesParaConsulta = [...new Set([...hashesAtuais, ...hashesLegado])]
+      const hashesLegadoV2 = novas.map(t => gerarHashLinhaLegadoV2(t.data_compra, t.descricao, t.valor))
+      const hashesParaConsulta = [...new Set([...hashesAtuais, ...hashesLegado, ...hashesLegadoV2])]
       const mesesParaConsulta = [...new Set(novas.map(t => t.projeto_fatura))]
 
       // Descobre quais hashes já existem no banco para calcular o delta real
@@ -78,10 +83,12 @@ export async function POST(req: NextRequest) {
 
       const novasParaInserir = novas.filter(t => {
         const hashLegado = gerarHashLinhaLegado(t.data_compra, t.descricao, t.valor)
+        const hashLegadoV2 = gerarHashLinhaLegadoV2(t.data_compra, t.descricao, t.valor)
         const canonica = chaveCanonica(t)
         return (
           !hashesExistentes.has(t.hash_linha) &&
           !hashesExistentes.has(hashLegado) &&
+          !hashesExistentes.has(hashLegadoV2) &&
           !chavesCanonicasExistentes.has(canonica)
         )
       })

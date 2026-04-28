@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
 import {
   gerarHashLinhaLegado,
+  gerarHashLinhaLegadoV2,
   processarCSV,
   processarTransacoesJSON,
   TransacaoInputJSON,
@@ -12,8 +13,12 @@ import { notificarImportacao } from '@/lib/pushImportacao'
 
 export const maxDuration = 300
 
+function normalizarDesc(descricao: string): string {
+  return descricao.normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
 function chaveCanonica(t: Pick<TransacaoNubank, 'data_compra' | 'descricao' | 'valor'>): string {
-  return `${t.data_compra}|${t.descricao}|${t.valor.toFixed(2)}`
+  return `${t.data_compra}|${normalizarDesc(t.descricao)}|${t.valor.toFixed(2)}`
 }
 
 type AuthResult =
@@ -67,7 +72,8 @@ async function salvarTransacoes(
   if (novas.length > 0) {
     const hashesAtuais = novas.map(t => t.hash_linha)
     const hashesLegado = novas.map(t => gerarHashLinhaLegado(t.data_compra, t.descricao, t.valor))
-    const hashesParaConsulta = [...new Set([...hashesAtuais, ...hashesLegado])]
+    const hashesLegadoV2 = novas.map(t => gerarHashLinhaLegadoV2(t.data_compra, t.descricao, t.valor))
+    const hashesParaConsulta = [...new Set([...hashesAtuais, ...hashesLegado, ...hashesLegadoV2])]
     const mesesParaConsulta = [...new Set(novas.map(t => t.projeto_fatura))]
 
     // Descobre quais hashes já existem no banco para calcular o delta real
@@ -95,10 +101,12 @@ async function salvarTransacoes(
 
     const novasParaInserir = novas.filter(t => {
       const hashLegado = gerarHashLinhaLegado(t.data_compra, t.descricao, t.valor)
+      const hashLegadoV2 = gerarHashLinhaLegadoV2(t.data_compra, t.descricao, t.valor)
       const canonica = chaveCanonica(t)
       return (
         !hashesExistentes.has(t.hash_linha) &&
         !hashesExistentes.has(hashLegado) &&
+        !hashesExistentes.has(hashLegadoV2) &&
         !chavesCanonicasExistentes.has(canonica)
       )
     })
