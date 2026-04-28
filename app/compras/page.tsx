@@ -265,7 +265,7 @@ export default function ComprasPage() {
     <div className="min-h-screen bg-gray-50 p-4 pb-24">
 
       {toast && (
-        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl text-sm font-medium shadow-lg ${
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-2xl text-sm font-medium shadow-float transition-all ${
           toast.tipo === 'ok' ? 'bg-green-600 text-white' : 'bg-red-500 text-white'
         }`}>
           {toast.msg}
@@ -276,34 +276,34 @@ export default function ComprasPage() {
         <h1 className="text-2xl font-bold mb-3">Compras do Cartão</h1>
 
         {/* Navegação de mês */}
-        <div className="flex items-center justify-between bg-white rounded-2xl shadow-sm border border-gray-100 p-3">
-        <button
-          onClick={() => setMesAtual(subMonths(mesGlobal, 1))}
-          className="p-2 hover:bg-gray-100 rounded-full transition"
-        >
-          <ChevronLeft className="w-5 h-5 text-gray-500" />
-        </button>
-        <div className="text-center flex-1">
-          <span className="text-lg font-semibold capitalize">
-            {format(mesAtual, 'MMMM yyyy', { locale: ptBR })}
-          </span>
-          {!isMesAtual && (
-            <div>
-              <button
-                onClick={() => setMesAtual(new Date())}
-                className="text-xs text-blue-500 hover:underline"
-              >
-                Voltar ao mês atual
-              </button>
-            </div>
-          )}
-        </div>
-        <button
-          onClick={() => setMesAtual(addMonths(mesGlobal, 1))}
-          className="p-2 hover:bg-gray-100 rounded-full transition"
-        >
-          <ChevronRight className="w-5 h-5 text-gray-500" />
-        </button>
+        <div className="flex items-center justify-between bg-white rounded-2xl shadow-card border border-gray-100 p-3">
+          <button
+            onClick={() => setMesAtual(subMonths(mesGlobal, 1))}
+            className="p-2 hover:bg-gray-100 rounded-xl transition-colors active:scale-95"
+          >
+            <ChevronLeft className="w-5 h-5 text-gray-500" />
+          </button>
+          <div className="text-center flex-1">
+            <span className="text-lg font-semibold capitalize">
+              {format(mesAtual, 'MMMM yyyy', { locale: ptBR })}
+            </span>
+            {!isMesAtual && (
+              <div>
+                <button
+                  onClick={() => setMesAtual(new Date())}
+                  className="text-xs text-primary-600 hover:underline"
+                >
+                  Voltar ao mês atual
+                </button>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => setMesAtual(addMonths(mesGlobal, 1))}
+            className="p-2 hover:bg-gray-100 rounded-xl transition-colors active:scale-95"
+          >
+            <ChevronRight className="w-5 h-5 text-gray-500" />
+          </button>
         </div>
       </div>
 
@@ -313,16 +313,16 @@ export default function ComprasPage() {
           const label = r === '' ? 'Todos' : r
           const isActive = filtroResponsavel === r
           const activeStyle = r === 'Matheus'
-            ? 'bg-blue-600 text-white'
+            ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-300 ring-offset-1'
             : r === 'Jeniffer'
-              ? 'bg-pink-500 text-white'
-              : 'bg-gray-800 text-white'
+              ? 'bg-pink-500 text-white shadow-sm ring-2 ring-pink-300 ring-offset-1'
+              : 'bg-primary-600 text-white shadow-sm ring-2 ring-primary-300 ring-offset-1'
           return (
             <button
               key={r}
               onClick={() => setFiltroResponsavel(r)}
-              className={`flex-1 py-2 rounded-xl text-sm font-semibold transition ${
-                isActive ? activeStyle : 'bg-white border border-gray-200 text-gray-500'
+              className={`flex-1 py-2 rounded-2xl text-sm font-semibold transition-all duration-200 active:scale-[0.97] ${
+                isActive ? activeStyle : 'bg-white border border-gray-200 text-gray-500 hover:bg-gray-50'
               }`}
             >
               {label}
@@ -332,16 +332,16 @@ export default function ComprasPage() {
       </div>
 
       {/* Filtros secundários */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 mb-3 grid grid-cols-2 gap-2">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-3 mb-3 grid grid-cols-2 gap-2">
         <input
           type="text"
-          className="bg-gray-50 rounded-lg p-2 text-sm col-span-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          className="bg-gray-50 rounded-xl p-2 text-sm col-span-2 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
           placeholder="Buscar por descrição…"
           value={filtroDescricao}
           onChange={(e) => setFiltroDescricao(e.target.value)}
         />
         <select
-          className="bg-gray-50 rounded-lg p-2 text-sm col-span-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          className="bg-gray-50 rounded-xl p-2 text-sm col-span-2 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
           value={filtroCategoria}
           onChange={(e) => setFiltroCategoria(e.target.value)}
         >
@@ -353,7 +353,7 @@ export default function ComprasPage() {
         <input
           type="text"
           inputMode="decimal"
-          className="bg-gray-50 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+          className="bg-gray-50 rounded-xl p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
           placeholder="Valor mínimo"
           value={filtroValorMin}
           onChange={(e) => setFiltroValorMin(numericOnly(e.target.value))}
@@ -362,13 +362,13 @@ export default function ComprasPage() {
           type="number"
           min="1"
           max="31"
-          className="bg-gray-50 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+          className="bg-gray-50 rounded-xl p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
           placeholder="Dia"
           value={filtroDia}
           onChange={(e) => setFiltroDia(e.target.value)}
         />
         {filtrosAtivos && (
-          <button onClick={limparFiltros} className="col-span-2 text-sm text-red-500 hover:text-red-700 py-1 font-medium">
+          <button onClick={limparFiltros} className="col-span-2 text-sm text-red-500 hover:text-red-700 py-1 font-medium transition-colors">
             Limpar filtros
           </button>
         )}
@@ -376,17 +376,17 @@ export default function ComprasPage() {
 
       {/* Resumo */}
       <div className="grid grid-cols-3 gap-2 mb-4">
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center">
-          <p className="text-[11px] text-gray-400 mb-0.5">Total</p>
-          <p className="text-base font-bold text-gray-800">R$ {total.toFixed(2)}</p>
-          <p className="text-[10px] text-gray-400">{comprasFiltradas.length} compras</p>
+        <div className="bg-gradient-to-br from-primary-50 to-white rounded-2xl border border-primary-100 shadow-card p-3 text-center">
+          <p className="text-[11px] text-primary-500 mb-0.5">Total</p>
+          <p className="text-base font-bold text-primary-700">R$ {total.toFixed(2)}</p>
+          <p className="text-[10px] text-primary-400">{comprasFiltradas.length} compras</p>
         </div>
-        <div className="bg-blue-50 rounded-xl border border-blue-100 p-3 text-center">
+        <div className="bg-blue-50 rounded-2xl border border-blue-100 p-3 text-center shadow-card">
           <p className="text-[11px] text-blue-400 mb-0.5">Matheus</p>
           <p className="text-base font-bold text-blue-700">R$ {totalMatheus.toFixed(2)}</p>
           <p className="text-[10px] text-blue-400">{comprasFiltradas.filter(c => c.responsavel === 'Matheus').length}x</p>
         </div>
-        <div className="bg-pink-50 rounded-xl border border-pink-100 p-3 text-center">
+        <div className="bg-pink-50 rounded-2xl border border-pink-100 p-3 text-center shadow-card">
           <p className="text-[11px] text-pink-400 mb-0.5">Jeniffer</p>
           <p className="text-base font-bold text-pink-600">R$ {totalJeniffer.toFixed(2)}</p>
           <p className="text-[10px] text-pink-400">{comprasFiltradas.filter(c => c.responsavel === 'Jeniffer').length}x</p>
@@ -395,7 +395,7 @@ export default function ComprasPage() {
 
       {/* Banner de fatura fechada */}
       {faturaFechada && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 flex items-center gap-2">
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 mb-3 flex items-center gap-2">
           <Lock className="w-4 h-4 text-amber-600 shrink-0" />
           <p className="text-sm text-amber-700 font-medium">Fatura paga — inclusão de novas compras bloqueada</p>
         </div>
@@ -403,20 +403,20 @@ export default function ComprasPage() {
 
       {/* Lista agrupada por data */}
       {loading ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y">
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-card divide-y">
           {[1, 2, 3, 4, 5].map(i => (
             <div key={i} className="p-4 flex items-center gap-3 animate-pulse">
               <div className="w-7 h-7 rounded-full bg-gray-200 shrink-0" />
               <div className="flex-1 space-y-2">
-                <div className="h-3 bg-gray-200 rounded w-3/4" />
-                <div className="h-2.5 bg-gray-100 rounded w-1/2" />
+                <div className="h-3 bg-gray-200 rounded-xl w-3/4" />
+                <div className="h-2.5 bg-gray-100 rounded-xl w-1/2" />
               </div>
-              <div className="h-4 bg-gray-200 rounded w-16" />
+              <div className="h-4 bg-gray-200 rounded-xl w-16" />
             </div>
           ))}
         </div>
       ) : grupos.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-14 flex flex-col items-center justify-center gap-3">
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-card py-14 flex flex-col items-center justify-center gap-3">
           <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center">
             <ShoppingBag className="w-7 h-7 text-gray-300" />
           </div>
@@ -427,8 +427,8 @@ export default function ComprasPage() {
           {grupos.map(([dateKey, items]) => {
             const subtotal = items.reduce((acc, c) => acc + c.valor, 0)
             return (
-              <div key={dateKey} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+              <div key={dateKey} className="bg-white rounded-3xl border border-gray-100 shadow-card overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-gray-50 to-transparent border-b border-gray-100">
                   <span className="text-xs font-semibold text-gray-500 capitalize">
                     {formatarCabecalhoData(dateKey)}
                   </span>
@@ -443,7 +443,7 @@ export default function ComprasPage() {
                     return (
                       <div
                         key={c.hash_linha}
-                        className={`px-3 py-3.5 flex items-center gap-3 ${
+                        className={`px-3 py-3.5 flex items-center gap-3 transition-colors active:bg-gray-50/80 ${
                           c.responsavel === 'Matheus'
                             ? 'border-l-4 border-l-blue-400'
                             : c.responsavel === 'Jeniffer'
@@ -475,14 +475,14 @@ export default function ComprasPage() {
                           <div className="flex items-center gap-0.5 shrink-0">
                             <button
                               onClick={() => abrirEditar(c)}
-                              className="p-2 rounded-xl text-blue-400 hover:bg-blue-50 active:bg-blue-100 transition"
+                              className="p-2 rounded-xl text-primary-500 hover:bg-primary-50 active:bg-primary-100 transition-colors"
                               aria-label="Editar"
                             >
                               <Pencil className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => setModalExcluir(c)}
-                              className="p-2 rounded-xl text-red-400 hover:bg-red-50 active:bg-red-100 transition"
+                              className="p-2 rounded-xl text-red-400 hover:bg-red-50 active:bg-red-100 transition-colors"
                               aria-label="Excluir"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -501,11 +501,11 @@ export default function ComprasPage() {
 
       {/* Modal: editar compra */}
       {modalEditar && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4 modal-overlay">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm p-6 shadow-float modal-sheet sm:modal-center">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-bold">Editar Compra</h3>
-              <button onClick={() => setModalEditar(null)} className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 transition">
+              <button onClick={() => setModalEditar(null)} className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 transition-all hover:rotate-90 duration-200">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -515,7 +515,7 @@ export default function ComprasPage() {
                 <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Descrição</label>
                 <input
                   type="text"
-                  className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  className="w-full border border-gray-200 rounded-2xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
                   value={formEditar.descricao}
                   onChange={(e) => setFormEditar(f => ({ ...f, descricao: e.target.value }))}
                 />
@@ -525,7 +525,7 @@ export default function ComprasPage() {
                 <input
                   type="text"
                   inputMode="decimal"
-                  className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  className="w-full border border-gray-200 rounded-2xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
                   placeholder="0,00"
                   value={formEditar.valor}
                   onChange={(e) => setFormEditar(f => ({ ...f, valor: numericOnly(e.target.value) }))}
@@ -539,11 +539,11 @@ export default function ComprasPage() {
                       key={r}
                       type="button"
                       onClick={() => setFormEditar(f => ({ ...f, responsavel: r }))}
-                      className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition border ${
+                      className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all active:scale-[0.97] border ${
                         formEditar.responsavel === r
                           ? r === 'Matheus'
-                            ? 'bg-blue-600 text-white border-blue-600'
-                            : 'bg-pink-500 text-white border-pink-500'
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                            : 'bg-pink-500 text-white border-pink-500 shadow-sm'
                           : 'bg-white text-gray-500 border-gray-200'
                       }`}
                     >
@@ -555,7 +555,7 @@ export default function ComprasPage() {
               <div>
                 <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Categoria</label>
                 <select
-                  className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                  className="w-full border border-gray-200 rounded-2xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow bg-white"
                   value={formEditar.categoria}
                   onChange={(e) => setFormEditar(f => ({ ...f, categoria: e.target.value }))}
                 >
@@ -569,7 +569,7 @@ export default function ComprasPage() {
                 <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Data da compra</label>
                 <input
                   type="date"
-                  className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  className="w-full border border-gray-200 rounded-2xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
                   value={formEditar.data_compra}
                   onChange={(e) => setFormEditar(f => ({ ...f, data_compra: e.target.value }))}
                 />
@@ -579,14 +579,14 @@ export default function ComprasPage() {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setModalEditar(null)}
-                className="flex-1 py-3 rounded-xl bg-gray-100 font-semibold text-gray-600 hover:bg-gray-200 transition"
+                className="flex-1 py-3 rounded-2xl bg-gray-100 font-semibold text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]"
               >
                 Cancelar
               </button>
               <button
                 onClick={salvarEdicao}
                 disabled={salvando}
-                className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-50 transition"
+                className="flex-1 py-3 rounded-2xl bg-primary-600 text-white font-semibold hover:bg-primary-700 disabled:opacity-50 transition-all active:scale-[0.97] shadow-sm"
               >
                 {salvando ? 'Salvando…' : 'Salvar'}
               </button>
@@ -597,8 +597,8 @@ export default function ComprasPage() {
 
       {/* Modal: excluir compra */}
       {modalExcluir && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4 modal-overlay">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm p-6 shadow-float modal-sheet sm:modal-center">
             <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
               <Trash2 className="w-6 h-6 text-red-500" />
             </div>
@@ -612,14 +612,14 @@ export default function ComprasPage() {
             <div className="flex gap-3">
               <button
                 onClick={() => setModalExcluir(null)}
-                className="flex-1 py-3 rounded-xl bg-gray-100 font-semibold text-gray-600 hover:bg-gray-200 transition"
+                className="flex-1 py-3 rounded-2xl bg-gray-100 font-semibold text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]"
               >
                 Cancelar
               </button>
               <button
                 onClick={confirmarExclusao}
                 disabled={salvando}
-                className="flex-1 py-3 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 disabled:opacity-50 transition"
+                className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-semibold hover:bg-red-600 disabled:opacity-50 transition-all active:scale-[0.97] shadow-sm"
               >
                 {salvando ? 'Excluindo…' : 'Excluir'}
               </button>

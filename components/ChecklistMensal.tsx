@@ -370,23 +370,23 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       )}
 
       {/* Resumo */}
-      <div className="bg-white rounded-2xl shadow p-4">
+      <div className="bg-white rounded-3xl shadow-card p-4">
         <div className="grid grid-cols-3 gap-2 mb-3">
-          <div className="bg-gray-50 rounded-xl p-2.5 text-center">
+          <div className="bg-gray-50 rounded-2xl p-2.5 text-center border border-gray-100">
             <p className="text-[11px] text-gray-500 mb-0.5">Previsto</p>
             <p className="text-xs font-bold text-gray-800 break-all leading-tight">{formatarMoeda(totalPrevisto)}</p>
           </div>
-          <div className="bg-blue-50 rounded-xl p-2.5 text-center">
-            <p className="text-[11px] text-gray-500 mb-0.5">Pago</p>
-            <p className="text-xs font-bold text-blue-700 break-all leading-tight">{formatarMoeda(totalPago)}</p>
+          <div className="bg-primary-50 rounded-2xl p-2.5 text-center border border-primary-100">
+            <p className="text-[11px] text-primary-500 mb-0.5">Pago</p>
+            <p className="text-xs font-bold text-primary-700 break-all leading-tight">{formatarMoeda(totalPago)}</p>
           </div>
           {totalPendente <= 0.009 ? (
-            <div className="bg-green-50 rounded-xl p-2.5 text-center">
+            <div className="bg-green-50 rounded-2xl p-2.5 text-center border border-green-100">
               <p className="text-[11px] text-green-600 mb-0.5">A pagar</p>
               <p className="text-xs font-bold text-green-600 leading-tight">Quitado ✓</p>
             </div>
           ) : (
-            <div className="bg-red-50 rounded-xl p-2.5 text-center">
+            <div className="bg-red-50 rounded-2xl p-2.5 text-center border border-red-100">
               <p className="text-[11px] text-red-500 mb-0.5">A pagar</p>
               <p className="text-xs font-bold text-red-600 break-all leading-tight">{formatarMoeda(totalPendente)}</p>
             </div>
@@ -395,11 +395,11 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
         <div>
           <div className="flex justify-between text-xs text-gray-500 mb-1">
             <span>{itensPagos}/{itens.length} itens pagos</span>
-            <span className="font-semibold text-blue-700">{percentualPago.toFixed(0)}%</span>
+            <span className="font-semibold text-primary-700">{percentualPago.toFixed(0)}%</span>
           </div>
           <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
             <div
-              className="h-2 rounded-full bg-blue-500 transition-all duration-700"
+              className="h-2 rounded-full bg-gradient-to-r from-primary-500 to-primary-600 transition-all duration-700"
               style={{ width: `${percentualPago}%` }}
             />
           </div>
@@ -413,20 +413,20 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
             setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', tipo_cartao: '', valor_previsto: '' })
             setModalAberto('adicionar')
           }}
-          className="flex-1 bg-green-600 text-white py-2.5 rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-green-700 transition"
+          className="flex-1 bg-green-600 text-white py-2.5 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-green-700 transition shadow-sm active:scale-[0.97]"
         >
           <Plus className="w-4 h-4" /> Adicionar
         </button>
         <button
           onClick={abrirModalImportar}
-          className="flex-1 bg-orange-500 text-white py-2.5 rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-orange-600 transition"
+          className="flex-1 bg-orange-500 text-white py-2.5 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-orange-600 transition shadow-sm active:scale-[0.97]"
         >
           <Download className="w-4 h-4" /> Mês anterior
         </button>
         <button
           onClick={() => setApenasPendentes(!apenasPendentes)}
-          className={`px-3 py-2.5 rounded-xl transition flex items-center gap-1.5 font-semibold text-sm ${
-            apenasPendentes ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          className={`px-3 py-2.5 rounded-2xl transition flex items-center gap-1.5 font-semibold text-sm active:scale-[0.97] ${
+            apenasPendentes ? 'bg-primary-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
           }`}
           title={apenasPendentes ? 'Mostrar todos' : 'Só pendentes'}
         >
@@ -437,7 +437,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
 
       {/* Lista agrupada por categoria */}
       {itens.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow py-12 flex flex-col items-center gap-2 text-gray-300">
+        <div className="bg-white rounded-3xl shadow-card py-12 flex flex-col items-center gap-2 text-gray-300">
           <CheckCircle2 className="w-10 h-10" />
           <p className="text-sm">Nenhum item encontrado</p>
         </div>
@@ -447,7 +447,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
             const subtotalGrupo = grupoItens.reduce((acc, i) => acc + i.valor_previsto, 0)
             const pendentesGrupo = grupoItens.filter(i => !i.pago).length
             return (
-              <div key={categoria} className="bg-white rounded-2xl shadow overflow-hidden">
+              <div key={categoria} className="bg-white rounded-3xl shadow-card overflow-hidden">
                 {/* Cabeçalho do grupo */}
                 <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
                   <div className="flex items-center gap-2">
@@ -513,7 +513,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
                             {!item.pago ? (
                               <button
                                 onClick={() => abrirModalPagamento(item)}
-                                className="p-1.5 rounded-lg text-green-600 hover:bg-green-100 transition"
+                                className="p-1.5 rounded-xl text-green-600 hover:bg-green-100 active:bg-green-200 transition"
                               >
                                 <CheckCircle2 className="w-5 h-5" />
                               </button>
@@ -528,13 +528,13 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
                             )}
                             <button
                               onClick={() => abrirModalEditar(item)}
-                              className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 transition"
+                              className="p-1.5 rounded-xl text-primary-500 hover:bg-primary-50 active:bg-primary-100 transition"
                             >
                               <Pencil className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => { setItemSelecionado(item); setModalAberto('excluir') }}
-                              className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition"
+                              className="p-1.5 rounded-xl text-red-400 hover:bg-red-50 active:bg-red-100 transition"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -559,82 +559,82 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       )}
 
       {modalAberto === 'pagar' && itemSelecionado && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4 modal-overlay">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm p-6 shadow-float modal-sheet sm:modal-center">
             <h3 className="text-lg font-bold mb-1">Registrar Pagamento</h3>
             <p className="text-sm text-gray-500 mb-4">{removerPrefixoCartao(itemSelecionado.item)}</p>
-            <label className="text-xs font-medium text-gray-600 mb-1 block">Valor pago (R$)</label>
+            <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Valor pago (R$)</label>
             <input
               type="text"
               inputMode="decimal"
               placeholder={`Previsto: ${formatarMoeda(itemSelecionado.valor_previsto)}`}
               value={valorReal}
               onChange={(e) => setValorReal(numericOnly(e.target.value))}
-              className="w-full border border-gray-200 rounded-xl p-3 text-lg font-semibold mb-5 focus:outline-none focus:ring-2 focus:ring-green-400"
+              className="w-full border border-gray-200 rounded-2xl p-3 text-lg font-semibold mb-5 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
               autoFocus
             />
             <div className="flex gap-3">
-              <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600">Cancelar</button>
-              <button onClick={() => marcarComoPago(itemSelecionado.id)} className="flex-1 py-3 rounded-xl bg-green-600 text-white font-semibold">Confirmar</button>
+              <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-2xl bg-gray-100 font-semibold text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]">Cancelar</button>
+              <button onClick={() => marcarComoPago(itemSelecionado.id)} className="flex-1 py-3 rounded-2xl bg-green-600 text-white font-semibold hover:bg-green-700 transition-all active:scale-[0.97] shadow-sm">Confirmar</button>
             </div>
           </div>
         </div>
       )}
 
       {(modalAberto === 'adicionar' || modalAberto === 'editar') && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4 modal-overlay">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm p-6 shadow-float modal-sheet sm:modal-center">
             <h3 className="text-lg font-bold mb-5">{modalAberto === 'adicionar' ? 'Novo Item' : 'Editar Item'}</h3>
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Descrição</label>
-                <input type="text" value={formData.item} onChange={(e) => setFormData({ ...formData, item: e.target.value })} className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Descrição</label>
+                <input type="text" value={formData.item} onChange={(e) => setFormData({ ...formData, item: e.target.value })} className="w-full border border-gray-200 rounded-2xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow" />
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Responsável</label>
-                <select value={formData.responsavel} onChange={(e) => setFormData({ ...formData, responsavel: e.target.value })} className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Responsável</label>
+                <select value={formData.responsavel} onChange={(e) => setFormData({ ...formData, responsavel: e.target.value })} className="w-full border border-gray-200 rounded-2xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow bg-white">
                   <option value="Matheus">Matheus</option>
                   <option value="Jeniffer">Jeniffer</option>
                 </select>
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Categoria</label>
-                <select value={formData.categoria} onChange={(e) => setFormData({ ...formData, categoria: e.target.value })} className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Categoria</label>
+                <select value={formData.categoria} onChange={(e) => setFormData({ ...formData, categoria: e.target.value })} className="w-full border border-gray-200 rounded-2xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow bg-white">
                   {CATEGORIAS_PLANEJAMENTO.map(cat => (
                     <option key={cat} value={cat}>{cat}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Cartão</label>
-                <select value={formData.tipo_cartao} onChange={(e) => setFormData({ ...formData, tipo_cartao: e.target.value as '' | 'cartao1' | 'cartao2' })} className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Cartão</label>
+                <select value={formData.tipo_cartao} onChange={(e) => setFormData({ ...formData, tipo_cartao: e.target.value as '' | 'cartao1' | 'cartao2' })} className="w-full border border-gray-200 rounded-2xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow bg-white">
                   <option value="">Nenhum</option>
                   <option value="cartao1">Cartão 1</option>
                   <option value="cartao2">Cartão 2</option>
                 </select>
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Valor previsto (R$)</label>
-                <input type="text" inputMode="decimal" value={formData.valor_previsto} onChange={(e) => setFormData({ ...formData, valor_previsto: numericOnly(e.target.value) })} className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-400" placeholder="0,00" />
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Valor previsto (R$)</label>
+                <input type="text" inputMode="decimal" value={formData.valor_previsto} onChange={(e) => setFormData({ ...formData, valor_previsto: numericOnly(e.target.value) })} className="w-full border border-gray-200 rounded-2xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow" placeholder="0,00" />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600">Cancelar</button>
-              <button onClick={modalAberto === 'adicionar' ? adicionarItem : editarItem} className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-semibold">Salvar</button>
+              <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-2xl bg-gray-100 font-semibold text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]">Cancelar</button>
+              <button onClick={modalAberto === 'adicionar' ? adicionarItem : editarItem} className="flex-1 py-3 rounded-2xl bg-primary-600 text-white font-semibold hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm">Salvar</button>
             </div>
           </div>
         </div>
       )}
 
       {modalAberto === 'importar' && previewImport && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-sm w-full p-6 max-h-[80vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 modal-overlay">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 max-h-[80vh] flex flex-col shadow-float">
             <h3 className="text-lg font-bold mb-1">Importar do mês anterior</h3>
             <p className="text-sm text-gray-500 mb-3">
               Origem: <span className="font-semibold capitalize">{previewImport.mesOrigem}</span>
             </p>
 
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3 text-xs text-amber-800 space-y-1">
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 mb-3 text-xs text-amber-800 space-y-1">
               <p className="font-semibold">⚠️ Atenção — esta ação irá:</p>
               <p>• Apagar todos os itens de despesa do mês atual</p>
               <p>• Copiar {previewImport.itens.length} item(ns) do mês anterior</p>
@@ -648,7 +648,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
                   ? ` (${i.parcela_atual + 1}/${i.total_parcelas})`
                   : ''
                 return (
-                  <div key={idx} className="text-xs flex justify-between bg-gray-50 px-2 py-1.5 rounded">
+                  <div key={idx} className="text-xs flex justify-between bg-gray-50 px-2 py-1.5 rounded-xl">
                     <span className="truncate max-w-[180px] text-gray-700">
                       {removerPrefixoCartao(i.item)}{parcelaLabel}
                     </span>
@@ -664,14 +664,14 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
             <div className="flex gap-3">
               <button
                 onClick={() => { setModalAberto(null); setPreviewImport(null) }}
-                className="flex-1 py-2 rounded-lg bg-gray-200 font-medium"
+                className="flex-1 py-2.5 rounded-2xl bg-gray-100 font-semibold text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]"
               >
                 Cancelar
               </button>
               <button
                 onClick={confirmarImportarMesAnterior}
                 disabled={importandoMesAnterior || previewImport.itens.length === 0}
-                className="flex-1 py-2 rounded-lg bg-orange-500 text-white font-medium disabled:opacity-50"
+                className="flex-1 py-2.5 rounded-2xl bg-orange-500 text-white font-semibold hover:bg-orange-600 disabled:opacity-50 transition-all active:scale-[0.97] shadow-sm"
               >
                 {importandoMesAnterior ? 'Importando…' : 'Confirmar'}
               </button>
@@ -681,23 +681,23 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       )}
 
       {modalAberto === 'excluir' && itemSelecionado && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4 modal-overlay">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm p-6 shadow-float modal-sheet sm:modal-center">
             <h3 className="text-lg font-bold mb-2">Excluir item</h3>
             <p className="text-sm text-gray-500 mb-6">
               Tem certeza que deseja excluir <span className="font-semibold text-gray-800">"{removerPrefixoCartao(itemSelecionado.item)}"</span>?
             </p>
             <div className="flex gap-3">
-              <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600">Cancelar</button>
-              <button onClick={() => excluirItem(itemSelecionado.id)} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-semibold">Excluir</button>
+              <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-2xl bg-gray-100 font-semibold text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]">Cancelar</button>
+              <button onClick={() => excluirItem(itemSelecionado.id)} className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-semibold hover:bg-red-600 transition-all active:scale-[0.97] shadow-sm">Excluir</button>
             </div>
           </div>
         </div>
       )}
 
       {modalAberto === 'desfazer' && itemSelecionado && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4 modal-overlay">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm p-6 shadow-float modal-sheet sm:modal-center">
             <h3 className="text-lg font-bold mb-2">Desfazer pagamento</h3>
             <p className="text-sm text-gray-500 mb-1">
               <span className="font-semibold text-gray-800">{removerPrefixoCartao(itemSelecionado.item)}</span>
@@ -707,12 +707,12 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
                 Valor registrado: {formatarMoeda(itemSelecionado.valor_real)}
               </p>
             )}
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-5">
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-2xl px-3 py-2 mb-5">
               O item voltará para o status de pendente e o valor registrado será apagado.
             </p>
             <div className="flex gap-3">
-              <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600">Cancelar</button>
-              <button onClick={() => desfazerPagamento(itemSelecionado.id)} className="flex-1 py-3 rounded-xl bg-amber-500 text-white font-semibold">Desfazer</button>
+              <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-2xl bg-gray-100 font-semibold text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]">Cancelar</button>
+              <button onClick={() => desfazerPagamento(itemSelecionado.id)} className="flex-1 py-3 rounded-2xl bg-amber-500 text-white font-semibold hover:bg-amber-600 transition-all active:scale-[0.97] shadow-sm">Desfazer</button>
             </div>
           </div>
         </div>
