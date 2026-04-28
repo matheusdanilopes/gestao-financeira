@@ -57,7 +57,7 @@ export default function BottomNav() {
   if (!AUTH_DISABLED && (isCheckingSession || !session)) return null
 
   return (
-    <div data-bottom-nav="true" className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 shadow-[0_-2px_12px_rgba(0,0,0,0.06)]">
+    <div data-bottom-nav="true" className="fixed bottom-0 left-0 right-0">
       {categorizando && (
         <div className="flex items-center justify-center gap-1.5 bg-purple-50 border-b border-purple-100 py-1 text-xs text-purple-700 font-medium">
           <Sparkles className="w-3 h-3 animate-pulse" />
@@ -71,18 +71,18 @@ export default function BottomNav() {
             <Link
               key={href}
               href={href}
-              className="flex flex-col items-center gap-0.5 flex-1 py-2 transition-all"
+              className="flex flex-col items-center gap-0.5 flex-1 py-2 transition-all duration-200"
             >
-              <span className={`flex items-center justify-center w-10 h-6 rounded-full transition-all ${
-                isActive ? 'bg-blue-100' : ''
+              <span className={`flex items-center justify-center w-10 h-6 rounded-full transition-all duration-200 ${
+                isActive ? 'bg-primary-100 scale-110' : ''
               }`}>
                 <Icon
-                  className={`transition-all ${isActive ? 'w-5 h-5 text-blue-600' : 'w-5 h-5 text-gray-400'}`}
+                  className={`transition-all duration-200 ${isActive ? 'w-5 h-5 text-primary-600' : 'w-5 h-5 text-gray-400'}`}
                   strokeWidth={isActive ? 2.5 : 1.8}
                 />
               </span>
-              <span className={`text-[10px] font-medium transition-colors ${
-                isActive ? 'text-blue-600' : 'text-gray-400'
+              <span className={`text-[10px] font-medium transition-colors duration-200 ${
+                isActive ? 'text-primary-600' : 'text-gray-400'
               }`}>
                 {label}
               </span>

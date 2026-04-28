@@ -280,8 +280,8 @@ export default function ConfiguracoesPage() {
           <button
             key={key}
             onClick={() => setAbaAtual(key)}
-            className={`py-2.5 rounded-xl border text-sm font-semibold flex items-center justify-center gap-2 transition ${
-              abaAtual === key ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200'
+            className={`py-2.5 rounded-2xl border text-sm font-semibold flex items-center justify-center gap-2 transition active:scale-[0.97] ${
+              abaAtual === key ? 'bg-primary-600 text-white border-primary-600 shadow-sm' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
             }`}
           >
             <Icon className="w-4 h-4" />
@@ -298,7 +298,7 @@ export default function ConfiguracoesPage() {
 
       {abaAtual === 'geral' && (
         <>
-          <div className="bg-white rounded-xl shadow p-4 mb-4">
+          <div className="bg-white rounded-3xl shadow-card p-4 mb-4">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <Settings className="w-5 h-5 text-gray-500" />
               Ciclo de Fatura Nubank
@@ -313,7 +313,7 @@ export default function ConfiguracoesPage() {
                   max={31}
                   value={diaVencimento}
                   onChange={(e) => setDiaVencimento(Math.max(1, Math.min(31, parseInt(e.target.value) || 1)))}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-primary-400 focus:border-transparent text-lg transition-shadow"
                 />
               </div>
 
@@ -324,9 +324,9 @@ export default function ConfiguracoesPage() {
                     <button
                       key={v}
                       onClick={() => setAjusteFechamento(v)}
-                      className={`flex-1 py-2.5 rounded-xl border-2 font-semibold transition ${
+                      className={`flex-1 py-2.5 rounded-2xl border-2 font-semibold transition active:scale-[0.97] ${
                         ajusteFechamento === v
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          ? 'border-primary-500 bg-primary-50 text-primary-700'
                           : 'border-gray-200 text-gray-500 hover:border-gray-300'
                       }`}
                     >
@@ -336,36 +336,36 @@ export default function ConfiguracoesPage() {
                 </div>
               </div>
 
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+              <div className="bg-primary-50 border border-primary-100 rounded-2xl p-3">
                 <p className="text-sm text-gray-500">Fechamento calculado</p>
-                <p className="font-semibold text-blue-700 mt-0.5">{descricaoFechamento(diaVencimento, ajusteFechamento)}</p>
+                <p className="font-semibold text-primary-700 mt-0.5">{descricaoFechamento(diaVencimento, ajusteFechamento)}</p>
               </div>
 
               <button
                 onClick={salvar}
                 disabled={salvando}
-                className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition disabled:opacity-50"
+                className="w-full bg-primary-600 text-white py-3 rounded-2xl font-semibold hover:bg-primary-700 transition-all active:scale-[0.97] disabled:opacity-50 shadow-sm"
               >
                 {salvando ? 'Salvando...' : 'Salvar Configurações'}
               </button>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow p-4 mb-4">
+          <div className="bg-white rounded-3xl shadow-card p-4 mb-4">
             <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
               <Upload className="w-5 h-5 text-gray-500" />
               Importar Dados
             </h2>
             <Link
               href="/importar"
-              className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition"
+              className="w-full flex items-center justify-center gap-2 bg-primary-600 text-white py-3 rounded-2xl font-semibold hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm"
             >
               <Upload className="w-4 h-4" />
               Ir para Importação
             </Link>
           </div>
 
-          <div className="bg-white rounded-xl shadow p-4 mb-4">
+          <div className="bg-white rounded-3xl shadow-card p-4 mb-4">
             <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
               <Sun className="w-5 h-5 text-gray-500" />
               Tema
@@ -379,9 +379,9 @@ export default function ConfiguracoesPage() {
                 <button
                   key={value}
                   onClick={() => setTheme(value)}
-                  className={`flex-1 flex flex-col items-center gap-1.5 py-3 rounded-xl border-2 font-semibold text-sm transition ${
+                  className={`flex-1 flex flex-col items-center gap-1.5 py-3 rounded-2xl border-2 font-semibold text-sm transition active:scale-[0.97] ${
                     theme === value
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      ? 'border-primary-500 bg-primary-50 text-primary-700'
                       : 'border-gray-200 text-gray-500 hover:border-gray-300'
                   }`}
                 >
@@ -392,7 +392,7 @@ export default function ConfiguracoesPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow p-4">
+          <div className="bg-white rounded-3xl shadow-card p-4">
             <button
               onClick={handleLogout}
               className="w-full flex items-center justify-center gap-2 py-3 text-red-600 font-semibold hover:bg-red-50 rounded-xl transition"
@@ -405,7 +405,7 @@ export default function ConfiguracoesPage() {
       )}
 
       {abaAtual === 'atividades' && (
-        <div className="bg-white rounded-xl shadow p-4 mb-4">
+        <div className="bg-white rounded-3xl shadow-card p-4 mb-4">
           <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
             <Activity className="w-5 h-5 text-gray-500" />
             Atividade Recente
@@ -418,13 +418,13 @@ export default function ConfiguracoesPage() {
               value={filtroBusca}
               onChange={(e) => setFiltroBusca(e.target.value)}
               placeholder="Buscar descrição"
-              className="col-span-2 bg-gray-50 rounded-lg p-2 text-sm"
+              className="col-span-2 bg-gray-50 rounded-2xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
             />
-            <select value={filtroAcao} onChange={(e) => setFiltroAcao(e.target.value)} className="bg-gray-50 rounded-lg p-2 text-sm">
+            <select value={filtroAcao} onChange={(e) => setFiltroAcao(e.target.value)} className="bg-gray-50 rounded-2xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow">
               <option value="">Ação (todas)</option>
               {Object.entries(ACAO_CONFIG).map(([key, value]) => <option key={key} value={key}>{value.label}</option>)}
             </select>
-            <select value={filtroTabela} onChange={(e) => setFiltroTabela(e.target.value)} className="bg-gray-50 rounded-lg p-2 text-sm">
+            <select value={filtroTabela} onChange={(e) => setFiltroTabela(e.target.value)} className="bg-gray-50 rounded-2xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow">
               <option value="">Tabela (todas)</option>
               {tabelasDisponiveis.map(tabela => <option key={tabela} value={tabela}>{tabela}</option>)}
             </select>
@@ -460,7 +460,7 @@ export default function ConfiguracoesPage() {
                 <button
                   onClick={() => carregarLogs(logsPage + 1)}
                   disabled={logsCarregando}
-                  className="w-full mt-1 py-2 text-sm text-blue-600 hover:text-blue-700 flex items-center justify-center gap-1 disabled:opacity-50"
+                  className="w-full mt-1 py-2 text-sm text-primary-600 hover:text-primary-700 flex items-center justify-center gap-1 disabled:opacity-50 transition-colors"
                 >
                   <ChevronDown className="w-4 h-4" />
                   {logsCarregando ? 'Carregando…' : `Ver mais (${logsTotal - logs.length} restantes)`}
@@ -472,7 +472,7 @@ export default function ConfiguracoesPage() {
       )}
 
       {abaAtual === 'categorias' && (
-        <div className="bg-white rounded-xl shadow p-4 mb-4">
+        <div className="bg-white rounded-3xl shadow-card p-4 mb-4">
           <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
             <Tags className="w-5 h-5 text-gray-500" />
             Categorias de Compras
@@ -484,12 +484,12 @@ export default function ConfiguracoesPage() {
               value={novaCategoria}
               onChange={(e) => setNovaCategoria(e.target.value)}
               placeholder="Nova categoria"
-              className="flex-1 bg-gray-50 rounded-lg p-2.5 text-sm"
+              className="flex-1 bg-gray-50 rounded-2xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
             />
             <button
               onClick={adicionarCategoria}
               disabled={categoriasSalvando}
-              className="px-3 rounded-lg bg-blue-600 text-white text-sm font-semibold disabled:opacity-50"
+              className="px-3 rounded-2xl bg-primary-600 text-white text-sm font-semibold disabled:opacity-50 hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm"
             >
               <Plus className="w-4 h-4" />
             </button>
@@ -500,13 +500,13 @@ export default function ConfiguracoesPage() {
               const emUso = categoriasUso[categoria] ?? 0
               const emEdicao = editandoCategoria === categoria
               return (
-                <div key={categoria} className="border border-gray-200 rounded-xl p-2.5 flex items-center gap-2">
+                <div key={categoria} className="border border-gray-200 rounded-2xl p-2.5 flex items-center gap-2">
                   {emEdicao ? (
                     <input
                       autoFocus
                       value={novoNomeCategoria}
                       onChange={(e) => setNovoNomeCategoria(e.target.value)}
-                      className="flex-1 bg-gray-50 rounded-lg p-2 text-sm"
+                      className="flex-1 bg-gray-50 rounded-xl p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
                     />
                   ) : (
                     <div className="flex-1">
@@ -519,7 +519,7 @@ export default function ConfiguracoesPage() {
                     <button
                       onClick={() => confirmarEdicaoCategoria(categoria)}
                       disabled={categoriasSalvando}
-                      className="p-2 rounded-lg text-green-700 hover:bg-green-50"
+                      className="p-2 rounded-xl text-green-700 hover:bg-green-50 active:bg-green-100 transition-colors"
                       title="Salvar alteração"
                     >
                       <Check className="w-4 h-4" />
@@ -527,7 +527,7 @@ export default function ConfiguracoesPage() {
                   ) : (
                     <button
                       onClick={() => { setEditandoCategoria(categoria); setNovoNomeCategoria(categoria) }}
-                      className="p-2 rounded-lg text-blue-600 hover:bg-blue-50"
+                      className="p-2 rounded-xl text-primary-600 hover:bg-primary-50 active:bg-primary-100 transition-colors"
                       title="Editar categoria"
                     >
                       <Pencil className="w-4 h-4" />
@@ -537,7 +537,7 @@ export default function ConfiguracoesPage() {
                   <button
                     onClick={() => removerCategoria(categoria)}
                     disabled={categoriasSalvando || emUso > 0}
-                    className="p-2 rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-40"
+                    className="p-2 rounded-xl text-red-500 hover:bg-red-50 active:bg-red-100 disabled:opacity-40 transition-colors"
                     title={emUso > 0 ? 'Não é possível remover categorias em uso' : 'Remover categoria'}
                   >
                     <Trash2 className="w-4 h-4" />
