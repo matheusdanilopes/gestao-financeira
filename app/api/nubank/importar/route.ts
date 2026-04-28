@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
 import {
   gerarHashLinhaLegado,
+  normalizarDescricaoParaHash,
   processarCSV,
   processarTransacoesJSON,
   TransacaoInputJSON,
@@ -13,7 +14,7 @@ import { notificarImportacao } from '@/lib/pushImportacao'
 export const maxDuration = 300
 
 function chaveCanonica(t: Pick<TransacaoNubank, 'data_compra' | 'descricao' | 'valor'>): string {
-  return `${t.data_compra}|${t.descricao}|${t.valor.toFixed(2)}`
+  return `${t.data_compra}|${normalizarDescricaoParaHash(t.descricao)}|${t.valor.toFixed(2)}`
 }
 
 type AuthResult =
