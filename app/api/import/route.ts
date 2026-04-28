@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
-import { gerarHashLinhaLegado, processarCSV } from '@/lib/csvparser'
+import { gerarHashLinhaLegado, normalizarDescricaoParaHash, processarCSV } from '@/lib/csvparser'
 import { notificarImportacao } from '@/lib/pushImportacao'
 
 function chaveCanonica(t: { data_compra: string; descricao: string; valor: number }): string {
-  return `${t.data_compra}|${t.descricao}|${t.valor.toFixed(2)}`
+  return `${t.data_compra}|${normalizarDescricaoParaHash(t.descricao)}|${t.valor.toFixed(2)}`
 }
 
 export async function POST(req: NextRequest) {

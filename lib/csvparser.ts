@@ -72,7 +72,7 @@ function primeiroValorPreenchido(
   return undefined
 }
 
-function normalizarDescricaoParaHash(descricao: string): string {
+export function normalizarDescricaoParaHash(descricao: string): string {
   return descricao
     .normalize('NFKC')
     .replace(/\s+/g, ' ')
