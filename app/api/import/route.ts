@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
-import { processarCSV } from '@/lib/csvparser'
+import { gerarHashLinhaLegado, processarCSV } from '@/lib/csvparser'
 import { notificarImportacao } from '@/lib/pushImportacao'
+
+function chaveCanonica(t: { data_compra: string; descricao: string; valor: number }): string {
+  return `${t.data_compra}|${t.descricao}|${t.valor.toFixed(2)}`
+}
 
 export async function POST(req: NextRequest) {
   const supabase = criarSupabaseServer(req)
@@ -44,21 +48,52 @@ export async function POST(req: NextRequest) {
     let verdadeiramenteNovas = 0
 
     if (novas.length > 0) {
+      const hashesAtuais = novas.map(t => t.hash_linha)
+      const hashesLegado = novas.map(t => gerarHashLinhaLegado(t.data_compra, t.descricao, t.valor))
+      const hashesParaConsulta = [...new Set([...hashesAtuais, ...hashesLegado])]
+      const mesesParaConsulta = [...new Set(novas.map(t => t.projeto_fatura))]
+
       // Descobre quais hashes já existem no banco para calcular o delta real
       const { data: jaExistentes } = await supabase
         .from('transacoes_nubank')
         .select('hash_linha')
-        .in('hash_linha', novas.map(t => t.hash_linha))
+        .in('hash_linha', hashesParaConsulta)
       const hashesExistentes = new Set((jaExistentes ?? []).map(r => r.hash_linha))
-      verdadeiramenteNovas = novas.filter(t => !hashesExistentes.has(t.hash_linha)).length
+
+      // Backstop adicional: dedupe por chave canônica (data + descrição + valor com 2 casas),
+      // protegendo contra quaisquer variações históricas de hash_linha.
+      const { data: existentesCanonicos } = await supabase
+        .from('transacoes_nubank')
+        .select('data_compra, descricao, valor')
+        .in('projeto_fatura', mesesParaConsulta)
+      const chavesCanonicasExistentes = new Set(
+        (existentesCanonicos ?? []).map((r: any) =>
+          chaveCanonica({
+            data_compra: String(r.data_compra ?? ''),
+            descricao: String(r.descricao ?? ''),
+            valor: Number(r.valor ?? 0),
+          })
+        )
+      )
+
+      const novasParaInserir = novas.filter(t => {
+        const hashLegado = gerarHashLinhaLegado(t.data_compra, t.descricao, t.valor)
+        const canonica = chaveCanonica(t)
+        return (
+          !hashesExistentes.has(t.hash_linha) &&
+          !hashesExistentes.has(hashLegado) &&
+          !chavesCanonicasExistentes.has(canonica)
+        )
+      })
+      verdadeiramenteNovas = novasParaInserir.length
 
       let insertResult = await supabase
         .from('transacoes_nubank')
-        .upsert(novas, { onConflict: 'hash_linha' })
+        .upsert(novasParaInserir, { onConflict: 'hash_linha' })
 
       // Compatibilidade com bancos antigos: coluna pode ser 'data' em vez de 'data_compra'.
       if (insertResult.error && insertResult.error.message.includes('data_compra')) {
-        const novasLegado = novas.map((t) => {
+        const novasLegado = novasParaInserir.map((t) => {
           const { data_compra, ...resto } = t as any
           return { ...resto, data: data_compra }
         })
@@ -76,7 +111,7 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      for (const t of novas) {
+      for (const t of novasParaInserir) {
         if (t.responsavel === 'Matheus') novosMatheus++
         else novosJeniffer++
         totalValor += t.valor
