@@ -20,6 +20,18 @@ interface Notificacao {
 
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
 
+function isIOS(): boolean {
+  if (typeof navigator === 'undefined') return false
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+}
+
+function isStandalone(): boolean {
+  if (typeof window === 'undefined') return false
+  return window.matchMedia('(display-mode: standalone)').matches ||
+    (window.navigator as { standalone?: boolean }).standalone === true
+}
+
 function iconeAcao(acao: string) {
   if (acao === 'aporte') return <PiggyBank className="w-4 h-4 text-green-500" />
   if (acao === 'pagar') return <CreditCard className="w-4 h-4 text-blue-500" />
@@ -39,14 +51,15 @@ function formatarValor(valor: number | null): string {
   return ` — R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
 }
 
-async function registrarPush(usuarioEmail: string) {
+async function registrarPush(usuarioEmail: string, forcar = false) {
   if (!VAPID_PUBLIC) return
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
 
   try {
     const reg = await navigator.serviceWorker.ready
     let sub = await reg.pushManager.getSubscription()
-    if (!sub) {
+    if (!sub || forcar) {
+      if (sub) await sub.unsubscribe()
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
@@ -74,6 +87,7 @@ export default function NotificacoesBell() {
   const [notificacoes, setNotificacoes] = useState<Notificacao[]>([])
   const [usuarioEmail, setUsuarioEmail] = useState<string | null>(null)
   const [permissaoPush, setPermissaoPush] = useState<NotificationPermission | null>(null)
+  const [iosNaoInstalado, setIosNaoInstalado] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const naoLidas = notificacoes.filter(n => !n.lida).length
@@ -144,8 +158,26 @@ export default function NotificacoesBell() {
 
   async function registrarServiceWorker(email: string) {
     if (!('serviceWorker' in navigator)) return
+
+    if (isIOS() && !isStandalone()) {
+      setIosNaoInstalado(true)
+      return
+    }
+
     try {
-      await navigator.serviceWorker.register('/sw.js')
+      const reg = await navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+
+      // Detecta atualização do SW e força nova assinatura
+      reg.addEventListener('updatefound', () => {
+        const novoSW = reg.installing
+        if (!novoSW) return
+        novoSW.addEventListener('statechange', () => {
+          if (novoSW.state === 'activated') {
+            void registrarPush(email, true)
+          }
+        })
+      })
+
       const perm = Notification.permission
       setPermissaoPush(perm)
       if (perm === 'granted') {
@@ -225,8 +257,20 @@ export default function NotificacoesBell() {
             </div>
           </div>
 
+          {/* iOS: precisa instalar o PWA */}
+          {iosNaoInstalado && (
+            <div className="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-100 dark:border-amber-800">
+              <p className="text-xs text-amber-800 dark:text-amber-300 mb-1 font-medium">
+                Instale o app para receber notificações
+              </p>
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                No Safari, toque em <strong>Compartilhar</strong> → <strong>Adicionar à Tela de Início</strong> e reabra o app pelo ícone.
+              </p>
+            </div>
+          )}
+
           {/* Push notification prompt */}
-          {permissaoPush === 'default' && (
+          {!iosNaoInstalado && permissaoPush === 'default' && (
             <div className="px-4 py-3 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800">
               <p className="text-xs text-blue-700 dark:text-blue-300 mb-2">
                 Ative as notificações para ser avisado no celular quando o outro usuário fizer uma operação.
