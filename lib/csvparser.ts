@@ -92,6 +92,14 @@ export function gerarHashLinhaLegado(dataISO: string, descricao: string, valor: 
   return createHash('sha256').update(hashString).digest('hex')
 }
 
+// Used when the same (date+descricao+valor) already occupies the base hash —
+// i.e. two legitimate purchases on the same day. sufixo=1 for the 2nd, 2 for the 3rd, etc.
+export function gerarHashLinhaComSufixo(dataISO: string, descricao: string, valor: number, sufixo: number): string {
+  const descricaoHash = normalizarDescricaoParaHash(descricao)
+  const hashString = `${dataISO}|${descricaoHash}|${valor.toFixed(2)}|${sufixo}`
+  return createHash('sha256').update(hashString).digest('hex')
+}
+
 export function processarCSV(
   csvText: string,
   diaVencimento: number = 10,

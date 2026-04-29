@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
-import { processarCSV, TransacaoNubank } from '@/lib/csvparser'
+import { gerarHashLinhaComSufixo, processarCSV, TransacaoNubank } from '@/lib/csvparser'
 import { notificarImportacao } from '@/lib/pushImportacao'
 
 function adicionarDias(dataISO: string, dias: number): string {
@@ -37,6 +37,28 @@ async function contarNoBanco(
   return count ?? 0
 }
 
+async function contarExatoNoBanco(
+  supabase: ReturnType<typeof criarSupabaseServer>,
+  item: TransacaoNubank
+): Promise<number> {
+  const { count, error } = await supabase
+    .from('transacoes_nubank')
+    .select('*', { count: 'exact', head: true })
+    .eq('descricao', item.descricao)
+    .eq('valor', item.valor)
+    .eq('data_compra', item.data_compra)
+  if (error?.message?.includes('data_compra')) {
+    const { count: c2 } = await supabase
+      .from('transacoes_nubank')
+      .select('*', { count: 'exact', head: true })
+      .eq('descricao', item.descricao)
+      .eq('valor', item.valor)
+      .eq('data', item.data_compra)
+    return c2 ?? 0
+  }
+  return count ?? 0
+}
+
 async function inserirTransacao(
   supabase: ReturnType<typeof criarSupabaseServer>,
   item: TransacaoNubank
@@ -49,8 +71,25 @@ async function inserirTransacao(
   }
 
   if (!result.error) return true
-  // 23505 = unique_violation: hash already exists, not a new row
-  if (result.error.code === '23505' || result.error.message?.includes('duplicate')) return false
+
+  if (result.error.code === '23505' || result.error.message?.includes('duplicate')) {
+    // Hash collision: could be a legitimate 2nd purchase on the same day.
+    // Use the exact count of this (descricao, valor, data_compra) in the DB as a suffix
+    // to generate a unique hash for this additional occurrence.
+    const qtdExata = await contarExatoNoBanco(supabase, item)
+    const hashSufixado = gerarHashLinhaComSufixo(item.data_compra, item.descricao, item.valor, qtdExata)
+    const itemSufixado = { ...item, hash_linha: hashSufixado }
+
+    let result2 = await supabase.from('transacoes_nubank').insert(itemSufixado)
+    if (result2.error?.message?.includes('data_compra')) {
+      const { data_compra, ...resto } = itemSufixado as any
+      result2 = await supabase.from('transacoes_nubank').insert({ ...resto, data: data_compra })
+    }
+    if (!result2.error) return true
+    if (result2.error.code === '23505' || result2.error.message?.includes('duplicate')) return false
+    throw new Error('Erro ao salvar: ' + result2.error.message)
+  }
+
   throw new Error('Erro ao salvar: ' + result.error.message)
 }
 
