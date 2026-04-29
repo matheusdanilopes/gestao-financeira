@@ -36,8 +36,21 @@ export async function notificarImportacao(
     const { data: subs } = await supabase.from('push_subscriptions').select('*')
     if (!subs?.length) return
 
-    await Promise.allSettled(
+    const results = await Promise.allSettled(
       subs.map(sub => webpush.sendNotification(sub.subscription, JSON.stringify(payload)))
     )
+
+    const expiradas = subs
+      .filter((_, i) => {
+        const r = results[i]
+        if (r.status !== 'rejected') return false
+        const status = (r.reason as { statusCode?: number })?.statusCode
+        return status === 410 || status === 404
+      })
+      .map(sub => sub.usuario)
+
+    if (expiradas.length) {
+      await supabase.from('push_subscriptions').delete().in('usuario', expiradas)
+    }
   } catch { /* falha no push nunca deve interromper a resposta */ }
 }
