@@ -85,7 +85,7 @@ async function salvarTransacoes(
       .from('transacoes_nubank')
       .select('data_compra, descricao, valor')
       .in('projeto_fatura', mesesParaConsulta)
-    const existentesCanonicos = queryCanonica1.error?.message.includes('data_compra')
+    const existentesCanonicos: any[] | null = queryCanonica1.error?.message.includes('data_compra')
       ? (await supabase
           .from('transacoes_nubank')
           .select('data, descricao, valor')
