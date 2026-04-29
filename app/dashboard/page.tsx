@@ -11,6 +11,7 @@ import GraficoProjecao from '@/components/GraficoProjecao'
 import DrawerDetalhes from '@/components/DrawerDetalhes'
 import BottomNav from '@/components/BottomNav'
 import { PiggyBank } from 'lucide-react'
+import { InfoPopover } from '@/components/InfoPopover'
 
 interface CartaoItem {
   nome: string
@@ -289,7 +290,10 @@ export default function Dashboard() {
 
       {/* Gestão de Fatura Nubank */}
       <div className="bg-white rounded-3xl shadow-card p-4 mb-4">
-        <h2 className="text-lg font-semibold mb-3">💳 Gestão de Fatura Nubank</h2>
+        <h2 className="text-lg font-semibold mb-3 flex items-center gap-1.5">
+          💳 Gestão de Fatura Nubank
+          <InfoPopover texto="Acompanhe o gasto atual do cartão NuBank de cada pessoa. 'Atual' é o que já foi gasto, 'Previsto' é o limite planejado para o mês e 'Sobra' é o quanto ainda pode ser gasto sem ultrapassar o orçamento." />
+        </h2>
         {carregando ? (
           <div className="animate-pulse space-y-3">
             <div className="h-9 bg-gray-200 rounded-xl w-2/5" />
@@ -378,7 +382,10 @@ export default function Dashboard() {
 
       {/* Resumo de Caixa */}
       <div className="bg-white rounded-3xl shadow-card p-4 mb-4">
-        <h2 className="text-lg font-semibold mb-3">💰 Resumo de Caixa</h2>
+        <h2 className="text-lg font-semibold mb-3 flex items-center gap-1.5">
+          💰 Resumo de Caixa
+          <InfoPopover texto="Visão geral das finanças do mês. O 'Saldo Previsto' considera apenas os valores planejados. O 'Saldo Atual' usa a fatura real do NuBank quando disponível, ou a estimada por parcelas. O comprometimento indica qual percentual da renda já está comprometido com gastos." />
+        </h2>
         {carregando ? (
           <div className="animate-pulse space-y-3">
             <div className="h-6 bg-gray-200 rounded-xl w-full" />
@@ -453,7 +460,10 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <PiggyBank className="w-5 h-5 text-violet-600" />
-              <h2 className="text-lg font-semibold">Investimentos</h2>
+              <h2 className="text-lg font-semibold flex items-center gap-1.5">
+                Investimentos
+                <InfoPopover texto="Progresso dos aportes mensais em cada investimento. A meta de cada item é calculada como um percentual da sobra líquida do mês. Quando o aporte atinge a meta, o indicador fica verde." />
+              </h2>
             </div>
             <a href="/investimentos" className="text-xs text-violet-600 hover:underline">Ver tudo</a>
           </div>
@@ -506,7 +516,10 @@ export default function Dashboard() {
 
       {/* Gráfico de Projeção de Parcelamentos */}
       <div className="bg-white rounded-3xl shadow-card p-4 mb-4">
-        <h2 className="text-lg font-semibold">📈 Projeção de Parcelamentos</h2>
+        <h2 className="text-lg font-semibold flex items-center gap-1.5">
+          📈 Projeção de Parcelamentos
+          <InfoPopover texto="Previsão do total de parcelas que vencerão nos próximos 6 meses, separado por pessoa (Matheus, Jeniffer) e extras. Calculado com base nas transações parceladas já registradas no NuBank. Toque em um ponto do gráfico para ver os detalhes." />
+        </h2>
         <p className="text-xs text-gray-400 mb-3">Próximos 6 meses · Toque em um ponto para ver detalhes</p>
         <GraficoProjecao
           mesInicio={mesAtual}
