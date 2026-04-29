@@ -253,9 +253,22 @@ export default function ComprasPage() {
     return Array.from(map.entries()).sort(([a], [b]) => b.localeCompare(a))
   }, [comprasFiltradas])
 
-  const total = useMemo(() => comprasFiltradas.reduce((acc, c) => acc + c.valor, 0), [comprasFiltradas])
-  const totalMatheus = useMemo(() => comprasFiltradas.filter(c => c.responsavel === 'Matheus').reduce((acc, c) => acc + c.valor, 0), [comprasFiltradas])
-  const totalJeniffer = useMemo(() => comprasFiltradas.filter(c => c.responsavel === 'Jeniffer').reduce((acc, c) => acc + c.valor, 0), [comprasFiltradas])
+  const comprasSemFiltroResponsavel = useMemo(() => {
+    return compras.filter((c) => {
+      const dataStr = dataEfetiva(c)
+      const diaCompra = dataStr ? Number(dataStr.substring(8, 10)) : null
+      return (
+        (!filtroDescricao || c.descricao.toLowerCase().includes(filtroDescricao.toLowerCase())) &&
+        (!filtroValorMin || c.valor >= Number(filtroValorMin)) &&
+        (!filtroDia || diaCompra === Number(filtroDia)) &&
+        (!filtroCategoria || c.categoria === filtroCategoria)
+      )
+    })
+  }, [compras, filtroDescricao, filtroValorMin, filtroDia, filtroCategoria])
+
+  const total = useMemo(() => comprasSemFiltroResponsavel.reduce((acc, c) => acc + c.valor, 0), [comprasSemFiltroResponsavel])
+  const totalMatheus = useMemo(() => comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Matheus').reduce((acc, c) => acc + c.valor, 0), [comprasSemFiltroResponsavel])
+  const totalJeniffer = useMemo(() => comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Jeniffer').reduce((acc, c) => acc + c.valor, 0), [comprasSemFiltroResponsavel])
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { carregarCompras(); verificarFaturaFechada() }, [mesAtualKey])
@@ -307,30 +320,6 @@ export default function ComprasPage() {
         </div>
       </div>
 
-      {/* Filtro de responsável como pills */}
-      <div className="flex gap-2 mb-3">
-        {(['', 'Matheus', 'Jeniffer'] as const).map((r) => {
-          const label = r === '' ? 'Todos' : r
-          const isActive = filtroResponsavel === r
-          const activeStyle = r === 'Matheus'
-            ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-300 ring-offset-1'
-            : r === 'Jeniffer'
-              ? 'bg-pink-500 text-white shadow-sm ring-2 ring-pink-300 ring-offset-1'
-              : 'bg-primary-600 text-white shadow-sm ring-2 ring-primary-300 ring-offset-1'
-          return (
-            <button
-              key={r}
-              onClick={() => setFiltroResponsavel(r)}
-              className={`flex-1 py-2 rounded-2xl text-sm font-semibold transition-all duration-200 active:scale-[0.97] ${
-                isActive ? activeStyle : 'bg-white border border-gray-200 text-gray-500 hover:bg-gray-50'
-              }`}
-            >
-              {label}
-            </button>
-          )
-        })}
-      </div>
-
       {/* Filtros secundários */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-3 mb-3 grid grid-cols-2 gap-2">
         <input
@@ -374,23 +363,44 @@ export default function ComprasPage() {
         )}
       </div>
 
-      {/* Resumo */}
+      {/* Resumo / Filtro de responsável */}
       <div className="grid grid-cols-3 gap-2 mb-4">
-        <div className="bg-gradient-to-br from-primary-50 to-white rounded-2xl border border-primary-100 shadow-card p-3 text-center">
-          <p className="text-[11px] text-primary-500 mb-0.5">Total</p>
-          <p className="text-base font-bold text-primary-700">R$ {total.toFixed(2)}</p>
-          <p className="text-[10px] text-primary-400">{comprasFiltradas.length} compras</p>
-        </div>
-        <div className="bg-blue-50 rounded-2xl border border-blue-100 p-3 text-center shadow-card">
-          <p className="text-[11px] text-blue-400 mb-0.5">Matheus</p>
-          <p className="text-base font-bold text-blue-700">R$ {totalMatheus.toFixed(2)}</p>
-          <p className="text-[10px] text-blue-400">{comprasFiltradas.filter(c => c.responsavel === 'Matheus').length}x</p>
-        </div>
-        <div className="bg-pink-50 rounded-2xl border border-pink-100 p-3 text-center shadow-card">
-          <p className="text-[11px] text-pink-400 mb-0.5">Jeniffer</p>
-          <p className="text-base font-bold text-pink-600">R$ {totalJeniffer.toFixed(2)}</p>
-          <p className="text-[10px] text-pink-400">{comprasFiltradas.filter(c => c.responsavel === 'Jeniffer').length}x</p>
-        </div>
+        <button
+          onClick={() => setFiltroResponsavel('')}
+          className={`rounded-2xl p-3 text-center transition-all duration-200 active:scale-[0.97] ${
+            filtroResponsavel === ''
+              ? 'bg-gradient-to-br from-primary-500 to-primary-700 shadow-lg ring-2 ring-primary-300 ring-offset-1'
+              : 'bg-gradient-to-br from-primary-50 to-white border border-primary-100 shadow-card'
+          }`}
+        >
+          <p className={`text-[11px] mb-0.5 ${filtroResponsavel === '' ? 'text-primary-100' : 'text-primary-500'}`}>Total</p>
+          <p className={`text-base font-bold ${filtroResponsavel === '' ? 'text-white' : 'text-primary-700'}`}>R$ {total.toFixed(2)}</p>
+          <p className={`text-[10px] ${filtroResponsavel === '' ? 'text-primary-200' : 'text-primary-400'}`}>{comprasSemFiltroResponsavel.length} compras</p>
+        </button>
+        <button
+          onClick={() => setFiltroResponsavel(filtroResponsavel === 'Matheus' ? '' : 'Matheus')}
+          className={`rounded-2xl p-3 text-center transition-all duration-200 active:scale-[0.97] ${
+            filtroResponsavel === 'Matheus'
+              ? 'bg-blue-600 shadow-lg ring-2 ring-blue-300 ring-offset-1'
+              : 'bg-blue-50 border border-blue-100 shadow-card'
+          }`}
+        >
+          <p className={`text-[11px] mb-0.5 ${filtroResponsavel === 'Matheus' ? 'text-blue-100' : 'text-blue-400'}`}>Matheus</p>
+          <p className={`text-base font-bold ${filtroResponsavel === 'Matheus' ? 'text-white' : 'text-blue-700'}`}>R$ {totalMatheus.toFixed(2)}</p>
+          <p className={`text-[10px] ${filtroResponsavel === 'Matheus' ? 'text-blue-200' : 'text-blue-400'}`}>{comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Matheus').length}x</p>
+        </button>
+        <button
+          onClick={() => setFiltroResponsavel(filtroResponsavel === 'Jeniffer' ? '' : 'Jeniffer')}
+          className={`rounded-2xl p-3 text-center transition-all duration-200 active:scale-[0.97] ${
+            filtroResponsavel === 'Jeniffer'
+              ? 'bg-pink-500 shadow-lg ring-2 ring-pink-300 ring-offset-1'
+              : 'bg-pink-50 border border-pink-100 shadow-card'
+          }`}
+        >
+          <p className={`text-[11px] mb-0.5 ${filtroResponsavel === 'Jeniffer' ? 'text-pink-100' : 'text-pink-400'}`}>Jeniffer</p>
+          <p className={`text-base font-bold ${filtroResponsavel === 'Jeniffer' ? 'text-white' : 'text-pink-600'}`}>R$ {totalJeniffer.toFixed(2)}</p>
+          <p className={`text-[10px] ${filtroResponsavel === 'Jeniffer' ? 'text-pink-200' : 'text-pink-400'}`}>{comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Jeniffer').length}x</p>
+        </button>
       </div>
 
       {/* Banner de fatura fechada */}
