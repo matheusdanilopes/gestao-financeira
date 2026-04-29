@@ -12,14 +12,17 @@ type Transacao = {
   categoria_origem: string | null
 }
 
-// Returns the ID to delete from a pair (a has older date, b has newer date).
-// Priority: keep MANUAL > keep categorized > keep newer date.
-function idParaExcluir(a: Transacao, b: Transacao): string {
+// Returns the ID to delete from a pair.
+// Priority: keep MANUAL > keep categorized > keep newer date (or smaller id for same-day).
+// For same-day pairs (dias=0): sort is by id asc, so a.id < b.id → keep a, delete b.
+// For date-shift pairs (dias>0): keep b (newer date = more accurate per Nubank), delete a.
+function idParaExcluir(a: Transacao, b: Transacao, dias: number): string {
   if (a.categoria_origem === 'MANUAL' && b.categoria_origem !== 'MANUAL') return b.id
   if (b.categoria_origem === 'MANUAL' && a.categoria_origem !== 'MANUAL') return a.id
   if (a.categoria !== null && b.categoria === null) return b.id
   if (b.categoria !== null && a.categoria === null) return a.id
-  return a.id // default: delete older date, keep newer (more accurate per Nubank)
+  if (dias === 0) return b.id // same day: keep a (smaller id in sorted order), delete b
+  return a.id                 // date shift: keep newer date (b), delete older (a)
 }
 
 export async function POST(req: NextRequest) {
@@ -30,7 +33,6 @@ export async function POST(req: NextRequest) {
     // "conservador" = same fatura only; "completo" = all pairs including cross-fatura
     const modo: 'conservador' | 'completo' = body?.modo === 'completo' ? 'completo' : 'conservador'
 
-    // Fetch all transactions with the fields needed for dedup decisions
     let transacoes: Transacao[]
     const { data, error } = await supabase
       .from('transacoes_nubank')
@@ -53,13 +55,14 @@ export async function POST(req: NextRequest) {
       transacoes = data ?? []
     }
 
-    // Sort by normalized descricao → valor → data_compra for efficient pairwise scan
+    // Secondary sort by id ensures deterministic ordering for same-date pairs
     const sorted = [...transacoes].sort((a, b) => {
       const da = normalizarDescricaoParaHash(a.descricao)
       const db = normalizarDescricaoParaHash(b.descricao)
       if (da !== db) return da.localeCompare(db)
       if (a.valor !== b.valor) return a.valor - b.valor
-      return a.data_compra.localeCompare(b.data_compra)
+      if (a.data_compra !== b.data_compra) return a.data_compra.localeCompare(b.data_compra)
+      return a.id.localeCompare(b.id)
     })
 
     const idsParaExcluir = new Set<string>()
@@ -79,12 +82,11 @@ export async function POST(req: NextRequest) {
             new Date(a.data_compra + 'T12:00:00').getTime()
           ) / 86_400_000
         )
-        if (dias === 0) continue
         if (dias > 3) break
 
         if (modo === 'conservador' && a.projeto_fatura !== b.projeto_fatura) continue
 
-        const excluir = idParaExcluir(a, b)
+        const excluir = idParaExcluir(a, b, dias)
         const manter = excluir === a.id ? b.id : a.id
         idsParaExcluir.add(excluir)
         idsParaManter.add(manter)

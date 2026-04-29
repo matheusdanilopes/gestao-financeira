@@ -6,7 +6,6 @@ export async function GET(req: NextRequest) {
   const supabase = criarSupabaseServer(req)
 
   try {
-    // Fetch all transactions with just the fields needed for duplicate detection
     const { data, error } = await supabase
       .from('transacoes_nubank')
       .select('id, descricao, valor, data_compra, projeto_fatura, categoria, categoria_origem')
@@ -15,7 +14,6 @@ export async function GET(req: NextRequest) {
       .order('data_compra')
 
     if (error) {
-      // Schema legado: tenta coluna 'data'
       if (error.message?.includes('data_compra')) {
         const { data: dataLegado, error: errLegado } = await supabase
           .from('transacoes_nubank')
@@ -24,7 +22,6 @@ export async function GET(req: NextRequest) {
           .order('valor')
           .order('data')
         if (errLegado) throw new Error(errLegado.message)
-        // Normaliza para o formato atual
         const normalizado = (dataLegado ?? []).map((r: any) => ({ ...r, data_compra: r.data }))
         return NextResponse.json(detectarDuplicatas(normalizado))
       }
@@ -48,12 +45,15 @@ type Transacao = {
   categoria_origem: string | null
 }
 
-type ParDuplicata = {
+export type ParDuplicata = {
   descricao: string
   valor: number
   data_a: string
   data_b: string
   dias: number
+  // "exata" = same day (dias=0), could be old hash-format collision or new suffix artifact
+  // "janela" = 1–3 day date shift between CSV exports
+  tipo: 'exata' | 'janela'
   fatura_a: string
   fatura_b: string
   mesmaFatura: boolean
@@ -61,8 +61,10 @@ type ParDuplicata = {
   id_b: string
 }
 
-type Resultado = {
+export type Resultado = {
   totalPares: number
+  exactas: number
+  janela: number
   mesmaFatura: number
   faturasDiferentes: number
   porFatura: Record<string, number>
@@ -70,13 +72,14 @@ type Resultado = {
 }
 
 function detectarDuplicatas(transacoes: Transacao[]): Resultado {
-  // Sort by normalized descricao → valor → data_compra for efficient pairwise scan
+  // Secondary sort by id ensures deterministic ordering for same-date pairs
   const sorted = [...transacoes].sort((a, b) => {
     const da = normalizarDescricaoParaHash(a.descricao)
     const db = normalizarDescricaoParaHash(b.descricao)
     if (da !== db) return da.localeCompare(db)
     if (a.valor !== b.valor) return a.valor - b.valor
-    return a.data_compra.localeCompare(b.data_compra)
+    if (a.data_compra !== b.data_compra) return a.data_compra.localeCompare(b.data_compra)
+    return a.id.localeCompare(b.id)
   })
 
   const pares: ParDuplicata[] = []
@@ -87,18 +90,13 @@ function detectarDuplicatas(transacoes: Transacao[]): Resultado {
 
     for (let j = i + 1; j < sorted.length; j++) {
       const b = sorted[j]
-      const normB = normalizarDescricaoParaHash(b.descricao)
-
-      // Sorted: once descricao or valor diverges, no more matches for a
-      if (normB !== normA || b.valor !== a.valor) break
+      if (normalizarDescricaoParaHash(b.descricao) !== normA || b.valor !== a.valor) break
 
       const msA = new Date(a.data_compra + 'T12:00:00').getTime()
       const msB = new Date(b.data_compra + 'T12:00:00').getTime()
       const dias = Math.round(Math.abs(msB - msA) / 86_400_000)
 
-      // Only flag 1–3 day differences (exact same date handled by existing scripts)
-      if (dias === 0) continue
-      if (dias > 3) break  // sorted by date → no more within range
+      if (dias > 3) break // sorted by date → no more within range
 
       pares.push({
         descricao: a.descricao,
@@ -106,6 +104,7 @@ function detectarDuplicatas(transacoes: Transacao[]): Resultado {
         data_a: a.data_compra,
         data_b: b.data_compra,
         dias,
+        tipo: dias === 0 ? 'exata' : 'janela',
         fatura_a: a.projeto_fatura,
         fatura_b: b.projeto_fatura,
         mesmaFatura: a.projeto_fatura === b.projeto_fatura,
@@ -116,25 +115,27 @@ function detectarDuplicatas(transacoes: Transacao[]): Resultado {
   }
 
   const porFatura: Record<string, number> = {}
+  let exactas = 0
+  let janela = 0
   let mesmaFatura = 0
   let faturasDiferentes = 0
 
   for (const p of pares) {
-    if (p.mesmaFatura) {
-      mesmaFatura++
+    if (p.tipo === 'exata') {
+      exactas++
       porFatura[p.fatura_a] = (porFatura[p.fatura_a] ?? 0) + 1
     } else {
-      faturasDiferentes++
-      porFatura[p.fatura_a] = (porFatura[p.fatura_a] ?? 0) + 1
-      porFatura[p.fatura_b] = (porFatura[p.fatura_b] ?? 0) + 1
+      janela++
+      if (p.mesmaFatura) {
+        mesmaFatura++
+        porFatura[p.fatura_a] = (porFatura[p.fatura_a] ?? 0) + 1
+      } else {
+        faturasDiferentes++
+        porFatura[p.fatura_a] = (porFatura[p.fatura_a] ?? 0) + 1
+        porFatura[p.fatura_b] = (porFatura[p.fatura_b] ?? 0) + 1
+      }
     }
   }
 
-  return {
-    totalPares: pares.length,
-    mesmaFatura,
-    faturasDiferentes,
-    porFatura,
-    pares,
-  }
+  return { totalPares: pares.length, exactas, janela, mesmaFatura, faturasDiferentes, porFatura, pares }
 }

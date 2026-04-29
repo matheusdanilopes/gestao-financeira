@@ -36,6 +36,7 @@ interface DiagnosticoPar {
   data_a: string
   data_b: string
   dias: number
+  tipo: 'exata' | 'janela'
   fatura_a: string
   fatura_b: string
   mesmaFatura: boolean
@@ -43,6 +44,8 @@ interface DiagnosticoPar {
 
 interface Diagnostico {
   totalPares: number
+  exactas: number
+  janela: number
   mesmaFatura: number
   faturasDiferentes: number
   porFatura: Record<string, number>
@@ -369,7 +372,9 @@ export default function ImportarPage() {
                         {diagnostico.totalPares} par(es) de duplicata histórica detectado(s)
                       </p>
                       <p className="text-xs text-amber-700 mt-0.5">
-                        {diagnostico.mesmaFatura} na mesma fatura · {diagnostico.faturasDiferentes} em faturas diferentes
+                        {diagnostico.exactas > 0 && <span>{diagnostico.exactas} data exata · </span>}
+                        {diagnostico.janela > 0 && <span>{diagnostico.janela} deslocamento (1-3d) · </span>}
+                        {diagnostico.mesmaFatura} mesma fatura · {diagnostico.faturasDiferentes} faturas distintas
                       </p>
                     </div>
                   </div>
@@ -380,6 +385,12 @@ export default function ImportarPage() {
                     {diagnosticoExpandido ? 'Ocultar' : 'Ver detalhes'}
                   </button>
                 </div>
+
+                {diagnostico.exactas > 0 && (
+                  <div className="mt-2 bg-orange-50 border border-orange-200 rounded-lg p-2.5 text-xs text-orange-800">
+                    <span className="font-semibold">Atenção — duplicatas de data exata:</span> podem incluir compras legítimas inseridas pelo novo sistema (2 visitas no mesmo dia). Revise a lista antes de corrigir.
+                  </div>
+                )}
 
                 {/* Correction result banner */}
                 {resultadoCorrecao && (
@@ -398,8 +409,8 @@ export default function ImportarPage() {
                     <p className="text-sm font-semibold text-red-800">Confirmar exclusão permanente</p>
                     <p className="text-xs text-red-700">
                       {pendingModo === 'conservador'
-                        ? `Serão removidos registros duplicados dentro da mesma fatura (${diagnostico.mesmaFatura} par(es)). Critério: mantém o mais recente e/ou categorizado manualmente.`
-                        : `Serão removidos todos os pares próximos, incluindo os ${diagnostico.faturasDiferentes} par(es) em faturas diferentes. Isso altera os totais por fatura.`
+                        ? `Remove duplicatas dentro da mesma fatura. Inclui ${diagnostico.exactas} de data exata e ${diagnostico.mesmaFatura} por deslocamento. Mantém o registro com melhor categorização ou data mais recente.`
+                        : `Remove todos os ${diagnostico.totalPares} par(es), incluindo ${diagnostico.faturasDiferentes} em faturas diferentes. Altera os totais por fatura.`
                       }
                     </p>
                     <div className="flex gap-2">
@@ -428,7 +439,7 @@ export default function ImportarPage() {
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       Corrigir mesma fatura
-                      <span className="bg-amber-500 px-1.5 py-0.5 rounded-full">{diagnostico.mesmaFatura}</span>
+                      <span className="bg-amber-500 px-1.5 py-0.5 rounded-full">{diagnostico.exactas + diagnostico.mesmaFatura}</span>
                     </button>
                     {diagnostico.faturasDiferentes > 0 && (
                       <button
@@ -446,16 +457,19 @@ export default function ImportarPage() {
                 {diagnosticoExpandido && (
                   <div className="mt-3 space-y-2">
                     {diagnostico.pares.map((p, i) => (
-                      <div key={i} className="bg-white rounded-lg p-2.5 text-xs space-y-1 border border-amber-100">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-gray-800 truncate max-w-[70%]">{p.descricao}</span>
-                          <span className="text-gray-500 font-mono">R$ {Number(p.valor).toFixed(2)}</span>
+                      <div key={i} className={`rounded-lg p-2.5 text-xs space-y-1 border ${p.tipo === 'exata' ? 'bg-orange-50 border-orange-100' : 'bg-white border-amber-100'}`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium text-gray-800 truncate">{p.descricao}</span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${p.tipo === 'exata' ? 'bg-orange-200 text-orange-800' : 'bg-amber-100 text-amber-800'}`}>
+                              {p.tipo === 'exata' ? 'data exata' : `${p.dias}d`}
+                            </span>
+                            <span className="text-gray-500 font-mono">R$ {Number(p.valor).toFixed(2)}</span>
+                          </div>
                         </div>
                         <div className="flex items-center gap-2 text-gray-500">
                           <span>{p.data_a}</span>
-                          <span>→</span>
-                          <span>{p.data_b}</span>
-                          <span className="text-amber-600">({p.dias}d)</span>
+                          {p.tipo === 'janela' && <><span>→</span><span>{p.data_b}</span></>}
                           {!p.mesmaFatura && (
                             <span className="text-red-500 font-medium">faturas distintas</span>
                           )}
