@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths, addMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { CheckCircle2, AlertCircle, Pencil, Trash2, Plus, CreditCard, Download, ListFilter, X, RotateCcw } from 'lucide-react'
+import { CheckCircle2, AlertCircle, Pencil, Trash2, Plus, CreditCard, Download, RotateCcw } from 'lucide-react'
 import { log, numericOnly } from '@/lib/logger'
 
 const PREFIXO_CARTAO_1 = '[CARTAO1] '
@@ -67,7 +67,7 @@ function aplicarPrefixoCartao(item: string, tipo: '' | 'cartao1' | 'cartao2') {
 
 export default function ChecklistMensal({ mesSelecionado }: Props) {
   const [itens, setItens] = useState<ItemPlanejamento[]>([])
-  const [apenasPendentes, setApenasPendentes] = useState(false)
+  const [filtroStatus, setFiltroStatus] = useState<'' | 'pago' | 'pendente'>('')
   const [modalAberto, setModalAberto] = useState<string | null>(null)
   const [itemSelecionado, setItemSelecionado] = useState<ItemPlanejamento | null>(null)
   const [valorReal, setValorReal] = useState('')
@@ -82,7 +82,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
   const [previewImport, setPreviewImport] = useState<{ itens: any[]; mesOrigem: string } | null>(null)
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null)
 
-  useEffect(() => { carregarItens() }, [mesSelecionado, apenasPendentes])
+  useEffect(() => { carregarItens() }, [mesSelecionado])
 
   function showToast(msg: string, tipo: 'ok' | 'erro' = 'ok') {
     setToast({ msg, tipo })
@@ -97,10 +97,6 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       .eq('mes_referencia', format(primeiroDia, 'yyyy-MM-dd'))
       .not('item', 'ilike', '[RECEITA]%')
       .order('categoria', { ascending: false })
-
-    if (apenasPendentes) {
-      query = query.eq('pago', false)
-    }
 
     const { data } = await query
     setItens(data || [])
@@ -336,10 +332,16 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
   const percentualPago = totalPrevisto > 0 ? Math.min((totalPago / totalPrevisto) * 100, 100) : 0
   const itensPagos = itens.filter(i => i.pago).length
 
+  const itensFiltrados = useMemo(() => {
+    if (filtroStatus === 'pago') return itens.filter(i => i.pago)
+    if (filtroStatus === 'pendente') return itens.filter(i => !i.pago)
+    return itens
+  }, [itens, filtroStatus])
+
   const gruposPorCategoria = useMemo(() => {
     const ordem: string[] = []
     const map = new Map<string, ItemPlanejamento[]>()
-    for (const item of itens) {
+    for (const item of itensFiltrados) {
       if (!map.has(item.categoria)) {
         ordem.push(item.categoria)
         map.set(item.categoria, [])
@@ -354,7 +356,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
         const pagos = grupo.filter(i => i.pago)
         return { categoria: cat, itens: [...pendentes, ...pagos] }
       })
-  }, [itens])
+  }, [itensFiltrados])
 
   return (
     <div className="space-y-3">
@@ -369,28 +371,45 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
         </div>
       )}
 
-      {/* Resumo */}
+      {/* Resumo / Filtro de status */}
       <div className="bg-white rounded-3xl shadow-card p-4">
         <div className="grid grid-cols-3 gap-2 mb-3">
-          <div className="bg-gray-50 rounded-2xl p-2.5 text-center border border-gray-100">
-            <p className="text-[11px] text-gray-500 mb-0.5">Previsto</p>
-            <p className="text-xs font-bold text-gray-800 break-all leading-tight">{formatarMoeda(totalPrevisto)}</p>
-          </div>
-          <div className="bg-primary-50 rounded-2xl p-2.5 text-center border border-primary-100">
-            <p className="text-[11px] text-primary-500 mb-0.5">Pago</p>
-            <p className="text-xs font-bold text-primary-700 break-all leading-tight">{formatarMoeda(totalPago)}</p>
-          </div>
-          {totalPendente <= 0.009 ? (
-            <div className="bg-green-50 rounded-2xl p-2.5 text-center border border-green-100">
-              <p className="text-[11px] text-green-600 mb-0.5">A pagar</p>
-              <p className="text-xs font-bold text-green-600 leading-tight">Quitado ✓</p>
-            </div>
-          ) : (
-            <div className="bg-red-50 rounded-2xl p-2.5 text-center border border-red-100">
-              <p className="text-[11px] text-red-500 mb-0.5">A pagar</p>
-              <p className="text-xs font-bold text-red-600 break-all leading-tight">{formatarMoeda(totalPendente)}</p>
-            </div>
-          )}
+          <button
+            onClick={() => setFiltroStatus(filtroStatus === '' ? '' : '')}
+            className={`rounded-2xl p-2.5 text-center transition-all duration-200 active:scale-[0.97] ${
+              filtroStatus === ''
+                ? 'bg-gray-700 shadow-md ring-2 ring-gray-400 ring-offset-1'
+                : 'bg-gray-50 border border-gray-100'
+            }`}
+          >
+            <p className={`text-[11px] mb-0.5 ${filtroStatus === '' ? 'text-gray-300' : 'text-gray-500'}`}>Previsto</p>
+            <p className={`text-xs font-bold break-all leading-tight ${filtroStatus === '' ? 'text-white' : 'text-gray-800'}`}>{formatarMoeda(totalPrevisto)}</p>
+          </button>
+          <button
+            onClick={() => setFiltroStatus(filtroStatus === 'pago' ? '' : 'pago')}
+            className={`rounded-2xl p-2.5 text-center transition-all duration-200 active:scale-[0.97] ${
+              filtroStatus === 'pago'
+                ? 'bg-primary-600 shadow-md ring-2 ring-primary-300 ring-offset-1'
+                : 'bg-primary-50 border border-primary-100'
+            }`}
+          >
+            <p className={`text-[11px] mb-0.5 ${filtroStatus === 'pago' ? 'text-primary-100' : 'text-primary-500'}`}>Pago</p>
+            <p className={`text-xs font-bold break-all leading-tight ${filtroStatus === 'pago' ? 'text-white' : 'text-primary-700'}`}>{formatarMoeda(totalPago)}</p>
+          </button>
+          <button
+            onClick={() => setFiltroStatus(filtroStatus === 'pendente' ? '' : 'pendente')}
+            className={`rounded-2xl p-2.5 text-center transition-all duration-200 active:scale-[0.97] ${
+              filtroStatus === 'pendente'
+                ? totalPendente <= 0.009 ? 'bg-green-600 shadow-md ring-2 ring-green-300 ring-offset-1' : 'bg-red-600 shadow-md ring-2 ring-red-300 ring-offset-1'
+                : totalPendente <= 0.009 ? 'bg-green-50 border border-green-100' : 'bg-red-50 border border-red-100'
+            }`}
+          >
+            <p className={`text-[11px] mb-0.5 ${filtroStatus === 'pendente' ? 'text-red-100' : totalPendente <= 0.009 ? 'text-green-600' : 'text-red-500'}`}>A pagar</p>
+            {totalPendente <= 0.009
+              ? <p className={`text-xs font-bold leading-tight ${filtroStatus === 'pendente' ? 'text-white' : 'text-green-600'}`}>Quitado ✓</p>
+              : <p className={`text-xs font-bold break-all leading-tight ${filtroStatus === 'pendente' ? 'text-white' : 'text-red-600'}`}>{formatarMoeda(totalPendente)}</p>
+            }
+          </button>
         </div>
         <div>
           <div className="flex justify-between text-xs text-gray-500 mb-1">
@@ -423,23 +442,13 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
         >
           <Download className="w-4 h-4" /> Mês anterior
         </button>
-        <button
-          onClick={() => setApenasPendentes(!apenasPendentes)}
-          className={`px-3 py-2.5 rounded-2xl transition flex items-center gap-1.5 font-semibold text-sm active:scale-[0.97] ${
-            apenasPendentes ? 'bg-primary-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
-          title={apenasPendentes ? 'Mostrar todos' : 'Só pendentes'}
-        >
-          <ListFilter className="w-4 h-4" />
-          {apenasPendentes ? <X className="w-3 h-3" /> : null}
-        </button>
       </div>
 
       {/* Lista agrupada por categoria */}
-      {itens.length === 0 ? (
+      {gruposPorCategoria.length === 0 ? (
         <div className="bg-white rounded-3xl shadow-card py-12 flex flex-col items-center gap-2 text-gray-300">
           <CheckCircle2 className="w-10 h-10" />
-          <p className="text-sm">Nenhum item encontrado</p>
+          <p className="text-sm">{filtroStatus ? 'Nenhum item nesta categoria' : 'Nenhum item encontrado'}</p>
         </div>
       ) : (
         <div className="space-y-3">
