@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { Upload, CheckCircle2, XCircle, Sparkles, Clock, AlertCircle } from 'lucide-react'
+import { Upload, CheckCircle2, XCircle, Sparkles, Clock, AlertCircle, ShieldCheck } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
 
@@ -30,6 +30,25 @@ interface Atividade {
   created_at: string
 }
 
+interface DiagnosticoPar {
+  descricao: string
+  valor: number
+  data_a: string
+  data_b: string
+  dias: number
+  fatura_a: string
+  fatura_b: string
+  mesmaFatura: boolean
+}
+
+interface Diagnostico {
+  totalPares: number
+  mesmaFatura: number
+  faturasDiferentes: number
+  porFatura: Record<string, number>
+  pares: DiagnosticoPar[]
+}
+
 export default function ImportarPage() {
   const [uploading, setUploading] = useState(false)
   const [resumo, setResumo] = useState<Resumo | null>(null)
@@ -37,8 +56,26 @@ export default function ImportarPage() {
   const [arrastando, setArrastando] = useState(false)
   const [nomeArquivo, setNomeArquivo] = useState<string | null>(null)
   const [atividades, setAtividades] = useState<Atividade[]>([])
+  const [diagnostico, setDiagnostico] = useState<Diagnostico | null>(null)
+  const [diagnosticando, setDiagnosticando] = useState(false)
+  const [diagnosticoExpandido, setDiagnosticoExpandido] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { categorizando, categorizadoMsg, categorizar } = useCategorizacao()
+
+  async function executarDiagnostico() {
+    setDiagnosticando(true)
+    setDiagnostico(null)
+    try {
+      const res = await fetch('/api/import/diagnostico')
+      if (res.ok) {
+        const data = await res.json()
+        setDiagnostico(data)
+        setDiagnosticoExpandido(data.totalPares > 0)
+      }
+    } catch { /* silencioso */ } finally {
+      setDiagnosticando(false)
+    }
+  }
 
   async function carregarAtividades() {
     try {
@@ -274,6 +311,83 @@ export default function ImportarPage() {
       )}
 
       <div className="mt-6">
+        <div className="flex items-center gap-2 mb-3">
+          <ShieldCheck className="w-4 h-4 text-gray-400" />
+          <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Dados Históricos</h2>
+        </div>
+
+        <button
+          onClick={executarDiagnostico}
+          disabled={diagnosticando}
+          className="w-full flex items-center justify-center gap-2 bg-gray-100 text-gray-700 py-3 rounded-xl font-medium hover:bg-gray-200 transition disabled:opacity-50 mb-3 text-sm"
+        >
+          <ShieldCheck className="w-4 h-4" />
+          {diagnosticando ? 'Verificando…' : 'Verificar duplicatas históricas (±3 dias)'}
+        </button>
+
+        {diagnostico && (
+          <div className={`rounded-xl p-4 mb-4 ${diagnostico.totalPares > 0 ? 'bg-amber-50 border border-amber-200' : 'bg-green-50 border border-green-200'}`}>
+            {diagnostico.totalPares === 0 ? (
+              <div className="flex items-center gap-2 text-green-700">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span className="text-sm font-medium">Nenhuma duplicata histórica detectada.</span>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-semibold text-amber-800">
+                        {diagnostico.totalPares} par(es) de duplicata histórica detectado(s)
+                      </p>
+                      <p className="text-xs text-amber-700 mt-0.5">
+                        {diagnostico.mesmaFatura} na mesma fatura · {diagnostico.faturasDiferentes} em faturas diferentes
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setDiagnosticoExpandido(v => !v)}
+                    className="text-xs text-amber-700 underline shrink-0"
+                  >
+                    {diagnosticoExpandido ? 'Ocultar' : 'Ver detalhes'}
+                  </button>
+                </div>
+
+                {diagnosticoExpandido && (
+                  <div className="mt-3 space-y-2">
+                    {diagnostico.pares.map((p, i) => (
+                      <div key={i} className="bg-white rounded-lg p-2.5 text-xs space-y-1 border border-amber-100">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-gray-800 truncate max-w-[70%]">{p.descricao}</span>
+                          <span className="text-gray-500 font-mono">R$ {Number(p.valor).toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-gray-500">
+                          <span>{p.data_a}</span>
+                          <span>→</span>
+                          <span>{p.data_b}</span>
+                          <span className="text-amber-600">({p.dias}d)</span>
+                          {!p.mesmaFatura && (
+                            <span className="text-red-500 font-medium">faturas distintas</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+
+                    <div className="mt-3 bg-amber-100 rounded-lg p-3 text-xs text-amber-800 space-y-1">
+                      <p className="font-semibold">Como corrigir:</p>
+                      <p>Execute o script <code className="bg-white px-1 rounded">supabase/fix_duplicatas_janela.sql</code> no SQL Editor do Supabase.</p>
+                      <p>Passos 3A (mesma fatura) e 3B (faturas diferentes) — revise o diagnóstico do Passo 1 antes de deletar.</p>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-2">
         <div className="flex items-center gap-2 mb-3">
           <Clock className="w-4 h-4 text-gray-400" />
           <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Atividades Recentes via API</h2>
