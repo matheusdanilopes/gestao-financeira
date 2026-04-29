@@ -44,6 +44,7 @@ export default function RootLayout({
           }}
         />
         <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="Gestão Financeira" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         {/* iOS splash screens */}
         <link rel="apple-touch-startup-image" media="screen and (device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)" href="/splash-640x1136.png" />

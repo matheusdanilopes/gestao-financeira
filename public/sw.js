@@ -11,8 +11,8 @@ self.addEventListener('push', function (event) {
   const title = data.title || 'Gestão Financeira'
   const options = {
     body: data.body || '',
-    icon: '/icon.svg',
-    badge: '/icon.svg',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
     data: { url: data.url || '/dashboard' },
     vibrate: [200, 100, 200],
   }

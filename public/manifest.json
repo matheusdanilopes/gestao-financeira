@@ -1,8 +1,10 @@
 {
   "name": "Gestão Financeira Familiar",
   "short_name": "Gestão Financeira",
+  "id": "/",
   "start_url": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#0d3b1e",
   "theme_color": "#0d3b1e",
   "icons": [

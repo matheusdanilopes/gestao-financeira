@@ -30,7 +30,12 @@ export async function POST(req: NextRequest) {
     if (!subs?.length) return NextResponse.json({ ok: true })
 
     const results = await Promise.allSettled(
-      subs.map(sub => webpush.sendNotification(sub.subscription, JSON.stringify(payload)))
+      subs.map(sub =>
+        webpush.sendNotification(sub.subscription, JSON.stringify(payload), {
+          urgency: 'high',
+          TTL: 86400,
+        })
+      )
     )
 
     const expiradas = subs
