@@ -1,10 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
-import { gerarHashLinhaLegado, normalizarDescricaoParaHash, processarCSV } from '@/lib/csvparser'
+import { processarCSV, TransacaoNubank } from '@/lib/csvparser'
 import { notificarImportacao } from '@/lib/pushImportacao'
 
-function chaveCanonica(t: { data_compra: string; descricao: string; valor: number }): string {
-  return `${t.data_compra}|${normalizarDescricaoParaHash(t.descricao)}|${t.valor.toFixed(2)}`
+function adicionarDias(dataISO: string, dias: number): string {
+  const d = new Date(dataISO + 'T12:00:00')
+  d.setDate(d.getDate() + dias)
+  return d.toISOString().substring(0, 10)
+}
+
+async function contarNoBanco(
+  supabase: ReturnType<typeof criarSupabaseServer>,
+  item: TransacaoNubank,
+  dataInicio: string,
+  dataFim: string
+): Promise<number> {
+  const { count, error } = await supabase
+    .from('transacoes_nubank')
+    .select('*', { count: 'exact', head: true })
+    .eq('descricao', item.descricao)
+    .eq('valor', item.valor)
+    .gte('data_compra', dataInicio)
+    .lte('data_compra', dataFim)
+
+  if (error?.message?.includes('data_compra')) {
+    const { count: count2 } = await supabase
+      .from('transacoes_nubank')
+      .select('*', { count: 'exact', head: true })
+      .eq('descricao', item.descricao)
+      .eq('valor', item.valor)
+      .gte('data', dataInicio)
+      .lte('data', dataFim)
+    return count2 ?? 0
+  }
+
+  return count ?? 0
+}
+
+async function inserirTransacao(
+  supabase: ReturnType<typeof criarSupabaseServer>,
+  item: TransacaoNubank
+): Promise<boolean> {
+  let result = await supabase.from('transacoes_nubank').insert(item)
+
+  if (result.error?.message?.includes('data_compra')) {
+    const { data_compra, ...resto } = item as any
+    result = await supabase.from('transacoes_nubank').insert({ ...resto, data: data_compra })
+  }
+
+  if (!result.error) return true
+  // 23505 = unique_violation: hash already exists, not a new row
+  if (result.error.code === '23505' || result.error.message?.includes('duplicate')) return false
+  throw new Error('Erro ao salvar: ' + result.error.message)
 }
 
 export async function POST(req: NextRequest) {
@@ -15,7 +62,6 @@ export async function POST(req: NextRequest) {
     const file = formData.get('file') as File
     if (!file) return NextResponse.json({ error: 'Nenhum arquivo' }, { status: 400 })
 
-    // Busca configurações de vencimento para calcular projeto_fatura corretamente
     const { data: configs } = await supabase.from('configuracoes').select('chave, valor')
     const diaVencimento = parseInt(configs?.find((c: any) => c.chave === 'dia_vencimento')?.valor || '10')
     const ajusteFechamento = parseInt(configs?.find((c: any) => c.chave === 'ajuste_fechamento')?.valor || '0')
@@ -30,100 +76,59 @@ export async function POST(req: NextRequest) {
       }, { status: 422 })
     }
 
-    // Detecta todos os meses (projeto_fatura) presentes no arquivo
     const mesesNoArquivo = [...new Set(transacoes.map(t => t.projeto_fatura))].sort()
-
-    // Deduplica por hash dentro do arquivo (mesmo CSV pode ter linhas iguais)
-    const vistosNoArquivo = new Set<string>()
-    const novas = transacoes.filter(t => {
-      if (vistosNoArquivo.has(t.hash_linha)) return false
-      vistosNoArquivo.add(t.hash_linha)
-      return true
-    })
-    const duplicatasNoArquivo = transacoes.length - novas.length
 
     let novosMatheus = 0
     let novosJeniffer = 0
     let totalValor = 0
     let verdadeiramenteNovas = 0
+    let duplicatasIgnoradas = 0
 
-    if (novas.length > 0) {
-      const hashesAtuais = novas.map(t => t.hash_linha)
-      const hashesLegado = novas.map(t => gerarHashLinhaLegado(t.data_compra, t.descricao, t.valor))
-      const hashesParaConsulta = [...new Set([...hashesAtuais, ...hashesLegado])]
-      const mesesParaConsulta = [...new Set(novas.map(t => t.projeto_fatura))]
+    type StatsFatura = { noCSV: number; inseridas: number; ignoradas: number; totalNoBanco: number }
+    const faturaStats: Record<string, StatsFatura> = {}
+    for (const f of mesesNoArquivo) faturaStats[f] = { noCSV: 0, inseridas: 0, ignoradas: 0, totalNoBanco: 0 }
 
-      // Descobre quais hashes já existem no banco para calcular o delta real
-      const { data: jaExistentes } = await supabase
-        .from('transacoes_nubank')
-        .select('hash_linha')
-        .in('hash_linha', hashesParaConsulta)
-      const hashesExistentes = new Set((jaExistentes ?? []).map(r => r.hash_linha))
+    for (const item of transacoes) {
+      const stats = faturaStats[item.projeto_fatura]
+      stats.noCSV++
 
-      // Backstop adicional: dedupe por chave canônica (data + descrição + valor com 2 casas),
-      // protegendo contra quaisquer variações históricas de hash_linha.
-      // Fallback para schema legado: tenta 'data_compra', se a coluna não existir usa 'data'.
-      const queryCanonica1 = await supabase
-        .from('transacoes_nubank')
-        .select('data_compra, descricao, valor')
-        .in('projeto_fatura', mesesParaConsulta)
-      const existentesCanonicos: any[] | null = queryCanonica1.error?.message.includes('data_compra')
-        ? (await supabase
-            .from('transacoes_nubank')
-            .select('data, descricao, valor')
-            .in('projeto_fatura', mesesParaConsulta)
-          ).data
-        : queryCanonica1.data
-      const chavesCanonicasExistentes = new Set(
-        (existentesCanonicos ?? []).map((r: any) =>
-          chaveCanonica({
-            data_compra: String(r.data_compra ?? r.data ?? ''),
-            descricao: String(r.descricao ?? ''),
-            valor: Number(r.valor ?? 0),
-          })
-        )
-      )
+      const dataInicio = adicionarDias(item.data_compra, -3)
+      const dataFim = adicionarDias(item.data_compra, 3)
 
-      const novasParaInserir = novas.filter(t => {
-        const hashLegado = gerarHashLinhaLegado(t.data_compra, t.descricao, t.valor)
-        const canonica = chaveCanonica(t)
-        return (
-          !hashesExistentes.has(t.hash_linha) &&
-          !hashesExistentes.has(hashLegado) &&
-          !chavesCanonicasExistentes.has(canonica)
-        )
-      })
-      verdadeiramenteNovas = novasParaInserir.length
+      const qtdNoBanco = await contarNoBanco(supabase, item, dataInicio, dataFim)
 
-      let insertResult = await supabase
-        .from('transacoes_nubank')
-        .upsert(novasParaInserir, { onConflict: 'hash_linha' })
+      // Count how many times this exact (descricao, valor, date) appears in the CSV
+      const qtdNoCsv = transacoes.filter(x =>
+        x.descricao === item.descricao &&
+        x.valor === item.valor &&
+        x.data_compra === item.data_compra
+      ).length
 
-      // Compatibilidade com bancos antigos: coluna pode ser 'data' em vez de 'data_compra'.
-      if (insertResult.error && insertResult.error.message.includes('data_compra')) {
-        const novasLegado = novasParaInserir.map((t) => {
-          const { data_compra, ...resto } = t as any
-          return { ...resto, data: data_compra }
-        })
-        insertResult = await supabase
-          .from('transacoes_nubank')
-          .upsert(novasLegado, { onConflict: 'hash_linha' })
+      if (qtdNoBanco < qtdNoCsv) {
+        const inserido = await inserirTransacao(supabase, item)
+        if (inserido) {
+          verdadeiramenteNovas++
+          stats.inseridas++
+          if (item.responsavel === 'Matheus') novosMatheus++
+          else novosJeniffer++
+          totalValor += item.valor
+        } else {
+          duplicatasIgnoradas++
+          stats.ignoradas++
+        }
+      } else {
+        duplicatasIgnoradas++
+        stats.ignoradas++
       }
+    }
 
-      if (insertResult.error) {
-        console.error('[import] Erro insert:', JSON.stringify(insertResult.error))
-        await notificarImportacao(supabase, 'erro')
-        return NextResponse.json(
-          { error: 'Erro ao salvar: ' + insertResult.error.message },
-          { status: 500 }
-        )
-      }
-
-      for (const t of novasParaInserir) {
-        if (t.responsavel === 'Matheus') novosMatheus++
-        else novosJeniffer++
-        totalValor += t.valor
-      }
+    // Query DB total per fatura for duplicate validation
+    for (const fatura of mesesNoArquivo) {
+      const { count } = await supabase
+        .from('transacoes_nubank')
+        .select('*', { count: 'exact', head: true })
+        .eq('projeto_fatura', fatura)
+      faturaStats[fatura].totalNoBanco = count ?? 0
     }
 
     await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas)
@@ -132,11 +137,12 @@ export async function POST(req: NextRequest) {
       success: true,
       totalLidas: transacoes.length,
       novas: verdadeiramenteNovas,
-      duplicatasNoArquivo,
+      duplicatasNoArquivo: duplicatasIgnoradas,
       matheus: novosMatheus,
       jeniffer: novosJeniffer,
       total: totalValor.toFixed(2),
       mesesReprocessados: mesesNoArquivo,
+      resumoPorFatura: faturaStats,
     })
   } catch (error) {
     console.error('[import] Excecao:', error)
