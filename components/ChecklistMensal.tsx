@@ -445,10 +445,10 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       </div>
 
       {/* Lista agrupada por categoria */}
-      {itens.length === 0 ? (
+      {gruposPorCategoria.length === 0 ? (
         <div className="bg-white rounded-3xl shadow-card py-12 flex flex-col items-center gap-2 text-gray-300">
           <CheckCircle2 className="w-10 h-10" />
-          <p className="text-sm">Nenhum item encontrado</p>
+          <p className="text-sm">{filtroStatus ? 'Nenhum item nesta categoria' : 'Nenhum item encontrado'}</p>
         </div>
       ) : (
         <div className="space-y-3">
