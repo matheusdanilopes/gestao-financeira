@@ -1,3 +1,11 @@
+self.addEventListener('install', (event) => {
+  self.skipWaiting()
+})
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(clients.claim())
+})
+
 self.addEventListener('push', function (event) {
   const data = event.data ? event.data.json() : {}
   const title = data.title || 'Gestão Financeira'
