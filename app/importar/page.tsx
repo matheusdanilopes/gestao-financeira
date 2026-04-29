@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { Upload, CheckCircle2, XCircle, Sparkles, Clock, AlertCircle, ShieldCheck } from 'lucide-react'
+import { Upload, CheckCircle2, XCircle, Sparkles, Clock, AlertCircle, ShieldCheck, Trash2 } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
 
@@ -59,12 +59,17 @@ export default function ImportarPage() {
   const [diagnostico, setDiagnostico] = useState<Diagnostico | null>(null)
   const [diagnosticando, setDiagnosticando] = useState(false)
   const [diagnosticoExpandido, setDiagnosticoExpandido] = useState(false)
+  const [pendingModo, setPendingModo] = useState<'conservador' | 'completo' | null>(null)
+  const [corrigindo, setCorrigindo] = useState(false)
+  const [resultadoCorrecao, setResultadoCorrecao] = useState<{ removidos: number; mensagem: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { categorizando, categorizadoMsg, categorizar } = useCategorizacao()
 
   async function executarDiagnostico() {
     setDiagnosticando(true)
     setDiagnostico(null)
+    setResultadoCorrecao(null)
+    setPendingModo(null)
     try {
       const res = await fetch('/api/import/diagnostico')
       if (res.ok) {
@@ -74,6 +79,28 @@ export default function ImportarPage() {
       }
     } catch { /* silencioso */ } finally {
       setDiagnosticando(false)
+    }
+  }
+
+  async function confirmarCorrecao() {
+    if (!pendingModo) return
+    setCorrigindo(true)
+    try {
+      const res = await fetch('/api/import/diagnostico/corrigir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modo: pendingModo }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Erro desconhecido')
+      setResultadoCorrecao(data)
+      // Re-run diagnostic to show updated state
+      await executarDiagnostico()
+    } catch (e) {
+      setResultadoCorrecao({ removidos: -1, mensagem: String(e) })
+    } finally {
+      setCorrigindo(false)
+      setPendingModo(null)
     }
   }
 
@@ -354,6 +381,68 @@ export default function ImportarPage() {
                   </button>
                 </div>
 
+                {/* Correction result banner */}
+                {resultadoCorrecao && (
+                  <div className={`mt-3 rounded-lg p-3 text-sm flex items-center gap-2 ${resultadoCorrecao.removidos >= 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                    {resultadoCorrecao.removidos >= 0
+                      ? <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      : <XCircle className="w-4 h-4 shrink-0" />
+                    }
+                    <span>{resultadoCorrecao.mensagem}</span>
+                  </div>
+                )}
+
+                {/* Confirmation step */}
+                {pendingModo ? (
+                  <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3 space-y-3">
+                    <p className="text-sm font-semibold text-red-800">Confirmar exclusão permanente</p>
+                    <p className="text-xs text-red-700">
+                      {pendingModo === 'conservador'
+                        ? `Serão removidos registros duplicados dentro da mesma fatura (${diagnostico.mesmaFatura} par(es)). Critério: mantém o mais recente e/ou categorizado manualmente.`
+                        : `Serão removidos todos os pares próximos, incluindo os ${diagnostico.faturasDiferentes} par(es) em faturas diferentes. Isso altera os totais por fatura.`
+                      }
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={confirmarCorrecao}
+                        disabled={corrigindo}
+                        className="flex-1 flex items-center justify-center gap-1.5 bg-red-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-red-700 transition disabled:opacity-50"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        {corrigindo ? 'Removendo…' : 'Confirmar exclusão'}
+                      </button>
+                      <button
+                        onClick={() => setPendingModo(null)}
+                        disabled={corrigindo}
+                        className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition disabled:opacity-50"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      onClick={() => setPendingModo('conservador')}
+                      className="flex-1 flex items-center justify-center gap-1.5 bg-amber-600 text-white py-2 rounded-lg text-xs font-semibold hover:bg-amber-700 transition"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Corrigir mesma fatura
+                      <span className="bg-amber-500 px-1.5 py-0.5 rounded-full">{diagnostico.mesmaFatura}</span>
+                    </button>
+                    {diagnostico.faturasDiferentes > 0 && (
+                      <button
+                        onClick={() => setPendingModo('completo')}
+                        className="flex-1 flex items-center justify-center gap-1.5 bg-red-600 text-white py-2 rounded-lg text-xs font-semibold hover:bg-red-700 transition"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Corrigir tudo
+                        <span className="bg-red-500 px-1.5 py-0.5 rounded-full">{diagnostico.totalPares}</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {diagnosticoExpandido && (
                   <div className="mt-3 space-y-2">
                     {diagnostico.pares.map((p, i) => (
@@ -373,12 +462,6 @@ export default function ImportarPage() {
                         </div>
                       </div>
                     ))}
-
-                    <div className="mt-3 bg-amber-100 rounded-lg p-3 text-xs text-amber-800 space-y-1">
-                      <p className="font-semibold">Como corrigir:</p>
-                      <p>Execute o script <code className="bg-white px-1 rounded">supabase/fix_duplicatas_janela.sql</code> no SQL Editor do Supabase.</p>
-                      <p>Passos 3A (mesma fatura) e 3B (faturas diferentes) — revise o diagnóstico do Passo 1 antes de deletar.</p>
-                    </div>
                   </div>
                 )}
               </>
