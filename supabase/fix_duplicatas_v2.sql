@@ -1,27 +1,30 @@
 -- ============================================================
--- DIAGNÓSTICO E CORREÇÃO DE DUPLICATAS — v2
+-- DIAGNÓSTICO E CORREÇÃO DE DUPLICATAS — v3
 -- Schema legado: coluna 'data' (não 'data_compra')
+-- created_at confirmado como timestamp without time zone
 -- Execute no SQL Editor do Supabase (https://app.supabase.com)
 -- ============================================================
 
 -- ─────────────────────────────────────────────────────────────
--- PASSO 1: VER GRUPOS DUPLICADOS
--- Mostra todas as transações com mesma data + descrição
--- normalizada + valor, independentemente de hash ou responsável.
--- Revise o resultado antes de rodar qualquer DELETE.
+-- PASSO 1: VER GRUPOS DUPLICADOS (normalização máxima)
+-- Usa regexp_replace para normalizar espaços internos também,
+-- e round(valor,2) para absorver diferenças de precisão.
 -- ─────────────────────────────────────────────────────────────
 SELECT
   data,
-  lower(trim(descricao))                          AS descricao_norm,
-  valor,
-  COUNT(*)                                        AS total,
-  array_agg(id          ORDER BY id ASC)          AS ids,
-  array_agg(hash_linha  ORDER BY id ASC)          AS hashes,
-  array_agg(responsavel ORDER BY id ASC)          AS responsaveis,
-  array_agg(categoria_origem ORDER BY id ASC)     AS origens,
-  array_agg(categoria   ORDER BY id ASC)          AS categorias
+  lower(trim(regexp_replace(descricao, '\s+', ' ', 'g'))) AS descricao_norm,
+  round(valor::numeric, 2)                                AS valor_norm,
+  COUNT(*)                                                AS total,
+  array_agg(id          ORDER BY created_at ASC)         AS ids,
+  array_agg(hash_linha  ORDER BY created_at ASC)         AS hashes,
+  array_agg(responsavel ORDER BY created_at ASC)         AS responsaveis,
+  array_agg(descricao   ORDER BY created_at ASC)         AS descricoes_raw,
+  array_agg(categoria_origem ORDER BY created_at ASC)    AS origens,
+  array_agg(categoria   ORDER BY created_at ASC)         AS categorias
 FROM transacoes_nubank
-GROUP BY data, lower(trim(descricao)), valor
+GROUP BY data,
+         lower(trim(regexp_replace(descricao, '\s+', ' ', 'g'))),
+         round(valor::numeric, 2)
 HAVING COUNT(*) > 1
 ORDER BY total DESC, data DESC;
 
@@ -35,26 +38,25 @@ SELECT
 FROM (
   SELECT COUNT(*) AS total
   FROM transacoes_nubank
-  GROUP BY data, lower(trim(descricao)), valor
+  GROUP BY data,
+           lower(trim(regexp_replace(descricao, '\s+', ' ', 'g'))),
+           round(valor::numeric, 2)
   HAVING COUNT(*) > 1
 ) sub;
 
 
 -- ─────────────────────────────────────────────────────────────
 -- PASSO 3: REMOVER DUPLICATAS
--- Mantém o MELHOR registro por grupo lógico.
--- Prioridade:
---   1. categoria_origem = 'MANUAL' antes de 'IA' antes de NULL
---   2. Com categoria preenchida antes de sem categoria
---   3. Registro mais antigo pelo id (UUID ordenado)
---
--- ATENÇÃO: revise o Passo 1 antes de executar este bloco.
+-- Mantém: MANUAL > IA > sem categoria; com categoria > sem; mais antigo.
+-- ATENÇÃO: revise o Passo 1 antes de executar.
 -- ─────────────────────────────────────────────────────────────
 WITH ranked AS (
   SELECT
     id,
     ROW_NUMBER() OVER (
-      PARTITION BY data, lower(trim(descricao)), valor
+      PARTITION BY data,
+                   lower(trim(regexp_replace(descricao, '\s+', ' ', 'g'))),
+                   round(valor::numeric, 2)
       ORDER BY
         CASE categoria_origem
           WHEN 'MANUAL' THEN 1
@@ -62,6 +64,7 @@ WITH ranked AS (
           ELSE               3
         END,
         CASE WHEN categoria IS NOT NULL THEN 1 ELSE 2 END,
+        created_at ASC,
         id ASC
     ) AS rn
   FROM transacoes_nubank
@@ -81,31 +84,24 @@ SELECT
     ELSE 'ATENÇÃO — ' || COUNT(*) || ' grupo(s) ainda com duplicata'
   END AS resultado
 FROM (
-  SELECT data, lower(trim(descricao)), valor
+  SELECT data,
+         lower(trim(regexp_replace(descricao, '\s+', ' ', 'g'))),
+         round(valor::numeric, 2)
   FROM transacoes_nubank
-  GROUP BY data, lower(trim(descricao)), valor
+  GROUP BY data,
+           lower(trim(regexp_replace(descricao, '\s+', ' ', 'g'))),
+           round(valor::numeric, 2)
   HAVING COUNT(*) > 1
 ) sub;
 
 
 -- ─────────────────────────────────────────────────────────────
--- PASSO 5: GARANTIR O UNIQUE CONSTRAINT DE hash_linha
--- O upsert com onConflict:'hash_linha' depende desse constraint.
+-- PASSO 5: REMOVER CONSTRAINT DUPLICADO DE hash_linha
+-- O banco tem dois constraints UNIQUE em hash_linha.
+-- Remove o redundante e mantém apenas um.
 -- ─────────────────────────────────────────────────────────────
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'transacoes_nubank_hash_linha_unique'
-      AND conrelid = 'transacoes_nubank'::regclass
-  ) THEN
-    ALTER TABLE transacoes_nubank
-      ADD CONSTRAINT transacoes_nubank_hash_linha_unique UNIQUE (hash_linha);
-    RAISE NOTICE 'Constraint transacoes_nubank_hash_linha_unique criado com sucesso.';
-  ELSE
-    RAISE NOTICE 'Constraint transacoes_nubank_hash_linha_unique já existe.';
-  END IF;
-END $$;
+ALTER TABLE transacoes_nubank
+  DROP CONSTRAINT IF EXISTS transacoes_nubank_hash_linha_unique;
 
 
 -- ─────────────────────────────────────────────────────────────

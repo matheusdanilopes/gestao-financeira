@@ -93,7 +93,8 @@ export async function POST(req: NextRequest) {
           !chavesCanonicasExistentes.has(canonica)
         )
       })
-      verdadeiramenteNovas = novasParaInserir.length
+
+      const startTime = new Date()
 
       let insertResult = await supabase
         .from('transacoes_nubank')
@@ -119,10 +120,21 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      for (const t of novasParaInserir) {
-        if (t.responsavel === 'Matheus') novosMatheus++
-        else novosJeniffer++
-        totalValor += t.valor
+      // Conta apenas registros efetivamente inseridos (created_at >= startTime),
+      // descartando os que o upsert apenas atualizou.
+      if (novasParaInserir.length > 0) {
+        const { data: novosReais } = await supabase
+          .from('transacoes_nubank')
+          .select('hash_linha, responsavel, valor')
+          .in('hash_linha', novasParaInserir.map(t => t.hash_linha))
+          .gte('created_at', startTime.toISOString())
+
+        verdadeiramenteNovas = novosReais?.length ?? 0
+        for (const r of (novosReais ?? [])) {
+          if (r.responsavel === 'Matheus') novosMatheus++
+          else novosJeniffer++
+          totalValor += Number(r.valor)
+        }
       }
     }
 
