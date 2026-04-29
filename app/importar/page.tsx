@@ -5,6 +5,13 @@ import { Upload, CheckCircle2, XCircle, Sparkles, Clock, AlertCircle } from 'luc
 import BottomNav from '@/components/BottomNav'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
 
+interface StatsFatura {
+  noCSV: number
+  inseridas: number
+  ignoradas: number
+  totalNoBanco: number
+}
+
 interface Resumo {
   matheus: number
   jeniffer: number
@@ -13,6 +20,7 @@ interface Resumo {
   duplicatasNoArquivo: number
   totalLidas: number
   mesesSobrescritos: string[]
+  resumoPorFatura?: Record<string, StatsFatura>
 }
 
 interface Atividade {
@@ -67,7 +75,8 @@ export default function ImportarPage() {
           novas: data.novas,
           duplicatasNoArquivo: data.duplicatasNoArquivo,
           totalLidas: data.totalLidas,
-          mesesSobrescritos: data.mesesSobrescritos ?? [],
+          mesesSobrescritos: data.mesesReprocessados ?? data.mesesSobrescritos ?? [],
+          resumoPorFatura: data.resumoPorFatura,
         })
       } else {
         setErro(data.error || 'Erro desconhecido')
@@ -215,8 +224,51 @@ export default function ImportarPage() {
           )}
           {resumo.duplicatasNoArquivo > 0 && (
             <p className="text-xs text-gray-400 text-center">
-              {resumo.duplicatasNoArquivo} linha(s) duplicada(s) no arquivo ignoradas
+              {resumo.duplicatasNoArquivo} linha(s) ignoradas (já existiam)
             </p>
+          )}
+
+          {resumo.resumoPorFatura && Object.keys(resumo.resumoPorFatura).length > 0 && (
+            <div className="pt-2 border-t space-y-2">
+              <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Verificação por fatura</p>
+              {Object.entries(resumo.resumoPorFatura)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([fatura, stats]) => {
+                  const label = new Date(fatura + 'T12:00:00')
+                    .toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })
+                    .replace(/^\w/, c => c.toUpperCase())
+                  const temExcesso = stats.totalNoBanco > stats.noCSV
+                  return (
+                    <div key={fatura} className={`rounded-lg p-3 text-xs space-y-1.5 ${temExcesso ? 'bg-amber-50 border border-amber-200' : 'bg-gray-50'}`}>
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-gray-700">{label}</span>
+                        {temExcesso
+                          ? <span className="text-amber-600 font-medium">Banco tem mais registros que o CSV</span>
+                          : <span className="text-green-600 font-medium">OK</span>
+                        }
+                      </div>
+                      <div className="grid grid-cols-4 gap-1 text-center">
+                        <div>
+                          <p className="font-bold text-gray-800">{stats.noCSV}</p>
+                          <p className="text-gray-400">no CSV</p>
+                        </div>
+                        <div>
+                          <p className="font-bold text-green-700">{stats.inseridas}</p>
+                          <p className="text-gray-400">inseridas</p>
+                        </div>
+                        <div>
+                          <p className="font-bold text-gray-500">{stats.ignoradas}</p>
+                          <p className="text-gray-400">ignoradas</p>
+                        </div>
+                        <div>
+                          <p className={`font-bold ${temExcesso ? 'text-amber-700' : 'text-gray-800'}`}>{stats.totalNoBanco}</p>
+                          <p className="text-gray-400">no banco</p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+            </div>
           )}
         </div>
       )}

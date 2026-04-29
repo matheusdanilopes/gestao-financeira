@@ -84,7 +84,14 @@ export async function POST(req: NextRequest) {
     let verdadeiramenteNovas = 0
     let duplicatasIgnoradas = 0
 
+    type StatsFatura = { noCSV: number; inseridas: number; ignoradas: number; totalNoBanco: number }
+    const faturaStats: Record<string, StatsFatura> = {}
+    for (const f of mesesNoArquivo) faturaStats[f] = { noCSV: 0, inseridas: 0, ignoradas: 0, totalNoBanco: 0 }
+
     for (const item of transacoes) {
+      const stats = faturaStats[item.projeto_fatura]
+      stats.noCSV++
+
       const dataInicio = adicionarDias(item.data_compra, -3)
       const dataFim = adicionarDias(item.data_compra, 3)
 
@@ -101,15 +108,27 @@ export async function POST(req: NextRequest) {
         const inserido = await inserirTransacao(supabase, item)
         if (inserido) {
           verdadeiramenteNovas++
+          stats.inseridas++
           if (item.responsavel === 'Matheus') novosMatheus++
           else novosJeniffer++
           totalValor += item.valor
         } else {
           duplicatasIgnoradas++
+          stats.ignoradas++
         }
       } else {
         duplicatasIgnoradas++
+        stats.ignoradas++
       }
+    }
+
+    // Query DB total per fatura for duplicate validation
+    for (const fatura of mesesNoArquivo) {
+      const { count } = await supabase
+        .from('transacoes_nubank')
+        .select('*', { count: 'exact', head: true })
+        .eq('projeto_fatura', fatura)
+      faturaStats[fatura].totalNoBanco = count ?? 0
     }
 
     await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas)
@@ -123,6 +142,7 @@ export async function POST(req: NextRequest) {
       jeniffer: novosJeniffer,
       total: totalValor.toFixed(2),
       mesesReprocessados: mesesNoArquivo,
+      resumoPorFatura: faturaStats,
     })
   } catch (error) {
     console.error('[import] Excecao:', error)

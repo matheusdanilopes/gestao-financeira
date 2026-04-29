@@ -92,6 +92,8 @@ async function inserirTransacao(
   throw new Error('Erro ao salvar transações: ' + result.error.message)
 }
 
+type StatsFatura = { noCSV: number; inseridas: number; ignoradas: number; totalNoBanco: number }
+
 async function salvarTransacoes(
   supabase: ReturnType<typeof criarSupabaseServer>,
   transacoes: TransacaoNubank[]
@@ -103,7 +105,14 @@ async function salvarTransacoes(
   let verdadeiramenteNovas = 0
   let duplicatasIgnoradas = 0
 
+  const mesesNoArquivo = [...new Set(transacoes.map(t => t.projeto_fatura))].sort()
+  const faturaStats: Record<string, StatsFatura> = {}
+  for (const f of mesesNoArquivo) faturaStats[f] = { noCSV: 0, inseridas: 0, ignoradas: 0, totalNoBanco: 0 }
+
   for (const item of transacoes) {
+    const stats = faturaStats[item.projeto_fatura]
+    stats.noCSV++
+
     const dataInicio = adicionarDias(item.data_compra, -3)
     const dataFim = adicionarDias(item.data_compra, 3)
 
@@ -121,18 +130,28 @@ async function salvarTransacoes(
       if (inserido) {
         verdadeiramenteNovas++
         hashesImportados.push(item.hash_linha)
+        stats.inseridas++
         if (item.responsavel === 'Matheus') novosMatheus++
         else novosJeniffer++
         totalValor += item.valor
       } else {
         duplicatasIgnoradas++
+        stats.ignoradas++
       }
     } else {
       duplicatasIgnoradas++
+      stats.ignoradas++
     }
   }
 
-  const mesesNoArquivo = [...new Set(transacoes.map(t => t.projeto_fatura))].sort()
+  // Query DB total per fatura for duplicate validation
+  for (const fatura of mesesNoArquivo) {
+    const { count } = await supabase
+      .from('transacoes_nubank')
+      .select('*', { count: 'exact', head: true })
+      .eq('projeto_fatura', fatura)
+    faturaStats[fatura].totalNoBanco = count ?? 0
+  }
 
   return {
     totalLidas: transacoes.length,
@@ -142,6 +161,7 @@ async function salvarTransacoes(
     jeniffer: novosJeniffer,
     total: totalValor.toFixed(2),
     mesesReprocessados: mesesNoArquivo,
+    resumoPorFatura: faturaStats,
     hashesImportados,
   }
 }
