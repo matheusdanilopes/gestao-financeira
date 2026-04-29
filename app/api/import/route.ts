@@ -62,14 +62,22 @@ export async function POST(req: NextRequest) {
 
       // Backstop adicional: dedupe por chave canônica (data + descrição + valor com 2 casas),
       // protegendo contra quaisquer variações históricas de hash_linha.
-      const { data: existentesCanonicos } = await supabase
+      // Fallback para schema legado: tenta 'data_compra', se a coluna não existir usa 'data'.
+      let queryCanonica = await supabase
         .from('transacoes_nubank')
         .select('data_compra, descricao, valor')
         .in('projeto_fatura', mesesParaConsulta)
+      if (queryCanonica.error?.message.includes('data_compra')) {
+        queryCanonica = await supabase
+          .from('transacoes_nubank')
+          .select('data, descricao, valor')
+          .in('projeto_fatura', mesesParaConsulta)
+      }
+      const existentesCanonicos = queryCanonica.data
       const chavesCanonicasExistentes = new Set(
         (existentesCanonicos ?? []).map((r: any) =>
           chaveCanonica({
-            data_compra: String(r.data_compra ?? ''),
+            data_compra: String(r.data_compra ?? r.data ?? ''),
             descricao: String(r.descricao ?? ''),
             valor: Number(r.valor ?? 0),
           })
