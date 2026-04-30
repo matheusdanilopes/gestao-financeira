@@ -3,12 +3,13 @@
 import { X } from 'lucide-react'
 import { useState, useMemo, useEffect } from 'react'
 
-type CampoFiltro = 'responsavel' | 'tipo' | 'categoria'
+type CampoFiltro = 'responsavel' | 'tipo' | 'categoria' | 'descricao'
 
 const CAMPOS_FILTRO: { value: CampoFiltro; label: string }[] = [
   { value: 'responsavel', label: 'Responsável' },
   { value: 'tipo', label: 'Tipo' },
   { value: 'categoria', label: 'Categoria' },
+  { value: 'descricao', label: 'Descrição' },
 ]
 
 function labelValor(campo: CampoFiltro, valor: string): string {
@@ -43,6 +44,7 @@ export default function DrawerDetalhes({ aberto, onClose, dados }: Props) {
   useEffect(() => {
     setFiltroCampo('responsavel')
     setFiltroValor('Todos')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dados])
 
   const valoresDisponiveis = useMemo(() => {
@@ -55,9 +57,17 @@ export default function DrawerDetalhes({ aberto, onClose, dados }: Props) {
   }, [itens, filtroCampo])
 
   const itensFiltrados = useMemo(() => {
-    const filtrados = filtroValor === 'Todos'
-      ? itens
-      : itens.filter(item => String(item[filtroCampo] || '') === filtroValor)
+    let filtrados = itens
+    if (filtroCampo === 'descricao') {
+      const termo = filtroValor.trim().toLowerCase()
+      if (termo) {
+        filtrados = itens.filter(item =>
+          String(item.descricao || item.item || '').toLowerCase().includes(termo)
+        )
+      }
+    } else if (filtroValor !== 'Todos') {
+      filtrados = itens.filter(item => String(item[filtroCampo] || '') === filtroValor)
+    }
 
     return [...filtrados].sort((a, b) =>
       dataOrdenacao(a).localeCompare(dataOrdenacao(b))
@@ -73,7 +83,7 @@ export default function DrawerDetalhes({ aberto, onClose, dados }: Props) {
 
   const handleCampoChange = (campo: CampoFiltro) => {
     setFiltroCampo(campo)
-    setFiltroValor('Todos')
+    setFiltroValor(campo === 'descricao' ? '' : 'Todos')
   }
 
   return (
@@ -109,17 +119,27 @@ export default function DrawerDetalhes({ aberto, onClose, dados }: Props) {
             </div>
             <div className="flex-1">
               <label className="block text-xs text-gray-400 mb-1">Valor</label>
-              <select
-                value={filtroValor}
-                onChange={e => setFiltroValor(e.target.value)}
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400"
-              >
-                {valoresDisponiveis.map(v => (
-                  <option key={v} value={v}>
-                    {v === 'Todos' ? 'Todos' : labelValor(filtroCampo, v)}
-                  </option>
-                ))}
-              </select>
+              {filtroCampo === 'descricao' ? (
+                <input
+                  type="text"
+                  value={filtroValor}
+                  onChange={e => setFiltroValor(e.target.value)}
+                  placeholder="Buscar descrição..."
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
+              ) : (
+                <select
+                  value={filtroValor}
+                  onChange={e => setFiltroValor(e.target.value)}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                >
+                  {valoresDisponiveis.map(v => (
+                    <option key={v} value={v}>
+                      {v === 'Todos' ? 'Todos' : labelValor(filtroCampo, v)}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
         </div>
@@ -128,13 +148,13 @@ export default function DrawerDetalhes({ aberto, onClose, dados }: Props) {
           <div className="bg-blue-50 rounded-lg p-3 mb-4">
             <p className="text-sm text-gray-600">Valor total</p>
             <p className="text-2xl font-bold text-blue-600">
-              R$ {(filtroValor === 'Todos' ? dados.valor : valorFiltrado).toFixed(2)}
+              R$ {(itensFiltrados.length === itens.length ? dados.valor : valorFiltrado).toFixed(2)}
             </p>
           </div>
 
           <h4 className="font-semibold mb-2 flex items-baseline gap-2">
             Itens que compõem este valor:
-            {filtroValor !== 'Todos' && (
+            {itensFiltrados.length < itens.length && (
               <span className="text-sm font-normal text-gray-400">
                 {itensFiltrados.length} de {itens.length}
               </span>
