@@ -95,10 +95,11 @@ export async function POST(req: NextRequest) {
       extra: new Array(meses.length).fill(0),
     }
 
-    // Busca apenas a fatura mais recente disponível no banco
+    // Busca a fatura mais recente do NuBank (referência para os parcelamentos)
     const { data: maxRow } = await supabase
       .from('transacoes_nubank')
       .select('projeto_fatura')
+      .eq('cartao', 'nubank')
       .order('projeto_fatura', { ascending: false })
       .limit(1)
 

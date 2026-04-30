@@ -49,7 +49,16 @@ interface Diagnostico {
   pares: DiagnosticoPar[]
 }
 
+type TipoCartao = 'nubank' | 'cartao1' | 'cartao2'
+
+const CARTAO_LABELS: Record<TipoCartao, string> = {
+  nubank: 'NuBank',
+  cartao1: 'Cartão 1',
+  cartao2: 'Cartão 2',
+}
+
 export default function ImportarPage() {
+  const [cartaoSelecionado, setCartaoSelecionado] = useState<TipoCartao>('nubank')
   const [uploading, setUploading] = useState(false)
   const [resumo, setResumo] = useState<Resumo | null>(null)
   const [erro, setErro] = useState<string | null>(null)
@@ -127,8 +136,13 @@ export default function ImportarPage() {
     const formData = new FormData()
     formData.append('file', file)
 
+    const endpoint = cartaoSelecionado === 'nubank' ? '/api/import' : '/api/import/cartao'
+    if (cartaoSelecionado !== 'nubank') {
+      formData.append('cartao', cartaoSelecionado)
+    }
+
     try {
-      const response = await fetch('/api/import', { method: 'POST', body: formData })
+      const response = await fetch(endpoint, { method: 'POST', body: formData })
       const data = await response.json()
 
       if (data.success) {
@@ -176,7 +190,24 @@ export default function ImportarPage() {
     <div className="min-h-screen bg-gray-50 p-4 pb-20">
       <div className="sticky top-0 bg-gray-50 pt-2 pb-3 z-10">
         <h1 className="text-2xl font-bold mb-1">Importar CSV</h1>
-        <p className="text-sm text-gray-500">Faça upload do arquivo exportado pelo Nubank</p>
+        <p className="text-sm text-gray-500">Selecione o cartão e faça upload do arquivo CSV</p>
+      </div>
+
+      {/* Seletor de cartão */}
+      <div className="bg-white rounded-2xl shadow-sm p-1 mb-4 flex gap-1">
+        {(Object.keys(CARTAO_LABELS) as TipoCartao[]).map(tipo => (
+          <button
+            key={tipo}
+            onClick={() => { setCartaoSelecionado(tipo); setResumo(null); setErro(null) }}
+            className={`flex-1 py-2 px-3 rounded-xl text-sm font-semibold transition-all ${
+              cartaoSelecionado === tipo
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-gray-500 hover:bg-gray-100'
+            }`}
+          >
+            {CARTAO_LABELS[tipo]}
+          </button>
+        ))}
       </div>
 
       <div
@@ -204,7 +235,7 @@ export default function ImportarPage() {
             </div>
             <div>
               <p className="font-semibold text-gray-700">
-                {arrastando ? 'Solte o arquivo aqui' : 'Arraste o CSV aqui'}
+                {arrastando ? 'Solte o arquivo aqui' : `Arraste o CSV do ${CARTAO_LABELS[cartaoSelecionado]}`}
               </p>
               <p className="text-sm text-gray-400 mt-0.5">ou toque para selecionar</p>
             </div>
@@ -213,10 +244,18 @@ export default function ImportarPage() {
         )}
       </div>
 
-      <div className="bg-blue-50 rounded-xl p-3 mb-4 text-xs text-blue-700 space-y-1">
-        <p className="font-semibold">Como exportar do Nubank:</p>
-        <p>Nubank → Minha conta → Exportar gastos → Selecione o período → Baixar CSV</p>
-      </div>
+      {cartaoSelecionado === 'nubank' ? (
+        <div className="bg-blue-50 rounded-xl p-3 mb-4 text-xs text-blue-700 space-y-1">
+          <p className="font-semibold">Como exportar do Nubank:</p>
+          <p>Nubank → Minha conta → Exportar gastos → Selecione o período → Baixar CSV</p>
+        </div>
+      ) : (
+        <div className="bg-amber-50 rounded-xl p-3 mb-4 text-xs text-amber-700 space-y-1">
+          <p className="font-semibold">Formato esperado para {CARTAO_LABELS[cartaoSelecionado]}:</p>
+          <p>Colunas: <span className="font-mono bg-amber-100 px-1 rounded">date, title, amount</span> — ou — <span className="font-mono bg-amber-100 px-1 rounded">Data, Descrição, Valor</span></p>
+          <p>Parcelas são detectadas automaticamente pelo padrão <span className="font-mono bg-amber-100 px-1 rounded">X/Y</span> na descrição (ex: 2/12).</p>
+        </div>
+      )}
 
       {erro && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">

@@ -115,10 +115,11 @@ export async function POST(req: NextRequest) {
       }
 
     } else {
-      // Usa apenas a fatura mais recente como base de contratos
+      // Usa a fatura mais recente do NuBank como base de contratos
       const { data: maxRow } = await supabase
         .from('transacoes_nubank')
         .select('projeto_fatura')
+        .eq('cartao', 'nubank')
         .order('projeto_fatura', { ascending: false })
         .limit(1)
 

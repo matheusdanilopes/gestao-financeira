@@ -183,3 +183,14 @@ CREATE INDEX IF NOT EXISTS idx_categorization_jobs_started
 -- 13. Garantir unicidade de hash_linha para que o upsert deduplication funcione corretamente
 ALTER TABLE transacoes_nubank
   ADD CONSTRAINT transacoes_nubank_hash_linha_unique UNIQUE (hash_linha);
+
+-- 14. Coluna cartao para identificar o cartão de origem das transações
+-- 'nubank' = NuBank (padrão), 'cartao1' = Cartão 1, 'cartao2' = Cartão 2
+ALTER TABLE transacoes_nubank
+  ADD COLUMN IF NOT EXISTS cartao TEXT NOT NULL DEFAULT 'nubank';
+
+CREATE INDEX IF NOT EXISTS idx_transacoes_cartao
+  ON transacoes_nubank(cartao);
+
+CREATE INDEX IF NOT EXISTS idx_transacoes_fatura_cartao
+  ON transacoes_nubank(projeto_fatura, cartao);

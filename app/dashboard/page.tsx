@@ -75,11 +75,13 @@ export default function Dashboard() {
       { data: transacoesFatura },
       { data: planejamento },
       { data: invData },
+      { data: transacoesCartoes },
     ] = await Promise.all([
       supabase
         .from('transacoes_nubank')
         .select('valor, responsavel')
-        .eq('projeto_fatura', mesRefFatura),
+        .eq('projeto_fatura', mesRefFatura)
+        .eq('cartao', 'nubank'),
       supabase
         .from('planejamento')
         .select('item, responsavel, valor_previsto, pago, valor_real')
@@ -89,6 +91,11 @@ export default function Dashboard() {
         .select('id, descricao, percentual')
         .eq('mes_referencia', mesRef)
         .order('created_at', { ascending: true }),
+      supabase
+        .from('transacoes_nubank')
+        .select('valor, responsavel, cartao')
+        .eq('projeto_fatura', mesRefFatura)
+        .in('cartao', ['cartao1', 'cartao2']),
     ])
 
     const totalRealizado = transacoesFatura?.reduce((acc, t) => acc + t.valor, 0) || 0
@@ -108,13 +115,40 @@ export default function Dashboard() {
       pago: p.pago ? (p.valor_real ?? p.valor_previsto) : 0,
     })
 
-    const cartao1Items: CartaoItem[] = (planejamento || [])
+    const cartao1PlanejamentoItems: CartaoItem[] = (planejamento || [])
       .filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO1]'))
       .map(p => toCartaoItem(p, '[CARTAO1]'))
 
-    const cartao2Items: CartaoItem[] = (planejamento || [])
+    const cartao2PlanejamentoItems: CartaoItem[] = (planejamento || [])
       .filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]'))
       .map(p => toCartaoItem(p, '[CARTAO2]'))
+
+    // Totais importados via CSV para Cartão 1 e 2
+    const cartao1TotalMatheus = (transacoesCartoes || [])
+      .filter(t => t.cartao === 'cartao1' && t.responsavel === 'Matheus')
+      .reduce((s, t) => s + t.valor, 0)
+    const cartao1TotalJeniffer = (transacoesCartoes || [])
+      .filter(t => t.cartao === 'cartao1' && t.responsavel === 'Jeniffer')
+      .reduce((s, t) => s + t.valor, 0)
+    const cartao2TotalMatheus = (transacoesCartoes || [])
+      .filter(t => t.cartao === 'cartao2' && t.responsavel === 'Matheus')
+      .reduce((s, t) => s + t.valor, 0)
+    const cartao2TotalJeniffer = (transacoesCartoes || [])
+      .filter(t => t.cartao === 'cartao2' && t.responsavel === 'Jeniffer')
+      .reduce((s, t) => s + t.valor, 0)
+
+    const cartao1ImportadoItems: CartaoItem[] = [
+      ...(cartao1TotalMatheus > 0 ? [{ nome: 'Total importado', responsavel: 'Matheus', previsto: cartao1TotalMatheus, pago: cartao1TotalMatheus }] : []),
+      ...(cartao1TotalJeniffer > 0 ? [{ nome: 'Total importado', responsavel: 'Jeniffer', previsto: cartao1TotalJeniffer, pago: cartao1TotalJeniffer }] : []),
+    ]
+
+    const cartao2ImportadoItems: CartaoItem[] = [
+      ...(cartao2TotalMatheus > 0 ? [{ nome: 'Total importado', responsavel: 'Matheus', previsto: cartao2TotalMatheus, pago: cartao2TotalMatheus }] : []),
+      ...(cartao2TotalJeniffer > 0 ? [{ nome: 'Total importado', responsavel: 'Jeniffer', previsto: cartao2TotalJeniffer, pago: cartao2TotalJeniffer }] : []),
+    ]
+
+    const cartao1Items: CartaoItem[] = [...cartao1PlanejamentoItems, ...cartao1ImportadoItems]
+    const cartao2Items: CartaoItem[] = [...cartao2PlanejamentoItems, ...cartao2ImportadoItems]
 
     const receitaBase = planejamento?.find(p => p.item === 'Receita Total')?.valor_previsto || 0
     const receitasExtras = planejamento
@@ -139,6 +173,7 @@ export default function Dashboard() {
       const { data: maxFaturaRow } = await supabase
         .from('transacoes_nubank')
         .select('projeto_fatura')
+        .eq('cartao', 'nubank')
         .order('projeto_fatura', { ascending: false })
         .limit(1)
 
