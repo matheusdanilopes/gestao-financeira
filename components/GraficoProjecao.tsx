@@ -112,7 +112,7 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
             datalabels: { display: false },
           },
           {
-            label: 'Extra',
+            label: 'Despesas',
             data: extra,
             borderColor: 'rgb(234, 179, 8)',
             borderWidth: 1.5,
