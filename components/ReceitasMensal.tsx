@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { format, startOfMonth } from 'date-fns'
-import { Pencil, Trash2, Plus, TrendingUp, CirclePlus, History, X } from 'lucide-react'
+import { format, startOfMonth, subMonths } from 'date-fns'
+import { Pencil, Trash2, Plus, TrendingUp, CirclePlus, History, X, Copy } from 'lucide-react'
 import { log, numericOnly } from '@/lib/logger'
 
 const RECEITA_PREFIXO = '[RECEITA] '
@@ -55,6 +55,7 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
   const [recebimentoPendingDelete, setRecebimentoPendingDelete] = useState<string | null>(null) // id do recebimento ou 'legado'
 
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null)
+  const [importando, setImportando] = useState(false)
 
   useEffect(() => { carregarItens() }, [mesSelecionado])
 
@@ -188,6 +189,53 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
     setItemSelecionado(null)
     setFormData({ item: '', responsavel: 'Matheus', valor_previsto: '' })
     carregarItens()
+  }
+
+  async function importarMesAnterior() {
+    setImportando(true)
+    const mesAnterior = format(startOfMonth(subMonths(mesSelecionado, 1)), 'yyyy-MM-dd')
+    const mesAtual = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
+
+    const { data: itensAnteriores } = await supabase
+      .from('planejamento')
+      .select('*')
+      .eq('mes_referencia', mesAnterior)
+      .ilike('item', '[RECEITA]%')
+
+    if (!itensAnteriores || itensAnteriores.length === 0) {
+      showToast('Nenhuma receita encontrada no mês anterior', 'erro')
+      setImportando(false)
+      return
+    }
+
+    const nomesExistentes = new Set(itens.map(i => i.item.toLowerCase()))
+    const novos = itensAnteriores.filter(i => !nomesExistentes.has(i.item.toLowerCase()))
+
+    if (novos.length === 0) {
+      showToast('Todas as receitas já estão cadastradas')
+      setImportando(false)
+      return
+    }
+
+    const inserts = novos.map(i => ({
+      item: i.item,
+      responsavel: i.responsavel,
+      valor_previsto: i.valor_previsto,
+      categoria: i.categoria ?? 'Extra',
+      mes_referencia: mesAtual,
+      pago: false,
+      valor_real: null,
+    }))
+
+    const { error } = await supabase.from('planejamento').insert(inserts)
+    if (error) {
+      showToast('Erro ao importar receitas', 'erro')
+    } else {
+      log('inserir', 'receitas', `Importadas ${novos.length} receita(s) do mês anterior`)
+      showToast(`${novos.length} receita${novos.length > 1 ? 's' : ''} importada${novos.length > 1 ? 's' : ''}!`)
+      carregarItens()
+    }
+    setImportando(false)
   }
 
   function abrirEditar(item: ItemReceita) {
@@ -338,14 +386,24 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
         )}
       </div>
 
-      {/* Botão adicionar */}
-      <button
-        onClick={() => setModalAberto('adicionar')}
-        className="w-full bg-green-600 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-green-700 transition"
-      >
-        <Plus className="w-5 h-5" />
-        Adicionar receita
-      </button>
+      {/* Botões de ação */}
+      <div className="flex gap-3">
+        <button
+          onClick={() => setModalAberto('adicionar')}
+          className="flex-1 bg-green-600 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-green-700 transition"
+        >
+          <Plus className="w-5 h-5" />
+          Adicionar receita
+        </button>
+        <button
+          onClick={importarMesAnterior}
+          disabled={importando}
+          className="flex-1 bg-white border border-green-600 text-green-700 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-green-50 transition disabled:opacity-50"
+        >
+          <Copy className="w-5 h-5" />
+          {importando ? 'Importando…' : 'Importar mês anterior'}
+        </button>
+      </div>
 
       {/* Toast */}
       {toast && (
