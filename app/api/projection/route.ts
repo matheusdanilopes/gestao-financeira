@@ -5,18 +5,24 @@ import { format, addMonths, startOfMonth, subMonths } from 'date-fns'
 const PROJECAO_OFFSET_MESES = 1
 
 function extrairParcelamento(t: any): { atual: number; total: number } | null {
-  const descricao = String(t.descricao || '')
-  if (!/parcela/i.test(descricao)) return null
   if (t.parcela_atual && t.total_parcelas) {
     const atual = Number(t.parcela_atual)
     const total = Number(t.total_parcelas)
     if (atual >= 1 && total >= atual) return { atual, total }
   }
-  const match = descricao.match(/parcela\s*(\d+)\s*\/\s*(\d+)/i)
-  if (!match) return null
-  const atual = Number(match[1])
-  const total = Number(match[2])
-  if (atual >= 1 && total >= atual) return { atual, total }
+  const descricao = String(t.descricao || t.item || '')
+  const matchParcela = descricao.match(/parcela\s*(\d+)\s*\/\s*(\d+)/i)
+  if (matchParcela) {
+    const atual = Number(matchParcela[1])
+    const total = Number(matchParcela[2])
+    if (atual >= 1 && total >= atual) return { atual, total }
+  }
+  const matchSlash = descricao.match(/\b(\d{1,2})\/(\d{1,2})\b/)
+  if (matchSlash) {
+    const atual = Number(matchSlash[1])
+    const total = Number(matchSlash[2])
+    if (atual >= 1 && total >= atual && total >= 2) return { atual, total }
+  }
   return null
 }
 
@@ -36,6 +42,7 @@ function buildContracts(transacoes: any[]) {
     const origem = subMonths(fatura, parcela.atual - 1)
     const descBase = String(t.descricao || '')
       .replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '')
+      .replace(/\s+\d{1,2}\/\d{1,2}\s*$/i, '')
       .trim()
       .toLowerCase()
     const key = `${format(origem, 'yyyy-MM')}|${descBase}|${parcela.total}|${t.responsavel}`
@@ -43,6 +50,31 @@ function buildContracts(transacoes: any[]) {
     const existing = map.get(key)
     if (!existing || fatura > existing.fatura) {
       map.set(key, { row: t, fatura, parcela })
+    }
+  }
+
+  return map
+}
+
+function buildContratosExtras(planejamentos: any[]) {
+  const map = new Map<string, { row: any; mesRef: Date; parcela: { atual: number; total: number } }>()
+
+  for (const e of planejamentos) {
+    const parcela = extrairParcelamento({ ...e, descricao: e.item })
+    if (!parcela) continue
+
+    const mesRef = startOfMonth(new Date(e.mes_referencia))
+    const origem = subMonths(mesRef, parcela.atual - 1)
+    const descBase = String(e.item || '')
+      .replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '')
+      .replace(/\s+\d{1,2}\/\d{1,2}\s*$/i, '')
+      .trim()
+      .toLowerCase()
+    const key = `${format(origem, 'yyyy-MM')}|${descBase}|${parcela.total}|${e.responsavel || ''}`
+
+    const existing = map.get(key)
+    if (!existing || mesRef > existing.mesRef) {
+      map.set(key, { row: e, mesRef, parcela })
     }
   }
 
@@ -78,16 +110,21 @@ export async function POST(req: NextRequest) {
       .select('*')
       .eq('projeto_fatura', ultimaFaturaStr)
 
-    const { data: extras } = await supabase.from('planejamento').select('*').eq('categoria', 'Extra')
+    const { data: todasDespesas } = await supabase
+      .from('planejamento')
+      .select('*')
+      .not('item', 'ilike', '[RECEITA]%')
 
     // Contratos: apenas parcelamentos da última fatura, deduplicados por série
     const contratos = buildContracts(transacoesUltimaFatura || [])
+
+    // Despesas parceladas do planejamento, deduplicadas por série (mais recente vence)
+    const contratosExtras = buildContratosExtras(todasDespesas || [])
 
     for (let i = 0; i < meses.length; i++) {
       const mesRef = startOfMonth(addMonths(inicioProjecao, i))
 
       for (const { row, fatura, parcela } of contratos.values()) {
-        // Qual parcela cai neste mês de projeção?
         const deltaM = (mesRef.getFullYear() - fatura.getFullYear()) * 12 +
           (mesRef.getMonth() - fatura.getMonth())
         const parcelaNoMes = parcela.atual + deltaM
@@ -99,18 +136,14 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const mesStr = format(mesRef, 'yyyy-MM-dd')
-      for (const e of (extras || [])) {
-        if (e.parcela_atual && e.total_parcelas) {
-          const mesExtra = startOfMonth(new Date(e.mes_referencia))
-          const mesesDiff =
-            (mesRef.getFullYear() - mesExtra.getFullYear()) * 12 +
-            (mesRef.getMonth() - mesExtra.getMonth())
-          const restantes = e.total_parcelas - e.parcela_atual + 1
-          if (mesesDiff >= 0 && mesesDiff < restantes) {
-            resultados.extra[i] += e.valor_previsto
-            resultados.total[i] += e.valor_previsto
-          }
+      for (const { row: e, mesRef: mesExtra, parcela } of contratosExtras.values()) {
+        const mesesDiff =
+          (mesRef.getFullYear() - mesExtra.getFullYear()) * 12 +
+          (mesRef.getMonth() - mesExtra.getMonth())
+        const restantes = parcela.total - parcela.atual + 1
+        if (mesesDiff >= 0 && mesesDiff < restantes) {
+          resultados.extra[i] += e.valor_previsto
+          resultados.total[i] += e.valor_previsto
         }
       }
     }

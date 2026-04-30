@@ -152,22 +152,33 @@ export default function Dashboard() {
         const contratos = new Map<string, { fatura: Date; atual: number; total: number; valor: number; responsavel: string }>()
 
         for (const t of (transacoesBase || [])) {
-          const descricao = String(t.descricao || '')
-          if (!/parcela/i.test(descricao)) continue
           let atual: number, total: number
           if (t.parcela_atual && t.total_parcelas) {
             atual = Number(t.parcela_atual)
             total = Number(t.total_parcelas)
           } else {
-            const match = descricao.match(/parcela\s*(\d+)\s*\/\s*(\d+)/i)
-            if (!match) continue
-            atual = Number(match[1])
-            total = Number(match[2])
+            const descricao = String(t.descricao || '')
+            const matchParcela = descricao.match(/parcela\s*(\d+)\s*\/\s*(\d+)/i)
+            if (matchParcela) {
+              atual = Number(matchParcela[1])
+              total = Number(matchParcela[2])
+            } else {
+              const matchSlash = descricao.match(/\b(\d{1,2})\/(\d{1,2})\b/)
+              if (!matchSlash) continue
+              atual = Number(matchSlash[1])
+              total = Number(matchSlash[2])
+              if (total < 2) continue
+            }
           }
           if (atual < 1 || total < atual) continue
+          const descricao = String(t.descricao || '')
           const faturaDate = startOfMonth(new Date(t.projeto_fatura + 'T12:00:00'))
           const origem = subMonths(faturaDate, atual - 1)
-          const descBase = descricao.replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '').trim().toLowerCase()
+          const descBase = descricao
+            .replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '')
+            .replace(/\s+\d{1,2}\/\d{1,2}\s*$/i, '')
+            .trim()
+            .toLowerCase()
           const key = `${format(origem, 'yyyy-MM')}|${descBase}|${total}|${t.responsavel}`
           const existing = contratos.get(key)
           if (!existing || faturaDate > existing.fatura) {
