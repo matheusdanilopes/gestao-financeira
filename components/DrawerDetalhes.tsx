@@ -3,20 +3,28 @@
 import { X } from 'lucide-react'
 import { useState, useMemo, useEffect } from 'react'
 
-type CampoFiltro = 'responsavel' | 'tipo' | 'categoria' | 'descricao'
+type CampoFiltro = 'responsavel' | 'tipo' | 'cartao' | 'categoria' | 'descricao'
 
 const CAMPOS_FILTRO: { value: CampoFiltro; label: string }[] = [
   { value: 'responsavel', label: 'Responsável' },
+  { value: 'cartao', label: 'Cartão' },
   { value: 'tipo', label: 'Tipo' },
   { value: 'categoria', label: 'Categoria' },
   { value: 'descricao', label: 'Descrição' },
 ]
+
+const CARTAO_LABEL: Record<string, string> = {
+  nubank: 'NuBank',
+  cartao1: 'Cartão 1',
+  cartao2: 'Cartão 2',
+}
 
 function labelValor(campo: CampoFiltro, valor: string): string {
   if (campo === 'tipo') {
     if (valor === 'cartao') return 'Cartão'
     if (valor === 'extra') return 'Extra'
   }
+  if (campo === 'cartao') return CARTAO_LABEL[valor] ?? valor
   return valor || '—'
 }
 
@@ -163,20 +171,34 @@ export default function DrawerDetalhes({ aberto, onClose, dados }: Props) {
 
           {itensFiltrados.length > 0 ? (
             <div className="space-y-2">
-              {itensFiltrados.map((item, index) => (
-                <div key={index} className="bg-gray-50 rounded-lg p-3">
-                  <p className="font-medium">{item.descricao || item.item}</p>
-                  <p className="text-sm text-gray-500">
-                    {item.responsavel && `Responsável: ${item.responsavel}`}
-                    {item.data_compra && (
-                      <> · {new Date(item.data_compra + 'T12:00:00').toLocaleDateString('pt-BR')}</>
-                    )}
-                  </p>
-                  <p className="text-sm font-semibold text-green-600">
-                    R$ {(item.valor ?? item.valor_previsto)?.toFixed(2)}
-                  </p>
-                </div>
-              ))}
+              {itensFiltrados.map((item, index) => {
+                const cartaoLabel = item.cartao ? (CARTAO_LABEL[item.cartao] ?? item.cartao) : null
+                const cartaoBadgeColor =
+                  item.cartao === 'nubank' ? 'bg-purple-100 text-purple-700' :
+                  item.cartao === 'cartao1' ? 'bg-blue-100 text-blue-700' :
+                  item.cartao === 'cartao2' ? 'bg-pink-100 text-pink-700' : ''
+                return (
+                  <div key={index} className="bg-gray-50 rounded-lg p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-medium flex-1">{item.descricao || item.item}</p>
+                      {cartaoLabel && (
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap ${cartaoBadgeColor}`}>
+                          {cartaoLabel}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-500">
+                      {item.responsavel && `Responsável: ${item.responsavel}`}
+                      {item.data_compra && (
+                        <> · {new Date(item.data_compra + 'T12:00:00').toLocaleDateString('pt-BR')}</>
+                      )}
+                    </p>
+                    <p className="text-sm font-semibold text-green-600">
+                      R$ {(item.valor ?? item.valor_previsto)?.toFixed(2)}
+                    </p>
+                  </div>
+                )
+              })}
             </div>
           ) : (
             <p className="text-gray-500 text-sm">Nenhum item encontrado para este filtro.</p>
