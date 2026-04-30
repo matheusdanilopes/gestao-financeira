@@ -417,21 +417,21 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
       </div>
 
       {/* Botões */}
-      <div className="flex gap-2">
-        <button
-          onClick={abrirModalImportar}
-          className="bg-gray-100 text-gray-600 py-3 px-4 rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-gray-200 transition"
-        >
-          <Download className="w-4 h-4" />
-          Mês anterior
-        </button>
+      <div className="flex gap-3">
         <button
           onClick={() => { setUltimoCampo('percentual'); setModalAberto('adicionar') }}
           disabled={totalPercentual >= 100}
-          className="flex-1 bg-violet-600 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-violet-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 bg-violet-600 text-white py-3 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-violet-700 transition-all active:scale-[0.97] shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus className="w-5 h-5" />
           Adicionar investimento
+        </button>
+        <button
+          onClick={abrirModalImportar}
+          className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors active:scale-[0.97]"
+        >
+          <Download className="w-5 h-5" />
+          Mês anterior
         </button>
       </div>
 
