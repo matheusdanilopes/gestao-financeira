@@ -390,7 +390,7 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
       <div className="flex gap-3">
         <button
           onClick={() => setModalAberto('adicionar')}
-          className="flex-1 bg-green-600 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-green-700 transition"
+          className="flex-1 bg-green-600 text-white py-3 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-green-700 transition-all active:scale-[0.97] shadow-sm"
         >
           <Plus className="w-5 h-5" />
           Adicionar receita
@@ -398,7 +398,7 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
         <button
           onClick={importarMesAnterior}
           disabled={importando}
-          className="flex-1 bg-white border border-green-600 text-green-700 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-green-50 transition disabled:opacity-50"
+          className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors active:scale-[0.97] disabled:opacity-50"
         >
           <Copy className="w-5 h-5" />
           {importando ? 'Importando…' : 'Importar mês anterior'}
