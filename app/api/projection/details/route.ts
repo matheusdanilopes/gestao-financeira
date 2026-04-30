@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
       : startOfMonth(addMonths(startOfMonth(addMonths(new Date(), PROJECAO_OFFSET_MESES)), dataIndex ?? 0))
     let itens: any[] = []
 
-    if (serie === 'Extra') {
+    if (serie === 'Despesas') {
       const { data: todasDespesas } = await supabase
         .from('planejamento')
         .select('item, responsavel, valor_previsto, categoria, parcela_atual, total_parcelas, mes_referencia')
