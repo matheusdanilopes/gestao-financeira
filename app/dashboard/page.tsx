@@ -303,7 +303,7 @@ export default function Dashboard() {
       <div className="bg-white rounded-3xl shadow-card p-4 mb-4">
         <h2 className="text-lg font-semibold mb-3 flex items-center gap-1.5">
           💳 Gestão de Fatura Nubank
-          <InfoPopover texto="Acompanhe o gasto atual do cartão NuBank de cada pessoa. 'Atual' é o que já foi gasto, 'Previsto' é o limite planejado para o mês e 'Sobra' é o quanto ainda pode ser gasto sem ultrapassar o orçamento." />
+          <InfoPopover texto="Visão consolidada da fatura NuBank por pessoa. 'Atual' é o valor já lançado no cartão. 'Previsto' é o limite planejado. 'Sobra' é o quanto resta antes de ultrapassar o orçamento. Os cards de 'Outros cartões' mostram o pago vs. previsto de cartões secundários (PicPay, etc.). O 'Resumo por pessoa' soma tudo: atual NuBank + parcelas projetadas + previsto dos demais cartões, indicando o total comprometido e quanto ainda resta do orçamento." />
         </h2>
         {carregando ? (
           <div className="animate-pulse space-y-3">
@@ -376,9 +376,9 @@ export default function Dashboard() {
             </div>
 
             {(fatura.cartao1Items.length > 0 || fatura.cartao2Items.length > 0) && (
-              <>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-4 mb-2">Outros cartões</p>
-                <div className="grid grid-cols-2 gap-3">
+              <div className="opacity-60 mt-2">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Outros cartões</p>
+                <div className="grid grid-cols-2 gap-2">
                   {[...fatura.cartao1Items, ...fatura.cartao2Items].map((item, i) => {
                     const isMatheus = item.responsavel === 'Matheus'
                     const bg = isMatheus ? 'bg-blue-50 border-blue-100' : 'bg-pink-50 border-pink-100'
@@ -388,8 +388,8 @@ export default function Dashboard() {
                     const sobra = item.previsto - item.pago
                     const pct = item.previsto > 0 ? Math.min(100, (item.pago / item.previsto) * 100) : 0
                     return (
-                      <div key={i} className={`border p-3 rounded-2xl shadow-card ${bg}`}>
-                        <p className={`font-semibold text-sm ${titleColor} mb-1.5`}>{item.nome}</p>
+                      <div key={i} className={`border p-2 rounded-2xl shadow-card ${bg}`}>
+                        <p className={`font-semibold text-xs ${titleColor} mb-1`}>{item.nome}</p>
                         <div className="flex justify-between text-xs gap-1 text-gray-600">
                           <span>Pago</span>
                           <span className="font-medium text-gray-800 whitespace-nowrap">R$ {item.pago.toFixed(2)}</span>
@@ -398,10 +398,10 @@ export default function Dashboard() {
                           <span>Previsto</span>
                           <span className="font-medium text-gray-800 whitespace-nowrap">R$ {item.previsto.toFixed(2)}</span>
                         </div>
-                        <div className={`mt-2 h-1 ${barBg} rounded-full overflow-hidden`}>
+                        <div className={`mt-1.5 h-1 ${barBg} rounded-full overflow-hidden`}>
                           <div className={`h-full ${barColor} rounded-full`} style={{ width: `${pct}%` }} />
                         </div>
-                        <div className={`flex justify-between text-xs font-bold mt-1.5 ${sobra >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <div className={`flex justify-between text-xs font-bold mt-1 ${sobra >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                           <span className="whitespace-nowrap">{sobra >= 0 ? '✓ Sobra' : '⚠ Excesso'}</span>
                           <span className="whitespace-nowrap">R$ {Math.abs(sobra).toFixed(2)}</span>
                         </div>
@@ -412,28 +412,28 @@ export default function Dashboard() {
 
                 {(() => {
                   const matheusTotalPrevisto = fatura.matheusPrevisto + fatura.cartao1Items.reduce((s, i) => s + i.previsto, 0)
-                  const matheusTotalPago = fatura.matheusAtual + fatura.cartao1Items.reduce((s, i) => s + i.pago, 0)
+                  const matheusTotalPago = fatura.matheusAtual + fatura.matheusProjecaoParcelas + fatura.cartao1Items.reduce((s, i) => s + i.previsto, 0)
                   const matheusRestante = matheusTotalPrevisto - matheusTotalPago
                   const matheusPct = matheusTotalPrevisto > 0 ? Math.min(100, (matheusTotalPago / matheusTotalPrevisto) * 100) : 0
                   const jenifferTotalPrevisto = fatura.jenifferPrevisto + fatura.cartao2Items.reduce((s, i) => s + i.previsto, 0)
-                  const jenifferTotalPago = fatura.jenifferAtual + fatura.cartao2Items.reduce((s, i) => s + i.pago, 0)
+                  const jenifferTotalPago = fatura.jenifferAtual + fatura.jenifferProjecaoParcelas + fatura.cartao2Items.reduce((s, i) => s + i.previsto, 0)
                   const jenifferRestante = jenifferTotalPrevisto - jenifferTotalPago
                   const jenifferPct = jenifferTotalPrevisto > 0 ? Math.min(100, (jenifferTotalPago / jenifferTotalPrevisto) * 100) : 0
                   return (
                     <>
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-4 mb-2">Resumo por pessoa</p>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-blue-50 border border-blue-100 border-t-4 border-t-blue-500 p-3 rounded-2xl shadow-card">
-                          <p className="font-bold text-xs text-blue-700 uppercase tracking-wide mb-2">Matheus</p>
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-2 mb-1.5">Resumo por pessoa</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="bg-blue-50 border border-blue-100 border-t-4 border-t-blue-500 p-2 rounded-2xl shadow-card">
+                          <p className="font-bold text-xs text-blue-700 uppercase tracking-wide mb-1.5">Matheus</p>
                           <div className="flex justify-between text-xs gap-1 text-gray-600">
-                            <span>Gasto</span>
+                            <span>Comprometido</span>
                             <span className="font-medium text-gray-800 whitespace-nowrap">R$ {matheusTotalPago.toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
                             <span>Previsto</span>
                             <span className="font-medium text-gray-800 whitespace-nowrap">R$ {matheusTotalPrevisto.toFixed(2)}</span>
                           </div>
-                          <div className="mt-2 h-1.5 bg-blue-100 rounded-full overflow-hidden">
+                          <div className="mt-1.5 h-1.5 bg-blue-100 rounded-full overflow-hidden">
                             <div className="h-full bg-blue-500 rounded-full" style={{ width: `${matheusPct}%` }} />
                           </div>
                           <p className="text-right text-xs text-blue-400 mt-0.5">{matheusPct.toFixed(0)}% usado</p>
@@ -442,17 +442,17 @@ export default function Dashboard() {
                             <span className="whitespace-nowrap">R$ {Math.abs(matheusRestante).toFixed(2)}</span>
                           </div>
                         </div>
-                        <div className="bg-pink-50 border border-pink-100 border-t-4 border-t-pink-500 p-3 rounded-2xl shadow-card">
-                          <p className="font-bold text-xs text-pink-700 uppercase tracking-wide mb-2">Jeniffer</p>
+                        <div className="bg-pink-50 border border-pink-100 border-t-4 border-t-pink-500 p-2 rounded-2xl shadow-card">
+                          <p className="font-bold text-xs text-pink-700 uppercase tracking-wide mb-1.5">Jeniffer</p>
                           <div className="flex justify-between text-xs gap-1 text-gray-600">
-                            <span>Gasto</span>
+                            <span>Comprometido</span>
                             <span className="font-medium text-gray-800 whitespace-nowrap">R$ {jenifferTotalPago.toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
                             <span>Previsto</span>
                             <span className="font-medium text-gray-800 whitespace-nowrap">R$ {jenifferTotalPrevisto.toFixed(2)}</span>
                           </div>
-                          <div className="mt-2 h-1.5 bg-pink-100 rounded-full overflow-hidden">
+                          <div className="mt-1.5 h-1.5 bg-pink-100 rounded-full overflow-hidden">
                             <div className="h-full bg-pink-500 rounded-full" style={{ width: `${jenifferPct}%` }} />
                           </div>
                           <p className="text-right text-xs text-pink-400 mt-0.5">{jenifferPct.toFixed(0)}% usado</p>
@@ -465,7 +465,7 @@ export default function Dashboard() {
                     </>
                   )
                 })()}
-              </>
+              </div>
             )}
           </>
         )}
