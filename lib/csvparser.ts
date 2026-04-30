@@ -80,7 +80,7 @@ export function normalizarDescricaoParaHash(descricao: string): string {
     .toLowerCase()
 }
 
-function gerarHashLinha(dataISO: string, descricao: string, valor: number): string {
+export function gerarHashLinha(dataISO: string, descricao: string, valor: number): string {
   const valorHash = valor.toFixed(2)
   const descricaoHash = normalizarDescricaoParaHash(descricao)
   const hashString = `${dataISO}|${descricaoHash}|${valorHash}`
