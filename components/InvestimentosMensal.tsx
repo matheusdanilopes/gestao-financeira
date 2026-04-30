@@ -424,7 +424,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
           className="flex-1 bg-violet-600 text-white py-3 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-violet-700 transition-all active:scale-[0.97] shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus className="w-5 h-5" />
-          Adicionar investimento
+          Adicionar
         </button>
         <button
           onClick={abrirModalImportar}
