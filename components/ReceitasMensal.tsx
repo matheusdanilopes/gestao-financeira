@@ -393,7 +393,7 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
           className="flex-1 bg-green-600 text-white py-3 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-green-700 transition-all active:scale-[0.97] shadow-sm"
         >
           <Plus className="w-5 h-5" />
-          Adicionar receita
+          Adicionar
         </button>
         <button
           onClick={importarMesAnterior}
