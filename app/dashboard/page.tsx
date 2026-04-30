@@ -315,49 +315,61 @@ export default function Dashboard() {
           </div>
         ) : (
           <>
-            <div className="text-3xl font-bold text-primary-600 mb-4">
-              R$ {fatura.totalRealizado.toFixed(2)}
+            <div className="mb-4">
+              <div className="text-3xl font-bold text-primary-600">R$ {fatura.totalRealizado.toFixed(2)}</div>
+              <p className="text-xs text-gray-400 mt-0.5">total atual na fatura NuBank</p>
             </div>
+
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">NuBank</p>
             <div className="grid grid-cols-2 gap-3">
+              {/* Matheus NuBank */}
               <div className="bg-blue-50 border border-blue-100 border-t-2 border-t-blue-400 p-3 rounded-2xl shadow-card">
                 <p className="font-semibold text-blue-800 mb-2">Matheus</p>
-                <div className="flex justify-between text-sm gap-1">
-                  <span className="text-gray-600">Atual</span>
+                <div className="flex justify-between text-xs gap-1 text-gray-600">
+                  <span>Atual</span>
                   <span className="font-medium text-gray-800 whitespace-nowrap">R$ {fatura.matheusAtual.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between text-sm gap-1 mt-0.5">
-                  <span className="text-gray-600">Previsto</span>
+                <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
+                  <span>Previsto</span>
                   <span className="font-medium text-gray-800 whitespace-nowrap">R$ {fatura.matheusPrevisto.toFixed(2)}</span>
                 </div>
                 {fatura.matheusProjecaoParcelas > 0 && (
-                  <div className="flex justify-between text-sm gap-1 mt-0.5">
-                    <span className="text-gray-600">Parc. prev.</span>
+                  <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
+                    <span>Parc. prev.</span>
                     <span className="font-medium text-orange-700 whitespace-nowrap">− R$ {fatura.matheusProjecaoParcelas.toFixed(2)}</span>
                   </div>
                 )}
-                <div className={`flex justify-between text-sm font-bold mt-2 ${fatura.sobraMatheus >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  <span>{fatura.sobraMatheus >= 0 ? '✓ Sobra' : '⚠ Excesso'}</span>
+                <div className="mt-2 h-1 bg-blue-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-400 rounded-full" style={{ width: `${fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100) : 0}%` }} />
+                </div>
+                <div className={`flex justify-between text-xs font-bold mt-1.5 ${fatura.sobraMatheus >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <span className="whitespace-nowrap">{fatura.sobraMatheus >= 0 ? '✓ Sobra' : '⚠ Excesso'}</span>
                   <span className="whitespace-nowrap">R$ {Math.abs(fatura.sobraMatheus).toFixed(2)}</span>
                 </div>
               </div>
+
+              {/* Jeniffer NuBank */}
               <div className="bg-pink-50 border border-pink-100 border-t-2 border-t-pink-400 p-3 rounded-2xl shadow-card">
                 <p className="font-semibold text-pink-800 mb-2">Jeniffer</p>
-                <div className="flex justify-between text-sm gap-1">
-                  <span className="text-gray-600">Atual</span>
+                <div className="flex justify-between text-xs gap-1 text-gray-600">
+                  <span>Atual</span>
                   <span className="font-medium text-gray-800 whitespace-nowrap">R$ {fatura.jenifferAtual.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between text-sm gap-1 mt-0.5">
-                  <span className="text-gray-600">Previsto</span>
+                <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
+                  <span>Previsto</span>
                   <span className="font-medium text-gray-800 whitespace-nowrap">R$ {fatura.jenifferPrevisto.toFixed(2)}</span>
                 </div>
                 {fatura.jenifferProjecaoParcelas > 0 && (
-                  <div className="flex justify-between text-sm gap-1 mt-0.5">
-                    <span className="text-gray-600">Parc. prev.</span>
+                  <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
+                    <span>Parc. prev.</span>
                     <span className="font-medium text-orange-700 whitespace-nowrap">− R$ {fatura.jenifferProjecaoParcelas.toFixed(2)}</span>
                   </div>
                 )}
-                <div className={`flex justify-between text-sm font-bold mt-2 ${fatura.sobraJeniffer >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  <span>{fatura.sobraJeniffer >= 0 ? '✓ Sobra' : '⚠ Excesso'}</span>
+                <div className="mt-2 h-1 bg-pink-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-pink-400 rounded-full" style={{ width: `${fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100) : 0}%` }} />
+                </div>
+                <div className={`flex justify-between text-xs font-bold mt-1.5 ${fatura.sobraJeniffer >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <span className="whitespace-nowrap">{fatura.sobraJeniffer >= 0 ? '✓ Sobra' : '⚠ Excesso'}</span>
                   <span className="whitespace-nowrap">R$ {Math.abs(fatura.sobraJeniffer).toFixed(2)}</span>
                 </div>
               </div>
@@ -365,28 +377,34 @@ export default function Dashboard() {
 
             {(fatura.cartao1Items.length > 0 || fatura.cartao2Items.length > 0) && (
               <>
-                <div className="mt-3 grid grid-cols-2 gap-3">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-4 mb-2">Outros cartões</p>
+                <div className="grid grid-cols-2 gap-3">
                   {[...fatura.cartao1Items, ...fatura.cartao2Items].map((item, i) => {
                     const isMatheus = item.responsavel === 'Matheus'
                     const bg = isMatheus ? 'bg-blue-50 border-blue-100' : 'bg-pink-50 border-pink-100'
                     const titleColor = isMatheus ? 'text-blue-800' : 'text-pink-800'
+                    const barColor = isMatheus ? 'bg-blue-400' : 'bg-pink-400'
+                    const barBg = isMatheus ? 'bg-blue-100' : 'bg-pink-100'
                     const sobra = item.previsto - item.pago
+                    const pct = item.previsto > 0 ? Math.min(100, (item.pago / item.previsto) * 100) : 0
                     return (
                       <div key={i} className={`border p-3 rounded-2xl shadow-card ${bg}`}>
-                        <p className={`font-semibold text-sm ${titleColor} mb-1`}>{item.nome}</p>
-                        <div className="flex flex-col text-sm text-gray-600 gap-0.5">
-                          <div className="flex justify-between gap-1">
-                            <span>Pago</span>
-                            <span className="font-medium text-gray-800 whitespace-nowrap">R$ {item.pago.toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between gap-1">
-                            <span>Previsto</span>
-                            <span className="font-medium text-gray-800 whitespace-nowrap">R$ {item.previsto.toFixed(2)}</span>
-                          </div>
+                        <p className={`font-semibold text-sm ${titleColor} mb-1.5`}>{item.nome}</p>
+                        <div className="flex justify-between text-xs gap-1 text-gray-600">
+                          <span>Pago</span>
+                          <span className="font-medium text-gray-800 whitespace-nowrap">R$ {item.pago.toFixed(2)}</span>
                         </div>
-                        <p className={`text-xs font-bold mt-1.5 ${sobra >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {sobra >= 0 ? '✓ Sobra' : '⚠ Excesso'}: R$ {Math.abs(sobra).toFixed(2)}
-                        </p>
+                        <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
+                          <span>Previsto</span>
+                          <span className="font-medium text-gray-800 whitespace-nowrap">R$ {item.previsto.toFixed(2)}</span>
+                        </div>
+                        <div className={`mt-2 h-1 ${barBg} rounded-full overflow-hidden`}>
+                          <div className={`h-full ${barColor} rounded-full`} style={{ width: `${pct}%` }} />
+                        </div>
+                        <div className={`flex justify-between text-xs font-bold mt-1.5 ${sobra >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          <span className="whitespace-nowrap">{sobra >= 0 ? '✓ Sobra' : '⚠ Excesso'}</span>
+                          <span className="whitespace-nowrap">R$ {Math.abs(sobra).toFixed(2)}</span>
+                        </div>
                       </div>
                     )
                   })}
@@ -396,42 +414,55 @@ export default function Dashboard() {
                   const matheusTotalPrevisto = fatura.matheusPrevisto + fatura.cartao1Items.reduce((s, i) => s + i.previsto, 0)
                   const matheusTotalPago = fatura.matheusAtual + fatura.cartao1Items.reduce((s, i) => s + i.pago, 0)
                   const matheusRestante = matheusTotalPrevisto - matheusTotalPago
+                  const matheusPct = matheusTotalPrevisto > 0 ? Math.min(100, (matheusTotalPago / matheusTotalPrevisto) * 100) : 0
                   const jenifferTotalPrevisto = fatura.jenifferPrevisto + fatura.cartao2Items.reduce((s, i) => s + i.previsto, 0)
                   const jenifferTotalPago = fatura.jenifferAtual + fatura.cartao2Items.reduce((s, i) => s + i.pago, 0)
                   const jenifferRestante = jenifferTotalPrevisto - jenifferTotalPago
+                  const jenifferPct = jenifferTotalPrevisto > 0 ? Math.min(100, (jenifferTotalPago / jenifferTotalPrevisto) * 100) : 0
                   return (
-                    <div className="mt-3 grid grid-cols-2 gap-3">
-                      <div className="bg-blue-50 border border-blue-100 border-t-4 border-t-blue-500 p-3 rounded-2xl shadow-card">
-                        <p className="font-bold text-sm text-blue-800 mb-2">Total Matheus</p>
-                        <div className="flex justify-between text-sm gap-1">
-                          <span className="text-gray-600">Previsto</span>
-                          <span className="font-medium text-gray-800 whitespace-nowrap">R$ {matheusTotalPrevisto.toFixed(2)}</span>
+                    <>
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-4 mb-2">Resumo por pessoa</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-blue-50 border border-blue-100 border-t-4 border-t-blue-500 p-3 rounded-2xl shadow-card">
+                          <p className="font-bold text-xs text-blue-700 uppercase tracking-wide mb-2">Matheus</p>
+                          <div className="flex justify-between text-xs gap-1 text-gray-600">
+                            <span>Gasto</span>
+                            <span className="font-medium text-gray-800 whitespace-nowrap">R$ {matheusTotalPago.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
+                            <span>Previsto</span>
+                            <span className="font-medium text-gray-800 whitespace-nowrap">R$ {matheusTotalPrevisto.toFixed(2)}</span>
+                          </div>
+                          <div className="mt-2 h-1.5 bg-blue-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-blue-500 rounded-full" style={{ width: `${matheusPct}%` }} />
+                          </div>
+                          <p className="text-right text-xs text-blue-400 mt-0.5">{matheusPct.toFixed(0)}% usado</p>
+                          <div className={`flex justify-between text-xs font-bold mt-1 ${matheusRestante >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            <span className="whitespace-nowrap">{matheusRestante >= 0 ? '✓ Restante' : '⚠ Excesso'}</span>
+                            <span className="whitespace-nowrap">R$ {Math.abs(matheusRestante).toFixed(2)}</span>
+                          </div>
                         </div>
-                        <div className="flex justify-between text-sm gap-1 mt-0.5">
-                          <span className="text-gray-600">Atual+Pago</span>
-                          <span className="font-medium text-gray-800 whitespace-nowrap">R$ {matheusTotalPago.toFixed(2)}</span>
-                        </div>
-                        <div className={`flex justify-between text-sm font-bold mt-2 ${matheusRestante >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          <span>{matheusRestante >= 0 ? '✓ Restante' : '⚠ Excesso'}</span>
-                          <span className="whitespace-nowrap">R$ {Math.abs(matheusRestante).toFixed(2)}</span>
+                        <div className="bg-pink-50 border border-pink-100 border-t-4 border-t-pink-500 p-3 rounded-2xl shadow-card">
+                          <p className="font-bold text-xs text-pink-700 uppercase tracking-wide mb-2">Jeniffer</p>
+                          <div className="flex justify-between text-xs gap-1 text-gray-600">
+                            <span>Gasto</span>
+                            <span className="font-medium text-gray-800 whitespace-nowrap">R$ {jenifferTotalPago.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
+                            <span>Previsto</span>
+                            <span className="font-medium text-gray-800 whitespace-nowrap">R$ {jenifferTotalPrevisto.toFixed(2)}</span>
+                          </div>
+                          <div className="mt-2 h-1.5 bg-pink-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-pink-500 rounded-full" style={{ width: `${jenifferPct}%` }} />
+                          </div>
+                          <p className="text-right text-xs text-pink-400 mt-0.5">{jenifferPct.toFixed(0)}% usado</p>
+                          <div className={`flex justify-between text-xs font-bold mt-1 ${jenifferRestante >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            <span className="whitespace-nowrap">{jenifferRestante >= 0 ? '✓ Restante' : '⚠ Excesso'}</span>
+                            <span className="whitespace-nowrap">R$ {Math.abs(jenifferRestante).toFixed(2)}</span>
+                          </div>
                         </div>
                       </div>
-                      <div className="bg-pink-50 border border-pink-100 border-t-4 border-t-pink-500 p-3 rounded-2xl shadow-card">
-                        <p className="font-bold text-sm text-pink-800 mb-2">Total Jeniffer</p>
-                        <div className="flex justify-between text-sm gap-1">
-                          <span className="text-gray-600">Previsto</span>
-                          <span className="font-medium text-gray-800 whitespace-nowrap">R$ {jenifferTotalPrevisto.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm gap-1 mt-0.5">
-                          <span className="text-gray-600">Atual+Pago</span>
-                          <span className="font-medium text-gray-800 whitespace-nowrap">R$ {jenifferTotalPago.toFixed(2)}</span>
-                        </div>
-                        <div className={`flex justify-between text-sm font-bold mt-2 ${jenifferRestante >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          <span>{jenifferRestante >= 0 ? '✓ Restante' : '⚠ Excesso'}</span>
-                          <span className="whitespace-nowrap">R$ {Math.abs(jenifferRestante).toFixed(2)}</span>
-                        </div>
-                      </div>
-                    </div>
+                    </>
                   )
                 })()}
               </>
