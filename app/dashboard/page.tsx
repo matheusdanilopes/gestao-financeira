@@ -364,28 +364,77 @@ export default function Dashboard() {
             </div>
 
             {(fatura.cartao1Items.length > 0 || fatura.cartao2Items.length > 0) && (
-              <div className="mt-3 space-y-2">
-                {[...fatura.cartao1Items, ...fatura.cartao2Items].map((item, i) => {
-                  const isMatheus = item.responsavel === 'Matheus'
-                  const bg = isMatheus ? 'bg-blue-50 border-blue-100' : 'bg-pink-50 border-pink-100'
-                  const titleColor = isMatheus ? 'text-blue-800' : 'text-pink-800'
-                  const sobra = item.previsto - item.pago
-                  return (
-                    <div key={i} className={`border p-3 rounded-2xl shadow-card ${bg}`}>
-                      <p className={`font-semibold text-sm ${titleColor} mb-1`}>{item.nome}</p>
-                      <div className="flex justify-between text-sm text-gray-600">
-                        <span>Pago: <span className="font-medium text-gray-800">R$ {item.pago.toFixed(2)}</span></span>
-                        <span>Previsto: <span className="font-medium text-gray-800">R$ {item.previsto.toFixed(2)}</span></span>
-                      </div>
-                      {item.pago > 0 && (
-                        <p className={`text-xs font-bold mt-1 ${sobra >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <>
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  {[...fatura.cartao1Items, ...fatura.cartao2Items].map((item, i) => {
+                    const isMatheus = item.responsavel === 'Matheus'
+                    const bg = isMatheus ? 'bg-blue-50 border-blue-100' : 'bg-pink-50 border-pink-100'
+                    const titleColor = isMatheus ? 'text-blue-800' : 'text-pink-800'
+                    const sobra = item.previsto - item.pago
+                    return (
+                      <div key={i} className={`border p-3 rounded-2xl shadow-card ${bg}`}>
+                        <p className={`font-semibold text-sm ${titleColor} mb-1`}>{item.nome}</p>
+                        <div className="flex flex-col text-sm text-gray-600 gap-0.5">
+                          <div className="flex justify-between gap-1">
+                            <span>Pago</span>
+                            <span className="font-medium text-gray-800 whitespace-nowrap">R$ {item.pago.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between gap-1">
+                            <span>Previsto</span>
+                            <span className="font-medium text-gray-800 whitespace-nowrap">R$ {item.previsto.toFixed(2)}</span>
+                          </div>
+                        </div>
+                        <p className={`text-xs font-bold mt-1.5 ${sobra >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                           {sobra >= 0 ? '✓ Sobra' : '⚠ Excesso'}: R$ {Math.abs(sobra).toFixed(2)}
                         </p>
-                      )}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {(() => {
+                  const matheusTotalPrevisto = fatura.matheusPrevisto + fatura.cartao1Items.reduce((s, i) => s + i.previsto, 0)
+                  const matheusTotalPago = fatura.matheusAtual + fatura.cartao1Items.reduce((s, i) => s + i.pago, 0)
+                  const matheusRestante = matheusTotalPrevisto - matheusTotalPago
+                  const jenifferTotalPrevisto = fatura.jenifferPrevisto + fatura.cartao2Items.reduce((s, i) => s + i.previsto, 0)
+                  const jenifferTotalPago = fatura.jenifferAtual + fatura.cartao2Items.reduce((s, i) => s + i.pago, 0)
+                  const jenifferRestante = jenifferTotalPrevisto - jenifferTotalPago
+                  return (
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      <div className="bg-blue-50 border border-blue-100 border-t-4 border-t-blue-500 p-3 rounded-2xl shadow-card">
+                        <p className="font-bold text-sm text-blue-800 mb-2">Total Matheus</p>
+                        <div className="flex justify-between text-sm gap-1">
+                          <span className="text-gray-600">Previsto</span>
+                          <span className="font-medium text-gray-800 whitespace-nowrap">R$ {matheusTotalPrevisto.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm gap-1 mt-0.5">
+                          <span className="text-gray-600">Atual+Pago</span>
+                          <span className="font-medium text-gray-800 whitespace-nowrap">R$ {matheusTotalPago.toFixed(2)}</span>
+                        </div>
+                        <div className={`flex justify-between text-sm font-bold mt-2 ${matheusRestante >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          <span>{matheusRestante >= 0 ? '✓ Restante' : '⚠ Excesso'}</span>
+                          <span className="whitespace-nowrap">R$ {Math.abs(matheusRestante).toFixed(2)}</span>
+                        </div>
+                      </div>
+                      <div className="bg-pink-50 border border-pink-100 border-t-4 border-t-pink-500 p-3 rounded-2xl shadow-card">
+                        <p className="font-bold text-sm text-pink-800 mb-2">Total Jeniffer</p>
+                        <div className="flex justify-between text-sm gap-1">
+                          <span className="text-gray-600">Previsto</span>
+                          <span className="font-medium text-gray-800 whitespace-nowrap">R$ {jenifferTotalPrevisto.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm gap-1 mt-0.5">
+                          <span className="text-gray-600">Atual+Pago</span>
+                          <span className="font-medium text-gray-800 whitespace-nowrap">R$ {jenifferTotalPago.toFixed(2)}</span>
+                        </div>
+                        <div className={`flex justify-between text-sm font-bold mt-2 ${jenifferRestante >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          <span>{jenifferRestante >= 0 ? '✓ Restante' : '⚠ Excesso'}</span>
+                          <span className="whitespace-nowrap">R$ {Math.abs(jenifferRestante).toFixed(2)}</span>
+                        </div>
+                      </div>
                     </div>
                   )
-                })}
-              </div>
+                })()}
+              </>
             )}
           </>
         )}
