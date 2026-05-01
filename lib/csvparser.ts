@@ -1,5 +1,6 @@
 import Papa from 'papaparse'
 import { createHash } from 'crypto'
+import { addMonths, format } from 'date-fns'
 import { calcularProjetoFatura } from '@/lib/fatura'
 
 type CsvRow = Record<string, string | number | undefined>
@@ -149,7 +150,7 @@ export function processarCSV(
 
     // Calcula projeto_fatura com a lógica de ciclo de vencimento
     const dataCompra = new Date(dataISO + 'T12:00:00') // meio-dia para evitar problemas de fuso
-    const projetoFatura = calcularProjetoFatura(dataCompra, diaVencimento, ajusteFechamento)
+    let projetoFatura = calcularProjetoFatura(dataCompra, diaVencimento, ajusteFechamento)
 
     // Para cartões não-NuBank, inclui o cartao no hash para evitar colisão
     const hashInput = cartao !== 'nubank'
@@ -166,6 +167,14 @@ export function processarCSV(
     if (parcelaMatch) {
       parcela_atual = parseInt(parcelaMatch[1])
       total_parcelas = parseInt(parcelaMatch[2])
+    }
+
+    // Cartão 1/2: o CSV registra a data de compra original em TODAS as parcelas,
+    // enquanto o NuBank usa a data de lançamento de cada fatura. Avançamos
+    // projeto_fatura por (parcela_atual - 1) meses para que cada parcela caia
+    // no mês de cobrança correto, replicando o comportamento do NuBank.
+    if (cartao !== 'nubank' && parcela_atual !== null && parcela_atual > 1) {
+      projetoFatura = format(addMonths(new Date(projetoFatura + 'T12:00:00'), parcela_atual - 1), 'yyyy-MM-dd')
     }
 
     transacoes.push({
