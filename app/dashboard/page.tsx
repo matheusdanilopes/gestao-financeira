@@ -32,6 +32,10 @@ interface FaturaState {
   sobraJeniffer: number
   cartao1Items: CartaoItem[]
   cartao2Items: CartaoItem[]
+  cartao1AtualMatheus: number
+  cartao1AtualJeniffer: number
+  cartao2AtualMatheus: number
+  cartao2AtualJeniffer: number
 }
 
 interface ResumoCaixaState {
@@ -52,6 +56,7 @@ export default function Dashboard() {
     totalRealizado: 0, matheusAtual: 0, matheusPrevisto: 0, matheusProjecaoParcelas: 0,
     jenifferAtual: 0, jenifferPrevisto: 0, jenifferProjecaoParcelas: 0,
     sobraMatheus: 0, sobraJeniffer: 0, cartao1Items: [], cartao2Items: [],
+    cartao1AtualMatheus: 0, cartao1AtualJeniffer: 0, cartao2AtualMatheus: 0, cartao2AtualJeniffer: 0,
   })
   const [resumoCaixa, setResumoCaixa] = useState<ResumoCaixaState>({
     receitaTotal: 0, contasFixas: 0, fatura: 0, faturaEhPrevisto: false, extras: 0,
@@ -255,6 +260,10 @@ export default function Dashboard() {
       sobraMatheus: matheusPrevisto - matheusAtual - matheusProjecaoParcelas,
       sobraJeniffer: jenifferPrevisto - jenifferAtual - jenifferProjecaoParcelas,
       cartao1Items, cartao2Items,
+      cartao1AtualMatheus: cartao1TotalMatheus,
+      cartao1AtualJeniffer: cartao1TotalJeniffer,
+      cartao2AtualMatheus: cartao2TotalMatheus,
+      cartao2AtualJeniffer: cartao2TotalJeniffer,
     })
     setResumoCaixa({
       receitaTotal, contasFixas: totalPlanejado - nuBankPrevisto,
@@ -414,27 +423,25 @@ export default function Dashboard() {
               <div className="opacity-60 mt-2">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Outros cartões</p>
                 <div className="grid grid-cols-2 gap-2">
-                  {[...fatura.cartao1Items, ...fatura.cartao2Items].map((item, i) => {
-                    const isMatheus = item.responsavel === 'Matheus'
-                    const bg = isMatheus ? 'bg-blue-50 border-blue-100' : 'bg-pink-50 border-pink-100'
-                    const titleColor = isMatheus ? 'text-blue-800' : 'text-pink-800'
-                    const barColor = isMatheus ? 'bg-blue-400' : 'bg-pink-400'
-                    const barBg = isMatheus ? 'bg-blue-100' : 'bg-pink-100'
-                    const sobra = item.previsto - item.pago
-                    const pct = item.previsto > 0 ? Math.min(100, (item.pago / item.previsto) * 100) : 0
+                  {[
+                    { label: 'Cartão 1', atual: fatura.cartao1AtualMatheus + fatura.cartao1AtualJeniffer, previsto: fatura.cartao1Items.reduce((s, i) => s + i.previsto, 0) },
+                    { label: 'Cartão 2', atual: fatura.cartao2AtualMatheus + fatura.cartao2AtualJeniffer, previsto: fatura.cartao2Items.reduce((s, i) => s + i.previsto, 0) },
+                  ].filter(c => c.atual > 0 || c.previsto > 0).map((card, i) => {
+                    const sobra = card.previsto - card.atual
+                    const pct = card.previsto > 0 ? Math.min(100, (card.atual / card.previsto) * 100) : 0
                     return (
-                      <div key={i} className={`border p-2 rounded-2xl shadow-card ${bg}`}>
-                        <p className={`font-semibold text-xs ${titleColor} mb-1`}>{item.nome}</p>
+                      <div key={i} className="border border-gray-200 bg-gray-50 p-2 rounded-2xl shadow-card">
+                        <p className="font-semibold text-xs text-gray-700 mb-1">{card.label}</p>
                         <div className="flex justify-between text-xs gap-1 text-gray-600">
                           <span>Atual</span>
-                          <span className="font-medium text-gray-800 whitespace-nowrap">R$ {item.pago.toFixed(2)}</span>
+                          <span className="font-medium text-gray-800 whitespace-nowrap">R$ {card.atual.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
                           <span>Previsto</span>
-                          <span className="font-medium text-gray-800 whitespace-nowrap">R$ {item.previsto.toFixed(2)}</span>
+                          <span className="font-medium text-gray-800 whitespace-nowrap">R$ {card.previsto.toFixed(2)}</span>
                         </div>
-                        <div className={`mt-1.5 h-1 ${barBg} rounded-full overflow-hidden`}>
-                          <div className={`h-full ${barColor} rounded-full`} style={{ width: `${pct}%` }} />
+                        <div className="mt-1.5 h-1 bg-gray-200 rounded-full overflow-hidden">
+                          <div className="h-full bg-gray-500 rounded-full" style={{ width: `${pct}%` }} />
                         </div>
                         <div className={`flex justify-between text-xs font-bold mt-1 ${sobra >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                           <span className="whitespace-nowrap">{sobra >= 0 ? '✓ Sobra' : '⚠ Excesso'}</span>
@@ -447,11 +454,11 @@ export default function Dashboard() {
 
                 {(() => {
                   const matheusTotalPrevisto = fatura.matheusPrevisto + fatura.cartao1Items.reduce((s, i) => s + i.previsto, 0)
-                  const matheusTotalAtual = fatura.matheusAtual + fatura.matheusProjecaoParcelas + fatura.cartao1Items.reduce((s, i) => s + i.pago, 0)
+                  const matheusTotalAtual = fatura.matheusAtual + fatura.cartao1AtualMatheus + fatura.cartao2AtualMatheus
                   const matheusRestante = matheusTotalPrevisto - matheusTotalAtual
                   const matheusPct = matheusTotalPrevisto > 0 ? Math.min(100, (matheusTotalAtual / matheusTotalPrevisto) * 100) : 0
                   const jenifferTotalPrevisto = fatura.jenifferPrevisto + fatura.cartao2Items.reduce((s, i) => s + i.previsto, 0)
-                  const jenifferTotalAtual = fatura.jenifferAtual + fatura.jenifferProjecaoParcelas + fatura.cartao2Items.reduce((s, i) => s + i.pago, 0)
+                  const jenifferTotalAtual = fatura.jenifferAtual + fatura.cartao1AtualJeniffer + fatura.cartao2AtualJeniffer
                   const jenifferRestante = jenifferTotalPrevisto - jenifferTotalAtual
                   const jenifferPct = jenifferTotalPrevisto > 0 ? Math.min(100, (jenifferTotalAtual / jenifferTotalPrevisto) * 100) : 0
                   return (
