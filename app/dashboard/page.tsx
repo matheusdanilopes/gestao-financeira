@@ -447,13 +447,13 @@ export default function Dashboard() {
 
                 {(() => {
                   const matheusTotalPrevisto = fatura.matheusPrevisto + fatura.cartao1Items.reduce((s, i) => s + i.previsto, 0)
-                  const matheusTotalPago = fatura.matheusAtual + fatura.matheusProjecaoParcelas + fatura.cartao1Items.reduce((s, i) => s + i.previsto, 0)
-                  const matheusRestante = matheusTotalPrevisto - matheusTotalPago
-                  const matheusPct = matheusTotalPrevisto > 0 ? Math.min(100, (matheusTotalPago / matheusTotalPrevisto) * 100) : 0
+                  const matheusTotalAtual = fatura.matheusAtual + fatura.matheusProjecaoParcelas + fatura.cartao1Items.reduce((s, i) => s + i.pago, 0)
+                  const matheusRestante = matheusTotalPrevisto - matheusTotalAtual
+                  const matheusPct = matheusTotalPrevisto > 0 ? Math.min(100, (matheusTotalAtual / matheusTotalPrevisto) * 100) : 0
                   const jenifferTotalPrevisto = fatura.jenifferPrevisto + fatura.cartao2Items.reduce((s, i) => s + i.previsto, 0)
-                  const jenifferTotalPago = fatura.jenifferAtual + fatura.jenifferProjecaoParcelas + fatura.cartao2Items.reduce((s, i) => s + i.previsto, 0)
-                  const jenifferRestante = jenifferTotalPrevisto - jenifferTotalPago
-                  const jenifferPct = jenifferTotalPrevisto > 0 ? Math.min(100, (jenifferTotalPago / jenifferTotalPrevisto) * 100) : 0
+                  const jenifferTotalAtual = fatura.jenifferAtual + fatura.jenifferProjecaoParcelas + fatura.cartao2Items.reduce((s, i) => s + i.pago, 0)
+                  const jenifferRestante = jenifferTotalPrevisto - jenifferTotalAtual
+                  const jenifferPct = jenifferTotalPrevisto > 0 ? Math.min(100, (jenifferTotalAtual / jenifferTotalPrevisto) * 100) : 0
                   return (
                     <>
                       <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-2 mb-1.5">Resumo por pessoa</p>
@@ -461,8 +461,8 @@ export default function Dashboard() {
                         <div className="bg-blue-50 border border-blue-100 border-t-4 border-t-blue-500 p-2 rounded-2xl shadow-card">
                           <p className="font-bold text-xs text-blue-700 uppercase tracking-wide mb-1.5">Matheus</p>
                           <div className="flex justify-between text-xs gap-1 text-gray-600">
-                            <span>Comprometido</span>
-                            <span className="font-medium text-gray-800 whitespace-nowrap">R$ {matheusTotalPago.toFixed(2)}</span>
+                            <span>Atual</span>
+                            <span className="font-medium text-gray-800 whitespace-nowrap">R$ {matheusTotalAtual.toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
                             <span>Previsto</span>
@@ -480,8 +480,8 @@ export default function Dashboard() {
                         <div className="bg-pink-50 border border-pink-100 border-t-4 border-t-pink-500 p-2 rounded-2xl shadow-card">
                           <p className="font-bold text-xs text-pink-700 uppercase tracking-wide mb-1.5">Jeniffer</p>
                           <div className="flex justify-between text-xs gap-1 text-gray-600">
-                            <span>Comprometido</span>
-                            <span className="font-medium text-gray-800 whitespace-nowrap">R$ {jenifferTotalPago.toFixed(2)}</span>
+                            <span>Atual</span>
+                            <span className="font-medium text-gray-800 whitespace-nowrap">R$ {jenifferTotalAtual.toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
                             <span>Previsto</span>
