@@ -440,12 +440,14 @@ export default function Dashboard() {
                 ...(c2J.length > 0 ? [{ label: c2J.map(i => i.nome).join(' / '), responsavel: 'Jeniffer', atual: c2Total, previsto: c2J.reduce((s, i) => s + i.previsto, 0) }] : []),
               ].filter(c => c.atual > 0 || c.previsto > 0)
 
-              const matheusTotalPrevisto = fatura.matheusPrevisto + fatura.cartao1Previsto
-              const matheusTotalAtual = fatura.matheusAtual + fatura.cartao1AtualMatheus + fatura.cartao2AtualMatheus
+              const totalCartoesPrevisto = fatura.cartao1Previsto + fatura.cartao2Previsto
+              const totalCartoesAtual = c1Total + c2Total
+              const matheusTotalPrevisto = fatura.matheusPrevisto + totalCartoesPrevisto
+              const matheusTotalAtual = fatura.matheusAtual + totalCartoesAtual
               const matheusRestante = matheusTotalPrevisto - matheusTotalAtual
               const matheusPct = matheusTotalPrevisto > 0 ? Math.min(100, (matheusTotalAtual / matheusTotalPrevisto) * 100) : 0
-              const jenifferTotalPrevisto = fatura.jenifferPrevisto + fatura.cartao2Previsto
-              const jenifferTotalAtual = fatura.jenifferAtual + fatura.cartao1AtualJeniffer + fatura.cartao2AtualJeniffer
+              const jenifferTotalPrevisto = fatura.jenifferPrevisto + totalCartoesPrevisto
+              const jenifferTotalAtual = fatura.jenifferAtual + totalCartoesAtual
               const jenifferRestante = jenifferTotalPrevisto - jenifferTotalAtual
               const jenifferPct = jenifferTotalPrevisto > 0 ? Math.min(100, (jenifferTotalAtual / jenifferTotalPrevisto) * 100) : 0
 

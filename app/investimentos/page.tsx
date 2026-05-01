@@ -27,12 +27,15 @@ async function calcularSaldo(mes: Date): Promise<number> {
     .reduce((acc, p) => acc + p.valor_previsto, 0)
   const receitaTotal = receitaBase + receitasExtras
 
-  const totalPlanejado = (planejamento || [])
+  const NUBANK_ITEMS = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto'])
+  const contasFixas = (planejamento || [])
     .filter(p => {
       const item = typeof p.item === 'string' ? p.item : ''
       return !item.startsWith('[RECEITA]') && item !== 'Receita Total'
+        && !NUBANK_ITEMS.has(item)
+        && !item.startsWith('[CARTAO1]') && !item.startsWith('[CARTAO2]')
     })
-    .reduce((acc, p) => acc + (p.valor_previsto || 0), 0)
+    .reduce((acc, p) => acc + (p.pago ? (p.valor_real ?? p.valor_previsto) : p.valor_previsto), 0)
 
   const matheusPrevisto = planejamento?.find(p => p.item === 'NuBank Matheus')?.valor_previsto || 0
   const jenifferPrevisto =
@@ -40,8 +43,18 @@ async function calcularSaldo(mes: Date): Promise<number> {
     (planejamento?.find(p => p.item === 'NuBank Jeniffer Conjunto')?.valor_previsto || 0)
   const nuBankPrevisto = matheusPrevisto + jenifferPrevisto
 
-  const faturaEfetiva = totalRealizado === 0 ? nuBankPrevisto : totalRealizado
-  const totalGastos = totalPlanejado - nuBankPrevisto + faturaEfetiva
+  const cartao1PrevTotal = (planejamento || [])
+    .filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO1]'))
+    .reduce((acc, p) => acc + (p.valor_previsto || 0), 0)
+  const cartao2PrevTotal = (planejamento || [])
+    .filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]'))
+    .reduce((acc, p) => acc + (p.valor_previsto || 0), 0)
+
+  const temLancamentos = totalRealizado > 0
+  const faturaEfetiva = temLancamentos
+    ? totalRealizado
+    : nuBankPrevisto + cartao1PrevTotal + cartao2PrevTotal
+  const totalGastos = contasFixas + faturaEfetiva
 
   return receitaTotal - totalGastos
 }
