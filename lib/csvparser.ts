@@ -23,6 +23,7 @@ export interface TransacaoNubank {
   hash_linha: string
   parcela_atual: number | null
   total_parcelas: number | null
+  cartao?: string
 }
 
 function parseValorMonetario(valorRaw: number | string | null | undefined): number | null {
@@ -95,11 +96,20 @@ export function gerarHashLinhaLegado(dataISO: string, descricao: string, valor: 
 export function processarCSV(
   csvText: string,
   diaVencimento: number = 10,
-  ajusteFechamento: number = 0
+  ajusteFechamento: number = 0,
+  cartao: string = 'nubank'
 ): TransacaoNubank[] {
-  // Remove null bytes e caracteres de controle que o PostgreSQL não aceita
-  const csvLimpo = csvText.replace(/\u0000/g, '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
-  const result = Papa.parse(csvLimpo, { header: true, skipEmptyLines: true })
+  // Remove BOM UTF-8 nos dois formatos possíveis (UTF-8 puro ou lido como Latin-1)
+  const csvLimpo = csvText
+    .replace(/^\uFEFF/, '')       // BOM como char Unicode
+    .replace(/^\u00ef\u00bb\u00bf/, '') // BOM lido como Latin-1 (ï»¿)
+    .replace(/\u0000/g, '')
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+  const result = Papa.parse(csvLimpo, {
+    header: true,
+    skipEmptyLines: true,
+    transformHeader: (h: string) => h.replace(/^\uFEFF/, '').replace(/^\u00ef\u00bb\u00bf/, '').trim(),
+  })
   const transacoes: TransacaoNubank[] = []
 
   function sanitizar(str: string): string {
@@ -141,7 +151,13 @@ export function processarCSV(
     const dataCompra = new Date(dataISO + 'T12:00:00') // meio-dia para evitar problemas de fuso
     const projetoFatura = calcularProjetoFatura(dataCompra, diaVencimento, ajusteFechamento)
 
-    const hash_linha = gerarHashLinha(dataISO, descricao, valor)
+    // Para cartões não-NuBank, inclui o cartao no hash para evitar colisão
+    const hashInput = cartao !== 'nubank'
+      ? `${dataISO}|${normalizarDescricaoParaHash(descricao)}|${valor.toFixed(2)}|${cartao}`
+      : undefined
+    const hash_linha = hashInput
+      ? createHash('sha256').update(hashInput).digest('hex')
+      : gerarHashLinha(dataISO, descricao, valor)
 
     // Identificação de parcelas no formato X/Y
     let parcela_atual = null
@@ -161,6 +177,7 @@ export function processarCSV(
       hash_linha,
       parcela_atual,
       total_parcelas,
+      cartao,
     })
   }
 

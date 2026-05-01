@@ -45,7 +45,9 @@ function buildContracts(transacoes: any[]) {
       .replace(/\s+\d{1,2}\/\d{1,2}\s*$/i, '')
       .trim()
       .toLowerCase()
-    const key = `${format(origem, 'yyyy-MM')}|${descBase}|${parcela.total}|${t.responsavel}`
+    // Inclui cartao na chave para não deduplificar séries de cartões diferentes
+    const cartao = t.cartao || 'nubank'
+    const key = `${cartao}|${format(origem, 'yyyy-MM')}|${descBase}|${parcela.total}|${t.responsavel}`
 
     const existing = map.get(key)
     if (!existing || fatura > existing.fatura) {
@@ -95,20 +97,27 @@ export async function POST(req: NextRequest) {
       extra: new Array(meses.length).fill(0),
     }
 
-    // Busca apenas a fatura mais recente disponível no banco
-    const { data: maxRow } = await supabase
-      .from('transacoes_nubank')
-      .select('projeto_fatura')
-      .order('projeto_fatura', { ascending: false })
-      .limit(1)
+    // Busca a última fatura de cada cartão independentemente para capturar todos os parcelamentos
+    const [{ data: maxNubank }, { data: maxCartao1 }, { data: maxCartao2 }] = await Promise.all([
+      supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'nubank').order('projeto_fatura', { ascending: false }).limit(1),
+      supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'cartao1').order('projeto_fatura', { ascending: false }).limit(1),
+      supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'cartao2').order('projeto_fatura', { ascending: false }).limit(1),
+    ])
 
-    const ultimaFaturaStr = maxRow?.[0]?.projeto_fatura
-    if (!ultimaFaturaStr) return NextResponse.json(resultados)
+    const cartoesEFaturas = ([
+      ['nubank', maxNubank?.[0]?.projeto_fatura],
+      ['cartao1', maxCartao1?.[0]?.projeto_fatura],
+      ['cartao2', maxCartao2?.[0]?.projeto_fatura],
+    ] as [string, string][]).filter(([, f]) => !!f)
 
-    const { data: transacoesUltimaFatura } = await supabase
-      .from('transacoes_nubank')
-      .select('*')
-      .eq('projeto_fatura', ultimaFaturaStr)
+    if (cartoesEFaturas.length === 0) return NextResponse.json(resultados)
+
+    const transacoesResults = await Promise.all(
+      cartoesEFaturas.map(([cartao, fatura]) =>
+        supabase.from('transacoes_nubank').select('*').eq('cartao', cartao).eq('projeto_fatura', fatura)
+      )
+    )
+    const transacoesUltimaFatura = transacoesResults.flatMap(r => r.data || [])
 
     const { data: todasDespesas } = await supabase
       .from('planejamento')

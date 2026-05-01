@@ -32,6 +32,14 @@ interface FaturaState {
   sobraJeniffer: number
   cartao1Items: CartaoItem[]
   cartao2Items: CartaoItem[]
+  cartao1AtualMatheus: number
+  cartao1AtualJeniffer: number
+  cartao2AtualMatheus: number
+  cartao2AtualJeniffer: number
+  cartao1Previsto: number
+  cartao2Previsto: number
+  cartao1Nome: string
+  cartao2Nome: string
 }
 
 interface ResumoCaixaState {
@@ -52,6 +60,8 @@ export default function Dashboard() {
     totalRealizado: 0, matheusAtual: 0, matheusPrevisto: 0, matheusProjecaoParcelas: 0,
     jenifferAtual: 0, jenifferPrevisto: 0, jenifferProjecaoParcelas: 0,
     sobraMatheus: 0, sobraJeniffer: 0, cartao1Items: [], cartao2Items: [],
+    cartao1AtualMatheus: 0, cartao1AtualJeniffer: 0, cartao2AtualMatheus: 0, cartao2AtualJeniffer: 0,
+    cartao1Previsto: 0, cartao2Previsto: 0, cartao1Nome: 'Cartão 1', cartao2Nome: 'Cartão 2',
   })
   const [resumoCaixa, setResumoCaixa] = useState<ResumoCaixaState>({
     receitaTotal: 0, contasFixas: 0, fatura: 0, faturaEhPrevisto: false, extras: 0,
@@ -75,11 +85,14 @@ export default function Dashboard() {
       { data: transacoesFatura },
       { data: planejamento },
       { data: invData },
+      { data: maxC1 },
+      { data: maxC2 },
     ] = await Promise.all([
       supabase
         .from('transacoes_nubank')
         .select('valor, responsavel')
-        .eq('projeto_fatura', mesRefFatura),
+        .eq('projeto_fatura', mesRefFatura)
+        .eq('cartao', 'nubank'),
       supabase
         .from('planejamento')
         .select('item, responsavel, valor_previsto, pago, valor_real')
@@ -89,6 +102,16 @@ export default function Dashboard() {
         .select('id, descricao, percentual')
         .eq('mes_referencia', mesRef)
         .order('created_at', { ascending: true }),
+      supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'cartao1').order('projeto_fatura', { ascending: false }).limit(1),
+      supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'cartao2').order('projeto_fatura', { ascending: false }).limit(1),
+    ])
+
+    // Busca transações pela última fatura de cada cartão (independente do mês do dashboard)
+    const c1Fatura = maxC1?.[0]?.projeto_fatura
+    const c2Fatura = maxC2?.[0]?.projeto_fatura
+    const [{ data: transacoesC1 }, { data: transacoesC2 }] = await Promise.all([
+      c1Fatura ? supabase.from('transacoes_nubank').select('valor, responsavel').eq('cartao', 'cartao1').eq('projeto_fatura', c1Fatura) : Promise.resolve({ data: [] as any[] }),
+      c2Fatura ? supabase.from('transacoes_nubank').select('valor, responsavel').eq('cartao', 'cartao2').eq('projeto_fatura', c2Fatura) : Promise.resolve({ data: [] as any[] }),
     ])
 
     const totalRealizado = transacoesFatura?.reduce((acc, t) => acc + t.valor, 0) || 0
@@ -100,21 +123,29 @@ export default function Dashboard() {
       (planejamento?.find(p => p.item === 'NuBank Jeniffer')?.valor_previsto || 0) +
       (planejamento?.find(p => p.item === 'NuBank Jeniffer Conjunto')?.valor_previsto || 0)
 
-
     const toCartaoItem = (p: any, prefixo: string): CartaoItem => ({
       nome: p.item.replace(prefixo, '').trim(),
       responsavel: p.responsavel || '',
       previsto: p.valor_previsto,
-      pago: p.pago ? (p.valor_real ?? p.valor_previsto) : 0,
+      pago: p.valor_real ?? p.valor_previsto,
     })
 
-    const cartao1Items: CartaoItem[] = (planejamento || [])
+    const cartao1PlanejamentoItems: CartaoItem[] = (planejamento || [])
       .filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO1]'))
       .map(p => toCartaoItem(p, '[CARTAO1]'))
 
-    const cartao2Items: CartaoItem[] = (planejamento || [])
+    const cartao2PlanejamentoItems: CartaoItem[] = (planejamento || [])
       .filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]'))
       .map(p => toCartaoItem(p, '[CARTAO2]'))
+
+    // Totais da última fatura importada para cada cartão
+    const cartao1TotalMatheus = (transacoesC1 || []).filter(t => t.responsavel === 'Matheus').reduce((s, t) => s + t.valor, 0)
+    const cartao1TotalJeniffer = (transacoesC1 || []).filter(t => t.responsavel === 'Jeniffer').reduce((s, t) => s + t.valor, 0)
+    const cartao2TotalMatheus = (transacoesC2 || []).filter(t => t.responsavel === 'Matheus').reduce((s, t) => s + t.valor, 0)
+    const cartao2TotalJeniffer = (transacoesC2 || []).filter(t => t.responsavel === 'Jeniffer').reduce((s, t) => s + t.valor, 0)
+
+    const cartao1Items: CartaoItem[] = cartao1PlanejamentoItems
+    const cartao2Items: CartaoItem[] = cartao2PlanejamentoItems
 
     const receitaBase = planejamento?.find(p => p.item === 'Receita Total')?.valor_previsto || 0
     const receitasExtras = planejamento
@@ -139,6 +170,7 @@ export default function Dashboard() {
       const { data: maxFaturaRow } = await supabase
         .from('transacoes_nubank')
         .select('projeto_fatura')
+        .eq('cartao', 'nubank')
         .order('projeto_fatura', { ascending: false })
         .limit(1)
 
@@ -220,6 +252,14 @@ export default function Dashboard() {
       sobraMatheus: matheusPrevisto - matheusAtual - matheusProjecaoParcelas,
       sobraJeniffer: jenifferPrevisto - jenifferAtual - jenifferProjecaoParcelas,
       cartao1Items, cartao2Items,
+      cartao1AtualMatheus: cartao1TotalMatheus,
+      cartao1AtualJeniffer: cartao1TotalJeniffer,
+      cartao2AtualMatheus: cartao2TotalMatheus,
+      cartao2AtualJeniffer: cartao2TotalJeniffer,
+      cartao1Previsto: cartao1PlanejamentoItems.reduce((s, i) => s + i.previsto, 0),
+      cartao2Previsto: cartao2PlanejamentoItems.reduce((s, i) => s + i.previsto, 0),
+      cartao1Nome: cartao1PlanejamentoItems.map(i => i.nome).join(' / ') || 'Cartão 1',
+      cartao2Nome: cartao2PlanejamentoItems.map(i => i.nome).join(' / ') || 'Cartão 2',
     })
     setResumoCaixa({
       receitaTotal, contasFixas: totalPlanejado - nuBankPrevisto,
@@ -379,27 +419,25 @@ export default function Dashboard() {
               <div className="opacity-60 mt-2">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Outros cartões</p>
                 <div className="grid grid-cols-2 gap-2">
-                  {[...fatura.cartao1Items, ...fatura.cartao2Items].map((item, i) => {
-                    const isMatheus = item.responsavel === 'Matheus'
-                    const bg = isMatheus ? 'bg-blue-50 border-blue-100' : 'bg-pink-50 border-pink-100'
-                    const titleColor = isMatheus ? 'text-blue-800' : 'text-pink-800'
-                    const barColor = isMatheus ? 'bg-blue-400' : 'bg-pink-400'
-                    const barBg = isMatheus ? 'bg-blue-100' : 'bg-pink-100'
-                    const sobra = item.previsto - item.pago
-                    const pct = item.previsto > 0 ? Math.min(100, (item.pago / item.previsto) * 100) : 0
+                  {[
+                    { label: fatura.cartao1Nome, atual: fatura.cartao1AtualMatheus + fatura.cartao1AtualJeniffer, previsto: fatura.cartao1Previsto },
+                    { label: fatura.cartao2Nome, atual: fatura.cartao2AtualMatheus + fatura.cartao2AtualJeniffer, previsto: fatura.cartao2Previsto },
+                  ].filter(c => c.atual > 0 || c.previsto > 0).map((card, i) => {
+                    const sobra = card.previsto - card.atual
+                    const pct = card.previsto > 0 ? Math.min(100, (card.atual / card.previsto) * 100) : 0
                     return (
-                      <div key={i} className={`border p-2 rounded-2xl shadow-card ${bg}`}>
-                        <p className={`font-semibold text-xs ${titleColor} mb-1`}>{item.nome}</p>
+                      <div key={i} className="border border-gray-200 bg-gray-50 p-2 rounded-2xl shadow-card">
+                        <p className="font-semibold text-xs text-gray-700 mb-1">{card.label}</p>
                         <div className="flex justify-between text-xs gap-1 text-gray-600">
-                          <span>Pago</span>
-                          <span className="font-medium text-gray-800 whitespace-nowrap">R$ {item.pago.toFixed(2)}</span>
+                          <span>Atual</span>
+                          <span className="font-medium text-gray-800 whitespace-nowrap">R$ {card.atual.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
                           <span>Previsto</span>
-                          <span className="font-medium text-gray-800 whitespace-nowrap">R$ {item.previsto.toFixed(2)}</span>
+                          <span className="font-medium text-gray-800 whitespace-nowrap">R$ {card.previsto.toFixed(2)}</span>
                         </div>
-                        <div className={`mt-1.5 h-1 ${barBg} rounded-full overflow-hidden`}>
-                          <div className={`h-full ${barColor} rounded-full`} style={{ width: `${pct}%` }} />
+                        <div className="mt-1.5 h-1 bg-gray-200 rounded-full overflow-hidden">
+                          <div className="h-full bg-gray-500 rounded-full" style={{ width: `${pct}%` }} />
                         </div>
                         <div className={`flex justify-between text-xs font-bold mt-1 ${sobra >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                           <span className="whitespace-nowrap">{sobra >= 0 ? '✓ Sobra' : '⚠ Excesso'}</span>
@@ -411,14 +449,14 @@ export default function Dashboard() {
                 </div>
 
                 {(() => {
-                  const matheusTotalPrevisto = fatura.matheusPrevisto + fatura.cartao1Items.reduce((s, i) => s + i.previsto, 0)
-                  const matheusTotalPago = fatura.matheusAtual + fatura.matheusProjecaoParcelas + fatura.cartao1Items.reduce((s, i) => s + i.previsto, 0)
-                  const matheusRestante = matheusTotalPrevisto - matheusTotalPago
-                  const matheusPct = matheusTotalPrevisto > 0 ? Math.min(100, (matheusTotalPago / matheusTotalPrevisto) * 100) : 0
-                  const jenifferTotalPrevisto = fatura.jenifferPrevisto + fatura.cartao2Items.reduce((s, i) => s + i.previsto, 0)
-                  const jenifferTotalPago = fatura.jenifferAtual + fatura.jenifferProjecaoParcelas + fatura.cartao2Items.reduce((s, i) => s + i.previsto, 0)
-                  const jenifferRestante = jenifferTotalPrevisto - jenifferTotalPago
-                  const jenifferPct = jenifferTotalPrevisto > 0 ? Math.min(100, (jenifferTotalPago / jenifferTotalPrevisto) * 100) : 0
+                  const matheusTotalPrevisto = fatura.matheusPrevisto + fatura.cartao1Previsto
+                  const matheusTotalAtual = fatura.matheusAtual + fatura.cartao1AtualMatheus + fatura.cartao2AtualMatheus
+                  const matheusRestante = matheusTotalPrevisto - matheusTotalAtual
+                  const matheusPct = matheusTotalPrevisto > 0 ? Math.min(100, (matheusTotalAtual / matheusTotalPrevisto) * 100) : 0
+                  const jenifferTotalPrevisto = fatura.jenifferPrevisto + fatura.cartao2Previsto
+                  const jenifferTotalAtual = fatura.jenifferAtual + fatura.cartao1AtualJeniffer + fatura.cartao2AtualJeniffer
+                  const jenifferRestante = jenifferTotalPrevisto - jenifferTotalAtual
+                  const jenifferPct = jenifferTotalPrevisto > 0 ? Math.min(100, (jenifferTotalAtual / jenifferTotalPrevisto) * 100) : 0
                   return (
                     <>
                       <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-2 mb-1.5">Resumo por pessoa</p>
@@ -426,8 +464,8 @@ export default function Dashboard() {
                         <div className="bg-blue-50 border border-blue-100 border-t-4 border-t-blue-500 p-2 rounded-2xl shadow-card">
                           <p className="font-bold text-xs text-blue-700 uppercase tracking-wide mb-1.5">Matheus</p>
                           <div className="flex justify-between text-xs gap-1 text-gray-600">
-                            <span>Comprometido</span>
-                            <span className="font-medium text-gray-800 whitespace-nowrap">R$ {matheusTotalPago.toFixed(2)}</span>
+                            <span>Atual</span>
+                            <span className="font-medium text-gray-800 whitespace-nowrap">R$ {matheusTotalAtual.toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
                             <span>Previsto</span>
@@ -445,8 +483,8 @@ export default function Dashboard() {
                         <div className="bg-pink-50 border border-pink-100 border-t-4 border-t-pink-500 p-2 rounded-2xl shadow-card">
                           <p className="font-bold text-xs text-pink-700 uppercase tracking-wide mb-1.5">Jeniffer</p>
                           <div className="flex justify-between text-xs gap-1 text-gray-600">
-                            <span>Comprometido</span>
-                            <span className="font-medium text-gray-800 whitespace-nowrap">R$ {jenifferTotalPago.toFixed(2)}</span>
+                            <span>Atual</span>
+                            <span className="font-medium text-gray-800 whitespace-nowrap">R$ {jenifferTotalAtual.toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
                             <span>Previsto</span>
