@@ -133,8 +133,9 @@ export function processarCSV(
 
     // Valor: desconsidera valores negativos (estornos/entradas) e zeros
     const valorRaw = primeiroValorPreenchido(row.amount, row.valor, row.Valor) ?? '0'
-    const valor = parseValorMonetario(valorRaw)
-    if (valor === null) continue
+    const valorBruto = parseValorMonetario(valorRaw)
+    if (valorBruto === null) continue
+    const valor = parseFloat(valorBruto.toFixed(2))
 
     // Calcula projeto_fatura com a lógica de ciclo de vencimento
     const dataCompra = new Date(dataISO + 'T12:00:00') // meio-dia para evitar problemas de fuso
@@ -198,8 +199,9 @@ export function processarTransacoesJSON(
     }
 
     const valorRaw = primeiroValorPreenchido(row.amount, row.valor) ?? '0'
-    const valor = parseValorMonetario(valorRaw)
-    if (valor === null) continue
+    const valorBruto = parseValorMonetario(valorRaw)
+    if (valorBruto === null) continue
+    const valor = parseFloat(valorBruto.toFixed(2))
 
     const responsavel: 'Matheus' | 'Jeniffer' =
       descricao.toLowerCase().includes('jeniffer') ? 'Jeniffer' : 'Matheus'
