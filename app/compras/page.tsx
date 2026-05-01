@@ -37,6 +37,7 @@ type Compra = {
   parcela_atual: number | null
   total_parcelas: number | null
   categoria: string | null
+  cartao?: string
 }
 
 type FormEditar = {
@@ -68,6 +69,18 @@ function dataParaInput(dataStr: string | null): string {
   return dataStr.toString().substring(0, 10)
 }
 
+const CARTAO_LABEL: Record<string, string> = {
+  nubank: 'NuBank',
+  cartao1: 'Cartão 1',
+  cartao2: 'Cartão 2',
+}
+
+const CARTAO_BADGE_COLOR: Record<string, string> = {
+  nubank: 'bg-purple-100 text-purple-700',
+  cartao1: 'bg-blue-100 text-blue-700',
+  cartao2: 'bg-pink-100 text-pink-700',
+}
+
 function Avatar({ responsavel }: { responsavel: string }) {
   if (responsavel === 'Matheus')
     return <span className="flex-shrink-0 w-7 h-7 rounded-full bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center">M</span>
@@ -86,6 +99,17 @@ function CategoriaBadge({ categoria }: { categoria: string | null }) {
   )
 }
 
+function CartaoBadge({ cartao }: { cartao?: string }) {
+  if (!cartao) return null
+  const label = CARTAO_LABEL[cartao] ?? cartao
+  const cor = CARTAO_BADGE_COLOR[cartao] ?? 'bg-gray-100 text-gray-600'
+  return (
+    <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${cor}`}>
+      {label}
+    </span>
+  )
+}
+
 export default function ComprasPage() {
   const { mesAtual: mesGlobal, setMesAtual } = useMes()
   const mesAtual = addMonths(mesGlobal, 1)
@@ -94,6 +118,7 @@ export default function ComprasPage() {
   const [compras, setCompras] = useState<Compra[]>([])
   const [loading, setLoading] = useState(true)
   const [filtroResponsavel, setFiltroResponsavel] = useState('')
+  const [filtroCartao, setFiltroCartao] = useState<'' | 'nubank' | 'cartao1' | 'cartao2'>('')
   const [filtroDescricao, setFiltroDescricao] = useState('')
   const [filtroValorMin, setFiltroValorMin] = useState('')
   const [filtroDia, setFiltroDia] = useState('')
@@ -219,10 +244,11 @@ export default function ComprasPage() {
     carregarCompras()
   }
 
-  const filtrosAtivos = !!filtroResponsavel || !!filtroDescricao || !!filtroValorMin || !!filtroDia || !!filtroCategoria
+  const filtrosAtivos = !!filtroResponsavel || !!filtroCartao || !!filtroDescricao || !!filtroValorMin || !!filtroDia || !!filtroCategoria
 
   function limparFiltros() {
     setFiltroResponsavel('')
+    setFiltroCartao('')
     setFiltroDescricao('')
     setFiltroValorMin('')
     setFiltroDia('')
@@ -235,13 +261,14 @@ export default function ComprasPage() {
       const diaCompra = dataStr ? Number(dataStr.substring(8, 10)) : null
       return (
         (!filtroResponsavel || c.responsavel === filtroResponsavel) &&
+        (!filtroCartao || c.cartao === filtroCartao) &&
         (!filtroDescricao || c.descricao.toLowerCase().includes(filtroDescricao.toLowerCase())) &&
         (!filtroValorMin || c.valor >= Number(filtroValorMin)) &&
         (!filtroDia || diaCompra === Number(filtroDia)) &&
         (!filtroCategoria || c.categoria === filtroCategoria)
       )
     })
-  }, [compras, filtroResponsavel, filtroDescricao, filtroValorMin, filtroDia, filtroCategoria])
+  }, [compras, filtroResponsavel, filtroCartao, filtroDescricao, filtroValorMin, filtroDia, filtroCategoria])
 
   const grupos = useMemo(() => {
     const map = new Map<string, Compra[]>()
@@ -258,13 +285,14 @@ export default function ComprasPage() {
       const dataStr = dataEfetiva(c)
       const diaCompra = dataStr ? Number(dataStr.substring(8, 10)) : null
       return (
+        (!filtroCartao || c.cartao === filtroCartao) &&
         (!filtroDescricao || c.descricao.toLowerCase().includes(filtroDescricao.toLowerCase())) &&
         (!filtroValorMin || c.valor >= Number(filtroValorMin)) &&
         (!filtroDia || diaCompra === Number(filtroDia)) &&
         (!filtroCategoria || c.categoria === filtroCategoria)
       )
     })
-  }, [compras, filtroDescricao, filtroValorMin, filtroDia, filtroCategoria])
+  }, [compras, filtroCartao, filtroDescricao, filtroValorMin, filtroDia, filtroCategoria])
 
   const total = useMemo(() => comprasSemFiltroResponsavel.reduce((acc, c) => acc + c.valor, 0), [comprasSemFiltroResponsavel])
   const totalMatheus = useMemo(() => comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Matheus').reduce((acc, c) => acc + c.valor, 0), [comprasSemFiltroResponsavel])
@@ -318,6 +346,26 @@ export default function ComprasPage() {
             <ChevronRight className="w-5 h-5 text-gray-500" />
           </button>
         </div>
+      </div>
+
+      {/* Filtro de cartão */}
+      <div className="flex gap-2 mb-3">
+        {([['', 'Todos'], ['nubank', 'NuBank'], ['cartao1', 'Cartão 1'], ['cartao2', 'Cartão 2']] as [string, string][]).map(([val, label]) => (
+          <button
+            key={val}
+            onClick={() => setFiltroCartao(val as '' | 'nubank' | 'cartao1' | 'cartao2')}
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-xl transition-all active:scale-95 ${
+              filtroCartao === val
+                ? val === '' ? 'bg-gray-700 text-white shadow-sm'
+                  : val === 'nubank' ? 'bg-purple-600 text-white shadow-sm'
+                  : val === 'cartao1' ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-pink-500 text-white shadow-sm'
+                : 'bg-white border border-gray-200 text-gray-500 shadow-card'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* Filtros secundários */}
@@ -469,6 +517,7 @@ export default function ComprasPage() {
                           </p>
                           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                             {c.categoria && <CategoriaBadge categoria={c.categoria} />}
+                            <CartaoBadge cartao={c.cartao} />
                             {isParcelado && (
                               <span className="inline-block text-[10px] font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">
                                 {c.parcela_atual}/{c.total_parcelas}x
