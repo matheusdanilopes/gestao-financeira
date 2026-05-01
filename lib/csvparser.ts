@@ -100,7 +100,7 @@ export function processarCSV(
   cartao: string = 'nubank'
 ): TransacaoNubank[] {
   // Remove null bytes e caracteres de controle que o PostgreSQL não aceita
-  const csvLimpo = csvText.replace(/\u0000/g, '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+  const csvLimpo = csvText.replace(/^\uFEFF/, '').replace(/\u0000/g, '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
   const result = Papa.parse(csvLimpo, { header: true, skipEmptyLines: true })
   const transacoes: TransacaoNubank[] = []
 
