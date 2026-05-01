@@ -49,6 +49,7 @@ export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }:
   const [filtroValor, setFiltroValor] = useState('Todos')
   const [filtroCampo2, setFiltroCampo2] = useState<CampoFiltro>('cartao')
   const [filtroValor2, setFiltroValor2] = useState('Todos')
+  const labelsCartao = cartaoLabels ?? CARTAO_LABEL
 
   const itens = dados?.itens || []
 
@@ -286,4 +287,3 @@ export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }:
     </>
   )
 }
-  const labelsCartao = cartaoLabels ?? CARTAO_LABEL
