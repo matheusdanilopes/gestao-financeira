@@ -5,6 +5,7 @@ import {
   processarTransacoesJSON,
   TransacaoInputJSON,
   TransacaoNubank,
+  normalizarDescricaoParaHash,
 } from '@/lib/csvparser'
 import { categorizarTransacoes, ResultadoCategorizar } from '@/lib/categorizarTransacoes'
 import { notificarImportacao } from '@/lib/pushImportacao'
@@ -53,26 +54,29 @@ async function contarNoBanco(
   dataInicio: string,
   dataFim: string
 ): Promise<number> {
-  const { count, error } = await supabase
+  const valorArredondado = parseFloat(item.valor.toFixed(2))
+  const normDesc = normalizarDescricaoParaHash(item.descricao)
+
+  const { data, error } = await supabase
     .from('transacoes_nubank')
-    .select('*', { count: 'exact', head: true })
-    .eq('descricao', item.descricao)
-    .eq('valor', item.valor)
+    .select('descricao')
+    .gte('valor', valorArredondado - 0.005)
+    .lte('valor', valorArredondado + 0.005)
     .gte('data_compra', dataInicio)
     .lte('data_compra', dataFim)
 
   if (error?.message?.includes('data_compra')) {
-    const { count: count2 } = await supabase
+    const { data: data2 } = await supabase
       .from('transacoes_nubank')
-      .select('*', { count: 'exact', head: true })
-      .eq('descricao', item.descricao)
-      .eq('valor', item.valor)
+      .select('descricao')
+      .gte('valor', valorArredondado - 0.005)
+      .lte('valor', valorArredondado + 0.005)
       .gte('data', dataInicio)
       .lte('data', dataFim)
-    return count2 ?? 0
+    return (data2 ?? []).filter(r => normalizarDescricaoParaHash(r.descricao) === normDesc).length
   }
 
-  return count ?? 0
+  return (data ?? []).filter(r => normalizarDescricaoParaHash(r.descricao) === normDesc).length
 }
 
 async function inserirTransacao(
@@ -113,16 +117,28 @@ async function salvarTransacoes(
     const stats = faturaStats[item.projeto_fatura]
     stats.noCSV++
 
+    // Hash pre-check: se o hash já existe no banco, pula imediatamente
+    const { count: hashCount } = await supabase
+      .from('transacoes_nubank')
+      .select('*', { count: 'exact', head: true })
+      .eq('hash_linha', item.hash_linha)
+    if ((hashCount ?? 0) > 0) {
+      duplicatasIgnoradas++
+      stats.ignoradas++
+      continue
+    }
+
     const dataInicio = adicionarDias(item.data_compra, -3)
     const dataFim = adicionarDias(item.data_compra, 3)
 
     const qtdNoBanco = await contarNoBanco(supabase, item, dataInicio, dataFim)
 
-    // Count how many times this exact (descricao, valor, date) appears in the CSV
+    // Count how many times this exact (descricao, valor, date, responsavel) appears in the CSV
     const qtdNoCsv = transacoes.filter(x =>
       x.descricao === item.descricao &&
       x.valor === item.valor &&
-      x.data_compra === item.data_compra
+      x.data_compra === item.data_compra &&
+      x.responsavel === item.responsavel
     ).length
 
     if (qtdNoBanco < qtdNoCsv) {
