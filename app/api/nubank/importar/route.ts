@@ -5,6 +5,7 @@ import {
   processarTransacoesJSON,
   TransacaoInputJSON,
   TransacaoNubank,
+  normalizarDescricaoParaHash,
 } from '@/lib/csvparser'
 import { categorizarTransacoes, ResultadoCategorizar } from '@/lib/categorizarTransacoes'
 import { notificarImportacao } from '@/lib/pushImportacao'
@@ -54,30 +55,28 @@ async function contarNoBanco(
   dataFim: string
 ): Promise<number> {
   const valorArredondado = parseFloat(item.valor.toFixed(2))
-  const { count, error } = await supabase
+  const normDesc = normalizarDescricaoParaHash(item.descricao)
+
+  const { data, error } = await supabase
     .from('transacoes_nubank')
-    .select('*', { count: 'exact', head: true })
-    .ilike('descricao', item.descricao)
+    .select('descricao')
     .gte('valor', valorArredondado - 0.005)
     .lte('valor', valorArredondado + 0.005)
-    .eq('responsavel', item.responsavel)
     .gte('data_compra', dataInicio)
     .lte('data_compra', dataFim)
 
   if (error?.message?.includes('data_compra')) {
-    const { count: count2 } = await supabase
+    const { data: data2 } = await supabase
       .from('transacoes_nubank')
-      .select('*', { count: 'exact', head: true })
-      .ilike('descricao', item.descricao)
+      .select('descricao')
       .gte('valor', valorArredondado - 0.005)
       .lte('valor', valorArredondado + 0.005)
-      .eq('responsavel', item.responsavel)
       .gte('data', dataInicio)
       .lte('data', dataFim)
-    return count2 ?? 0
+    return (data2 ?? []).filter(r => normalizarDescricaoParaHash(r.descricao) === normDesc).length
   }
 
-  return count ?? 0
+  return (data ?? []).filter(r => normalizarDescricaoParaHash(r.descricao) === normDesc).length
 }
 
 async function inserirTransacao(
