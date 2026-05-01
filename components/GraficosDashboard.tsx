@@ -149,7 +149,35 @@ export default function GraficosDashboard({ transacoes, carregando }: Props) {
     const cats = Object.entries(catMap).sort(([, a], [, b]) => b - a)
     const totalCat = cats.reduce((a, [, v]) => a + v, 0)
 
-    return { matheusQtd, jenifferQtd, matheusVal, jenifferVal, dayMap, dias, cats, totalCat }
+    const catRespMap: Record<string, { Matheus: number; Jeniffer: number }> = {}
+    for (const t of transacoes) {
+      const cat = t.categoria || 'Outros'
+      const resp = t.responsavel === 'Jeniffer' ? 'Jeniffer' : 'Matheus'
+      if (!catRespMap[cat]) catRespMap[cat] = { Matheus: 0, Jeniffer: 0 }
+      catRespMap[cat][resp] += t.valor
+    }
+
+    const categoriasPorResponsavel = Object.entries(catRespMap)
+      .map(([categoria, valores]) => ({
+        categoria,
+        matheus: valores.Matheus,
+        jeniffer: valores.Jeniffer,
+        total: valores.Matheus + valores.Jeniffer,
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 8)
+
+    return {
+      matheusQtd,
+      jenifferQtd,
+      matheusVal,
+      jenifferVal,
+      dayMap,
+      dias,
+      cats,
+      totalCat,
+      categoriasPorResponsavel,
+    }
   }, [transacoes])
 
   if (carregando) return <Skeleton />
@@ -159,7 +187,7 @@ export default function GraficosDashboard({ transacoes, carregando }: Props) {
     </div>
   )
 
-  const { matheusQtd, jenifferQtd, matheusVal, jenifferVal, dayMap, dias, cats, totalCat } = dados
+  const { matheusQtd, jenifferQtd, matheusVal, jenifferVal, dayMap, dias, cats, totalCat, categoriasPorResponsavel } = dados
 
   return (
     <div className="space-y-4">
@@ -229,6 +257,37 @@ export default function GraficosDashboard({ transacoes, carregando }: Props) {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Categoria por responsável */}
+      {categoriasPorResponsavel.length > 0 && (
+        <div className="bg-white rounded-xl shadow p-4">
+          <h2 className="text-base font-semibold text-gray-800 mb-0.5">👥 Categoria por responsável</h2>
+          <p className="text-xs text-gray-400 mb-3">Quanto cada pessoa gastou por categoria (top 8)</p>
+          <div className="space-y-2">
+            {categoriasPorResponsavel.map((item) => {
+              const totalCategoria = item.total || 1
+              const larguraMatheus = (item.matheus / totalCategoria) * 100
+              const larguraJeniffer = (item.jeniffer / totalCategoria) * 100
+              return (
+                <div key={item.categoria} className="space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-medium text-gray-700 truncate">{item.categoria}</p>
+                    <p className="text-xs text-gray-500 shrink-0">R$ {item.total.toFixed(2)}</p>
+                  </div>
+                  <div className="h-2.5 w-full rounded-full bg-gray-100 overflow-hidden flex">
+                    <div className="h-full bg-blue-500" style={{ width: `${larguraMatheus}%` }} />
+                    <div className="h-full bg-pink-500" style={{ width: `${larguraJeniffer}%` }} />
+                  </div>
+                  <div className="flex justify-between text-[11px] text-gray-500">
+                    <span>Matheus: R$ {item.matheus.toFixed(2)}</span>
+                    <span>Jeniffer: R$ {item.jeniffer.toFixed(2)}</span>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
