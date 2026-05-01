@@ -38,6 +38,8 @@ interface FaturaState {
   cartao2AtualJeniffer: number
   cartao1Previsto: number
   cartao2Previsto: number
+  cartao1Nome: string
+  cartao2Nome: string
 }
 
 interface ResumoCaixaState {
@@ -59,7 +61,7 @@ export default function Dashboard() {
     jenifferAtual: 0, jenifferPrevisto: 0, jenifferProjecaoParcelas: 0,
     sobraMatheus: 0, sobraJeniffer: 0, cartao1Items: [], cartao2Items: [],
     cartao1AtualMatheus: 0, cartao1AtualJeniffer: 0, cartao2AtualMatheus: 0, cartao2AtualJeniffer: 0,
-    cartao1Previsto: 0, cartao2Previsto: 0,
+    cartao1Previsto: 0, cartao2Previsto: 0, cartao1Nome: 'Cartão 1', cartao2Nome: 'Cartão 2',
   })
   const [resumoCaixa, setResumoCaixa] = useState<ResumoCaixaState>({
     receitaTotal: 0, contasFixas: 0, fatura: 0, faturaEhPrevisto: false, extras: 0,
@@ -269,6 +271,8 @@ export default function Dashboard() {
       cartao2AtualJeniffer: cartao2TotalJeniffer,
       cartao1Previsto: cartao1PlanejamentoItems.reduce((s, i) => s + i.previsto, 0),
       cartao2Previsto: cartao2PlanejamentoItems.reduce((s, i) => s + i.previsto, 0),
+      cartao1Nome: cartao1PlanejamentoItems.map(i => i.nome).join(' / ') || 'Cartão 1',
+      cartao2Nome: cartao2PlanejamentoItems.map(i => i.nome).join(' / ') || 'Cartão 2',
     })
     setResumoCaixa({
       receitaTotal, contasFixas: totalPlanejado - nuBankPrevisto,
@@ -429,8 +433,8 @@ export default function Dashboard() {
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Outros cartões</p>
                 <div className="grid grid-cols-2 gap-2">
                   {[
-                    { label: 'Cartão 1', atual: fatura.cartao1AtualMatheus + fatura.cartao1AtualJeniffer, previsto: fatura.cartao1Previsto },
-                    { label: 'Cartão 2', atual: fatura.cartao2AtualMatheus + fatura.cartao2AtualJeniffer, previsto: fatura.cartao2Previsto },
+                    { label: fatura.cartao1Nome, atual: fatura.cartao1AtualMatheus + fatura.cartao1AtualJeniffer, previsto: fatura.cartao1Previsto },
+                    { label: fatura.cartao2Nome, atual: fatura.cartao2AtualMatheus + fatura.cartao2AtualJeniffer, previsto: fatura.cartao2Previsto },
                   ].filter(c => c.atual > 0 || c.previsto > 0).map((card, i) => {
                     const sobra = card.previsto - card.atual
                     const pct = card.previsto > 0 ? Math.min(100, (card.atual / card.previsto) * 100) : 0
