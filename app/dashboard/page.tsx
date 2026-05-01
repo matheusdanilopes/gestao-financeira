@@ -8,6 +8,7 @@ import { ptBR } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react'
 import { useMes } from '@/components/MesProvider'
 import GraficoProjecao from '@/components/GraficoProjecao'
+import GraficosDashboard from '@/components/GraficosDashboard'
 import DrawerDetalhes from '@/components/DrawerDetalhes'
 import BottomNav from '@/components/BottomNav'
 import { PiggyBank } from 'lucide-react'
@@ -68,6 +69,7 @@ export default function Dashboard() {
     totalGastos: 0, sobraLiquida: 0, saldoPrevisto: 0, percentualComprometimento: 0,
   })
   const [investimentos, setInvestimentos] = useState<{ id: string; descricao: string; percentual: number; aportado: number }[]>([])
+  const [transacoesGraficos, setTransacoesGraficos] = useState<{ valor: number; responsavel: string; categoria: string; data_compra: string }[]>([])
   const [drawerAberto, setDrawerAberto] = useState(false)
   const [detalhesPonto, setDetalhesPonto] = useState<any>(null)
   const [carregando, setCarregando] = useState(true)
@@ -90,7 +92,7 @@ export default function Dashboard() {
     ] = await Promise.all([
       supabase
         .from('transacoes_nubank')
-        .select('valor, responsavel')
+        .select('valor, responsavel, categoria, data_compra')
         .eq('projeto_fatura', mesRefFatura)
         .eq('cartao', 'nubank'),
       supabase
@@ -293,6 +295,7 @@ export default function Dashboard() {
     }
 
     setInvestimentos((invData || []).map(i => ({ ...i, aportado: aportadoMap[i.id] || 0 })))
+    setTransacoesGraficos(transacoesFatura || [])
 
 } catch (e) {
       console.error('Erro ao carregar dashboard:', e)
@@ -548,6 +551,8 @@ export default function Dashboard() {
           </>
         )}
       </div>
+
+      <GraficosDashboard transacoes={transacoesGraficos} carregando={carregando} />
 
       {/* Resumo de Caixa */}
       <div className="bg-white rounded-3xl shadow-card p-4 mb-4">
