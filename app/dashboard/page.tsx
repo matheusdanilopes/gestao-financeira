@@ -271,8 +271,8 @@ export default function Dashboard() {
       cartao2AtualJeniffer: cartao2TotalJeniffer,
       cartao1Previsto: cartao1PlanejamentoItems.reduce((s, i) => s + i.previsto, 0),
       cartao2Previsto: cartao2PlanejamentoItems.reduce((s, i) => s + i.previsto, 0),
-      cartao1Nome: cartao1PlanejamentoItems.map(i => i.nome).join(' / ') || 'Cartão 1',
-      cartao2Nome: cartao2PlanejamentoItems.map(i => i.nome).join(' / ') || 'Cartão 2',
+      cartao1Nome: cartao1PlanejamentoItems[0]?.nome || 'Cartão 1',
+      cartao2Nome: cartao2PlanejamentoItems[0]?.nome || 'Cartão 2',
     })
     setResumoCaixa({
       receitaTotal, contasFixas: contasFixasAtual,
@@ -699,7 +699,12 @@ export default function Dashboard() {
         />
       </div>
 
-      <DrawerDetalhes aberto={drawerAberto} onClose={() => setDrawerAberto(false)} dados={detalhesPonto} />
+      <DrawerDetalhes
+        aberto={drawerAberto}
+        onClose={() => setDrawerAberto(false)}
+        dados={detalhesPonto}
+        cartaoLabels={{ nubank: 'NuBank', cartao1: fatura.cartao1Nome, cartao2: fatura.cartao2Nome }}
+      />
       <BottomNav />
     </div>
   )

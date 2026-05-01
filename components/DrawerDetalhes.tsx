@@ -19,12 +19,12 @@ const CARTAO_LABEL: Record<string, string> = {
   cartao2: 'Cartão 2',
 }
 
-function labelValor(campo: CampoFiltro, valor: string): string {
+function labelValor(campo: CampoFiltro, valor: string, cartaoLabels: Record<string, string>): string {
   if (campo === 'tipo') {
     if (valor === 'cartao') return 'Cartão'
     if (valor === 'extra') return 'Extra'
   }
-  if (campo === 'cartao') return CARTAO_LABEL[valor] ?? valor
+  if (campo === 'cartao') return cartaoLabels[valor] ?? CARTAO_LABEL[valor] ?? valor
   return valor || '—'
 }
 
@@ -35,6 +35,7 @@ function dataOrdenacao(item: any): string {
 interface Props {
   aberto: boolean
   onClose: () => void
+  cartaoLabels?: Record<string, string>
   dados: {
     serie: string
     mes: string
@@ -43,15 +44,20 @@ interface Props {
   } | null
 }
 
-export default function DrawerDetalhes({ aberto, onClose, dados }: Props) {
+export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }: Props) {
   const [filtroCampo, setFiltroCampo] = useState<CampoFiltro>('responsavel')
   const [filtroValor, setFiltroValor] = useState('Todos')
+  const [filtroCampo2, setFiltroCampo2] = useState<CampoFiltro>('cartao')
+  const [filtroValor2, setFiltroValor2] = useState('Todos')
+  const labelsCartao = cartaoLabels ?? CARTAO_LABEL
 
   const itens = dados?.itens || []
 
   useEffect(() => {
     setFiltroCampo('responsavel')
     setFiltroValor('Todos')
+    setFiltroCampo2('cartao')
+    setFiltroValor2('Todos')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dados])
 
@@ -63,6 +69,15 @@ export default function DrawerDetalhes({ aberto, onClose, dados }: Props) {
     })
     return ['Todos', ...Array.from(set).sort()]
   }, [itens, filtroCampo])
+
+  const valoresDisponiveis2 = useMemo(() => {
+    const set = new Set<string>()
+    itens.forEach(item => {
+      const v = item[filtroCampo2]
+      if (v) set.add(String(v))
+    })
+    return ['Todos', ...Array.from(set).sort()]
+  }, [itens, filtroCampo2])
 
   const itensFiltrados = useMemo(() => {
     let filtrados = itens
@@ -77,10 +92,21 @@ export default function DrawerDetalhes({ aberto, onClose, dados }: Props) {
       filtrados = itens.filter(item => String(item[filtroCampo] || '') === filtroValor)
     }
 
+    if (filtroCampo2 === 'descricao') {
+      const termo = filtroValor2.trim().toLowerCase()
+      if (termo) {
+        filtrados = filtrados.filter(item =>
+          String(item.descricao || item.item || '').toLowerCase().includes(termo)
+        )
+      }
+    } else if (filtroValor2 !== 'Todos') {
+      filtrados = filtrados.filter(item => String(item[filtroCampo2] || '') === filtroValor2)
+    }
+
     return [...filtrados].sort((a, b) =>
       dataOrdenacao(a).localeCompare(dataOrdenacao(b))
     )
-  }, [itens, filtroCampo, filtroValor])
+  }, [itens, filtroCampo, filtroValor, filtroCampo2, filtroValor2])
 
   const valorFiltrado = useMemo(
     () => itensFiltrados.reduce((sum, item) => sum + (item.valor ?? item.valor_previsto ?? 0), 0),
@@ -92,6 +118,21 @@ export default function DrawerDetalhes({ aberto, onClose, dados }: Props) {
   const handleCampoChange = (campo: CampoFiltro) => {
     setFiltroCampo(campo)
     setFiltroValor(campo === 'descricao' ? '' : 'Todos')
+    if (campo === filtroCampo2) {
+      const proximoCampo = CAMPOS_FILTRO.find(c => c.value !== campo)?.value ?? 'responsavel'
+      setFiltroCampo2(proximoCampo)
+      setFiltroValor2(proximoCampo === 'descricao' ? '' : 'Todos')
+    }
+  }
+
+  const handleCampo2Change = (campo: CampoFiltro) => {
+    setFiltroCampo2(campo)
+    setFiltroValor2(campo === 'descricao' ? '' : 'Todos')
+    if (campo === filtroCampo) {
+      const proximoCampo = CAMPOS_FILTRO.find(c => c.value !== campo)?.value ?? 'responsavel'
+      setFiltroCampo(proximoCampo)
+      setFiltroValor(proximoCampo === 'descricao' ? '' : 'Todos')
+    }
   }
 
   return (
@@ -143,7 +184,45 @@ export default function DrawerDetalhes({ aberto, onClose, dados }: Props) {
                 >
                   {valoresDisponiveis.map(v => (
                     <option key={v} value={v}>
-                      {v === 'Todos' ? 'Todos' : labelValor(filtroCampo, v)}
+                      {v === 'Todos' ? 'Todos' : labelValor(filtroCampo, v, labelsCartao)}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="block text-xs text-gray-400 mb-1">Filtrar por (2)</label>
+              <select
+                value={filtroCampo2}
+                onChange={e => handleCampo2Change(e.target.value as CampoFiltro)}
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              >
+                {CAMPOS_FILTRO.filter(c => c.value !== filtroCampo).map(c => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs text-gray-400 mb-1">Valor (2)</label>
+              {filtroCampo2 === 'descricao' ? (
+                <input
+                  type="text"
+                  value={filtroValor2}
+                  onChange={e => setFiltroValor2(e.target.value)}
+                  placeholder="Buscar descrição..."
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
+              ) : (
+                <select
+                  value={filtroValor2}
+                  onChange={e => setFiltroValor2(e.target.value)}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                >
+                  {valoresDisponiveis2.map(v => (
+                    <option key={v} value={v}>
+                      {v === 'Todos' ? 'Todos' : labelValor(filtroCampo2, v, labelsCartao)}
                     </option>
                   ))}
                 </select>
@@ -172,7 +251,7 @@ export default function DrawerDetalhes({ aberto, onClose, dados }: Props) {
           {itensFiltrados.length > 0 ? (
             <div className="space-y-2">
               {itensFiltrados.map((item, index) => {
-                const cartaoLabel = item.cartao ? (CARTAO_LABEL[item.cartao] ?? item.cartao) : null
+                const cartaoLabel = item.cartao ? (labelsCartao[item.cartao] ?? CARTAO_LABEL[item.cartao] ?? item.cartao) : null
                 const cartaoBadgeColor =
                   item.cartao === 'nubank' ? 'bg-purple-100 text-purple-700' :
                   item.cartao === 'cartao1' ? 'bg-blue-100 text-blue-700' :

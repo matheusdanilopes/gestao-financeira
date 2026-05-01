@@ -4,6 +4,8 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { Upload, CheckCircle2, XCircle, Sparkles, Clock, AlertCircle, ShieldCheck, Trash2 } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
+import { supabase } from '@/lib/supabaseClient'
+import { format, startOfMonth } from 'date-fns'
 
 interface StatsFatura {
   noCSV: number
@@ -58,6 +60,7 @@ const CARTAO_LABELS: Record<TipoCartao, string> = {
 }
 
 export default function ImportarPage() {
+  const [cartaoLabels, setCartaoLabels] = useState<Record<TipoCartao, string>>(CARTAO_LABELS)
   const [cartaoSelecionado, setCartaoSelecionado] = useState<TipoCartao>('nubank')
   const [uploading, setUploading] = useState(false)
   const [resumo, setResumo] = useState<Resumo | null>(null)
@@ -125,6 +128,26 @@ export default function ImportarPage() {
 
   useEffect(() => {
     carregarAtividades()
+  }, [])
+
+  useEffect(() => {
+    async function carregarLabelsCartao() {
+      const mesRef = format(startOfMonth(new Date()), 'yyyy-MM-dd')
+      const { data } = await supabase
+        .from('planejamento')
+        .select('item')
+        .eq('mes_referencia', mesRef)
+
+      const c1 = (data || []).find(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO1]'))?.item?.replace('[CARTAO1]', '').trim()
+      const c2 = (data || []).find(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]'))?.item?.replace('[CARTAO2]', '').trim()
+
+      setCartaoLabels({
+        nubank: 'NuBank',
+        cartao1: c1 || 'Cartão 1',
+        cartao2: c2 || 'Cartão 2',
+      })
+    }
+    carregarLabelsCartao()
   }, [])
 
   async function processarArquivo(file: File) {
@@ -195,7 +218,7 @@ export default function ImportarPage() {
 
       {/* Seletor de cartão */}
       <div className="bg-white rounded-2xl shadow-sm p-1 mb-4 flex gap-1">
-        {(Object.keys(CARTAO_LABELS) as TipoCartao[]).map(tipo => (
+        {(Object.keys(cartaoLabels) as TipoCartao[]).map(tipo => (
           <button
             key={tipo}
             onClick={() => { setCartaoSelecionado(tipo); setResumo(null); setErro(null) }}
@@ -205,7 +228,7 @@ export default function ImportarPage() {
                 : 'text-gray-500 hover:bg-gray-100'
             }`}
           >
-            {CARTAO_LABELS[tipo]}
+            {cartaoLabels[tipo]}
           </button>
         ))}
       </div>
@@ -235,7 +258,7 @@ export default function ImportarPage() {
             </div>
             <div>
               <p className="font-semibold text-gray-700">
-                {arrastando ? 'Solte o arquivo aqui' : `Arraste o CSV do ${CARTAO_LABELS[cartaoSelecionado]}`}
+                {arrastando ? 'Solte o arquivo aqui' : `Arraste o CSV do ${cartaoLabels[cartaoSelecionado]}`}
               </p>
               <p className="text-sm text-gray-400 mt-0.5">ou toque para selecionar</p>
             </div>
@@ -251,7 +274,7 @@ export default function ImportarPage() {
         </div>
       ) : (
         <div className="bg-amber-50 rounded-xl p-3 mb-4 text-xs text-amber-700 space-y-1">
-          <p className="font-semibold">Formato esperado para {CARTAO_LABELS[cartaoSelecionado]}:</p>
+          <p className="font-semibold">Formato esperado para {cartaoLabels[cartaoSelecionado]}:</p>
           <p>Colunas: <span className="font-mono bg-amber-100 px-1 rounded">date, title, amount</span> — ou — <span className="font-mono bg-amber-100 px-1 rounded">Data, Descrição, Valor</span></p>
           <p>Parcelas são detectadas automaticamente pelo padrão <span className="font-mono bg-amber-100 px-1 rounded">X/Y</span> na descrição (ex: 2/12).</p>
         </div>
