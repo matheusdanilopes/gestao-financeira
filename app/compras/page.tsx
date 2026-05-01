@@ -99,9 +99,9 @@ function CategoriaBadge({ categoria }: { categoria: string | null }) {
   )
 }
 
-function CartaoBadge({ cartao }: { cartao?: string }) {
+function CartaoBadge({ cartao, labels }: { cartao?: string; labels: Record<string, string> }) {
   if (!cartao) return null
-  const label = CARTAO_LABEL[cartao] ?? cartao
+  const label = labels[cartao] ?? cartao
   const cor = CARTAO_BADGE_COLOR[cartao] ?? 'bg-gray-100 text-gray-600'
   return (
     <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${cor}`}>
@@ -135,6 +135,7 @@ export default function ComprasPage() {
   const [faturaFechada, setFaturaFechada] = useState(false)
   const [diaVencimento, setDiaVencimento] = useState(10)
   const [ajusteFechamento, setAjusteFechamento] = useState(0)
+  const [cartaoLabels, setCartaoLabels] = useState(CARTAO_LABEL)
 
   const mesAtualKey = format(startOfMonth(mesAtual), 'yyyy-MM')
 
@@ -163,6 +164,22 @@ export default function ComprasPage() {
     setCategorias(parseCategoriasConfig(categoriasConfig?.valor))
     setDiaVencimento(parseInt(configs.find(c => c.chave === 'dia_vencimento')?.valor || '10'))
     setAjusteFechamento(parseInt(configs.find(c => c.chave === 'ajuste_fechamento')?.valor || '0'))
+  }
+
+  async function carregarLabelsCartao() {
+    const mesRef = format(startOfMonth(mesGlobal), 'yyyy-MM-dd')
+    const { data } = await supabase
+      .from('planejamento')
+      .select('item')
+      .eq('mes_referencia', mesRef)
+
+    const c1 = (data || []).find(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO1]'))?.item?.replace('[CARTAO1]', '').trim()
+    const c2 = (data || []).find(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]'))?.item?.replace('[CARTAO2]', '').trim()
+    setCartaoLabels({
+      nubank: 'NuBank',
+      cartao1: c1 || 'Cartão 1',
+      cartao2: c2 || 'Cartão 2',
+    })
   }
 
   async function verificarFaturaFechada() {
@@ -299,8 +316,8 @@ export default function ComprasPage() {
   const totalJeniffer = useMemo(() => comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Jeniffer').reduce((acc, c) => acc + c.valor, 0), [comprasSemFiltroResponsavel])
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { carregarCompras(); verificarFaturaFechada() }, [mesAtualKey])
-  useEffect(() => { carregarCategorias() }, [])
+  useEffect(() => { carregarCompras(); verificarFaturaFechada(); carregarLabelsCartao() }, [mesAtualKey])
+  useEffect(() => { carregarCategorias(); carregarLabelsCartao() }, [])
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 pb-24">
@@ -350,7 +367,12 @@ export default function ComprasPage() {
 
       {/* Filtro de cartão */}
       <div className="flex gap-2 mb-3">
-        {([['', 'Todos'], ['nubank', 'NuBank'], ['cartao1', 'Cartão 1'], ['cartao2', 'Cartão 2']] as [string, string][]).map(([val, label]) => (
+        {([
+          ['', 'Todos'],
+          ['nubank', cartaoLabels.nubank],
+          ['cartao1', cartaoLabels.cartao1],
+          ['cartao2', cartaoLabels.cartao2],
+        ] as [string, string][]).map(([val, label]) => (
           <button
             key={val}
             onClick={() => setFiltroCartao(val as '' | 'nubank' | 'cartao1' | 'cartao2')}
@@ -517,7 +539,7 @@ export default function ComprasPage() {
                           </p>
                           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                             {c.categoria && <CategoriaBadge categoria={c.categoria} />}
-                            <CartaoBadge cartao={c.cartao} />
+                            <CartaoBadge cartao={c.cartao} labels={cartaoLabels} />
                             {isParcelado && (
                               <span className="inline-block text-[10px] font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">
                                 {c.parcela_atual}/{c.total_parcelas}x
