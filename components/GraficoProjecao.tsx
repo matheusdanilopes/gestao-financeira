@@ -136,6 +136,7 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
   const options = useMemo(() => ({
     responsive: true,
     maintainAspectRatio: false,
+    layout: { padding: { top: 28 } },
     interaction: { mode: 'index' as const, intersect: false },
     plugins: {
       legend: {
