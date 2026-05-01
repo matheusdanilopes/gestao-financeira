@@ -182,6 +182,7 @@ export default function Dashboard() {
         const { data: transacoesBase } = await supabase
           .from('transacoes_nubank')
           .select('projeto_fatura, descricao, valor, responsavel, parcela_atual, total_parcelas')
+          .eq('cartao', 'nubank')
           .eq('projeto_fatura', maxFaturaRow[0].projeto_fatura)
 
         const contratos = new Map<string, { fatura: Date; atual: number; total: number; valor: number; responsavel: string }>()
@@ -228,7 +229,7 @@ export default function Dashboard() {
           const parcelaNoMes = atual + deltaM
           if (parcelaNoMes >= 1 && parcelaNoMes <= total) {
             if (responsavel === 'Matheus') matheusProjecaoParcelas += valor
-            else jenifferProjecaoParcelas += valor
+            if (responsavel === 'Jeniffer') jenifferProjecaoParcelas += valor
           }
         }
       }
