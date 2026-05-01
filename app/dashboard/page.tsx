@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react'
 import { useMes } from '@/components/MesProvider'
 import GraficoProjecao from '@/components/GraficoProjecao'
 import DrawerDetalhes from '@/components/DrawerDetalhes'
@@ -415,96 +415,116 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {(fatura.cartao1Items.length > 0 || fatura.cartao2Items.length > 0) && (
-              <div className="opacity-60 mt-2">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Outros cartões</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { label: fatura.cartao1Nome, atual: fatura.cartao1AtualMatheus + fatura.cartao1AtualJeniffer, previsto: fatura.cartao1Previsto },
-                    { label: fatura.cartao2Nome, atual: fatura.cartao2AtualMatheus + fatura.cartao2AtualJeniffer, previsto: fatura.cartao2Previsto },
-                  ].filter(c => c.atual > 0 || c.previsto > 0).map((card, i) => {
-                    const sobra = card.previsto - card.atual
-                    const pct = card.previsto > 0 ? Math.min(100, (card.atual / card.previsto) * 100) : 0
-                    return (
-                      <div key={i} className="border border-gray-200 bg-gray-50 p-2 rounded-2xl shadow-card">
-                        <p className="font-semibold text-xs text-gray-700 mb-1">{card.label}</p>
-                        <div className="flex justify-between text-xs gap-1 text-gray-600">
-                          <span>Atual</span>
-                          <span className="font-medium text-gray-800 whitespace-nowrap">R$ {card.atual.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
-                          <span>Previsto</span>
-                          <span className="font-medium text-gray-800 whitespace-nowrap">R$ {card.previsto.toFixed(2)}</span>
-                        </div>
-                        <div className="mt-1.5 h-1 bg-gray-200 rounded-full overflow-hidden">
-                          <div className="h-full bg-gray-500 rounded-full" style={{ width: `${pct}%` }} />
-                        </div>
-                        <div className={`flex justify-between text-xs font-bold mt-1 ${sobra >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          <span className="whitespace-nowrap">{sobra >= 0 ? '✓ Sobra' : '⚠ Excesso'}</span>
-                          <span className="whitespace-nowrap">R$ {Math.abs(sobra).toFixed(2)}</span>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
+            {(fatura.cartao1Items.length > 0 || fatura.cartao2Items.length > 0) && (() => {
+              const c1M = fatura.cartao1Items.filter(i => i.responsavel === 'Matheus')
+              const c1J = fatura.cartao1Items.filter(i => i.responsavel === 'Jeniffer')
+              const c2M = fatura.cartao2Items.filter(i => i.responsavel === 'Matheus')
+              const c2J = fatura.cartao2Items.filter(i => i.responsavel === 'Jeniffer')
+              const outrosCards = [
+                ...(c1M.length > 0 ? [{ label: c1M.map(i => i.nome).join(' / '), responsavel: 'Matheus', atual: fatura.cartao1AtualMatheus, previsto: c1M.reduce((s, i) => s + i.previsto, 0) }] : []),
+                ...(c1J.length > 0 ? [{ label: c1J.map(i => i.nome).join(' / '), responsavel: 'Jeniffer', atual: fatura.cartao1AtualJeniffer, previsto: c1J.reduce((s, i) => s + i.previsto, 0) }] : []),
+                ...(c2M.length > 0 ? [{ label: c2M.map(i => i.nome).join(' / '), responsavel: 'Matheus', atual: fatura.cartao2AtualMatheus, previsto: c2M.reduce((s, i) => s + i.previsto, 0) }] : []),
+                ...(c2J.length > 0 ? [{ label: c2J.map(i => i.nome).join(' / '), responsavel: 'Jeniffer', atual: fatura.cartao2AtualJeniffer, previsto: c2J.reduce((s, i) => s + i.previsto, 0) }] : []),
+              ].filter(c => c.atual > 0 || c.previsto > 0)
 
-                {(() => {
-                  const matheusTotalPrevisto = fatura.matheusPrevisto + fatura.cartao1Previsto
-                  const matheusTotalAtual = fatura.matheusAtual + fatura.cartao1AtualMatheus + fatura.cartao2AtualMatheus
-                  const matheusRestante = matheusTotalPrevisto - matheusTotalAtual
-                  const matheusPct = matheusTotalPrevisto > 0 ? Math.min(100, (matheusTotalAtual / matheusTotalPrevisto) * 100) : 0
-                  const jenifferTotalPrevisto = fatura.jenifferPrevisto + fatura.cartao2Previsto
-                  const jenifferTotalAtual = fatura.jenifferAtual + fatura.cartao1AtualJeniffer + fatura.cartao2AtualJeniffer
-                  const jenifferRestante = jenifferTotalPrevisto - jenifferTotalAtual
-                  const jenifferPct = jenifferTotalPrevisto > 0 ? Math.min(100, (jenifferTotalAtual / jenifferTotalPrevisto) * 100) : 0
-                  return (
-                    <>
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-2 mb-1.5">Resumo por pessoa</p>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-blue-50 border border-blue-100 border-t-4 border-t-blue-500 p-2 rounded-2xl shadow-card">
-                          <p className="font-bold text-xs text-blue-700 uppercase tracking-wide mb-1.5">Matheus</p>
+              const matheusTotalPrevisto = fatura.matheusPrevisto + fatura.cartao1Previsto
+              const matheusTotalAtual = fatura.matheusAtual + fatura.cartao1AtualMatheus + fatura.cartao2AtualMatheus
+              const matheusRestante = matheusTotalPrevisto - matheusTotalAtual
+              const matheusPct = matheusTotalPrevisto > 0 ? Math.min(100, (matheusTotalAtual / matheusTotalPrevisto) * 100) : 0
+              const jenifferTotalPrevisto = fatura.jenifferPrevisto + fatura.cartao2Previsto
+              const jenifferTotalAtual = fatura.jenifferAtual + fatura.cartao1AtualJeniffer + fatura.cartao2AtualJeniffer
+              const jenifferRestante = jenifferTotalPrevisto - jenifferTotalAtual
+              const jenifferPct = jenifferTotalPrevisto > 0 ? Math.min(100, (jenifferTotalAtual / jenifferTotalPrevisto) * 100) : 0
+
+              return (
+                <div className="mt-2">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Outros cartões</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {outrosCards.map((card, i) => {
+                      const sobra = card.previsto - card.atual
+                      const pct = card.previsto > 0 ? Math.min(100, (card.atual / card.previsto) * 100) : 0
+                      const pctRestante = card.previsto > 0 ? (sobra / card.previsto) * 100 : 100
+                      const isWarning = sobra >= 0 && pctRestante <= 10
+                      const isMatheus = card.responsavel === 'Matheus'
+                      return (
+                        <div key={i} className={`p-2 rounded-2xl shadow-card border border-t-2 ${
+                          isMatheus
+                            ? 'bg-blue-50 border-blue-100 border-t-blue-400'
+                            : 'bg-pink-50 border-pink-100 border-t-pink-400'
+                        }`}>
+                          <p className={`font-semibold text-xs mb-1 ${isMatheus ? 'text-blue-800' : 'text-pink-800'}`}>{card.label}</p>
                           <div className="flex justify-between text-xs gap-1 text-gray-600">
                             <span>Atual</span>
-                            <span className="font-medium text-gray-800 whitespace-nowrap">R$ {matheusTotalAtual.toFixed(2)}</span>
+                            <span className="font-medium text-gray-800 whitespace-nowrap">R$ {card.atual.toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
                             <span>Previsto</span>
-                            <span className="font-medium text-gray-800 whitespace-nowrap">R$ {matheusTotalPrevisto.toFixed(2)}</span>
+                            <span className="font-medium text-gray-800 whitespace-nowrap">R$ {card.previsto.toFixed(2)}</span>
                           </div>
-                          <div className="mt-1.5 h-1.5 bg-blue-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-blue-500 rounded-full" style={{ width: `${matheusPct}%` }} />
+                          <div className={`mt-1.5 h-1 rounded-full overflow-hidden ${isMatheus ? 'bg-blue-100' : 'bg-pink-100'}`}>
+                            <div className={`h-full rounded-full ${isMatheus ? 'bg-blue-400' : 'bg-pink-400'}`} style={{ width: `${pct}%` }} />
                           </div>
-                          <p className="text-right text-xs text-blue-400 mt-0.5">{matheusPct.toFixed(0)}% usado</p>
-                          <div className={`flex justify-between text-xs font-bold mt-1 ${matheusRestante >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            <span className="whitespace-nowrap">{matheusRestante >= 0 ? '✓ Restante' : '⚠ Excesso'}</span>
-                            <span className="whitespace-nowrap">R$ {Math.abs(matheusRestante).toFixed(2)}</span>
-                          </div>
-                        </div>
-                        <div className="bg-pink-50 border border-pink-100 border-t-4 border-t-pink-500 p-2 rounded-2xl shadow-card">
-                          <p className="font-bold text-xs text-pink-700 uppercase tracking-wide mb-1.5">Jeniffer</p>
-                          <div className="flex justify-between text-xs gap-1 text-gray-600">
-                            <span>Atual</span>
-                            <span className="font-medium text-gray-800 whitespace-nowrap">R$ {jenifferTotalAtual.toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
-                            <span>Previsto</span>
-                            <span className="font-medium text-gray-800 whitespace-nowrap">R$ {jenifferTotalPrevisto.toFixed(2)}</span>
-                          </div>
-                          <div className="mt-1.5 h-1.5 bg-pink-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-pink-500 rounded-full" style={{ width: `${jenifferPct}%` }} />
-                          </div>
-                          <p className="text-right text-xs text-pink-400 mt-0.5">{jenifferPct.toFixed(0)}% usado</p>
-                          <div className={`flex justify-between text-xs font-bold mt-1 ${jenifferRestante >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            <span className="whitespace-nowrap">{jenifferRestante >= 0 ? '✓ Restante' : '⚠ Excesso'}</span>
-                            <span className="whitespace-nowrap">R$ {Math.abs(jenifferRestante).toFixed(2)}</span>
+                          <div className={`flex items-center justify-between text-xs font-bold mt-1 ${
+                            sobra < 0 ? 'text-red-600' : isWarning ? 'text-yellow-600' : 'text-green-600'
+                          }`}>
+                            <span className="whitespace-nowrap flex items-center gap-0.5">
+                              {sobra < 0
+                                ? '⚠ Excesso'
+                                : isWarning
+                                ? <><AlertTriangle className="w-3 h-3 inline-block" />{' '}Restante</>
+                                : '✓ Restante'}
+                            </span>
+                            <span className="whitespace-nowrap">R$ {Math.abs(sobra).toFixed(2)}</span>
                           </div>
                         </div>
+                      )
+                    })}
+                  </div>
+
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-2 mb-1.5">Resumo por pessoa</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-blue-50 border border-blue-100 border-t-4 border-t-blue-500 p-2 rounded-2xl shadow-card">
+                      <p className="font-bold text-xs text-blue-700 uppercase tracking-wide mb-1.5">Matheus</p>
+                      <div className="flex justify-between text-xs gap-1 text-gray-600">
+                        <span>Atual</span>
+                        <span className="font-medium text-gray-800 whitespace-nowrap">R$ {matheusTotalAtual.toFixed(2)}</span>
                       </div>
-                    </>
-                  )
-                })()}
-              </div>
-            )}
+                      <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
+                        <span>Previsto</span>
+                        <span className="font-medium text-gray-800 whitespace-nowrap">R$ {matheusTotalPrevisto.toFixed(2)}</span>
+                      </div>
+                      <div className="mt-1.5 h-1.5 bg-blue-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-500 rounded-full" style={{ width: `${matheusPct}%` }} />
+                      </div>
+                      <p className="text-right text-xs text-blue-400 mt-0.5">{matheusPct.toFixed(0)}% usado</p>
+                      <div className={`flex justify-between text-xs font-bold mt-1 ${matheusRestante >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <span className="whitespace-nowrap">{matheusRestante >= 0 ? '✓ Restante' : '⚠ Excesso'}</span>
+                        <span className="whitespace-nowrap">R$ {Math.abs(matheusRestante).toFixed(2)}</span>
+                      </div>
+                    </div>
+                    <div className="bg-pink-50 border border-pink-100 border-t-4 border-t-pink-500 p-2 rounded-2xl shadow-card">
+                      <p className="font-bold text-xs text-pink-700 uppercase tracking-wide mb-1.5">Jeniffer</p>
+                      <div className="flex justify-between text-xs gap-1 text-gray-600">
+                        <span>Atual</span>
+                        <span className="font-medium text-gray-800 whitespace-nowrap">R$ {jenifferTotalAtual.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
+                        <span>Previsto</span>
+                        <span className="font-medium text-gray-800 whitespace-nowrap">R$ {jenifferTotalPrevisto.toFixed(2)}</span>
+                      </div>
+                      <div className="mt-1.5 h-1.5 bg-pink-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-pink-500 rounded-full" style={{ width: `${jenifferPct}%` }} />
+                      </div>
+                      <p className="text-right text-xs text-pink-400 mt-0.5">{jenifferPct.toFixed(0)}% usado</p>
+                      <div className={`flex justify-between text-xs font-bold mt-1 ${jenifferRestante >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <span className="whitespace-nowrap">{jenifferRestante >= 0 ? '✓ Restante' : '⚠ Excesso'}</span>
+                        <span className="whitespace-nowrap">R$ {Math.abs(jenifferRestante).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
           </>
         )}
       </div>
