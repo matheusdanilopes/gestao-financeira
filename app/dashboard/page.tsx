@@ -231,14 +231,23 @@ export default function Dashboard() {
       }
     }
 
-    const faturaEfetiva = faturaEhPrevisto ? nuBankPrevisto : totalRealizado
+    const cartao1TotalAtual = cartao1TotalMatheus + cartao1TotalJeniffer
+    const cartao2TotalAtual = cartao2TotalMatheus + cartao2TotalJeniffer
+    const cartao1PrevTotal = cartao1PlanejamentoItems.reduce((s, i) => s + i.previsto, 0)
+    const cartao2PrevTotal = cartao2PlanejamentoItems.reduce((s, i) => s + i.previsto, 0)
+    const temLancamentos = totalRealizado > 0 || cartao1TotalAtual > 0 || cartao2TotalAtual > 0
+    const faturaEfetiva = temLancamentos
+      ? totalRealizado + cartao1TotalAtual + cartao2TotalAtual
+      : nuBankPrevisto + cartao1PrevTotal + cartao2PrevTotal
     const saldoPrevisto = receitaTotal - totalPlanejado
 
     const NUBANK_ITEMS = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto'])
     const contasFixasAtual = (planejamento || [])
       .filter(p => {
         const item = typeof p.item === 'string' ? p.item : ''
-        return !item.startsWith('[RECEITA]') && item !== 'Receita Total' && !NUBANK_ITEMS.has(item)
+        return !item.startsWith('[RECEITA]') && item !== 'Receita Total'
+          && !NUBANK_ITEMS.has(item)
+          && !item.startsWith('[CARTAO1]') && !item.startsWith('[CARTAO2]')
       })
       .reduce((acc, p) => acc + (p.pago ? (p.valor_real ?? p.valor_previsto) : p.valor_previsto), 0)
 
@@ -262,8 +271,8 @@ export default function Dashboard() {
       cartao2Nome: cartao2PlanejamentoItems.map(i => i.nome).join(' / ') || 'Cartão 2',
     })
     setResumoCaixa({
-      receitaTotal, contasFixas: totalPlanejado - nuBankPrevisto,
-      fatura: faturaEfetiva, faturaEhPrevisto, extras: 0,
+      receitaTotal, contasFixas: contasFixasAtual,
+      fatura: faturaEfetiva, faturaEhPrevisto: !temLancamentos, extras: 0,
       totalGastos, sobraLiquida, saldoPrevisto, percentualComprometimento,
     })
 
@@ -382,7 +391,8 @@ export default function Dashboard() {
                 <div className="mt-2 h-1 bg-blue-100 rounded-full overflow-hidden">
                   <div className="h-full bg-blue-400 rounded-full" style={{ width: `${fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100) : 0}%` }} />
                 </div>
-                <div className={`flex justify-between text-xs font-bold mt-1.5 ${fatura.sobraMatheus >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <p className="text-right text-xs text-blue-400 mt-0.5">{fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100).toFixed(0) : 0}% usado</p>
+                <div className={`flex justify-between text-xs font-bold mt-1 ${fatura.sobraMatheus >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   <span className="whitespace-nowrap">{fatura.sobraMatheus >= 0 ? '✓ Sobra' : '⚠ Excesso'}</span>
                   <span className="whitespace-nowrap">R$ {Math.abs(fatura.sobraMatheus).toFixed(2)}</span>
                 </div>
@@ -408,7 +418,8 @@ export default function Dashboard() {
                 <div className="mt-2 h-1 bg-pink-100 rounded-full overflow-hidden">
                   <div className="h-full bg-pink-400 rounded-full" style={{ width: `${fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100) : 0}%` }} />
                 </div>
-                <div className={`flex justify-between text-xs font-bold mt-1.5 ${fatura.sobraJeniffer >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <p className="text-right text-xs text-pink-400 mt-0.5">{fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100).toFixed(0) : 0}% usado</p>
+                <div className={`flex justify-between text-xs font-bold mt-1 ${fatura.sobraJeniffer >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   <span className="whitespace-nowrap">{fatura.sobraJeniffer >= 0 ? '✓ Sobra' : '⚠ Excesso'}</span>
                   <span className="whitespace-nowrap">R$ {Math.abs(fatura.sobraJeniffer).toFixed(2)}</span>
                 </div>
@@ -555,7 +566,7 @@ export default function Dashboard() {
             </div>
             <div className="flex justify-between items-center text-sm">
               <span className="text-gray-500">
-                Fatura NuBank (mês+1)
+                Faturas
                 {resumoCaixa.faturaEhPrevisto && (
                   <span className="ml-1 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">previsto</span>
                 )}
