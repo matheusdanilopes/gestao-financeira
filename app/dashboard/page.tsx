@@ -437,7 +437,7 @@ export default function Dashboard() {
               const jenifferPct = jenifferTotalPrevisto > 0 ? Math.min(100, (jenifferTotalAtual / jenifferTotalPrevisto) * 100) : 0
 
               return (
-                <div className="mt-2">
+                <div className="opacity-60 mt-2">
                   <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Outros cartões</p>
                   <div className="grid grid-cols-2 gap-2">
                     {outrosCards.map((card, i) => {
@@ -464,6 +464,7 @@ export default function Dashboard() {
                           <div className={`mt-1.5 h-1 rounded-full overflow-hidden ${isMatheus ? 'bg-blue-100' : 'bg-pink-100'}`}>
                             <div className={`h-full rounded-full ${isMatheus ? 'bg-blue-400' : 'bg-pink-400'}`} style={{ width: `${pct}%` }} />
                           </div>
+                          <p className={`text-right text-xs mt-0.5 ${isMatheus ? 'text-blue-400' : 'text-pink-400'}`}>{pct.toFixed(0)}% usado</p>
                           <div className={`flex items-center justify-between text-xs font-bold mt-1 ${
                             sobra < 0 ? 'text-red-600' : isWarning ? 'text-yellow-600' : 'text-green-600'
                           }`}>
