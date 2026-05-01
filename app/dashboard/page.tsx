@@ -112,7 +112,7 @@ export default function Dashboard() {
       nome: p.item.replace(prefixo, '').trim(),
       responsavel: p.responsavel || '',
       previsto: p.valor_previsto,
-      pago: p.pago ? (p.valor_real ?? p.valor_previsto) : 0,
+      pago: p.valor_real ?? p.valor_previsto,
     })
 
     const cartao1PlanejamentoItems: CartaoItem[] = (planejamento || [])
@@ -426,7 +426,7 @@ export default function Dashboard() {
                       <div key={i} className={`border p-2 rounded-2xl shadow-card ${bg}`}>
                         <p className={`font-semibold text-xs ${titleColor} mb-1`}>{item.nome}</p>
                         <div className="flex justify-between text-xs gap-1 text-gray-600">
-                          <span>Pago</span>
+                          <span>Atual</span>
                           <span className="font-medium text-gray-800 whitespace-nowrap">R$ {item.pago.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
