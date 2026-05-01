@@ -167,10 +167,14 @@ export default function Dashboard() {
     let matheusProjecaoParcelas = 0
     let jenifferProjecaoParcelas = 0
     if (faturaEhPrevisto) {
+      const mesProjecao = startOfMonth(addMonths(mes, 1))
+      const mesProjecaoRef = format(mesProjecao, 'yyyy-MM-dd')
+
       const { data: maxFaturaRow } = await supabase
         .from('transacoes_nubank')
         .select('projeto_fatura')
         .eq('cartao', 'nubank')
+        .lte('projeto_fatura', mesProjecaoRef)
         .order('projeto_fatura', { ascending: false })
         .limit(1)
 
@@ -178,9 +182,9 @@ export default function Dashboard() {
         const { data: transacoesBase } = await supabase
           .from('transacoes_nubank')
           .select('projeto_fatura, descricao, valor, responsavel, parcela_atual, total_parcelas')
+          .eq('cartao', 'nubank')
           .eq('projeto_fatura', maxFaturaRow[0].projeto_fatura)
 
-        const mesProjecao = startOfMonth(addMonths(mes, 1))
         const contratos = new Map<string, { fatura: Date; atual: number; total: number; valor: number; responsavel: string }>()
 
         for (const t of (transacoesBase || [])) {
@@ -225,7 +229,7 @@ export default function Dashboard() {
           const parcelaNoMes = atual + deltaM
           if (parcelaNoMes >= 1 && parcelaNoMes <= total) {
             if (responsavel === 'Matheus') matheusProjecaoParcelas += valor
-            else jenifferProjecaoParcelas += valor
+            if (responsavel === 'Jeniffer') jenifferProjecaoParcelas += valor
           }
         }
       }
