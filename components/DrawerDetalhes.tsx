@@ -19,12 +19,12 @@ const CARTAO_LABEL: Record<string, string> = {
   cartao2: 'Cartão 2',
 }
 
-function labelValor(campo: CampoFiltro, valor: string): string {
+function labelValor(campo: CampoFiltro, valor: string, cartaoLabels: Record<string, string>): string {
   if (campo === 'tipo') {
     if (valor === 'cartao') return 'Cartão'
     if (valor === 'extra') return 'Extra'
   }
-  if (campo === 'cartao') return CARTAO_LABEL[valor] ?? valor
+  if (campo === 'cartao') return cartaoLabels[valor] ?? CARTAO_LABEL[valor] ?? valor
   return valor || '—'
 }
 
@@ -35,6 +35,7 @@ function dataOrdenacao(item: any): string {
 interface Props {
   aberto: boolean
   onClose: () => void
+  cartaoLabels?: Record<string, string>
   dados: {
     serie: string
     mes: string
@@ -43,7 +44,7 @@ interface Props {
   } | null
 }
 
-export default function DrawerDetalhes({ aberto, onClose, dados }: Props) {
+export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }: Props) {
   const [filtroCampo, setFiltroCampo] = useState<CampoFiltro>('responsavel')
   const [filtroValor, setFiltroValor] = useState('Todos')
   const [filtroCampo2, setFiltroCampo2] = useState<CampoFiltro>('cartao')
@@ -182,7 +183,7 @@ export default function DrawerDetalhes({ aberto, onClose, dados }: Props) {
                 >
                   {valoresDisponiveis.map(v => (
                     <option key={v} value={v}>
-                      {v === 'Todos' ? 'Todos' : labelValor(filtroCampo, v)}
+                      {v === 'Todos' ? 'Todos' : labelValor(filtroCampo, v, labelsCartao)}
                     </option>
                   ))}
                 </select>
@@ -220,7 +221,7 @@ export default function DrawerDetalhes({ aberto, onClose, dados }: Props) {
                 >
                   {valoresDisponiveis2.map(v => (
                     <option key={v} value={v}>
-                      {v === 'Todos' ? 'Todos' : labelValor(filtroCampo2, v)}
+                      {v === 'Todos' ? 'Todos' : labelValor(filtroCampo2, v, labelsCartao)}
                     </option>
                   ))}
                 </select>
@@ -249,7 +250,7 @@ export default function DrawerDetalhes({ aberto, onClose, dados }: Props) {
           {itensFiltrados.length > 0 ? (
             <div className="space-y-2">
               {itensFiltrados.map((item, index) => {
-                const cartaoLabel = item.cartao ? (CARTAO_LABEL[item.cartao] ?? item.cartao) : null
+                const cartaoLabel = item.cartao ? (labelsCartao[item.cartao] ?? CARTAO_LABEL[item.cartao] ?? item.cartao) : null
                 const cartaoBadgeColor =
                   item.cartao === 'nubank' ? 'bg-purple-100 text-purple-700' :
                   item.cartao === 'cartao1' ? 'bg-blue-100 text-blue-700' :
@@ -285,3 +286,4 @@ export default function DrawerDetalhes({ aberto, onClose, dados }: Props) {
     </>
   )
 }
+  const labelsCartao = cartaoLabels ?? CARTAO_LABEL

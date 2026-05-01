@@ -699,7 +699,12 @@ export default function Dashboard() {
         />
       </div>
 
-      <DrawerDetalhes aberto={drawerAberto} onClose={() => setDrawerAberto(false)} dados={detalhesPonto} />
+      <DrawerDetalhes
+        aberto={drawerAberto}
+        onClose={() => setDrawerAberto(false)}
+        dados={detalhesPonto}
+        cartaoLabels={{ nubank: 'NuBank', cartao1: fatura.cartao1Nome, cartao2: fatura.cartao2Nome }}
+      />
       <BottomNav />
     </div>
   )
