@@ -1,7 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { useDataSync } from '@/lib/useDataSync'
+import DataStatusIndicator from '@/components/DataStatusIndicator'
 import { ChevronLeft, ChevronRight, Pencil, Trash2, X, ShoppingBag, Lock } from 'lucide-react'
 import { addMonths, subMonths, format, startOfMonth, isToday, isYesterday, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -138,6 +140,29 @@ export default function ComprasPage() {
   const [cartaoLabels, setCartaoLabels] = useState(CARTAO_LABEL)
 
   const mesAtualKey = format(startOfMonth(mesAtual), 'yyyy-MM')
+  const mesRefStr = format(startOfMonth(mesAtual), 'yyyy-MM-dd')
+
+  // Fetcher estável para o useDataSync
+  const fetcherCompras = useCallback(async () => {
+    const { data } = await supabase
+      .from('transacoes_nubank')
+      .select('*')
+      .eq('projeto_fatura', mesRefStr)
+      .order('data', { ascending: false })
+    return data || []
+  }, [mesRefStr])
+
+  // Sincronização automática: Realtime + polling 45s + cache localStorage
+  const { status: syncStatus, lastUpdated: syncLastUpdated, refetch: syncRefetch } = useDataSync({
+    cacheKey: `compras:${mesRefStr}`,
+    tables: ['transacoes_nubank'],
+    fetcher: fetcherCompras,
+    onData: (data) => { setCompras(data as Compra[]); setLoading(false) },
+    pollInterval: 45_000,
+  })
+
+  // Pula fetch manual no primeiro render (useDataSync já cuida)
+  const isFirstRender = useRef(true)
 
   function showToast(msg: string, tipo: 'ok' | 'erro' = 'ok') {
     setToast({ msg, tipo })
@@ -315,9 +340,13 @@ export default function ComprasPage() {
   const totalMatheus = useMemo(() => comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Matheus').reduce((acc, c) => acc + c.valor, 0), [comprasSemFiltroResponsavel])
   const totalJeniffer = useMemo(() => comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Jeniffer').reduce((acc, c) => acc + c.valor, 0), [comprasSemFiltroResponsavel])
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { carregarCompras(); verificarFaturaFechada(); carregarLabelsCartao() }, [mesAtualKey])
-  useEffect(() => { carregarCategorias(); carregarLabelsCartao() }, [])
+  // Troca de mês: recarrega dados laterais (compras já cobertas pelo useDataSync)
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return }
+    verificarFaturaFechada()
+    carregarLabelsCartao()
+  }, [mesAtualKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { carregarCategorias(); carregarLabelsCartao(); verificarFaturaFechada() }, [])
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 pb-24">
@@ -331,7 +360,10 @@ export default function ComprasPage() {
       )}
 
       <div className="sticky top-0 bg-gray-50 pt-2 pb-3 z-10">
-        <h1 className="text-2xl font-bold mb-3">Compras do Cartão</h1>
+        <div className="flex items-center justify-between mb-3">
+          <h1 className="text-2xl font-bold">Compras do Cartão</h1>
+          <DataStatusIndicator status={syncStatus} lastUpdated={syncLastUpdated} onRefresh={syncRefetch} />
+        </div>
 
         {/* Navegação de mês */}
         <div className="flex items-center justify-between bg-white rounded-2xl shadow-card border border-gray-100 p-3">

@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths } from 'date-fns'
+import { useDataSync } from '@/lib/useDataSync'
+import DataStatusIndicator from '@/components/DataStatusIndicator'
 import { Pencil, Trash2, Plus, TrendingUp, CirclePlus, History, X, Download } from 'lucide-react'
 import { log, numericOnly } from '@/lib/logger'
 
@@ -57,7 +59,52 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null)
   const [importando, setImportando] = useState(false)
 
-  useEffect(() => { carregarItens() }, [mesSelecionado])
+  const mesRefStr = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
+
+  // Fetcher estável para o useDataSync
+  const fetcherReceitas = useCallback(async () => {
+    const { data: lista } = await supabase
+      .from('planejamento')
+      .select('*')
+      .eq('mes_referencia', mesRefStr)
+      .ilike('item', '[RECEITA]%')
+      .order('item', { ascending: true })
+    const itensList: ItemReceita[] = lista || []
+    const ids = itensList.map(i => i.id)
+    let recsMap: Record<string, Recebimento[]> = {}
+    if (ids.length > 0) {
+      const { data: recs } = await supabase
+        .from('receitas_recebimentos')
+        .select('*')
+        .in('planejamento_id', ids)
+        .order('data_recebimento', { ascending: true })
+      for (const r of (recs || [])) {
+        if (!recsMap[r.planejamento_id]) recsMap[r.planejamento_id] = []
+        recsMap[r.planejamento_id].push(r)
+      }
+    }
+    return { itens: itensList, recebimentos: recsMap }
+  }, [mesRefStr])
+
+  // Sincronização automática: Realtime + polling 45s + cache localStorage
+  const { status: syncStatus, lastUpdated: syncLastUpdated, refetch: syncRefetch } = useDataSync({
+    cacheKey: `receitas:${mesRefStr}`,
+    tables: ['planejamento', 'receitas_recebimentos'],
+    fetcher: fetcherReceitas,
+    onData: (raw) => {
+      const d = raw as { itens: ItemReceita[]; recebimentos: Record<string, Recebimento[]> }
+      setItens(d.itens)
+      setRecebimentos(d.recebimentos)
+    },
+    pollInterval: 45_000,
+  })
+
+  // Pula fetch manual no primeiro render (useDataSync já cuida)
+  const isFirstRender = useRef(true)
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return }
+    carregarItens()
+  }, [mesSelecionado]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function showToast(msg: string, tipo: 'ok' | 'erro' = 'ok') {
     setToast({ msg, tipo })
@@ -260,9 +307,12 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
 
       {/* Resumo */}
       <div className="bg-white rounded-2xl shadow p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <TrendingUp className="w-5 h-5 text-green-600" />
-          <span className="font-semibold text-gray-800">Resumo de Receitas</span>
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-green-600" />
+            <span className="font-semibold text-gray-800">Resumo de Receitas</span>
+          </div>
+          <DataStatusIndicator status={syncStatus} lastUpdated={syncLastUpdated} onRefresh={syncRefetch} />
         </div>
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div className="bg-gray-50 rounded-xl p-3 text-center">

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useCallback, useRef } from 'react'
 import { useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
@@ -12,6 +12,8 @@ import DrawerDetalhes from '@/components/DrawerDetalhes'
 import BottomNav from '@/components/BottomNav'
 import { PiggyBank } from 'lucide-react'
 import { InfoPopover } from '@/components/InfoPopover'
+import { useDataSync } from '@/lib/useDataSync'
+import DataStatusIndicator from '@/components/DataStatusIndicator'
 
 interface CartaoItem {
   nome: string
@@ -72,7 +74,29 @@ export default function Dashboard() {
   const [detalhesPonto, setDetalhesPonto] = useState<any>(null)
   const [carregando, setCarregando] = useState(true)
 
-  useEffect(() => { carregarDados(mesAtual) }, [mesAtual])
+  // Ref para pular o fetch manual no primeiro render (useDataSync já cuida disso)
+  const isFirstRender = useRef(true)
+
+  // Fetcher estável: recriado apenas quando mesAtual muda
+  const fetcher = useCallback(
+    () => carregarDados(mesAtual), // eslint-disable-line react-hooks/exhaustive-deps
+    [mesAtual]
+  )
+
+  // Sincronização automática: Realtime + polling 45s + cache localStorage
+  const { status: syncStatus, lastUpdated: syncLastUpdated, refetch: syncRefetch } = useDataSync({
+    cacheKey: `dashboard:${format(mesAtual, 'yyyy-MM')}`,
+    tables: ['transacoes_nubank', 'planejamento', 'investimentos', 'investimentos_aportes'],
+    fetcher,
+    onData: () => {}, // carregarDados aplica os dados internamente via setState
+    pollInterval: 45_000,
+  })
+
+  // Troca de mês: dispara fetch manual (useDataSync cobre o primeiro render)
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return }
+    carregarDados(mesAtual)
+  }, [mesAtual]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function carregarDados(mes: Date) {
     setCarregando(true)
@@ -320,7 +344,10 @@ export default function Dashboard() {
 
       {/* Header + filtro de mês */}
       <div className="sticky top-0 bg-gray-50 pt-2 pb-3 z-10">
-        <h1 className="text-2xl font-bold mb-3">Dashboard Financeiro</h1>
+        <div className="flex items-center justify-between mb-3">
+          <h1 className="text-2xl font-bold">Dashboard Financeiro</h1>
+          <DataStatusIndicator status={syncStatus} lastUpdated={syncLastUpdated} onRefresh={syncRefetch} />
+        </div>
         <div className="flex items-center justify-between bg-white rounded-2xl shadow-card px-2 py-1">
           <button
             onClick={() => setMesAtual(subMonths(mesAtual, 1))}

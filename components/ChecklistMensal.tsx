@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths, addMonths } from 'date-fns'
+import { useDataSync } from '@/lib/useDataSync'
+import DataStatusIndicator from '@/components/DataStatusIndicator'
 import { ptBR } from 'date-fns/locale'
 import { CheckCircle2, AlertCircle, Pencil, Trash2, Plus, CreditCard, Download, RotateCcw } from 'lucide-react'
 import { log, numericOnly } from '@/lib/logger'
@@ -82,7 +84,34 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
   const [previewImport, setPreviewImport] = useState<{ itens: any[]; mesOrigem: string } | null>(null)
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null)
 
-  useEffect(() => { carregarItens() }, [mesSelecionado])
+  const mesRefStr = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
+
+  // Fetcher estável para o useDataSync
+  const fetcherItens = useCallback(async () => {
+    const { data } = await supabase
+      .from('planejamento')
+      .select('*')
+      .eq('mes_referencia', mesRefStr)
+      .not('item', 'ilike', '[RECEITA]%')
+      .order('categoria', { ascending: false })
+    return data || []
+  }, [mesRefStr])
+
+  // Sincronização automática: Realtime + polling 45s + cache localStorage
+  const { status: syncStatus, lastUpdated: syncLastUpdated, refetch: syncRefetch } = useDataSync({
+    cacheKey: `checklist:${mesRefStr}`,
+    tables: ['planejamento'],
+    fetcher: fetcherItens,
+    onData: (data) => setItens(data as ItemPlanejamento[]),
+    pollInterval: 45_000,
+  })
+
+  // Pula fetch manual no primeiro render (useDataSync já cuida)
+  const isFirstRender = useRef(true)
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return }
+    carregarItens()
+  }, [mesSelecionado]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function showToast(msg: string, tipo: 'ok' | 'erro' = 'ok') {
     setToast({ msg, tipo })
@@ -360,6 +389,11 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
 
   return (
     <div className="space-y-3">
+
+      {/* Indicador de sincronização */}
+      <div className="flex justify-end">
+        <DataStatusIndicator status={syncStatus} lastUpdated={syncLastUpdated} onRefresh={syncRefetch} />
+      </div>
 
       {/* Toast */}
       {toast && (

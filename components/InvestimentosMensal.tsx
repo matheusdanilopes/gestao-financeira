@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths } from 'date-fns'
+import { useDataSync } from '@/lib/useDataSync'
+import DataStatusIndicator from '@/components/DataStatusIndicator'
 import { ptBR } from 'date-fns/locale'
 import { PiggyBank, Pencil, Trash2, Plus, Download, CirclePlus, History, X } from 'lucide-react'
 import { log, numericOnly } from '@/lib/logger'
@@ -57,7 +59,50 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
 
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null)
 
-  useEffect(() => { carregarItens() }, [mesSelecionado])
+  const mesRefStr = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
+
+  // Fetcher estável para o useDataSync
+  const fetcherInvestimentos = useCallback(async () => {
+    const { data: invData } = await supabase
+      .from('investimentos')
+      .select('*')
+      .eq('mes_referencia', mesRefStr)
+      .order('created_at', { ascending: true })
+    const ids = (invData || []).map((i: Investimento) => i.id)
+    let aportesMap: Record<string, Aporte[]> = {}
+    if (ids.length > 0) {
+      const { data: aportesData } = await supabase
+        .from('investimentos_aportes')
+        .select('*')
+        .in('investimento_id', ids)
+        .order('data_aporte', { ascending: true })
+      for (const a of (aportesData || [])) {
+        if (!aportesMap[a.investimento_id]) aportesMap[a.investimento_id] = []
+        aportesMap[a.investimento_id].push(a)
+      }
+    }
+    return { itens: invData || [], aportes: aportesMap }
+  }, [mesRefStr])
+
+  // Sincronização automática: Realtime + polling 45s + cache localStorage
+  const { status: syncStatus, lastUpdated: syncLastUpdated, refetch: syncRefetch } = useDataSync({
+    cacheKey: `investimentos:${mesRefStr}`,
+    tables: ['investimentos', 'investimentos_aportes'],
+    fetcher: fetcherInvestimentos,
+    onData: (raw) => {
+      const d = raw as { itens: Investimento[]; aportes: Record<string, Aporte[]> }
+      setItens(d.itens)
+      setAportes(d.aportes)
+    },
+    pollInterval: 45_000,
+  })
+
+  // Pula fetch manual no primeiro render (useDataSync já cuida)
+  const isFirstRender = useRef(true)
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return }
+    carregarItens()
+  }, [mesSelecionado]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Recalculate secondary field when saldo changes
   useEffect(() => {
@@ -278,9 +323,12 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
 
       {/* Resumo */}
       <div className="bg-white rounded-2xl shadow p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <PiggyBank className="w-5 h-5 text-violet-600" />
-          <span className="font-semibold text-gray-800">Resumo de Investimentos</span>
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2">
+            <PiggyBank className="w-5 h-5 text-violet-600" />
+            <span className="font-semibold text-gray-800">Resumo de Investimentos</span>
+          </div>
+          <DataStatusIndicator status={syncStatus} lastUpdated={syncLastUpdated} onRefresh={syncRefetch} />
         </div>
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div className="bg-gray-50 rounded-xl p-3 text-center">
