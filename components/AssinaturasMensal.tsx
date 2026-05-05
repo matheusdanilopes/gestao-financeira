@@ -241,12 +241,12 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
 
   function StatusBadge({ status }: { status: StatusTx }) {
     if (status === 'detectada')
-      return <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" title="Detectada na fatura" />
+      return <span title="Detectada na fatura"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" /></span>
     if (status === 'valor_divergente')
-      return <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" title="Detectada com valor diferente" />
+      return <span title="Detectada com valor diferente"><AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" /></span>
     if (status === 'nao_encontrada')
-      return <XCircle className="w-4 h-4 text-gray-300 shrink-0" title="Não encontrada neste mês" />
-    return <MinusCircle className="w-4 h-4 text-gray-200 shrink-0" title="Inativa" />
+      return <span title="Não encontrada neste mês"><XCircle className="w-4 h-4 text-gray-300 shrink-0" /></span>
+    return <span title="Inativa"><MinusCircle className="w-4 h-4 text-gray-200 shrink-0" /></span>
   }
 
   return (
