@@ -8,7 +8,7 @@ import { useGlobalSync } from '@/lib/useGlobalSync'
 import {
   Repeat, Pencil, Trash2, Plus, X, WifiOff,
   CheckCircle2, AlertTriangle, XCircle, MinusCircle,
-  CreditCard,
+  CreditCard, Search,
 } from 'lucide-react'
 import { log, numericOnly } from '@/lib/logger'
 
@@ -29,7 +29,7 @@ interface TransacaoSimples {
   descricao: string
   valor: number
   cartao: string
-  data_compra: string
+  projeto_fatura: string
 }
 
 interface Props {
@@ -37,18 +37,17 @@ interface Props {
 }
 
 const CATEGORIAS = ['Streaming', 'Música', 'Software', 'Saúde', 'Educação', 'Jogos', 'Segurança', 'Outros']
-const CARTOES = [
-  { value: 'nubank', label: 'NuBank' },
-  { value: 'cartao1', label: 'Cartão 1' },
-  { value: 'cartao2', label: 'Cartão 2' },
-]
+const CARTOES_KEYS = ['nubank', 'cartao1', 'cartao2'] as const
 const RESPONSAVEIS = ['Matheus', 'Jeniffer', 'Compartilhado']
+
+type CartaoLabels = { nubank: string; cartao1: string; cartao2: string }
+const CARTAO_LABELS_DEFAULT: CartaoLabels = { nubank: 'NuBank', cartao1: 'Cartão 1', cartao2: 'Cartão 2' }
 
 const FORM_VAZIO = {
   nome: '',
   valor: '',
   cartao: 'nubank',
-  responsavel: 'Compartilhado',
+  responsavel: 'Matheus',
   dia_cobranca: '',
   categoria: 'Streaming',
   observacao: '',
@@ -59,6 +58,8 @@ type StatusTx = 'detectada' | 'valor_divergente' | 'nao_encontrada' | 'inativa'
 export default function AssinaturasMensal({ mesSelecionado }: Props) {
   const [itens, setItens] = useState<Assinatura[]>([])
   const [transacoes, setTransacoes] = useState<TransacaoSimples[]>([])
+  const [cartaoLabels, setCartaoLabels] = useState<CartaoLabels>(CARTAO_LABELS_DEFAULT)
+  const [verificando, setVerificando] = useState(false)
 
   const [modalAberto, setModalAberto] = useState<'adicionar' | 'editar' | 'excluir' | null>(null)
   const [itemSelecionado, setItemSelecionado] = useState<Assinatura | null>(null)
@@ -69,49 +70,76 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
 
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null)
 
+  // nextMesRefStr = mês+1, usado como projeto_fatura (regra do sistema)
   const mesRefStr = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
   const nextMesRefStr = format(startOfMonth(addMonths(mesSelecionado, 1)), 'yyyy-MM-dd')
   const mesFmt = format(mesSelecionado, 'MMMM', { locale: ptBR })
 
   const fetcher = useCallback(async () => {
-    const [{ data: assinaturasData }, { data: transacoesData }] = await Promise.all([
+    const [{ data: assinaturasData }, { data: transacoesData }, { data: planejamentoData }] = await Promise.all([
       supabase.from('assinaturas').select('*').order('nome', { ascending: true }),
       supabase
         .from('transacoes_nubank')
-        .select('descricao, valor, cartao, data_compra')
-        .gte('data_compra', mesRefStr)
-        .lt('data_compra', nextMesRefStr),
+        .select('descricao, valor, cartao, projeto_fatura')
+        .eq('projeto_fatura', nextMesRefStr),
+      supabase.from('planejamento').select('item').eq('mes_referencia', mesRefStr),
     ])
-    return { assinaturas: assinaturasData || [], transacoes: transacoesData || [] }
+    const c1 = (planejamentoData || []).find(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO1]'))?.item?.replace('[CARTAO1]', '').trim()
+    const c2 = (planejamentoData || []).find(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]'))?.item?.replace('[CARTAO2]', '').trim()
+    return {
+      assinaturas: assinaturasData || [],
+      transacoes: transacoesData || [],
+      cartaoLabels: { nubank: 'NuBank', cartao1: c1 || 'Cartão 1', cartao2: c2 || 'Cartão 2' },
+    }
   }, [mesRefStr, nextMesRefStr])
 
   const { isOnline } = useGlobalSync({
     cacheKey: `assinaturas:${mesRefStr}`,
-    tables: ['assinaturas', 'transacoes_nubank'],
+    tables: ['assinaturas', 'transacoes_nubank', 'planejamento'],
     fetcher,
     onData: (raw) => {
-      const d = raw as { assinaturas: Assinatura[]; transacoes: TransacaoSimples[] }
+      const d = raw as { assinaturas: Assinatura[]; transacoes: TransacaoSimples[]; cartaoLabels: CartaoLabels }
       setItens(d.assinaturas)
       setTransacoes(d.transacoes)
+      setCartaoLabels(d.cartaoLabels)
     },
   })
 
   function showToast(msg: string, tipo: 'ok' | 'erro' = 'ok') {
     setToast({ msg, tipo })
-    setTimeout(() => setToast(null), 3000)
+    setTimeout(() => setToast(null), 3500)
   }
 
   async function recarregar() {
-    const [{ data: a }, { data: t }] = await Promise.all([
+    const [{ data: a }, { data: t }, { data: p }] = await Promise.all([
       supabase.from('assinaturas').select('*').order('nome', { ascending: true }),
       supabase
         .from('transacoes_nubank')
-        .select('descricao, valor, cartao, data_compra')
-        .gte('data_compra', mesRefStr)
-        .lt('data_compra', nextMesRefStr),
+        .select('descricao, valor, cartao, projeto_fatura')
+        .eq('projeto_fatura', nextMesRefStr),
+      supabase.from('planejamento').select('item').eq('mes_referencia', mesRefStr),
     ])
+    const c1 = (p || []).find(x => typeof x.item === 'string' && x.item.startsWith('[CARTAO1]'))?.item?.replace('[CARTAO1]', '').trim()
+    const c2 = (p || []).find(x => typeof x.item === 'string' && x.item.startsWith('[CARTAO2]'))?.item?.replace('[CARTAO2]', '').trim()
     setItens(a || [])
     setTransacoes(t || [])
+    setCartaoLabels({ nubank: 'NuBank', cartao1: c1 || 'Cartão 1', cartao2: c2 || 'Cartão 2' })
+  }
+
+  async function verificarNaFatura() {
+    setVerificando(true)
+    const { data } = await supabase
+      .from('transacoes_nubank')
+      .select('descricao, valor, cartao, projeto_fatura')
+      .eq('projeto_fatura', nextMesRefStr)
+    setTransacoes(data || [])
+    setVerificando(false)
+    const ativas = itens.filter(i => i.ativa)
+    const detectadas = ativas.filter(i => {
+      const nome = i.nome.toLowerCase()
+      return (data || []).some(tx => tx.cartao === i.cartao && tx.descricao.toLowerCase().includes(nome))
+    }).length
+    showToast(`${detectadas} de ${ativas.length} assinatura(s) encontrada(s) na fatura de ${mesFmt}`)
   }
 
   function statusTransacao(assinatura: Assinatura): StatusTx {
@@ -146,11 +174,14 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     cartao2: itensAtivos.filter(i => i.cartao === 'cartao2').reduce((acc, i) => acc + i.valor, 0),
   }), [itensAtivos])
 
-  const totalPorResponsavel = useMemo(() => ({
-    Matheus: itensAtivos.filter(i => i.responsavel === 'Matheus').reduce((acc, i) => acc + i.valor, 0),
-    Jeniffer: itensAtivos.filter(i => i.responsavel === 'Jeniffer').reduce((acc, i) => acc + i.valor, 0),
-    Compartilhado: itensAtivos.filter(i => i.responsavel === 'Compartilhado').reduce((acc, i) => acc + i.valor, 0),
-  }), [itensAtivos])
+  const totalMatheus = useMemo(
+    () => itensAtivos.filter(i => i.responsavel === 'Matheus').reduce((acc, i) => acc + i.valor, 0),
+    [itensAtivos]
+  )
+  const totalJeniffer = useMemo(
+    () => itensAtivos.filter(i => i.responsavel === 'Jeniffer').reduce((acc, i) => acc + i.valor, 0),
+    [itensAtivos]
+  )
 
   const detectadasCount = useMemo(
     () => itensAtivos.filter(i => statusTransacao(i) === 'detectada').length,
@@ -268,6 +299,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
           <span className="font-semibold text-gray-800">Resumo de Assinaturas</span>
         </div>
 
+        {/* Total geral + detectadas */}
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-indigo-50 rounded-xl p-3 text-center">
             <p className="text-xs text-gray-500 mb-0.5">Total ativo/mês</p>
@@ -281,45 +313,49 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2">
-          {CARTOES.map(c => (
-            <div key={c.value} className="bg-gray-50 rounded-xl p-2.5 text-center">
-              <p className="text-[10px] text-gray-400 mb-0.5">{c.label}</p>
-              <p className="text-sm font-bold text-gray-700">
-                R$ {totalPorCartao[c.value as keyof typeof totalPorCartao].toFixed(2)}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-3 gap-2">
-          {RESPONSAVEIS.map(r => (
-            <div key={r} className="bg-gray-50 rounded-xl p-2.5 text-center">
-              <p className="text-[10px] text-gray-400 mb-0.5">{r}</p>
-              <p className="text-sm font-bold text-gray-700">
-                R$ {totalPorResponsavel[r as keyof typeof totalPorResponsavel].toFixed(2)}
-              </p>
-            </div>
-          ))}
+        {/* Por responsável — apenas Matheus e Jeniffer */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="bg-gray-50 rounded-xl p-2.5 text-center">
+            <p className="text-[10px] text-gray-400 mb-0.5">Matheus</p>
+            <p className="text-sm font-bold text-gray-700">R$ {totalMatheus.toFixed(2)}</p>
+          </div>
+          <div className="bg-gray-50 rounded-xl p-2.5 text-center">
+            <p className="text-[10px] text-gray-400 mb-0.5">Jeniffer</p>
+            <p className="text-sm font-bold text-gray-700">R$ {totalJeniffer.toFixed(2)}</p>
+          </div>
         </div>
       </div>
+
+      {/* Botão verificar na fatura */}
+      {isOnline && (
+        <button
+          onClick={verificarNaFatura}
+          disabled={verificando}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-indigo-200 bg-indigo-50 text-indigo-700 text-sm font-medium hover:bg-indigo-100 transition active:scale-[0.98] disabled:opacity-60"
+        >
+          <Search className={`w-4 h-4 ${verificando ? 'animate-pulse' : ''}`} />
+          {verificando ? 'Verificando na fatura…' : `Verificar cobranças de ${mesFmt} na fatura`}
+        </button>
+      )}
 
       {/* Filtros */}
       <div className="space-y-2">
         <div className="flex gap-2 overflow-x-auto pb-1">
-          {[{ value: 'todos', label: 'Todos cartões' }, ...CARTOES].map(c => (
-            <button
-              key={c.value}
-              onClick={() => setFiltroCartao(c.value)}
-              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition ${
-                filtroCartao === c.value
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-white text-gray-600 border border-gray-200'
-              }`}
-            >
-              {c.label}
-            </button>
-          ))}
+          {([{ value: 'todos', label: 'Todos cartões' }] as { value: string; label: string }[])
+            .concat(CARTOES_KEYS.map(k => ({ value: k, label: cartaoLabels[k] })))
+            .map(c => (
+              <button
+                key={c.value}
+                onClick={() => setFiltroCartao(c.value)}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition ${
+                  filtroCartao === c.value
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-white text-gray-600 border border-gray-200'
+                }`}
+              >
+                {c.label}
+              </button>
+            ))}
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1">
           {[{ value: 'todos', label: 'Todos' }, ...RESPONSAVEIS.map(r => ({ value: r, label: r }))].map(r => (
@@ -353,17 +389,17 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       </div>
 
       {/* Lista por cartão */}
-      {CARTOES.map(cartao => {
-        const grupo = itensPorCartao[cartao.value] || []
+      {CARTOES_KEYS.map(key => {
+        const grupo = itensPorCartao[key] || []
         if (grupo.length === 0) return null
         const totalGrupoAtivo = grupo.filter(i => i.ativa).reduce((acc, i) => acc + i.valor, 0)
 
         return (
-          <div key={cartao.value} className="bg-white rounded-2xl shadow overflow-hidden">
+          <div key={key} className="bg-white rounded-2xl shadow overflow-hidden">
             <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <CreditCard className="w-4 h-4 text-gray-500" />
-                <span className="font-semibold text-sm text-gray-700">{cartao.label}</span>
+                <span className="font-semibold text-sm text-gray-700">{cartaoLabels[key]}</span>
               </div>
               <span className="text-sm font-bold text-indigo-700">
                 R$ {totalGrupoAtivo.toFixed(2)}
@@ -509,7 +545,9 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                   value={formData.cartao}
                   onChange={e => setFormData(f => ({ ...f, cartao: e.target.value }))}
                 >
-                  {CARTOES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  {CARTOES_KEYS.map(k => (
+                    <option key={k} value={k}>{cartaoLabels[k]}</option>
+                  ))}
                 </select>
               </div>
 
