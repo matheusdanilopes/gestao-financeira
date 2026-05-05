@@ -506,14 +506,16 @@ export default function Dashboard() {
                 ...(c2J.length > 0 ? [{ label: c2J.map(i => i.nome).join(' / '), responsavel: 'Jeniffer', atual: c2Total, previsto: c2J.reduce((s, i) => s + i.previsto, 0) }] : []),
               ].filter(c => c.atual > 0 || c.previsto > 0)
 
-              const totalCartoesPrevisto = fatura.cartao1Previsto + fatura.cartao2Previsto
-              const totalCartoesAtual = c1Total + c2Total
-              const matheusTotalPrevisto = fatura.matheusPrevisto + totalCartoesPrevisto
-              const matheusTotalAtual = fatura.matheusAtual + totalCartoesAtual
+              const matheusCartoesPrevisto = c1M.reduce((s, i) => s + i.previsto, 0) + c2M.reduce((s, i) => s + i.previsto, 0)
+              const jenifferCartoesPrevisto = c1J.reduce((s, i) => s + i.previsto, 0) + c2J.reduce((s, i) => s + i.previsto, 0)
+              const matheusCartoesAtual = fatura.cartao1AtualMatheus + fatura.cartao2AtualMatheus
+              const jenifferCartoesAtual = fatura.cartao1AtualJeniffer + fatura.cartao2AtualJeniffer
+              const matheusTotalPrevisto = fatura.matheusPrevisto + matheusCartoesPrevisto
+              const matheusTotalAtual = fatura.matheusAtual + matheusCartoesAtual
               const matheusRestante = matheusTotalPrevisto - matheusTotalAtual
               const matheusPct = matheusTotalPrevisto > 0 ? Math.min(100, (matheusTotalAtual / matheusTotalPrevisto) * 100) : 0
-              const jenifferTotalPrevisto = fatura.jenifferPrevisto + totalCartoesPrevisto
-              const jenifferTotalAtual = fatura.jenifferAtual + totalCartoesAtual
+              const jenifferTotalPrevisto = fatura.jenifferPrevisto + jenifferCartoesPrevisto
+              const jenifferTotalAtual = fatura.jenifferAtual + jenifferCartoesAtual
               const jenifferRestante = jenifferTotalPrevisto - jenifferTotalAtual
               const jenifferPct = jenifferTotalPrevisto > 0 ? Math.min(100, (jenifferTotalAtual / jenifferTotalPrevisto) * 100) : 0
 
