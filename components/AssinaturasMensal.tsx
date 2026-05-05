@@ -8,7 +8,7 @@ import { useGlobalSync } from '@/lib/useGlobalSync'
 import {
   Repeat, Pencil, Trash2, Plus, X, WifiOff,
   CheckCircle2, AlertTriangle, XCircle, MinusCircle,
-  CreditCard, Search,
+  CreditCard, Search, SlidersHorizontal,
 } from 'lucide-react'
 import { log, numericOnly } from '@/lib/logger'
 
@@ -66,7 +66,8 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
   const [formData, setFormData] = useState(FORM_VAZIO)
 
   const [filtroCartao, setFiltroCartao] = useState('todos')
-  const [filtroResponsavel, setFiltroResponsavel] = useState('todos')
+  const [filtroResponsavel, setFiltroResponsavel] = useState('')
+  const [dropdownFiltro, setDropdownFiltro] = useState(false)
 
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null)
 
@@ -156,7 +157,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
   const itensFiltrados = useMemo(() => {
     return itens.filter(i => {
       if (filtroCartao !== 'todos' && i.cartao !== filtroCartao) return false
-      if (filtroResponsavel !== 'todos' && i.responsavel !== filtroResponsavel) return false
+      if (filtroResponsavel !== '' && i.responsavel !== filtroResponsavel) return false
       return true
     })
   }, [itens, filtroCartao, filtroResponsavel])
@@ -168,12 +169,6 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     [itensAtivos]
   )
 
-  const totalPorCartao = useMemo(() => ({
-    nubank: itensAtivos.filter(i => i.cartao === 'nubank').reduce((acc, i) => acc + i.valor, 0),
-    cartao1: itensAtivos.filter(i => i.cartao === 'cartao1').reduce((acc, i) => acc + i.valor, 0),
-    cartao2: itensAtivos.filter(i => i.cartao === 'cartao2').reduce((acc, i) => acc + i.valor, 0),
-  }), [itensAtivos])
-
   const totalMatheus = useMemo(
     () => itensAtivos.filter(i => i.responsavel === 'Matheus').reduce((acc, i) => acc + i.valor, 0),
     [itensAtivos]
@@ -182,6 +177,12 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     () => itensAtivos.filter(i => i.responsavel === 'Jeniffer').reduce((acc, i) => acc + i.valor, 0),
     [itensAtivos]
   )
+
+  const countPorResponsavel = useMemo(() => ({
+    '': itensAtivos.length,
+    Matheus: itensAtivos.filter(i => i.responsavel === 'Matheus').length,
+    Jeniffer: itensAtivos.filter(i => i.responsavel === 'Jeniffer').length,
+  }), [itensAtivos])
 
   const detectadasCount = useMemo(
     () => itensAtivos.filter(i => statusTransacao(i) === 'detectada').length,
@@ -298,101 +299,121 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
         </div>
       )}
 
-      {/* Resumo */}
-      <div className="bg-white rounded-2xl shadow p-4 space-y-3">
-        <div className="flex items-center gap-2">
-          <Repeat className="w-5 h-5 text-indigo-600" />
-          <span className="font-semibold text-gray-800">Resumo de Assinaturas</span>
+      {/* Resumo: Total ativo/mês + Pago em mês */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-white rounded-2xl shadow p-3 text-center">
+          <div className="flex items-center justify-center gap-1.5 mb-1">
+            <Repeat className="w-4 h-4 text-indigo-500" />
+            <p className="text-xs text-gray-500">Total ativo/mês</p>
+          </div>
+          <p className="text-lg font-bold text-indigo-700">R$ {totalAtivo.toFixed(2)}</p>
+          <p className="text-xs text-gray-400">{itensAtivos.length} ativa(s)</p>
         </div>
-
-        {/* Total geral + total pago */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-indigo-50 rounded-xl p-3 text-center">
-            <p className="text-xs text-gray-500 mb-0.5">Total ativo/mês</p>
-            <p className="text-lg font-bold text-indigo-700">R$ {totalAtivo.toFixed(2)}</p>
-            <p className="text-xs text-gray-400">{itensAtivos.length} ativa(s)</p>
-          </div>
-          <div className="bg-green-50 rounded-xl p-3 text-center">
-            <p className="text-xs text-gray-500 mb-0.5">Pago em {mesFmt}</p>
-            <p className="text-lg font-bold text-green-700">R$ {detectadasValor.toFixed(2)}</p>
-            <p className="text-xs text-gray-400">{detectadasCount}/{itensAtivos.length} identificadas</p>
-          </div>
-        </div>
-
-        {/* Por responsável — apenas Matheus e Jeniffer */}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="bg-gray-50 rounded-xl p-2.5 text-center">
-            <p className="text-[10px] text-gray-400 mb-0.5">Matheus</p>
-            <p className="text-sm font-bold text-gray-700">R$ {totalMatheus.toFixed(2)}</p>
-          </div>
-          <div className="bg-gray-50 rounded-xl p-2.5 text-center">
-            <p className="text-[10px] text-gray-400 mb-0.5">Jeniffer</p>
-            <p className="text-sm font-bold text-gray-700">R$ {totalJeniffer.toFixed(2)}</p>
-          </div>
+        <div className="bg-white rounded-2xl shadow p-3 text-center">
+          <p className="text-xs text-gray-500 mb-1">Pago em {mesFmt}</p>
+          <p className="text-lg font-bold text-green-700">R$ {detectadasValor.toFixed(2)}</p>
+          <p className="text-xs text-gray-400">{detectadasCount}/{itensAtivos.length} identificadas</p>
         </div>
       </div>
 
-      {/* Botão verificar na fatura */}
-      {isOnline && (
+      {/* Cards interativos de responsável */}
+      <div className="grid grid-cols-3 gap-2">
         <button
-          onClick={verificarNaFatura}
-          disabled={verificando}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-indigo-200 bg-indigo-50 text-indigo-700 text-sm font-medium hover:bg-indigo-100 transition active:scale-[0.98] disabled:opacity-60"
+          onClick={() => setFiltroResponsavel('')}
+          className={`rounded-2xl p-3 text-center transition-all duration-200 active:scale-[0.97] ${
+            filtroResponsavel === ''
+              ? 'bg-gradient-to-br from-indigo-500 to-indigo-700 shadow-lg ring-2 ring-indigo-300 ring-offset-1'
+              : 'bg-indigo-50 border border-indigo-100 shadow-sm'
+          }`}
         >
-          <Search className={`w-4 h-4 ${verificando ? 'animate-pulse' : ''}`} />
-          {verificando ? 'Verificando na fatura…' : `Verificar cobranças de ${mesFmt} na fatura`}
+          <p className={`text-[10px] font-medium mb-0.5 ${filtroResponsavel === '' ? 'text-indigo-100' : 'text-indigo-500'}`}>Total</p>
+          <p className={`text-sm font-bold leading-tight ${filtroResponsavel === '' ? 'text-white' : 'text-indigo-700'}`}>R$ {totalAtivo.toFixed(2)}</p>
+          <p className={`text-[10px] mt-0.5 ${filtroResponsavel === '' ? 'text-indigo-200' : 'text-indigo-400'}`}>{countPorResponsavel[''] } ativa(s)</p>
         </button>
+        <button
+          onClick={() => setFiltroResponsavel(filtroResponsavel === 'Matheus' ? '' : 'Matheus')}
+          className={`rounded-2xl p-3 text-center transition-all duration-200 active:scale-[0.97] ${
+            filtroResponsavel === 'Matheus'
+              ? 'bg-blue-600 shadow-lg ring-2 ring-blue-300 ring-offset-1'
+              : 'bg-blue-50 border border-blue-100 shadow-sm'
+          }`}
+        >
+          <p className={`text-[10px] font-medium mb-0.5 ${filtroResponsavel === 'Matheus' ? 'text-blue-200' : 'text-blue-500'}`}>Matheus</p>
+          <p className={`text-sm font-bold leading-tight ${filtroResponsavel === 'Matheus' ? 'text-white' : 'text-blue-700'}`}>R$ {totalMatheus.toFixed(2)}</p>
+          <p className={`text-[10px] mt-0.5 ${filtroResponsavel === 'Matheus' ? 'text-blue-200' : 'text-blue-400'}`}>{countPorResponsavel.Matheus} ativa(s)</p>
+        </button>
+        <button
+          onClick={() => setFiltroResponsavel(filtroResponsavel === 'Jeniffer' ? '' : 'Jeniffer')}
+          className={`rounded-2xl p-3 text-center transition-all duration-200 active:scale-[0.97] ${
+            filtroResponsavel === 'Jeniffer'
+              ? 'bg-pink-500 shadow-lg ring-2 ring-pink-300 ring-offset-1'
+              : 'bg-pink-50 border border-pink-100 shadow-sm'
+          }`}
+        >
+          <p className={`text-[10px] font-medium mb-0.5 ${filtroResponsavel === 'Jeniffer' ? 'text-pink-200' : 'text-pink-500'}`}>Jeniffer</p>
+          <p className={`text-sm font-bold leading-tight ${filtroResponsavel === 'Jeniffer' ? 'text-white' : 'text-pink-700'}`}>R$ {totalJeniffer.toFixed(2)}</p>
+          <p className={`text-[10px] mt-0.5 ${filtroResponsavel === 'Jeniffer' ? 'text-pink-200' : 'text-pink-400'}`}>{countPorResponsavel.Jeniffer} ativa(s)</p>
+        </button>
+      </div>
+
+      {/* Linha de ação: Verificar + Filtrar */}
+      <div className="flex gap-2">
+        {isOnline && (
+          <button
+            onClick={verificarNaFatura}
+            disabled={verificando}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-indigo-200 bg-indigo-50 text-indigo-700 text-sm font-medium hover:bg-indigo-100 transition active:scale-[0.98] disabled:opacity-60"
+          >
+            <Search className={`w-4 h-4 ${verificando ? 'animate-pulse' : ''}`} />
+            {verificando ? 'Verificando…' : 'Verificar cobranças'}
+          </button>
+        )}
+        <button
+          onClick={() => setDropdownFiltro(d => !d)}
+          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-2xl border text-sm font-medium transition active:scale-[0.98] ${
+            filtroCartao !== 'todos'
+              ? 'border-indigo-400 bg-indigo-600 text-white'
+              : 'border-gray-200 bg-white text-gray-600'
+          }`}
+        >
+          <SlidersHorizontal className="w-4 h-4" />
+          Filtrar
+          {filtroCartao !== 'todos' && (
+            <span className="ml-0.5 bg-white text-indigo-600 rounded-full w-4 h-4 text-[10px] font-bold flex items-center justify-center">1</span>
+          )}
+        </button>
+      </div>
+
+      {/* Dropdown de filtro */}
+      {dropdownFiltro && (
+        <div className="bg-white rounded-2xl shadow border border-gray-100 p-3 space-y-2.5">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Cartão</p>
+          <div className="flex gap-2 flex-wrap">
+            {([{ value: 'todos', label: 'Todos' }] as { value: string; label: string }[])
+              .concat(CARTOES_KEYS.map(k => ({ value: k, label: cartaoLabels[k] })))
+              .map(c => (
+                <button
+                  key={c.value}
+                  onClick={() => { setFiltroCartao(c.value); setDropdownFiltro(false) }}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${
+                    filtroCartao === c.value
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {c.label}
+                </button>
+              ))}
+          </div>
+          <hr className="border-gray-100" />
+          <div className="flex items-center gap-3 flex-wrap text-xs text-gray-500">
+            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Fatura:</span>
+            <span className="flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> Detectada</span>
+            <span className="flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5 text-amber-500" /> Valor diferente</span>
+            <span className="flex items-center gap-1"><XCircle className="w-3.5 h-3.5 text-gray-300" /> Não encontrada</span>
+          </div>
+        </div>
       )}
-
-      {/* Filtros */}
-      <div className="space-y-2">
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {([{ value: 'todos', label: 'Todos cartões' }] as { value: string; label: string }[])
-            .concat(CARTOES_KEYS.map(k => ({ value: k, label: cartaoLabels[k] })))
-            .map(c => (
-              <button
-                key={c.value}
-                onClick={() => setFiltroCartao(c.value)}
-                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition ${
-                  filtroCartao === c.value
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-white text-gray-600 border border-gray-200'
-                }`}
-              >
-                {c.label}
-              </button>
-            ))}
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {[{ value: 'todos', label: 'Todos' }, ...RESPONSAVEIS.filter(r => r !== 'Compartilhado').map(r => ({ value: r, label: r }))].map(r => (
-            <button
-              key={r.value}
-              onClick={() => setFiltroResponsavel(r.value)}
-              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition ${
-                filtroResponsavel === r.value
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-white text-gray-600 border border-gray-200'
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Legenda */}
-      <div className="flex items-center gap-3 bg-white rounded-xl shadow px-3 py-2 flex-wrap text-xs text-gray-500">
-        <span className="text-gray-400">Fatura:</span>
-        <span className="flex items-center gap-1">
-          <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> Detectada
-        </span>
-        <span className="flex items-center gap-1">
-          <AlertTriangle className="w-3.5 h-3.5 text-amber-500" /> Valor diferente
-        </span>
-        <span className="flex items-center gap-1">
-          <XCircle className="w-3.5 h-3.5 text-gray-300" /> Não encontrada
-        </span>
-      </div>
 
       {/* Lista por cartão */}
       {CARTOES_KEYS.map(key => {
