@@ -272,3 +272,26 @@ CREATE POLICY "allow_all_messages" ON messages
 
 CREATE INDEX IF NOT EXISTS idx_messages_conversation
   ON messages(conversation_id, created_at ASC);
+
+-- 19. Tabela de assinaturas recorrentes no cartão
+-- Permite cadastrar serviços cobrados mensalmente e acompanhar o montante por cartão
+CREATE TABLE IF NOT EXISTS assinaturas (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome         TEXT NOT NULL,
+  valor        NUMERIC(12,2) NOT NULL,
+  cartao       TEXT NOT NULL DEFAULT 'nubank',        -- 'nubank' | 'cartao1' | 'cartao2'
+  responsavel  TEXT NOT NULL DEFAULT 'Compartilhado', -- 'Matheus' | 'Jeniffer' | 'Compartilhado'
+  dia_cobranca INT,                                   -- dia do mês em que é cobrada (1–31)
+  categoria    TEXT NOT NULL DEFAULT 'Outros',        -- 'Streaming' | 'Música' | 'Software' | 'Saúde' | 'Educação' | 'Jogos' | 'Segurança' | 'Outros'
+  ativa        BOOLEAN NOT NULL DEFAULT TRUE,
+  observacao   TEXT,
+  created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE assinaturas ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "allow_all_assinaturas" ON assinaturas;
+CREATE POLICY "allow_all_assinaturas" ON assinaturas
+  FOR ALL USING (true) WITH CHECK (true);
+
+CREATE INDEX IF NOT EXISTS idx_assinaturas_cartao ON assinaturas(cartao);
+CREATE INDEX IF NOT EXISTS idx_assinaturas_ativa  ON assinaturas(ativa);
