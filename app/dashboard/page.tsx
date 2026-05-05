@@ -310,13 +310,15 @@ export default function Dashboard() {
       assinAtivas
         .filter((a: any) => a.responsavel === responsavel && !txFaturaList.some((tx: any) => tx.descricao?.toLowerCase().includes(a.nome.toLowerCase())))
         .reduce((sum: number, a: any) => sum + a.valor, 0)
-    setAssinaturasNaopagas({ matheus: calcNaoPaga('Matheus'), jeniffer: calcNaoPaga('Jeniffer') })
+    const assinNaoPagaMatheus = calcNaoPaga('Matheus')
+    const assinNaoPagaJeniffer = calcNaoPaga('Jeniffer')
+    setAssinaturasNaopagas({ matheus: assinNaoPagaMatheus, jeniffer: assinNaoPagaJeniffer })
 
     setFatura({
       totalRealizado, matheusAtual, matheusPrevisto, matheusProjecaoParcelas,
       jenifferAtual, jenifferPrevisto, jenifferProjecaoParcelas,
-      sobraMatheus: matheusPrevisto - matheusAtual - matheusProjecaoParcelas,
-      sobraJeniffer: jenifferPrevisto - jenifferAtual - jenifferProjecaoParcelas,
+      sobraMatheus: matheusPrevisto - matheusAtual - matheusProjecaoParcelas - assinNaoPagaMatheus,
+      sobraJeniffer: jenifferPrevisto - jenifferAtual - jenifferProjecaoParcelas - assinNaoPagaJeniffer,
       cartao1Items, cartao2Items,
       cartao1AtualMatheus: cartao1TotalMatheus,
       cartao1AtualJeniffer: cartao1TotalJeniffer,
