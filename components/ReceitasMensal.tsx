@@ -3,9 +3,8 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths } from 'date-fns'
-import { useDataSync } from '@/lib/useDataSync'
-import DataStatusIndicator from '@/components/DataStatusIndicator'
-import { Pencil, Trash2, Plus, TrendingUp, CirclePlus, History, X, Download } from 'lucide-react'
+import { useGlobalSync } from '@/lib/useGlobalSync'
+import { Pencil, Trash2, Plus, TrendingUp, CirclePlus, History, X, Download, WifiOff } from 'lucide-react'
 import { log, numericOnly } from '@/lib/logger'
 
 const RECEITA_PREFIXO = '[RECEITA] '
@@ -87,11 +86,11 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
   }, [mesRefStr])
 
   // Sincronização automática: Realtime + polling 45s + cache localStorage
-  const { status: syncStatus, lastUpdated: syncLastUpdated, refetch: syncRefetch } = useDataSync({
+  const { isOnline } = useGlobalSync({
     cacheKey: `receitas:${mesRefStr}`,
     tables: ['planejamento', 'receitas_recebimentos'],
     fetcher: fetcherReceitas,
-    onData: (raw) => {
+    onData: (raw: unknown) => {
       const d = raw as { itens: ItemReceita[]; recebimentos: Record<string, Recebimento[]> }
       setItens(d.itens)
       setRecebimentos(d.recebimentos)
@@ -307,12 +306,9 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
 
       {/* Resumo */}
       <div className="bg-white rounded-2xl shadow p-4">
-        <div className="flex items-center justify-between gap-2 mb-3">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-green-600" />
-            <span className="font-semibold text-gray-800">Resumo de Receitas</span>
-          </div>
-          <DataStatusIndicator status={syncStatus} lastUpdated={syncLastUpdated} onRefresh={syncRefetch} />
+        <div className="flex items-center gap-2 mb-3">
+          <TrendingUp className="w-5 h-5 text-green-600" />
+          <span className="font-semibold text-gray-800">Resumo de Receitas</span>
         </div>
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div className="bg-gray-50 rounded-xl p-3 text-center">
@@ -383,18 +379,8 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
                     )}
                   </div>
 
-                  {/* Ações */}
+                  {/* Ações — ocultas quando offline */}
                   <div className="flex items-center gap-0.5 shrink-0">
-                    <button
-                      onClick={() => {
-                        setModalRecebimento(item)
-                        setFormRecebimento({ valor: '', data_recebimento: format(new Date(), 'yyyy-MM-dd'), observacao: '' })
-                      }}
-                      className="p-1.5 rounded-lg text-green-600 hover:bg-green-100 transition"
-                      title="Registrar recebimento"
-                    >
-                      <CirclePlus className="w-5 h-5" />
-                    </button>
                     {showHistory && (
                       <button
                         onClick={() => { setModalHistorico(item); setRecebimentoPendingDelete(null) }}
@@ -404,18 +390,32 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
                         <History className="w-4 h-4" />
                       </button>
                     )}
-                    <button
-                      onClick={() => abrirEditar(item)}
-                      className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 transition"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => { setItemSelecionado(item); setModalAberto('excluir') }}
-                      className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {isOnline && (
+                      <>
+                        <button
+                          onClick={() => {
+                            setModalRecebimento(item)
+                            setFormRecebimento({ valor: '', data_recebimento: format(new Date(), 'yyyy-MM-dd'), observacao: '' })
+                          }}
+                          className="p-1.5 rounded-lg text-green-600 hover:bg-green-100 transition"
+                          title="Registrar recebimento"
+                        >
+                          <CirclePlus className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => abrirEditar(item)}
+                          className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 transition"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => { setItemSelecionado(item); setModalAberto('excluir') }}
+                          className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -436,24 +436,34 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
         )}
       </div>
 
+      {/* Banner offline */}
+      {!isOnline && (
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 flex items-center gap-2">
+          <WifiOff className="w-4 h-4 text-blue-600 shrink-0" />
+          <p className="text-sm text-blue-700 font-medium">Você está offline — edição desabilitada</p>
+        </div>
+      )}
+
       {/* Botões de ação */}
-      <div className="flex gap-3">
-        <button
-          onClick={() => setModalAberto('adicionar')}
-          className="flex-1 bg-green-600 text-white py-3 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-green-700 transition-all active:scale-[0.97] shadow-sm"
-        >
-          <Plus className="w-5 h-5" />
-          Adicionar
-        </button>
-        <button
-          onClick={importarMesAnterior}
-          disabled={importando}
-          className="flex-1 bg-primary-600 text-white py-3 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm disabled:opacity-50"
-        >
-          <Download className="w-5 h-5" />
-          {importando ? 'Importando…' : 'Mês anterior'}
-        </button>
-      </div>
+      {isOnline && (
+        <div className="flex gap-3">
+          <button
+            onClick={() => setModalAberto('adicionar')}
+            className="flex-1 bg-green-600 text-white py-3 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-green-700 transition-all active:scale-[0.97] shadow-sm"
+          >
+            <Plus className="w-5 h-5" />
+            Adicionar
+          </button>
+          <button
+            onClick={importarMesAnterior}
+            disabled={importando}
+            className="flex-1 bg-primary-600 text-white py-3 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm disabled:opacity-50"
+          >
+            <Download className="w-5 h-5" />
+            {importando ? 'Importando…' : 'Mês anterior'}
+          </button>
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (

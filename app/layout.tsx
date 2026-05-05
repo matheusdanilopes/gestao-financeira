@@ -3,6 +3,7 @@ import './globals.css'
 import { ThemeProvider } from '@/components/ThemeProvider'
 import { MesProvider } from '@/components/MesProvider'
 import { CategorizacaoProvider } from '@/components/CategorizacaoProvider'
+import { RefreshProvider } from '@/components/RefreshProvider'
 import ClientShell from '@/components/ClientShell'
 
 export const metadata: Metadata = {
@@ -61,15 +62,17 @@ export default function RootLayout({
       </head>
       <body className="font-sans antialiased">
         <ThemeProvider>
-          <MesProvider>
-            <CategorizacaoProvider>
-              <ClientShell>
-                <main className="max-w-md mx-auto relative">
-                  {children}
-                </main>
-              </ClientShell>
-            </CategorizacaoProvider>
-          </MesProvider>
+          <RefreshProvider>
+            <MesProvider>
+              <CategorizacaoProvider>
+                <ClientShell>
+                  <main className="max-w-md mx-auto relative">
+                    {children}
+                  </main>
+                </ClientShell>
+              </CategorizacaoProvider>
+            </MesProvider>
+          </RefreshProvider>
         </ThemeProvider>
       </body>
     </html>
