@@ -506,14 +506,16 @@ export default function Dashboard() {
                 ...(c2J.length > 0 ? [{ label: c2J.map(i => i.nome).join(' / '), responsavel: 'Jeniffer', atual: c2Total, previsto: c2J.reduce((s, i) => s + i.previsto, 0) }] : []),
               ].filter(c => c.atual > 0 || c.previsto > 0)
 
-              const totalCartoesPrevisto = fatura.cartao1Previsto + fatura.cartao2Previsto
-              const totalCartoesAtual = c1Total + c2Total
-              const matheusTotalPrevisto = fatura.matheusPrevisto + totalCartoesPrevisto
-              const matheusTotalAtual = fatura.matheusAtual + totalCartoesAtual
+              const matheusCardsAtual = outrosCards.filter(c => c.responsavel === 'Matheus').reduce((s, c) => s + c.atual, 0)
+              const matheusCardsPrevisto = outrosCards.filter(c => c.responsavel === 'Matheus').reduce((s, c) => s + c.previsto, 0)
+              const jenifferCardsAtual = outrosCards.filter(c => c.responsavel === 'Jeniffer').reduce((s, c) => s + c.atual, 0)
+              const jenifferCardsPrevisto = outrosCards.filter(c => c.responsavel === 'Jeniffer').reduce((s, c) => s + c.previsto, 0)
+              const matheusTotalPrevisto = fatura.matheusPrevisto + matheusCardsPrevisto
+              const matheusTotalAtual = fatura.matheusAtual + matheusCardsAtual
               const matheusRestante = matheusTotalPrevisto - matheusTotalAtual
               const matheusPct = matheusTotalPrevisto > 0 ? Math.min(100, (matheusTotalAtual / matheusTotalPrevisto) * 100) : 0
-              const jenifferTotalPrevisto = fatura.jenifferPrevisto + totalCartoesPrevisto
-              const jenifferTotalAtual = fatura.jenifferAtual + totalCartoesAtual
+              const jenifferTotalPrevisto = fatura.jenifferPrevisto + jenifferCardsPrevisto
+              const jenifferTotalAtual = fatura.jenifferAtual + jenifferCardsAtual
               const jenifferRestante = jenifferTotalPrevisto - jenifferTotalAtual
               const jenifferPct = jenifferTotalPrevisto > 0 ? Math.min(100, (jenifferTotalAtual / jenifferTotalPrevisto) * 100) : 0
 
