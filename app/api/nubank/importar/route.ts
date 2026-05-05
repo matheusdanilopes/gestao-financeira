@@ -5,18 +5,12 @@ import {
   processarTransacoesJSON,
   TransacaoInputJSON,
   TransacaoNubank,
-  normalizarDescricaoParaHash,
 } from '@/lib/csvparser'
 import { categorizarTransacoes, ResultadoCategorizar } from '@/lib/categorizarTransacoes'
 import { notificarImportacao } from '@/lib/pushImportacao'
+import { conciliarTransacao } from '@/lib/conciliacao'
 
 export const maxDuration = 300
-
-function adicionarDias(dataISO: string, dias: number): string {
-  const d = new Date(dataISO + 'T12:00:00')
-  d.setDate(d.getDate() + dias)
-  return d.toISOString().substring(0, 10)
-}
 
 type AuthResult =
   | { ok: true }
@@ -48,54 +42,6 @@ function autenticar(req: NextRequest): AuthResult {
   return { ok: true }
 }
 
-async function contarNoBanco(
-  supabase: ReturnType<typeof criarSupabaseServer>,
-  item: TransacaoNubank,
-  dataInicio: string,
-  dataFim: string
-): Promise<number> {
-  const valorArredondado = parseFloat(item.valor.toFixed(2))
-  const normDesc = normalizarDescricaoParaHash(item.descricao)
-
-  const { data, error } = await supabase
-    .from('transacoes_nubank')
-    .select('descricao')
-    .gte('valor', valorArredondado - 0.005)
-    .lte('valor', valorArredondado + 0.005)
-    .gte('data_compra', dataInicio)
-    .lte('data_compra', dataFim)
-
-  if (error?.message?.includes('data_compra')) {
-    const { data: data2 } = await supabase
-      .from('transacoes_nubank')
-      .select('descricao')
-      .gte('valor', valorArredondado - 0.005)
-      .lte('valor', valorArredondado + 0.005)
-      .gte('data', dataInicio)
-      .lte('data', dataFim)
-    return (data2 ?? []).filter(r => normalizarDescricaoParaHash(r.descricao) === normDesc).length
-  }
-
-  return (data ?? []).filter(r => normalizarDescricaoParaHash(r.descricao) === normDesc).length
-}
-
-async function inserirTransacao(
-  supabase: ReturnType<typeof criarSupabaseServer>,
-  item: TransacaoNubank
-): Promise<boolean> {
-  let result = await supabase.from('transacoes_nubank').insert(item)
-
-  if (result.error?.message?.includes('data_compra')) {
-    const { data_compra, ...resto } = item as any
-    result = await supabase.from('transacoes_nubank').insert({ ...resto, data: data_compra })
-  }
-
-  if (!result.error) return true
-  // 23505 = unique_violation: hash already exists, not a new row
-  if (result.error.code === '23505' || result.error.message?.includes('duplicate')) return false
-  throw new Error('Erro ao salvar transações: ' + result.error.message)
-}
-
 type StatsFatura = { noCSV: number; inseridas: number; ignoradas: number; totalNoBanco: number }
 
 async function salvarTransacoes(
@@ -108,6 +54,8 @@ async function salvarTransacoes(
   const hashesImportados: string[] = []
   let verdadeiramenteNovas = 0
   let duplicatasIgnoradas = 0
+  let conciliados = 0
+  let conflitos = 0
 
   const mesesNoArquivo = [...new Set(transacoes.map(t => t.projeto_fatura))].sort()
   const faturaStats: Record<string, StatsFatura> = {}
@@ -117,50 +65,41 @@ async function salvarTransacoes(
     const stats = faturaStats[item.projeto_fatura]
     stats.noCSV++
 
-    // Hash pre-check: se o hash já existe no banco, pula imediatamente
-    const { count: hashCount } = await supabase
-      .from('transacoes_nubank')
-      .select('*', { count: 'exact', head: true })
-      .eq('hash_linha', item.hash_linha)
-    if ((hashCount ?? 0) > 0) {
-      duplicatasIgnoradas++
-      stats.ignoradas++
-      continue
-    }
+    const resultado = await conciliarTransacao(supabase, item, 'api')
 
-    const dataInicio = adicionarDias(item.data_compra, -3)
-    const dataFim = adicionarDias(item.data_compra, 3)
-
-    const qtdNoBanco = await contarNoBanco(supabase, item, dataInicio, dataFim)
-
-    // Count how many times this exact (descricao, valor, date, responsavel) appears in the CSV
-    const qtdNoCsv = transacoes.filter(x =>
-      x.descricao === item.descricao &&
-      x.valor === item.valor &&
-      x.data_compra === item.data_compra &&
-      x.responsavel === item.responsavel
-    ).length
-
-    if (qtdNoBanco < qtdNoCsv) {
-      const inserido = await inserirTransacao(supabase, item)
-      if (inserido) {
-        verdadeiramenteNovas++
-        hashesImportados.push(item.hash_linha)
+    switch (resultado.acao) {
+      case 'inserido':
+        if (resultado.inseriu) {
+          verdadeiramenteNovas++
+          hashesImportados.push(item.hash_linha)
+          stats.inseridas++
+          if (item.responsavel === 'Matheus') novosMatheus++
+          else novosJeniffer++
+          totalValor += item.valor
+        } else {
+          duplicatasIgnoradas++
+          stats.ignoradas++
+        }
+        break
+      case 'conciliado':
+        // API não atualiza valor — este caso não deve ocorrer (conciliarTransacao retorna 'ignorado' para API)
+        conciliados++
+        break
+      case 'conflito':
+        // Conflito de valor: registrado com status CONFLITO_VALOR, notificação criada
+        conflitos++
         stats.inseridas++
         if (item.responsavel === 'Matheus') novosMatheus++
         else novosJeniffer++
         totalValor += item.valor
-      } else {
+        break
+      case 'ignorado':
         duplicatasIgnoradas++
         stats.ignoradas++
-      }
-    } else {
-      duplicatasIgnoradas++
-      stats.ignoradas++
+        break
     }
   }
 
-  // Query DB total per fatura for duplicate validation
   for (const fatura of mesesNoArquivo) {
     const { count } = await supabase
       .from('transacoes_nubank')
@@ -172,6 +111,8 @@ async function salvarTransacoes(
   return {
     totalLidas: transacoes.length,
     novas: verdadeiramenteNovas,
+    conciliados,
+    conflitos,
     duplicatasNoArquivo: duplicatasIgnoradas,
     matheus: novosMatheus,
     jeniffer: novosJeniffer,
@@ -260,7 +201,6 @@ export async function POST(req: NextRequest) {
 
     const resultadoImportacao = await salvarTransacoes(supabase, transacoes)
 
-    // Categorização automática — pode ser desativada com ?categorizar=false
     const url = new URL(req.url)
     const deveCategorizar = url.searchParams.get('categorizar') !== 'false'
 
@@ -281,7 +221,7 @@ export async function POST(req: NextRequest) {
             supabase,
             geminiKey,
             resultadoImportacao.hashesImportados,
-            true // somenteSemCategoria: não reprocessa no Gemini o que já foi categorizado por IA
+            true
           )
           categorizacao = resultado
         } catch (err) {

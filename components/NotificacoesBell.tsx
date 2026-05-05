@@ -1,11 +1,20 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Bell, X, Check, CheckCheck, PiggyBank, CreditCard, TrendingUp } from 'lucide-react'
+import { Bell, X, Check, CheckCheck, PiggyBank, CreditCard, TrendingUp, AlertTriangle, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { AUTH_DISABLED } from '@/lib/authConfig'
+
+interface ConflictMetadata {
+  original_id: string
+  conflito_id: string
+  valor_original: number
+  valor_novo: number
+  descricao: string
+  data_compra: string
+}
 
 interface Notificacao {
   id: string
@@ -16,6 +25,7 @@ interface Notificacao {
   valor: number | null
   lida: boolean
   created_at: string
+  metadata?: ConflictMetadata | null
 }
 
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
@@ -36,6 +46,7 @@ function iconeAcao(acao: string) {
   if (acao === 'aporte') return <PiggyBank className="w-4 h-4 text-green-500" />
   if (acao === 'pagar') return <CreditCard className="w-4 h-4 text-blue-500" />
   if (acao === 'receber') return <TrendingUp className="w-4 h-4 text-purple-500" />
+  if (acao === 'conciliacao_conflito') return <AlertTriangle className="w-4 h-4 text-amber-500" />
   return <Bell className="w-4 h-4 text-gray-400" />
 }
 
@@ -43,6 +54,7 @@ function corAcao(acao: string) {
   if (acao === 'aporte') return 'border-l-green-400'
   if (acao === 'pagar') return 'border-l-blue-400'
   if (acao === 'receber') return 'border-l-purple-400'
+  if (acao === 'conciliacao_conflito') return 'border-l-amber-400'
   return 'border-l-gray-300'
 }
 
@@ -88,6 +100,7 @@ export default function NotificacoesBell() {
   const [usuarioEmail, setUsuarioEmail] = useState<string | null>(null)
   const [permissaoPush, setPermissaoPush] = useState<NotificationPermission | null>(null)
   const [iosNaoInstalado, setIosNaoInstalado] = useState(false)
+  const [resolvendo, setResolvendo] = useState<Record<string, boolean>>({})
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const naoLidas = notificacoes.filter(n => !n.lida).length
@@ -207,6 +220,22 @@ export default function NotificacoesBell() {
     setNotificacoes(prev => prev.map(n => ({ ...n, lida: true })))
   }
 
+  async function resolverConflito(notificacao_id: string, acao: 'aprovar' | 'recusar') {
+    setResolvendo(prev => ({ ...prev, [notificacao_id]: true }))
+    try {
+      const res = await fetch('/api/conciliacao/resolver', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificacao_id, acao }),
+      })
+      if (res.ok) {
+        setNotificacoes(prev => prev.map(n => n.id === notificacao_id ? { ...n, lida: true } : n))
+      }
+    } finally {
+      setResolvendo(prev => ({ ...prev, [notificacao_id]: false }))
+    }
+  }
+
   if (!usuarioEmail) return null
 
   return (
@@ -292,41 +321,67 @@ export default function NotificacoesBell() {
                 <p className="text-sm text-gray-400">Nenhuma notificação ainda</p>
               </div>
             ) : (
-              notificacoes.map(n => (
-                <div
-                  key={n.id}
-                  className={`flex items-start gap-3 px-4 py-3 border-l-4 transition-colors ${corAcao(n.acao)} ${
-                    n.lida
-                      ? 'bg-white dark:bg-gray-900 opacity-60'
-                      : 'bg-blue-50/40 dark:bg-blue-900/10'
-                  }`}
-                >
-                  <div className="mt-0.5 flex-shrink-0">{iconeAcao(n.acao)}</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 dark:text-gray-100 leading-snug">
-                      {n.descricao}{formatarValor(n.valor)}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs text-gray-400">
-                        {n.nome_usuario ?? n.de_usuario.split('@')[0]}
-                      </span>
-                      <span className="text-gray-300">·</span>
-                      <span className="text-xs text-gray-400">
-                        {formatDistanceToNow(new Date(n.created_at), { locale: ptBR, addSuffix: true })}
-                      </span>
+              notificacoes.map(n => {
+                const isConflito = n.acao === 'conciliacao_conflito'
+                const emResolucao = resolvendo[n.id] ?? false
+                return (
+                  <div
+                    key={n.id}
+                    className={`flex items-start gap-3 px-4 py-3 border-l-4 transition-colors ${corAcao(n.acao)} ${
+                      n.lida
+                        ? 'bg-white dark:bg-gray-900 opacity-60'
+                        : isConflito
+                          ? 'bg-amber-50/60 dark:bg-amber-900/10'
+                          : 'bg-blue-50/40 dark:bg-blue-900/10'
+                    }`}
+                  >
+                    <div className="mt-0.5 flex-shrink-0">{iconeAcao(n.acao)}</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 dark:text-gray-100 leading-snug">
+                        {n.descricao}
+                      </p>
+                      {isConflito && n.metadata && !n.lida && (
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            onClick={() => resolverConflito(n.id, 'aprovar')}
+                            disabled={emResolucao}
+                            className="flex items-center gap-1 px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            <ThumbsUp className="w-3 h-3" />
+                            Aprovar
+                          </button>
+                          <button
+                            onClick={() => resolverConflito(n.id, 'recusar')}
+                            disabled={emResolucao}
+                            className="flex items-center gap-1 px-3 py-1 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            <ThumbsDown className="w-3 h-3" />
+                            Recusar
+                          </button>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-gray-400">
+                          {n.nome_usuario ?? n.de_usuario.split('@')[0]}
+                        </span>
+                        <span className="text-gray-300">·</span>
+                        <span className="text-xs text-gray-400">
+                          {formatDistanceToNow(new Date(n.created_at), { locale: ptBR, addSuffix: true })}
+                        </span>
+                      </div>
                     </div>
+                    {!n.lida && !isConflito && (
+                      <button
+                        onClick={() => marcarComoLida(n.id)}
+                        className="flex-shrink-0 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors mt-0.5"
+                        title="Marcar como lida"
+                      >
+                        <Check className="w-3.5 h-3.5 text-gray-400" />
+                      </button>
+                    )}
                   </div>
-                  {!n.lida && (
-                    <button
-                      onClick={() => marcarComoLida(n.id)}
-                      className="flex-shrink-0 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors mt-0.5"
-                      title="Marcar como lida"
-                    >
-                      <Check className="w-3.5 h-3.5 text-gray-400" />
-                    </button>
-                  )}
-                </div>
-              ))
+                )
+              })
             )}
           </div>
         </div>

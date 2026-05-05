@@ -194,3 +194,20 @@ CREATE INDEX IF NOT EXISTS idx_transacoes_cartao
 
 CREATE INDEX IF NOT EXISTS idx_transacoes_fatura_cartao
   ON transacoes_nubank(projeto_fatura, cartao);
+
+-- 15. Conciliação Inteligente: status, valor reconciliado e referência de conflito
+ALTER TABLE transacoes_nubank
+  ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'PENDENTE';
+
+ALTER TABLE transacoes_nubank
+  ADD COLUMN IF NOT EXISTS valor_final NUMERIC(12,2);
+
+ALTER TABLE transacoes_nubank
+  ADD COLUMN IF NOT EXISTS conciliacao_ref UUID REFERENCES transacoes_nubank(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_transacoes_status
+  ON transacoes_nubank(status);
+
+-- 16. Campo metadata nas notificações para dados de conflito de conciliação
+ALTER TABLE notificacoes
+  ADD COLUMN IF NOT EXISTS metadata JSONB;
