@@ -241,3 +241,34 @@ INSERT INTO configuracoes (chave, valor)
     ('ajuste_fechamento_cartao1', '0'),
     ('ajuste_fechamento_cartao2', '0')
   ON CONFLICT (chave) DO NOTHING;
+
+-- 18. Tabelas de chat stateful com IA
+CREATE TABLE IF NOT EXISTS conversations (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     TEXT NOT NULL,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "allow_all_conversations" ON conversations;
+CREATE POLICY "allow_all_conversations" ON conversations
+  FOR ALL USING (true) WITH CHECK (true);
+
+CREATE INDEX IF NOT EXISTS idx_conversations_user
+  ON conversations(user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS messages (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id  UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  role             TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
+  content          TEXT NOT NULL,
+  created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "allow_all_messages" ON messages;
+CREATE POLICY "allow_all_messages" ON messages
+  FOR ALL USING (true) WITH CHECK (true);
+
+CREATE INDEX IF NOT EXISTS idx_messages_conversation
+  ON messages(conversation_id, created_at ASC);

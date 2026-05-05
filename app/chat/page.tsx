@@ -74,8 +74,8 @@ function MarkdownContent({ text }: { text: string }) {
   return <div className="text-sm space-y-0.5">{elements}</div>
 }
 
-function storageKey(userId: string) {
-  return `chat_history_${userId}`
+function convIdKey(userId: string) {
+  return `chat_conv_id_${userId}`
 }
 
 export default function ChatPage() {
@@ -86,20 +86,37 @@ export default function ChatPage() {
   const fimRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const userIdRef = useRef<string>('anonymous')
+  const convIdRef = useRef<string | null>(null)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
+    supabase.auth.getUser().then(async ({ data }) => {
       const uid = data.user?.id ?? 'anonymous'
       userIdRef.current = uid
+
+      // Restore conversation_id from localStorage
+      let savedConvId: string | null = null
       try {
-        const saved = localStorage.getItem(storageKey(uid))
-        if (saved) {
-          setMensagens(JSON.parse(saved))
+        savedConvId = localStorage.getItem(convIdKey(uid))
+      } catch { /* ignore */ }
+
+      if (!savedConvId) return
+
+      convIdRef.current = savedConvId
+
+      // Load history from DB
+      try {
+        const res = await fetch(`/api/chat/history?conversation_id=${savedConvId}`)
+        if (!res.ok) return
+        const json = await res.json()
+        const msgs: Mensagem[] = (json.mensagens ?? []).map((m: { role: string; content: string }) => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+        }))
+        if (msgs.length > 0) {
+          setMensagens(msgs)
           setHistoricoRestaurado(true)
         }
-      } catch {
-        // ignore parse errors
-      }
+      } catch { /* ignore load errors */ }
     })
   }, [])
 
@@ -107,26 +124,13 @@ export default function ChatPage() {
     fimRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [mensagens, carregando])
 
-  function salvar(msgs: Mensagem[]) {
-    try {
-      if (msgs.length > 0) {
-        localStorage.setItem(storageKey(userIdRef.current), JSON.stringify(msgs))
-      } else {
-        localStorage.removeItem(storageKey(userIdRef.current))
-      }
-    } catch {
-      // ignore storage errors (quota, private mode)
-    }
-  }
-
   async function enviar(texto?: string) {
     const conteudo = (texto ?? input).trim()
     if (!conteudo || carregando) return
 
     const novaMensagem: Mensagem = { role: 'user', content: conteudo, ts: Date.now() }
-    const historico = [...mensagens, novaMensagem]
-    setMensagens(historico)
-    salvar(historico)
+    const historicoOtimista = [...mensagens, novaMensagem]
+    setMensagens(historicoOtimista)
     setInput('')
     setCarregando(true)
 
@@ -134,9 +138,21 @@ export default function ChatPage() {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mensagens: historico }),
+        body: JSON.stringify({
+          pergunta: conteudo,
+          conversation_id: convIdRef.current ?? undefined,
+          user_id: userIdRef.current,
+        }),
       })
       const data = await res.json()
+
+      // Persist conversation_id from first response
+      if (data.conversation_id && !convIdRef.current) {
+        convIdRef.current = data.conversation_id
+        try {
+          localStorage.setItem(convIdKey(userIdRef.current), data.conversation_id)
+        } catch { /* ignore */ }
+      }
 
       let content: string
       if (data.resposta) {
@@ -152,17 +168,14 @@ export default function ChatPage() {
       } else {
         content = 'Não consegui responder agora. Tente novamente em instantes.'
       }
-      const completo = [...historico, { role: 'assistant' as const, content, ts: Date.now() }]
-      setMensagens(completo)
-      salvar(completo)
+
+      setMensagens([...historicoOtimista, { role: 'assistant', content, ts: Date.now() }])
     } catch {
-      const completo = [...historico, {
-        role: 'assistant' as const,
+      setMensagens([...historicoOtimista, {
+        role: 'assistant',
         content: 'Erro de conexão. Verifique sua internet e tente novamente.',
         ts: Date.now(),
-      }]
-      setMensagens(completo)
-      salvar(completo)
+      }])
     } finally {
       setCarregando(false)
       inputRef.current?.focus()
@@ -172,7 +185,8 @@ export default function ChatPage() {
   function novaConversa() {
     setMensagens([])
     setHistoricoRestaurado(false)
-    try { localStorage.removeItem(storageKey(userIdRef.current)) } catch { /* ignore */ }
+    convIdRef.current = null
+    try { localStorage.removeItem(convIdKey(userIdRef.current)) } catch { /* ignore */ }
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
