@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { Send, Bot, User, Sparkles, Trash2, Plus } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { Send, Bot, User, Sparkles, Trash2, Plus, History, X, MessageSquare, ChevronRight } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 import NotificacoesBell from '@/components/NotificacoesBell'
 import { supabase } from '@/lib/supabaseClient'
@@ -10,6 +10,13 @@ interface Mensagem {
   role: 'user' | 'assistant'
   content: string
   ts?: number
+}
+
+interface ConversaItem {
+  id: string
+  created_at: string
+  preview: string
+  message_count: number
 }
 
 const SUGESTOES = [
@@ -78,51 +85,100 @@ function convIdKey(userId: string) {
   return `chat_conv_id_${userId}`
 }
 
+function formatarData(iso: string): string {
+  const d = new Date(iso)
+  const hoje = new Date()
+  const diff = hoje.getTime() - d.getTime()
+  const dias = Math.floor(diff / 86400000)
+
+  if (dias === 0) return 'Hoje'
+  if (dias === 1) return 'Ontem'
+  if (dias < 7) return `${dias} dias atrás`
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+}
+
 export default function ChatPage() {
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
   const [input, setInput] = useState('')
   const [carregando, setCarregando] = useState(false)
   const [historicoRestaurado, setHistoricoRestaurado] = useState(false)
+  const [drawerAberto, setDrawerAberto] = useState(false)
+  const [conversas, setConversas] = useState<ConversaItem[]>([])
+  const [carregandoConversas, setCarregandoConversas] = useState(false)
   const fimRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const userIdRef = useRef<string>('anonymous')
   const convIdRef = useRef<string | null>(null)
+
+  const carregarHistorico = useCallback(async (conversationId: string) => {
+    const res = await fetch(`/api/chat/history?conversation_id=${conversationId}`)
+    if (!res.ok) return []
+    const json = await res.json()
+    return (json.mensagens ?? []).map((m: { role: string; content: string }) => ({
+      role: m.role as 'user' | 'assistant',
+      content: m.content,
+    }))
+  }, [])
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
       const uid = data.user?.id ?? 'anonymous'
       userIdRef.current = uid
 
-      // Restore conversation_id from localStorage
       let savedConvId: string | null = null
-      try {
-        savedConvId = localStorage.getItem(convIdKey(uid))
-      } catch { /* ignore */ }
+      try { savedConvId = localStorage.getItem(convIdKey(uid)) } catch { /* ignore */ }
 
       if (!savedConvId) return
-
       convIdRef.current = savedConvId
 
-      // Load history from DB
       try {
-        const res = await fetch(`/api/chat/history?conversation_id=${savedConvId}`)
-        if (!res.ok) return
-        const json = await res.json()
-        const msgs: Mensagem[] = (json.mensagens ?? []).map((m: { role: string; content: string }) => ({
-          role: m.role as 'user' | 'assistant',
-          content: m.content,
-        }))
+        const msgs = await carregarHistorico(savedConvId)
         if (msgs.length > 0) {
           setMensagens(msgs)
           setHistoricoRestaurado(true)
         }
-      } catch { /* ignore load errors */ }
+      } catch { /* ignore */ }
     })
-  }, [])
+  }, [carregarHistorico])
 
   useEffect(() => {
     fimRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [mensagens, carregando])
+
+  async function abrirDrawer() {
+    setDrawerAberto(true)
+    setCarregandoConversas(true)
+    try {
+      const res = await fetch(`/api/chat/conversations?user_id=${encodeURIComponent(userIdRef.current)}`)
+      if (res.ok) {
+        const json = await res.json()
+        setConversas(json.conversations ?? [])
+      }
+    } catch { /* ignore */ }
+    setCarregandoConversas(false)
+  }
+
+  async function selecionarConversa(conv: ConversaItem) {
+    setDrawerAberto(false)
+    setMensagens([])
+    setHistoricoRestaurado(false)
+    setCarregando(true)
+
+    convIdRef.current = conv.id
+    try {
+      localStorage.setItem(convIdKey(userIdRef.current), conv.id)
+    } catch { /* ignore */ }
+
+    try {
+      const msgs = await carregarHistorico(conv.id)
+      if (msgs.length > 0) {
+        setMensagens(msgs)
+        setHistoricoRestaurado(true)
+      }
+    } catch { /* ignore */ }
+
+    setCarregando(false)
+  }
 
   async function enviar(texto?: string) {
     const conteudo = (texto ?? input).trim()
@@ -146,7 +202,6 @@ export default function ChatPage() {
       })
       const data = await res.json()
 
-      // Persist conversation_id from first response
       if (data.conversation_id && !convIdRef.current) {
         convIdRef.current = data.conversation_id
         try {
@@ -198,6 +253,89 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-screen bg-gray-50 pb-16">
+      {/* Drawer overlay */}
+      {drawerAberto && (
+        <div
+          className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
+          onClick={() => setDrawerAberto(false)}
+        />
+      )}
+
+      {/* Drawer de conversas anteriores */}
+      <div className={`fixed top-0 left-0 h-full w-80 max-w-[85vw] bg-white z-50 shadow-xl flex flex-col transition-transform duration-300 ${drawerAberto ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <History className="w-4 h-4 text-blue-500" />
+            <span className="font-semibold text-gray-800 text-sm">Conversas anteriores</span>
+          </div>
+          <button
+            onClick={() => setDrawerAberto(false)}
+            className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 transition"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Nova conversa */}
+        <button
+          onClick={() => { novaConversa(); setDrawerAberto(false) }}
+          className="mx-3 mt-3 mb-1 flex items-center gap-2 px-3 py-2.5 rounded-xl border border-blue-200 bg-blue-50 text-blue-600 text-sm font-medium hover:bg-blue-100 transition"
+        >
+          <Plus className="w-4 h-4" />
+          Nova conversa
+        </button>
+
+        <div className="flex-1 overflow-y-auto py-2">
+          {carregandoConversas ? (
+            <div className="flex justify-center py-8">
+              <div className="flex gap-1">
+                <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+            </div>
+          ) : conversas.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-2 text-gray-400">
+              <MessageSquare className="w-8 h-8" />
+              <p className="text-sm">Nenhuma conversa anterior</p>
+            </div>
+          ) : (
+            <ul className="space-y-0.5 px-2">
+              {conversas.map((conv) => {
+                const ativa = conv.id === convIdRef.current
+                return (
+                  <li key={conv.id}>
+                    <button
+                      onClick={() => selecionarConversa(conv)}
+                      className={`w-full text-left px-3 py-3 rounded-xl transition flex items-start gap-2.5 group ${
+                        ativa
+                          ? 'bg-blue-50 border border-blue-200'
+                          : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className={`mt-0.5 w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${ativa ? 'bg-blue-100' : 'bg-gray-100'}`}>
+                        <Bot className={`w-3.5 h-3.5 ${ativa ? 'text-blue-500' : 'text-gray-400'}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs font-medium truncate ${ativa ? 'text-blue-700' : 'text-gray-700'}`}>
+                          {conv.preview}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-[10px] text-gray-400">{formatarData(conv.created_at)}</span>
+                          <span className="text-[10px] text-gray-300">·</span>
+                          <span className="text-[10px] text-gray-400">{conv.message_count} msgs</span>
+                        </div>
+                      </div>
+                      <ChevronRight className={`w-3.5 h-3.5 shrink-0 mt-1 text-gray-300 group-hover:text-gray-400 transition ${ativa ? 'text-blue-300' : ''}`} />
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+
       {/* Header */}
       <div className="sticky top-0 z-20 bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3">
         <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
@@ -208,6 +346,13 @@ export default function ChatPage() {
           <p className="text-xs text-gray-400">Powered by Gemini</p>
         </div>
         <div className="flex items-center gap-1">
+          <button
+            onClick={abrirDrawer}
+            className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-full transition"
+            title="Histórico de conversas"
+          >
+            <History className="w-4 h-4" />
+          </button>
           {mensagens.length > 0 && (
             <>
               <button
@@ -232,7 +377,7 @@ export default function ChatPage() {
 
       {/* Mensagens */}
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-4">
-        {mensagens.length === 0 ? (
+        {mensagens.length === 0 && !carregando ? (
           <div className="flex flex-col items-center justify-center py-8 gap-4">
             <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center">
               <Bot className="w-8 h-8 text-blue-400" />
