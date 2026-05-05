@@ -3,10 +3,9 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths, addMonths } from 'date-fns'
-import { useDataSync } from '@/lib/useDataSync'
-import DataStatusIndicator from '@/components/DataStatusIndicator'
+import { useGlobalSync } from '@/lib/useGlobalSync'
 import { ptBR } from 'date-fns/locale'
-import { CheckCircle2, AlertCircle, Pencil, Trash2, Plus, CreditCard, Download, RotateCcw } from 'lucide-react'
+import { CheckCircle2, AlertCircle, Pencil, Trash2, Plus, CreditCard, Download, RotateCcw, WifiOff } from 'lucide-react'
 import { log, numericOnly } from '@/lib/logger'
 
 const PREFIXO_CARTAO_1 = '[CARTAO1] '
@@ -98,7 +97,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
   }, [mesRefStr])
 
   // Sincronização automática: Realtime + polling 45s + cache localStorage
-  const { status: syncStatus, lastUpdated: syncLastUpdated, refetch: syncRefetch } = useDataSync({
+  const { isOnline } = useGlobalSync({
     cacheKey: `checklist:${mesRefStr}`,
     tables: ['planejamento'],
     fetcher: fetcherItens,
@@ -390,11 +389,6 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
   return (
     <div className="space-y-3">
 
-      {/* Indicador de sincronização */}
-      <div className="flex justify-end">
-        <DataStatusIndicator status={syncStatus} lastUpdated={syncLastUpdated} onRefresh={syncRefetch} />
-      </div>
-
       {/* Toast */}
       {toast && (
         <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-lg text-sm font-medium transition-all ${
@@ -459,24 +453,34 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
         </div>
       </div>
 
+      {/* Banner offline */}
+      {!isOnline && (
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 flex items-center gap-2">
+          <WifiOff className="w-4 h-4 text-blue-600 shrink-0" />
+          <p className="text-sm text-blue-700 font-medium">Você está offline — edição desabilitada</p>
+        </div>
+      )}
+
       {/* Ações */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => {
-            setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', tipo_cartao: '', valor_previsto: '' })
-            setModalAberto('adicionar')
-          }}
-          className="flex-1 bg-green-600 text-white py-2.5 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-green-700 transition shadow-sm active:scale-[0.97]"
-        >
-          <Plus className="w-4 h-4" /> Adicionar
-        </button>
-        <button
-          onClick={abrirModalImportar}
-          className="flex-1 bg-orange-500 text-white py-2.5 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-orange-600 transition shadow-sm active:scale-[0.97]"
-        >
-          <Download className="w-4 h-4" /> Mês anterior
-        </button>
-      </div>
+      {isOnline && (
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', tipo_cartao: '', valor_previsto: '' })
+              setModalAberto('adicionar')
+            }}
+            className="flex-1 bg-green-600 text-white py-2.5 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-green-700 transition shadow-sm active:scale-[0.97]"
+          >
+            <Plus className="w-4 h-4" /> Adicionar
+          </button>
+          <button
+            onClick={abrirModalImportar}
+            className="flex-1 bg-orange-500 text-white py-2.5 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-orange-600 transition shadow-sm active:scale-[0.97]"
+          >
+            <Download className="w-4 h-4" /> Mês anterior
+          </button>
+        </div>
+      )}
 
       {/* Lista agrupada por categoria */}
       {gruposPorCategoria.length === 0 ? (
@@ -551,37 +555,39 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
                             )}
                           </div>
 
-                          {/* Ações */}
-                          <div className="flex items-center gap-0.5 shrink-0">
-                            {!item.pago ? (
+                          {/* Ações — ocultas quando offline */}
+                          {isOnline && (
+                            <div className="flex items-center gap-0.5 shrink-0">
+                              {!item.pago ? (
+                                <button
+                                  onClick={() => abrirModalPagamento(item)}
+                                  className="p-1.5 rounded-xl text-green-600 hover:bg-green-100 active:bg-green-200 transition"
+                                >
+                                  <CheckCircle2 className="w-5 h-5" />
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => { setItemSelecionado(item); setModalAberto('desfazer') }}
+                                  className="p-1.5 rounded-lg text-amber-500 hover:bg-amber-50 transition"
+                                  title="Desfazer pagamento"
+                                >
+                                  <RotateCcw className="w-4 h-4" />
+                                </button>
+                              )}
                               <button
-                                onClick={() => abrirModalPagamento(item)}
-                                className="p-1.5 rounded-xl text-green-600 hover:bg-green-100 active:bg-green-200 transition"
+                                onClick={() => abrirModalEditar(item)}
+                                className="p-1.5 rounded-xl text-primary-500 hover:bg-primary-50 active:bg-primary-100 transition"
                               >
-                                <CheckCircle2 className="w-5 h-5" />
+                                <Pencil className="w-4 h-4" />
                               </button>
-                            ) : (
                               <button
-                                onClick={() => { setItemSelecionado(item); setModalAberto('desfazer') }}
-                                className="p-1.5 rounded-lg text-amber-500 hover:bg-amber-50 transition"
-                                title="Desfazer pagamento"
+                                onClick={() => { setItemSelecionado(item); setModalAberto('excluir') }}
+                                className="p-1.5 rounded-xl text-red-400 hover:bg-red-50 active:bg-red-100 transition"
                               >
-                                <RotateCcw className="w-4 h-4" />
+                                <Trash2 className="w-4 h-4" />
                               </button>
-                            )}
-                            <button
-                              onClick={() => abrirModalEditar(item)}
-                              className="p-1.5 rounded-xl text-primary-500 hover:bg-primary-50 active:bg-primary-100 transition"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => { setItemSelecionado(item); setModalAberto('excluir') }}
-                              className="p-1.5 rounded-xl text-red-400 hover:bg-red-50 active:bg-red-100 transition"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
+                            </div>
+                          )}
                         </div>
 
                         {/* Alerta de diferença */}

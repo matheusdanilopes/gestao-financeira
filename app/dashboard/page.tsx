@@ -12,8 +12,7 @@ import DrawerDetalhes from '@/components/DrawerDetalhes'
 import BottomNav from '@/components/BottomNav'
 import { PiggyBank } from 'lucide-react'
 import { InfoPopover } from '@/components/InfoPopover'
-import { useDataSync } from '@/lib/useDataSync'
-import DataStatusIndicator from '@/components/DataStatusIndicator'
+import { useGlobalSync } from '@/lib/useGlobalSync'
 
 interface CartaoItem {
   nome: string
@@ -84,7 +83,7 @@ export default function Dashboard() {
   )
 
   // Sincronização automática: Realtime + polling 45s + cache localStorage
-  const { status: syncStatus, lastUpdated: syncLastUpdated, refetch: syncRefetch } = useDataSync({
+  useGlobalSync({
     cacheKey: `dashboard:${format(mesAtual, 'yyyy-MM')}`,
     tables: ['transacoes_nubank', 'planejamento', 'investimentos', 'investimentos_aportes'],
     fetcher,
@@ -346,7 +345,6 @@ export default function Dashboard() {
       <div className="sticky top-0 bg-gray-50 pt-2 pb-3 z-10">
         <div className="flex items-center justify-between mb-3">
           <h1 className="text-2xl font-bold">Dashboard Financeiro</h1>
-          <DataStatusIndicator status={syncStatus} lastUpdated={syncLastUpdated} onRefresh={syncRefetch} />
         </div>
         <div className="flex items-center justify-between bg-white rounded-2xl shadow-card px-2 py-1">
           <button

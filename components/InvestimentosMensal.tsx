@@ -3,10 +3,9 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths } from 'date-fns'
-import { useDataSync } from '@/lib/useDataSync'
-import DataStatusIndicator from '@/components/DataStatusIndicator'
+import { useGlobalSync } from '@/lib/useGlobalSync'
 import { ptBR } from 'date-fns/locale'
-import { PiggyBank, Pencil, Trash2, Plus, Download, CirclePlus, History, X } from 'lucide-react'
+import { PiggyBank, Pencil, Trash2, Plus, Download, CirclePlus, History, X, WifiOff } from 'lucide-react'
 import { log, numericOnly } from '@/lib/logger'
 
 interface Investimento {
@@ -85,7 +84,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
   }, [mesRefStr])
 
   // Sincronização automática: Realtime + polling 45s + cache localStorage
-  const { status: syncStatus, lastUpdated: syncLastUpdated, refetch: syncRefetch } = useDataSync({
+  const { isOnline } = useGlobalSync({
     cacheKey: `investimentos:${mesRefStr}`,
     tables: ['investimentos', 'investimentos_aportes'],
     fetcher: fetcherInvestimentos,
@@ -323,12 +322,9 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
 
       {/* Resumo */}
       <div className="bg-white rounded-2xl shadow p-4">
-        <div className="flex items-center justify-between gap-2 mb-3">
-          <div className="flex items-center gap-2">
-            <PiggyBank className="w-5 h-5 text-violet-600" />
-            <span className="font-semibold text-gray-800">Resumo de Investimentos</span>
-          </div>
-          <DataStatusIndicator status={syncStatus} lastUpdated={syncLastUpdated} onRefresh={syncRefetch} />
+        <div className="flex items-center gap-2 mb-3">
+          <PiggyBank className="w-5 h-5 text-violet-600" />
+          <span className="font-semibold text-gray-800">Resumo de Investimentos</span>
         </div>
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div className="bg-gray-50 rounded-xl p-3 text-center">
@@ -418,23 +414,8 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
                   </div>
                 </div>
 
-                {/* Ações */}
+                {/* Ações — ocultas quando offline */}
                 <div className="flex items-center gap-1 pl-5">
-                  <button
-                    onClick={() => {
-                      setModalAporte(item)
-                      setFormAporte({
-                        valor: '',
-                        saldo_atual: ultimoSaldoAtual(item.id)?.toFixed(2) || '',
-                        data_aporte: format(new Date(), 'yyyy-MM-dd'),
-                        observacao: '',
-                      })
-                    }}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-violet-700 bg-violet-50 hover:bg-violet-100 transition"
-                  >
-                    <CirclePlus className="w-3.5 h-3.5" />
-                    Aportar
-                  </button>
                   {(aportes[item.id] || []).length > 0 && (
                     <button
                       onClick={() => setModalHistorico(item)}
@@ -444,19 +425,38 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
                       {(aportes[item.id] || []).length} aporte(s)
                     </button>
                   )}
-                  <div className="flex-1" />
-                  <button
-                    onClick={() => abrirEditar(item)}
-                    className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 transition"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => { setItemSelecionado(item); setModalAberto('excluir') }}
-                    className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {isOnline && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setModalAporte(item)
+                          setFormAporte({
+                            valor: '',
+                            saldo_atual: ultimoSaldoAtual(item.id)?.toFixed(2) || '',
+                            data_aporte: format(new Date(), 'yyyy-MM-dd'),
+                            observacao: '',
+                          })
+                        }}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-violet-700 bg-violet-50 hover:bg-violet-100 transition"
+                      >
+                        <CirclePlus className="w-3.5 h-3.5" />
+                        Aportar
+                      </button>
+                      <div className="flex-1" />
+                      <button
+                        onClick={() => abrirEditar(item)}
+                        className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 transition"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => { setItemSelecionado(item); setModalAberto('excluir') }}
+                        className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             )
@@ -464,24 +464,34 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
         )}
       </div>
 
+      {/* Banner offline */}
+      {!isOnline && (
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 flex items-center gap-2">
+          <WifiOff className="w-4 h-4 text-blue-600 shrink-0" />
+          <p className="text-sm text-blue-700 font-medium">Você está offline — edição desabilitada</p>
+        </div>
+      )}
+
       {/* Botões */}
-      <div className="flex gap-3">
-        <button
-          onClick={() => { setUltimoCampo('percentual'); setModalAberto('adicionar') }}
-          disabled={totalPercentual >= 100}
-          className="flex-1 bg-violet-600 text-white py-3 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-violet-700 transition-all active:scale-[0.97] shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Plus className="w-5 h-5" />
-          Adicionar
-        </button>
-        <button
-          onClick={abrirModalImportar}
-          className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors active:scale-[0.97]"
-        >
-          <Download className="w-5 h-5" />
-          Mês anterior
-        </button>
-      </div>
+      {isOnline && (
+        <div className="flex gap-3">
+          <button
+            onClick={() => { setUltimoCampo('percentual'); setModalAberto('adicionar') }}
+            disabled={totalPercentual >= 100}
+            className="flex-1 bg-violet-600 text-white py-3 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-violet-700 transition-all active:scale-[0.97] shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Plus className="w-5 h-5" />
+            Adicionar
+          </button>
+          <button
+            onClick={abrirModalImportar}
+            className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors active:scale-[0.97]"
+          >
+            <Download className="w-5 h-5" />
+            Mês anterior
+          </button>
+        </div>
+      )}
 
       {/* ── Modal: registrar aporte ── */}
       {modalAporte && (

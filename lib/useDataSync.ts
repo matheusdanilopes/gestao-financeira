@@ -10,6 +10,8 @@
  * 4. Fallback: polling a cada 45s caso o Realtime esteja indisponível
  * 5. Detecta perda/retorno de conexão e sincroniza ao reconectar
  * 6. Revalida automaticamente ao app voltar ao foco (visibilitychange)
+ * 7. Cache inteligente: só atualiza localStorage quando dados mudam
+ * 8. onData só é chamado quando os dados efetivamente mudam
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react'
@@ -21,6 +23,7 @@ export type SyncStatus = 'fresh' | 'stale' | 'offline' | 'loading'
 export interface UseDataSyncReturn {
   status: SyncStatus
   lastUpdated: Date | null
+  isOnline: boolean
   refetch: () => Promise<void>
 }
 
@@ -58,6 +61,9 @@ export function useDataSync({
 }: UseDataSyncOptions): UseDataSyncReturn {
   const [status, setStatus] = useState<SyncStatus>('loading')
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [isOnline, setIsOnline] = useState<boolean>(
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  )
 
   const channelRef = useRef<RealtimeChannel | null>(null)
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -78,15 +84,24 @@ export function useDataSync({
     }
   }, [cacheKey])
 
-  const writeCache = useCallback((data: unknown) => {
-    if (typeof window === 'undefined' || data === undefined) return
+  // Retorna true se os dados foram de fato persistidos (i.e., mudaram)
+  const writeCache = useCallback((data: unknown): boolean => {
+    if (typeof window === 'undefined' || data === undefined) return false
     try {
+      const newStr = JSON.stringify(data)
+      const existing = localStorage.getItem(`datasync:${cacheKey}`)
+      if (existing) {
+        const parsed = JSON.parse(existing)
+        if (JSON.stringify(parsed.data) === newStr) return false // dados inalterados
+      }
       localStorage.setItem(
         `datasync:${cacheKey}`,
         JSON.stringify({ data, ts: Date.now() })
       )
+      return true
     } catch {
       // localStorage cheio ou indisponível — sem crash
+      return false
     }
   }, [cacheKey])
 
@@ -96,10 +111,10 @@ export function useDataSync({
     try {
       const data = await fetcher()
       if (!isMountedRef.current) return
-      // Persiste no cache apenas se o fetcher retornar algo
       if (data !== undefined && data !== null) {
-        writeCache(data)
-        onData?.(data)
+        const changed = writeCache(data)
+        // Só repropaga para a UI se os dados mudaram
+        if (changed) onData?.(data)
       }
       setStatus('fresh')
       setLastUpdated(new Date())
@@ -151,12 +166,14 @@ export function useDataSync({
   useEffect(() => {
     function handleOnline() {
       isOnlineRef.current = true
+      setIsOnline(true)
       setStatus('loading')
       setupRealtime()
       doFetch()
     }
     function handleOffline() {
       isOnlineRef.current = false
+      setIsOnline(false)
       setStatus('offline')
     }
     window.addEventListener('online', handleOnline)
@@ -191,8 +208,12 @@ export function useDataSync({
       setStatus('stale')
     }
 
-    // 2. Busca dados frescos em background
-    doFetch()
+    // 2. Busca dados frescos (ou sinaliza offline imediatamente)
+    if (!isOnlineRef.current) {
+      setStatus('offline')
+    } else {
+      doFetch()
+    }
 
     // 3. Realtime para push de mudanças
     setupRealtime()
@@ -217,5 +238,5 @@ export function useDataSync({
     await doFetch()
   }, [doFetch])
 
-  return { status, lastUpdated, refetch }
+  return { status, lastUpdated, isOnline, refetch }
 }

@@ -2,9 +2,8 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { useDataSync } from '@/lib/useDataSync'
-import DataStatusIndicator from '@/components/DataStatusIndicator'
-import { ChevronLeft, ChevronRight, Pencil, Trash2, X, ShoppingBag, Lock } from 'lucide-react'
+import { useGlobalSync } from '@/lib/useGlobalSync'
+import { ChevronLeft, ChevronRight, Pencil, Trash2, X, ShoppingBag, Lock, WifiOff } from 'lucide-react'
 import { addMonths, subMonths, format, startOfMonth, isToday, isYesterday, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import BottomNav from '@/components/BottomNav'
@@ -153,7 +152,7 @@ export default function ComprasPage() {
   }, [mesRefStr])
 
   // Sincronização automática: Realtime + polling 45s + cache localStorage
-  const { status: syncStatus, lastUpdated: syncLastUpdated, refetch: syncRefetch } = useDataSync({
+  const { isOnline } = useGlobalSync({
     cacheKey: `compras:${mesRefStr}`,
     tables: ['transacoes_nubank'],
     fetcher: fetcherCompras,
@@ -362,7 +361,6 @@ export default function ComprasPage() {
       <div className="sticky top-0 bg-gray-50 pt-2 pb-3 z-10">
         <div className="flex items-center justify-between mb-3">
           <h1 className="text-2xl font-bold">Compras do Cartão</h1>
-          <DataStatusIndicator status={syncStatus} lastUpdated={syncLastUpdated} onRefresh={syncRefetch} />
         </div>
 
         {/* Navegação de mês */}
@@ -505,6 +503,14 @@ export default function ComprasPage() {
         </button>
       </div>
 
+      {/* Banner de offline */}
+      {!isOnline && (
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 mb-3 flex items-center gap-2">
+          <WifiOff className="w-4 h-4 text-blue-600 shrink-0" />
+          <p className="text-sm text-blue-700 font-medium">Você está offline — edição desabilitada</p>
+        </div>
+      )}
+
       {/* Banner de fatura fechada */}
       {faturaFechada && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 mb-3 flex items-center gap-2">
@@ -584,7 +590,7 @@ export default function ComprasPage() {
                           <p className="text-sm font-bold text-gray-800">R$ {c.valor.toFixed(2)}</p>
                         </div>
 
-                        {!faturaFechada && (
+                        {!faturaFechada && isOnline && (
                           <div className="flex items-center gap-0.5 shrink-0">
                             <button
                               onClick={() => abrirEditar(c)}
