@@ -27,7 +27,7 @@ export interface UseDataSyncReturn {
   refetch: () => Promise<void>
 }
 
-interface UseDataSyncOptions {
+export interface UseDataSyncOptions {
   /** Chave única para o cache no localStorage */
   cacheKey: string
   /** Tabelas do Supabase para escutar via Realtime */
