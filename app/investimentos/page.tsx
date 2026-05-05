@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { useOnline } from '@/lib/useOnline'
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -63,16 +64,20 @@ export default function InvestimentosPage() {
   const { mesAtual, setMesAtual } = useMes()
   const [saldo, setSaldo] = useState(0)
   const [carregando, setCarregando] = useState(true)
+  const isOnline = useOnline()
 
   const isMesAtual = format(mesAtual, 'yyyy-MM') === format(new Date(), 'yyyy-MM')
 
   useEffect(() => {
-    setCarregando(true)
-    calcularSaldo(mesAtual).then(s => {
-      setSaldo(s)
+    if (!isOnline) {
       setCarregando(false)
-    })
-  }, [mesAtual])
+      return
+    }
+    setCarregando(true)
+    calcularSaldo(mesAtual)
+      .then(s => { setSaldo(s); setCarregando(false) })
+      .catch(() => setCarregando(false))
+  }, [mesAtual, isOnline])
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 pb-24">

@@ -83,13 +83,18 @@ export default function Dashboard() {
   )
 
   // Sincronização automática: Realtime + polling 45s + cache localStorage
-  useGlobalSync({
+  const { isOnline } = useGlobalSync({
     cacheKey: `dashboard:${format(mesAtual, 'yyyy-MM')}`,
     tables: ['transacoes_nubank', 'planejamento', 'investimentos', 'investimentos_aportes'],
     fetcher,
     onData: () => {}, // carregarDados aplica os dados internamente via setState
     pollInterval: 45_000,
   })
+
+  // Para skeleton imediatamente ao ficar offline
+  useEffect(() => {
+    if (!isOnline) setCarregando(false)
+  }, [isOnline])
 
   // Troca de mês: dispara fetch manual (useDataSync cobre o primeiro render)
   useEffect(() => {
