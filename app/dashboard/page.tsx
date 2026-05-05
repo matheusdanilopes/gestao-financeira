@@ -70,6 +70,7 @@ export default function Dashboard() {
     totalGastos: 0, sobraLiquida: 0, saldoPrevisto: 0, percentualComprometimento: 0,
   })
   const [investimentos, setInvestimentos] = useState<{ id: string; descricao: string; percentual: number; aportado: number }[]>([])
+  const [assinaturasNaopagas, setAssinaturasNaopagas] = useState({ matheus: 0, jeniffer: 0 })
   const [drawerAberto, setDrawerAberto] = useState(false)
   const [detalhesPonto, setDetalhesPonto] = useState<any>(null)
   const [carregando, setCarregando] = useState(true)
@@ -119,10 +120,11 @@ export default function Dashboard() {
       { data: maxC2 },
       { data: nubankConfigs },
       { data: faturaRegistradaData },
+      { data: assinaturasData },
     ] = await Promise.all([
       supabase
         .from('transacoes_nubank')
-        .select('valor, responsavel')
+        .select('valor, responsavel, descricao')
         .eq('projeto_fatura', mesRefFatura)
         .eq('cartao', 'nubank'),
       supabase
@@ -138,6 +140,7 @@ export default function Dashboard() {
       supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'cartao2').order('projeto_fatura', { ascending: false }).limit(1),
       supabase.from('configuracoes').select('chave, valor').in('chave', ['dia_vencimento', 'ajuste_fechamento']),
       supabase.from('faturas').select('data_fechamento').eq('cartao', 'nubank').eq('mes_referencia', mesRefFatura).limit(1),
+      supabase.from('assinaturas').select('nome, valor, responsavel, ativa').eq('cartao', 'nubank'),
     ])
 
     // Data de fechamento da fatura NuBank do mês exibido
@@ -301,6 +304,14 @@ export default function Dashboard() {
     const sobraLiquida = receitaTotal - totalGastos
     const percentualComprometimento = receitaTotal > 0 ? (totalGastos / receitaTotal) * 100 : 0
 
+    const assinAtivas = (assinaturasData || []).filter((a: any) => a.ativa)
+    const txFaturaList = transacoesFatura || []
+    const calcNaoPaga = (responsavel: string) =>
+      assinAtivas
+        .filter((a: any) => a.responsavel === responsavel && !txFaturaList.some((tx: any) => tx.descricao?.toLowerCase().includes(a.nome.toLowerCase())))
+        .reduce((sum: number, a: any) => sum + a.valor, 0)
+    setAssinaturasNaopagas({ matheus: calcNaoPaga('Matheus'), jeniffer: calcNaoPaga('Jeniffer') })
+
     setFatura({
       totalRealizado, matheusAtual, matheusPrevisto, matheusProjecaoParcelas,
       jenifferAtual, jenifferPrevisto, jenifferProjecaoParcelas,
@@ -448,6 +459,12 @@ export default function Dashboard() {
                   <span>Previsto</span>
                   <span className="font-medium text-gray-800 whitespace-nowrap">R$ {fatura.matheusPrevisto.toFixed(2)}</span>
                 </div>
+                {assinaturasNaopagas.matheus > 0 && (
+                  <div className="flex justify-between text-xs gap-1 mt-0.5 text-indigo-600">
+                    <span>Assinaturas</span>
+                    <span className="font-medium whitespace-nowrap">R$ {assinaturasNaopagas.matheus.toFixed(2)}</span>
+                  </div>
+                )}
                 {fatura.matheusProjecaoParcelas > 0 && (
                   <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
                     <span>Parc. prev.</span>
@@ -475,6 +492,12 @@ export default function Dashboard() {
                   <span>Previsto</span>
                   <span className="font-medium text-gray-800 whitespace-nowrap">R$ {fatura.jenifferPrevisto.toFixed(2)}</span>
                 </div>
+                {assinaturasNaopagas.jeniffer > 0 && (
+                  <div className="flex justify-between text-xs gap-1 mt-0.5 text-indigo-600">
+                    <span>Assinaturas</span>
+                    <span className="font-medium whitespace-nowrap">R$ {assinaturasNaopagas.jeniffer.toFixed(2)}</span>
+                  </div>
+                )}
                 {fatura.jenifferProjecaoParcelas > 0 && (
                   <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
                     <span>Parc. prev.</span>
