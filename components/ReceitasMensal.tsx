@@ -90,7 +90,7 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
     cacheKey: `receitas:${mesRefStr}`,
     tables: ['planejamento', 'receitas_recebimentos'],
     fetcher: fetcherReceitas,
-    onData: (raw) => {
+    onData: (raw: unknown) => {
       const d = raw as { itens: ItemReceita[]; recebimentos: Record<string, Recebimento[]> }
       setItens(d.itens)
       setRecebimentos(d.recebimentos)

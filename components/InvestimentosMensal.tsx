@@ -88,7 +88,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
     cacheKey: `investimentos:${mesRefStr}`,
     tables: ['investimentos', 'investimentos_aportes'],
     fetcher: fetcherInvestimentos,
-    onData: (raw) => {
+    onData: (raw: unknown) => {
       const d = raw as { itens: Investimento[]; aportes: Record<string, Aporte[]> }
       setItens(d.itens)
       setAportes(d.aportes)

@@ -101,7 +101,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
     cacheKey: `checklist:${mesRefStr}`,
     tables: ['planejamento'],
     fetcher: fetcherItens,
-    onData: (data) => setItens(data as ItemPlanejamento[]),
+    onData: (data: unknown) => setItens(data as ItemPlanejamento[]),
     pollInterval: 45_000,
   })
 

@@ -156,7 +156,7 @@ export default function ComprasPage() {
     cacheKey: `compras:${mesRefStr}`,
     tables: ['transacoes_nubank'],
     fetcher: fetcherCompras,
-    onData: (data) => { setCompras(data as Compra[]); setLoading(false) },
+    onData: (data: unknown) => { setCompras(data as Compra[]); setLoading(false) },
     pollInterval: 45_000,
   })
 
