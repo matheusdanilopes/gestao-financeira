@@ -420,12 +420,14 @@ export default function Dashboard() {
               {dataFechamentoNubank && (() => {
                 const d = new Date(dataFechamentoNubank + 'T12:00:00')
                 return (
-                  <div className="text-right shrink-0 ml-3">
-                    <p className="text-[10px] text-gray-400 uppercase tracking-wide">Fecha em</p>
-                    <p className="text-sm font-semibold text-gray-700 leading-tight">
+                  <div className="shrink-0 ml-4 bg-primary-50 border border-primary-100 rounded-2xl px-3 py-2 flex flex-col items-end">
+                    <p className="text-[10px] font-medium text-primary-400 uppercase tracking-wider leading-none">
+                      Fecha em
+                    </p>
+                    <p className="text-sm font-bold text-primary-700 tabular-nums leading-snug mt-1">
                       {format(d, 'dd/MM/yyyy')}
                     </p>
-                    <p className="text-xs text-gray-500 capitalize leading-tight">
+                    <p className="text-[11px] text-primary-500 capitalize leading-none mt-0.5">
                       {format(d, 'EEEE', { locale: ptBR })}
                     </p>
                   </div>
