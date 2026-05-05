@@ -463,24 +463,27 @@ export default function ConfiguracoesPage() {
         <button
           type="button"
           onClick={onToggle}
-          className={`w-full flex items-center justify-between px-4 py-3.5 transition-colors active:scale-[0.99] ${
+          className={`w-full flex items-center gap-3 px-4 py-4 transition-colors active:scale-[0.99] ${
             expandido ? 'bg-primary-50' : 'bg-white hover:bg-gray-50'
           }`}
         >
-          <div className="flex items-center gap-2.5">
-            <CreditCard className={`w-4 h-4 ${expandido ? 'text-primary-500' : 'text-gray-400'}`} />
-            <span className={`font-semibold text-sm ${expandido ? 'text-primary-700' : 'text-gray-700'}`}>
+          <CreditCard className={`w-5 h-5 shrink-0 ${expandido ? 'text-primary-500' : 'text-gray-400'}`} />
+          <div className="flex-1 min-w-0 text-left">
+            <span className={`font-semibold text-sm block ${expandido ? 'text-primary-700' : 'text-gray-700'}`}>
               {titulo}
             </span>
-          </div>
-          <div className="flex items-center gap-2">
             {!expandido && (
-              <span className="text-[11px] text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full leading-none">
-                Vence dia {diaVenc} · {resumoFechamento}
-              </span>
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                <span className="text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full leading-tight">
+                  Vence dia {diaVenc}
+                </span>
+                <span className="text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full leading-tight">
+                  {resumoFechamento}
+                </span>
+              </div>
             )}
-            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${expandido ? 'rotate-180' : ''}`} />
           </div>
+          <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 shrink-0 ${expandido ? 'rotate-180' : ''}`} />
         </button>
 
         {expandido && (
@@ -569,7 +572,7 @@ export default function ConfiguracoesPage() {
               Ciclos de Fatura por Cartão
             </h2>
 
-            <div className="space-y-2">
+            <div className="space-y-3">
               <SecaoCartao
                 titulo="NuBank"
                 diaVenc={diaVencimento}
