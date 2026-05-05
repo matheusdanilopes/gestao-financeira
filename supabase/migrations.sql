@@ -211,3 +211,33 @@ CREATE INDEX IF NOT EXISTS idx_transacoes_status
 -- 16. Campo metadata nas notificações para dados de conflito de conciliação
 ALTER TABLE notificacoes
   ADD COLUMN IF NOT EXISTS metadata JSONB;
+
+-- 17. Tabela de faturas com datas de fechamento por cartão
+-- Registra a data real de fechamento de cada fatura (mês) por cartão.
+-- Permite saber em qual fatura cada compra entra e sobrescrever datas calculadas.
+CREATE TABLE IF NOT EXISTS faturas (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  cartao         TEXT NOT NULL,           -- 'nubank' | 'cartao1' | 'cartao2'
+  mes_referencia DATE NOT NULL,           -- Primeiro dia do mês da fatura (yyyy-MM-01)
+  data_fechamento DATE NOT NULL,          -- Data de fechamento registrada para esta fatura
+  created_at     TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT faturas_cartao_mes_unique UNIQUE (cartao, mes_referencia)
+);
+
+ALTER TABLE faturas ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "allow_all_faturas" ON faturas;
+CREATE POLICY "allow_all_faturas" ON faturas
+  FOR ALL USING (true) WITH CHECK (true);
+
+CREATE INDEX IF NOT EXISTS idx_faturas_cartao_mes
+  ON faturas(cartao, mes_referencia DESC);
+
+-- Configurações de vencimento por cartão (cartao1 e cartao2)
+-- O nubank continua usando as chaves globais 'dia_vencimento' e 'ajuste_fechamento'
+INSERT INTO configuracoes (chave, valor)
+  VALUES
+    ('dia_vencimento_cartao1',    '10'),
+    ('dia_vencimento_cartao2',    '10'),
+    ('ajuste_fechamento_cartao1', '0'),
+    ('ajuste_fechamento_cartao2', '0')
+  ON CONFLICT (chave) DO NOTHING;

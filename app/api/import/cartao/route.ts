@@ -76,8 +76,16 @@ export async function POST(req: NextRequest) {
     }
 
     const { data: configs } = await supabase.from('configuracoes').select('chave, valor')
-    const diaVencimento = parseInt(configs?.find((c: any) => c.chave === 'dia_vencimento')?.valor || '10')
-    const ajusteFechamento = parseInt(configs?.find((c: any) => c.chave === 'ajuste_fechamento')?.valor || '0')
+    const get = (chave: string, fallback: string) =>
+      configs?.find((c: any) => c.chave === chave)?.valor ?? fallback
+
+    // Usa configurações específicas do cartão quando disponíveis; senão, cai no padrão global
+    const diaVencimento = parseInt(
+      get(`dia_vencimento_${cartao}`, get('dia_vencimento', '10'))
+    )
+    const ajusteFechamento = parseInt(
+      get(`ajuste_fechamento_${cartao}`, get('ajuste_fechamento', '0'))
+    )
 
     const csvText = await file.text()
     const transacoes = processarCSV(csvText, diaVencimento, ajusteFechamento, cartao)

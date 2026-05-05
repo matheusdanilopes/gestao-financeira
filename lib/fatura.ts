@@ -63,3 +63,46 @@ export function descricaoFechamento(
   // Exemplo genérico usando 30 dias como referência
   return `Dia ${30 + diaFechamento} do mês anterior (aprox.)`
 }
+
+/**
+ * Calcula a data de fechamento esperada para uma fatura específica.
+ *
+ * Para diaFechamento > 0: o fechamento cai no próprio mês da fatura.
+ * Para diaFechamento <= 0: o fechamento cai no mês anterior (calculado com
+ * base no último dia desse mês).
+ *
+ * Exemplo: vencimento=10, ajuste=0 → diaFechamento=3
+ *   fatura março/2024 → fecha em 03/03/2024
+ *
+ * Exemplo: vencimento=1, ajuste=0 → diaFechamento=-6
+ *   fatura abril/2024 → fecha em 25/03/2024 (31 dias em março - 6 = 25)
+ */
+export function calcularDataFechamentoDaFatura(
+  mesReferencia: Date,
+  diaVencimento: number,
+  ajusteFechamento: number = 0
+): Date {
+  const diaFechamento = diaVencimento - 7 + ajusteFechamento
+  const ano = mesReferencia.getFullYear()
+  const mes = mesReferencia.getMonth() // 0-indexed
+
+  if (diaFechamento > 0) {
+    return new Date(ano, mes, diaFechamento)
+  } else {
+    // Fechamento cai no mês anterior: usa o último dia do mês anterior
+    const ultimoDiaMesAnterior = new Date(ano, mes, 0).getDate()
+    const diaReal = ultimoDiaMesAnterior + diaFechamento
+    return new Date(ano, mes - 1, diaReal)
+  }
+}
+
+/**
+ * Retorna a data de fechamento no formato 'yyyy-MM-dd'.
+ */
+export function calcularDataFechamentoDaFaturaISO(
+  mesReferencia: Date,
+  diaVencimento: number,
+  ajusteFechamento: number = 0
+): string {
+  return format(calcularDataFechamentoDaFatura(mesReferencia, diaVencimento, ajusteFechamento), 'yyyy-MM-dd')
+}

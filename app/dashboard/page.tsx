@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
 import { ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react'
 import { useMes } from '@/components/MesProvider'
 import GraficoProjecao from '@/components/GraficoProjecao'
@@ -72,6 +73,7 @@ export default function Dashboard() {
   const [drawerAberto, setDrawerAberto] = useState(false)
   const [detalhesPonto, setDetalhesPonto] = useState<any>(null)
   const [carregando, setCarregando] = useState(true)
+  const [dataFechamentoNubank, setDataFechamentoNubank] = useState<string | null>(null)
 
   // Ref para pular o fetch manual no primeiro render (useDataSync já cuida disso)
   const isFirstRender = useRef(true)
@@ -115,6 +117,8 @@ export default function Dashboard() {
       { data: invData },
       { data: maxC1 },
       { data: maxC2 },
+      { data: nubankConfigs },
+      { data: faturaRegistradaData },
     ] = await Promise.all([
       supabase
         .from('transacoes_nubank')
@@ -132,7 +136,17 @@ export default function Dashboard() {
         .order('created_at', { ascending: true }),
       supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'cartao1').order('projeto_fatura', { ascending: false }).limit(1),
       supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'cartao2').order('projeto_fatura', { ascending: false }).limit(1),
+      supabase.from('configuracoes').select('chave, valor').in('chave', ['dia_vencimento', 'ajuste_fechamento']),
+      supabase.from('faturas').select('data_fechamento').eq('cartao', 'nubank').eq('mes_referencia', mesRefFatura).limit(1),
     ])
+
+    // Data de fechamento da fatura NuBank do mês exibido
+    const diaVencNubank = parseInt(nubankConfigs?.find((c: any) => c.chave === 'dia_vencimento')?.valor || '10')
+    const ajusteNubank  = parseInt(nubankConfigs?.find((c: any) => c.chave === 'ajuste_fechamento')?.valor || '0')
+    const mesRefFaturaDate = startOfMonth(addMonths(mes, 1))
+    const fechamentoISO = faturaRegistradaData?.[0]?.data_fechamento
+      || format(calcularDataFechamentoDaFatura(mesRefFaturaDate, diaVencNubank, ajusteNubank), 'yyyy-MM-dd')
+    setDataFechamentoNubank(fechamentoISO)
 
     // Busca transações pela última fatura de cada cartão (independente do mês do dashboard)
     const c1Fatura = maxC1?.[0]?.projeto_fatura
@@ -398,9 +412,27 @@ export default function Dashboard() {
           </div>
         ) : (
           <>
-            <div className="mb-4">
-              <div className="text-3xl font-bold text-primary-600">R$ {fatura.totalRealizado.toFixed(2)}</div>
-              <p className="text-xs text-gray-400 mt-0.5">total atual na fatura NuBank</p>
+            <div className="mb-4 flex items-start justify-between">
+              <div>
+                <div className="text-3xl font-bold text-primary-600">R$ {fatura.totalRealizado.toFixed(2)}</div>
+                <p className="text-xs text-gray-400 mt-0.5">total atual na fatura NuBank</p>
+              </div>
+              {dataFechamentoNubank && (() => {
+                const d = new Date(dataFechamentoNubank + 'T12:00:00')
+                return (
+                  <div className="shrink-0 ml-4 bg-primary-50 border border-primary-100 rounded-2xl px-3 py-2 flex flex-col items-end">
+                    <p className="text-[10px] font-medium text-primary-400 uppercase tracking-wider leading-none">
+                      Fecha em
+                    </p>
+                    <p className="text-sm font-bold text-primary-700 tabular-nums leading-snug mt-1">
+                      {format(d, 'dd/MM/yyyy')}
+                    </p>
+                    <p className="text-[11px] text-primary-500 capitalize leading-none mt-0.5">
+                      {format(d, 'EEEE', { locale: ptBR })}
+                    </p>
+                  </div>
+                )
+              })()}
             </div>
 
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">NuBank</p>
