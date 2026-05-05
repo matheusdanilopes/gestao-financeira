@@ -66,6 +66,7 @@ export default function ConfiguracoesPage() {
   const [abaAtual, setAbaAtual] = useState<AbaConfiguracoes>('geral')
 
   // --- Geral ---
+  const [cartaoExpandido, setCartaoExpandido] = useState<'nubank' | 'cartao1' | 'cartao2' | null>('nubank')
   const [diaVencimento, setDiaVencimento] = useState(10)
   const [ajusteFechamento, setAjusteFechamento] = useState(0)
   const [diaVencimentoC1, setDiaVencimentoC1] = useState(10)
@@ -433,7 +434,7 @@ export default function ConfiguracoesPage() {
     return input
   }
 
-  // ---- Componente de configuração de cartão ----
+  // ---- Componente de configuração de cartão (acordeão) ----
 
   function SecaoCartao({
     titulo,
@@ -441,49 +442,85 @@ export default function ConfiguracoesPage() {
     setDiaVenc,
     ajuste,
     setAjuste,
+    expandido,
+    onToggle,
   }: {
     titulo: string
     diaVenc: number
     setDiaVenc: (v: number) => void
     ajuste: number
     setAjuste: (v: number) => void
+    expandido: boolean
+    onToggle: () => void
   }) {
+    const diaFechamento = diaVenc - 7 + ajuste
+    const resumoFechamento = diaFechamento > 0
+      ? `Fecha dia ${diaFechamento}`
+      : `Fecha dia ${30 + diaFechamento} (mês ant.)`
+
     return (
-      <div className="space-y-4">
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">{titulo}</h3>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Dia de Vencimento</label>
-          <input
-            type="number"
-            min={1}
-            max={31}
-            value={diaVenc}
-            onChange={(e) => setDiaVenc(Math.max(1, Math.min(31, parseInt(e.target.value) || 1)))}
-            className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-primary-400 focus:border-transparent text-lg transition-shadow"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Ajuste Fino do Fechamento</label>
-          <div className="flex gap-3">
-            {([-1, 0, 1] as const).map((v) => (
-              <button
-                key={v}
-                onClick={() => setAjuste(v)}
-                className={`flex-1 py-2.5 rounded-2xl border-2 font-semibold transition active:scale-[0.97] ${
-                  ajuste === v
-                    ? 'border-primary-500 bg-primary-50 text-primary-700'
-                    : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                }`}
-              >
-                {v > 0 ? `+${v}` : v}
-              </button>
-            ))}
+      <div className={`border rounded-2xl overflow-hidden transition-colors ${expandido ? 'border-primary-200' : 'border-gray-200'}`}>
+        <button
+          type="button"
+          onClick={onToggle}
+          className={`w-full flex items-center justify-between px-4 py-3.5 transition-colors active:scale-[0.99] ${
+            expandido ? 'bg-primary-50' : 'bg-white hover:bg-gray-50'
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            <CreditCard className={`w-4 h-4 ${expandido ? 'text-primary-500' : 'text-gray-400'}`} />
+            <span className={`font-semibold text-sm ${expandido ? 'text-primary-700' : 'text-gray-700'}`}>
+              {titulo}
+            </span>
           </div>
-        </div>
-        <div className="bg-primary-50 border border-primary-100 rounded-2xl p-3">
-          <p className="text-sm text-gray-500">Fechamento calculado</p>
-          <p className="font-semibold text-primary-700 mt-0.5">{descricaoFechamento(diaVenc, ajuste)}</p>
-        </div>
+          <div className="flex items-center gap-2">
+            {!expandido && (
+              <span className="text-[11px] text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full leading-none">
+                Vence dia {diaVenc} · {resumoFechamento}
+              </span>
+            )}
+            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${expandido ? 'rotate-180' : ''}`} />
+          </div>
+        </button>
+
+        {expandido && (
+          <div className="px-4 pb-4 pt-3 space-y-4 border-t border-primary-100">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Dia de Vencimento</label>
+              <input
+                type="number"
+                min={1}
+                max={31}
+                value={diaVenc}
+                onChange={(e) => setDiaVenc(Math.max(1, Math.min(31, parseInt(e.target.value) || 1)))}
+                className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-primary-400 focus:border-transparent text-lg transition-shadow"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Ajuste Fino do Fechamento</label>
+              <div className="flex gap-3">
+                {([-1, 0, 1] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setAjuste(v)}
+                    className={`flex-1 py-2.5 rounded-2xl border-2 font-semibold transition active:scale-[0.97] ${
+                      ajuste === v
+                        ? 'border-primary-500 bg-primary-50 text-primary-700'
+                        : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                    }`}
+                  >
+                    {v > 0 ? `+${v}` : v}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="bg-primary-50 border border-primary-100 rounded-2xl p-3">
+              <p className="text-xs text-gray-500">Fechamento calculado</p>
+              <p className="font-semibold text-primary-700 mt-0.5">{descricaoFechamento(diaVenc, ajuste)}</p>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -532,34 +569,34 @@ export default function ConfiguracoesPage() {
               Ciclos de Fatura por Cartão
             </h2>
 
-            <div className="space-y-6">
+            <div className="space-y-2">
               <SecaoCartao
                 titulo="NuBank"
                 diaVenc={diaVencimento}
                 setDiaVenc={setDiaVencimento}
                 ajuste={ajusteFechamento}
                 setAjuste={setAjusteFechamento}
+                expandido={cartaoExpandido === 'nubank'}
+                onToggle={() => setCartaoExpandido(p => p === 'nubank' ? null : 'nubank')}
               />
-
-              <div className="border-t border-gray-100 pt-5">
-                <SecaoCartao
-                  titulo={cartaoLabels.cartao1}
-                  diaVenc={diaVencimentoC1}
-                  setDiaVenc={setDiaVencimentoC1}
-                  ajuste={ajusteFechamentoC1}
-                  setAjuste={setAjusteFechamentoC1}
-                />
-              </div>
-
-              <div className="border-t border-gray-100 pt-5">
-                <SecaoCartao
-                  titulo={cartaoLabels.cartao2}
-                  diaVenc={diaVencimentoC2}
-                  setDiaVenc={setDiaVencimentoC2}
-                  ajuste={ajusteFechamentoC2}
-                  setAjuste={setAjusteFechamentoC2}
-                />
-              </div>
+              <SecaoCartao
+                titulo={cartaoLabels.cartao1}
+                diaVenc={diaVencimentoC1}
+                setDiaVenc={setDiaVencimentoC1}
+                ajuste={ajusteFechamentoC1}
+                setAjuste={setAjusteFechamentoC1}
+                expandido={cartaoExpandido === 'cartao1'}
+                onToggle={() => setCartaoExpandido(p => p === 'cartao1' ? null : 'cartao1')}
+              />
+              <SecaoCartao
+                titulo={cartaoLabels.cartao2}
+                diaVenc={diaVencimentoC2}
+                setDiaVenc={setDiaVencimentoC2}
+                ajuste={ajusteFechamentoC2}
+                setAjuste={setAjusteFechamentoC2}
+                expandido={cartaoExpandido === 'cartao2'}
+                onToggle={() => setCartaoExpandido(p => p === 'cartao2' ? null : 'cartao2')}
+              />
 
               <button
                 onClick={salvar}
