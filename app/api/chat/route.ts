@@ -6,6 +6,11 @@ import { ptBR } from 'date-fns/locale'
 const GEMINI_MODEL = 'gemini-3-flash-preview'
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
+// Max non-system messages to send to the AI in a single turn
+const WINDOW_SIZE = 15
+// When total non-system messages exceed this, create a summary of overflow
+const SUMMARY_TRIGGER = 20
+
 function getSupabase() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://placeholder.supabase.co',
@@ -20,7 +25,7 @@ async function geminiChat(
 ) {
   const contents = [
     { role: 'user', parts: [{ text: systemPrompt }] },
-    { role: 'model', parts: [{ text: 'Entendido! Estou pronto para responder suas perguntas sobre as finanças do casal.' }] },
+    { role: 'model', parts: [{ text: 'Entendido! Estou pronto para analisar os dados e responder suas perguntas.' }] },
     ...mensagens.map(m => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }],
@@ -164,6 +169,139 @@ ${planejamentoStr}
 `.trim()
 }
 
+// Ensures a conversation exists for the user; returns its id
+async function garantirConversa(
+  supabase: ReturnType<typeof getSupabase>,
+  conversationId: string | null,
+  userId: string
+): Promise<string> {
+  if (conversationId) {
+    const { data } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('id', conversationId)
+      .single()
+    if (data?.id) return data.id
+  }
+
+  const { data, error } = await supabase
+    .from('conversations')
+    .insert({ user_id: userId })
+    .select('id')
+    .single()
+
+  if (error || !data?.id) throw new Error('Falha ao criar conversa: ' + (error?.message ?? 'unknown'))
+  return data.id
+}
+
+// Generates a condensed summary of old messages to preserve context
+async function gerarResumo(
+  apiKey: string,
+  mensagens: Array<{ role: string; content: string }>
+): Promise<string> {
+  const texto = mensagens
+    .map(m => `${m.role === 'user' ? 'Usuário' : 'Assistente'}: ${m.content}`)
+    .join('\n\n')
+
+  const contents = [
+    {
+      role: 'user',
+      parts: [{
+        text: `Resuma de forma concisa (máximo 300 palavras) os pontos principais desta conversa financeira, preservando dados numéricos e conclusões importantes:\n\n${texto}\n\nResumo:`,
+      }],
+    },
+  ]
+
+  const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: 1024, temperature: 0.3 } }),
+  })
+
+  if (!res.ok) return '(histórico anterior não disponível)'
+  const data = await res.json()
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '(histórico anterior não disponível)'
+}
+
+// Loads conversation context with hybrid window + summarization strategy
+async function carregarContextoConversa(
+  supabase: ReturnType<typeof getSupabase>,
+  apiKey: string,
+  conversationId: string
+): Promise<Array<{ role: string; content: string }>> {
+  // Count non-system messages
+  const { count } = await supabase
+    .from('messages')
+    .select('*', { count: 'exact', head: true })
+    .eq('conversation_id', conversationId)
+    .neq('role', 'system')
+
+  const total = count ?? 0
+
+  // Fetch last WINDOW_SIZE non-system messages (most recent first, then reverse)
+  const { data: recentData } = await supabase
+    .from('messages')
+    .select('role, content')
+    .eq('conversation_id', conversationId)
+    .neq('role', 'system')
+    .order('created_at', { ascending: false })
+    .limit(WINDOW_SIZE)
+
+  const recent = (recentData ?? []).reverse()
+
+  if (total <= WINDOW_SIZE) {
+    return recent
+  }
+
+  // Check for an existing system summary
+  const { data: summaryData } = await supabase
+    .from('messages')
+    .select('content')
+    .eq('conversation_id', conversationId)
+    .eq('role', 'system')
+    .ilike('content', '[RESUMO]%')
+    .order('created_at', { ascending: false })
+    .limit(1)
+
+  if (summaryData?.[0]?.content) {
+    return [{ role: 'system', content: summaryData[0].content }, ...recent]
+  }
+
+  // No summary yet — summarize overflow messages
+  if (total <= SUMMARY_TRIGGER) {
+    // Not enough overflow to warrant summarization; just use window
+    return recent
+  }
+
+  const { data: allData } = await supabase
+    .from('messages')
+    .select('role, content')
+    .eq('conversation_id', conversationId)
+    .neq('role', 'system')
+    .order('created_at', { ascending: true })
+
+  const allMessages = allData ?? []
+  const oldMessages = allMessages.slice(0, allMessages.length - WINDOW_SIZE)
+
+  if (oldMessages.length === 0) return recent
+
+  const summaryText = await gerarResumo(apiKey, oldMessages)
+  const resumoContent = `[RESUMO] ${summaryText}`
+
+  await supabase.from('messages').insert({
+    conversation_id: conversationId,
+    role: 'system',
+    content: resumoContent,
+  })
+
+  return [{ role: 'system', content: resumoContent }, ...recent]
+}
+
+function montarMensagemUsuario(pergunta: string, dados?: string): string {
+  if (!dados?.trim()) return pergunta
+  return `Pergunta: ${pergunta}\n\nDados:\n${dados.trim()}`
+}
+
 export async function POST(req: NextRequest) {
   try {
     const apiKey = process.env.GEMINI_API_KEY
@@ -171,20 +309,66 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'GEMINI_API_KEY não configurada' }, { status: 500 })
     }
 
-    const { mensagens } = await req.json()
-    const contexto = await buscarContextoFinanceiro()
+    const body = await req.json()
 
-    const systemPrompt = `Você é um assistente financeiro pessoal do casal Matheus e Jeniffer.
-Responda sempre em português brasileiro, de forma clara, objetiva e amigável.
-Use os dados financeiros abaixo para responder perguntas sobre gastos, orçamento, tendências e finanças em geral.
-Formate valores monetários sempre como R$ X.XX.
-Quando comparar períodos, use os dados históricos disponíveis.
-IMPORTANTE: Nunca corte ou trunce suas respostas. Sempre conclua completamente o que começou a escrever.
+    // Legacy mode: caller sends full mensagens array (no conversation_id)
+    if (body.mensagens && !body.pergunta && !body.conversation_id) {
+      const contexto = await buscarContextoFinanceiro()
+      const systemPrompt = buildSystemPrompt(contexto)
+      const texto = await geminiChat(apiKey, systemPrompt, body.mensagens)
+      return NextResponse.json({ resposta: texto })
+    }
 
-${contexto}`
+    // Stateful mode
+    const { pergunta, dados, user_id = 'anonymous' } = body as {
+      pergunta?: string
+      dados?: string
+      user_id?: string
+      conversation_id?: string
+    }
+    let { conversation_id } = body as { conversation_id?: string }
 
-    const texto = await geminiChat(apiKey, systemPrompt, mensagens)
-    return NextResponse.json({ resposta: texto })
+    if (!pergunta?.trim()) {
+      return NextResponse.json({ error: 'pergunta é obrigatória' }, { status: 400 })
+    }
+
+    const supabase = getSupabase()
+
+    // Ensure conversation exists
+    conversation_id = await garantirConversa(supabase, conversation_id ?? null, user_id)
+
+    // Load windowed context (with summary if needed)
+    const contextoConversa = await carregarContextoConversa(supabase, apiKey, conversation_id)
+
+    // Persist user message
+    const conteudoUsuario = montarMensagemUsuario(pergunta, dados)
+    await supabase.from('messages').insert({
+      conversation_id,
+      role: 'user',
+      content: conteudoUsuario,
+    })
+
+    // Build messages array for AI: context + new user message
+    const mensagensParaIA = [
+      ...contextoConversa.filter(m => m.role !== 'system'),
+      { role: 'user', content: conteudoUsuario },
+    ]
+
+    // System messages from context go into system prompt preamble
+    const summaryPreamble = contextoConversa.find(m => m.role === 'system')
+    const contextoFinanceiro = await buscarContextoFinanceiro()
+    const systemPrompt = buildSystemPrompt(contextoFinanceiro, summaryPreamble?.content)
+
+    const resposta = await geminiChat(apiKey, systemPrompt, mensagensParaIA)
+
+    // Persist assistant response
+    await supabase.from('messages').insert({
+      conversation_id,
+      role: 'assistant',
+      content: resposta,
+    })
+
+    return NextResponse.json({ resposta, conversation_id })
   } catch (err) {
     console.error('[chat]', err)
     if (err instanceof Error && err.message === 'QUOTA_429') {
@@ -198,4 +382,21 @@ ${contexto}`
     const msg = err instanceof Error ? err.message : String(err)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
+}
+
+function buildSystemPrompt(contextoFinanceiro: string, summaryPreamble?: string): string {
+  const resumoPart = summaryPreamble
+    ? `\nCONTEXTO DA CONVERSA ANTERIOR:\n${summaryPreamble.replace('[RESUMO] ', '')}\n`
+    : ''
+
+  return `Você é um analista de dados sênior e assistente financeiro pessoal do casal Matheus e Jeniffer.
+- Interprete métricas e padrões financeiros
+- Identifique anomalias e tendências
+- Sugira insights acionáveis
+- Seja direto e estruturado
+Responda sempre em português brasileiro. Formate valores monetários como R$ X.XX.
+Quando comparar períodos, use os dados históricos disponíveis.
+IMPORTANTE: Nunca corte ou trunce suas respostas. Sempre conclua completamente o que começou a escrever.
+${resumoPart}
+${contextoFinanceiro}`
 }
