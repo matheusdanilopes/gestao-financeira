@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Receipt, TrendingUp, ShoppingCart, MessageCircle, SlidersHorizontal, PiggyBank, Sparkles, Repeat } from 'lucide-react'
+import { LayoutDashboard, Receipt, TrendingUp, ShoppingCart, MessageCircle, SlidersHorizontal, PiggyBank, Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabaseClient'
@@ -16,7 +16,6 @@ const navItems = [
   { href: '/contas',         label: 'Despesas',    icon: Receipt },
   { href: '/receitas',       label: 'Receitas',    icon: TrendingUp },
   { href: '/investimentos',  label: 'Investir',    icon: PiggyBank },
-  { href: '/assinaturas',    label: 'Assine',      icon: Repeat },
   { href: '/compras',        label: 'Compras',     icon: ShoppingCart },
   { href: '/chat',           label: 'IA',          icon: MessageCircle },
   { href: '/configuracoes',  label: 'Config',      icon: SlidersHorizontal },

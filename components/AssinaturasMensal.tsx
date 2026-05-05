@@ -189,6 +189,12 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     [itensAtivos, transacoes]
   )
 
+  const detectadasValor = useMemo(
+    () => itensAtivos.filter(i => statusTransacao(i) === 'detectada').reduce((acc, i) => acc + i.valor, 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [itensAtivos, transacoes]
+  )
+
   const itensPorCartao = useMemo(() => {
     const groups: Record<string, Assinatura[]> = { nubank: [], cartao1: [], cartao2: [] }
     for (const item of itensFiltrados) {
@@ -299,7 +305,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
           <span className="font-semibold text-gray-800">Resumo de Assinaturas</span>
         </div>
 
-        {/* Total geral + detectadas */}
+        {/* Total geral + total pago */}
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-indigo-50 rounded-xl p-3 text-center">
             <p className="text-xs text-gray-500 mb-0.5">Total ativo/mês</p>
@@ -307,9 +313,9 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
             <p className="text-xs text-gray-400">{itensAtivos.length} ativa(s)</p>
           </div>
           <div className="bg-green-50 rounded-xl p-3 text-center">
-            <p className="text-xs text-gray-500 mb-0.5">Detectadas em {mesFmt}</p>
-            <p className="text-lg font-bold text-green-700">{detectadasCount} / {itensAtivos.length}</p>
-            <p className="text-xs text-gray-400">na fatura do mês</p>
+            <p className="text-xs text-gray-500 mb-0.5">Pago em {mesFmt}</p>
+            <p className="text-lg font-bold text-green-700">R$ {detectadasValor.toFixed(2)}</p>
+            <p className="text-xs text-gray-400">{detectadasCount}/{itensAtivos.length} identificadas</p>
           </div>
         </div>
 
@@ -358,7 +364,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
             ))}
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1">
-          {[{ value: 'todos', label: 'Todos' }, ...RESPONSAVEIS.map(r => ({ value: r, label: r }))].map(r => (
+          {[{ value: 'todos', label: 'Todos' }, ...RESPONSAVEIS.filter(r => r !== 'Compartilhado').map(r => ({ value: r, label: r }))].map(r => (
             <button
               key={r.value}
               onClick={() => setFiltroResponsavel(r.value)}
