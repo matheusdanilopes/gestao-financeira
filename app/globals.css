@@ -219,6 +219,11 @@ body {
 .dark .sticky-header {
   background-color: rgba(15, 23, 42, 0.96);
 }
+/* top-0 + sticky-header → absorve o notch do iOS (black-translucent).
+   Seletores sem top-0 (ex: barra inferior do chat) não recebem esse padding. */
+.top-0.sticky-header {
+  padding-top: calc(0.75rem + var(--safe-top)) !important;
+}
 
 /* ─── Fade-in page transition ────────────────────────────────────────────── */
 @keyframes fade-up {

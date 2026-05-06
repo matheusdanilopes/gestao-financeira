@@ -5,8 +5,8 @@
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#481e88",
-  "theme_color": "#481e88",
+  "background_color": "#eef0ff",
+  "theme_color": "#4f46e5",
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
@@ -14,7 +14,7 @@
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "screenshots": [
-    { "src": "/splash-750x1334.png", "sizes": "750x1334", "type": "image/png", "form_factor": "narrow" },
-    { "src": "/splash-1536x2048.png", "sizes": "1536x2048", "type": "image/png", "form_factor": "wide" }
+    { "src": "/splash-light-750x1334.png", "sizes": "750x1334", "type": "image/png", "form_factor": "narrow" },
+    { "src": "/splash-light-1536x2048.png", "sizes": "1536x2048", "type": "image/png", "form_factor": "wide" }
   ]
 }
