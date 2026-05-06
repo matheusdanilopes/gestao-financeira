@@ -94,47 +94,6 @@ export default function RootLayout({
         <link rel="apple-touch-startup-image" media="screen and (device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (prefers-color-scheme: light)" href="/splash-light-2048x2732.png" />
       </head>
       <body className={`${inter.variable} font-sans antialiased`}>
-        {/* Splash overlay — aparece antes do JS, funciona em iOS e Android */}
-        <div
-          id="app-splash"
-          style={{
-            position: 'fixed', inset: 0, zIndex: 9999,
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center', gap: '0',
-            background: 'radial-gradient(ellipse at center, #501ea0 0%, #1e0a55 55%, #120638 100%)',
-            transition: 'opacity 0.35s ease',
-          }}
-        >
-          <img
-            src="/icon-512.png"
-            width={160} height={160}
-            alt=""
-            style={{ borderRadius: '36px', boxShadow: '0 12px 48px rgba(0,0,0,0.55)', marginBottom: '40px' }}
-          />
-          <div style={{ height: '2px', width: '40px', borderRadius: '99px', background: 'rgba(255,255,255,0.3)', marginBottom: '28px' }} />
-          <p style={{ margin: 0, fontFamily: 'system-ui,sans-serif', fontSize: '22px', fontWeight: 700, color: '#fff', letterSpacing: '-0.3px' }}>
-            Gestão Financeira
-          </p>
-          <p style={{ margin: '6px 0 0', fontFamily: 'system-ui,sans-serif', fontSize: '14px', fontWeight: 400, color: 'rgba(200,185,255,0.85)' }}>
-            Controle financeiro familiar
-          </p>
-        </div>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                function hideSplash() {
-                  var s = document.getElementById('app-splash');
-                  if (!s) return;
-                  s.style.opacity = '0';
-                  setTimeout(function() { s && s.remove(); }, 380);
-                }
-                if (document.readyState === 'complete') { setTimeout(hideSplash, 120); }
-                else { window.addEventListener('load', function() { setTimeout(hideSplash, 120); }); }
-              })();
-            `,
-          }}
-        />
         <ThemeProvider>
           <RefreshProvider>
             <MesProvider>
