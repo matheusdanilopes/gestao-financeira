@@ -278,7 +278,7 @@ export default function ChatPage() {
         {/* Nova conversa */}
         <button
           onClick={() => { novaConversa(); setDrawerAberto(false) }}
-          className="mx-3 mt-3 mb-1 flex items-center gap-2 px-3 py-2.5 rounded-xl border border-blue-200 bg-blue-50 text-blue-600 text-sm font-medium hover:bg-blue-100 transition"
+          className="mx-3 mt-3 mb-1 flex items-center gap-2 px-3 py-2.5 rounded-xl border border-primary-200 bg-primary-50 text-primary-600 text-sm font-medium hover:bg-primary-100 transition"
         >
           <Plus className="w-4 h-4" />
           Nova conversa
@@ -308,15 +308,15 @@ export default function ChatPage() {
                       onClick={() => selecionarConversa(conv)}
                       className={`w-full text-left px-3 py-3 rounded-xl transition flex items-start gap-2.5 group ${
                         ativa
-                          ? 'bg-blue-50 border border-blue-200'
+                          ? 'bg-primary-50 border border-primary-100'
                           : 'hover:bg-gray-50'
                       }`}
                     >
-                      <div className={`mt-0.5 w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${ativa ? 'bg-blue-100' : 'bg-gray-100'}`}>
-                        <Bot className={`w-3.5 h-3.5 ${ativa ? 'text-blue-500' : 'text-gray-400'}`} />
+                      <div className={`mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${ativa ? 'bg-primary-100' : 'bg-gray-100'}`}>
+                        <Bot className={`w-3.5 h-3.5 ${ativa ? 'text-primary-500' : 'text-gray-400'}`} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-xs font-medium truncate ${ativa ? 'text-blue-700' : 'text-gray-700'}`}>
+                        <p className={`text-xs font-medium truncate ${ativa ? 'text-primary-700' : 'text-gray-700'}`}>
                           {conv.preview}
                         </p>
                         <div className="flex items-center gap-1.5 mt-0.5">
@@ -325,7 +325,7 @@ export default function ChatPage() {
                           <span className="text-[10px] text-gray-400">{conv.message_count} msgs</span>
                         </div>
                       </div>
-                      <ChevronRight className={`w-3.5 h-3.5 shrink-0 mt-1 text-gray-300 group-hover:text-gray-400 transition ${ativa ? 'text-blue-300' : ''}`} />
+                      <ChevronRight className={`w-3.5 h-3.5 shrink-0 mt-1 text-gray-300 group-hover:text-gray-400 transition ${ativa ? 'text-primary-300' : ''}`} />
                     </button>
                   </li>
                 )
@@ -336,18 +336,18 @@ export default function ChatPage() {
       </div>
 
       {/* Header */}
-      <div className="sticky top-0 z-20 bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3">
-        <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-          <Sparkles className="w-5 h-5 text-blue-600" />
+      <div className="sticky top-0 z-[10] bg-white/95 backdrop-blur-sm border-b border-gray-100 px-4 py-3 flex items-center gap-3">
+        <div className="w-9 h-9 rounded-xl bg-primary-50 flex items-center justify-center shrink-0">
+          <Sparkles className="w-5 h-5 text-primary-600" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-gray-800">Assistente Financeiro</p>
+          <p className="font-semibold text-gray-900 text-sm">Assistente Financeiro</p>
           <p className="text-xs text-gray-400">Powered by Gemini</p>
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={abrirDrawer}
-            className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-full transition"
+            className="p-2 text-gray-400 hover:text-primary-500 hover:bg-primary-50 rounded-xl transition"
             title="Histórico de conversas"
           >
             <History className="w-4 h-4" />
@@ -356,14 +356,14 @@ export default function ChatPage() {
             <>
               <button
                 onClick={novaConversa}
-                className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-full transition"
+                className="p-2 text-gray-400 hover:text-primary-500 hover:bg-primary-50 rounded-xl transition"
                 title="Nova conversa"
               >
                 <Plus className="w-4 h-4" />
               </button>
               <button
                 onClick={novaConversa}
-                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition"
+                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition"
                 title="Limpar conversa"
               >
                 <Trash2 className="w-4 h-4" />
@@ -378,8 +378,8 @@ export default function ChatPage() {
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-4">
         {mensagens.length === 0 && !carregando ? (
           <div className="flex flex-col items-center justify-center py-8 gap-4">
-            <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center">
-              <Bot className="w-8 h-8 text-blue-400" />
+            <div className="w-16 h-16 rounded-2xl bg-primary-50 flex items-center justify-center">
+              <Bot className="w-8 h-8 text-primary-400" />
             </div>
             <div className="text-center">
               <p className="font-semibold text-gray-700">Olá! Sou seu assistente financeiro.</p>
@@ -390,7 +390,7 @@ export default function ChatPage() {
                 <button
                   key={s}
                   onClick={() => enviar(s)}
-                  className="text-left text-xs bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-gray-600 hover:border-blue-300 hover:bg-blue-50 transition leading-snug"
+                  className="text-left text-xs bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-gray-600 hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 transition leading-snug active:scale-[0.98]"
                 >
                   {s}
                 </button>
@@ -409,7 +409,7 @@ export default function ChatPage() {
             {mensagens.map((m, i) => (
               <div key={i} className={`flex gap-2.5 ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                  m.role === 'user' ? 'bg-blue-600' : 'bg-gray-100'
+                  m.role === 'user' ? 'bg-primary-600' : 'bg-gray-100'
                 }`}>
                   {m.role === 'user'
                     ? <User className="w-4 h-4 text-white" />
@@ -418,8 +418,8 @@ export default function ChatPage() {
                 </div>
                 <div className={`max-w-[82%] rounded-2xl px-4 py-2.5 ${
                   m.role === 'user'
-                    ? 'bg-blue-600 text-white rounded-tr-sm text-sm leading-relaxed'
-                    : 'bg-white text-gray-800 shadow-sm rounded-tl-sm'
+                    ? 'bg-primary-600 text-white rounded-tr-sm text-sm leading-relaxed'
+                    : 'bg-white text-gray-800 shadow-card border border-gray-100 rounded-tl-sm'
                 }`}>
                   {m.role === 'user'
                     ? m.content
@@ -448,23 +448,23 @@ export default function ChatPage() {
       </div>
 
       {/* Input */}
-      <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-100 px-4 py-3">
+      <div className="fixed bottom-16 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-100 px-4 py-3">
         <div className="max-w-md mx-auto flex gap-2 items-end">
           <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Pergunte sobre suas finanças..."
+            placeholder="Pergunte sobre suas finanças…"
             rows={1}
             disabled={carregando}
-            className="flex-1 bg-gray-50 rounded-2xl px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50 max-h-32"
+            className="flex-1 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-shadow disabled:opacity-50 max-h-32"
             style={{ lineHeight: '1.5' }}
           />
           <button
             onClick={() => enviar()}
             disabled={!input.trim() || carregando}
-            className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center transition hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+            className="w-10 h-10 bg-primary-600 rounded-full flex items-center justify-center transition hover:bg-primary-700 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
           >
             <Send className="w-4 h-4 text-white" />
           </button>

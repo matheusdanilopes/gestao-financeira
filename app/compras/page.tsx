@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useGlobalSync } from '@/lib/useGlobalSync'
-import { ChevronLeft, ChevronRight, Pencil, Trash2, X, ShoppingBag, Lock, WifiOff } from 'lucide-react'
+import { Pencil, Trash2, X, ShoppingBag, Lock, WifiOff, SlidersHorizontal, ChevronDown } from 'lucide-react'
+import MonthSelector from '@/components/MonthSelector'
+import EmptyState from '@/components/EmptyState'
 import { addMonths, subMonths, format, startOfMonth, isToday, isYesterday, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { log, numericOnly } from '@/lib/logger'
@@ -133,6 +135,7 @@ export default function ComprasPage() {
     descricao: '', valor: '', responsavel: 'Matheus', categoria: '', data_compra: '',
   })
   const [salvando, setSalvando] = useState(false)
+  const [filtrosExpandidos, setFiltrosExpandidos] = useState(false)
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null)
   const [faturaFechada, setFaturaFechada] = useState(false)
   const [diaVencimento, setDiaVencimento] = useState(10)
@@ -359,52 +362,25 @@ export default function ComprasPage() {
     <div className="min-h-screen bg-gray-50 p-4 pb-24">
 
       {toast && (
-        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-2xl text-sm font-medium shadow-float transition-all ${
-          toast.tipo === 'ok' ? 'bg-green-600 text-white' : 'bg-red-500 text-white'
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-medium shadow-float ${
+          toast.tipo === 'ok' ? 'bg-gray-900 text-white' : 'bg-red-500 text-white'
         }`}>
           {toast.msg}
         </div>
       )}
 
-      <div className="sticky top-0 bg-gray-50 pt-2 pb-3 z-10">
+      <div className="sticky top-0 bg-gray-50/95 backdrop-blur-sm pt-3 pb-3 px-0 z-[10]">
         <div className="flex items-center justify-between mb-3">
-          <h1 className="text-2xl font-bold">Compras do Cartão</h1>
+          <h1 className="text-xl font-bold text-gray-900">Compras</h1>
         </div>
-
-        {/* Navegação de mês */}
-        <div className="flex items-center justify-between bg-white rounded-2xl shadow-card border border-gray-100 p-3">
-          <button
-            onClick={() => setMesAtual(subMonths(mesGlobal, 1))}
-            className="p-2 hover:bg-gray-100 rounded-xl transition-colors active:scale-95"
-          >
-            <ChevronLeft className="w-5 h-5 text-gray-500" />
-          </button>
-          <div className="text-center flex-1">
-            <span className="text-lg font-semibold capitalize">
-              {format(mesAtual, 'MMMM yyyy', { locale: ptBR })}
-            </span>
-            {!isMesAtual && (
-              <div>
-                <button
-                  onClick={() => setMesAtual(new Date())}
-                  className="text-xs text-primary-600 hover:underline"
-                >
-                  Voltar ao mês atual
-                </button>
-              </div>
-            )}
-          </div>
-          <button
-            onClick={() => setMesAtual(addMonths(mesGlobal, 1))}
-            className="p-2 hover:bg-gray-100 rounded-xl transition-colors active:scale-95"
-          >
-            <ChevronRight className="w-5 h-5 text-gray-500" />
-          </button>
-        </div>
+        <MonthSelector
+          value={mesGlobal}
+          onChange={setMesAtual}
+        />
       </div>
 
       {/* Filtro de cartão */}
-      <div className="flex gap-2 mb-3">
+      <div className="flex gap-1.5 mb-3">
         {([
           ['', 'Todos'],
           ['nubank', cartaoLabels.nubank],
@@ -414,9 +390,9 @@ export default function ComprasPage() {
           <button
             key={val}
             onClick={() => setFiltroCartao(val as '' | 'nubank' | 'cartao1' | 'cartao2')}
-            className={`flex-1 py-1.5 text-xs font-semibold rounded-xl transition-all active:scale-95 ${
+            className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all active:scale-95 ${
               filtroCartao === val
-                ? val === '' ? 'bg-gray-700 text-white shadow-sm'
+                ? val === '' ? 'bg-gray-800 text-white shadow-sm'
                   : val === 'nubank' ? 'bg-purple-600 text-white shadow-sm'
                   : val === 'cartao1' ? 'bg-blue-600 text-white shadow-sm'
                   : 'bg-pink-500 text-white shadow-sm'
@@ -428,46 +404,71 @@ export default function ComprasPage() {
         ))}
       </div>
 
-      {/* Filtros secundários */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-3 mb-3 grid grid-cols-2 gap-2">
-        <input
-          type="text"
-          className="bg-gray-50 rounded-xl p-2 text-sm col-span-2 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
-          placeholder="Buscar por descrição…"
-          value={filtroDescricaoInput}
-          onChange={(e) => handleFiltroDescricaoChange(e.target.value)}
-        />
-        <select
-          className="bg-gray-50 rounded-xl p-2 text-sm col-span-2 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
-          value={filtroCategoria}
-          onChange={(e) => setFiltroCategoria(e.target.value)}
+      {/* Filtros secundários — colapsáveis */}
+      <div className="mb-3">
+        <button
+          onClick={() => setFiltrosExpandidos(v => !v)}
+          className={`w-full flex items-center justify-between bg-white border rounded-2xl px-3 py-2.5 text-sm shadow-card transition-colors ${
+            filtrosAtivos ? 'border-primary-200 text-primary-600' : 'border-gray-100 text-gray-500'
+          }`}
         >
-          <option value="">Categoria (todas)</option>
-          {categorias.map(cat => (
-            <option key={cat} value={cat}>{cat}</option>
-          ))}
-        </select>
-        <input
-          type="text"
-          inputMode="decimal"
-          className="bg-gray-50 rounded-xl p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
-          placeholder="Valor mínimo"
-          value={filtroValorMin}
-          onChange={(e) => setFiltroValorMin(numericOnly(e.target.value))}
-        />
-        <input
-          type="number"
-          min="1"
-          max="31"
-          className="bg-gray-50 rounded-xl p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
-          placeholder="Dia"
-          value={filtroDia}
-          onChange={(e) => setFiltroDia(e.target.value)}
-        />
-        {filtrosAtivos && (
-          <button onClick={limparFiltros} className="col-span-2 text-sm text-red-500 hover:text-red-700 py-1 font-medium transition-colors">
-            Limpar filtros
-          </button>
+          <span className="flex items-center gap-2 font-medium">
+            <SlidersHorizontal className="w-4 h-4" />
+            Filtros
+            {filtrosAtivos && (
+              <span className="bg-primary-100 text-primary-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                ativos
+              </span>
+            )}
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${filtrosExpandidos ? 'rotate-180' : ''}`} />
+        </button>
+
+        {filtrosExpandidos && (
+          <div className="bg-white rounded-b-2xl border border-t-0 border-gray-100 shadow-card px-3 pb-3 pt-2 grid grid-cols-2 gap-2 mt-0">
+            <input
+              type="text"
+              className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm col-span-2 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+              placeholder="Buscar por descrição…"
+              value={filtroDescricaoInput}
+              onChange={(e) => handleFiltroDescricaoChange(e.target.value)}
+            />
+            <select
+              className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm col-span-2 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+              value={filtroCategoria}
+              onChange={(e) => setFiltroCategoria(e.target.value)}
+            >
+              <option value="">Categoria (todas)</option>
+              {categorias.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+            <input
+              type="text"
+              inputMode="decimal"
+              className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+              placeholder="Valor mínimo"
+              value={filtroValorMin}
+              onChange={(e) => setFiltroValorMin(numericOnly(e.target.value))}
+            />
+            <input
+              type="number"
+              min="1"
+              max="31"
+              className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+              placeholder="Dia"
+              value={filtroDia}
+              onChange={(e) => setFiltroDia(e.target.value)}
+            />
+            {filtrosAtivos && (
+              <button
+                onClick={limparFiltros}
+                className="col-span-2 text-xs text-red-500 hover:text-red-700 py-1 font-semibold transition-colors"
+              >
+                Limpar filtros
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -477,36 +478,36 @@ export default function ComprasPage() {
           onClick={() => setFiltroResponsavel('')}
           className={`rounded-2xl p-3 text-center transition-all duration-200 active:scale-[0.97] ${
             filtroResponsavel === ''
-              ? 'bg-gradient-to-br from-primary-500 to-primary-700 shadow-lg ring-2 ring-primary-300 ring-offset-1'
-              : 'bg-gradient-to-br from-primary-50 to-white border border-primary-100 shadow-card'
+              ? 'bg-gradient-to-br from-primary-500 to-primary-700 shadow-md ring-2 ring-primary-300 ring-offset-1'
+              : 'bg-white border border-primary-100 shadow-card'
           }`}
         >
-          <p className={`text-[11px] mb-0.5 ${filtroResponsavel === '' ? 'text-primary-100' : 'text-primary-500'}`}>Total</p>
-          <p className={`text-base font-bold ${filtroResponsavel === '' ? 'text-white' : 'text-primary-700'}`}>R$ {total.toFixed(2)}</p>
-          <p className={`text-[10px] ${filtroResponsavel === '' ? 'text-primary-200' : 'text-primary-400'}`}>{comprasSemFiltroResponsavel.length} compras</p>
+          <p className={`text-[11px] mb-0.5 font-medium ${filtroResponsavel === '' ? 'text-primary-100' : 'text-primary-500'}`}>Total</p>
+          <p className={`text-sm font-bold num ${filtroResponsavel === '' ? 'text-white' : 'text-primary-700'}`}>R$ {total.toFixed(2)}</p>
+          <p className={`text-[10px] ${filtroResponsavel === '' ? 'text-primary-200' : 'text-primary-400'}`}>{comprasSemFiltroResponsavel.length} itens</p>
         </button>
         <button
           onClick={() => setFiltroResponsavel(filtroResponsavel === 'Matheus' ? '' : 'Matheus')}
           className={`rounded-2xl p-3 text-center transition-all duration-200 active:scale-[0.97] ${
             filtroResponsavel === 'Matheus'
-              ? 'bg-blue-600 shadow-lg ring-2 ring-blue-300 ring-offset-1'
-              : 'bg-blue-50 border border-blue-100 shadow-card'
+              ? 'bg-blue-600 shadow-md ring-2 ring-blue-300 ring-offset-1'
+              : 'bg-white border border-blue-100 shadow-card'
           }`}
         >
-          <p className={`text-[11px] mb-0.5 ${filtroResponsavel === 'Matheus' ? 'text-blue-100' : 'text-blue-400'}`}>Matheus</p>
-          <p className={`text-base font-bold ${filtroResponsavel === 'Matheus' ? 'text-white' : 'text-blue-700'}`}>R$ {totalMatheus.toFixed(2)}</p>
+          <p className={`text-[11px] mb-0.5 font-medium ${filtroResponsavel === 'Matheus' ? 'text-blue-100' : 'text-blue-400'}`}>Matheus</p>
+          <p className={`text-sm font-bold num ${filtroResponsavel === 'Matheus' ? 'text-white' : 'text-blue-700'}`}>R$ {totalMatheus.toFixed(2)}</p>
           <p className={`text-[10px] ${filtroResponsavel === 'Matheus' ? 'text-blue-200' : 'text-blue-400'}`}>{comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Matheus').length}x</p>
         </button>
         <button
           onClick={() => setFiltroResponsavel(filtroResponsavel === 'Jeniffer' ? '' : 'Jeniffer')}
           className={`rounded-2xl p-3 text-center transition-all duration-200 active:scale-[0.97] ${
             filtroResponsavel === 'Jeniffer'
-              ? 'bg-pink-500 shadow-lg ring-2 ring-pink-300 ring-offset-1'
-              : 'bg-pink-50 border border-pink-100 shadow-card'
+              ? 'bg-pink-500 shadow-md ring-2 ring-pink-300 ring-offset-1'
+              : 'bg-white border border-pink-100 shadow-card'
           }`}
         >
-          <p className={`text-[11px] mb-0.5 ${filtroResponsavel === 'Jeniffer' ? 'text-pink-100' : 'text-pink-400'}`}>Jeniffer</p>
-          <p className={`text-base font-bold ${filtroResponsavel === 'Jeniffer' ? 'text-white' : 'text-pink-600'}`}>R$ {totalJeniffer.toFixed(2)}</p>
+          <p className={`text-[11px] mb-0.5 font-medium ${filtroResponsavel === 'Jeniffer' ? 'text-pink-100' : 'text-pink-400'}`}>Jeniffer</p>
+          <p className={`text-sm font-bold num ${filtroResponsavel === 'Jeniffer' ? 'text-white' : 'text-pink-600'}`}>R$ {totalJeniffer.toFixed(2)}</p>
           <p className={`text-[10px] ${filtroResponsavel === 'Jeniffer' ? 'text-pink-200' : 'text-pink-400'}`}>{comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Jeniffer').length}x</p>
         </button>
       </div>
@@ -542,11 +543,12 @@ export default function ComprasPage() {
           ))}
         </div>
       ) : grupos.length === 0 ? (
-        <div className="bg-white rounded-3xl border border-gray-100 shadow-card py-14 flex flex-col items-center justify-center gap-3">
-          <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center">
-            <ShoppingBag className="w-7 h-7 text-gray-300" />
-          </div>
-          <p className="text-sm text-gray-400">Nenhuma compra encontrada</p>
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-card">
+          <EmptyState
+            icon={ShoppingBag}
+            title="Nenhuma compra encontrada"
+            description={filtrosAtivos ? 'Tente remover os filtros aplicados' : 'As compras importadas aparecerão aqui'}
+          />
         </div>
       ) : (
         <div className="space-y-3">
@@ -554,11 +556,11 @@ export default function ComprasPage() {
             const subtotal = items.reduce((acc, c) => acc + c.valor, 0)
             return (
               <div key={dateKey} className="bg-white rounded-3xl border border-gray-100 shadow-card overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-gray-50 to-transparent border-b border-gray-100">
+                <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50/80 border-b border-gray-100">
                   <span className="text-xs font-semibold text-gray-500 capitalize">
                     {formatarCabecalhoData(dateKey)}
                   </span>
-                  <span className="text-xs font-semibold text-gray-700">
+                  <span className="text-xs font-semibold text-gray-700 num">
                     R$ {subtotal.toFixed(2)}
                   </span>
                 </div>
@@ -595,7 +597,7 @@ export default function ComprasPage() {
                         </div>
 
                         <div className="text-right shrink-0">
-                          <p className="text-sm font-bold text-gray-800">R$ {c.valor.toFixed(2)}</p>
+                          <p className="text-sm font-bold text-gray-800 num">R$ {c.valor.toFixed(2)}</p>
                         </div>
 
                         {!faturaFechada && isOnline && (
@@ -734,7 +736,7 @@ export default function ComprasPage() {
               <span className="font-semibold text-gray-800">{modalExcluir.descricao}</span>
             </p>
             <p className="text-sm text-gray-400 text-center mb-6">
-              R$ {modalExcluir.valor.toFixed(2)} · {modalExcluir.responsavel}
+              <span className="num">R$ {modalExcluir.valor.toFixed(2)}</span> · {modalExcluir.responsavel}
             </p>
             <div className="flex gap-3">
               <button

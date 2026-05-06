@@ -3,22 +3,22 @@
 import { useEffect, useCallback, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
-import { ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react'
+import { AlertTriangle, CreditCard, Wallet, BarChart3, PiggyBank, TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
+import MonthSelector from '@/components/MonthSelector'
 import dynamic from 'next/dynamic'
 
 const GraficoProjecao = dynamic(() => import('@/components/GraficoProjecao'), {
   ssr: false,
   loading: () => (
     <div className="h-72 flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-gray-200 border-t-purple-500 rounded-full animate-spin" />
+      <div className="w-8 h-8 border-2 border-gray-200 border-t-primary-500 rounded-full animate-spin" />
     </div>
   ),
 })
 import DrawerDetalhes from '@/components/DrawerDetalhes'
-import { PiggyBank } from 'lucide-react'
 import { InfoPopover } from '@/components/InfoPopover'
 import { useGlobalSync } from '@/lib/useGlobalSync'
 
@@ -65,6 +65,10 @@ interface ResumoCaixaState {
   percentualComprometimento: number
 }
 
+function fmt(v: number) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
+}
+
 export default function Dashboard() {
   const { mesAtual, setMesAtual } = useMes()
   const [fatura, setFatura] = useState<FaturaState>({
@@ -85,23 +89,19 @@ export default function Dashboard() {
   const [carregando, setCarregando] = useState(true)
   const [dataFechamentoNubank, setDataFechamentoNubank] = useState<string | null>(null)
 
-  // Fetcher estável: recriado apenas quando mesAtual muda
   const fetcher = useCallback(
     () => carregarDados(mesAtual), // eslint-disable-line react-hooks/exhaustive-deps
     [mesAtual]
   )
 
-  // Sincronização automática: Realtime + polling 45s + cache localStorage
-  // useDataSync re-executa o fetcher automaticamente quando cacheKey muda (troca de mês)
   const { isOnline } = useGlobalSync({
     cacheKey: `dashboard:${format(mesAtual, 'yyyy-MM')}`,
     tables: ['transacoes_nubank', 'planejamento', 'investimentos', 'investimentos_aportes'],
     fetcher,
-    onData: () => {}, // carregarDados aplica os dados internamente via setState
+    onData: () => {},
     pollInterval: 45_000,
   })
 
-  // Para skeleton imediatamente ao ficar offline
   useEffect(() => {
     if (!isOnline) setCarregando(false)
   }, [isOnline])
@@ -109,239 +109,203 @@ export default function Dashboard() {
   async function carregarDados(mes: Date) {
     setCarregando(true)
     try {
-    const primeiroDia = startOfMonth(mes)
-    const mesRef = format(primeiroDia, 'yyyy-MM-dd')
-    const mesRefFatura = format(startOfMonth(addMonths(mes, 1)), 'yyyy-MM-dd')
+      const primeiroDia = startOfMonth(mes)
+      const mesRef = format(primeiroDia, 'yyyy-MM-dd')
+      const mesRefFatura = format(startOfMonth(addMonths(mes, 1)), 'yyyy-MM-dd')
 
-    const [
-      { data: transacoesFatura },
-      { data: planejamento },
-      { data: invData },
-      { data: transacoesC1 },
-      { data: transacoesC2 },
-      { data: nubankConfigs },
-      { data: faturaRegistradaData },
-      { data: assinaturasData },
-    ] = await Promise.all([
-      supabase
-        .from('transacoes_nubank')
-        .select('valor, responsavel, descricao')
-        .eq('projeto_fatura', mesRefFatura)
-        .eq('cartao', 'nubank'),
-      supabase
-        .from('planejamento')
-        .select('item, responsavel, valor_previsto, pago, valor_real')
-        .eq('mes_referencia', mesRef),
-      supabase
-        .from('investimentos')
-        .select('id, descricao, percentual')
-        .eq('mes_referencia', mesRef)
-        .order('created_at', { ascending: true }),
-      supabase.from('transacoes_nubank').select('valor, responsavel').eq('cartao', 'cartao1').eq('projeto_fatura', mesRefFatura),
-      supabase.from('transacoes_nubank').select('valor, responsavel').eq('cartao', 'cartao2').eq('projeto_fatura', mesRefFatura),
-      supabase.from('configuracoes').select('chave, valor').in('chave', ['dia_vencimento', 'ajuste_fechamento']),
-      supabase.from('faturas').select('data_fechamento').eq('cartao', 'nubank').eq('mes_referencia', mesRefFatura).limit(1),
-      supabase.from('assinaturas').select('nome, valor, responsavel, ativa').eq('cartao', 'nubank'),
-    ])
+      const [
+        { data: transacoesFatura },
+        { data: planejamento },
+        { data: invData },
+        { data: transacoesC1 },
+        { data: transacoesC2 },
+        { data: nubankConfigs },
+        { data: faturaRegistradaData },
+        { data: assinaturasData },
+      ] = await Promise.all([
+        supabase.from('transacoes_nubank').select('valor, responsavel, descricao').eq('projeto_fatura', mesRefFatura).eq('cartao', 'nubank'),
+        supabase.from('planejamento').select('item, responsavel, valor_previsto, pago, valor_real').eq('mes_referencia', mesRef),
+        supabase.from('investimentos').select('id, descricao, percentual').eq('mes_referencia', mesRef).order('created_at', { ascending: true }),
+        supabase.from('transacoes_nubank').select('valor, responsavel').eq('cartao', 'cartao1').eq('projeto_fatura', mesRefFatura),
+        supabase.from('transacoes_nubank').select('valor, responsavel').eq('cartao', 'cartao2').eq('projeto_fatura', mesRefFatura),
+        supabase.from('configuracoes').select('chave, valor').in('chave', ['dia_vencimento', 'ajuste_fechamento']),
+        supabase.from('faturas').select('data_fechamento').eq('cartao', 'nubank').eq('mes_referencia', mesRefFatura).limit(1),
+        supabase.from('assinaturas').select('nome, valor, responsavel, ativa').eq('cartao', 'nubank'),
+      ])
 
-    // Data de fechamento da fatura NuBank do mês exibido
-    const diaVencNubank = parseInt(nubankConfigs?.find((c: any) => c.chave === 'dia_vencimento')?.valor || '10')
-    const ajusteNubank  = parseInt(nubankConfigs?.find((c: any) => c.chave === 'ajuste_fechamento')?.valor || '0')
-    const mesRefFaturaDate = startOfMonth(addMonths(mes, 1))
-    const fechamentoISO = faturaRegistradaData?.[0]?.data_fechamento
-      || format(calcularDataFechamentoDaFatura(mesRefFaturaDate, diaVencNubank, ajusteNubank), 'yyyy-MM-dd')
-    setDataFechamentoNubank(fechamentoISO)
+      const diaVencNubank = parseInt(nubankConfigs?.find((c: any) => c.chave === 'dia_vencimento')?.valor || '10')
+      const ajusteNubank  = parseInt(nubankConfigs?.find((c: any) => c.chave === 'ajuste_fechamento')?.valor || '0')
+      const mesRefFaturaDate = startOfMonth(addMonths(mes, 1))
+      const fechamentoISO = faturaRegistradaData?.[0]?.data_fechamento
+        || format(calcularDataFechamentoDaFatura(mesRefFaturaDate, diaVencNubank, ajusteNubank), 'yyyy-MM-dd')
+      setDataFechamentoNubank(fechamentoISO)
 
-    const totalRealizado = transacoesFatura?.reduce((acc, t) => acc + t.valor, 0) || 0
-    const matheusAtual = transacoesFatura?.filter(t => t.responsavel === 'Matheus').reduce((acc, t) => acc + t.valor, 0) || 0
-    const jenifferAtual = transacoesFatura?.filter(t => t.responsavel === 'Jeniffer').reduce((acc, t) => acc + t.valor, 0) || 0
+      const totalRealizado = transacoesFatura?.reduce((acc, t) => acc + t.valor, 0) || 0
+      const matheusAtual = transacoesFatura?.filter(t => t.responsavel === 'Matheus').reduce((acc, t) => acc + t.valor, 0) || 0
+      const jenifferAtual = transacoesFatura?.filter(t => t.responsavel === 'Jeniffer').reduce((acc, t) => acc + t.valor, 0) || 0
 
-    const matheusPrevisto = planejamento?.find(p => p.item === 'NuBank Matheus')?.valor_previsto || 0
-    const jenifferPrevisto =
-      (planejamento?.find(p => p.item === 'NuBank Jeniffer')?.valor_previsto || 0) +
-      (planejamento?.find(p => p.item === 'NuBank Jeniffer Conjunto')?.valor_previsto || 0)
+      const matheusPrevisto = planejamento?.find(p => p.item === 'NuBank Matheus')?.valor_previsto || 0
+      const jenifferPrevisto =
+        (planejamento?.find(p => p.item === 'NuBank Jeniffer')?.valor_previsto || 0) +
+        (planejamento?.find(p => p.item === 'NuBank Jeniffer Conjunto')?.valor_previsto || 0)
 
-    const toCartaoItem = (p: any, prefixo: string): CartaoItem => ({
-      nome: p.item.replace(prefixo, '').trim(),
-      responsavel: p.responsavel || '',
-      previsto: p.valor_previsto,
-      pago: p.valor_real ?? p.valor_previsto,
-    })
-
-    const cartao1PlanejamentoItems: CartaoItem[] = (planejamento || [])
-      .filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO1]'))
-      .map(p => toCartaoItem(p, '[CARTAO1]'))
-
-    const cartao2PlanejamentoItems: CartaoItem[] = (planejamento || [])
-      .filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]'))
-      .map(p => toCartaoItem(p, '[CARTAO2]'))
-
-    // Totais da última fatura importada para cada cartão
-    const cartao1TotalMatheus = (transacoesC1 || []).filter(t => t.responsavel === 'Matheus').reduce((s, t) => s + t.valor, 0)
-    const cartao1TotalJeniffer = (transacoesC1 || []).filter(t => t.responsavel === 'Jeniffer').reduce((s, t) => s + t.valor, 0)
-    const cartao2TotalMatheus = (transacoesC2 || []).filter(t => t.responsavel === 'Matheus').reduce((s, t) => s + t.valor, 0)
-    const cartao2TotalJeniffer = (transacoesC2 || []).filter(t => t.responsavel === 'Jeniffer').reduce((s, t) => s + t.valor, 0)
-
-    const cartao1Items: CartaoItem[] = cartao1PlanejamentoItems
-    const cartao2Items: CartaoItem[] = cartao2PlanejamentoItems
-
-    const receitaBase = planejamento?.find(p => p.item === 'Receita Total')?.valor_previsto || 0
-    const receitasExtras = planejamento
-      ?.filter(p => typeof p.item === 'string' && p.item.startsWith('[RECEITA]'))
-      .reduce((acc, p) => acc + p.valor_previsto, 0) || 0
-    const receitaTotal = receitaBase + receitasExtras
-
-    const totalPlanejado = (planejamento || [])
-      .filter(p => {
-        const item = typeof p.item === 'string' ? p.item : ''
-        return !item.startsWith('[RECEITA]') && item !== 'Receita Total'
+      const toCartaoItem = (p: any, prefixo: string): CartaoItem => ({
+        nome: p.item.replace(prefixo, '').trim(),
+        responsavel: p.responsavel || '',
+        previsto: p.valor_previsto,
+        pago: p.valor_real ?? p.valor_previsto,
       })
-      .reduce((acc, p) => acc + (p.valor_previsto || 0), 0)
 
-    const nuBankPrevisto = matheusPrevisto + jenifferPrevisto
+      const cartao1PlanejamentoItems: CartaoItem[] = (planejamento || [])
+        .filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO1]'))
+        .map(p => toCartaoItem(p, '[CARTAO1]'))
 
-    const faturaEhPrevisto = totalRealizado === 0
+      const cartao2PlanejamentoItems: CartaoItem[] = (planejamento || [])
+        .filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]'))
+        .map(p => toCartaoItem(p, '[CARTAO2]'))
 
-    let matheusProjecaoParcelas = 0
-    let jenifferProjecaoParcelas = 0
-    if (faturaEhPrevisto) {
-      const mesProjecao = startOfMonth(addMonths(mes, 1))
-      const mesProjecaoRef = format(mesProjecao, 'yyyy-MM-dd')
+      const cartao1TotalMatheus = (transacoesC1 || []).filter(t => t.responsavel === 'Matheus').reduce((s, t) => s + t.valor, 0)
+      const cartao1TotalJeniffer = (transacoesC1 || []).filter(t => t.responsavel === 'Jeniffer').reduce((s, t) => s + t.valor, 0)
+      const cartao2TotalMatheus = (transacoesC2 || []).filter(t => t.responsavel === 'Matheus').reduce((s, t) => s + t.valor, 0)
+      const cartao2TotalJeniffer = (transacoesC2 || []).filter(t => t.responsavel === 'Jeniffer').reduce((s, t) => s + t.valor, 0)
 
-      const { data: maxFaturaRow } = await supabase
-        .from('transacoes_nubank')
-        .select('projeto_fatura')
-        .eq('cartao', 'nubank')
-        .lte('projeto_fatura', mesProjecaoRef)
-        .order('projeto_fatura', { ascending: false })
-        .limit(1)
+      const cartao1Items: CartaoItem[] = cartao1PlanejamentoItems
+      const cartao2Items: CartaoItem[] = cartao2PlanejamentoItems
 
-      if (maxFaturaRow?.[0]?.projeto_fatura) {
-        const { data: transacoesBase } = await supabase
-          .from('transacoes_nubank')
-          .select('projeto_fatura, descricao, valor, responsavel, parcela_atual, total_parcelas')
-          .eq('cartao', 'nubank')
-          .eq('projeto_fatura', maxFaturaRow[0].projeto_fatura)
+      const receitaBase = planejamento?.find(p => p.item === 'Receita Total')?.valor_previsto || 0
+      const receitasExtras = planejamento
+        ?.filter(p => typeof p.item === 'string' && p.item.startsWith('[RECEITA]'))
+        .reduce((acc, p) => acc + p.valor_previsto, 0) || 0
+      const receitaTotal = receitaBase + receitasExtras
 
-        const contratos = new Map<string, { fatura: Date; atual: number; total: number; valor: number; responsavel: string }>()
+      const totalPlanejado = (planejamento || [])
+        .filter(p => {
+          const item = typeof p.item === 'string' ? p.item : ''
+          return !item.startsWith('[RECEITA]') && item !== 'Receita Total'
+        })
+        .reduce((acc, p) => acc + (p.valor_previsto || 0), 0)
 
-        for (const t of (transacoesBase || [])) {
-          let atual: number, total: number
-          if (t.parcela_atual && t.total_parcelas) {
-            atual = Number(t.parcela_atual)
-            total = Number(t.total_parcelas)
-          } else {
-            const descricao = String(t.descricao || '')
-            const matchParcela = descricao.match(/parcela\s*(\d+)\s*\/\s*(\d+)/i)
-            if (matchParcela) {
-              atual = Number(matchParcela[1])
-              total = Number(matchParcela[2])
+      const nuBankPrevisto = matheusPrevisto + jenifferPrevisto
+      const faturaEhPrevisto = totalRealizado === 0
+
+      let matheusProjecaoParcelas = 0
+      let jenifferProjecaoParcelas = 0
+      if (faturaEhPrevisto) {
+        const mesProjecao = startOfMonth(addMonths(mes, 1))
+        const mesProjecaoRef = format(mesProjecao, 'yyyy-MM-dd')
+
+        const { data: maxFaturaRow } = await supabase
+          .from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'nubank')
+          .lte('projeto_fatura', mesProjecaoRef).order('projeto_fatura', { ascending: false }).limit(1)
+
+        if (maxFaturaRow?.[0]?.projeto_fatura) {
+          const { data: transacoesBase } = await supabase
+            .from('transacoes_nubank')
+            .select('projeto_fatura, descricao, valor, responsavel, parcela_atual, total_parcelas')
+            .eq('cartao', 'nubank').eq('projeto_fatura', maxFaturaRow[0].projeto_fatura)
+
+          const contratos = new Map<string, { fatura: Date; atual: number; total: number; valor: number; responsavel: string }>()
+
+          for (const t of (transacoesBase || [])) {
+            let atual: number, total: number
+            if (t.parcela_atual && t.total_parcelas) {
+              atual = Number(t.parcela_atual); total = Number(t.total_parcelas)
             } else {
-              const matchSlash = descricao.match(/\b(\d{1,2})\/(\d{1,2})\b/)
-              if (!matchSlash) continue
-              atual = Number(matchSlash[1])
-              total = Number(matchSlash[2])
-              if (total < 2) continue
+              const descricao = String(t.descricao || '')
+              const matchParcela = descricao.match(/parcela\s*(\d+)\s*\/\s*(\d+)/i)
+              if (matchParcela) { atual = Number(matchParcela[1]); total = Number(matchParcela[2]) }
+              else {
+                const matchSlash = descricao.match(/\b(\d{1,2})\/(\d{1,2})\b/)
+                if (!matchSlash) continue
+                atual = Number(matchSlash[1]); total = Number(matchSlash[2])
+                if (total < 2) continue
+              }
+            }
+            if (atual < 1 || total < atual) continue
+            const descricao = String(t.descricao || '')
+            const faturaDate = startOfMonth(new Date(t.projeto_fatura + 'T12:00:00'))
+            const origem = subMonths(faturaDate, atual - 1)
+            const descBase = descricao.replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '').replace(/\s+\d{1,2}\/\d{1,2}\s*$/i, '').trim().toLowerCase()
+            const key = `${format(origem, 'yyyy-MM')}|${descBase}|${total}|${t.responsavel}`
+            const existing = contratos.get(key)
+            if (!existing || faturaDate > existing.fatura) {
+              contratos.set(key, { fatura: faturaDate, atual, total, valor: t.valor, responsavel: t.responsavel })
             }
           }
-          if (atual < 1 || total < atual) continue
-          const descricao = String(t.descricao || '')
-          const faturaDate = startOfMonth(new Date(t.projeto_fatura + 'T12:00:00'))
-          const origem = subMonths(faturaDate, atual - 1)
-          const descBase = descricao
-            .replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '')
-            .replace(/\s+\d{1,2}\/\d{1,2}\s*$/i, '')
-            .trim()
-            .toLowerCase()
-          const key = `${format(origem, 'yyyy-MM')}|${descBase}|${total}|${t.responsavel}`
-          const existing = contratos.get(key)
-          if (!existing || faturaDate > existing.fatura) {
-            contratos.set(key, { fatura: faturaDate, atual, total, valor: t.valor, responsavel: t.responsavel })
-          }
-        }
 
-        for (const { fatura: faturaDate, atual, total, valor, responsavel } of contratos.values()) {
-          const deltaM =
-            (mesProjecao.getFullYear() - faturaDate.getFullYear()) * 12 +
-            (mesProjecao.getMonth() - faturaDate.getMonth())
-          const parcelaNoMes = atual + deltaM
-          if (parcelaNoMes >= 1 && parcelaNoMes <= total) {
-            if (responsavel === 'Matheus') matheusProjecaoParcelas += valor
-            if (responsavel === 'Jeniffer') jenifferProjecaoParcelas += valor
+          for (const { fatura: faturaDate, atual, total, valor, responsavel } of contratos.values()) {
+            const deltaM = (mesProjecao.getFullYear() - faturaDate.getFullYear()) * 12 + (mesProjecao.getMonth() - faturaDate.getMonth())
+            const parcelaNoMes = atual + deltaM
+            if (parcelaNoMes >= 1 && parcelaNoMes <= total) {
+              if (responsavel === 'Matheus') matheusProjecaoParcelas += valor
+              if (responsavel === 'Jeniffer') jenifferProjecaoParcelas += valor
+            }
           }
         }
       }
-    }
 
-    const cartao1TotalAtual = cartao1TotalMatheus + cartao1TotalJeniffer
-    const cartao2TotalAtual = cartao2TotalMatheus + cartao2TotalJeniffer
-    const cartao1PrevTotal = cartao1PlanejamentoItems.reduce((s, i) => s + i.previsto, 0)
-    const cartao2PrevTotal = cartao2PlanejamentoItems.reduce((s, i) => s + i.previsto, 0)
-    const temLancamentos = totalRealizado > 0 || cartao1TotalAtual > 0 || cartao2TotalAtual > 0
-    const faturaEfetiva = temLancamentos
-      ? totalRealizado + cartao1TotalAtual + cartao2TotalAtual
-      : nuBankPrevisto + cartao1PrevTotal + cartao2PrevTotal
-    const saldoPrevisto = receitaTotal - totalPlanejado
+      const cartao1TotalAtual = cartao1TotalMatheus + cartao1TotalJeniffer
+      const cartao2TotalAtual = cartao2TotalMatheus + cartao2TotalJeniffer
+      const cartao1PrevTotal = cartao1PlanejamentoItems.reduce((s, i) => s + i.previsto, 0)
+      const cartao2PrevTotal = cartao2PlanejamentoItems.reduce((s, i) => s + i.previsto, 0)
+      const temLancamentos = totalRealizado > 0 || cartao1TotalAtual > 0 || cartao2TotalAtual > 0
+      const faturaEfetiva = temLancamentos
+        ? totalRealizado + cartao1TotalAtual + cartao2TotalAtual
+        : nuBankPrevisto + cartao1PrevTotal + cartao2PrevTotal
+      const saldoPrevisto = receitaTotal - totalPlanejado
 
-    const contasFixasAtual = (planejamento || [])
-      .filter(p => {
-        const item = typeof p.item === 'string' ? p.item : ''
-        return !item.startsWith('[RECEITA]') && item !== 'Receita Total'
-          && !NUBANK_ITEMS.has(item)
-          && !item.startsWith('[CARTAO1]') && !item.startsWith('[CARTAO2]')
+      const contasFixasAtual = (planejamento || [])
+        .filter(p => {
+          const item = typeof p.item === 'string' ? p.item : ''
+          return !item.startsWith('[RECEITA]') && item !== 'Receita Total'
+            && !NUBANK_ITEMS.has(item) && !item.startsWith('[CARTAO1]') && !item.startsWith('[CARTAO2]')
+        })
+        .reduce((acc, p) => acc + (p.pago ? (p.valor_real ?? p.valor_previsto) : p.valor_previsto), 0)
+
+      const totalGastos = contasFixasAtual + faturaEfetiva
+      const sobraLiquida = receitaTotal - totalGastos
+      const percentualComprometimento = receitaTotal > 0 ? (totalGastos / receitaTotal) * 100 : 0
+
+      const assinAtivas = (assinaturasData || []).filter((a: any) => a.ativa)
+      const txFaturaList = transacoesFatura || []
+      const calcNaoPaga = (responsavel: string) =>
+        assinAtivas
+          .filter((a: any) => a.responsavel === responsavel && !txFaturaList.some((tx: any) => tx.descricao?.toLowerCase().includes(a.nome.toLowerCase())))
+          .reduce((sum: number, a: any) => sum + a.valor, 0)
+      const assinNaoPagaMatheus = calcNaoPaga('Matheus')
+      const assinNaoPagaJeniffer = calcNaoPaga('Jeniffer')
+      setAssinaturasNaopagas({ matheus: assinNaoPagaMatheus, jeniffer: assinNaoPagaJeniffer })
+
+      setFatura({
+        totalRealizado, matheusAtual, matheusPrevisto, matheusProjecaoParcelas,
+        jenifferAtual, jenifferPrevisto, jenifferProjecaoParcelas,
+        sobraMatheus: matheusPrevisto - matheusAtual - matheusProjecaoParcelas - assinNaoPagaMatheus,
+        sobraJeniffer: jenifferPrevisto - jenifferAtual - jenifferProjecaoParcelas - assinNaoPagaJeniffer,
+        cartao1Items, cartao2Items,
+        cartao1AtualMatheus: cartao1TotalMatheus, cartao1AtualJeniffer: cartao1TotalJeniffer,
+        cartao2AtualMatheus: cartao2TotalMatheus, cartao2AtualJeniffer: cartao2TotalJeniffer,
+        cartao1Previsto: cartao1PlanejamentoItems.reduce((s, i) => s + i.previsto, 0),
+        cartao2Previsto: cartao2PlanejamentoItems.reduce((s, i) => s + i.previsto, 0),
+        cartao1Nome: cartao1PlanejamentoItems[0]?.nome || 'Cartão 1',
+        cartao2Nome: cartao2PlanejamentoItems[0]?.nome || 'Cartão 2',
       })
-      .reduce((acc, p) => acc + (p.pago ? (p.valor_real ?? p.valor_previsto) : p.valor_previsto), 0)
+      setResumoCaixa({
+        receitaTotal, contasFixas: contasFixasAtual,
+        fatura: faturaEfetiva, faturaEhPrevisto: !temLancamentos, extras: 0,
+        totalGastos, sobraLiquida, saldoPrevisto, percentualComprometimento,
+      })
 
-    const totalGastos = contasFixasAtual + faturaEfetiva
-    const sobraLiquida = receitaTotal - totalGastos
-    const percentualComprometimento = receitaTotal > 0 ? (totalGastos / receitaTotal) * 100 : 0
-
-    const assinAtivas = (assinaturasData || []).filter((a: any) => a.ativa)
-    const txFaturaList = transacoesFatura || []
-    const calcNaoPaga = (responsavel: string) =>
-      assinAtivas
-        .filter((a: any) => a.responsavel === responsavel && !txFaturaList.some((tx: any) => tx.descricao?.toLowerCase().includes(a.nome.toLowerCase())))
-        .reduce((sum: number, a: any) => sum + a.valor, 0)
-    const assinNaoPagaMatheus = calcNaoPaga('Matheus')
-    const assinNaoPagaJeniffer = calcNaoPaga('Jeniffer')
-    setAssinaturasNaopagas({ matheus: assinNaoPagaMatheus, jeniffer: assinNaoPagaJeniffer })
-
-    setFatura({
-      totalRealizado, matheusAtual, matheusPrevisto, matheusProjecaoParcelas,
-      jenifferAtual, jenifferPrevisto, jenifferProjecaoParcelas,
-      sobraMatheus: matheusPrevisto - matheusAtual - matheusProjecaoParcelas - assinNaoPagaMatheus,
-      sobraJeniffer: jenifferPrevisto - jenifferAtual - jenifferProjecaoParcelas - assinNaoPagaJeniffer,
-      cartao1Items, cartao2Items,
-      cartao1AtualMatheus: cartao1TotalMatheus,
-      cartao1AtualJeniffer: cartao1TotalJeniffer,
-      cartao2AtualMatheus: cartao2TotalMatheus,
-      cartao2AtualJeniffer: cartao2TotalJeniffer,
-      cartao1Previsto: cartao1PlanejamentoItems.reduce((s, i) => s + i.previsto, 0),
-      cartao2Previsto: cartao2PlanejamentoItems.reduce((s, i) => s + i.previsto, 0),
-      cartao1Nome: cartao1PlanejamentoItems[0]?.nome || 'Cartão 1',
-      cartao2Nome: cartao2PlanejamentoItems[0]?.nome || 'Cartão 2',
-    })
-    setResumoCaixa({
-      receitaTotal, contasFixas: contasFixasAtual,
-      fatura: faturaEfetiva, faturaEhPrevisto: !temLancamentos, extras: 0,
-      totalGastos, sobraLiquida, saldoPrevisto, percentualComprometimento,
-    })
-
-    const ids = (invData || []).map(i => i.id)
-    let aportadoMap: Record<string, number> = {}
-    if (ids.length > 0) {
-      const { data: aportesData } = await supabase
-        .from('investimentos_aportes')
-        .select('investimento_id, valor')
-        .in('investimento_id', ids)
-      for (const a of (aportesData || [])) {
-        aportadoMap[a.investimento_id] = (aportadoMap[a.investimento_id] || 0) + a.valor
+      const ids = (invData || []).map(i => i.id)
+      let aportadoMap: Record<string, number> = {}
+      if (ids.length > 0) {
+        const { data: aportesData } = await supabase
+          .from('investimentos_aportes').select('investimento_id, valor').in('investimento_id', ids)
+        for (const a of (aportesData || [])) {
+          aportadoMap[a.investimento_id] = (aportadoMap[a.investimento_id] || 0) + a.valor
+        }
       }
-    }
-
-    setInvestimentos((invData || []).map(i => ({ ...i, aportado: aportadoMap[i.id] || 0 })))
-
-} catch (e) {
+      setInvestimentos((invData || []).map(i => ({ ...i, aportado: aportadoMap[i.id] || 0 })))
+    } catch (e) {
       console.error('Erro ao carregar dashboard:', e)
     } finally {
       setCarregando(false)
@@ -355,8 +319,8 @@ export default function Dashboard() {
 
   const comprometimentoColor = useMemo(() =>
     resumoCaixa.percentualComprometimento > 90 ? 'text-red-600' :
-    resumoCaixa.percentualComprometimento > 70 ? 'text-yellow-600' :
-    'text-green-600',
+    resumoCaixa.percentualComprometimento > 70 ? 'text-amber-600' :
+    'text-emerald-600',
     [resumoCaixa.percentualComprometimento]
   )
 
@@ -381,460 +345,482 @@ export default function Dashboard() {
     resumoCaixa.percentualComprometimento > 90
       ? 'bg-gradient-to-r from-red-500 to-red-600' :
     resumoCaixa.percentualComprometimento > 70
-      ? 'bg-gradient-to-r from-yellow-400 to-yellow-500' :
-    'bg-gradient-to-r from-green-500 to-emerald-500',
+      ? 'bg-gradient-to-r from-amber-400 to-amber-500' :
+    'bg-gradient-to-r from-emerald-500 to-green-500',
     [resumoCaixa.percentualComprometimento]
   )
 
-  return (
-    <div className="min-h-screen bg-gray-50 p-4 pb-24">
+  const heroSaldo = resumoCaixa.sobraLiquida
+  const heroColor = heroSaldo < 0 ? 'text-red-600' : saldoAtualWarning ? 'text-amber-600' : 'text-emerald-600'
+  const HeroIcon = heroSaldo < 0 ? TrendingDown : heroSaldo === 0 ? Minus : TrendingUp
 
-      {/* Header + filtro de mês */}
-      <div className="sticky top-0 bg-gray-50 pt-2 pb-3 z-10">
+  return (
+    <div className="min-h-screen bg-gray-50 pb-28 page-enter">
+
+      {/* Header + seletor de mês */}
+      <div className="sticky top-0 bg-gray-50/95 backdrop-blur-sm pt-3 pb-3 px-4 z-[10]">
         <div className="flex items-center justify-between mb-3">
-          <h1 className="text-2xl font-bold">Dashboard Financeiro</h1>
+          <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
         </div>
-        <div className="flex items-center justify-between bg-white rounded-2xl shadow-card px-2 py-1">
-          <button
-            onClick={() => setMesAtual(subMonths(mesAtual, 1))}
-            className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
-            aria-label="Mês anterior"
-          >
-            <ChevronLeft className="w-5 h-5 text-gray-600" />
-          </button>
-          <div className="text-center flex-1">
-            <p className="font-semibold capitalize text-gray-800">
-              {format(mesAtual, 'MMMM yyyy', { locale: ptBR })}
-            </p>
-            {!isMesAtual && (
-              <button
-                onClick={() => setMesAtual(new Date())}
-                className="text-xs text-primary-600 hover:underline"
-              >
-                Voltar ao mês atual
-              </button>
-            )}
-          </div>
-          <button
-            onClick={() => setMesAtual(addMonths(mesAtual, 1))}
-            className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
-            aria-label="Próximo mês"
-          >
-            <ChevronRight className="w-5 h-5 text-gray-600" />
-          </button>
-        </div>
+        <MonthSelector value={mesAtual} onChange={setMesAtual} />
       </div>
 
-      {/* Gestão de Fatura Nubank */}
-      <div className="bg-white rounded-3xl shadow-card p-4 mb-4">
-        <h2 className="text-lg font-semibold mb-3 flex items-center gap-1.5">
-          💳 Gestão de Fatura Nubank
-          <InfoPopover texto="Visão consolidada da fatura NuBank por pessoa. 'Atual' é o valor já lançado no cartão. 'Previsto' é o limite planejado. 'Sobra' é o quanto resta antes de ultrapassar o orçamento. Os cards de 'Outros cartões' mostram o pago vs. previsto de cartões secundários (PicPay, etc.). O 'Resumo por pessoa' soma tudo: atual NuBank + parcelas projetadas + previsto dos demais cartões, indicando o total comprometido e quanto ainda resta do orçamento." />
-        </h2>
-        {carregando ? (
-          <div className="animate-pulse space-y-3">
-            <div className="h-9 bg-gray-200 rounded-xl w-2/5" />
-            <div className="grid grid-cols-2 gap-3">
-              <div className="h-28 bg-gray-200 rounded-2xl" />
-              <div className="h-28 bg-gray-200 rounded-2xl" />
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="mb-4 flex items-start justify-between">
-              <div>
-                <div className="text-3xl font-bold text-primary-600">R$ {fatura.totalRealizado.toFixed(2)}</div>
-                <p className="text-xs text-gray-400 mt-0.5">total atual na fatura NuBank</p>
-              </div>
-              {dataFechamentoNubank && (() => {
-                const d = new Date(dataFechamentoNubank + 'T12:00:00')
-                return (
-                  <div className="shrink-0 ml-4 bg-primary-50 border border-primary-100 rounded-2xl px-3 py-2 flex flex-col items-end">
-                    <p className="text-[10px] font-medium text-primary-400 uppercase tracking-wider leading-none">
-                      Fecha em
-                    </p>
-                    <p className="text-sm font-bold text-primary-700 tabular-nums leading-snug mt-1">
-                      {format(d, 'dd/MM/yyyy')}
-                    </p>
-                    <p className="text-[11px] text-primary-500 capitalize leading-none mt-0.5">
-                      {format(d, 'EEEE', { locale: ptBR })}
-                    </p>
-                  </div>
-                )
-              })()}
-            </div>
+      <div className="px-4 space-y-4">
 
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">NuBank</p>
-            <div className="grid grid-cols-2 gap-3">
-              {/* Matheus NuBank */}
-              <div className="bg-blue-50 border border-blue-100 border-t-2 border-t-blue-400 p-3 rounded-2xl shadow-card">
-                <p className="font-semibold text-blue-800 mb-2">Matheus</p>
-                <div className="flex justify-between text-xs gap-1 text-gray-600">
-                  <span>Atual</span>
-                  <span className="font-medium text-gray-800 whitespace-nowrap">R$ {fatura.matheusAtual.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
-                  <span>Previsto</span>
-                  <span className="font-medium text-gray-800 whitespace-nowrap">R$ {fatura.matheusPrevisto.toFixed(2)}</span>
-                </div>
-                {assinaturasNaopagas.matheus > 0 && (
-                  <div className="flex justify-between text-xs gap-1 mt-0.5 text-indigo-600">
-                    <span>Assinaturas</span>
-                    <span className="font-medium whitespace-nowrap">R$ {assinaturasNaopagas.matheus.toFixed(2)}</span>
+        {/* ── Hero: Saldo do mês ── */}
+        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-5">
+          {carregando ? (
+            <div className="animate-pulse space-y-3">
+              <div className="h-4 bg-gray-100 rounded-xl w-1/3" />
+              <div className="h-9 bg-gray-100 rounded-xl w-2/3" />
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="h-14 bg-gray-100 rounded-2xl" />
+                <div className="h-14 bg-gray-100 rounded-2xl" />
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                    {resumoCaixa.faturaEhPrevisto ? 'Saldo estimado' : 'Saldo atual'}
+                  </p>
+                  <p className={`text-3xl font-bold num ${heroColor}`}>
+                    {fmt(heroSaldo)}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    <HeroIcon className={`w-3.5 h-3.5 ${heroColor}`} />
+                    <span className="text-xs text-gray-400">
+                      {resumoCaixa.percentualComprometimento.toFixed(1)}% da renda comprometido
+                    </span>
                   </div>
-                )}
-                {fatura.matheusProjecaoParcelas > 0 && (
-                  <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
-                    <span>Parc. prev.</span>
-                    <span className="font-medium text-orange-700 whitespace-nowrap">− R$ {fatura.matheusProjecaoParcelas.toFixed(2)}</span>
-                  </div>
-                )}
-                <div className="mt-2 h-1 bg-blue-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-400 rounded-full" style={{ width: `${fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100) : 0}%` }} />
                 </div>
-                <p className="text-right text-xs text-blue-400 mt-0.5">{fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100).toFixed(0) : 0}% usado</p>
-                <div className={`flex justify-between text-xs font-bold mt-1 ${fatura.sobraMatheus < 0 ? 'text-red-600' : matheusSobraWarning ? 'text-yellow-600' : 'text-green-600'}`}>
-                  <span className="whitespace-nowrap flex items-center gap-0.5">
-                    {fatura.sobraMatheus < 0 ? '⚠ Excesso' : matheusSobraWarning ? <><AlertTriangle className="w-3 h-3 inline-block" /> Atenção!</> : '✓ Sobra'}
+                {!isMesAtual && (
+                  <span className="text-xs bg-amber-50 text-amber-700 border border-amber-100 rounded-xl px-2.5 py-1 font-medium">
+                    Histórico
                   </span>
-                  <span className="whitespace-nowrap">R$ {Math.abs(fatura.sobraMatheus).toFixed(2)}</span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-3">
+                  <p className="text-xs text-emerald-600 font-medium mb-0.5">Receita</p>
+                  <p className="text-base font-bold text-emerald-700 num">{fmt(resumoCaixa.receitaTotal)}</p>
+                </div>
+                <div className="bg-red-50 border border-red-100 rounded-2xl p-3">
+                  <p className="text-xs text-red-500 font-medium mb-0.5">Gastos</p>
+                  <p className="text-base font-bold text-red-600 num">{fmt(resumoCaixa.totalGastos)}</p>
                 </div>
               </div>
 
-              {/* Jeniffer NuBank */}
-              <div className="bg-pink-50 border border-pink-100 border-t-2 border-t-pink-400 p-3 rounded-2xl shadow-card">
-                <p className="font-semibold text-pink-800 mb-2">Jeniffer</p>
-                <div className="flex justify-between text-xs gap-1 text-gray-600">
-                  <span>Atual</span>
-                  <span className="font-medium text-gray-800 whitespace-nowrap">R$ {fatura.jenifferAtual.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
-                  <span>Previsto</span>
-                  <span className="font-medium text-gray-800 whitespace-nowrap">R$ {fatura.jenifferPrevisto.toFixed(2)}</span>
-                </div>
-                {assinaturasNaopagas.jeniffer > 0 && (
-                  <div className="flex justify-between text-xs gap-1 mt-0.5 text-indigo-600">
-                    <span>Assinaturas</span>
-                    <span className="font-medium whitespace-nowrap">R$ {assinaturasNaopagas.jeniffer.toFixed(2)}</span>
-                  </div>
-                )}
-                {fatura.jenifferProjecaoParcelas > 0 && (
-                  <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
-                    <span>Parc. prev.</span>
-                    <span className="font-medium text-orange-700 whitespace-nowrap">− R$ {fatura.jenifferProjecaoParcelas.toFixed(2)}</span>
-                  </div>
-                )}
-                <div className="mt-2 h-1 bg-pink-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-pink-400 rounded-full" style={{ width: `${fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100) : 0}%` }} />
-                </div>
-                <p className="text-right text-xs text-pink-400 mt-0.5">{fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100).toFixed(0) : 0}% usado</p>
-                <div className={`flex justify-between text-xs font-bold mt-1 ${fatura.sobraJeniffer < 0 ? 'text-red-600' : jenifferSobraWarning ? 'text-yellow-600' : 'text-green-600'}`}>
-                  <span className="whitespace-nowrap flex items-center gap-0.5">
-                    {fatura.sobraJeniffer < 0 ? '⚠ Excesso' : jenifferSobraWarning ? <><AlertTriangle className="w-3 h-3 inline-block" /> Atenção!</> : '✓ Sobra'}
+              {/* Barra de comprometimento */}
+              <div className="mt-4">
+                <div className="flex justify-between items-center mb-1.5">
+                  <span className="text-xs text-gray-500">Comprometimento da renda</span>
+                  <span className={`text-xs font-bold num ${comprometimentoColor}`}>
+                    {resumoCaixa.percentualComprometimento.toFixed(1)}%
                   </span>
-                  <span className="whitespace-nowrap">R$ {Math.abs(fatura.sobraJeniffer).toFixed(2)}</span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                  <div
+                    className={`h-2 rounded-full transition-all duration-700 ${comprometimentoBarColor}`}
+                    style={{ width: `${Math.min(resumoCaixa.percentualComprometimento, 100)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between mt-1">
+                  <span className="text-[10px] text-gray-300">0%</span>
+                  <span className="text-[10px] text-amber-400">70%</span>
+                  <span className="text-[10px] text-red-400">90%</span>
+                  <span className="text-[10px] text-gray-300">100%</span>
                 </div>
               </div>
+            </>
+          )}
+        </div>
+
+        {/* ── Gestão de Fatura NuBank ── */}
+        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-primary-50 flex items-center justify-center">
+                <CreditCard className="w-4 h-4 text-primary-600" />
+              </div>
+              <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
+                Fatura NuBank
+                <InfoPopover texto="Visão consolidada da fatura NuBank por pessoa. 'Atual' é o valor já lançado no cartão. 'Previsto' é o limite planejado. 'Sobra' é o quanto resta antes de ultrapassar o orçamento. Os cards de 'Outros cartões' mostram o pago vs. previsto de cartões secundários (PicPay, etc.). O 'Resumo por pessoa' soma tudo: atual NuBank + parcelas projetadas + previsto dos demais cartões, indicando o total comprometido e quanto ainda resta do orçamento." />
+              </h2>
             </div>
-
-            {(fatura.cartao1Items.length > 0 || fatura.cartao2Items.length > 0) && (() => {
-              const c1M = fatura.cartao1Items.filter(i => i.responsavel === 'Matheus')
-              const c1J = fatura.cartao1Items.filter(i => i.responsavel === 'Jeniffer')
-              const c2M = fatura.cartao2Items.filter(i => i.responsavel === 'Matheus')
-              const c2J = fatura.cartao2Items.filter(i => i.responsavel === 'Jeniffer')
-              const c1Total = fatura.cartao1AtualMatheus + fatura.cartao1AtualJeniffer
-              const c2Total = fatura.cartao2AtualMatheus + fatura.cartao2AtualJeniffer
-              const outrosCards = [
-                ...(c1M.length > 0 ? [{ label: c1M.map(i => i.nome).join(' / '), responsavel: 'Matheus', atual: c1Total, previsto: c1M.reduce((s, i) => s + i.previsto, 0) }] : []),
-                ...(c1J.length > 0 ? [{ label: c1J.map(i => i.nome).join(' / '), responsavel: 'Jeniffer', atual: c1Total, previsto: c1J.reduce((s, i) => s + i.previsto, 0) }] : []),
-                ...(c2M.length > 0 ? [{ label: c2M.map(i => i.nome).join(' / '), responsavel: 'Matheus', atual: c2Total, previsto: c2M.reduce((s, i) => s + i.previsto, 0) }] : []),
-                ...(c2J.length > 0 ? [{ label: c2J.map(i => i.nome).join(' / '), responsavel: 'Jeniffer', atual: c2Total, previsto: c2J.reduce((s, i) => s + i.previsto, 0) }] : []),
-              ].filter(c => c.atual > 0 || c.previsto > 0)
-
-              const matheusCardsAtual = outrosCards.filter(c => c.responsavel === 'Matheus').reduce((s, c) => s + c.atual, 0)
-              const matheusCardsPrevisto = outrosCards.filter(c => c.responsavel === 'Matheus').reduce((s, c) => s + c.previsto, 0)
-              const jenifferCardsAtual = outrosCards.filter(c => c.responsavel === 'Jeniffer').reduce((s, c) => s + c.atual, 0)
-              const jenifferCardsPrevisto = outrosCards.filter(c => c.responsavel === 'Jeniffer').reduce((s, c) => s + c.previsto, 0)
-              const matheusTotalPrevisto = fatura.matheusPrevisto + matheusCardsPrevisto
-              const matheusTotalAtual = fatura.matheusAtual + matheusCardsAtual
-              const matheusRestante = matheusTotalPrevisto - matheusTotalAtual
-              const matheusPct = matheusTotalPrevisto > 0 ? Math.min(100, (matheusTotalAtual / matheusTotalPrevisto) * 100) : 0
-              const matheusResumoWarning = matheusRestante >= 0 && matheusTotalPrevisto > 0 && (matheusRestante / matheusTotalPrevisto) * 100 <= 10
-              const jenifferTotalPrevisto = fatura.jenifferPrevisto + jenifferCardsPrevisto
-              const jenifferTotalAtual = fatura.jenifferAtual + jenifferCardsAtual
-              const jenifferRestante = jenifferTotalPrevisto - jenifferTotalAtual
-              const jenifferPct = jenifferTotalPrevisto > 0 ? Math.min(100, (jenifferTotalAtual / jenifferTotalPrevisto) * 100) : 0
-              const jenifferResumoWarning = jenifferRestante >= 0 && jenifferTotalPrevisto > 0 && (jenifferRestante / jenifferTotalPrevisto) * 100 <= 10
-
+            {dataFechamentoNubank && !carregando && (() => {
+              const d = new Date(dataFechamentoNubank + 'T12:00:00')
               return (
-                <div className="opacity-60 mt-2">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Outros cartões</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {outrosCards.map((card, i) => {
-                      const sobra = Math.round((card.previsto - card.atual) * 100) / 100
-                      const pct = card.previsto > 0 ? Math.min(100, (card.atual / card.previsto) * 100) : 0
-                      const pctRestante = card.previsto > 0 ? (sobra / card.previsto) * 100 : 100
-                      const isWarning = sobra >= 0 && pctRestante <= 10
-                      const isMatheus = card.responsavel === 'Matheus'
-                      return (
-                        <div key={i} className={`p-2 rounded-2xl shadow-card border border-t-2 ${
-                          isMatheus
-                            ? 'bg-blue-50 border-blue-100 border-t-blue-400'
-                            : 'bg-pink-50 border-pink-100 border-t-pink-400'
-                        }`}>
-                          <p className={`font-semibold text-xs mb-1 ${isMatheus ? 'text-blue-800' : 'text-pink-800'}`}>{card.label}</p>
-                          <div className="flex justify-between text-xs gap-1 text-gray-600">
-                            <span>Atual</span>
-                            <span className="font-medium text-gray-800 whitespace-nowrap">R$ {card.atual.toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
-                            <span>Previsto</span>
-                            <span className="font-medium text-gray-800 whitespace-nowrap">R$ {card.previsto.toFixed(2)}</span>
-                          </div>
-                          <div className={`mt-1.5 h-1 rounded-full overflow-hidden ${isMatheus ? 'bg-blue-100' : 'bg-pink-100'}`}>
-                            <div className={`h-full rounded-full ${isMatheus ? 'bg-blue-400' : 'bg-pink-400'}`} style={{ width: `${pct}%` }} />
-                          </div>
-                          <p className={`text-right text-xs mt-0.5 ${isMatheus ? 'text-blue-400' : 'text-pink-400'}`}>{pct.toFixed(0)}% usado</p>
-                          <div className={`flex items-center justify-between text-xs font-bold mt-1 ${
-                            sobra < 0 ? 'text-red-600' : isWarning ? 'text-yellow-600' : 'text-green-600'
-                          }`}>
-                            <span className="whitespace-nowrap flex items-center gap-0.5">
-                              {sobra < 0
-                                ? '⚠ Excesso'
-                                : isWarning
-                                ? <><AlertTriangle className="w-3 h-3 inline-block" /> Atenção!</>
-                                : '✓ Restante'}
-                            </span>
-                            <span className="whitespace-nowrap">R$ {Math.abs(sobra).toFixed(2)}</span>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-2 mb-1.5">Resumo por pessoa</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="bg-blue-50 border border-blue-100 border-t-4 border-t-blue-500 p-2 rounded-2xl shadow-card">
-                      <p className="font-bold text-xs text-blue-700 uppercase tracking-wide mb-1.5">Matheus</p>
-                      <div className="flex justify-between text-xs gap-1 text-gray-600">
-                        <span>Atual</span>
-                        <span className="font-medium text-gray-800 whitespace-nowrap">R$ {matheusTotalAtual.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
-                        <span>Previsto</span>
-                        <span className="font-medium text-gray-800 whitespace-nowrap">R$ {matheusTotalPrevisto.toFixed(2)}</span>
-                      </div>
-                      <div className="mt-1.5 h-1.5 bg-blue-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-blue-500 rounded-full" style={{ width: `${matheusPct}%` }} />
-                      </div>
-                      <p className="text-right text-xs text-blue-400 mt-0.5">{matheusPct.toFixed(0)}% usado</p>
-                      <div className={`flex justify-between text-xs font-bold mt-1 ${matheusRestante < 0 ? 'text-red-600' : matheusResumoWarning ? 'text-yellow-600' : 'text-green-600'}`}>
-                        <span className="whitespace-nowrap flex items-center gap-0.5">
-                          {matheusRestante < 0 ? '⚠ Excesso' : matheusResumoWarning ? <><AlertTriangle className="w-3 h-3 inline-block" /> Atenção!</> : '✓ Restante'}
-                        </span>
-                        <span className="whitespace-nowrap">R$ {Math.abs(matheusRestante).toFixed(2)}</span>
-                      </div>
-                    </div>
-                    <div className="bg-pink-50 border border-pink-100 border-t-4 border-t-pink-500 p-2 rounded-2xl shadow-card">
-                      <p className="font-bold text-xs text-pink-700 uppercase tracking-wide mb-1.5">Jeniffer</p>
-                      <div className="flex justify-between text-xs gap-1 text-gray-600">
-                        <span>Atual</span>
-                        <span className="font-medium text-gray-800 whitespace-nowrap">R$ {jenifferTotalAtual.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-600">
-                        <span>Previsto</span>
-                        <span className="font-medium text-gray-800 whitespace-nowrap">R$ {jenifferTotalPrevisto.toFixed(2)}</span>
-                      </div>
-                      <div className="mt-1.5 h-1.5 bg-pink-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-pink-500 rounded-full" style={{ width: `${jenifferPct}%` }} />
-                      </div>
-                      <p className="text-right text-xs text-pink-400 mt-0.5">{jenifferPct.toFixed(0)}% usado</p>
-                      <div className={`flex justify-between text-xs font-bold mt-1 ${jenifferRestante < 0 ? 'text-red-600' : jenifferResumoWarning ? 'text-yellow-600' : 'text-green-600'}`}>
-                        <span className="whitespace-nowrap flex items-center gap-0.5">
-                          {jenifferRestante < 0 ? '⚠ Excesso' : jenifferResumoWarning ? <><AlertTriangle className="w-3 h-3 inline-block" /> Atenção!</> : '✓ Restante'}
-                        </span>
-                        <span className="whitespace-nowrap">R$ {Math.abs(jenifferRestante).toFixed(2)}</span>
-                      </div>
-                    </div>
-                  </div>
+                <div className="shrink-0 bg-primary-50 border border-primary-100 rounded-xl px-2.5 py-1.5 text-right">
+                  <p className="text-[10px] font-medium text-primary-400 uppercase tracking-wider leading-none">Fecha</p>
+                  <p className="text-xs font-bold text-primary-700 num leading-snug mt-0.5">
+                    {format(d, 'dd/MM')}
+                  </p>
+                  <p className="text-[10px] text-primary-400 capitalize leading-none mt-0.5">
+                    {format(d, 'EEEE', { locale: ptBR })}
+                  </p>
                 </div>
               )
             })()}
-          </>
-        )}
-      </div>
+          </div>
 
-      {/* Resumo de Caixa */}
-      <div className="bg-white rounded-3xl shadow-card p-4 mb-4">
-        <h2 className="text-lg font-semibold mb-3 flex items-center gap-1.5">
-          💰 Resumo de Caixa
-          <InfoPopover texto="Visão geral das finanças do mês. O 'Saldo Previsto' considera apenas os valores planejados. O 'Saldo Atual' usa a fatura real do NuBank quando disponível, ou a estimada por parcelas. O comprometimento indica qual percentual da renda já está comprometido com gastos." />
-        </h2>
-        {carregando ? (
-          <div className="animate-pulse space-y-3">
-            <div className="h-6 bg-gray-200 rounded-xl w-full" />
-            <div className="h-6 bg-gray-200 rounded-xl w-full" />
-            <div className="h-6 bg-gray-200 rounded-xl w-full" />
-            <div className="h-3 bg-gray-200 rounded-full w-full" />
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-500">Receita prevista</span>
-              <span className="text-green-700 font-medium">R$ {resumoCaixa.receitaTotal.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-500">Despesas planejadas</span>
-              <span className="text-gray-700 font-medium">− R$ {resumoCaixa.contasFixas.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-500">
-                Faturas
-                {resumoCaixa.faturaEhPrevisto && (
-                  <span className="ml-1 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">previsto</span>
-                )}
-              </span>
-              <span className="text-gray-700 font-medium">− R$ {resumoCaixa.fatura.toFixed(2)}</span>
-            </div>
-            <div className="border-t pt-2 grid grid-cols-2 gap-2">
-              <div className="flex flex-col items-center py-2 px-3 rounded-2xl bg-gray-50 border border-gray-100 shadow-card">
-                <span className="text-xs text-gray-500 mb-1">Saldo Previsto</span>
-                <span className={`text-base font-bold ${resumoCaixa.saldoPrevisto < 0 ? 'text-red-600' : saldoPrevistoWarning ? 'text-yellow-600' : 'text-primary-600'}`}>
-                  R$ {resumoCaixa.saldoPrevisto.toFixed(2)}
-                </span>
-                {saldoPrevistoWarning && resumoCaixa.saldoPrevisto >= 0
-                  ? <span className="text-[10px] text-yellow-600 font-bold mt-0.5 flex items-center gap-0.5"><AlertTriangle className="w-2.5 h-2.5 inline-block" /> Atenção!</span>
-                  : <span className="text-[10px] text-gray-400 mt-0.5">só previsões</span>
-                }
-              </div>
-              <div className="flex flex-col items-center py-2 px-3 rounded-2xl bg-primary-50 border border-primary-100 shadow-card">
-                <span className="text-xs text-primary-600 mb-1">Saldo Atual</span>
-                <span className={`text-base font-bold ${resumoCaixa.sobraLiquida < 0 ? 'text-red-600' : saldoAtualWarning ? 'text-yellow-600' : 'text-primary-700'}`}>
-                  R$ {resumoCaixa.sobraLiquida.toFixed(2)}
-                </span>
-                {saldoAtualWarning && resumoCaixa.sobraLiquida >= 0
-                  ? <span className="text-[10px] text-yellow-600 font-bold mt-0.5 flex items-center gap-0.5"><AlertTriangle className="w-2.5 h-2.5 inline-block" /> Atenção!</span>
-                  : <span className="text-[10px] text-primary-400 mt-0.5">{resumoCaixa.faturaEhPrevisto ? 'fatura estimada' : 'fatura real'}</span>
-                }
-              </div>
-            </div>
-            <div className="pt-1">
-              <div className="flex justify-between items-center mb-1.5">
-                <span className="text-xs text-gray-500">Comprometimento da renda</span>
-                <span className={`text-sm font-bold ${comprometimentoColor}`}>
-                  {resumoCaixa.percentualComprometimento.toFixed(1)}%
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
-                <div
-                  className={`h-2.5 rounded-full transition-all duration-700 ${comprometimentoBarColor}`}
-                  style={{ width: `${Math.min(resumoCaixa.percentualComprometimento, 100)}%` }}
-                />
-              </div>
-              <div className="flex justify-between mt-1">
-                <span className="text-xs text-gray-400">0%</span>
-                <span className="text-xs text-yellow-500">70%</span>
-                <span className="text-xs text-red-400">90%</span>
-                <span className="text-xs text-gray-400">100%</span>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Investimentos */}
-      {(carregando || investimentos.length > 0) && (
-        <div className="bg-white rounded-3xl shadow-card p-4 mb-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <PiggyBank className="w-5 h-5 text-violet-600" />
-              <h2 className="text-lg font-semibold flex items-center gap-1.5">
-                Investimentos
-                <InfoPopover texto="Progresso dos aportes mensais em cada investimento. A meta de cada item é calculada como um percentual da sobra líquida do mês. Quando o aporte atinge a meta, o indicador fica verde." />
-              </h2>
-            </div>
-            <a href="/investimentos" className="text-xs text-violet-600 hover:underline">Ver tudo</a>
-          </div>
           {carregando ? (
-            <div className="animate-pulse space-y-2">
-              <div className="h-5 bg-gray-200 rounded-xl w-3/4" />
-              <div className="h-5 bg-gray-200 rounded-xl w-1/2" />
+            <div className="animate-pulse space-y-3">
+              <div className="h-8 bg-gray-100 rounded-xl w-2/5" />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="h-28 bg-gray-100 rounded-2xl" />
+                <div className="h-28 bg-gray-100 rounded-2xl" />
+              </div>
             </div>
           ) : (
-            <div className="space-y-3">
-              {investimentos.map((inv) => {
-                const meta = resumoCaixa.sobraLiquida > 0 ? resumoCaixa.sobraLiquida * inv.percentual / 100 : 0
-                const metaPrevista = resumoCaixa.saldoPrevisto > 0 ? resumoCaixa.saldoPrevisto * inv.percentual / 100 : 0
-                const progresso = meta > 0 ? Math.min((inv.aportado / meta) * 100, 100) : 0
-                const concluido = meta > 0 && inv.aportado >= meta
-                return (
-                  <div key={inv.id}>
-                    <div className="flex justify-between items-center text-sm mb-1">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-1.5 h-1.5 rounded-full ${concluido ? 'bg-green-500' : 'bg-violet-400'}`} />
-                        <span className="text-gray-700">{inv.descricao}</span>
-                      </div>
-                      <div className="text-right">
-                        <div>
-                          <span className={`font-semibold ${concluido ? 'text-green-600' : 'text-violet-700'}`}>
-                            R$ {inv.aportado.toFixed(2)}
-                          </span>
-                          <span className="text-gray-400 text-xs ml-1">/ R$ {meta.toFixed(2)}</span>
-                        </div>
-                        {metaPrevista !== meta && metaPrevista > 0 && (
-                          <div className="text-xs text-violet-400">
-                            prev. R$ {metaPrevista.toFixed(2)}
-                          </div>
-                        )}
-                      </div>
+            <>
+              <div className="mb-3">
+                <p className="text-2xl font-bold text-gray-900 num">{fmt(fatura.totalRealizado)}</p>
+                <p className="text-xs text-gray-400 mt-0.5">total atual na fatura NuBank</p>
+              </div>
+
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">NuBank</p>
+              <div className="grid grid-cols-2 gap-3">
+                {/* Matheus NuBank */}
+                <div className="bg-blue-50 border border-blue-100 border-t-2 border-t-blue-400 p-3 rounded-2xl">
+                  <p className="font-semibold text-blue-800 text-sm mb-2">Matheus</p>
+                  <div className="flex justify-between text-xs gap-1 text-gray-500">
+                    <span>Atual</span>
+                    <span className="font-medium text-gray-800 num">{fmt(fatura.matheusAtual)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-500">
+                    <span>Previsto</span>
+                    <span className="font-medium text-gray-800 num">{fmt(fatura.matheusPrevisto)}</span>
+                  </div>
+                  {assinaturasNaopagas.matheus > 0 && (
+                    <div className="flex justify-between text-xs gap-1 mt-0.5 text-indigo-600">
+                      <span>Assinaturas</span>
+                      <span className="font-medium num">{fmt(assinaturasNaopagas.matheus)}</span>
                     </div>
-                    <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                      <div
-                        className={`h-1.5 rounded-full transition-all duration-500 ${concluido ? 'bg-gradient-to-r from-green-500 to-emerald-500' : 'bg-gradient-to-r from-violet-400 to-violet-600'}`}
-                        style={{ width: `${progresso}%` }}
-                      />
+                  )}
+                  {fatura.matheusProjecaoParcelas > 0 && (
+                    <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-500">
+                      <span>Parc. prev.</span>
+                      <span className="font-medium text-orange-700 num">− {fmt(fatura.matheusProjecaoParcelas)}</span>
+                    </div>
+                  )}
+                  <div className="mt-2 h-2 bg-blue-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-400 rounded-full transition-all duration-500" style={{ width: `${fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100) : 0}%` }} />
+                  </div>
+                  <p className="text-right text-[10px] text-blue-400 mt-0.5 num">{fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100).toFixed(0) : 0}%</p>
+                  <div className={`flex justify-between text-xs font-bold mt-1.5 ${fatura.sobraMatheus < 0 ? 'text-red-600' : matheusSobraWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
+                    <span className="flex items-center gap-0.5">
+                      {fatura.sobraMatheus < 0 ? '⚠ Excesso' : matheusSobraWarning ? <><AlertTriangle className="w-3 h-3 inline-block" /> Atenção!</> : '✓ Sobra'}
+                    </span>
+                    <span className="num">{fmt(Math.abs(fatura.sobraMatheus))}</span>
+                  </div>
+                </div>
+
+                {/* Jeniffer NuBank */}
+                <div className="bg-pink-50 border border-pink-100 border-t-2 border-t-pink-400 p-3 rounded-2xl">
+                  <p className="font-semibold text-pink-800 text-sm mb-2">Jeniffer</p>
+                  <div className="flex justify-between text-xs gap-1 text-gray-500">
+                    <span>Atual</span>
+                    <span className="font-medium text-gray-800 num">{fmt(fatura.jenifferAtual)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-500">
+                    <span>Previsto</span>
+                    <span className="font-medium text-gray-800 num">{fmt(fatura.jenifferPrevisto)}</span>
+                  </div>
+                  {assinaturasNaopagas.jeniffer > 0 && (
+                    <div className="flex justify-between text-xs gap-1 mt-0.5 text-indigo-600">
+                      <span>Assinaturas</span>
+                      <span className="font-medium num">{fmt(assinaturasNaopagas.jeniffer)}</span>
+                    </div>
+                  )}
+                  {fatura.jenifferProjecaoParcelas > 0 && (
+                    <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-500">
+                      <span>Parc. prev.</span>
+                      <span className="font-medium text-orange-700 num">− {fmt(fatura.jenifferProjecaoParcelas)}</span>
+                    </div>
+                  )}
+                  <div className="mt-2 h-2 bg-pink-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-pink-400 rounded-full transition-all duration-500" style={{ width: `${fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100) : 0}%` }} />
+                  </div>
+                  <p className="text-right text-[10px] text-pink-400 mt-0.5 num">{fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100).toFixed(0) : 0}%</p>
+                  <div className={`flex justify-between text-xs font-bold mt-1.5 ${fatura.sobraJeniffer < 0 ? 'text-red-600' : jenifferSobraWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
+                    <span className="flex items-center gap-0.5">
+                      {fatura.sobraJeniffer < 0 ? '⚠ Excesso' : jenifferSobraWarning ? <><AlertTriangle className="w-3 h-3 inline-block" /> Atenção!</> : '✓ Sobra'}
+                    </span>
+                    <span className="num">{fmt(Math.abs(fatura.sobraJeniffer))}</span>
+                  </div>
+                </div>
+              </div>
+
+              {(fatura.cartao1Items.length > 0 || fatura.cartao2Items.length > 0) && (() => {
+                const c1M = fatura.cartao1Items.filter(i => i.responsavel === 'Matheus')
+                const c1J = fatura.cartao1Items.filter(i => i.responsavel === 'Jeniffer')
+                const c2M = fatura.cartao2Items.filter(i => i.responsavel === 'Matheus')
+                const c2J = fatura.cartao2Items.filter(i => i.responsavel === 'Jeniffer')
+                const c1Total = fatura.cartao1AtualMatheus + fatura.cartao1AtualJeniffer
+                const c2Total = fatura.cartao2AtualMatheus + fatura.cartao2AtualJeniffer
+                const outrosCards = [
+                  ...(c1M.length > 0 ? [{ label: c1M.map(i => i.nome).join(' / '), responsavel: 'Matheus', atual: c1Total, previsto: c1M.reduce((s, i) => s + i.previsto, 0) }] : []),
+                  ...(c1J.length > 0 ? [{ label: c1J.map(i => i.nome).join(' / '), responsavel: 'Jeniffer', atual: c1Total, previsto: c1J.reduce((s, i) => s + i.previsto, 0) }] : []),
+                  ...(c2M.length > 0 ? [{ label: c2M.map(i => i.nome).join(' / '), responsavel: 'Matheus', atual: c2Total, previsto: c2M.reduce((s, i) => s + i.previsto, 0) }] : []),
+                  ...(c2J.length > 0 ? [{ label: c2J.map(i => i.nome).join(' / '), responsavel: 'Jeniffer', atual: c2Total, previsto: c2J.reduce((s, i) => s + i.previsto, 0) }] : []),
+                ].filter(c => c.atual > 0 || c.previsto > 0)
+
+                const matheusCardsAtual = outrosCards.filter(c => c.responsavel === 'Matheus').reduce((s, c) => s + c.atual, 0)
+                const matheusCardsPrevisto = outrosCards.filter(c => c.responsavel === 'Matheus').reduce((s, c) => s + c.previsto, 0)
+                const jenifferCardsAtual = outrosCards.filter(c => c.responsavel === 'Jeniffer').reduce((s, c) => s + c.atual, 0)
+                const jenifferCardsPrevisto = outrosCards.filter(c => c.responsavel === 'Jeniffer').reduce((s, c) => s + c.previsto, 0)
+                const matheusTotalPrevisto = fatura.matheusPrevisto + matheusCardsPrevisto
+                const matheusTotalAtual = fatura.matheusAtual + matheusCardsAtual
+                const matheusRestante = matheusTotalPrevisto - matheusTotalAtual
+                const matheusPct = matheusTotalPrevisto > 0 ? Math.min(100, (matheusTotalAtual / matheusTotalPrevisto) * 100) : 0
+                const matheusResumoWarning = matheusRestante >= 0 && matheusTotalPrevisto > 0 && (matheusRestante / matheusTotalPrevisto) * 100 <= 10
+                const jenifferTotalPrevisto = fatura.jenifferPrevisto + jenifferCardsPrevisto
+                const jenifferTotalAtual = fatura.jenifferAtual + jenifferCardsAtual
+                const jenifferRestante = jenifferTotalPrevisto - jenifferTotalAtual
+                const jenifferPct = jenifferTotalPrevisto > 0 ? Math.min(100, (jenifferTotalAtual / jenifferTotalPrevisto) * 100) : 0
+                const jenifferResumoWarning = jenifferRestante >= 0 && jenifferTotalPrevisto > 0 && (jenifferRestante / jenifferTotalPrevisto) * 100 <= 10
+
+                return (
+                  <div className="mt-4 opacity-70">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Outros cartões</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {outrosCards.map((card, i) => {
+                        const sobra = Math.round((card.previsto - card.atual) * 100) / 100
+                        const pct = card.previsto > 0 ? Math.min(100, (card.atual / card.previsto) * 100) : 0
+                        const pctRestante = card.previsto > 0 ? (sobra / card.previsto) * 100 : 100
+                        const isWarning = sobra >= 0 && pctRestante <= 10
+                        const isMatheus = card.responsavel === 'Matheus'
+                        return (
+                          <div key={i} className={`p-2 rounded-2xl border border-t-2 ${
+                            isMatheus ? 'bg-blue-50 border-blue-100 border-t-blue-400' : 'bg-pink-50 border-pink-100 border-t-pink-400'
+                          }`}>
+                            <p className={`font-semibold text-xs mb-1 ${isMatheus ? 'text-blue-800' : 'text-pink-800'}`}>{card.label}</p>
+                            <div className="flex justify-between text-xs gap-1 text-gray-500">
+                              <span>Atual</span>
+                              <span className="font-medium text-gray-800 num">{fmt(card.atual)}</span>
+                            </div>
+                            <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-500">
+                              <span>Previsto</span>
+                              <span className="font-medium text-gray-800 num">{fmt(card.previsto)}</span>
+                            </div>
+                            <div className={`mt-1.5 h-2 rounded-full overflow-hidden ${isMatheus ? 'bg-blue-100' : 'bg-pink-100'}`}>
+                              <div className={`h-full rounded-full transition-all duration-500 ${isMatheus ? 'bg-blue-400' : 'bg-pink-400'}`} style={{ width: `${pct}%` }} />
+                            </div>
+                            <div className={`flex items-center justify-between text-xs font-bold mt-1 ${
+                              sobra < 0 ? 'text-red-600' : isWarning ? 'text-amber-600' : 'text-emerald-600'
+                            }`}>
+                              <span className="flex items-center gap-0.5">
+                                {sobra < 0 ? '⚠ Excesso' : isWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção!</> : '✓ Restante'}
+                              </span>
+                              <span className="num">{fmt(Math.abs(sobra))}</span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-3 mb-2">Resumo por pessoa</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-blue-50 border border-blue-100 border-t-4 border-t-blue-500 p-2 rounded-2xl">
+                        <p className="font-bold text-xs text-blue-700 uppercase tracking-wide mb-1.5">Matheus</p>
+                        <div className="flex justify-between text-xs gap-1 text-gray-500"><span>Atual</span><span className="font-medium text-gray-800 num">{fmt(matheusTotalAtual)}</span></div>
+                        <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-500"><span>Previsto</span><span className="font-medium text-gray-800 num">{fmt(matheusTotalPrevisto)}</span></div>
+                        <div className="mt-1.5 h-2 bg-blue-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${matheusPct}%` }} />
+                        </div>
+                        <div className={`flex justify-between text-xs font-bold mt-1 ${matheusRestante < 0 ? 'text-red-600' : matheusResumoWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
+                          <span className="flex items-center gap-0.5">{matheusRestante < 0 ? '⚠ Excesso' : matheusResumoWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção!</> : '✓ Restante'}</span>
+                          <span className="num">{fmt(Math.abs(matheusRestante))}</span>
+                        </div>
+                      </div>
+                      <div className="bg-pink-50 border border-pink-100 border-t-4 border-t-pink-500 p-2 rounded-2xl">
+                        <p className="font-bold text-xs text-pink-700 uppercase tracking-wide mb-1.5">Jeniffer</p>
+                        <div className="flex justify-between text-xs gap-1 text-gray-500"><span>Atual</span><span className="font-medium text-gray-800 num">{fmt(jenifferTotalAtual)}</span></div>
+                        <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-500"><span>Previsto</span><span className="font-medium text-gray-800 num">{fmt(jenifferTotalPrevisto)}</span></div>
+                        <div className="mt-1.5 h-2 bg-pink-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-pink-500 rounded-full transition-all duration-500" style={{ width: `${jenifferPct}%` }} />
+                        </div>
+                        <div className={`flex justify-between text-xs font-bold mt-1 ${jenifferRestante < 0 ? 'text-red-600' : jenifferResumoWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
+                          <span className="flex items-center gap-0.5">{jenifferRestante < 0 ? '⚠ Excesso' : jenifferResumoWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção!</> : '✓ Restante'}</span>
+                          <span className="num">{fmt(Math.abs(jenifferRestante))}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )
-              })}
-              {investimentos.length > 0 && (
-                <div className="border-t pt-2 space-y-1">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-500 font-medium">Total aportado</span>
-                    <span className="font-bold text-violet-700">
-                      R$ {investimentos.reduce((a, i) => a + i.aportado, 0).toFixed(2)}
-                    </span>
-                  </div>
-                  {resumoCaixa.saldoPrevisto !== resumoCaixa.sobraLiquida && (
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-violet-400">Meta total prevista</span>
-                      <span className="text-violet-500 font-medium">
-                        R$ {investimentos.reduce((a, i) => a + (resumoCaixa.saldoPrevisto > 0 ? resumoCaixa.saldoPrevisto * i.percentual / 100 : 0), 0).toFixed(2)}
-                      </span>
-                    </div>
+              })()}
+            </>
+          )}
+        </div>
+
+        {/* ── Resumo de Caixa ── */}
+        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center">
+              <Wallet className="w-4 h-4 text-emerald-600" />
+            </div>
+            <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
+              Resumo de Caixa
+              <InfoPopover texto="Visão geral das finanças do mês. O 'Saldo Previsto' considera apenas os valores planejados. O 'Saldo Atual' usa a fatura real do NuBank quando disponível, ou a estimada por parcelas. O comprometimento indica qual percentual da renda já está comprometido com gastos." />
+            </h2>
+          </div>
+          {carregando ? (
+            <div className="animate-pulse space-y-2.5">
+              <div className="h-5 bg-gray-100 rounded-xl w-full" />
+              <div className="h-5 bg-gray-100 rounded-xl w-full" />
+              <div className="h-5 bg-gray-100 rounded-xl w-full" />
+              <div className="h-3 bg-gray-100 rounded-full w-full mt-2" />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-500">Receita prevista</span>
+                <span className="text-emerald-700 font-semibold num">{fmt(resumoCaixa.receitaTotal)}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-500">Despesas planejadas</span>
+                <span className="text-gray-700 font-medium num">− {fmt(resumoCaixa.contasFixas)}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-500 flex items-center gap-1.5">
+                  Faturas
+                  {resumoCaixa.faturaEhPrevisto && (
+                    <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">estimado</span>
                   )}
+                </span>
+                <span className="text-gray-700 font-medium num">− {fmt(resumoCaixa.fatura)}</span>
+              </div>
+              <div className="border-t border-gray-100 pt-3 grid grid-cols-2 gap-2">
+                <div className="flex flex-col items-center py-2.5 px-3 rounded-2xl bg-gray-50 border border-gray-100">
+                  <span className="text-xs text-gray-500 mb-1">Saldo Previsto</span>
+                  <span className={`text-base font-bold num ${resumoCaixa.saldoPrevisto < 0 ? 'text-red-600' : saldoPrevistoWarning ? 'text-amber-600' : 'text-primary-600'}`}>
+                    {fmt(resumoCaixa.saldoPrevisto)}
+                  </span>
+                  {saldoPrevistoWarning && resumoCaixa.saldoPrevisto >= 0
+                    ? <span className="text-[10px] text-amber-600 font-semibold mt-0.5 flex items-center gap-0.5"><AlertTriangle className="w-2.5 h-2.5" /> Atenção!</span>
+                    : <span className="text-[10px] text-gray-400 mt-0.5">só previsões</span>
+                  }
                 </div>
-              )}
+                <div className="flex flex-col items-center py-2.5 px-3 rounded-2xl bg-primary-50 border border-primary-100">
+                  <span className="text-xs text-primary-600 mb-1">Saldo Atual</span>
+                  <span className={`text-base font-bold num ${resumoCaixa.sobraLiquida < 0 ? 'text-red-600' : saldoAtualWarning ? 'text-amber-600' : 'text-primary-700'}`}>
+                    {fmt(resumoCaixa.sobraLiquida)}
+                  </span>
+                  {saldoAtualWarning && resumoCaixa.sobraLiquida >= 0
+                    ? <span className="text-[10px] text-amber-600 font-semibold mt-0.5 flex items-center gap-0.5"><AlertTriangle className="w-2.5 h-2.5" /> Atenção!</span>
+                    : <span className="text-[10px] text-primary-400 mt-0.5">{resumoCaixa.faturaEhPrevisto ? 'fatura estimada' : 'fatura real'}</span>
+                  }
+                </div>
+              </div>
             </div>
           )}
         </div>
-      )}
 
-      {/* Gráfico de Projeção de Parcelamentos */}
-      <div className="bg-white rounded-3xl shadow-card p-4 mb-4">
-        <h2 className="text-lg font-semibold flex items-center gap-1.5">
-          📈 Projeção de Parcelamentos
-          <InfoPopover texto="Previsão do total de parcelas que vencerão nos próximos 6 meses, separado por pessoa (Matheus, Jeniffer) e extras. Calculado com base nas transações parceladas já registradas no NuBank. Toque em um ponto do gráfico para ver os detalhes." />
-        </h2>
-        <p className="text-xs text-gray-400 mb-3">Próximos 6 meses · Toque em um ponto para ver detalhes</p>
-        <GraficoProjecao
-          mesInicio={mesAtual}
-          onPontoClicado={(serie, mes, valor, itens) => {
-            setDetalhesPonto({ serie, mes, valor, itens })
-            setDrawerAberto(true)
-          }}
-        />
-      </div>
+        {/* ── Investimentos ── */}
+        {(carregando || investimentos.length > 0) && (
+          <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center">
+                  <PiggyBank className="w-4 h-4 text-violet-600" />
+                </div>
+                <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
+                  Investimentos
+                  <InfoPopover texto="Progresso dos aportes mensais em cada investimento. A meta de cada item é calculada como um percentual da sobra líquida do mês. Quando o aporte atinge a meta, o indicador fica verde." />
+                </h2>
+              </div>
+              <a href="/investimentos" className="text-xs text-violet-600 hover:text-violet-700 transition-colors font-medium">
+                Ver tudo
+              </a>
+            </div>
+            {carregando ? (
+              <div className="animate-pulse space-y-3">
+                <div className="h-5 bg-gray-100 rounded-xl w-3/4" />
+                <div className="h-5 bg-gray-100 rounded-xl w-1/2" />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {investimentos.map((inv) => {
+                  const meta = resumoCaixa.sobraLiquida > 0 ? resumoCaixa.sobraLiquida * inv.percentual / 100 : 0
+                  const metaPrevista = resumoCaixa.saldoPrevisto > 0 ? resumoCaixa.saldoPrevisto * inv.percentual / 100 : 0
+                  const progresso = meta > 0 ? Math.min((inv.aportado / meta) * 100, 100) : 0
+                  const concluido = meta > 0 && inv.aportado >= meta
+                  return (
+                    <div key={inv.id}>
+                      <div className="flex justify-between items-center text-sm mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${concluido ? 'bg-emerald-500' : 'bg-violet-400'}`} />
+                          <span className="text-gray-700 text-sm">{inv.descricao}</span>
+                        </div>
+                        <div className="text-right">
+                          <div>
+                            <span className={`font-semibold num ${concluido ? 'text-emerald-600' : 'text-violet-700'}`}>
+                              {fmt(inv.aportado)}
+                            </span>
+                            <span className="text-gray-400 text-xs ml-1 num">/ {fmt(meta)}</span>
+                          </div>
+                          {metaPrevista !== meta && metaPrevista > 0 && (
+                            <div className="text-xs text-violet-400 num">prev. {fmt(metaPrevista)}</div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                        <div
+                          className={`h-2 rounded-full transition-all duration-500 ${concluido ? 'bg-gradient-to-r from-emerald-500 to-green-500' : 'bg-gradient-to-r from-violet-400 to-violet-600'}`}
+                          style={{ width: `${progresso}%` }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+                {investimentos.length > 0 && (
+                  <div className="border-t border-gray-100 pt-2.5">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-500 font-medium">Total aportado</span>
+                      <span className="font-bold text-violet-700 num">
+                        {fmt(investimentos.reduce((a, i) => a + i.aportado, 0))}
+                      </span>
+                    </div>
+                    {resumoCaixa.saldoPrevisto !== resumoCaixa.sobraLiquida && (
+                      <div className="flex justify-between items-center text-xs mt-1">
+                        <span className="text-violet-400">Meta total prevista</span>
+                        <span className="text-violet-500 font-medium num">
+                          {fmt(investimentos.reduce((a, i) => a + (resumoCaixa.saldoPrevisto > 0 ? resumoCaixa.saldoPrevisto * i.percentual / 100 : 0), 0))}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Projeção de Parcelamentos ── */}
+        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center">
+              <BarChart3 className="w-4 h-4 text-indigo-600" />
+            </div>
+            <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
+              Projeção de Parcelamentos
+              <InfoPopover texto="Previsão do total de parcelas que vencerão nos próximos 6 meses, separado por pessoa (Matheus, Jeniffer) e extras. Calculado com base nas transações parceladas já registradas no NuBank. Toque em um ponto do gráfico para ver os detalhes." />
+            </h2>
+          </div>
+          <p className="text-xs text-gray-400 mb-4 ml-10">Próximos 6 meses · Toque em um ponto para detalhes</p>
+          <GraficoProjecao
+            mesInicio={mesAtual}
+            onPontoClicado={(serie, mes, valor, itens) => {
+              setDetalhesPonto({ serie, mes, valor, itens })
+              setDrawerAberto(true)
+            }}
+          />
+        </div>
+
+      </div>{/* /px-4 */}
 
       <DrawerDetalhes
         aberto={drawerAberto}

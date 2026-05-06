@@ -53,7 +53,7 @@ export default memo(function DataStatusIndicator({ status, lastUpdated, onRefres
 
   if (status === 'offline') {
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-red-500 bg-red-50 px-2 py-0.5 rounded-full border border-red-100">
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-red-500 bg-red-50 px-2 py-0.5 rounded-full border border-red-100">
         <WifiOff className="w-3 h-3" />
         Offline
       </span>
@@ -62,7 +62,7 @@ export default memo(function DataStatusIndicator({ status, lastUpdated, onRefres
 
   if (status === 'loading' && !lastUpdated) {
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
         <RefreshCw className="w-3 h-3 animate-spin" />
         Atualizando…
       </span>
@@ -73,7 +73,7 @@ export default memo(function DataStatusIndicator({ status, lastUpdated, onRefres
     <button
       onClick={handleRefresh}
       disabled={refreshing || !onRefresh}
-      className="inline-flex items-center gap-1 text-[10px] font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full hover:bg-gray-100 transition-colors disabled:cursor-default"
+      className="inline-flex items-center gap-1 text-xs font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full hover:bg-gray-100 transition-colors disabled:cursor-default"
       title={onRefresh ? 'Clique para atualizar' : undefined}
     >
       {refreshing ? (
