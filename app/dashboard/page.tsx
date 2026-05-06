@@ -116,8 +116,8 @@ export default function Dashboard() {
       { data: transacoesFatura },
       { data: planejamento },
       { data: invData },
-      { data: maxC1 },
-      { data: maxC2 },
+      { data: transacoesC1 },
+      { data: transacoesC2 },
       { data: nubankConfigs },
       { data: faturaRegistradaData },
       { data: assinaturasData },
@@ -136,8 +136,8 @@ export default function Dashboard() {
         .select('id, descricao, percentual')
         .eq('mes_referencia', mesRef)
         .order('created_at', { ascending: true }),
-      supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'cartao1').order('projeto_fatura', { ascending: false }).limit(1),
-      supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'cartao2').order('projeto_fatura', { ascending: false }).limit(1),
+      supabase.from('transacoes_nubank').select('valor, responsavel').eq('cartao', 'cartao1').eq('projeto_fatura', mesRefFatura),
+      supabase.from('transacoes_nubank').select('valor, responsavel').eq('cartao', 'cartao2').eq('projeto_fatura', mesRefFatura),
       supabase.from('configuracoes').select('chave, valor').in('chave', ['dia_vencimento', 'ajuste_fechamento']),
       supabase.from('faturas').select('data_fechamento').eq('cartao', 'nubank').eq('mes_referencia', mesRefFatura).limit(1),
       supabase.from('assinaturas').select('nome, valor, responsavel, ativa').eq('cartao', 'nubank'),
@@ -150,14 +150,6 @@ export default function Dashboard() {
     const fechamentoISO = faturaRegistradaData?.[0]?.data_fechamento
       || format(calcularDataFechamentoDaFatura(mesRefFaturaDate, diaVencNubank, ajusteNubank), 'yyyy-MM-dd')
     setDataFechamentoNubank(fechamentoISO)
-
-    // Busca transações pela última fatura de cada cartão (independente do mês do dashboard)
-    const c1Fatura = maxC1?.[0]?.projeto_fatura
-    const c2Fatura = maxC2?.[0]?.projeto_fatura
-    const [{ data: transacoesC1 }, { data: transacoesC2 }] = await Promise.all([
-      c1Fatura ? supabase.from('transacoes_nubank').select('valor, responsavel').eq('cartao', 'cartao1').eq('projeto_fatura', c1Fatura) : Promise.resolve({ data: [] as any[] }),
-      c2Fatura ? supabase.from('transacoes_nubank').select('valor, responsavel').eq('cartao', 'cartao2').eq('projeto_fatura', c2Fatura) : Promise.resolve({ data: [] as any[] }),
-    ])
 
     const totalRealizado = transacoesFatura?.reduce((acc, t) => acc + t.valor, 0) || 0
     const matheusAtual = transacoesFatura?.filter(t => t.responsavel === 'Matheus').reduce((acc, t) => acc + t.valor, 0) || 0
