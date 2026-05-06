@@ -29,9 +29,10 @@ interface Aporte {
 interface Props {
   mesSelecionado: Date
   saldo: number
+  saldoPrevisto?: number
 }
 
-export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
+export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevisto = 0 }: Props) {
   const [itens, setItens] = useState<Investimento[]>([])
   const [aportes, setAportes] = useState<Record<string, Aporte[]>>({})
 
@@ -163,6 +164,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
   }
 
   const totalMeta = useMemo(() => saldo > 0 ? saldo * itens.reduce((acc, i) => acc + i.percentual, 0) / 100 : 0, [saldo, itens])
+  const totalMetaPrevisto = useMemo(() => saldoPrevisto > 0 ? saldoPrevisto * itens.reduce((acc, i) => acc + i.percentual, 0) / 100 : 0, [saldoPrevisto, itens])
   const totalPercentual = useMemo(() => itens.reduce((acc, i) => acc + i.percentual, 0), [itens])
   const totalAportadoGeral = useMemo(() => itens.reduce((acc, i) => acc + totalAportado(i.id), 0), [itens, aportes])
 
@@ -328,15 +330,27 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
         </div>
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div className="bg-gray-50 rounded-xl p-3 text-center">
-            <p className="text-xs text-gray-500 mb-0.5">Saldo disponível</p>
+            <p className="text-xs text-gray-500 mb-0.5">Saldo atual</p>
             <p className={`text-lg font-bold ${saldo >= 0 ? 'text-gray-800' : 'text-red-600'}`}>
               R$ {saldo.toFixed(2)}
             </p>
           </div>
+          <div className="bg-blue-50 rounded-xl p-3 text-center">
+            <p className="text-xs text-gray-500 mb-0.5">Valor previsto</p>
+            <p className={`text-lg font-bold ${saldoPrevisto >= 0 ? 'text-blue-700' : 'text-red-600'}`}>
+              R$ {saldoPrevisto.toFixed(2)}
+            </p>
+            <p className="text-xs text-blue-400">sem valores reais</p>
+          </div>
           <div className="bg-violet-50 rounded-xl p-3 text-center">
             <p className="text-xs text-gray-500 mb-0.5">Meta do mês</p>
             <p className="text-lg font-bold text-violet-700">R$ {totalMeta.toFixed(2)}</p>
-            <p className="text-xs text-violet-400">{totalPercentual.toFixed(1)}% do saldo</p>
+            <p className="text-xs text-violet-400">{totalPercentual.toFixed(1)}% do saldo atual</p>
+          </div>
+          <div className="bg-violet-50/60 rounded-xl p-3 text-center">
+            <p className="text-xs text-gray-500 mb-0.5">Meta prevista</p>
+            <p className="text-lg font-bold text-violet-500">R$ {totalMetaPrevisto.toFixed(2)}</p>
+            <p className="text-xs text-violet-300">{totalPercentual.toFixed(1)}% do previsto</p>
           </div>
           <div className="bg-green-50 rounded-xl p-3 text-center">
             <p className="text-xs text-gray-500 mb-0.5">Total aportado</p>
@@ -377,6 +391,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
         ) : (
           itens.map((item) => {
             const meta = saldo > 0 ? saldo * item.percentual / 100 : 0
+            const metaPrevista = saldoPrevisto > 0 ? saldoPrevisto * item.percentual / 100 : 0
             const aportado = totalAportado(item.id)
             const saldoAtualItem = ultimoSaldoAtual(item.id)
             const progresso = meta > 0 ? Math.min((aportado / meta) * 100, 100) : 0
@@ -398,6 +413,11 @@ export default function InvestimentosMensal({ mesSelecionado, saldo }: Props) {
                     <p className="text-xs font-medium text-gray-500">
                       Meta R$ {meta.toFixed(2)}
                     </p>
+                    {metaPrevista !== meta && metaPrevista > 0 && (
+                      <p className="text-xs text-blue-400">
+                        Prev. R$ {metaPrevista.toFixed(2)}
+                      </p>
+                    )}
                     {saldoAtualItem !== null && (
                       <p className="text-xs text-gray-400">Saldo atual R$ {saldoAtualItem.toFixed(2)}</p>
                     )}

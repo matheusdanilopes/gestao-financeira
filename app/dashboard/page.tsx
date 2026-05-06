@@ -734,6 +734,7 @@ export default function Dashboard() {
             <div className="space-y-3">
               {investimentos.map((inv) => {
                 const meta = resumoCaixa.sobraLiquida > 0 ? resumoCaixa.sobraLiquida * inv.percentual / 100 : 0
+                const metaPrevista = resumoCaixa.saldoPrevisto > 0 ? resumoCaixa.saldoPrevisto * inv.percentual / 100 : 0
                 const progresso = meta > 0 ? Math.min((inv.aportado / meta) * 100, 100) : 0
                 const concluido = meta > 0 && inv.aportado >= meta
                 return (
@@ -744,10 +745,17 @@ export default function Dashboard() {
                         <span className="text-gray-700">{inv.descricao}</span>
                       </div>
                       <div className="text-right">
-                        <span className={`font-semibold ${concluido ? 'text-green-600' : 'text-violet-700'}`}>
-                          R$ {inv.aportado.toFixed(2)}
-                        </span>
-                        <span className="text-gray-400 text-xs ml-1">/ R$ {meta.toFixed(2)}</span>
+                        <div>
+                          <span className={`font-semibold ${concluido ? 'text-green-600' : 'text-violet-700'}`}>
+                            R$ {inv.aportado.toFixed(2)}
+                          </span>
+                          <span className="text-gray-400 text-xs ml-1">/ R$ {meta.toFixed(2)}</span>
+                        </div>
+                        {metaPrevista !== meta && metaPrevista > 0 && (
+                          <div className="text-xs text-blue-400">
+                            prev. R$ {metaPrevista.toFixed(2)}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
@@ -760,11 +768,21 @@ export default function Dashboard() {
                 )
               })}
               {investimentos.length > 0 && (
-                <div className="border-t pt-2 flex justify-between items-center text-sm">
-                  <span className="text-gray-500 font-medium">Total aportado</span>
-                  <span className="font-bold text-violet-700">
-                    R$ {investimentos.reduce((a, i) => a + i.aportado, 0).toFixed(2)}
-                  </span>
+                <div className="border-t pt-2 space-y-1">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-500 font-medium">Total aportado</span>
+                    <span className="font-bold text-violet-700">
+                      R$ {investimentos.reduce((a, i) => a + i.aportado, 0).toFixed(2)}
+                    </span>
+                  </div>
+                  {resumoCaixa.saldoPrevisto !== resumoCaixa.sobraLiquida && (
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-blue-400">Meta total prevista</span>
+                      <span className="text-blue-500 font-medium">
+                        R$ {investimentos.reduce((a, i) => a + (resumoCaixa.saldoPrevisto > 0 ? resumoCaixa.saldoPrevisto * i.percentual / 100 : 0), 0).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
