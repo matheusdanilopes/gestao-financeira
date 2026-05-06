@@ -9,7 +9,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { AUTH_DISABLED } from '@/lib/authConfig'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
 
-const ROTAS_COM_MENU = ['/dashboard', '/contas', '/receitas', '/investimentos', '/compras', '/chat', '/configuracoes', '/importar']
+const ROTAS_COM_MENU = ['/dashboard', '/contas', '/receitas', '/investimentos', '/assinaturas', '/compras', '/chat', '/configuracoes', '/importar']
 
 const navItems = [
   { href: '/dashboard',      label: 'Dashboard',   icon: LayoutDashboard },
