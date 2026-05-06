@@ -17,7 +17,6 @@ import BottomNav from '@/components/BottomNav'
 export const metadata: Metadata = {
   title: 'Gestão Financeira Familiar',
   description: 'Controle de finanças com Matheus e Jeniffer',
-  manifest: '/manifest.json',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#4f46e5' },
     { media: '(prefers-color-scheme: dark)',  color: '#0f172a' },
@@ -55,6 +54,9 @@ export default function RootLayout({
             `,
           }}
         />
+        {/* Manifests adaptativos — Android escolhe pelo prefers-color-scheme */}
+        <link rel="manifest" media="(prefers-color-scheme: dark)"  href="/manifest-dark.json" />
+        <link rel="manifest" media="(prefers-color-scheme: light)" href="/manifest-light.json" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-title" content="Gestão Financeira" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
