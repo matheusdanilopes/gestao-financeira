@@ -18,7 +18,10 @@ export const metadata: Metadata = {
   title: 'Gestão Financeira Familiar',
   description: 'Controle de finanças com Matheus e Jeniffer',
   manifest: '/manifest.json',
-  themeColor: '#0d3b1e',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#4f46e5' },
+    { media: '(prefers-color-scheme: dark)',  color: '#0f172a' },
+  ],
   viewport: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=yes',
   icons: {
     icon: [
@@ -54,7 +57,7 @@ export default function RootLayout({
         />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-title" content="Gestão Financeira" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         {/* iOS splash screens */}
         <link rel="apple-touch-startup-image" media="screen and (device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)" href="/splash-640x1136.png" />
         <link rel="apple-touch-startup-image" media="screen and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)" href="/splash-750x1334.png" />
