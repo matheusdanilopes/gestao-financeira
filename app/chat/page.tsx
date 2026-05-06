@@ -336,7 +336,7 @@ export default function ChatPage() {
       </div>
 
       {/* Header */}
-      <div className="sticky top-0 z-[10] bg-white/95 backdrop-blur-sm border-b border-gray-100 px-4 py-3 flex items-center gap-3">
+      <div className="sticky top-0 z-[10] sticky-header border-b border-gray-100 px-4 py-3 flex items-center gap-3">
         <div className="w-9 h-9 rounded-xl bg-primary-50 flex items-center justify-center shrink-0">
           <Sparkles className="w-5 h-5 text-primary-600" />
         </div>

@@ -358,7 +358,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gray-50 pb-28 page-enter">
 
       {/* Header + seletor de mês */}
-      <div className="sticky top-0 bg-gray-50/95 backdrop-blur-sm pt-3 pb-3 px-4 z-[10]">
+      <div className="sticky top-0 sticky-header pt-3 pb-3 px-4 z-[10]">
         <div className="flex items-center justify-between mb-3">
           <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
         </div>
