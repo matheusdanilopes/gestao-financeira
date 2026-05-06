@@ -552,7 +552,7 @@ export default function Dashboard() {
                   <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Outros cartões</p>
                   <div className="grid grid-cols-2 gap-2">
                     {outrosCards.map((card, i) => {
-                      const sobra = card.previsto - card.atual
+                      const sobra = Math.round((card.previsto - card.atual) * 100) / 100
                       const pct = card.previsto > 0 ? Math.min(100, (card.atual / card.previsto) * 100) : 0
                       const pctRestante = card.previsto > 0 ? (sobra / card.previsto) * 100 : 100
                       const isWarning = sobra >= 0 && pctRestante <= 10
