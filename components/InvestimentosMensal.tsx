@@ -334,23 +334,20 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
             <p className={`text-lg font-bold ${saldo >= 0 ? 'text-gray-800' : 'text-red-600'}`}>
               R$ {saldo.toFixed(2)}
             </p>
-          </div>
-          <div className="bg-blue-50 rounded-xl p-3 text-center">
-            <p className="text-xs text-gray-500 mb-0.5">Valor previsto</p>
-            <p className={`text-lg font-bold ${saldoPrevisto >= 0 ? 'text-blue-700' : 'text-red-600'}`}>
-              R$ {saldoPrevisto.toFixed(2)}
+            <p className="text-xs text-violet-500 mt-0.5">
+              Meta R$ {totalMeta.toFixed(2)}
+              <span className="text-violet-300 ml-1">({totalPercentual.toFixed(0)}%)</span>
             </p>
-            <p className="text-xs text-blue-400">sem valores reais</p>
           </div>
           <div className="bg-violet-50 rounded-xl p-3 text-center">
-            <p className="text-xs text-gray-500 mb-0.5">Meta do mês</p>
-            <p className="text-lg font-bold text-violet-700">R$ {totalMeta.toFixed(2)}</p>
-            <p className="text-xs text-violet-400">{totalPercentual.toFixed(1)}% do saldo atual</p>
-          </div>
-          <div className="bg-violet-100 rounded-xl p-3 text-center">
-            <p className="text-xs text-violet-500 mb-0.5">Meta prevista</p>
-            <p className="text-lg font-bold text-violet-700">R$ {totalMetaPrevisto.toFixed(2)}</p>
-            <p className="text-xs text-violet-400">{totalPercentual.toFixed(1)}% do previsto</p>
+            <p className="text-xs text-violet-500 mb-0.5">Previsto</p>
+            <p className={`text-lg font-bold ${saldoPrevisto >= 0 ? 'text-violet-700' : 'text-red-600'}`}>
+              R$ {saldoPrevisto.toFixed(2)}
+            </p>
+            <p className="text-xs text-violet-400 mt-0.5">
+              Meta R$ {totalMetaPrevisto.toFixed(2)}
+              <span className="text-violet-300 ml-1">({totalPercentual.toFixed(0)}%)</span>
+            </p>
           </div>
           <div className="bg-green-50 rounded-xl p-3 text-center">
             <p className="text-xs text-gray-500 mb-0.5">Total aportado</p>
