@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Send, Bot, User, Sparkles, Trash2, Plus, History, X, MessageSquare, ChevronRight } from 'lucide-react'
-import BottomNav from '@/components/BottomNav'
 import NotificacoesBell from '@/components/NotificacoesBell'
 import { supabase } from '@/lib/supabaseClient'
 
@@ -472,7 +471,6 @@ export default function ChatPage() {
         </div>
       </div>
 
-      <BottomNav />
     </div>
   )
 }

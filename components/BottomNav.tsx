@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LayoutDashboard, Receipt, TrendingUp, ShoppingCart, MessageCircle, SlidersHorizontal, PiggyBank, Sparkles } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabaseClient'
 import { AUTH_DISABLED } from '@/lib/authConfig'
@@ -21,7 +21,7 @@ const navItems = [
   { href: '/configuracoes',  label: 'Config',      icon: SlidersHorizontal },
 ]
 
-export default function BottomNav() {
+export default memo(function BottomNav() {
   const pathname = usePathname()
   const [session, setSession] = useState<Session | null>(null)
   const [isCheckingSession, setIsCheckingSession] = useState(true)
@@ -92,4 +92,4 @@ export default function BottomNav() {
       </div>
     </div>
   )
-}
+})

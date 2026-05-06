@@ -3,7 +3,6 @@
 import { format, addMonths, subMonths, startOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import BottomNav from '@/components/BottomNav'
 import AssinaturasMensal from '@/components/AssinaturasMensal'
 import { useMes } from '@/components/MesProvider'
 
@@ -48,7 +47,6 @@ export default function AssinaturasPage() {
 
       <AssinaturasMensal mesSelecionado={mesAtual} />
 
-      <BottomNav />
     </div>
   )
 }
