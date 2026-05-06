@@ -514,7 +514,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
             return (
               <div key={categoria} className="bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden">
                 {/* Cabeçalho do grupo */}
-                <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50/80 border-b border-gray-100">
+                <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
                   <div className="flex items-center gap-2">
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                       CATEGORIA_CORES_PLAN[categoria] ?? 'bg-gray-100 text-gray-500'
@@ -540,7 +540,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
                           item.responsavel === 'Jeniffer'
                             ? 'border-l-pink-400'
                             : 'border-l-blue-400'
-                        } ${item.pago ? 'bg-gray-50/70' : 'bg-white'}`}
+                        } ${item.pago ? 'bg-gray-50' : 'bg-white'}`}
                       >
                         <div className="flex items-center gap-3">
                           {/* Status dot */}

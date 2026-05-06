@@ -556,7 +556,7 @@ export default function ComprasPage() {
             const subtotal = items.reduce((acc, c) => acc + c.valor, 0)
             return (
               <div key={dateKey} className="bg-white rounded-3xl border border-gray-100 shadow-card overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50/80 border-b border-gray-100">
+                <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
                   <span className="text-xs font-semibold text-gray-500 capitalize">
                     {formatarCabecalhoData(dateKey)}
                   </span>
@@ -571,7 +571,7 @@ export default function ComprasPage() {
                     return (
                       <div
                         key={c.hash_linha}
-                        className={`px-3 py-3.5 flex items-center gap-3 transition-colors active:bg-gray-50/80 ${
+                        className={`px-3 py-3.5 flex items-center gap-3 transition-colors active:bg-gray-50 ${
                           c.responsavel === 'Matheus'
                             ? 'border-l-4 border-l-blue-400'
                             : c.responsavel === 'Jeniffer'
