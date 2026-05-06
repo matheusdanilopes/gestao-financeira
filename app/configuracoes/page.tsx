@@ -968,8 +968,8 @@ export default function ConfiguracoesPage() {
       {/* Modal: Instruções de Integração via API */}
       {modalApiAberto && (
         <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50">
-          <div className="bg-white rounded-t-2xl w-full max-h-[88vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-100 px-4 py-4 flex items-center justify-between">
+          <div className="bg-white rounded-t-2xl w-full max-h-[88vh] overflow-y-auto overflow-x-hidden">
+            <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-4 flex items-center justify-between">
               <h2 className="text-lg font-bold flex items-center gap-2">
                 <Code2 className="w-5 h-5 text-primary-600" />
                 Integração via API
@@ -1022,64 +1022,64 @@ export default function ConfiguracoesPage() {
               {/* Exemplo 1: arquivo CSV */}
               <div>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Exemplo 1 — Envio de arquivo CSV</p>
-                <div className="relative bg-gray-900 rounded-xl p-3">
+                <div className="bg-gray-900 rounded-xl p-3 flex items-start gap-2">
+                  <pre className="text-xs text-green-300 whitespace-pre overflow-x-auto flex-1 min-w-0">{`curl -X POST https://seu-dominio.com/api/nubank/importar?cartao=nubank \\
+  -H "Authorization: Bearer SUA_API_KEY" \\
+  -F "file=@extrato.csv"`}</pre>
                   <button
                     onClick={() => copiarTexto('ex1', `curl -X POST https://seu-dominio.com/api/nubank/importar?cartao=nubank \\\n  -H "Authorization: Bearer SUA_API_KEY" \\\n  -F "file=@extrato.csv"`)}
-                    className="absolute top-2 right-2 p-1.5 rounded-lg hover:bg-gray-700 transition"
+                    className="shrink-0 p-1.5 rounded-lg hover:bg-gray-700 transition"
                   >
                     {copiado === 'ex1' ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-400" />}
                   </button>
-                  <pre className="text-xs text-green-300 whitespace-pre-wrap pr-8">{`curl -X POST https://seu-dominio.com/api/nubank/importar?cartao=nubank \\
-  -H "Authorization: Bearer SUA_API_KEY" \\
-  -F "file=@extrato.csv"`}</pre>
                 </div>
               </div>
 
               {/* Exemplo 2: CSV como JSON */}
               <div>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Exemplo 2 — CSV como texto (JSON)</p>
-                <div className="relative bg-gray-900 rounded-xl p-3">
-                  <button
-                    onClick={() => copiarTexto('ex2', `curl -X POST https://seu-dominio.com/api/nubank/importar?cartao=cartao1 \\\n  -H "Authorization: Bearer SUA_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"cartao":"cartao1","csv":"date,title,amount\\n2024-01-15,Compra,100.00"}'`)}
-                    className="absolute top-2 right-2 p-1.5 rounded-lg hover:bg-gray-700 transition"
-                  >
-                    {copiado === 'ex2' ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-400" />}
-                  </button>
-                  <pre className="text-xs text-green-300 whitespace-pre-wrap pr-8">{`curl -X POST https://seu-dominio.com/api/nubank/importar?cartao=cartao1 \\
+                <div className="bg-gray-900 rounded-xl p-3 flex items-start gap-2">
+                  <pre className="text-xs text-green-300 whitespace-pre overflow-x-auto flex-1 min-w-0">{`curl -X POST https://seu-dominio.com/api/nubank/importar?cartao=cartao1 \\
   -H "Authorization: Bearer SUA_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"cartao":"cartao1","csv":"date,title,amount\\n2024-01-15,Compra,100.00"}'`}</pre>
+                  <button
+                    onClick={() => copiarTexto('ex2', `curl -X POST https://seu-dominio.com/api/nubank/importar?cartao=cartao1 \\\n  -H "Authorization: Bearer SUA_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"cartao":"cartao1","csv":"date,title,amount\\n2024-01-15,Compra,100.00"}'`)}
+                    className="shrink-0 p-1.5 rounded-lg hover:bg-gray-700 transition"
+                  >
+                    {copiado === 'ex2' ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-400" />}
+                  </button>
                 </div>
               </div>
 
               {/* Exemplo 3: array de transações */}
               <div>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Exemplo 3 — Array de transações (JSON)</p>
-                <div className="relative bg-gray-900 rounded-xl p-3">
-                  <button
-                    onClick={() => copiarTexto('ex3', `curl -X POST https://seu-dominio.com/api/nubank/importar?cartao=cartao2 \\\n  -H "Authorization: Bearer SUA_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"cartao":"cartao2","transacoes":[{"date":"2024-01-15","title":"Compra","amount":100.00}]}'`)}
-                    className="absolute top-2 right-2 p-1.5 rounded-lg hover:bg-gray-700 transition"
-                  >
-                    {copiado === 'ex3' ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-400" />}
-                  </button>
-                  <pre className="text-xs text-green-300 whitespace-pre-wrap pr-8">{`curl -X POST https://seu-dominio.com/api/nubank/importar?cartao=cartao2 \\
+                <div className="bg-gray-900 rounded-xl p-3 flex items-start gap-2">
+                  <pre className="text-xs text-green-300 whitespace-pre overflow-x-auto flex-1 min-w-0">{`curl -X POST https://seu-dominio.com/api/nubank/importar?cartao=cartao2 \\
   -H "Authorization: Bearer SUA_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"cartao":"cartao2","transacoes":[{"date":"2024-01-15","title":"Compra","amount":100.00}]}'`}</pre>
+                  <button
+                    onClick={() => copiarTexto('ex3', `curl -X POST https://seu-dominio.com/api/nubank/importar?cartao=cartao2 \\\n  -H "Authorization: Bearer SUA_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"cartao":"cartao2","transacoes":[{"date":"2024-01-15","title":"Compra","amount":100.00}]}'`)}
+                    className="shrink-0 p-1.5 rounded-lg hover:bg-gray-700 transition"
+                  >
+                    {copiado === 'ex3' ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-400" />}
+                  </button>
                 </div>
               </div>
 
               {/* Formato do CSV */}
               <div>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Formato do CSV</p>
-                <div className="relative bg-gray-900 rounded-xl p-3">
+                <div className="bg-gray-900 rounded-xl p-3 flex items-start gap-2">
+                  <pre className="text-xs text-green-300 whitespace-pre overflow-x-auto flex-1 min-w-0">{`date,title,amount\n2024-01-15,Supermercado,250.00\n2024-01-20,Restaurante Jeniffer,89.90`}</pre>
                   <button
                     onClick={() => copiarTexto('csv', `date,title,amount\n2024-01-15,Supermercado,250.00\n2024-01-20,Restaurante Jeniffer,89.90`)}
-                    className="absolute top-2 right-2 p-1.5 rounded-lg hover:bg-gray-700 transition"
+                    className="shrink-0 p-1.5 rounded-lg hover:bg-gray-700 transition"
                   >
                     {copiado === 'csv' ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-400" />}
                   </button>
-                  <pre className="text-xs text-green-300 whitespace-pre-wrap pr-8">{`date,title,amount\n2024-01-15,Supermercado,250.00\n2024-01-20,Restaurante Jeniffer,89.90`}</pre>
                 </div>
                 <p className="text-xs text-gray-400 mt-1.5">Transações com "Jeniffer" no título são atribuídas à Jeniffer. Parcelas no formato <code>2/6</code> são distribuídas automaticamente pelos meses.</p>
               </div>
@@ -1087,8 +1087,8 @@ export default function ConfiguracoesPage() {
               {/* Resposta */}
               <div>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Resposta</p>
-                <div className="bg-gray-50 rounded-xl p-3">
-                  <pre className="text-xs text-gray-700 whitespace-pre-wrap">{`{
+                <div className="bg-gray-50 rounded-xl p-3 overflow-x-auto">
+                  <pre className="text-xs text-gray-700 whitespace-pre">{`{
   "success": true,
   "importacao": {
     "totalLidas": 10,
