@@ -3,7 +3,6 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { addMonths, subMonths, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import BottomNav from '@/components/BottomNav'
 import ReceitasMensal from '@/components/ReceitasMensal'
 import { useMes } from '@/components/MesProvider'
 
@@ -40,7 +39,6 @@ export default function ReceitasPage() {
       </div>
 
       <ReceitasMensal mesSelecionado={mesAtual} />
-      <BottomNav />
     </div>
   )
 }

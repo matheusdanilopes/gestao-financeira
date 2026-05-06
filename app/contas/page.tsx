@@ -4,7 +4,6 @@ import ChecklistMensal from '@/components/ChecklistMensal'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { addMonths, subMonths, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import BottomNav from '@/components/BottomNav'
 import { useMes } from '@/components/MesProvider'
 
 export default function ContasPage() {
@@ -46,7 +45,6 @@ export default function ContasPage() {
       </div>
 
       <ChecklistMensal mesSelecionado={mesAtual} />
-      <BottomNav />
     </div>
   )
 }

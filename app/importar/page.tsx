@@ -2,7 +2,6 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { Upload, CheckCircle2, XCircle, Sparkles, Clock, AlertCircle, ShieldCheck, Trash2, Code2, Copy, Check, X } from 'lucide-react'
-import BottomNav from '@/components/BottomNav'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth } from 'date-fns'
@@ -747,7 +746,6 @@ export default function ImportarPage() {
         </div>
       )}
 
-      <BottomNav />
     </div>
   )
 }

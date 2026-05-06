@@ -10,7 +10,7 @@
  *  - Botão de refresh manual (opcional)
  */
 
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { Wifi, WifiOff, RefreshCw } from 'lucide-react'
 import type { SyncStatus } from '@/lib/useDataSync'
 
@@ -29,7 +29,7 @@ function formatRelativeTime(date: Date): string {
   return `há ${Math.floor(diffMin / 60)}h`
 }
 
-export default function DataStatusIndicator({ status, lastUpdated, onRefresh }: Props) {
+export default memo(function DataStatusIndicator({ status, lastUpdated, onRefresh }: Props) {
   const [label, setLabel] = useState('')
   const [refreshing, setRefreshing] = useState(false)
 
@@ -84,4 +84,4 @@ export default function DataStatusIndicator({ status, lastUpdated, onRefresh }: 
       {label}
     </button>
   )
-}
+})

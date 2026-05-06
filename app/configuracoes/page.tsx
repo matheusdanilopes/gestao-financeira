@@ -11,7 +11,6 @@ import {
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import BottomNav from '@/components/BottomNav'
 import { useTheme } from '@/components/ThemeProvider'
 import { CATEGORIAS_PADRAO, normalizarCategorias, parseCategoriasConfig } from '@/lib/categorias'
 
@@ -938,7 +937,6 @@ export default function ConfiguracoesPage() {
         </div>
       )}
 
-      <BottomNav />
     </div>
   )
 }

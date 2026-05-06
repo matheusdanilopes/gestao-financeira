@@ -6,7 +6,6 @@ import { useOnline } from '@/lib/useOnline'
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import BottomNav from '@/components/BottomNav'
 import InvestimentosMensal from '@/components/InvestimentosMensal'
 import { useMes } from '@/components/MesProvider'
 
@@ -140,7 +139,6 @@ export default function InvestimentosPage() {
         <InvestimentosMensal mesSelecionado={mesAtual} saldo={saldo} saldoPrevisto={saldoPrevisto} />
       )}
 
-      <BottomNav />
     </div>
   )
 }

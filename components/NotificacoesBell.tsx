@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { Bell, X, Check, CheckCheck, PiggyBank, CreditCard, TrendingUp, AlertTriangle, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { formatDistanceToNow } from 'date-fns'
@@ -98,7 +98,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   return arr
 }
 
-export default function NotificacoesBell() {
+export default memo(function NotificacoesBell() {
   const [aberto, setAberto] = useState(false)
   const [notificacoes, setNotificacoes] = useState<Notificacao[]>([])
   const [usuarioEmail, setUsuarioEmail] = useState<string | null>(null)
@@ -404,4 +404,4 @@ export default function NotificacoesBell() {
       )}
     </div>
   )
-}
+})

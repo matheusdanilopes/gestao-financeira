@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, startTransition, useCallback, useContext, useEffect, useState } from 'react'
 import { startOfMonth, addMonths, format } from 'date-fns'
 import { supabase } from '@/lib/supabaseClient'
 
@@ -51,8 +51,12 @@ export function MesProvider({ children }: { children: React.ReactNode }) {
     calcularMesInicial()
   }, [])
 
+  const setMesAtual = useCallback((mes: Date) => {
+    startTransition(() => setMes(mes))
+  }, [])
+
   return (
-    <MesContext.Provider value={{ mesAtual, setMesAtual: setMes }}>
+    <MesContext.Provider value={{ mesAtual, setMesAtual }}>
       {children}
     </MesContext.Provider>
   )

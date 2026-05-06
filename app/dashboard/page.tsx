@@ -1,19 +1,28 @@
 'use client'
 
-import { useEffect, useCallback, useRef } from 'react'
-import { useState } from 'react'
+import { useEffect, useCallback, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
 import { ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react'
 import { useMes } from '@/components/MesProvider'
-import GraficoProjecao from '@/components/GraficoProjecao'
+import dynamic from 'next/dynamic'
+
+const GraficoProjecao = dynamic(() => import('@/components/GraficoProjecao'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-72 flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-gray-200 border-t-purple-500 rounded-full animate-spin" />
+    </div>
+  ),
+})
 import DrawerDetalhes from '@/components/DrawerDetalhes'
-import BottomNav from '@/components/BottomNav'
 import { PiggyBank } from 'lucide-react'
 import { InfoPopover } from '@/components/InfoPopover'
 import { useGlobalSync } from '@/lib/useGlobalSync'
+
+const NUBANK_ITEMS = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto'])
 
 interface CartaoItem {
   nome: string
@@ -76,9 +85,6 @@ export default function Dashboard() {
   const [carregando, setCarregando] = useState(true)
   const [dataFechamentoNubank, setDataFechamentoNubank] = useState<string | null>(null)
 
-  // Ref para pular o fetch manual no primeiro render (useDataSync já cuida disso)
-  const isFirstRender = useRef(true)
-
   // Fetcher estável: recriado apenas quando mesAtual muda
   const fetcher = useCallback(
     () => carregarDados(mesAtual), // eslint-disable-line react-hooks/exhaustive-deps
@@ -86,6 +92,7 @@ export default function Dashboard() {
   )
 
   // Sincronização automática: Realtime + polling 45s + cache localStorage
+  // useDataSync re-executa o fetcher automaticamente quando cacheKey muda (troca de mês)
   const { isOnline } = useGlobalSync({
     cacheKey: `dashboard:${format(mesAtual, 'yyyy-MM')}`,
     tables: ['transacoes_nubank', 'planejamento', 'investimentos', 'investimentos_aportes'],
@@ -98,12 +105,6 @@ export default function Dashboard() {
   useEffect(() => {
     if (!isOnline) setCarregando(false)
   }, [isOnline])
-
-  // Troca de mês: dispara fetch manual (useDataSync cobre o primeiro render)
-  useEffect(() => {
-    if (isFirstRender.current) { isFirstRender.current = false; return }
-    carregarDados(mesAtual)
-  }, [mesAtual]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function carregarDados(mes: Date) {
     setCarregando(true)
@@ -282,7 +283,6 @@ export default function Dashboard() {
       : nuBankPrevisto + cartao1PrevTotal + cartao2PrevTotal
     const saldoPrevisto = receitaTotal - totalPlanejado
 
-    const NUBANK_ITEMS = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto'])
     const contasFixasAtual = (planejamento || [])
       .filter(p => {
         const item = typeof p.item === 'string' ? p.item : ''
@@ -348,24 +348,43 @@ export default function Dashboard() {
     }
   }
 
-  const isMesAtual = format(mesAtual, 'yyyy-MM') === format(new Date(), 'yyyy-MM')
+  const isMesAtual = useMemo(
+    () => format(mesAtual, 'yyyy-MM') === format(new Date(), 'yyyy-MM'),
+    [mesAtual]
+  )
 
-  const comprometimentoColor =
+  const comprometimentoColor = useMemo(() =>
     resumoCaixa.percentualComprometimento > 90 ? 'text-red-600' :
     resumoCaixa.percentualComprometimento > 70 ? 'text-yellow-600' :
-    'text-green-600'
+    'text-green-600',
+    [resumoCaixa.percentualComprometimento]
+  )
 
-  const matheusSobraWarning = fatura.sobraMatheus >= 0 && fatura.matheusPrevisto > 0 && (fatura.sobraMatheus / fatura.matheusPrevisto) * 100 <= 10
-  const jenifferSobraWarning = fatura.sobraJeniffer >= 0 && fatura.jenifferPrevisto > 0 && (fatura.sobraJeniffer / fatura.jenifferPrevisto) * 100 <= 10
-  const saldoAtualWarning = resumoCaixa.sobraLiquida >= 0 && resumoCaixa.receitaTotal > 0 && (resumoCaixa.sobraLiquida / resumoCaixa.receitaTotal) * 100 <= 10
-  const saldoPrevistoWarning = resumoCaixa.saldoPrevisto >= 0 && resumoCaixa.receitaTotal > 0 && (resumoCaixa.saldoPrevisto / resumoCaixa.receitaTotal) * 100 <= 10
+  const matheusSobraWarning = useMemo(() =>
+    fatura.sobraMatheus >= 0 && fatura.matheusPrevisto > 0 && (fatura.sobraMatheus / fatura.matheusPrevisto) * 100 <= 10,
+    [fatura.sobraMatheus, fatura.matheusPrevisto]
+  )
+  const jenifferSobraWarning = useMemo(() =>
+    fatura.sobraJeniffer >= 0 && fatura.jenifferPrevisto > 0 && (fatura.sobraJeniffer / fatura.jenifferPrevisto) * 100 <= 10,
+    [fatura.sobraJeniffer, fatura.jenifferPrevisto]
+  )
+  const saldoAtualWarning = useMemo(() =>
+    resumoCaixa.sobraLiquida >= 0 && resumoCaixa.receitaTotal > 0 && (resumoCaixa.sobraLiquida / resumoCaixa.receitaTotal) * 100 <= 10,
+    [resumoCaixa.sobraLiquida, resumoCaixa.receitaTotal]
+  )
+  const saldoPrevistoWarning = useMemo(() =>
+    resumoCaixa.saldoPrevisto >= 0 && resumoCaixa.receitaTotal > 0 && (resumoCaixa.saldoPrevisto / resumoCaixa.receitaTotal) * 100 <= 10,
+    [resumoCaixa.saldoPrevisto, resumoCaixa.receitaTotal]
+  )
 
-  const comprometimentoBarColor =
+  const comprometimentoBarColor = useMemo(() =>
     resumoCaixa.percentualComprometimento > 90
       ? 'bg-gradient-to-r from-red-500 to-red-600' :
     resumoCaixa.percentualComprometimento > 70
       ? 'bg-gradient-to-r from-yellow-400 to-yellow-500' :
-    'bg-gradient-to-r from-green-500 to-emerald-500'
+    'bg-gradient-to-r from-green-500 to-emerald-500',
+    [resumoCaixa.percentualComprometimento]
+  )
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 pb-24">
@@ -823,7 +842,6 @@ export default function Dashboard() {
         dados={detalhesPonto}
         cartaoLabels={{ nubank: 'NuBank', cartao1: fatura.cartao1Nome, cartao2: fatura.cartao2Nome }}
       />
-      <BottomNav />
     </div>
   )
 }

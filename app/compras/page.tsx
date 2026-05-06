@@ -6,7 +6,6 @@ import { useGlobalSync } from '@/lib/useGlobalSync'
 import { ChevronLeft, ChevronRight, Pencil, Trash2, X, ShoppingBag, Lock, WifiOff } from 'lucide-react'
 import { addMonths, subMonths, format, startOfMonth, isToday, isYesterday, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import BottomNav from '@/components/BottomNav'
 import { log, numericOnly } from '@/lib/logger'
 import { useMes } from '@/components/MesProvider'
 import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
@@ -120,7 +119,9 @@ export default function ComprasPage() {
   const [loading, setLoading] = useState(true)
   const [filtroResponsavel, setFiltroResponsavel] = useState('')
   const [filtroCartao, setFiltroCartao] = useState<'' | 'nubank' | 'cartao1' | 'cartao2'>('')
+  const [filtroDescricaoInput, setFiltroDescricaoInput] = useState('')
   const [filtroDescricao, setFiltroDescricao] = useState('')
+  const filtroDescricaoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [filtroValorMin, setFiltroValorMin] = useState('')
   const [filtroDia, setFiltroDia] = useState('')
   const [filtroCategoria, setFiltroCategoria] = useState('')
@@ -287,9 +288,16 @@ export default function ComprasPage() {
 
   const filtrosAtivos = !!filtroResponsavel || !!filtroCartao || !!filtroDescricao || !!filtroValorMin || !!filtroDia || !!filtroCategoria
 
+  function handleFiltroDescricaoChange(value: string) {
+    setFiltroDescricaoInput(value)
+    if (filtroDescricaoTimer.current) clearTimeout(filtroDescricaoTimer.current)
+    filtroDescricaoTimer.current = setTimeout(() => setFiltroDescricao(value), 300)
+  }
+
   function limparFiltros() {
     setFiltroResponsavel('')
     setFiltroCartao('')
+    setFiltroDescricaoInput('')
     setFiltroDescricao('')
     setFiltroValorMin('')
     setFiltroDia('')
@@ -426,8 +434,8 @@ export default function ComprasPage() {
           type="text"
           className="bg-gray-50 rounded-xl p-2 text-sm col-span-2 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
           placeholder="Buscar por descrição…"
-          value={filtroDescricao}
-          onChange={(e) => setFiltroDescricao(e.target.value)}
+          value={filtroDescricaoInput}
+          onChange={(e) => handleFiltroDescricaoChange(e.target.value)}
         />
         <select
           className="bg-gray-50 rounded-xl p-2 text-sm col-span-2 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
@@ -747,7 +755,6 @@ export default function ComprasPage() {
         </div>
       )}
 
-      <BottomNav />
     </div>
   )
 }
