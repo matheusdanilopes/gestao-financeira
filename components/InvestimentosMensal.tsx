@@ -347,10 +347,10 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
             <p className="text-lg font-bold text-violet-700">R$ {totalMeta.toFixed(2)}</p>
             <p className="text-xs text-violet-400">{totalPercentual.toFixed(1)}% do saldo atual</p>
           </div>
-          <div className="bg-violet-50/60 rounded-xl p-3 text-center">
-            <p className="text-xs text-gray-500 mb-0.5">Meta prevista</p>
-            <p className="text-lg font-bold text-violet-500">R$ {totalMetaPrevisto.toFixed(2)}</p>
-            <p className="text-xs text-violet-300">{totalPercentual.toFixed(1)}% do previsto</p>
+          <div className="bg-violet-100 rounded-xl p-3 text-center">
+            <p className="text-xs text-violet-500 mb-0.5">Meta prevista</p>
+            <p className="text-lg font-bold text-violet-700">R$ {totalMetaPrevisto.toFixed(2)}</p>
+            <p className="text-xs text-violet-400">{totalPercentual.toFixed(1)}% do previsto</p>
           </div>
           <div className="bg-green-50 rounded-xl p-3 text-center">
             <p className="text-xs text-gray-500 mb-0.5">Total aportado</p>
@@ -414,7 +414,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
                       Meta R$ {meta.toFixed(2)}
                     </p>
                     {metaPrevista !== meta && metaPrevista > 0 && (
-                      <p className="text-xs text-blue-400">
+                      <p className="text-xs text-violet-400">
                         Prev. R$ {metaPrevista.toFixed(2)}
                       </p>
                     )}

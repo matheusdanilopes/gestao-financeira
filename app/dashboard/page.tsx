@@ -752,7 +752,7 @@ export default function Dashboard() {
                           <span className="text-gray-400 text-xs ml-1">/ R$ {meta.toFixed(2)}</span>
                         </div>
                         {metaPrevista !== meta && metaPrevista > 0 && (
-                          <div className="text-xs text-blue-400">
+                          <div className="text-xs text-violet-400">
                             prev. R$ {metaPrevista.toFixed(2)}
                           </div>
                         )}
@@ -777,8 +777,8 @@ export default function Dashboard() {
                   </div>
                   {resumoCaixa.saldoPrevisto !== resumoCaixa.sobraLiquida && (
                     <div className="flex justify-between items-center text-xs">
-                      <span className="text-blue-400">Meta total prevista</span>
-                      <span className="text-blue-500 font-medium">
+                      <span className="text-violet-400">Meta total prevista</span>
+                      <span className="text-violet-500 font-medium">
                         R$ {investimentos.reduce((a, i) => a + (resumoCaixa.saldoPrevisto > 0 ? resumoCaixa.saldoPrevisto * i.percentual / 100 : 0), 0).toFixed(2)}
                       </span>
                     </div>
