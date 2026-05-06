@@ -57,39 +57,42 @@ export default memo(function BottomNav() {
   if (!AUTH_DISABLED && (isCheckingSession || !session)) return null
 
   return (
-    <div data-bottom-nav="true" className="fixed bottom-0 left-0 right-0">
+    <div data-bottom-nav="true" className="fixed bottom-0 left-0 right-0 z-[50]">
       {categorizando && (
-        <div className="flex items-center justify-center gap-1.5 bg-purple-50 border-b border-purple-100 py-1 text-xs text-purple-700 font-medium">
+        <div className="flex items-center justify-center gap-1.5 bg-violet-50 border-b border-violet-100 py-1.5 text-xs text-violet-600 font-medium">
           <Sparkles className="w-3 h-3 animate-pulse" />
-          Categorizando com IA...
+          Categorizando com IA…
         </div>
       )}
-      <div className="flex justify-around items-center h-16 px-1">
-        {navItems.map(({ href, label, icon: Icon }) => {
-          const isActive = pathname === href
-          return (
-            <Link
-              key={href}
-              href={href}
-              className="flex flex-col items-center gap-0.5 flex-1 py-2 transition-all duration-200"
-            >
-              <span className={`flex items-center justify-center w-10 h-6 rounded-full transition-all duration-200 ${
-                isActive ? 'bg-primary-100 scale-110' : ''
-              }`}>
-                <Icon
-                  className={`transition-all duration-200 ${isActive ? 'w-5 h-5 text-primary-600' : 'w-5 h-5 text-gray-400'}`}
-                  strokeWidth={isActive ? 2.5 : 1.8}
-                />
-              </span>
-              <span className={`text-[10px] font-medium transition-colors duration-200 ${
-                isActive ? 'text-primary-600' : 'text-gray-400'
-              }`}>
-                {label}
-              </span>
-            </Link>
-          )
-        })}
-      </div>
+      <nav aria-label="Navegação principal">
+        <div className="flex justify-around items-center h-16 px-0.5">
+          {navItems.map(({ href, label, icon: Icon }) => {
+            const isActive = pathname === href
+            return (
+              <Link
+                key={href}
+                href={href}
+                className="flex flex-col items-center justify-center gap-0.5 flex-1 py-2 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-1 rounded-xl"
+                aria-current={isActive ? 'page' : undefined}
+              >
+                <span className={`flex items-center justify-center w-9 h-6 rounded-full transition-all duration-200 ${
+                  isActive ? 'bg-primary-100' : ''
+                }`}>
+                  <Icon
+                    className={`transition-all duration-200 ${isActive ? 'w-[18px] h-[18px] text-primary-600' : 'w-[18px] h-[18px] text-gray-400'}`}
+                    strokeWidth={isActive ? 2.5 : 1.8}
+                  />
+                </span>
+                <span className={`text-[11px] font-medium transition-colors duration-200 leading-none ${
+                  isActive ? 'text-primary-600' : 'text-gray-400'
+                }`}>
+                  {label}
+                </span>
+              </Link>
+            )
+          })}
+        </div>
+      </nav>
     </div>
   )
 })

@@ -392,7 +392,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-lg text-sm font-medium transition-all ${
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 px-4 py-2.5 rounded-2xl shadow-float text-sm font-medium ${
           toast.tipo === 'ok' ? 'bg-gray-900 text-white' : 'bg-red-600 text-white'
         }`}>
           {toast.tipo === 'ok' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
@@ -401,7 +401,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       )}
 
       {/* Resumo / Filtro de status */}
-      <div className="bg-white rounded-3xl shadow-card p-4">
+      <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
         <div className="grid grid-cols-3 gap-2 mb-3">
           <button
             onClick={() => setFiltroStatus(filtroStatus === '' ? '' : '')}
@@ -411,8 +411,8 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
                 : 'bg-gray-50 border border-gray-100'
             }`}
           >
-            <p className={`text-[11px] mb-0.5 ${filtroStatus === '' ? 'text-gray-300' : 'text-gray-500'}`}>Previsto</p>
-            <p className={`text-xs font-bold break-all leading-tight ${filtroStatus === '' ? 'text-white' : 'text-gray-800'}`}>{formatarMoeda(totalPrevisto)}</p>
+            <p className={`text-[11px] mb-0.5 font-medium ${filtroStatus === '' ? 'text-gray-300' : 'text-gray-500'}`}>Previsto</p>
+            <p className={`text-xs font-bold break-all leading-tight num ${filtroStatus === '' ? 'text-white' : 'text-gray-800'}`}>{formatarMoeda(totalPrevisto)}</p>
           </button>
           <button
             onClick={() => setFiltroStatus(filtroStatus === 'pago' ? '' : 'pago')}
@@ -423,7 +423,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
             }`}
           >
             <p className={`text-[11px] mb-0.5 ${filtroStatus === 'pago' ? 'text-primary-100' : 'text-primary-500'}`}>Pago</p>
-            <p className={`text-xs font-bold break-all leading-tight ${filtroStatus === 'pago' ? 'text-white' : 'text-primary-700'}`}>{formatarMoeda(totalPago)}</p>
+            <p className={`text-xs font-bold break-all leading-tight num ${filtroStatus === 'pago' ? 'text-white' : 'text-primary-700'}`}>{formatarMoeda(totalPago)}</p>
           </button>
           <button
             onClick={() => setFiltroStatus(filtroStatus === 'pendente' ? '' : 'pendente')}
@@ -436,7 +436,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
             <p className={`text-[11px] mb-0.5 ${filtroStatus === 'pendente' ? 'text-red-100' : totalPendente <= 0.009 ? 'text-green-600' : 'text-red-500'}`}>A pagar</p>
             {totalPendente <= 0.009
               ? <p className={`text-xs font-bold leading-tight ${filtroStatus === 'pendente' ? 'text-white' : 'text-green-600'}`}>Quitado ✓</p>
-              : <p className={`text-xs font-bold break-all leading-tight ${filtroStatus === 'pendente' ? 'text-white' : 'text-red-600'}`}>{formatarMoeda(totalPendente)}</p>
+              : <p className={`text-xs font-bold break-all leading-tight num ${filtroStatus === 'pendente' ? 'text-white' : 'text-red-600'}`}>{formatarMoeda(totalPendente)}</p>
             }
           </button>
         </div>
@@ -500,9 +500,11 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
 
       {/* Lista agrupada por categoria */}
       {gruposPorCategoria.length === 0 ? (
-        <div className="bg-white rounded-3xl shadow-card py-12 flex flex-col items-center gap-2 text-gray-300">
-          <CheckCircle2 className="w-10 h-10" />
-          <p className="text-sm">{filtroStatus ? 'Nenhum item nesta categoria' : 'Nenhum item encontrado'}</p>
+        <div className="bg-white rounded-3xl shadow-card border border-gray-100">
+          <div className="flex flex-col items-center justify-center py-12 gap-2 text-gray-400">
+            <CheckCircle2 className="w-9 h-9 text-gray-200" strokeWidth={1.5} />
+            <p className="text-sm font-medium">{filtroStatus ? 'Nenhum item neste filtro' : 'Nenhum item cadastrado'}</p>
+          </div>
         </div>
       ) : (
         <div className="space-y-3">
@@ -510,11 +512,11 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
             const subtotalGrupo = grupoItens.reduce((acc, i) => acc + i.valor_previsto, 0)
             const pendentesGrupo = grupoItens.filter(i => !i.pago).length
             return (
-              <div key={categoria} className="bg-white rounded-3xl shadow-card overflow-hidden">
+              <div key={categoria} className="bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden">
                 {/* Cabeçalho do grupo */}
                 <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
                   <div className="flex items-center gap-2">
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                       CATEGORIA_CORES_PLAN[categoria] ?? 'bg-gray-100 text-gray-500'
                     }`}>
                       {categoria}
@@ -523,7 +525,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
                       {pendentesGrupo > 0 ? `${pendentesGrupo} pendente${pendentesGrupo > 1 ? 's' : ''}` : 'Tudo pago ✓'}
                     </span>
                   </div>
-                  <span className="text-xs font-semibold text-gray-700">{formatarMoeda(subtotalGrupo)}</span>
+                  <span className="text-xs font-semibold text-gray-700 num">{formatarMoeda(subtotalGrupo)}</span>
                 </div>
 
                 {/* Itens do grupo */}
@@ -538,7 +540,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
                           item.responsavel === 'Jeniffer'
                             ? 'border-l-pink-400'
                             : 'border-l-blue-400'
-                        } ${item.pago ? 'bg-gray-50/70' : 'bg-white'}`}
+                        } ${item.pago ? 'bg-gray-50' : 'bg-white'}`}
                       >
                         <div className="flex items-center gap-3">
                           {/* Status dot */}
@@ -561,11 +563,11 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
 
                           {/* Valores */}
                           <div className="text-right shrink-0 mr-1">
-                            <p className="text-sm font-semibold text-gray-800">
+                            <p className="text-sm font-semibold text-gray-800 num">
                               {formatarMoeda(item.valor_previsto)}
                             </p>
                             {item.pago && (
-                              <p className={`text-xs font-medium ${diff > 0.01 ? 'text-red-500' : 'text-green-600'}`}>
+                              <p className={`text-xs font-medium num ${diff > 0.01 ? 'text-red-500' : 'text-emerald-600'}`}>
                                 ✓ {formatarMoeda(item.valor_real ?? item.valor_previsto)}
                               </p>
                             )}
