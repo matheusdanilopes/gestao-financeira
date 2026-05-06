@@ -63,9 +63,9 @@ function formatarValor(valor: number | null): string {
   return ` — R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
 }
 
-async function registrarPush(usuarioEmail: string, forcar = false) {
-  if (!VAPID_PUBLIC) return
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
+async function registrarPush(usuarioEmail: string, forcar = false): Promise<string | null> {
+  if (!VAPID_PUBLIC) return null
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null
 
   try {
     const reg = await navigator.serviceWorker.ready
@@ -82,16 +82,19 @@ async function registrarPush(usuarioEmail: string, forcar = false) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ usuario: usuarioEmail, subscription: sub }),
     })
-  } catch (_) {}
+    return null
+  } catch (err) {
+    return err instanceof Error ? err.message : String(err)
+  }
 }
 
-function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
   const rawData = atob(base64)
   const arr = new Uint8Array(rawData.length)
   for (let i = 0; i < rawData.length; i++) arr[i] = rawData.charCodeAt(i)
-  return arr.buffer
+  return arr
 }
 
 export default function NotificacoesBell() {
@@ -100,6 +103,7 @@ export default function NotificacoesBell() {
   const [usuarioEmail, setUsuarioEmail] = useState<string | null>(null)
   const [permissaoPush, setPermissaoPush] = useState<NotificationPermission | null>(null)
   const [iosNaoInstalado, setIosNaoInstalado] = useState(false)
+  const [erroPush, setErroPush] = useState<string | null>(null)
   const [resolvendo, setResolvendo] = useState<Record<string, boolean>>({})
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -194,17 +198,20 @@ export default function NotificacoesBell() {
       const perm = Notification.permission
       setPermissaoPush(perm)
       if (perm === 'granted') {
-        await registrarPush(email)
+        const erro = await registrarPush(email)
+        if (erro) setErroPush(erro)
       }
     } catch (_) {}
   }
 
   async function solicitarPermissaoPush() {
     if (!usuarioEmail) return
+    setErroPush(null)
     const perm = await Notification.requestPermission()
     setPermissaoPush(perm)
     if (perm === 'granted') {
-      await registrarPush(usuarioEmail)
+      const erro = await registrarPush(usuarioEmail)
+      if (erro) setErroPush(erro)
     }
   }
 
@@ -295,6 +302,14 @@ export default function NotificacoesBell() {
               <p className="text-xs text-amber-700 dark:text-amber-400">
                 No Safari, toque em <strong>Compartilhar</strong> → <strong>Adicionar à Tela de Início</strong> e reabra o app pelo ícone.
               </p>
+            </div>
+          )}
+
+          {/* Erro ao registrar push */}
+          {erroPush && (
+            <div className="px-4 py-3 bg-red-50 dark:bg-red-900/20 border-b border-red-100 dark:border-red-800">
+              <p className="text-xs text-red-700 dark:text-red-300 font-medium mb-0.5">Não foi possível ativar as notificações</p>
+              <p className="text-xs text-red-600 dark:text-red-400 break-all">{erroPush}</p>
             </div>
           )}
 
