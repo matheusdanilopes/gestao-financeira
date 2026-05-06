@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     { media: '(prefers-color-scheme: light)', color: '#4f46e5' },
     { media: '(prefers-color-scheme: dark)',  color: '#0f172a' },
   ],
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=yes',
+  viewport: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=yes, viewport-fit=cover',
   icons: {
     icon: [
       { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
