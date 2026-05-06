@@ -55,8 +55,7 @@ export default function RootLayout({
           }}
         />
         {/* Manifests adaptativos — Android escolhe pelo prefers-color-scheme */}
-        <link rel="manifest" media="(prefers-color-scheme: dark)"  href="/manifest-dark.json" />
-        <link rel="manifest" media="(prefers-color-scheme: light)" href="/manifest-light.json" />
+        <link rel="manifest" href="/manifest.json" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-title" content="Gestão Financeira" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
