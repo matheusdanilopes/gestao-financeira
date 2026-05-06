@@ -10,7 +10,7 @@ import BottomNav from '@/components/BottomNav'
 import InvestimentosMensal from '@/components/InvestimentosMensal'
 import { useMes } from '@/components/MesProvider'
 
-async function calcularSaldo(mes: Date): Promise<number> {
+async function calcularSaldo(mes: Date): Promise<{ saldo: number; saldoPrevisto: number }> {
   const primeiroDia = startOfMonth(mes)
   const mesRef = format(primeiroDia, 'yyyy-MM-dd')
   const mesRefFatura = format(startOfMonth(addMonths(mes, 1)), 'yyyy-MM-dd')
@@ -38,6 +38,15 @@ async function calcularSaldo(mes: Date): Promise<number> {
     })
     .reduce((acc, p) => acc + (p.pago ? (p.valor_real ?? p.valor_previsto) : p.valor_previsto), 0)
 
+  const contasFixasPrevisto = (planejamento || [])
+    .filter(p => {
+      const item = typeof p.item === 'string' ? p.item : ''
+      return !item.startsWith('[RECEITA]') && item !== 'Receita Total'
+        && !NUBANK_ITEMS.has(item)
+        && !item.startsWith('[CARTAO1]') && !item.startsWith('[CARTAO2]')
+    })
+    .reduce((acc, p) => acc + (p.valor_previsto || 0), 0)
+
   const matheusPrevisto = planejamento?.find(p => p.item === 'NuBank Matheus')?.valor_previsto || 0
   const jenifferPrevisto =
     (planejamento?.find(p => p.item === 'NuBank Jeniffer')?.valor_previsto || 0) +
@@ -57,12 +66,16 @@ async function calcularSaldo(mes: Date): Promise<number> {
     : nuBankPrevisto + cartao1PrevTotal + cartao2PrevTotal
   const totalGastos = contasFixas + faturaEfetiva
 
-  return receitaTotal - totalGastos
+  const saldo = receitaTotal - totalGastos
+  const saldoPrevisto = receitaTotal - contasFixasPrevisto - nuBankPrevisto - cartao1PrevTotal - cartao2PrevTotal
+
+  return { saldo, saldoPrevisto }
 }
 
 export default function InvestimentosPage() {
   const { mesAtual, setMesAtual } = useMes()
   const [saldo, setSaldo] = useState(0)
+  const [saldoPrevisto, setSaldoPrevisto] = useState(0)
   const [carregando, setCarregando] = useState(true)
   const isOnline = useOnline()
 
@@ -75,7 +88,7 @@ export default function InvestimentosPage() {
     }
     setCarregando(true)
     calcularSaldo(mesAtual)
-      .then(s => { setSaldo(s); setCarregando(false) })
+      .then(({ saldo: s, saldoPrevisto: sp }) => { setSaldo(s); setSaldoPrevisto(sp); setCarregando(false) })
       .catch(() => setCarregando(false))
   }, [mesAtual, isOnline])
 
@@ -124,7 +137,7 @@ export default function InvestimentosPage() {
           <div className="h-2 bg-gray-200 rounded-full" />
         </div>
       ) : (
-        <InvestimentosMensal mesSelecionado={mesAtual} saldo={saldo} />
+        <InvestimentosMensal mesSelecionado={mesAtual} saldo={saldo} saldoPrevisto={saldoPrevisto} />
       )}
 
       <BottomNav />
