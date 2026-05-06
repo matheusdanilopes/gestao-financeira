@@ -12,6 +12,9 @@ import { conciliarTransacao } from '@/lib/conciliacao'
 
 export const maxDuration = 300
 
+const CARTOES_VALIDOS = ['nubank', 'cartao1', 'cartao2'] as const
+type CartaoValido = typeof CARTOES_VALIDOS[number]
+
 type AuthResult =
   | { ok: true }
   | { ok: false; status: 401 | 403; message: string }
@@ -46,7 +49,8 @@ type StatsFatura = { noCSV: number; inseridas: number; ignoradas: number; totalN
 
 async function salvarTransacoes(
   supabase: ReturnType<typeof criarSupabaseServer>,
-  transacoes: TransacaoNubank[]
+  transacoes: TransacaoNubank[],
+  cartao: string = 'nubank'
 ) {
   let novosMatheus = 0
   let novosJeniffer = 0
@@ -105,6 +109,7 @@ async function salvarTransacoes(
       .from('transacoes_nubank')
       .select('*', { count: 'exact', head: true })
       .eq('projeto_fatura', fatura)
+      .eq('cartao', cartao)
     faturaStats[fatura].totalNoBanco = count ?? 0
   }
 
@@ -131,6 +136,15 @@ export async function POST(req: NextRequest) {
 
   const supabase = criarSupabaseServer(req)
 
+  const url = new URL(req.url)
+  let cartao: string = url.searchParams.get('cartao') ?? 'nubank'
+  if (!CARTOES_VALIDOS.includes(cartao as CartaoValido)) {
+    return NextResponse.json(
+      { error: `Cartão inválido: "${cartao}". Use um de: ${CARTOES_VALIDOS.join(', ')}.` },
+      { status: 400 }
+    )
+  }
+
   async function registrarLog(descricao: string, valor?: number) {
     try {
       await supabase.from('activity_logs').insert({
@@ -144,18 +158,27 @@ export async function POST(req: NextRequest) {
 
   try {
     const { data: configs } = await supabase.from('configuracoes').select('chave, valor')
-    const diaVencimento = parseInt(
-      configs?.find((c: any) => c.chave === 'dia_vencimento')?.valor || '10'
-    )
-    const ajusteFechamento = parseInt(
-      configs?.find((c: any) => c.chave === 'ajuste_fechamento')?.valor || '0'
-    )
+    const get = (chave: string, fallback: string) =>
+      configs?.find((c: any) => c.chave === chave)?.valor ?? fallback
+
+    const diaVencimento = parseInt(get(`dia_vencimento_${cartao}`, get('dia_vencimento', '10')))
+    const ajusteFechamento = parseInt(get(`ajuste_fechamento_${cartao}`, get('ajuste_fechamento', '0')))
 
     const contentType = req.headers.get('content-type') ?? ''
     let transacoes: TransacaoNubank[]
 
     if (contentType.includes('multipart/form-data')) {
       const formData = await req.formData()
+      const cartaoField = formData.get('cartao')
+      if (typeof cartaoField === 'string' && cartaoField) {
+        if (!CARTOES_VALIDOS.includes(cartaoField as CartaoValido)) {
+          return NextResponse.json(
+            { error: `Cartão inválido: "${cartaoField}". Use um de: ${CARTOES_VALIDOS.join(', ')}.` },
+            { status: 400 }
+          )
+        }
+        cartao = cartaoField
+      }
       const file = formData.get('file') as File | null
       if (!file) {
         const msg = 'Campo "file" ausente no formulário.'
@@ -164,7 +187,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: msg }, { status: 400 })
       }
       const csvText = await file.text()
-      transacoes = processarCSV(csvText, diaVencimento, ajusteFechamento)
+      transacoes = processarCSV(csvText, diaVencimento, ajusteFechamento, cartao)
     } else {
       let body: any
       try {
@@ -176,13 +199,24 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: msg }, { status: 400 })
       }
 
+      if (typeof body?.cartao === 'string' && body.cartao) {
+        if (!CARTOES_VALIDOS.includes(body.cartao as CartaoValido)) {
+          return NextResponse.json(
+            { error: `Cartão inválido: "${body.cartao}". Use um de: ${CARTOES_VALIDOS.join(', ')}.` },
+            { status: 400 }
+          )
+        }
+        cartao = body.cartao
+      }
+
       if (typeof body?.csv === 'string') {
-        transacoes = processarCSV(body.csv, diaVencimento, ajusteFechamento)
+        transacoes = processarCSV(body.csv, diaVencimento, ajusteFechamento, cartao)
       } else if (Array.isArray(body?.transacoes)) {
         transacoes = processarTransacoesJSON(
           body.transacoes as TransacaoInputJSON[],
           diaVencimento,
-          ajusteFechamento
+          ajusteFechamento,
+          cartao
         )
       } else {
         const msg = 'Body deve conter "csv" (string com conteúdo CSV) ou "transacoes" (array de objetos).'
@@ -199,9 +233,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: msg }, { status: 422 })
     }
 
-    const resultadoImportacao = await salvarTransacoes(supabase, transacoes)
+    const resultadoImportacao = await salvarTransacoes(supabase, transacoes, cartao)
 
-    const url = new URL(req.url)
     const deveCategorizar = url.searchParams.get('categorizar') !== 'false'
 
     let categorizacao: (ResultadoCategorizar & { ignorado?: string }) | null = null
