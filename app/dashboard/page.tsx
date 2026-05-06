@@ -116,8 +116,8 @@ export default function Dashboard() {
       { data: transacoesFatura },
       { data: planejamento },
       { data: invData },
-      { data: maxC1 },
-      { data: maxC2 },
+      { data: transacoesC1 },
+      { data: transacoesC2 },
       { data: nubankConfigs },
       { data: faturaRegistradaData },
       { data: assinaturasData },
@@ -136,8 +136,8 @@ export default function Dashboard() {
         .select('id, descricao, percentual')
         .eq('mes_referencia', mesRef)
         .order('created_at', { ascending: true }),
-      supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'cartao1').order('projeto_fatura', { ascending: false }).limit(1),
-      supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'cartao2').order('projeto_fatura', { ascending: false }).limit(1),
+      supabase.from('transacoes_nubank').select('valor, responsavel').eq('cartao', 'cartao1').eq('projeto_fatura', mesRefFatura),
+      supabase.from('transacoes_nubank').select('valor, responsavel').eq('cartao', 'cartao2').eq('projeto_fatura', mesRefFatura),
       supabase.from('configuracoes').select('chave, valor').in('chave', ['dia_vencimento', 'ajuste_fechamento']),
       supabase.from('faturas').select('data_fechamento').eq('cartao', 'nubank').eq('mes_referencia', mesRefFatura).limit(1),
       supabase.from('assinaturas').select('nome, valor, responsavel, ativa').eq('cartao', 'nubank'),
@@ -150,14 +150,6 @@ export default function Dashboard() {
     const fechamentoISO = faturaRegistradaData?.[0]?.data_fechamento
       || format(calcularDataFechamentoDaFatura(mesRefFaturaDate, diaVencNubank, ajusteNubank), 'yyyy-MM-dd')
     setDataFechamentoNubank(fechamentoISO)
-
-    // Busca transações pela última fatura de cada cartão (independente do mês do dashboard)
-    const c1Fatura = maxC1?.[0]?.projeto_fatura
-    const c2Fatura = maxC2?.[0]?.projeto_fatura
-    const [{ data: transacoesC1 }, { data: transacoesC2 }] = await Promise.all([
-      c1Fatura ? supabase.from('transacoes_nubank').select('valor, responsavel').eq('cartao', 'cartao1').eq('projeto_fatura', c1Fatura) : Promise.resolve({ data: [] as any[] }),
-      c2Fatura ? supabase.from('transacoes_nubank').select('valor, responsavel').eq('cartao', 'cartao2').eq('projeto_fatura', c2Fatura) : Promise.resolve({ data: [] as any[] }),
-    ])
 
     const totalRealizado = transacoesFatura?.reduce((acc, t) => acc + t.valor, 0) || 0
     const matheusAtual = transacoesFatura?.filter(t => t.responsavel === 'Matheus').reduce((acc, t) => acc + t.valor, 0) || 0
@@ -363,6 +355,11 @@ export default function Dashboard() {
     resumoCaixa.percentualComprometimento > 70 ? 'text-yellow-600' :
     'text-green-600'
 
+  const matheusSobraWarning = fatura.sobraMatheus >= 0 && fatura.matheusPrevisto > 0 && (fatura.sobraMatheus / fatura.matheusPrevisto) * 100 <= 10
+  const jenifferSobraWarning = fatura.sobraJeniffer >= 0 && fatura.jenifferPrevisto > 0 && (fatura.sobraJeniffer / fatura.jenifferPrevisto) * 100 <= 10
+  const saldoAtualWarning = resumoCaixa.sobraLiquida >= 0 && resumoCaixa.receitaTotal > 0 && (resumoCaixa.sobraLiquida / resumoCaixa.receitaTotal) * 100 <= 10
+  const saldoPrevistoWarning = resumoCaixa.saldoPrevisto >= 0 && resumoCaixa.receitaTotal > 0 && (resumoCaixa.saldoPrevisto / resumoCaixa.receitaTotal) * 100 <= 10
+
   const comprometimentoBarColor =
     resumoCaixa.percentualComprometimento > 90
       ? 'bg-gradient-to-r from-red-500 to-red-600' :
@@ -477,8 +474,10 @@ export default function Dashboard() {
                   <div className="h-full bg-blue-400 rounded-full" style={{ width: `${fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100) : 0}%` }} />
                 </div>
                 <p className="text-right text-xs text-blue-400 mt-0.5">{fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100).toFixed(0) : 0}% usado</p>
-                <div className={`flex justify-between text-xs font-bold mt-1 ${fatura.sobraMatheus >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  <span className="whitespace-nowrap">{fatura.sobraMatheus >= 0 ? '✓ Sobra' : '⚠ Excesso'}</span>
+                <div className={`flex justify-between text-xs font-bold mt-1 ${fatura.sobraMatheus < 0 ? 'text-red-600' : matheusSobraWarning ? 'text-yellow-600' : 'text-green-600'}`}>
+                  <span className="whitespace-nowrap flex items-center gap-0.5">
+                    {fatura.sobraMatheus < 0 ? '⚠ Excesso' : matheusSobraWarning ? <><AlertTriangle className="w-3 h-3 inline-block" /> Atenção!</> : '✓ Sobra'}
+                  </span>
                   <span className="whitespace-nowrap">R$ {Math.abs(fatura.sobraMatheus).toFixed(2)}</span>
                 </div>
               </div>
@@ -510,8 +509,10 @@ export default function Dashboard() {
                   <div className="h-full bg-pink-400 rounded-full" style={{ width: `${fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100) : 0}%` }} />
                 </div>
                 <p className="text-right text-xs text-pink-400 mt-0.5">{fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100).toFixed(0) : 0}% usado</p>
-                <div className={`flex justify-between text-xs font-bold mt-1 ${fatura.sobraJeniffer >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  <span className="whitespace-nowrap">{fatura.sobraJeniffer >= 0 ? '✓ Sobra' : '⚠ Excesso'}</span>
+                <div className={`flex justify-between text-xs font-bold mt-1 ${fatura.sobraJeniffer < 0 ? 'text-red-600' : jenifferSobraWarning ? 'text-yellow-600' : 'text-green-600'}`}>
+                  <span className="whitespace-nowrap flex items-center gap-0.5">
+                    {fatura.sobraJeniffer < 0 ? '⚠ Excesso' : jenifferSobraWarning ? <><AlertTriangle className="w-3 h-3 inline-block" /> Atenção!</> : '✓ Sobra'}
+                  </span>
                   <span className="whitespace-nowrap">R$ {Math.abs(fatura.sobraJeniffer).toFixed(2)}</span>
                 </div>
               </div>
@@ -539,17 +540,19 @@ export default function Dashboard() {
               const matheusTotalAtual = fatura.matheusAtual + matheusCardsAtual
               const matheusRestante = matheusTotalPrevisto - matheusTotalAtual
               const matheusPct = matheusTotalPrevisto > 0 ? Math.min(100, (matheusTotalAtual / matheusTotalPrevisto) * 100) : 0
+              const matheusResumoWarning = matheusRestante >= 0 && matheusTotalPrevisto > 0 && (matheusRestante / matheusTotalPrevisto) * 100 <= 10
               const jenifferTotalPrevisto = fatura.jenifferPrevisto + jenifferCardsPrevisto
               const jenifferTotalAtual = fatura.jenifferAtual + jenifferCardsAtual
               const jenifferRestante = jenifferTotalPrevisto - jenifferTotalAtual
               const jenifferPct = jenifferTotalPrevisto > 0 ? Math.min(100, (jenifferTotalAtual / jenifferTotalPrevisto) * 100) : 0
+              const jenifferResumoWarning = jenifferRestante >= 0 && jenifferTotalPrevisto > 0 && (jenifferRestante / jenifferTotalPrevisto) * 100 <= 10
 
               return (
                 <div className="opacity-60 mt-2">
                   <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Outros cartões</p>
                   <div className="grid grid-cols-2 gap-2">
                     {outrosCards.map((card, i) => {
-                      const sobra = card.previsto - card.atual
+                      const sobra = Math.round((card.previsto - card.atual) * 100) / 100
                       const pct = card.previsto > 0 ? Math.min(100, (card.atual / card.previsto) * 100) : 0
                       const pctRestante = card.previsto > 0 ? (sobra / card.previsto) * 100 : 100
                       const isWarning = sobra >= 0 && pctRestante <= 10
@@ -580,7 +583,7 @@ export default function Dashboard() {
                               {sobra < 0
                                 ? '⚠ Excesso'
                                 : isWarning
-                                ? <><AlertTriangle className="w-3 h-3 inline-block" />{' '}Restante</>
+                                ? <><AlertTriangle className="w-3 h-3 inline-block" /> Atenção!</>
                                 : '✓ Restante'}
                             </span>
                             <span className="whitespace-nowrap">R$ {Math.abs(sobra).toFixed(2)}</span>
@@ -606,8 +609,10 @@ export default function Dashboard() {
                         <div className="h-full bg-blue-500 rounded-full" style={{ width: `${matheusPct}%` }} />
                       </div>
                       <p className="text-right text-xs text-blue-400 mt-0.5">{matheusPct.toFixed(0)}% usado</p>
-                      <div className={`flex justify-between text-xs font-bold mt-1 ${matheusRestante >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        <span className="whitespace-nowrap">{matheusRestante >= 0 ? '✓ Restante' : '⚠ Excesso'}</span>
+                      <div className={`flex justify-between text-xs font-bold mt-1 ${matheusRestante < 0 ? 'text-red-600' : matheusResumoWarning ? 'text-yellow-600' : 'text-green-600'}`}>
+                        <span className="whitespace-nowrap flex items-center gap-0.5">
+                          {matheusRestante < 0 ? '⚠ Excesso' : matheusResumoWarning ? <><AlertTriangle className="w-3 h-3 inline-block" /> Atenção!</> : '✓ Restante'}
+                        </span>
                         <span className="whitespace-nowrap">R$ {Math.abs(matheusRestante).toFixed(2)}</span>
                       </div>
                     </div>
@@ -625,8 +630,10 @@ export default function Dashboard() {
                         <div className="h-full bg-pink-500 rounded-full" style={{ width: `${jenifferPct}%` }} />
                       </div>
                       <p className="text-right text-xs text-pink-400 mt-0.5">{jenifferPct.toFixed(0)}% usado</p>
-                      <div className={`flex justify-between text-xs font-bold mt-1 ${jenifferRestante >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        <span className="whitespace-nowrap">{jenifferRestante >= 0 ? '✓ Restante' : '⚠ Excesso'}</span>
+                      <div className={`flex justify-between text-xs font-bold mt-1 ${jenifferRestante < 0 ? 'text-red-600' : jenifferResumoWarning ? 'text-yellow-600' : 'text-green-600'}`}>
+                        <span className="whitespace-nowrap flex items-center gap-0.5">
+                          {jenifferRestante < 0 ? '⚠ Excesso' : jenifferResumoWarning ? <><AlertTriangle className="w-3 h-3 inline-block" /> Atenção!</> : '✓ Restante'}
+                        </span>
                         <span className="whitespace-nowrap">R$ {Math.abs(jenifferRestante).toFixed(2)}</span>
                       </div>
                     </div>
@@ -673,19 +680,23 @@ export default function Dashboard() {
             <div className="border-t pt-2 grid grid-cols-2 gap-2">
               <div className="flex flex-col items-center py-2 px-3 rounded-2xl bg-gray-50 border border-gray-100 shadow-card">
                 <span className="text-xs text-gray-500 mb-1">Saldo Previsto</span>
-                <span className={`text-base font-bold ${resumoCaixa.saldoPrevisto >= 0 ? 'text-primary-600' : 'text-red-600'}`}>
+                <span className={`text-base font-bold ${resumoCaixa.saldoPrevisto < 0 ? 'text-red-600' : saldoPrevistoWarning ? 'text-yellow-600' : 'text-primary-600'}`}>
                   R$ {resumoCaixa.saldoPrevisto.toFixed(2)}
                 </span>
-                <span className="text-[10px] text-gray-400 mt-0.5">só previsões</span>
+                {saldoPrevistoWarning && resumoCaixa.saldoPrevisto >= 0
+                  ? <span className="text-[10px] text-yellow-600 font-bold mt-0.5 flex items-center gap-0.5"><AlertTriangle className="w-2.5 h-2.5 inline-block" /> Atenção!</span>
+                  : <span className="text-[10px] text-gray-400 mt-0.5">só previsões</span>
+                }
               </div>
               <div className="flex flex-col items-center py-2 px-3 rounded-2xl bg-primary-50 border border-primary-100 shadow-card">
                 <span className="text-xs text-primary-600 mb-1">Saldo Atual</span>
-                <span className={`text-base font-bold ${resumoCaixa.sobraLiquida >= 0 ? 'text-primary-700' : 'text-red-600'}`}>
+                <span className={`text-base font-bold ${resumoCaixa.sobraLiquida < 0 ? 'text-red-600' : saldoAtualWarning ? 'text-yellow-600' : 'text-primary-700'}`}>
                   R$ {resumoCaixa.sobraLiquida.toFixed(2)}
                 </span>
-                <span className="text-[10px] text-primary-400 mt-0.5">
-                  {resumoCaixa.faturaEhPrevisto ? 'fatura estimada' : 'fatura real'}
-                </span>
+                {saldoAtualWarning && resumoCaixa.sobraLiquida >= 0
+                  ? <span className="text-[10px] text-yellow-600 font-bold mt-0.5 flex items-center gap-0.5"><AlertTriangle className="w-2.5 h-2.5 inline-block" /> Atenção!</span>
+                  : <span className="text-[10px] text-primary-400 mt-0.5">{resumoCaixa.faturaEhPrevisto ? 'fatura estimada' : 'fatura real'}</span>
+                }
               </div>
             </div>
             <div className="pt-1">
