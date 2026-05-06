@@ -140,7 +140,14 @@ export async function conciliarTransacao(
     }
 
     // Match parcial: nome + data coincidem, mas valor difere > R$0,05
-    // Insere novo registro com flag CONFLITO_VALOR
+    // Acima de R$2,00 de diferença → nova compra direta, sem notificação
+    if (diffValor > 2.00) {
+      const payload: Record<string, unknown> = { ...item, status: 'PENDENTE' }
+      const { ok } = await inserirRegistro(supabase, payload)
+      return { acao: 'inserido', inseriu: ok }
+    }
+
+    // Entre R$0,05 e R$2,00 → CONFLITO_VALOR + notificação para aprovação
     const payload: Record<string, unknown> = {
       ...item,
       status: 'CONFLITO_VALOR',
