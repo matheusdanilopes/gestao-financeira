@@ -234,7 +234,7 @@ export function processarTransacoesJSON(
       descricao.toLowerCase().includes('jeniffer') ? 'Jeniffer' : 'Matheus'
 
     const dataCompra = new Date(dataISO + 'T12:00:00')
-    const projetoFatura = calcularProjetoFatura(dataCompra, diaVencimento, ajusteFechamento)
+    let projetoFatura = calcularProjetoFatura(dataCompra, diaVencimento, ajusteFechamento)
 
     const hashInput = cartao !== 'nubank'
       ? `${dataISO}|${normalizarDescricaoParaHash(descricao)}|${valor.toFixed(2)}|${cartao}`
