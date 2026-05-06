@@ -448,7 +448,7 @@ export default function ChatPage() {
       </div>
 
       {/* Input */}
-      <div className="fixed bottom-16 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-100 px-4 py-3">
+      <div className="fixed bottom-16 left-0 right-0 sticky-header border-t border-gray-100 px-4 py-3">
         <div className="max-w-md mx-auto flex gap-2 items-end">
           <textarea
             ref={inputRef}
