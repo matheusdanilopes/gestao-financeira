@@ -196,7 +196,8 @@ export function processarCSV(
 export function processarTransacoesJSON(
   transacoes: TransacaoInputJSON[],
   diaVencimento: number = 10,
-  ajusteFechamento: number = 0
+  ajusteFechamento: number = 0,
+  cartao: string = 'nubank'
 ): TransacaoNubank[] {
   function sanitizar(str: string): string {
     return str
@@ -233,9 +234,14 @@ export function processarTransacoesJSON(
       descricao.toLowerCase().includes('jeniffer') ? 'Jeniffer' : 'Matheus'
 
     const dataCompra = new Date(dataISO + 'T12:00:00')
-    const projetoFatura = calcularProjetoFatura(dataCompra, diaVencimento, ajusteFechamento)
+    let projetoFatura = calcularProjetoFatura(dataCompra, diaVencimento, ajusteFechamento)
 
-    const hash_linha = gerarHashLinha(dataISO, descricao, valor)
+    const hashInput = cartao !== 'nubank'
+      ? `${dataISO}|${normalizarDescricaoParaHash(descricao)}|${valor.toFixed(2)}|${cartao}`
+      : undefined
+    const hash_linha = hashInput
+      ? createHash('sha256').update(hashInput).digest('hex')
+      : gerarHashLinha(dataISO, descricao, valor)
 
     let parcela_atual = null
     let total_parcelas = null
@@ -243,6 +249,10 @@ export function processarTransacoesJSON(
     if (parcelaMatch) {
       parcela_atual = parseInt(parcelaMatch[1])
       total_parcelas = parseInt(parcelaMatch[2])
+    }
+
+    if (cartao !== 'nubank' && parcela_atual !== null && parcela_atual > 1) {
+      projetoFatura = format(addMonths(new Date(projetoFatura + 'T12:00:00'), parcela_atual - 1), 'yyyy-MM-dd')
     }
 
     result.push({
@@ -254,6 +264,7 @@ export function processarTransacoesJSON(
       hash_linha,
       parcela_atual,
       total_parcelas,
+      cartao,
     })
   }
 

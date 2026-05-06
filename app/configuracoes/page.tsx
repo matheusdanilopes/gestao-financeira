@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { descricaoFechamento, calcularDataFechamentoDaFaturaISO } from '@/lib/fatura'
 import {
   Settings, LogOut, Upload, Activity, ChevronDown, Sun, Moon, Monitor,
-  Tags, Plus, Pencil, Trash2, Check, CreditCard, CalendarDays, X,
+  Tags, Plus, Pencil, Trash2, Check, CreditCard, CalendarDays, X, Code2, Copy,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -102,6 +102,10 @@ export default function ConfiguracoesPage() {
   const [novoNomeCategoria, setNovoNomeCategoria] = useState('')
   const [categoriasSalvando, setCategoriasSalvando] = useState(false)
 
+  // --- API Docs modal ---
+  const [modalApiAberto, setModalApiAberto] = useState(false)
+  const [copiado, setCopiado] = useState<string | null>(null)
+
   const router = useRouter()
   const { theme, setTheme } = useTheme()
 
@@ -117,6 +121,12 @@ export default function ConfiguracoesPage() {
     if (cartao === 'cartao1') return ajusteFechamentoC1
     if (cartao === 'cartao2') return ajusteFechamentoC2
     return ajusteFechamento
+  }
+
+  function copiarTexto(id: string, texto: string) {
+    navigator.clipboard.writeText(texto)
+    setCopiado(id)
+    setTimeout(() => setCopiado(null), 2000)
   }
 
   // Gera a lista de meses a exibir na aba Faturas (12 meses atrás até 2 à frente)
@@ -652,13 +662,30 @@ export default function ConfiguracoesPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-3xl shadow-card p-4">
+          <div className="bg-white rounded-3xl shadow-card p-4 mb-4">
             <button
               onClick={handleLogout}
               className="w-full flex items-center justify-center gap-2 py-3 text-red-600 font-semibold hover:bg-red-50 rounded-xl transition"
             >
               <LogOut className="w-5 h-5" />
               Sair da conta
+            </button>
+          </div>
+
+          <div className="bg-white rounded-3xl shadow-card p-4">
+            <h2 className="text-lg font-semibold mb-1 flex items-center gap-2">
+              <Code2 className="w-5 h-5 text-gray-500" />
+              Integração via API
+            </h2>
+            <p className="text-sm text-gray-500 mb-3">
+              Importe transações automaticamente via API REST com autenticação por token Bearer.
+            </p>
+            <button
+              onClick={() => setModalApiAberto(true)}
+              className="w-full flex items-center justify-center gap-2 border border-primary-200 text-primary-600 py-3 rounded-2xl font-semibold hover:bg-primary-50 transition active:scale-[0.97]"
+            >
+              <Code2 className="w-4 h-4" />
+              Ver Instruções de Integração
             </button>
           </div>
         </>
@@ -935,6 +962,156 @@ export default function ConfiguracoesPage() {
           <p className="text-xs text-gray-400 mt-3">
             Você pode editar categorias em uso (as compras serão atualizadas automaticamente). Remoções só são permitidas para categorias sem uso.
           </p>
+        </div>
+      )}
+
+      {/* Modal: Instruções de Integração via API */}
+      {modalApiAberto && (
+        <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50">
+          <div className="bg-white rounded-t-2xl w-full max-h-[88vh] overflow-y-auto overflow-x-hidden">
+            <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <Code2 className="w-5 h-5 text-primary-600" />
+                Integração via API
+              </h2>
+              <button onClick={() => setModalApiAberto(false)} className="p-2 rounded-full hover:bg-gray-100 transition">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-5 pb-10">
+              {/* Endpoint */}
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Endpoint</p>
+                <div className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5 gap-2">
+                  <code className="text-sm text-gray-800 break-all">POST /api/nubank/importar</code>
+                  <button onClick={() => copiarTexto('endpoint', 'POST /api/nubank/importar')} className="shrink-0 p-1.5 rounded-lg hover:bg-gray-200 transition">
+                    {copiado === 'endpoint' ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-gray-400" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Autenticação */}
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Autenticação</p>
+                <div className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5 gap-2">
+                  <code className="text-sm text-gray-800 break-all">Authorization: Bearer {'<NUBANK_IMPORT_API_KEY>'}</code>
+                  <button onClick={() => copiarTexto('auth', 'Authorization: Bearer <NUBANK_IMPORT_API_KEY>')} className="shrink-0 p-1.5 rounded-lg hover:bg-gray-200 transition">
+                    {copiado === 'auth' ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-gray-400" />}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-400 mt-1.5">Configure a variável de ambiente <code>NUBANK_IMPORT_API_KEY</code> no servidor.</p>
+              </div>
+
+              {/* Parâmetros */}
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Parâmetros (query string)</p>
+                <div className="space-y-2">
+                  {[
+                    { param: 'cartao', desc: 'nubank (padrão) | cartao1 | cartao2' },
+                    { param: 'categorizar', desc: 'true (padrão) | false — categorizar com IA após importar' },
+                  ].map(({ param, desc }) => (
+                    <div key={param} className="flex items-start gap-2">
+                      <code className="text-xs bg-gray-100 text-primary-700 px-2 py-1 rounded-lg shrink-0">{param}</code>
+                      <span className="text-sm text-gray-500">{desc}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Exemplo 1: arquivo CSV */}
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Exemplo 1 — Envio de arquivo CSV</p>
+                <div className="bg-gray-900 rounded-xl p-3 flex items-start gap-2">
+                  <pre className="text-xs text-green-300 whitespace-pre overflow-x-auto flex-1 min-w-0">{`curl -X POST https://seu-dominio.com/api/nubank/importar?cartao=nubank \\
+  -H "Authorization: Bearer SUA_API_KEY" \\
+  -F "file=@extrato.csv"`}</pre>
+                  <button
+                    onClick={() => copiarTexto('ex1', `curl -X POST https://seu-dominio.com/api/nubank/importar?cartao=nubank \\\n  -H "Authorization: Bearer SUA_API_KEY" \\\n  -F "file=@extrato.csv"`)}
+                    className="shrink-0 p-1.5 rounded-lg hover:bg-gray-700 transition"
+                  >
+                    {copiado === 'ex1' ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-400" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Exemplo 2: CSV como JSON */}
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Exemplo 2 — CSV como texto (JSON)</p>
+                <div className="bg-gray-900 rounded-xl p-3 flex items-start gap-2">
+                  <pre className="text-xs text-green-300 whitespace-pre overflow-x-auto flex-1 min-w-0">{`curl -X POST https://seu-dominio.com/api/nubank/importar?cartao=cartao1 \\
+  -H "Authorization: Bearer SUA_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"cartao":"cartao1","csv":"date,title,amount\\n2024-01-15,Compra,100.00"}'`}</pre>
+                  <button
+                    onClick={() => copiarTexto('ex2', `curl -X POST https://seu-dominio.com/api/nubank/importar?cartao=cartao1 \\\n  -H "Authorization: Bearer SUA_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"cartao":"cartao1","csv":"date,title,amount\\n2024-01-15,Compra,100.00"}'`)}
+                    className="shrink-0 p-1.5 rounded-lg hover:bg-gray-700 transition"
+                  >
+                    {copiado === 'ex2' ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-400" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Exemplo 3: array de transações */}
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Exemplo 3 — Array de transações (JSON)</p>
+                <div className="bg-gray-900 rounded-xl p-3 flex items-start gap-2">
+                  <pre className="text-xs text-green-300 whitespace-pre overflow-x-auto flex-1 min-w-0">{`curl -X POST https://seu-dominio.com/api/nubank/importar?cartao=cartao2 \\
+  -H "Authorization: Bearer SUA_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"cartao":"cartao2","transacoes":[{"date":"2024-01-15","title":"Compra","amount":100.00}]}'`}</pre>
+                  <button
+                    onClick={() => copiarTexto('ex3', `curl -X POST https://seu-dominio.com/api/nubank/importar?cartao=cartao2 \\\n  -H "Authorization: Bearer SUA_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"cartao":"cartao2","transacoes":[{"date":"2024-01-15","title":"Compra","amount":100.00}]}'`)}
+                    className="shrink-0 p-1.5 rounded-lg hover:bg-gray-700 transition"
+                  >
+                    {copiado === 'ex3' ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-400" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Formato do CSV */}
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Formato do CSV</p>
+                <div className="bg-gray-900 rounded-xl p-3 flex items-start gap-2">
+                  <pre className="text-xs text-green-300 whitespace-pre overflow-x-auto flex-1 min-w-0">{`date,title,amount\n2024-01-15,Supermercado,250.00\n2024-01-20,Restaurante Jeniffer,89.90`}</pre>
+                  <button
+                    onClick={() => copiarTexto('csv', `date,title,amount\n2024-01-15,Supermercado,250.00\n2024-01-20,Restaurante Jeniffer,89.90`)}
+                    className="shrink-0 p-1.5 rounded-lg hover:bg-gray-700 transition"
+                  >
+                    {copiado === 'csv' ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-400" />}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-400 mt-1.5">Transações com "Jeniffer" no título são atribuídas à Jeniffer. Parcelas no formato <code>2/6</code> são distribuídas automaticamente pelos meses.</p>
+              </div>
+
+              {/* Resposta */}
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Resposta</p>
+                <div className="bg-gray-50 rounded-xl p-3 overflow-x-auto">
+                  <pre className="text-xs text-gray-700 whitespace-pre">{`{
+  "success": true,
+  "importacao": {
+    "totalLidas": 10,
+    "novas": 8,
+    "conciliados": 1,
+    "conflitos": 0,
+    "duplicatasNoArquivo": 1,
+    "matheus": 6,
+    "jeniffer": 2,
+    "total": "1234.56",
+    "mesesReprocessados": ["2024-01-01"],
+    "resumoPorFatura": { ... }
+  },
+  "categorizacao": {
+    "categorized": 8,
+    "total": 8,
+    "cotaDiariaEsgotada": false
+  }
+}`}</pre>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
