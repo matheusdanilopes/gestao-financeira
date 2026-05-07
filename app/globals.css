@@ -225,6 +225,11 @@ body {
   padding-top: calc(0.75rem + var(--safe-top)) !important;
 }
 
+/* ─── Touch: remove sticky hover state on mobile ────────────────────────── */
+@media (hover: none) {
+  button:hover, a:hover { background-color: transparent !important; }
+}
+
 /* ─── Fade-in page transition ────────────────────────────────────────────── */
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(8px); }
