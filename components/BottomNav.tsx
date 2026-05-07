@@ -2,14 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Receipt, TrendingUp, ShoppingCart, MessageCircle, SlidersHorizontal, PiggyBank, Sparkles } from 'lucide-react'
+import { LayoutDashboard, Receipt, TrendingUp, ShoppingCart, MessageCircle, SlidersHorizontal, PiggyBank, Sparkles, BarChart3 } from 'lucide-react'
 import { memo, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabaseClient'
 import { AUTH_DISABLED } from '@/lib/authConfig'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
 
-const ROTAS_COM_MENU = ['/dashboard', '/contas', '/receitas', '/investimentos', '/assinaturas', '/compras', '/chat', '/configuracoes', '/importar']
+const ROTAS_COM_MENU = ['/dashboard', '/contas', '/receitas', '/investimentos', '/assinaturas', '/compras', '/chat', '/configuracoes', '/importar', '/analytics']
 
 const navItems = [
   { href: '/dashboard',      label: 'Dashboard',   icon: LayoutDashboard },
@@ -19,6 +19,7 @@ const navItems = [
   { href: '/compras',        label: 'Compras',     icon: ShoppingCart },
   { href: '/chat',           label: 'IA',          icon: MessageCircle },
   { href: '/configuracoes',  label: 'Config',      icon: SlidersHorizontal },
+  { href: '/analytics',     label: 'Analytics',   icon: BarChart3 },
 ]
 
 export default memo(function BottomNav() {
