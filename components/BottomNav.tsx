@@ -73,7 +73,7 @@ export default memo(function BottomNav() {
               <Link
                 key={href}
                 href={href}
-                className={`${desktopOnly ? 'hidden lg:flex' : 'flex'} flex-col items-center justify-center gap-0.5 flex-1 py-2 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-1 rounded-xl`}
+                className={`${desktopOnly ? 'hidden md:flex' : 'flex'} flex-col items-center justify-center gap-0.5 flex-1 py-2 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-1 rounded-xl`}
                 aria-current={isActive ? 'page' : undefined}
               >
                 <span className={`flex items-center justify-center w-9 h-6 rounded-full transition-all duration-200 ${
