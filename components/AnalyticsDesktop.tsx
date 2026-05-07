@@ -57,7 +57,6 @@ const trendOptions: ChartOptions<'line'> = {
   interaction: { mode: 'index', intersect: false },
   plugins: {
     legend: { display: false },
-    // @ts-expect-error chartjs-plugin-datalabels may be registered globally
     datalabels: { display: false },
     tooltip: {
       ...baseTooltip,
@@ -93,7 +92,6 @@ const donutOptions: ChartOptions<'doughnut'> = {
   cutout: '68%',
   plugins: {
     legend: { display: false },
-    // @ts-expect-error chartjs-plugin-datalabels may be registered globally
     datalabels: { display: false },
     tooltip: {
       ...baseTooltip,
@@ -113,7 +111,6 @@ const barBaseOptions: ChartOptions<'bar'> = {
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
-    // @ts-expect-error chartjs-plugin-datalabels may be registered globally
     datalabels: { display: false },
     legend: { position: 'top', labels: { font: { size: 11 }, usePointStyle: true, boxHeight: 8, padding: 12 } },
     tooltip: {
