@@ -389,7 +389,7 @@ export default function Dashboard() {
                 <div>
                   <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1">
                     {resumoCaixa.faturaEhPrevisto ? 'Saldo estimado' : 'Saldo atual'}
-                    <InfoPopover texto="Quanto sobra da renda após todos os gastos do mês. 'Saldo atual' usa a fatura real do NuBank; 'Saldo estimado' aparece quando a fatura ainda não fechou e usa projeção por parcelas. Verde = saldo saudável, âmbar = sobra abaixo de 10% da renda, vermelho = saldo negativo. A barra mostra o % da renda comprometido com gastos." />
+                    <InfoPopover texto="Quanto sobra da renda após todos os gastos do mês. 'Saldo atual' usa os lançamentos reais da fatura NuBank. 'Saldo estimado' aparece quando a fatura ainda não tem lançamentos — o valor é calculado com base nas parcelas em andamento. Verde = saldo saudável, âmbar = sobra abaixo de 10% da renda, vermelho = saldo negativo. A barra mostra o % da renda comprometido com gastos." />
                   </p>
                   <p className={`text-3xl font-bold num ${heroColor}`}>
                     {fmt(heroSaldo)}
