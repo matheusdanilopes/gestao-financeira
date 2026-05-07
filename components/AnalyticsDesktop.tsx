@@ -186,13 +186,9 @@ export default function AnalyticsDesktop() {
     trendChartData,
     categoryDonutData,
     personBarData,
-    yoyBarData,
     kpis,
     cashFlowData,
-    investmentAllocationData,
-    netWorthTrendData,
     budgetProgress,
-    financeMetrics,
   } = useAnalyticsData(filters)
 
   // ── DataGrid sort + search ─────────────────────────────────────────────────
@@ -391,12 +387,6 @@ export default function AnalyticsDesktop() {
                     : 'text-gray-500 dark:text-gray-400'
                 }
               />
-              <KpiCard
-                label="Taxa de Poupança"
-                value={`${financeMetrics.taxaPoupanca.toFixed(1)}%`}
-                sub="(Receita - Gastos) / Receita"
-                accent={financeMetrics.taxaPoupanca >= 0 ? 'text-emerald-600' : 'text-red-600'}
-              />
             </div>
           </header>
 
@@ -459,33 +449,10 @@ export default function AnalyticsDesktop() {
                     </div>
                   </ChartCard>
 
-                  {/* YoY comparison (2 cols) — desktop-exclusive feature */}
-                  <ChartCard title="Comparativo Anual (Year-over-Year)" className="col-span-2">
-                    <div className="h-64">
-                      <Bar data={yoyBarData} options={barBaseOptions} />
-                    </div>
-                  </ChartCard>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
                   <ChartCard title="Receitas x Despesas (Fluxo de Caixa)" className="col-span-2">
                     <div className="h-64">
                       <Bar data={cashFlowData} options={barBaseOptions} />
                     </div>
-                  </ChartCard>
-                  <div className="grid grid-rows-2 gap-4 col-span-1">
-                    <KpiCard label="Receita Total (Mês Atual)" value={fmtFull(financeMetrics.receitaMes)} accent="text-emerald-600" />
-                    <KpiCard label="Taxa de Poupança" value={`${financeMetrics.taxaPoupanca.toFixed(1)}%`} sub="((Receita - Despesas) / Receita)" accent="text-blue-600" />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <ChartCard title="Alocação por Tipo de Ativo" className="col-span-1">
-                    <div className="h-56"><Doughnut data={investmentAllocationData} options={donutOptions} /></div>
-                  </ChartCard>
-                  <ChartCard title="Evolução do Patrimônio (12 meses)" className="col-span-2">
-                    <div className="h-56"><Line data={netWorthTrendData} options={trendOptions} /></div>
-                    <div className="text-xs text-gray-500">Runway estimado: <span className="font-semibold">{financeMetrics.runwayMeses.toFixed(1)} meses</span></div>
                   </ChartCard>
                 </div>
 
