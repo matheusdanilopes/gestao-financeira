@@ -369,17 +369,17 @@ export default function Dashboard() {
   const HeroIcon = heroSaldo < 0 ? TrendingDown : heroSaldo === 0 ? Minus : TrendingUp
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-28 page-enter">
+    <div className="min-h-screen bg-gray-50 page-bottom-safe page-enter">
 
       {/* Header + seletor de mês */}
-      <div className="sticky top-0 sticky-header pt-3 pb-3 px-4 z-[10]">
+      <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 px-4 md:px-6 lg:px-8 z-[10]">
         <div className="flex items-center justify-between mb-3">
           <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
         </div>
         <MonthSelector value={mesAtual} onChange={setMesAtual} />
       </div>
 
-      <div className="px-4 space-y-4">
+      <div className="page-content space-y-4 lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0 lg:items-start">
 
         {/* ── Hero: Saldo do mês ── */}
         <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-5">
@@ -421,7 +421,7 @@ export default function Dashboard() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-3">
                   <p className="text-xs text-emerald-600 font-medium mb-0.5">Receita</p>
                   <p className="text-base font-bold text-emerald-700 num">{fmt(resumoCaixa.receitaTotal)}</p>
@@ -429,6 +429,14 @@ export default function Dashboard() {
                 <div className="bg-red-50 border border-red-100 rounded-2xl p-3">
                   <p className="text-xs text-red-500 font-medium mb-0.5">Gastos</p>
                   <p className="text-base font-bold text-red-600 num">{fmt(resumoCaixa.totalGastos)}</p>
+                </div>
+                <div className="bg-gray-50 border border-gray-100 rounded-2xl p-3 hidden md:block">
+                  <p className="text-xs text-gray-500 font-medium mb-0.5">Fixos</p>
+                  <p className="text-base font-bold text-gray-700 num">{fmt(resumoCaixa.contasFixas)}</p>
+                </div>
+                <div className="bg-primary-50 border border-primary-100 rounded-2xl p-3 hidden md:block">
+                  <p className="text-xs text-primary-600 font-medium mb-0.5">Extras</p>
+                  <p className="text-base font-bold text-primary-700 num">{fmt(resumoCaixa.extras)}</p>
                 </div>
               </div>
 
@@ -501,7 +509,7 @@ export default function Dashboard() {
               </div>
 
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">NuBank</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {/* Matheus NuBank */}
                 <div className="bg-blue-50 border border-blue-100 border-t-2 border-t-blue-400 p-3 rounded-2xl">
                   <p className="font-semibold text-blue-800 text-sm mb-2">Matheus</p>
@@ -605,7 +613,7 @@ export default function Dashboard() {
                 return (
                   <div className="mt-4 opacity-70">
                     <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Outros cartões</p>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                       {outrosCards.map((card, i) => {
                         const sobra = Math.round((card.previsto - card.atual) * 100) / 100
                         const pct = card.previsto > 0 ? Math.min(100, (card.atual / card.previsto) * 100) : 0

@@ -346,7 +346,7 @@ export default function ComprasPage() {
   useEffect(() => { carregarCategorias(); carregarLabelsCartao(); verificarFaturaFechada() }, [])
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 pb-24">
+    <div className="min-h-screen bg-gray-50 page-content page-bottom-safe">
 
       {toast && (
         <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-medium shadow-float ${
@@ -356,7 +356,7 @@ export default function ComprasPage() {
         </div>
       )}
 
-      <div className="sticky top-0 sticky-header pt-3 pb-3 px-0 z-[10]">
+      <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 z-[10]">
         <div className="flex items-center justify-between mb-3">
           <h1 className="text-xl font-bold text-gray-900">Compras</h1>
         </div>
@@ -618,7 +618,7 @@ export default function ComprasPage() {
       {/* Modal: editar compra */}
       {modalEditar && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4 modal-overlay">
-          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm p-6 shadow-float modal-sheet sm:modal-center">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm lg:max-w-lg p-6 shadow-float modal-sheet sm:modal-center">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-bold">Editar Compra</h3>
               <button onClick={() => setModalEditar(null)} className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 transition-all hover:rotate-90 duration-200">
@@ -714,7 +714,7 @@ export default function ComprasPage() {
       {/* Modal: excluir compra */}
       {modalExcluir && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4 modal-overlay">
-          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm p-6 shadow-float modal-sheet sm:modal-center">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm lg:max-w-lg p-6 shadow-float modal-sheet sm:modal-center">
             <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
               <Trash2 className="w-6 h-6 text-red-500" />
             </div>

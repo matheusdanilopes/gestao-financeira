@@ -58,7 +58,11 @@ export default memo(function BottomNav() {
   if (!AUTH_DISABLED && (isCheckingSession || !session)) return null
 
   return (
-    <div data-bottom-nav="true" className="fixed bottom-0 left-0 right-0 z-[50]">
+    <div
+      data-bottom-nav="true"
+      className="fixed bottom-0 left-0 right-0 z-[50]
+                 lg:bottom-auto lg:top-0 lg:border-b lg:border-t-0"
+    >
       {categorizando && (
         <div className="flex items-center justify-center gap-1.5 bg-violet-50 border-b border-violet-100 py-1.5 text-xs text-violet-600 font-medium">
           <Sparkles className="w-3 h-3 animate-pulse" />
@@ -66,27 +70,36 @@ export default memo(function BottomNav() {
         </div>
       )}
       <nav aria-label="Navegação principal">
-        <div className="flex justify-around items-center h-16 px-0.5">
+        {/* Mobile: horizontal centered row. Desktop: items left-aligned in top bar */}
+        <div className="flex justify-around items-center h-16 px-0.5 lg:justify-start lg:h-14 lg:px-4 lg:gap-1">
           {navItems.map(({ href, label, icon: Icon, desktopOnly }) => {
             const isActive = pathname === href
             return (
               <Link
                 key={href}
                 href={href}
-                className={`${desktopOnly ? 'hidden md:flex' : 'flex'} flex-col items-center justify-center gap-0.5 flex-1 py-2 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-1 rounded-xl`}
+                className={`
+                  ${desktopOnly ? 'hidden md:flex' : 'flex'}
+                  flex-col items-center justify-center gap-0.5 flex-1 py-2
+                  lg:flex-row lg:flex-none lg:gap-1.5 lg:px-3 lg:py-1.5 lg:rounded-xl lg:flex-initial
+                  transition-all duration-200
+                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-1 rounded-xl
+                `}
                 aria-current={isActive ? 'page' : undefined}
               >
-                <span className={`flex items-center justify-center w-9 h-6 rounded-full transition-all duration-200 ${
-                  isActive ? 'bg-primary-100' : ''
-                }`}>
+                <span className={`flex items-center justify-center w-9 h-6 rounded-full transition-all duration-200
+                                  lg:w-auto lg:h-auto lg:rounded-none
+                                  ${isActive ? 'bg-primary-100 lg:bg-transparent' : ''}`}>
                   <Icon
-                    className={`transition-all duration-200 ${isActive ? 'w-[18px] h-[18px] text-primary-600' : 'w-[18px] h-[18px] text-gray-400'}`}
+                    className={`transition-all duration-200
+                      w-[18px] h-[18px] lg:w-4 lg:h-4
+                      ${isActive ? 'text-primary-600' : 'text-gray-400 lg:text-gray-500'}`}
                     strokeWidth={isActive ? 2.5 : 1.8}
                   />
                 </span>
-                <span className={`text-[11px] font-medium transition-colors duration-200 leading-none ${
-                  isActive ? 'text-primary-600' : 'text-gray-400'
-                }`}>
+                <span className={`text-[11px] font-medium transition-colors duration-200 leading-none
+                                  lg:text-[13px] lg:leading-none
+                                  ${isActive ? 'text-primary-600' : 'text-gray-400 lg:text-gray-600'}`}>
                   {label}
                 </span>
               </Link>

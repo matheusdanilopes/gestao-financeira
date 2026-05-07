@@ -261,7 +261,7 @@ export default function ChatPage() {
       )}
 
       {/* Drawer de conversas anteriores */}
-      <div className={`fixed top-0 left-0 h-full w-80 max-w-[85vw] bg-white z-50 shadow-xl flex flex-col transition-transform duration-300 ${drawerAberto ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className={`fixed top-0 left-0 h-full w-80 lg:w-96 max-w-[85vw] bg-white z-50 shadow-xl flex flex-col transition-transform duration-300 ${drawerAberto ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <History className="w-4 h-4 text-blue-500" />
@@ -385,7 +385,7 @@ export default function ChatPage() {
               <p className="font-semibold text-gray-700">Olá! Sou seu assistente financeiro.</p>
               <p className="text-sm text-gray-400 mt-1">Analiso os dados do mês e respondo suas perguntas.</p>
             </div>
-            <div className="w-full grid grid-cols-2 gap-2 mt-1">
+            <div className="w-full grid grid-cols-2 lg:grid-cols-4 gap-2 mt-1">
               {SUGESTOES.map((s) => (
                 <button
                   key={s}
@@ -416,7 +416,7 @@ export default function ChatPage() {
                     : <Bot className="w-4 h-4 text-gray-500" />
                   }
                 </div>
-                <div className={`max-w-[82%] rounded-2xl px-4 py-2.5 ${
+                <div className={`max-w-[82%] lg:max-w-[65%] rounded-2xl px-4 py-2.5 ${
                   m.role === 'user'
                     ? 'bg-primary-600 text-white rounded-tr-sm text-sm leading-relaxed'
                     : 'bg-white text-gray-800 shadow-card border border-gray-100 rounded-tl-sm'
@@ -448,8 +448,8 @@ export default function ChatPage() {
       </div>
 
       {/* Input */}
-      <div className="fixed bottom-16 left-0 right-0 sticky-header border-t border-gray-100 px-4 py-3">
-        <div className="max-w-md mx-auto flex gap-2 items-end">
+      <div className="fixed bottom-16 lg:bottom-0 left-0 right-0 sticky-header border-t border-gray-100 px-4 py-3">
+        <div className="max-w-md lg:max-w-3xl mx-auto flex gap-2 items-end">
           <textarea
             ref={inputRef}
             value={input}

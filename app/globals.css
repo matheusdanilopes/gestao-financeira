@@ -136,7 +136,7 @@ body {
 .dark input::placeholder,
 .dark textarea::placeholder { color: var(--color-muted) !important; }
 
-/* ─── BottomNav glassmorphism + safe-area ────────────────────────────────── */
+/* ─── BottomNav/TopNav glassmorphism + safe-area ─────────────────────────── */
 [data-bottom-nav='true'] {
   background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(24px) saturate(180%);
@@ -149,6 +149,20 @@ body {
   background: rgba(15, 23, 42, 0.92);
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.50);
+}
+/* Desktop: top bar variant — flip border/shadow direction */
+@media (min-width: 1024px) {
+  [data-bottom-nav='true'] {
+    border-top: none;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04), 0 4px 24px rgba(0, 0, 0, 0.04);
+    padding-bottom: 0;
+  }
+  .dark [data-bottom-nav='true'] {
+    border-top: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.30);
+  }
 }
 
 .on-login-page [data-bottom-nav='true'] { display: none !important; }
@@ -236,6 +250,18 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 .page-enter { animation: fade-up 0.22s ease; }
+
+/* ─── Responsive page utilities ─────────────────────────────────────────── */
+.page-content {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+@media (min-width: 768px)  { .page-content { padding-left: 1.5rem; padding-right: 1.5rem; } }
+@media (min-width: 1024px) { .page-content { padding-left: 2rem;   padding-right: 2rem;   } }
+
+/* Mobile: bottom nav clearance. Desktop: minimal padding. */
+.page-bottom-safe { padding-bottom: 7rem; }
+@media (min-width: 1024px) { .page-bottom-safe { padding-bottom: 1.5rem; } }
 
 /* ─── Input focus ring consistente ──────────────────────────────────────── */
 .input-base {

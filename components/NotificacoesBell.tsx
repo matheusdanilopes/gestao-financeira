@@ -262,7 +262,7 @@ export default memo(function NotificacoesBell() {
       </button>
 
       {aberto && (
-        <div className="absolute right-0 top-full mt-2 w-[340px] max-w-[calc(100vw-16px)] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700 z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-2 w-[340px] lg:w-[400px] max-w-[calc(100vw-16px)] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700 z-50 overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
             <div className="flex items-center gap-2">
@@ -330,7 +330,7 @@ export default memo(function NotificacoesBell() {
           )}
 
           {/* List */}
-          <div className="max-h-[360px] overflow-y-auto divide-y divide-gray-50 dark:divide-gray-800">
+          <div className="max-h-[360px] lg:max-h-[520px] overflow-y-auto divide-y divide-gray-50 dark:divide-gray-800">
             {notificacoes.length === 0 ? (
               <div className="py-10 text-center">
                 <Bell className="w-8 h-8 text-gray-300 mx-auto mb-2" />
