@@ -317,6 +317,11 @@ export default function Dashboard() {
     [mesAtual]
   )
 
+  const isMesFuturo = useMemo(
+    () => format(mesAtual, 'yyyy-MM') > format(new Date(), 'yyyy-MM'),
+    [mesAtual]
+  )
+
   const comprometimentoColor = useMemo(() =>
     resumoCaixa.percentualComprometimento > 90 ? 'text-red-600' :
     resumoCaixa.percentualComprometimento > 70 ? 'text-amber-600' :
@@ -396,8 +401,12 @@ export default function Dashboard() {
                   </div>
                 </div>
                 {!isMesAtual && (
-                  <span className="text-xs bg-amber-50 text-amber-700 border border-amber-100 rounded-xl px-2.5 py-1 font-medium">
-                    Histórico
+                  <span className={`text-xs border rounded-xl px-2.5 py-1 font-medium ${
+                    isMesFuturo
+                      ? 'bg-blue-50 text-blue-700 border-blue-100'
+                      : 'bg-amber-50 text-amber-700 border-amber-100'
+                  }`}>
+                    {isMesFuturo ? 'Previsão' : 'Histórico'}
                   </span>
                 )}
               </div>
@@ -447,7 +456,7 @@ export default function Dashboard() {
               </div>
               <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
                 Fatura NuBank
-                <InfoPopover texto="Visão consolidada da fatura NuBank por pessoa. 'Atual' é o valor já lançado no cartão. 'Previsto' é o limite planejado. 'Sobra' é o quanto resta antes de ultrapassar o orçamento. Os cards de 'Outros cartões' mostram o pago vs. previsto de cartões secundários (PicPay, etc.). O 'Resumo por pessoa' soma tudo: atual NuBank + parcelas projetadas + previsto dos demais cartões, indicando o total comprometido e quanto ainda resta do orçamento." />
+                <InfoPopover texto="Gastos no NuBank divididos por pessoa. 'Atual': valor já lançado na fatura do mês. 'Previsto': orçamento planejado. 'Sobra': margem restante dentro do orçamento. 'Parc. prev.': parcelas futuras já comprometidas, exibidas quando a fatura ainda não fechou. 'Outros cartões' e o 'Resumo' consolidam todos os cartões por pessoa." />
               </h2>
             </div>
             {dataFechamentoNubank && !carregando && (() => {
@@ -664,7 +673,7 @@ export default function Dashboard() {
             </div>
             <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
               Resumo de Caixa
-              <InfoPopover texto="Visão geral das finanças do mês. O 'Saldo Previsto' considera apenas os valores planejados. O 'Saldo Atual' usa a fatura real do NuBank quando disponível, ou a estimada por parcelas. O comprometimento indica qual percentual da renda já está comprometido com gastos." />
+              <InfoPopover texto="Visão geral do mês. 'Saldo Previsto': resultado usando apenas os valores planejados no orçamento. 'Saldo Atual': resultado real com a fatura NuBank do mês (ou estimativa por parcelas quando ainda não fechou). O comprometimento mostra qual % da renda já está comprometido com gastos." />
             </h2>
           </div>
           {carregando ? (
@@ -729,7 +738,7 @@ export default function Dashboard() {
                 </div>
                 <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
                   Investimentos
-                  <InfoPopover texto="Progresso dos aportes mensais em cada investimento. A meta de cada item é calculada como um percentual da sobra líquida do mês. Quando o aporte atinge a meta, o indicador fica verde." />
+                  <InfoPopover texto="Progresso dos aportes do mês em cada investimento. A meta é calculada como um percentual do saldo atual (receita − gastos reais). Verde = meta atingida. A linha 'prev.' indica a meta com base no saldo planejado, quando for diferente do saldo real." />
                 </h2>
               </div>
               <a href="/investimentos" className="text-xs text-violet-600 hover:text-violet-700 transition-colors font-medium">
@@ -807,7 +816,7 @@ export default function Dashboard() {
             </div>
             <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
               Projeção de Parcelamentos
-              <InfoPopover texto="Previsão do total de parcelas que vencerão nos próximos 6 meses, separado por pessoa (Matheus, Jeniffer) e extras. Calculado com base nas transações parceladas já registradas no NuBank. Toque em um ponto do gráfico para ver os detalhes." />
+              <InfoPopover texto="Total de parcelas previstas para vencer nos próximos 6 meses, separado por pessoa e extras. Calculado a partir das compras parceladas já registradas no NuBank. Toque em um ponto do gráfico para ver os detalhes de cada mês." />
             </h2>
           </div>
           <p className="text-xs text-gray-400 mb-4 ml-10">Próximos 6 meses · Toque em um ponto para detalhes</p>
