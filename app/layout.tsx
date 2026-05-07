@@ -99,7 +99,7 @@ export default function RootLayout({
             <MesProvider>
               <CategorizacaoProvider>
                 <ClientShell>
-                  <main className="max-w-md mx-auto relative">
+                  <main className="w-full max-w-md md:max-w-2xl lg:max-w-5xl xl:max-w-7xl mx-auto relative lg:pt-14">
                     {children}
                   </main>
                   <BottomNav />

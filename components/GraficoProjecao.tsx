@@ -202,7 +202,7 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
 
   if (carregando) {
     return (
-      <div className="h-72 flex flex-col items-center justify-center gap-3 text-gray-400">
+      <div className="h-56 md:h-64 lg:h-72 flex flex-col items-center justify-center gap-3 text-gray-400">
         <div className="w-8 h-8 border-2 border-gray-200 border-t-purple-500 rounded-full animate-spin" />
         <span className="text-sm">Carregando projeção…</span>
       </div>
@@ -221,7 +221,7 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
 
   return (
     <div>
-      <div className="h-72">
+      <div className="h-56 md:h-64 lg:h-72">
         <Line data={dadosGrafico} options={options} plugins={[ChartDataLabels]} />
       </div>
       <p className="flex items-center justify-center gap-1 text-[11px] text-gray-400 mt-3">
