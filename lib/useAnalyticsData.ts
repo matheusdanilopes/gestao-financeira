@@ -31,7 +31,6 @@ export interface AnalyticsFilters {
 interface RevenueRow { data: string; valor: number }
 interface InvestmentRow { data_atualizacao: string; valor_atual: number; tipo_ativo: string }
 interface BudgetRow { categoria_id: string; valor_previsto: number; mes_referencia: string }
-interface GastoCategoriaRow { categoria: string; total_gasto: number }
 
 const CAT_COLORS = [
   '#8b5cf6', '#3b82f6', '#ec4899', '#10b981',
@@ -50,7 +49,6 @@ export function useAnalyticsData(filters: AnalyticsFilters) {
   const [revenues, setRevenues] = useState<RevenueRow[]>([])
   const [investments, setInvestments] = useState<InvestmentRow[]>([])
   const [budgets, setBudgets] = useState<BudgetRow[]>([])
-  const [yoyLoading, setYoyLoading] = useState(false)
 
   const { status, refetch } = useGlobalSync({
     cacheKey: `analytics:${filters.dateFrom}:${filters.dateTo}:${filters.categorias.join(',')}:${filters.responsavel}`,
@@ -73,12 +71,10 @@ export function useAnalyticsData(filters: AnalyticsFilters) {
   useEffect(() => {
     const yearA = new Date(filters.dateFrom).getFullYear() - 1
     const yearB = new Date(filters.dateTo).getFullYear()
-    setYoyLoading(true)
     supabase
       .rpc('rpc_analytics_yoy', { p_year_a: yearA, p_year_b: yearB })
       .then(({ data }) => {
         setYoyRows((data ?? []) as AnalyticsYoYRow[])
-        setYoyLoading(false)
       })
   }, [filters.dateFrom, filters.dateTo])
 
@@ -91,7 +87,7 @@ export function useAnalyticsData(filters: AnalyticsFilters) {
       .then(({ data }) => setBudgets((data ?? []) as BudgetRow[]))
   }, [filters.dateFrom, filters.dateTo])
 
-  const loading = status === 'loading' || yoyLoading
+  const loading = status === 'loading'
 
   // ── Chart memos ───────────────────────────────────────────────────────────
 
@@ -218,22 +214,42 @@ export function useAnalyticsData(filters: AnalyticsFilters) {
   }, [investments])
 
   const netWorthTrendData = useMemo<ChartData<'line'>>(() => {
-    const byMonth = new Map<string, number>()
+    const byMonthInvest = new Map<string, number>()
+    const byMonthRevenue = new Map<string, number>()
+    const byMonthExpense = new Map<string, number>()
+
     investments.forEach((i) => {
       const m = i.data_atualizacao.slice(0, 7)
-      byMonth.set(m, (byMonth.get(m) ?? 0) + i.valor_atual)
+      byMonthInvest.set(m, (byMonthInvest.get(m) ?? 0) + i.valor_atual)
     })
-    const months = [...byMonth.keys()].sort().slice(-12)
-    return { labels: months, datasets: [{ label: 'Patrimônio', data: months.map((m) => byMonth.get(m) ?? 0), borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.12)', fill: true }] }
-  }, [investments])
+    revenues.forEach((r) => {
+      const m = r.data.slice(0, 7)
+      byMonthRevenue.set(m, (byMonthRevenue.get(m) ?? 0) + r.valor)
+    })
+    rows.forEach((r) => {
+      const m = r.mes.slice(0, 7)
+      byMonthExpense.set(m, (byMonthExpense.get(m) ?? 0) + r.total_gasto)
+    })
+
+    const months = [...new Set([...byMonthInvest.keys(), ...byMonthRevenue.keys(), ...byMonthExpense.keys()])].sort().slice(-12)
+    const patrimonio = months.reduce<number[]>((acc, m) => {
+      const saldoAnterior = acc.length > 0 ? acc[acc.length - 1] - (byMonthInvest.get(months[acc.length - 1]) ?? 0) : 0
+      const saldoAtual = saldoAnterior + (byMonthRevenue.get(m) ?? 0) - (byMonthExpense.get(m) ?? 0)
+      acc.push(saldoAtual + (byMonthInvest.get(m) ?? 0))
+      return acc
+    }, [])
+
+    return { labels: months, datasets: [{ label: 'Patrimônio Líquido', data: patrimonio, borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.12)', fill: true }] }
+  }, [investments, revenues, rows])
 
   const budgetProgress = useMemo(() => {
+    const selectedMonth = filters.dateTo.slice(0, 7)
     const spentByCat = new Map<string, number>()
-    rows.filter((r) => r.mes === filters.dateTo).forEach((r) => spentByCat.set(r.categoria, (spentByCat.get(r.categoria) ?? 0) + r.total_gasto))
+    rows.filter((r) => r.mes.slice(0, 7) === selectedMonth).forEach((r) => spentByCat.set(r.categoria, (spentByCat.get(r.categoria) ?? 0) + r.total_gasto))
     return budgets.map((b) => {
       const spent = spentByCat.get(b.categoria_id) ?? 0
       const pct = b.valor_previsto > 0 ? (spent / b.valor_previsto) * 100 : 0
-      return { categoria: b.categoria_id, previsto: b.valor_previsto, gasto: spent, pct }
+      return { categoria: b.categoria_id, previsto: b.valor_previsto, gasto: spent, pct, variancia: b.valor_previsto - spent }
     })
   }, [budgets, rows, filters.dateTo])
 

@@ -391,6 +391,12 @@ export default function AnalyticsDesktop() {
                     : 'text-gray-500 dark:text-gray-400'
                 }
               />
+              <KpiCard
+                label="Taxa de Poupança"
+                value={`${financeMetrics.taxaPoupanca.toFixed(1)}%`}
+                sub="(Receita - Gastos) / Receita"
+                accent={financeMetrics.taxaPoupanca >= 0 ? 'text-emerald-600' : 'text-red-600'}
+              />
             </div>
           </header>
 
@@ -464,7 +470,7 @@ export default function AnalyticsDesktop() {
                 <div className="grid grid-cols-3 gap-4">
                   <ChartCard title="Receitas x Despesas (Fluxo de Caixa)" className="col-span-2">
                     <div className="h-64">
-                      <Bar data={cashFlowData} options={{ ...barBaseOptions, scales: { ...barBaseOptions.scales, x: { ...barBaseOptions.scales?.x, stacked: true }, y: { ...barBaseOptions.scales?.y, stacked: true } } }} />
+                      <Bar data={cashFlowData} options={barBaseOptions} />
                     </div>
                   </ChartCard>
                   <div className="grid grid-rows-2 gap-4 col-span-1">
@@ -489,8 +495,13 @@ export default function AnalyticsDesktop() {
                     {budgetProgress.map((b) => (
                       <div key={b.categoria} className="space-y-1">
                         <div className="flex justify-between text-xs"><span>{b.categoria}</span><span>{b.gasto.toLocaleString('pt-BR')} / {b.previsto.toLocaleString('pt-BR')}</span></div>
-                        <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden">
-                          <div className={`h-full ${b.pct < 80 ? 'bg-blue-500' : b.pct <= 100 ? 'bg-amber-400' : 'bg-red-500'}`} style={{ width: `${Math.min(b.pct, 100)}%` }} />
+                        <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden relative">
+                          <div className={`h-full ${b.pct < 80 ? 'bg-blue-500' : b.pct < 90 ? 'bg-amber-400' : 'bg-red-500'}`} style={{ width: `${Math.min(b.pct, 100)}%` }} />
+                          <div
+                            className="absolute h-3 w-0.5 bg-gray-800/70"
+                            style={{ left: '100%', top: 0 }}
+                            aria-hidden="true"
+                          />
                         </div>
                       </div>
                     ))}
@@ -536,12 +547,15 @@ export default function AnalyticsDesktop() {
                               <SortIcon k={col.key} />
                             </th>
                           ))}
+                          <th className="px-4 py-2.5 text-right text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap">
+                            Desvio (R$)
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50 dark:divide-white/[0.04]">
                         {sortedRows.length === 0 ? (
                           <tr>
-                            <td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">
+                            <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-400">
                               Nenhum dado encontrado para o período selecionado.
                             </td>
                           </tr>
@@ -580,6 +594,13 @@ export default function AnalyticsDesktop() {
                                 </td>
                                 <td className="px-4 py-2 text-right text-gray-400 tabular-nums text-xs">
                                   {row.contagem}
+                                </td>
+                                <td className="px-4 py-2 text-right text-xs tabular-nums text-gray-500">
+                                  {(() => {
+                                    const budget = budgetProgress.find((b) => b.categoria === row.categoria)
+                                    if (!budget) return '—'
+                                    return fmtFull(budget.variancia)
+                                  })()}
                                 </td>
                               </tr>
                             )
