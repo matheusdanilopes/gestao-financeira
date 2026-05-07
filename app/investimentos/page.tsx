@@ -1,15 +1,19 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { useOnline } from '@/lib/useOnline'
-import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
+import { format, startOfMonth, addMonths } from 'date-fns'
 import InvestimentosMensal from '@/components/InvestimentosMensal'
 import MonthSelector from '@/components/MonthSelector'
 import { useMes } from '@/components/MesProvider'
+import { useDataSync } from '@/lib/useDataSync'
 
-async function calcularSaldo(mes: Date): Promise<{ saldo: number; saldoPrevisto: number }> {
+interface SaldoData {
+  saldo: number
+  saldoPrevisto: number
+}
+
+async function calcularSaldo(mes: Date): Promise<SaldoData> {
   const primeiroDia = startOfMonth(mes)
   const mesRef = format(primeiroDia, 'yyyy-MM-dd')
   const mesRefFatura = format(startOfMonth(addMonths(mes, 1)), 'yyyy-MM-dd')
@@ -65,31 +69,31 @@ async function calcularSaldo(mes: Date): Promise<{ saldo: number; saldoPrevisto:
     : nuBankPrevisto + cartao1PrevTotal + cartao2PrevTotal
   const totalGastos = contasFixas + faturaEfetiva
 
-  const saldo = receitaTotal - totalGastos
-  const saldoPrevisto = receitaTotal - contasFixasPrevisto - nuBankPrevisto - cartao1PrevTotal - cartao2PrevTotal
-
-  return { saldo, saldoPrevisto }
+  return {
+    saldo: receitaTotal - totalGastos,
+    saldoPrevisto: receitaTotal - contasFixasPrevisto - nuBankPrevisto - cartao1PrevTotal - cartao2PrevTotal,
+  }
 }
 
 export default function InvestimentosPage() {
   const { mesAtual, setMesAtual } = useMes()
   const [saldo, setSaldo] = useState(0)
   const [saldoPrevisto, setSaldoPrevisto] = useState(0)
-  const [carregando, setCarregando] = useState(true)
-  const isOnline = useOnline()
 
-  const isMesAtual = format(mesAtual, 'yyyy-MM') === format(new Date(), 'yyyy-MM')
+  const fetcher = useCallback(() => calcularSaldo(mesAtual), [mesAtual])
 
-  useEffect(() => {
-    if (!isOnline) {
-      setCarregando(false)
-      return
-    }
-    setCarregando(true)
-    calcularSaldo(mesAtual)
-      .then(({ saldo: s, saldoPrevisto: sp }) => { setSaldo(s); setSaldoPrevisto(sp); setCarregando(false) })
-      .catch(() => setCarregando(false))
-  }, [mesAtual, isOnline])
+  const { status } = useDataSync({
+    cacheKey: `investimentos-saldo:${format(mesAtual, 'yyyy-MM')}`,
+    tables: ['transacoes_nubank', 'planejamento'],
+    fetcher,
+    onData: (data: unknown) => {
+      const d = data as SaldoData
+      setSaldo(d.saldo)
+      setSaldoPrevisto(d.saldoPrevisto)
+    },
+  })
+
+  const carregando = status === 'loading'
 
   return (
     <div className="min-h-screen bg-gray-50 pb-28 page-enter">
