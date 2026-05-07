@@ -118,7 +118,6 @@ export default function ComprasPage() {
   const isMesAtual = format(mesAtual, 'yyyy-MM') === format(addMonths(new Date(), 1), 'yyyy-MM')
 
   const [compras, setCompras] = useState<Compra[]>([])
-  const [loading, setLoading] = useState(true)
   const [filtroResponsavel, setFiltroResponsavel] = useState('')
   const [filtroCartao, setFiltroCartao] = useState<'' | 'nubank' | 'cartao1' | 'cartao2'>('')
   const [filtroDescricaoInput, setFiltroDescricaoInput] = useState('')
@@ -156,32 +155,20 @@ export default function ComprasPage() {
   }, [mesRefStr])
 
   // Sincronização automática: Realtime + polling 45s + cache localStorage
-  const { isOnline } = useGlobalSync({
+  const { isOnline, status, refetch } = useGlobalSync({
     cacheKey: `compras:${mesRefStr}`,
     tables: ['transacoes_nubank'],
     fetcher: fetcherCompras,
-    onData: (data: unknown) => { setCompras(data as Compra[]); setLoading(false) },
+    onData: (data: unknown) => { setCompras(data as Compra[]) },
     pollInterval: 45_000,
   })
+  const loading = status === 'loading'
 
-  // Pula fetch manual no primeiro render (useDataSync já cuida)
   const isFirstRender = useRef(true)
 
   function showToast(msg: string, tipo: 'ok' | 'erro' = 'ok') {
     setToast({ msg, tipo })
     setTimeout(() => setToast(null), 3000)
-  }
-
-  async function carregarCompras() {
-    setLoading(true)
-    const mesRef = format(startOfMonth(mesAtual), 'yyyy-MM-dd')
-    const { data } = await supabase
-      .from('transacoes_nubank')
-      .select('*')
-      .eq('projeto_fatura', mesRef)
-      .order('data', { ascending: false })
-    setCompras(data || [])
-    setLoading(false)
   }
 
   async function carregarCategorias() {
@@ -266,7 +253,7 @@ export default function ComprasPage() {
     )
     showToast('Compra atualizada!')
     setModalEditar(null)
-    carregarCompras()
+    refetch()
   }
 
   async function confirmarExclusao() {
@@ -286,7 +273,7 @@ export default function ComprasPage() {
     )
     showToast('Compra excluída')
     setModalExcluir(null)
-    carregarCompras()
+    refetch()
   }
 
   const filtrosAtivos = !!filtroResponsavel || !!filtroCartao || !!filtroDescricao || !!filtroValorMin || !!filtroDia || !!filtroCategoria

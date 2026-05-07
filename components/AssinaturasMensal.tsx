@@ -94,7 +94,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     }
   }, [mesRefStr, nextMesRefStr])
 
-  const { isOnline } = useGlobalSync({
+  const { isOnline, refetch } = useGlobalSync({
     cacheKey: `assinaturas:${mesRefStr}`,
     tables: ['assinaturas', 'transacoes_nubank', 'planejamento'],
     fetcher,
@@ -109,22 +109,6 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
   function showToast(msg: string, tipo: 'ok' | 'erro' = 'ok') {
     setToast({ msg, tipo })
     setTimeout(() => setToast(null), 3500)
-  }
-
-  async function recarregar() {
-    const [{ data: a }, { data: t }, { data: p }] = await Promise.all([
-      supabase.from('assinaturas').select('*').order('nome', { ascending: true }),
-      supabase
-        .from('transacoes_nubank')
-        .select('descricao, valor, cartao, projeto_fatura')
-        .eq('projeto_fatura', nextMesRefStr),
-      supabase.from('planejamento').select('item').eq('mes_referencia', mesRefStr),
-    ])
-    const c1 = (p || []).find(x => typeof x.item === 'string' && x.item.startsWith('[CARTAO1]'))?.item?.replace('[CARTAO1]', '').trim()
-    const c2 = (p || []).find(x => typeof x.item === 'string' && x.item.startsWith('[CARTAO2]'))?.item?.replace('[CARTAO2]', '').trim()
-    setItens(a || [])
-    setTransacoes(t || [])
-    setCartaoLabels({ nubank: 'NuBank', cartao1: c1 || 'Cartão 1', cartao2: c2 || 'Cartão 2' })
   }
 
   async function verificarNaFatura() {
@@ -233,27 +217,33 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     }
 
     fecharModal()
-    recarregar()
+    refetch()
   }
 
   async function excluir() {
     if (!itemSelecionado) return
-    const { error } = await supabase.from('assinaturas').delete().eq('id', itemSelecionado.id)
+    const removed = itemSelecionado
+    setItens(prev => prev.filter(i => i.id !== removed.id))
+    fecharModal()
+    const { error } = await supabase.from('assinaturas').delete().eq('id', removed.id)
     if (!error) {
-      log('excluir', 'assinaturas', `Excluída: ${itemSelecionado.nome}`, itemSelecionado.valor)
-      fecharModal()
-      recarregar()
+      log('excluir', 'assinaturas', `Excluída: ${removed.nome}`, removed.valor)
       showToast('Excluída')
+      refetch()
     } else {
+      setItens(prev => [...prev, removed].sort((a, b) => a.nome.localeCompare(b.nome)))
       showToast('Erro ao excluir', 'erro')
     }
   }
 
   async function toggleAtiva(item: Assinatura) {
+    setItens(prev => prev.map(i => i.id === item.id ? { ...i, ativa: !i.ativa } : i))
     const { error } = await supabase.from('assinaturas').update({ ativa: !item.ativa }).eq('id', item.id)
     if (!error) {
       log('editar', 'assinaturas', `${item.ativa ? 'Desativada' : 'Ativada'}: ${item.nome}`)
-      recarregar()
+    } else {
+      setItens(prev => prev.map(i => i.id === item.id ? { ...i, ativa: item.ativa } : i))
+      showToast('Erro ao atualizar assinatura', 'erro')
     }
   }
 
