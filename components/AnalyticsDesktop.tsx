@@ -189,6 +189,9 @@ export default function AnalyticsDesktop() {
     kpis,
     cashFlowData,
     budgetProgress,
+    plannedVsPaidData,
+    remainingByMonthData,
+    cardCategoryTreemap,
   } = useAnalyticsData(filters)
 
   // ── DataGrid sort + search ─────────────────────────────────────────────────
@@ -455,6 +458,34 @@ export default function AnalyticsDesktop() {
                     </div>
                   </ChartCard>
                 </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <ChartCard title="Despesas Planejadas vs Pagas por Mês" className="col-span-2">
+                    <div className="h-64">
+                      <Line data={plannedVsPaidData} options={trendOptions} />
+                    </div>
+                  </ChartCard>
+                  <ChartCard title="Valores Restantes por Mês" className="col-span-1">
+                    <div className="h-64">
+                      <Line data={remainingByMonthData} options={trendOptions} />
+                    </div>
+                  </ChartCard>
+                </div>
+
+                <ChartCard title="Treemap de Categorias (Cartão)">
+                  <div className="grid grid-cols-12 gap-2">
+                    {cardCategoryTreemap.map((c) => (
+                      <div
+                        key={c.categoria}
+                        className="rounded-xl p-2 text-white min-h-20"
+                        style={{ backgroundColor: c.color, gridColumn: `span ${Math.max(2, Math.min(12, Math.round(c.pct / 8)))}` }}
+                      >
+                        <div className="text-[11px] font-semibold truncate">{c.categoria}</div>
+                        <div className="text-[10px] opacity-90">{c.pct.toFixed(1)}%</div>
+                      </div>
+                    ))}
+                  </div>
+                </ChartCard>
 
                 <ChartCard title="Orçamento (Previsto vs Realizado)">
                   <div className="space-y-2">
