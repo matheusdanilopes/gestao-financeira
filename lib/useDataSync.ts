@@ -67,7 +67,9 @@ export function useDataSync({
 
   const channelRef = useRef<RealtimeChannel | null>(null)
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isMountedRef = useRef(true)
+  const isFetchingRef = useRef(false)
   const isOnlineRef = useRef(
     typeof navigator !== 'undefined' ? navigator.onLine : true
   )
@@ -108,6 +110,8 @@ export function useDataSync({
   // ── Fetch principal ────────────────────────────────────────────
   const doFetch = useCallback(async () => {
     if (!isMountedRef.current || !isOnlineRef.current) return
+    if (isFetchingRef.current) return
+    isFetchingRef.current = true
     try {
       const data = await fetcher()
       if (!isMountedRef.current) return
@@ -122,6 +126,8 @@ export function useDataSync({
       console.error('[useDataSync] fetch error:', err)
       // Mantém status atual se já havia dados; sinaliza stale caso contrário
       setStatus(prev => prev === 'loading' ? 'stale' : prev)
+    } finally {
+      isFetchingRef.current = false
     }
   }, [fetcher, onData, writeCache])
 
@@ -139,7 +145,10 @@ export function useDataSync({
       channel.on(
         'postgres_changes' as Parameters<typeof channel.on>[0],
         { event: '*', schema: 'public', table },
-        () => { doFetch() }
+        () => {
+          if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+          debounceTimerRef.current = setTimeout(() => { doFetch() }, 1500)
+        }
       )
     })
 
@@ -224,6 +233,7 @@ export function useDataSync({
     return () => {
       isMountedRef.current = false
       stopPolling()
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current)
         channelRef.current = null
@@ -232,9 +242,8 @@ export function useDataSync({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, cacheKey])
 
-  // ── Refetch manual ─────────────────────────────────────────────
+  // ── Refetch manual (background — não exibe skeleton) ──────────
   const refetch = useCallback(async () => {
-    setStatus('loading')
     await doFetch()
   }, [doFetch])
 

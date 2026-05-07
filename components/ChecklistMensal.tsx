@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import { useMemo, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths, addMonths } from 'date-fns'
 import { useGlobalSync } from '@/lib/useGlobalSync'
@@ -98,7 +98,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
   }, [mesRefStr])
 
   // Sincronização automática: Realtime + polling 45s + cache localStorage
-  const { isOnline } = useGlobalSync({
+  const { isOnline, refetch } = useGlobalSync({
     cacheKey: `checklist:${mesRefStr}`,
     tables: ['planejamento'],
     fetcher: fetcherItens,
@@ -106,29 +106,9 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
     pollInterval: 45_000,
   })
 
-  // Pula fetch manual no primeiro render (useDataSync já cuida)
-  const isFirstRender = useRef(true)
-  useEffect(() => {
-    if (isFirstRender.current) { isFirstRender.current = false; return }
-    carregarItens()
-  }, [mesSelecionado]) // eslint-disable-line react-hooks/exhaustive-deps
-
   function showToast(msg: string, tipo: 'ok' | 'erro' = 'ok') {
     setToast({ msg, tipo })
     setTimeout(() => setToast(null), 3000)
-  }
-
-  async function carregarItens() {
-    const primeiroDia = startOfMonth(mesSelecionado)
-    let query = supabase
-      .from('planejamento')
-      .select('*')
-      .eq('mes_referencia', format(primeiroDia, 'yyyy-MM-dd'))
-      .not('item', 'ilike', '[RECEITA]%')
-      .order('categoria', { ascending: false })
-
-    const { data } = await query
-    setItens(data || [])
   }
 
   async function marcarComoPago(id: string) {
@@ -137,15 +117,17 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
     const item = itens.find(i => i.id === id)
     const diff = item ? Math.abs(valorNumerico - item.valor_previsto) : 0
 
+    // Optimistic update — UI responde antes da confirmação do servidor
+    setModalAberto(null)
+    setValorReal('')
+    setItens(prev => prev.map(i => i.id === id ? { ...i, pago: true, valor_real: valorNumerico } : i))
+
     const { error } = await supabase
       .from('planejamento')
       .update({ pago: true, valor_real: valorNumerico })
       .eq('id', id)
 
     if (!error) {
-      setModalAberto(null)
-      setValorReal('')
-      carregarItens()
       log('pagar', 'planejamento', `Pago: ${item ? removerPrefixoCartao(item.item) : id} — R$ ${valorNumerico.toFixed(2)}`, valorNumerico)
       if (diff > 0.01) {
         showToast(`Diferença de ${formatarMoeda(diff)} em relação ao previsto`, 'erro')
@@ -153,6 +135,8 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
         showToast('Pagamento registrado!')
       }
     } else {
+      // Rollback
+      setItens(prev => prev.map(i => i.id === id ? { ...i, pago: false, valor_real: item?.valor_real ?? null } : i))
       showToast('Erro ao registrar pagamento', 'erro')
     }
   }
@@ -185,30 +169,40 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
 
   async function desfazerPagamento(id: string) {
     const item = itens.find(i => i.id === id)
+
+    // Optimistic update
+    setModalAberto(null)
+    setItens(prev => prev.map(i => i.id === id ? { ...i, pago: false, valor_real: null } : i))
+
     const { error } = await supabase
       .from('planejamento')
       .update({ pago: false, valor_real: null })
       .eq('id', id)
 
     if (!error) {
-      setModalAberto(null)
-      carregarItens()
       log('editar', 'planejamento', `Pagamento desfeito: ${item ? removerPrefixoCartao(item.item) : id}`)
       showToast('Pagamento removido')
     } else {
+      // Rollback
+      setItens(prev => prev.map(i => i.id === id ? { ...i, pago: true, valor_real: item?.valor_real ?? null } : i))
       showToast('Erro ao desfazer pagamento', 'erro')
     }
   }
 
   async function excluirItem(id: string) {
     const item = itens.find(i => i.id === id)
+
+    // Optimistic update
+    setModalAberto(null)
+    setItens(prev => prev.filter(i => i.id !== id))
+
     const { error } = await supabase.from('planejamento').delete().eq('id', id)
     if (!error) {
-      setModalAberto(null)
-      carregarItens()
       log('excluir', 'planejamento', `Excluído: ${item ? removerPrefixoCartao(item.item) : id}`)
       showToast('Item excluído')
     } else {
+      // Rollback
+      if (item) setItens(prev => [...prev, item])
       showToast('Erro ao excluir', 'erro')
     }
   }
@@ -228,7 +222,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
     if (!error) {
       setModalAberto(null)
       setItemSelecionado(null)
-      carregarItens()
+      refetch()
       log('editar', 'planejamento', `Editado: ${formData.item} — R$ ${valor.toFixed(2)}`, valor, itemSelecionado.valor_previsto)
     } else {
       console.error('[editarItem] Supabase error:', error)
@@ -252,7 +246,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
     if (!error) {
       setModalAberto(null)
       setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', tipo_cartao: '', valor_previsto: '' })
-      carregarItens()
+      refetch()
       log('inserir', 'planejamento', `Novo item: ${formData.item} — R$ ${valor.toFixed(2)}`, valor)
     } else {
       showToast('Erro ao adicionar', 'erro')
@@ -321,7 +315,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       log('importar', 'planejamento', `Importados ${novosItens.length} item(ns) de ${previewImport.mesOrigem}`)
       setModalAberto(null)
       setPreviewImport(null)
-      carregarItens()
+      refetch()
       showToast('Importação concluída!')
     } catch (e) {
       console.error('Erro ao importar mês anterior:', e)

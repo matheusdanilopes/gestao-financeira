@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import { useMemo, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths } from 'date-fns'
 import { useGlobalSync } from '@/lib/useGlobalSync'
@@ -86,7 +86,7 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
   }, [mesRefStr])
 
   // Sincronização automática: Realtime + polling 45s + cache localStorage
-  const { isOnline } = useGlobalSync({
+  const { isOnline, refetch } = useGlobalSync({
     cacheKey: `receitas:${mesRefStr}`,
     tables: ['planejamento', 'receitas_recebimentos'],
     fetcher: fetcherReceitas,
@@ -98,47 +98,9 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
     pollInterval: 45_000,
   })
 
-  // Pula fetch manual no primeiro render (useDataSync já cuida)
-  const isFirstRender = useRef(true)
-  useEffect(() => {
-    if (isFirstRender.current) { isFirstRender.current = false; return }
-    carregarItens()
-  }, [mesSelecionado]) // eslint-disable-line react-hooks/exhaustive-deps
-
   function showToast(msg: string, tipo: 'ok' | 'erro' = 'ok') {
     setToast({ msg, tipo })
     setTimeout(() => setToast(null), 3000)
-  }
-
-  async function carregarItens() {
-    const mesRef = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
-    const { data } = await supabase
-      .from('planejamento')
-      .select('*')
-      .eq('mes_referencia', mesRef)
-      .ilike('item', '[RECEITA]%')
-      .order('item', { ascending: true })
-
-    const itensList = data || []
-    setItens(itensList)
-
-    const ids = itensList.map(i => i.id)
-    if (ids.length > 0) {
-      const { data: recs } = await supabase
-        .from('receitas_recebimentos')
-        .select('*')
-        .in('planejamento_id', ids)
-        .order('data_recebimento', { ascending: true })
-
-      const recsMap: Record<string, Recebimento[]> = {}
-      for (const r of (recs || [])) {
-        if (!recsMap[r.planejamento_id]) recsMap[r.planejamento_id] = []
-        recsMap[r.planejamento_id].push(r)
-      }
-      setRecebimentos(recsMap)
-    } else {
-      setRecebimentos({})
-    }
   }
 
   // Total recebido por item: usa recebimentos da tabela; fallback para valor_real (dados legados)
@@ -173,41 +135,62 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
     showToast(`R$ ${valor.toFixed(2)} registrado!`)
     setModalRecebimento(null)
     setFormRecebimento({ valor: '', data_recebimento: format(new Date(), 'yyyy-MM-dd'), observacao: '' })
-    carregarItens()
+    refetch()
   }
 
   async function excluirRecebimento(r: Recebimento) {
     const item = itens.find(i => i.id === r.planejamento_id)
+    const prevRecs = recebimentos[r.planejamento_id] || []
+    // Optimistic: remove the recebimento locally
+    setRecebimentos(prev => ({
+      ...prev,
+      [r.planejamento_id]: prevRecs.filter(x => x.id !== r.id),
+    }))
+    setRecebimentoPendingDelete(null)
     const { error } = await supabase.from('receitas_recebimentos').delete().eq('id', r.id)
     if (!error) {
-      const remaining = (recebimentos[r.planejamento_id] || []).filter(x => x.id !== r.id)
+      const remaining = prevRecs.filter(x => x.id !== r.id)
       const novoTotal = remaining.reduce((acc, x) => acc + x.valor, 0)
       if (item && novoTotal < item.valor_previsto) {
         await supabase.from('planejamento').update({ pago: false, valor_real: null }).eq('id', r.planejamento_id)
       }
       log('excluir', 'receitas', `Recebimento excluído: ${item ? paraNomeExibicao(item.item) : ''}`, r.valor)
       showToast('Recebimento excluído')
-      carregarItens()
+      refetch()
+    } else {
+      setRecebimentos(prev => ({ ...prev, [r.planejamento_id]: prevRecs }))
+      showToast('Erro ao excluir recebimento', 'erro')
     }
-    setRecebimentoPendingDelete(null)
   }
 
   // Desfaz um recebimento registrado pelo método legado (pago=true sem entradas na tabela)
   async function excluirLegado(item: ItemReceita) {
-    await supabase.from('planejamento').update({ pago: false, valor_real: null }).eq('id', item.id)
-    log('excluir', 'receitas', `Recebimento desfeito: ${paraNomeExibicao(item.item)}`)
-    showToast('Recebimento desfeito')
+    setItens(prev => prev.map(i => i.id === item.id ? { ...i, pago: false, valor_real: null } : i))
     setRecebimentoPendingDelete(null)
     setModalHistorico(null)
-    carregarItens()
+    const { error } = await supabase.from('planejamento').update({ pago: false, valor_real: null }).eq('id', item.id)
+    if (!error) {
+      log('excluir', 'receitas', `Recebimento desfeito: ${paraNomeExibicao(item.item)}`)
+      showToast('Recebimento desfeito')
+      refetch()
+    } else {
+      setItens(prev => prev.map(i => i.id === item.id ? { ...i, pago: item.pago, valor_real: item.valor_real } : i))
+      showToast('Erro ao desfazer recebimento', 'erro')
+    }
   }
 
   async function excluir(id: string) {
     const item = itens.find(i => i.id === id)
-    await supabase.from('planejamento').delete().eq('id', id)
-    log('excluir', 'receitas', `Excluída: ${item ? paraNomeExibicao(item.item) : id}`)
+    setItens(prev => prev.filter(i => i.id !== id))
     setModalAberto(null)
-    carregarItens()
+    const { error } = await supabase.from('planejamento').delete().eq('id', id)
+    if (!error) {
+      log('excluir', 'receitas', `Excluída: ${item ? paraNomeExibicao(item.item) : id}`)
+      refetch()
+    } else {
+      if (item) setItens(prev => [...prev, item].sort((a, b) => a.item.localeCompare(b.item)))
+      showToast('Erro ao excluir receita', 'erro')
+    }
   }
 
   async function salvar() {
@@ -234,7 +217,7 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
     setModalAberto(null)
     setItemSelecionado(null)
     setFormData({ item: '', responsavel: 'Matheus', valor_previsto: '' })
-    carregarItens()
+    refetch()
   }
 
   async function importarMesAnterior() {
@@ -279,7 +262,7 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
     } else {
       log('inserir', 'receitas', `Importadas ${novos.length} receita(s) do mês anterior`)
       showToast(`${novos.length} receita${novos.length > 1 ? 's' : ''} importada${novos.length > 1 ? 's' : ''}!`)
-      carregarItens()
+      refetch()
     }
     setImportando(false)
   }

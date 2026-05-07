@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths } from 'date-fns'
 import { useGlobalSync } from '@/lib/useGlobalSync'
@@ -85,7 +85,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
   }, [mesRefStr])
 
   // Sincronização automática: Realtime + polling 45s + cache localStorage
-  const { isOnline } = useGlobalSync({
+  const { isOnline, refetch } = useGlobalSync({
     cacheKey: `investimentos:${mesRefStr}`,
     tables: ['investimentos', 'investimentos_aportes'],
     fetcher: fetcherInvestimentos,
@@ -96,13 +96,6 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
     },
     pollInterval: 45_000,
   })
-
-  // Pula fetch manual no primeiro render (useDataSync já cuida)
-  const isFirstRender = useRef(true)
-  useEffect(() => {
-    if (isFirstRender.current) { isFirstRender.current = false; return }
-    carregarItens()
-  }, [mesSelecionado]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Recalculate secondary field when saldo changes
   useEffect(() => {
@@ -121,34 +114,6 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
   function showToast(msg: string, tipo: 'ok' | 'erro' = 'ok') {
     setToast({ msg, tipo })
     setTimeout(() => setToast(null), 3000)
-  }
-
-  async function carregarItens() {
-    const mesRef = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
-    const { data: invData } = await supabase
-      .from('investimentos')
-      .select('*')
-      .eq('mes_referencia', mesRef)
-      .order('created_at', { ascending: true })
-
-    const ids = (invData || []).map(i => i.id)
-    let aportesMap: Record<string, Aporte[]> = {}
-
-    if (ids.length > 0) {
-      const { data: aportesData } = await supabase
-        .from('investimentos_aportes')
-        .select('*')
-        .in('investimento_id', ids)
-        .order('data_aporte', { ascending: true })
-
-      for (const a of (aportesData || [])) {
-        if (!aportesMap[a.investimento_id]) aportesMap[a.investimento_id] = []
-        aportesMap[a.investimento_id].push(a)
-      }
-    }
-
-    setItens(invData || [])
-    setAportes(aportesMap)
   }
 
   function totalAportado(id: string) {
@@ -216,7 +181,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
     }
 
     fecharModal()
-    carregarItens()
+    refetch()
   }
 
   async function excluir(id: string) {
@@ -224,7 +189,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
     const { error } = await supabase.from('investimentos').delete().eq('id', id)
     if (!error) {
       log('excluir', 'investimentos', `Excluído: ${item?.descricao ?? id}`)
-      fecharModal(); carregarItens(); showToast('Excluído')
+      fecharModal(); refetch(); showToast('Excluído')
     } else showToast('Erro ao excluir', 'erro')
   }
 
@@ -266,7 +231,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
     showToast(`Aporte de R$ ${valor.toFixed(2)} registrado!`)
     setModalAporte(null)
     setFormAporte({ valor: '', saldo_atual: '', data_aporte: format(new Date(), 'yyyy-MM-dd'), observacao: '' })
-    carregarItens()
+    refetch()
   }
 
   async function excluirAporte(aporte: Aporte) {
@@ -274,7 +239,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
     const { error } = await supabase.from('investimentos_aportes').delete().eq('id', aporte.id)
     if (!error) {
       log('excluir', 'investimentos', `Aporte removido de ${inv?.descricao ?? 'investimento'} — R$ ${aporte.valor.toFixed(2)}`, aporte.valor)
-      carregarItens(); showToast('Aporte removido')
+      refetch(); showToast('Aporte removido')
     } else showToast('Erro ao remover aporte', 'erro')
   }
 
@@ -303,7 +268,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
     setImportando(false)
     fecharModal()
     setPreviewImport(null)
-    carregarItens()
+    refetch()
     showToast(`${novos.length} investimento(s) importado(s)!`)
   }
 

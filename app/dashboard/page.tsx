@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
@@ -65,8 +65,215 @@ interface ResumoCaixaState {
   percentualComprometimento: number
 }
 
+interface DashboardData {
+  fatura: FaturaState
+  resumoCaixa: ResumoCaixaState
+  investimentos: { id: string; descricao: string; percentual: number; aportado: number }[]
+  assinaturasNaopagas: { matheus: number; jeniffer: number }
+  dataFechamentoNubank: string | null
+}
+
 function fmt(v: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
+}
+
+async function carregarDados(mes: Date): Promise<DashboardData> {
+  const primeiroDia = startOfMonth(mes)
+  const mesRef = format(primeiroDia, 'yyyy-MM-dd')
+  const mesRefFatura = format(startOfMonth(addMonths(mes, 1)), 'yyyy-MM-dd')
+
+  const [
+    { data: transacoesFatura },
+    { data: planejamento },
+    { data: invData },
+    { data: transacoesC1 },
+    { data: transacoesC2 },
+    { data: nubankConfigs },
+    { data: faturaRegistradaData },
+    { data: assinaturasData },
+  ] = await Promise.all([
+    supabase.from('transacoes_nubank').select('valor, responsavel, descricao').eq('projeto_fatura', mesRefFatura).eq('cartao', 'nubank'),
+    supabase.from('planejamento').select('item, responsavel, valor_previsto, pago, valor_real').eq('mes_referencia', mesRef),
+    supabase.from('investimentos').select('id, descricao, percentual').eq('mes_referencia', mesRef).order('created_at', { ascending: true }),
+    supabase.from('transacoes_nubank').select('valor, responsavel').eq('cartao', 'cartao1').eq('projeto_fatura', mesRefFatura),
+    supabase.from('transacoes_nubank').select('valor, responsavel').eq('cartao', 'cartao2').eq('projeto_fatura', mesRefFatura),
+    supabase.from('configuracoes').select('chave, valor').in('chave', ['dia_vencimento', 'ajuste_fechamento']),
+    supabase.from('faturas').select('data_fechamento').eq('cartao', 'nubank').eq('mes_referencia', mesRefFatura).limit(1),
+    supabase.from('assinaturas').select('nome, valor, responsavel, ativa').eq('cartao', 'nubank'),
+  ])
+
+  const diaVencNubank = parseInt(nubankConfigs?.find((c: any) => c.chave === 'dia_vencimento')?.valor || '10')
+  const ajusteNubank  = parseInt(nubankConfigs?.find((c: any) => c.chave === 'ajuste_fechamento')?.valor || '0')
+  const mesRefFaturaDate = startOfMonth(addMonths(mes, 1))
+  const dataFechamentoNubank = faturaRegistradaData?.[0]?.data_fechamento
+    || format(calcularDataFechamentoDaFatura(mesRefFaturaDate, diaVencNubank, ajusteNubank), 'yyyy-MM-dd')
+
+  const totalRealizado = transacoesFatura?.reduce((acc, t) => acc + t.valor, 0) || 0
+  const matheusAtual = transacoesFatura?.filter(t => t.responsavel === 'Matheus').reduce((acc, t) => acc + t.valor, 0) || 0
+  const jenifferAtual = transacoesFatura?.filter(t => t.responsavel === 'Jeniffer').reduce((acc, t) => acc + t.valor, 0) || 0
+
+  const matheusPrevisto = planejamento?.find(p => p.item === 'NuBank Matheus')?.valor_previsto || 0
+  const jenifferPrevisto =
+    (planejamento?.find(p => p.item === 'NuBank Jeniffer')?.valor_previsto || 0) +
+    (planejamento?.find(p => p.item === 'NuBank Jeniffer Conjunto')?.valor_previsto || 0)
+
+  const toCartaoItem = (p: any, prefixo: string): CartaoItem => ({
+    nome: p.item.replace(prefixo, '').trim(),
+    responsavel: p.responsavel || '',
+    previsto: p.valor_previsto,
+    pago: p.valor_real ?? p.valor_previsto,
+  })
+
+  const cartao1PlanejamentoItems: CartaoItem[] = (planejamento || [])
+    .filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO1]'))
+    .map(p => toCartaoItem(p, '[CARTAO1]'))
+
+  const cartao2PlanejamentoItems: CartaoItem[] = (planejamento || [])
+    .filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]'))
+    .map(p => toCartaoItem(p, '[CARTAO2]'))
+
+  const cartao1TotalMatheus = (transacoesC1 || []).filter(t => t.responsavel === 'Matheus').reduce((s, t) => s + t.valor, 0)
+  const cartao1TotalJeniffer = (transacoesC1 || []).filter(t => t.responsavel === 'Jeniffer').reduce((s, t) => s + t.valor, 0)
+  const cartao2TotalMatheus = (transacoesC2 || []).filter(t => t.responsavel === 'Matheus').reduce((s, t) => s + t.valor, 0)
+  const cartao2TotalJeniffer = (transacoesC2 || []).filter(t => t.responsavel === 'Jeniffer').reduce((s, t) => s + t.valor, 0)
+
+  const receitaBase = planejamento?.find(p => p.item === 'Receita Total')?.valor_previsto || 0
+  const receitasExtras = planejamento
+    ?.filter(p => typeof p.item === 'string' && p.item.startsWith('[RECEITA]'))
+    .reduce((acc, p) => acc + p.valor_previsto, 0) || 0
+  const receitaTotal = receitaBase + receitasExtras
+
+  const totalPlanejado = (planejamento || [])
+    .filter(p => {
+      const item = typeof p.item === 'string' ? p.item : ''
+      return !item.startsWith('[RECEITA]') && item !== 'Receita Total'
+    })
+    .reduce((acc, p) => acc + (p.valor_previsto || 0), 0)
+
+  const nuBankPrevisto = matheusPrevisto + jenifferPrevisto
+  const faturaEhPrevisto = totalRealizado === 0
+
+  let matheusProjecaoParcelas = 0
+  let jenifferProjecaoParcelas = 0
+  if (faturaEhPrevisto) {
+    const mesProjecao = startOfMonth(addMonths(mes, 1))
+    const mesProjecaoRef = format(mesProjecao, 'yyyy-MM-dd')
+
+    const { data: maxFaturaRow } = await supabase
+      .from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'nubank')
+      .lte('projeto_fatura', mesProjecaoRef).order('projeto_fatura', { ascending: false }).limit(1)
+
+    if (maxFaturaRow?.[0]?.projeto_fatura) {
+      const { data: transacoesBase } = await supabase
+        .from('transacoes_nubank')
+        .select('projeto_fatura, descricao, valor, responsavel, parcela_atual, total_parcelas')
+        .eq('cartao', 'nubank').eq('projeto_fatura', maxFaturaRow[0].projeto_fatura)
+
+      const contratos = new Map<string, { fatura: Date; atual: number; total: number; valor: number; responsavel: string }>()
+
+      for (const t of (transacoesBase || [])) {
+        let atual: number, total: number
+        if (t.parcela_atual && t.total_parcelas) {
+          atual = Number(t.parcela_atual); total = Number(t.total_parcelas)
+        } else {
+          const descricao = String(t.descricao || '')
+          const matchParcela = descricao.match(/parcela\s*(\d+)\s*\/\s*(\d+)/i)
+          if (matchParcela) { atual = Number(matchParcela[1]); total = Number(matchParcela[2]) }
+          else {
+            const matchSlash = descricao.match(/\b(\d{1,2})\/(\d{1,2})\b/)
+            if (!matchSlash) continue
+            atual = Number(matchSlash[1]); total = Number(matchSlash[2])
+            if (total < 2) continue
+          }
+        }
+        if (atual < 1 || total < atual) continue
+        const descricao = String(t.descricao || '')
+        const faturaDate = startOfMonth(new Date(t.projeto_fatura + 'T12:00:00'))
+        const origem = subMonths(faturaDate, atual - 1)
+        const descBase = descricao.replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '').replace(/\s+\d{1,2}\/\d{1,2}\s*$/i, '').trim().toLowerCase()
+        const key = `${format(origem, 'yyyy-MM')}|${descBase}|${total}|${t.responsavel}`
+        const existing = contratos.get(key)
+        if (!existing || faturaDate > existing.fatura) {
+          contratos.set(key, { fatura: faturaDate, atual, total, valor: t.valor, responsavel: t.responsavel })
+        }
+      }
+
+      for (const { fatura: faturaDate, atual, total, valor, responsavel } of contratos.values()) {
+        const deltaM = (mesProjecao.getFullYear() - faturaDate.getFullYear()) * 12 + (mesProjecao.getMonth() - faturaDate.getMonth())
+        const parcelaNoMes = atual + deltaM
+        if (parcelaNoMes >= 1 && parcelaNoMes <= total) {
+          if (responsavel === 'Matheus') matheusProjecaoParcelas += valor
+          if (responsavel === 'Jeniffer') jenifferProjecaoParcelas += valor
+        }
+      }
+    }
+  }
+
+  const cartao1TotalAtual = cartao1TotalMatheus + cartao1TotalJeniffer
+  const cartao2TotalAtual = cartao2TotalMatheus + cartao2TotalJeniffer
+  const cartao1PrevTotal = cartao1PlanejamentoItems.reduce((s, i) => s + i.previsto, 0)
+  const cartao2PrevTotal = cartao2PlanejamentoItems.reduce((s, i) => s + i.previsto, 0)
+  const temLancamentos = totalRealizado > 0 || cartao1TotalAtual > 0 || cartao2TotalAtual > 0
+  const faturaEfetiva = temLancamentos
+    ? totalRealizado + cartao1TotalAtual + cartao2TotalAtual
+    : nuBankPrevisto + cartao1PrevTotal + cartao2PrevTotal
+  const saldoPrevisto = receitaTotal - totalPlanejado
+
+  const contasFixasAtual = (planejamento || [])
+    .filter(p => {
+      const item = typeof p.item === 'string' ? p.item : ''
+      return !item.startsWith('[RECEITA]') && item !== 'Receita Total'
+        && !NUBANK_ITEMS.has(item) && !item.startsWith('[CARTAO1]') && !item.startsWith('[CARTAO2]')
+    })
+    .reduce((acc, p) => acc + (p.pago ? (p.valor_real ?? p.valor_previsto) : p.valor_previsto), 0)
+
+  const totalGastos = contasFixasAtual + faturaEfetiva
+  const sobraLiquida = receitaTotal - totalGastos
+  const percentualComprometimento = receitaTotal > 0 ? (totalGastos / receitaTotal) * 100 : 0
+
+  const assinAtivas = (assinaturasData || []).filter((a: any) => a.ativa)
+  const txFaturaList = transacoesFatura || []
+  const calcNaoPaga = (responsavel: string) =>
+    assinAtivas
+      .filter((a: any) => a.responsavel === responsavel && !txFaturaList.some((tx: any) => tx.descricao?.toLowerCase().includes(a.nome.toLowerCase())))
+      .reduce((sum: number, a: any) => sum + a.valor, 0)
+  const assinNaoPagaMatheus = calcNaoPaga('Matheus')
+  const assinNaoPagaJeniffer = calcNaoPaga('Jeniffer')
+
+  const ids = (invData || []).map(i => i.id)
+  let aportadoMap: Record<string, number> = {}
+  if (ids.length > 0) {
+    const { data: aportesData } = await supabase
+      .from('investimentos_aportes').select('investimento_id, valor').in('investimento_id', ids)
+    for (const a of (aportesData || [])) {
+      aportadoMap[a.investimento_id] = (aportadoMap[a.investimento_id] || 0) + a.valor
+    }
+  }
+
+  return {
+    fatura: {
+      totalRealizado, matheusAtual, matheusPrevisto, matheusProjecaoParcelas,
+      jenifferAtual, jenifferPrevisto, jenifferProjecaoParcelas,
+      sobraMatheus: matheusPrevisto - matheusAtual - matheusProjecaoParcelas - assinNaoPagaMatheus,
+      sobraJeniffer: jenifferPrevisto - jenifferAtual - jenifferProjecaoParcelas - assinNaoPagaJeniffer,
+      cartao1Items: cartao1PlanejamentoItems,
+      cartao2Items: cartao2PlanejamentoItems,
+      cartao1AtualMatheus: cartao1TotalMatheus, cartao1AtualJeniffer: cartao1TotalJeniffer,
+      cartao2AtualMatheus: cartao2TotalMatheus, cartao2AtualJeniffer: cartao2TotalJeniffer,
+      cartao1Previsto: cartao1PlanejamentoItems.reduce((s, i) => s + i.previsto, 0),
+      cartao2Previsto: cartao2PlanejamentoItems.reduce((s, i) => s + i.previsto, 0),
+      cartao1Nome: cartao1PlanejamentoItems[0]?.nome || 'Cartão 1',
+      cartao2Nome: cartao2PlanejamentoItems[0]?.nome || 'Cartão 2',
+    },
+    resumoCaixa: {
+      receitaTotal, contasFixas: contasFixasAtual,
+      fatura: faturaEfetiva, faturaEhPrevisto: !temLancamentos, extras: 0,
+      totalGastos, sobraLiquida, saldoPrevisto, percentualComprometimento,
+    },
+    investimentos: (invData || []).map(i => ({ ...i, aportado: aportadoMap[i.id] || 0 })),
+    assinaturasNaopagas: { matheus: assinNaoPagaMatheus, jeniffer: assinNaoPagaJeniffer },
+    dataFechamentoNubank,
+  }
 }
 
 export default function Dashboard() {
@@ -86,231 +293,33 @@ export default function Dashboard() {
   const [assinaturasNaopagas, setAssinaturasNaopagas] = useState({ matheus: 0, jeniffer: 0 })
   const [drawerAberto, setDrawerAberto] = useState(false)
   const [detalhesPonto, setDetalhesPonto] = useState<any>(null)
-  const [carregando, setCarregando] = useState(true)
   const [dataFechamentoNubank, setDataFechamentoNubank] = useState<string | null>(null)
+
+  // Aplica dados vindos do cache (stale) ou do fetch fresco — sem mostrar skeleton
+  const applyData = useCallback((data: unknown) => {
+    const d = data as DashboardData
+    setFatura(d.fatura)
+    setResumoCaixa(d.resumoCaixa)
+    setInvestimentos(d.investimentos)
+    setAssinaturasNaopagas(d.assinaturasNaopagas)
+    setDataFechamentoNubank(d.dataFechamentoNubank)
+  }, [])
 
   const fetcher = useCallback(
     () => carregarDados(mesAtual), // eslint-disable-line react-hooks/exhaustive-deps
     [mesAtual]
   )
 
-  const { isOnline } = useGlobalSync({
+  const { status, isOnline } = useGlobalSync({
     cacheKey: `dashboard:${format(mesAtual, 'yyyy-MM')}`,
     tables: ['transacoes_nubank', 'planejamento', 'investimentos', 'investimentos_aportes'],
     fetcher,
-    onData: () => {},
+    onData: applyData,
     pollInterval: 45_000,
   })
 
-  useEffect(() => {
-    if (!isOnline) setCarregando(false)
-  }, [isOnline])
-
-  async function carregarDados(mes: Date) {
-    setCarregando(true)
-    try {
-      const primeiroDia = startOfMonth(mes)
-      const mesRef = format(primeiroDia, 'yyyy-MM-dd')
-      const mesRefFatura = format(startOfMonth(addMonths(mes, 1)), 'yyyy-MM-dd')
-
-      const [
-        { data: transacoesFatura },
-        { data: planejamento },
-        { data: invData },
-        { data: transacoesC1 },
-        { data: transacoesC2 },
-        { data: nubankConfigs },
-        { data: faturaRegistradaData },
-        { data: assinaturasData },
-      ] = await Promise.all([
-        supabase.from('transacoes_nubank').select('valor, responsavel, descricao').eq('projeto_fatura', mesRefFatura).eq('cartao', 'nubank'),
-        supabase.from('planejamento').select('item, responsavel, valor_previsto, pago, valor_real').eq('mes_referencia', mesRef),
-        supabase.from('investimentos').select('id, descricao, percentual').eq('mes_referencia', mesRef).order('created_at', { ascending: true }),
-        supabase.from('transacoes_nubank').select('valor, responsavel').eq('cartao', 'cartao1').eq('projeto_fatura', mesRefFatura),
-        supabase.from('transacoes_nubank').select('valor, responsavel').eq('cartao', 'cartao2').eq('projeto_fatura', mesRefFatura),
-        supabase.from('configuracoes').select('chave, valor').in('chave', ['dia_vencimento', 'ajuste_fechamento']),
-        supabase.from('faturas').select('data_fechamento').eq('cartao', 'nubank').eq('mes_referencia', mesRefFatura).limit(1),
-        supabase.from('assinaturas').select('nome, valor, responsavel, ativa').eq('cartao', 'nubank'),
-      ])
-
-      const diaVencNubank = parseInt(nubankConfigs?.find((c: any) => c.chave === 'dia_vencimento')?.valor || '10')
-      const ajusteNubank  = parseInt(nubankConfigs?.find((c: any) => c.chave === 'ajuste_fechamento')?.valor || '0')
-      const mesRefFaturaDate = startOfMonth(addMonths(mes, 1))
-      const fechamentoISO = faturaRegistradaData?.[0]?.data_fechamento
-        || format(calcularDataFechamentoDaFatura(mesRefFaturaDate, diaVencNubank, ajusteNubank), 'yyyy-MM-dd')
-      setDataFechamentoNubank(fechamentoISO)
-
-      const totalRealizado = transacoesFatura?.reduce((acc, t) => acc + t.valor, 0) || 0
-      const matheusAtual = transacoesFatura?.filter(t => t.responsavel === 'Matheus').reduce((acc, t) => acc + t.valor, 0) || 0
-      const jenifferAtual = transacoesFatura?.filter(t => t.responsavel === 'Jeniffer').reduce((acc, t) => acc + t.valor, 0) || 0
-
-      const matheusPrevisto = planejamento?.find(p => p.item === 'NuBank Matheus')?.valor_previsto || 0
-      const jenifferPrevisto =
-        (planejamento?.find(p => p.item === 'NuBank Jeniffer')?.valor_previsto || 0) +
-        (planejamento?.find(p => p.item === 'NuBank Jeniffer Conjunto')?.valor_previsto || 0)
-
-      const toCartaoItem = (p: any, prefixo: string): CartaoItem => ({
-        nome: p.item.replace(prefixo, '').trim(),
-        responsavel: p.responsavel || '',
-        previsto: p.valor_previsto,
-        pago: p.valor_real ?? p.valor_previsto,
-      })
-
-      const cartao1PlanejamentoItems: CartaoItem[] = (planejamento || [])
-        .filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO1]'))
-        .map(p => toCartaoItem(p, '[CARTAO1]'))
-
-      const cartao2PlanejamentoItems: CartaoItem[] = (planejamento || [])
-        .filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]'))
-        .map(p => toCartaoItem(p, '[CARTAO2]'))
-
-      const cartao1TotalMatheus = (transacoesC1 || []).filter(t => t.responsavel === 'Matheus').reduce((s, t) => s + t.valor, 0)
-      const cartao1TotalJeniffer = (transacoesC1 || []).filter(t => t.responsavel === 'Jeniffer').reduce((s, t) => s + t.valor, 0)
-      const cartao2TotalMatheus = (transacoesC2 || []).filter(t => t.responsavel === 'Matheus').reduce((s, t) => s + t.valor, 0)
-      const cartao2TotalJeniffer = (transacoesC2 || []).filter(t => t.responsavel === 'Jeniffer').reduce((s, t) => s + t.valor, 0)
-
-      const cartao1Items: CartaoItem[] = cartao1PlanejamentoItems
-      const cartao2Items: CartaoItem[] = cartao2PlanejamentoItems
-
-      const receitaBase = planejamento?.find(p => p.item === 'Receita Total')?.valor_previsto || 0
-      const receitasExtras = planejamento
-        ?.filter(p => typeof p.item === 'string' && p.item.startsWith('[RECEITA]'))
-        .reduce((acc, p) => acc + p.valor_previsto, 0) || 0
-      const receitaTotal = receitaBase + receitasExtras
-
-      const totalPlanejado = (planejamento || [])
-        .filter(p => {
-          const item = typeof p.item === 'string' ? p.item : ''
-          return !item.startsWith('[RECEITA]') && item !== 'Receita Total'
-        })
-        .reduce((acc, p) => acc + (p.valor_previsto || 0), 0)
-
-      const nuBankPrevisto = matheusPrevisto + jenifferPrevisto
-      const faturaEhPrevisto = totalRealizado === 0
-
-      let matheusProjecaoParcelas = 0
-      let jenifferProjecaoParcelas = 0
-      if (faturaEhPrevisto) {
-        const mesProjecao = startOfMonth(addMonths(mes, 1))
-        const mesProjecaoRef = format(mesProjecao, 'yyyy-MM-dd')
-
-        const { data: maxFaturaRow } = await supabase
-          .from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'nubank')
-          .lte('projeto_fatura', mesProjecaoRef).order('projeto_fatura', { ascending: false }).limit(1)
-
-        if (maxFaturaRow?.[0]?.projeto_fatura) {
-          const { data: transacoesBase } = await supabase
-            .from('transacoes_nubank')
-            .select('projeto_fatura, descricao, valor, responsavel, parcela_atual, total_parcelas')
-            .eq('cartao', 'nubank').eq('projeto_fatura', maxFaturaRow[0].projeto_fatura)
-
-          const contratos = new Map<string, { fatura: Date; atual: number; total: number; valor: number; responsavel: string }>()
-
-          for (const t of (transacoesBase || [])) {
-            let atual: number, total: number
-            if (t.parcela_atual && t.total_parcelas) {
-              atual = Number(t.parcela_atual); total = Number(t.total_parcelas)
-            } else {
-              const descricao = String(t.descricao || '')
-              const matchParcela = descricao.match(/parcela\s*(\d+)\s*\/\s*(\d+)/i)
-              if (matchParcela) { atual = Number(matchParcela[1]); total = Number(matchParcela[2]) }
-              else {
-                const matchSlash = descricao.match(/\b(\d{1,2})\/(\d{1,2})\b/)
-                if (!matchSlash) continue
-                atual = Number(matchSlash[1]); total = Number(matchSlash[2])
-                if (total < 2) continue
-              }
-            }
-            if (atual < 1 || total < atual) continue
-            const descricao = String(t.descricao || '')
-            const faturaDate = startOfMonth(new Date(t.projeto_fatura + 'T12:00:00'))
-            const origem = subMonths(faturaDate, atual - 1)
-            const descBase = descricao.replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '').replace(/\s+\d{1,2}\/\d{1,2}\s*$/i, '').trim().toLowerCase()
-            const key = `${format(origem, 'yyyy-MM')}|${descBase}|${total}|${t.responsavel}`
-            const existing = contratos.get(key)
-            if (!existing || faturaDate > existing.fatura) {
-              contratos.set(key, { fatura: faturaDate, atual, total, valor: t.valor, responsavel: t.responsavel })
-            }
-          }
-
-          for (const { fatura: faturaDate, atual, total, valor, responsavel } of contratos.values()) {
-            const deltaM = (mesProjecao.getFullYear() - faturaDate.getFullYear()) * 12 + (mesProjecao.getMonth() - faturaDate.getMonth())
-            const parcelaNoMes = atual + deltaM
-            if (parcelaNoMes >= 1 && parcelaNoMes <= total) {
-              if (responsavel === 'Matheus') matheusProjecaoParcelas += valor
-              if (responsavel === 'Jeniffer') jenifferProjecaoParcelas += valor
-            }
-          }
-        }
-      }
-
-      const cartao1TotalAtual = cartao1TotalMatheus + cartao1TotalJeniffer
-      const cartao2TotalAtual = cartao2TotalMatheus + cartao2TotalJeniffer
-      const cartao1PrevTotal = cartao1PlanejamentoItems.reduce((s, i) => s + i.previsto, 0)
-      const cartao2PrevTotal = cartao2PlanejamentoItems.reduce((s, i) => s + i.previsto, 0)
-      const temLancamentos = totalRealizado > 0 || cartao1TotalAtual > 0 || cartao2TotalAtual > 0
-      const faturaEfetiva = temLancamentos
-        ? totalRealizado + cartao1TotalAtual + cartao2TotalAtual
-        : nuBankPrevisto + cartao1PrevTotal + cartao2PrevTotal
-      const saldoPrevisto = receitaTotal - totalPlanejado
-
-      const contasFixasAtual = (planejamento || [])
-        .filter(p => {
-          const item = typeof p.item === 'string' ? p.item : ''
-          return !item.startsWith('[RECEITA]') && item !== 'Receita Total'
-            && !NUBANK_ITEMS.has(item) && !item.startsWith('[CARTAO1]') && !item.startsWith('[CARTAO2]')
-        })
-        .reduce((acc, p) => acc + (p.pago ? (p.valor_real ?? p.valor_previsto) : p.valor_previsto), 0)
-
-      const totalGastos = contasFixasAtual + faturaEfetiva
-      const sobraLiquida = receitaTotal - totalGastos
-      const percentualComprometimento = receitaTotal > 0 ? (totalGastos / receitaTotal) * 100 : 0
-
-      const assinAtivas = (assinaturasData || []).filter((a: any) => a.ativa)
-      const txFaturaList = transacoesFatura || []
-      const calcNaoPaga = (responsavel: string) =>
-        assinAtivas
-          .filter((a: any) => a.responsavel === responsavel && !txFaturaList.some((tx: any) => tx.descricao?.toLowerCase().includes(a.nome.toLowerCase())))
-          .reduce((sum: number, a: any) => sum + a.valor, 0)
-      const assinNaoPagaMatheus = calcNaoPaga('Matheus')
-      const assinNaoPagaJeniffer = calcNaoPaga('Jeniffer')
-      setAssinaturasNaopagas({ matheus: assinNaoPagaMatheus, jeniffer: assinNaoPagaJeniffer })
-
-      setFatura({
-        totalRealizado, matheusAtual, matheusPrevisto, matheusProjecaoParcelas,
-        jenifferAtual, jenifferPrevisto, jenifferProjecaoParcelas,
-        sobraMatheus: matheusPrevisto - matheusAtual - matheusProjecaoParcelas - assinNaoPagaMatheus,
-        sobraJeniffer: jenifferPrevisto - jenifferAtual - jenifferProjecaoParcelas - assinNaoPagaJeniffer,
-        cartao1Items, cartao2Items,
-        cartao1AtualMatheus: cartao1TotalMatheus, cartao1AtualJeniffer: cartao1TotalJeniffer,
-        cartao2AtualMatheus: cartao2TotalMatheus, cartao2AtualJeniffer: cartao2TotalJeniffer,
-        cartao1Previsto: cartao1PlanejamentoItems.reduce((s, i) => s + i.previsto, 0),
-        cartao2Previsto: cartao2PlanejamentoItems.reduce((s, i) => s + i.previsto, 0),
-        cartao1Nome: cartao1PlanejamentoItems[0]?.nome || 'Cartão 1',
-        cartao2Nome: cartao2PlanejamentoItems[0]?.nome || 'Cartão 2',
-      })
-      setResumoCaixa({
-        receitaTotal, contasFixas: contasFixasAtual,
-        fatura: faturaEfetiva, faturaEhPrevisto: !temLancamentos, extras: 0,
-        totalGastos, sobraLiquida, saldoPrevisto, percentualComprometimento,
-      })
-
-      const ids = (invData || []).map(i => i.id)
-      let aportadoMap: Record<string, number> = {}
-      if (ids.length > 0) {
-        const { data: aportesData } = await supabase
-          .from('investimentos_aportes').select('investimento_id, valor').in('investimento_id', ids)
-        for (const a of (aportesData || [])) {
-          aportadoMap[a.investimento_id] = (aportadoMap[a.investimento_id] || 0) + a.valor
-        }
-      }
-      setInvestimentos((invData || []).map(i => ({ ...i, aportado: aportadoMap[i.id] || 0 })))
-    } catch (e) {
-      console.error('Erro ao carregar dashboard:', e)
-    } finally {
-      setCarregando(false)
-    }
-  }
+  // Mostra skeleton só quando não há dado algum ainda (sem cache, aguardando fetch)
+  const carregando = status === 'loading'
 
   const isMesAtual = useMemo(
     () => format(mesAtual, 'yyyy-MM') === format(new Date(), 'yyyy-MM'),
