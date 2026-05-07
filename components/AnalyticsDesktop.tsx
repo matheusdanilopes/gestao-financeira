@@ -186,8 +186,12 @@ export default function AnalyticsDesktop() {
     trendChartData,
     categoryDonutData,
     personBarData,
-    yoyBarData,
     kpis,
+    cashFlowData,
+    budgetProgress,
+    plannedVsPaidData,
+    remainingByMonthData,
+    cardCategoryTreemap,
   } = useAnalyticsData(filters)
 
   // ── DataGrid sort + search ─────────────────────────────────────────────────
@@ -448,13 +452,59 @@ export default function AnalyticsDesktop() {
                     </div>
                   </ChartCard>
 
-                  {/* YoY comparison (2 cols) — desktop-exclusive feature */}
-                  <ChartCard title="Comparativo Anual (Year-over-Year)" className="col-span-2">
+                  <ChartCard title="Receitas x Despesas (Fluxo de Caixa)" className="col-span-2">
                     <div className="h-64">
-                      <Bar data={yoyBarData} options={barBaseOptions} />
+                      <Bar data={cashFlowData} options={barBaseOptions} />
                     </div>
                   </ChartCard>
                 </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <ChartCard title="Despesas Planejadas vs Pagas por Mês" className="col-span-2">
+                    <div className="h-64">
+                      <Line data={plannedVsPaidData} options={trendOptions} />
+                    </div>
+                  </ChartCard>
+                  <ChartCard title="Valores Restantes por Mês" className="col-span-1">
+                    <div className="h-64">
+                      <Line data={remainingByMonthData} options={trendOptions} />
+                    </div>
+                  </ChartCard>
+                </div>
+
+                <ChartCard title="Treemap de Categorias (Cartão)">
+                  <div className="grid grid-cols-12 gap-2">
+                    {cardCategoryTreemap.map((c) => (
+                      <div
+                        key={c.categoria}
+                        className="rounded-xl p-2 text-white min-h-20"
+                        style={{ backgroundColor: c.color, gridColumn: `span ${Math.max(2, Math.min(12, Math.round(c.pct / 8)))}` }}
+                      >
+                        <div className="text-[11px] font-semibold truncate">{c.categoria}</div>
+                        <div className="text-[10px] opacity-90">{c.pct.toFixed(1)}%</div>
+                      </div>
+                    ))}
+                  </div>
+                </ChartCard>
+
+                <ChartCard title="Orçamento (Previsto vs Realizado)">
+                  <div className="space-y-2">
+                    {budgetProgress.length === 0 && <div className="text-xs text-gray-400">Sem orçamento para o mês selecionado.</div>}
+                    {budgetProgress.map((b) => (
+                      <div key={b.categoria} className="space-y-1">
+                        <div className="flex justify-between text-xs"><span>{b.categoria}</span><span>{b.gasto.toLocaleString('pt-BR')} / {b.previsto.toLocaleString('pt-BR')}</span></div>
+                        <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden relative">
+                          <div className={`h-full ${b.pct < 80 ? 'bg-blue-500' : b.pct < 90 ? 'bg-amber-400' : 'bg-red-500'}`} style={{ width: `${Math.min(b.pct, 100)}%` }} />
+                          <div
+                            className="absolute h-3 w-0.5 bg-gray-800/70"
+                            style={{ left: '100%', top: 0 }}
+                            aria-hidden="true"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ChartCard>
 
                 {/* ── DataGrid ────────────────────────────────────────────── */}
                 <div className="bg-white dark:bg-[#1e293b] rounded-3xl shadow-card border border-gray-100 dark:border-white/[0.06] overflow-hidden">
@@ -495,12 +545,15 @@ export default function AnalyticsDesktop() {
                               <SortIcon k={col.key} />
                             </th>
                           ))}
+                          <th className="px-4 py-2.5 text-right text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap">
+                            Desvio (R$)
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50 dark:divide-white/[0.04]">
                         {sortedRows.length === 0 ? (
                           <tr>
-                            <td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">
+                            <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-400">
                               Nenhum dado encontrado para o período selecionado.
                             </td>
                           </tr>
@@ -539,6 +592,13 @@ export default function AnalyticsDesktop() {
                                 </td>
                                 <td className="px-4 py-2 text-right text-gray-400 tabular-nums text-xs">
                                   {row.contagem}
+                                </td>
+                                <td className="px-4 py-2 text-right text-xs tabular-nums text-gray-500">
+                                  {(() => {
+                                    const budget = budgetProgress.find((b) => b.categoria === row.categoria)
+                                    if (!budget) return '—'
+                                    return fmtFull(budget.variancia)
+                                  })()}
                                 </td>
                               </tr>
                             )
