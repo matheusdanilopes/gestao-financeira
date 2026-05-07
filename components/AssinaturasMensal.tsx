@@ -69,6 +69,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
   const [filtroResponsavel, setFiltroResponsavel] = useState('')
   const [filtroDescricao, setFiltroDescricao] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('todas')
+  const [filtroFatura, setFiltroFatura] = useState('todas')
   const [dropdownFiltro, setDropdownFiltro] = useState(false)
 
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null)
@@ -140,7 +141,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     return valorOk ? 'detectada' : 'valor_divergente'
   }
 
-  const filtrosAtivos = (filtroCartao !== 'todos' ? 1 : 0) + (filtroDescricao !== '' ? 1 : 0) + (filtroStatus !== 'todas' ? 1 : 0)
+  const filtrosAtivos = (filtroCartao !== 'todos' ? 1 : 0) + (filtroDescricao !== '' ? 1 : 0) + (filtroStatus !== 'todas' ? 1 : 0) + (filtroFatura !== 'todas' ? 1 : 0)
 
   const itensFiltrados = useMemo(() => {
     return itens.filter(i => {
@@ -149,9 +150,11 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       if (filtroDescricao !== '' && !i.nome.toLowerCase().includes(filtroDescricao.toLowerCase())) return false
       if (filtroStatus === 'ativa' && !i.ativa) return false
       if (filtroStatus === 'inativa' && i.ativa) return false
+      if (filtroFatura !== 'todas' && statusTransacao(i) !== filtroFatura) return false
       return true
     })
-  }, [itens, filtroCartao, filtroResponsavel, filtroDescricao, filtroStatus])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itens, filtroCartao, filtroResponsavel, filtroDescricao, filtroStatus, filtroFatura, transacoes])
 
   const itensAtivos = useMemo(() => itens.filter(i => i.ativa), [itens])
 
@@ -410,16 +413,20 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
             <option value="ativa">Ativas</option>
             <option value="inativa">Inativas</option>
           </select>
-          <hr className="border-gray-100" />
-          <div className="flex items-center gap-3 flex-wrap text-xs text-gray-500">
-            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Fatura:</span>
-            <span className="flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> Detectada</span>
-            <span className="flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5 text-amber-500" /> Valor diferente</span>
-            <span className="flex items-center gap-1"><XCircle className="w-3.5 h-3.5 text-gray-300" /> Não encontrada</span>
-          </div>
+          <select
+            className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-shadow"
+            value={filtroFatura}
+            onChange={e => setFiltroFatura(e.target.value)}
+          >
+            <option value="todas">Fatura (todas)</option>
+            <option value="detectada">✓ Detectada</option>
+            <option value="valor_divergente">⚠ Valor diferente</option>
+            <option value="nao_encontrada">✗ Não encontrada</option>
+            <option value="inativa">— Inativa</option>
+          </select>
           {filtrosAtivos > 0 && (
             <button
-              onClick={() => { setFiltroCartao('todos'); setFiltroDescricao(''); setFiltroStatus('todas') }}
+              onClick={() => { setFiltroCartao('todos'); setFiltroDescricao(''); setFiltroStatus('todas'); setFiltroFatura('todas') }}
               className="w-full text-xs text-red-500 hover:text-red-700 py-1 font-semibold transition-colors"
             >
               Limpar filtros
