@@ -67,6 +67,9 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
 
   const [filtroCartao, setFiltroCartao] = useState('todos')
   const [filtroResponsavel, setFiltroResponsavel] = useState('')
+  const [filtroDescricao, setFiltroDescricao] = useState('')
+  const [filtroStatus, setFiltroStatus] = useState('todas')
+  const [filtroFatura, setFiltroFatura] = useState('todas')
   const [dropdownFiltro, setDropdownFiltro] = useState(false)
 
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null)
@@ -138,13 +141,20 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     return valorOk ? 'detectada' : 'valor_divergente'
   }
 
+  const filtrosAtivos = (filtroCartao !== 'todos' ? 1 : 0) + (filtroDescricao !== '' ? 1 : 0) + (filtroStatus !== 'todas' ? 1 : 0) + (filtroFatura !== 'todas' ? 1 : 0)
+
   const itensFiltrados = useMemo(() => {
     return itens.filter(i => {
       if (filtroCartao !== 'todos' && i.cartao !== filtroCartao) return false
       if (filtroResponsavel !== '' && i.responsavel !== filtroResponsavel) return false
+      if (filtroDescricao !== '' && !i.nome.toLowerCase().includes(filtroDescricao.toLowerCase())) return false
+      if (filtroStatus === 'ativa' && !i.ativa) return false
+      if (filtroStatus === 'inativa' && i.ativa) return false
+      if (filtroFatura !== 'todas' && statusTransacao(i) !== filtroFatura) return false
       return true
     })
-  }, [itens, filtroCartao, filtroResponsavel])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itens, filtroCartao, filtroResponsavel, filtroDescricao, filtroStatus, filtroFatura, transacoes])
 
   const itensAtivos = useMemo(() => itens.filter(i => i.ativa), [itens])
 
@@ -361,47 +371,67 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
         <button
           onClick={() => setDropdownFiltro(d => !d)}
           className={`flex items-center gap-1.5 px-4 py-2.5 rounded-2xl border text-sm font-medium transition active:scale-[0.98] ${
-            filtroCartao !== 'todos'
+            filtrosAtivos > 0
               ? 'border-indigo-400 bg-indigo-600 text-white'
               : 'border-gray-200 bg-white text-gray-600'
           }`}
         >
           <SlidersHorizontal className="w-4 h-4" />
           Filtrar
-          {filtroCartao !== 'todos' && (
-            <span className="ml-0.5 bg-white text-indigo-600 rounded-full w-4 h-4 text-[10px] font-bold flex items-center justify-center">1</span>
+          {filtrosAtivos > 0 && (
+            <span className="ml-0.5 bg-white text-indigo-600 rounded-full w-4 h-4 text-[10px] font-bold flex items-center justify-center">{filtrosAtivos}</span>
           )}
         </button>
       </div>
 
       {/* Dropdown de filtro */}
       {dropdownFiltro && (
-        <div className="bg-white rounded-2xl shadow border border-gray-100 p-3 space-y-2.5">
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Cartão</p>
-          <div className="flex gap-2 flex-wrap">
-            {([{ value: 'todos', label: 'Todos' }] as { value: string; label: string }[])
-              .concat(CARTOES_KEYS.map(k => ({ value: k, label: cartaoLabels[k] })))
-              .map(c => (
-                <button
-                  key={c.value}
-                  onClick={() => { setFiltroCartao(c.value); setDropdownFiltro(false) }}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${
-                    filtroCartao === c.value
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  {c.label}
-                </button>
-              ))}
-          </div>
-          <hr className="border-gray-100" />
-          <div className="flex items-center gap-3 flex-wrap text-xs text-gray-500">
-            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Fatura:</span>
-            <span className="flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> Detectada</span>
-            <span className="flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5 text-amber-500" /> Valor diferente</span>
-            <span className="flex items-center gap-1"><XCircle className="w-3.5 h-3.5 text-gray-300" /> Não encontrada</span>
-          </div>
+        <div className="bg-white rounded-2xl shadow border border-gray-100 p-3 space-y-2">
+          <input
+            type="text"
+            className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-shadow"
+            placeholder="Buscar por nome…"
+            value={filtroDescricao}
+            onChange={e => setFiltroDescricao(e.target.value)}
+          />
+          <select
+            className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-shadow"
+            value={filtroCartao}
+            onChange={e => setFiltroCartao(e.target.value)}
+          >
+            <option value="todos">Cartão (todos)</option>
+            {CARTOES_KEYS.map(k => (
+              <option key={k} value={k}>{cartaoLabels[k]}</option>
+            ))}
+          </select>
+          <select
+            className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-shadow"
+            value={filtroStatus}
+            onChange={e => setFiltroStatus(e.target.value)}
+          >
+            <option value="todas">Status (todas)</option>
+            <option value="ativa">Ativas</option>
+            <option value="inativa">Inativas</option>
+          </select>
+          <select
+            className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-shadow"
+            value={filtroFatura}
+            onChange={e => setFiltroFatura(e.target.value)}
+          >
+            <option value="todas">Fatura (todas)</option>
+            <option value="detectada">✓ Detectada</option>
+            <option value="valor_divergente">⚠ Valor diferente</option>
+            <option value="nao_encontrada">✗ Não encontrada</option>
+            <option value="inativa">— Inativa</option>
+          </select>
+          {filtrosAtivos > 0 && (
+            <button
+              onClick={() => { setFiltroCartao('todos'); setFiltroDescricao(''); setFiltroStatus('todas'); setFiltroFatura('todas') }}
+              className="w-full text-xs text-red-500 hover:text-red-700 py-1 font-semibold transition-colors"
+            >
+              Limpar filtros
+            </button>
+          )}
         </div>
       )}
 
