@@ -9,17 +9,17 @@ import { supabase } from '@/lib/supabaseClient'
 import { AUTH_DISABLED } from '@/lib/authConfig'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
 
-const ROTAS_COM_MENU = ['/dashboard', '/contas', '/receitas', '/investimentos', '/assinaturas', '/compras', '/chat', '/configuracoes', '/importar', '/analytics']
+const ROTAS_COM_MENU = ['/dashboard', '/contas', '/receitas', '/investimentos', '/assinaturas', '/compras', '/chat', '/configuracoes', '/importar']
 
 const navItems = [
-  { href: '/dashboard',      label: 'Dashboard',   icon: LayoutDashboard },
-  { href: '/contas',         label: 'Despesas',    icon: Receipt },
-  { href: '/receitas',       label: 'Receitas',    icon: TrendingUp },
-  { href: '/investimentos',  label: 'Investir',    icon: PiggyBank },
-  { href: '/compras',        label: 'Compras',     icon: ShoppingCart },
-  { href: '/chat',           label: 'IA',          icon: MessageCircle },
-  { href: '/configuracoes',  label: 'Config',      icon: SlidersHorizontal },
-  { href: '/analytics',     label: 'Analytics',   icon: BarChart3 },
+  { href: '/dashboard',     label: 'Dashboard',  icon: LayoutDashboard,  desktopOnly: false },
+  { href: '/contas',        label: 'Despesas',   icon: Receipt,           desktopOnly: false },
+  { href: '/receitas',      label: 'Receitas',   icon: TrendingUp,        desktopOnly: false },
+  { href: '/investimentos', label: 'Investir',   icon: PiggyBank,         desktopOnly: false },
+  { href: '/compras',       label: 'Compras',    icon: ShoppingCart,      desktopOnly: false },
+  { href: '/chat',          label: 'IA',         icon: MessageCircle,     desktopOnly: false },
+  { href: '/configuracoes', label: 'Config',     icon: SlidersHorizontal, desktopOnly: false },
+  { href: '/analytics',    label: 'Analytics',  icon: BarChart3,          desktopOnly: true  },
 ]
 
 export default memo(function BottomNav() {
@@ -67,13 +67,13 @@ export default memo(function BottomNav() {
       )}
       <nav aria-label="Navegação principal">
         <div className="flex justify-around items-center h-16 px-0.5">
-          {navItems.map(({ href, label, icon: Icon }) => {
+          {navItems.map(({ href, label, icon: Icon, desktopOnly }) => {
             const isActive = pathname === href
             return (
               <Link
                 key={href}
                 href={href}
-                className="flex flex-col items-center justify-center gap-0.5 flex-1 py-2 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-1 rounded-xl"
+                className={`${desktopOnly ? 'hidden lg:flex' : 'flex'} flex-col items-center justify-center gap-0.5 flex-1 py-2 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-1 rounded-xl`}
                 aria-current={isActive ? 'page' : undefined}
               >
                 <span className={`flex items-center justify-center w-9 h-6 rounded-full transition-all duration-200 ${
