@@ -62,7 +62,7 @@ const trendOptions: ChartOptions<'line'> = {
       ...baseTooltip,
       callbacks: {
         label: (ctx) =>
-          ` R$ ${ctx.parsed.y.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+          ` R$ ${(ctx.parsed.y ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
       },
     },
   },
@@ -118,7 +118,7 @@ const barBaseOptions: ChartOptions<'bar'> = {
       displayColors: true,
       callbacks: {
         label: (ctx) =>
-          ` R$ ${(ctx.parsed.y as number).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+          ` R$ ${(ctx.parsed.y ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
       },
     },
   },
