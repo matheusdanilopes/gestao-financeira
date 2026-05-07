@@ -28,6 +28,11 @@ export interface AnalyticsFilters {
   responsavel: '' | 'Matheus' | 'Jeniffer'
 }
 
+interface RevenueRow { data: string; valor: number }
+interface InvestmentRow { data_atualizacao: string; valor_atual: number; tipo_ativo: string }
+interface BudgetRow { categoria_id: string; valor_previsto: number; mes_referencia: string }
+interface GastoCategoriaRow { categoria: string; total_gasto: number }
+
 const CAT_COLORS = [
   '#8b5cf6', '#3b82f6', '#ec4899', '#10b981',
   '#f59e0b', '#ef4444', '#06b6d4', '#6366f1',
@@ -42,6 +47,9 @@ const fmtBRL = (v: number) =>
 export function useAnalyticsData(filters: AnalyticsFilters) {
   const [rows, setRows] = useState<AnalyticsMensalRow[]>([])
   const [yoyRows, setYoyRows] = useState<AnalyticsYoYRow[]>([])
+  const [revenues, setRevenues] = useState<RevenueRow[]>([])
+  const [investments, setInvestments] = useState<InvestmentRow[]>([])
+  const [budgets, setBudgets] = useState<BudgetRow[]>([])
   const [yoyLoading, setYoyLoading] = useState(false)
 
   const { status, refetch } = useGlobalSync({
@@ -72,6 +80,15 @@ export function useAnalyticsData(filters: AnalyticsFilters) {
         setYoyRows((data ?? []) as AnalyticsYoYRow[])
         setYoyLoading(false)
       })
+  }, [filters.dateFrom, filters.dateTo])
+
+  useEffect(() => {
+    supabase.from('revenues').select('data,valor').gte('data', filters.dateFrom).lte('data', filters.dateTo)
+      .then(({ data }) => setRevenues((data ?? []) as RevenueRow[]))
+    supabase.from('investments').select('data_atualizacao,valor_atual,tipo_ativo').gte('data_atualizacao', filters.dateFrom).lte('data_atualizacao', filters.dateTo)
+      .then(({ data }) => setInvestments((data ?? []) as InvestmentRow[]))
+    supabase.from('budgets').select('categoria_id,valor_previsto,mes_referencia').eq('mes_referencia', filters.dateTo)
+      .then(({ data }) => setBudgets((data ?? []) as BudgetRow[]))
   }, [filters.dateFrom, filters.dateTo])
 
   const loading = status === 'loading' || yoyLoading
@@ -172,6 +189,64 @@ export function useAnalyticsData(filters: AnalyticsFilters) {
     return { burnRate: totalGasto / totalMeses, totalGasto, totalMeses }
   }, [rows])
 
+  const cashFlowData = useMemo<ChartData<'bar'>>(() => {
+    const byMonth = new Map<string, { receita: number; despesa: number }>()
+    revenues.forEach((r) => {
+      const m = r.data.slice(0, 7)
+      const curr = byMonth.get(m) ?? { receita: 0, despesa: 0 }
+      curr.receita += r.valor
+      byMonth.set(m, curr)
+    })
+    rows.forEach((r) => {
+      const m = r.mes.slice(0, 7)
+      const curr = byMonth.get(m) ?? { receita: 0, despesa: 0 }
+      curr.despesa += r.total_gasto
+      byMonth.set(m, curr)
+    })
+    const months = [...byMonth.keys()].sort()
+    return { labels: months, datasets: [
+      { label: 'Receita', data: months.map((m) => byMonth.get(m)?.receita ?? 0), backgroundColor: '#22c55e' },
+      { label: 'Despesa', data: months.map((m) => byMonth.get(m)?.despesa ?? 0), backgroundColor: '#ef4444' },
+    ] }
+  }, [revenues, rows])
+
+  const investmentAllocationData = useMemo<ChartData<'doughnut'>>(() => {
+    const byType = new Map<string, number>()
+    investments.forEach((i) => byType.set(i.tipo_ativo, (byType.get(i.tipo_ativo) ?? 0) + i.valor_atual))
+    const labels = [...byType.keys()]
+    return { labels, datasets: [{ data: labels.map((l) => byType.get(l) ?? 0), backgroundColor: CAT_COLORS.slice(0, labels.length) }] }
+  }, [investments])
+
+  const netWorthTrendData = useMemo<ChartData<'line'>>(() => {
+    const byMonth = new Map<string, number>()
+    investments.forEach((i) => {
+      const m = i.data_atualizacao.slice(0, 7)
+      byMonth.set(m, (byMonth.get(m) ?? 0) + i.valor_atual)
+    })
+    const months = [...byMonth.keys()].sort().slice(-12)
+    return { labels: months, datasets: [{ label: 'Patrimônio', data: months.map((m) => byMonth.get(m) ?? 0), borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.12)', fill: true }] }
+  }, [investments])
+
+  const budgetProgress = useMemo(() => {
+    const spentByCat = new Map<string, number>()
+    rows.filter((r) => r.mes === filters.dateTo).forEach((r) => spentByCat.set(r.categoria, (spentByCat.get(r.categoria) ?? 0) + r.total_gasto))
+    return budgets.map((b) => {
+      const spent = spentByCat.get(b.categoria_id) ?? 0
+      const pct = b.valor_previsto > 0 ? (spent / b.valor_previsto) * 100 : 0
+      return { categoria: b.categoria_id, previsto: b.valor_previsto, gasto: spent, pct }
+    })
+  }, [budgets, rows, filters.dateTo])
+
+  const financeMetrics = useMemo(() => {
+    const currentMonth = filters.dateTo.slice(0, 7)
+    const receitaMes = revenues.filter((r) => r.data.slice(0, 7) === currentMonth).reduce((s, r) => s + r.valor, 0)
+    const despesaMes = rows.filter((r) => r.mes.slice(0, 7) === currentMonth).reduce((s, r) => s + r.total_gasto, 0)
+    const taxaPoupanca = receitaMes > 0 ? ((receitaMes - despesaMes) / receitaMes) * 100 : 0
+    const patrimonioAtual = investments.filter((i) => i.data_atualizacao.slice(0, 7) === currentMonth).reduce((s, i) => s + i.valor_atual, 0)
+    const runwayMeses = despesaMes > 0 ? patrimonioAtual / despesaMes : 0
+    return { receitaMes, despesaMes, taxaPoupanca, patrimonioAtual, runwayMeses }
+  }, [revenues, rows, investments, filters.dateTo])
+
   return {
     rows,
     yoyRows,
@@ -182,6 +257,11 @@ export function useAnalyticsData(filters: AnalyticsFilters) {
     personBarData,
     yoyBarData,
     kpis,
+    cashFlowData,
+    investmentAllocationData,
+    netWorthTrendData,
+    budgetProgress,
+    financeMetrics,
     fmtBRL,
     CAT_COLORS,
   }

@@ -188,6 +188,11 @@ export default function AnalyticsDesktop() {
     personBarData,
     yoyBarData,
     kpis,
+    cashFlowData,
+    investmentAllocationData,
+    netWorthTrendData,
+    budgetProgress,
+    financeMetrics,
   } = useAnalyticsData(filters)
 
   // ── DataGrid sort + search ─────────────────────────────────────────────────
@@ -455,6 +460,42 @@ export default function AnalyticsDesktop() {
                     </div>
                   </ChartCard>
                 </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <ChartCard title="Receitas x Despesas (Fluxo de Caixa)" className="col-span-2">
+                    <div className="h-64">
+                      <Bar data={cashFlowData} options={{ ...barBaseOptions, scales: { ...barBaseOptions.scales, x: { ...barBaseOptions.scales?.x, stacked: true }, y: { ...barBaseOptions.scales?.y, stacked: true } } }} />
+                    </div>
+                  </ChartCard>
+                  <div className="grid grid-rows-2 gap-4 col-span-1">
+                    <KpiCard label="Receita Total (Mês Atual)" value={fmtFull(financeMetrics.receitaMes)} accent="text-emerald-600" />
+                    <KpiCard label="Taxa de Poupança" value={`${financeMetrics.taxaPoupanca.toFixed(1)}%`} sub="((Receita - Despesas) / Receita)" accent="text-blue-600" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <ChartCard title="Alocação por Tipo de Ativo" className="col-span-1">
+                    <div className="h-56"><Doughnut data={investmentAllocationData} options={donutOptions} /></div>
+                  </ChartCard>
+                  <ChartCard title="Evolução do Patrimônio (12 meses)" className="col-span-2">
+                    <div className="h-56"><Line data={netWorthTrendData} options={trendOptions} /></div>
+                    <div className="text-xs text-gray-500">Runway estimado: <span className="font-semibold">{financeMetrics.runwayMeses.toFixed(1)} meses</span></div>
+                  </ChartCard>
+                </div>
+
+                <ChartCard title="Orçamento (Previsto vs Realizado)">
+                  <div className="space-y-2">
+                    {budgetProgress.length === 0 && <div className="text-xs text-gray-400">Sem orçamento para o mês selecionado.</div>}
+                    {budgetProgress.map((b) => (
+                      <div key={b.categoria} className="space-y-1">
+                        <div className="flex justify-between text-xs"><span>{b.categoria}</span><span>{b.gasto.toLocaleString('pt-BR')} / {b.previsto.toLocaleString('pt-BR')}</span></div>
+                        <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden">
+                          <div className={`h-full ${b.pct < 80 ? 'bg-blue-500' : b.pct <= 100 ? 'bg-amber-400' : 'bg-red-500'}`} style={{ width: `${Math.min(b.pct, 100)}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ChartCard>
 
                 {/* ── DataGrid ────────────────────────────────────────────── */}
                 <div className="bg-white dark:bg-[#1e293b] rounded-3xl shadow-card border border-gray-100 dark:border-white/[0.06] overflow-hidden">
