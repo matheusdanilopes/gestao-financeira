@@ -40,3 +40,7 @@ export function log(
 export function numericOnly(value: string): string {
   return value.replace(/[^0-9,.]/g, '')
 }
+
+export function formatBRL(value: number): string {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}

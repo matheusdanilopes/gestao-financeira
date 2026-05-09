@@ -8,7 +8,7 @@ import MonthSelector from '@/components/MonthSelector'
 import EmptyState from '@/components/EmptyState'
 import { addMonths, subMonths, format, startOfMonth, isToday, isYesterday, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { log, numericOnly } from '@/lib/logger'
+import { log, numericOnly, formatBRL } from '@/lib/logger'
 import { useMes } from '@/components/MesProvider'
 import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
 import { calcularProjetoFatura } from '@/lib/fatura'
@@ -470,7 +470,7 @@ export default function ComprasPage() {
           }`}
         >
           <p className={`text-[11px] mb-0.5 font-medium ${filtroResponsavel === '' ? 'text-primary-100' : 'text-primary-500'}`}>Total</p>
-          <p className={`text-sm font-bold num ${filtroResponsavel === '' ? 'text-white' : 'text-primary-700'}`}>R$ {total.toFixed(2)}</p>
+          <p className={`text-sm font-bold num ${filtroResponsavel === '' ? 'text-white' : 'text-primary-700'}`}>{formatBRL(total)}</p>
           <p className={`text-[10px] ${filtroResponsavel === '' ? 'text-primary-200' : 'text-primary-400'}`}>{comprasSemFiltroResponsavel.length} itens</p>
         </button>
         <button
@@ -482,7 +482,7 @@ export default function ComprasPage() {
           }`}
         >
           <p className={`text-[11px] mb-0.5 font-medium ${filtroResponsavel === 'Matheus' ? 'text-blue-100' : 'text-blue-400'}`}>Matheus</p>
-          <p className={`text-sm font-bold num ${filtroResponsavel === 'Matheus' ? 'text-white' : 'text-blue-700'}`}>R$ {totalMatheus.toFixed(2)}</p>
+          <p className={`text-sm font-bold num ${filtroResponsavel === 'Matheus' ? 'text-white' : 'text-blue-700'}`}>{formatBRL(totalMatheus)}</p>
           <p className={`text-[10px] ${filtroResponsavel === 'Matheus' ? 'text-blue-200' : 'text-blue-400'}`}>{comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Matheus').length}x</p>
         </button>
         <button
@@ -494,7 +494,7 @@ export default function ComprasPage() {
           }`}
         >
           <p className={`text-[11px] mb-0.5 font-medium ${filtroResponsavel === 'Jeniffer' ? 'text-pink-100' : 'text-pink-400'}`}>Jeniffer</p>
-          <p className={`text-sm font-bold num ${filtroResponsavel === 'Jeniffer' ? 'text-white' : 'text-pink-600'}`}>R$ {totalJeniffer.toFixed(2)}</p>
+          <p className={`text-sm font-bold num ${filtroResponsavel === 'Jeniffer' ? 'text-white' : 'text-pink-600'}`}>{formatBRL(totalJeniffer)}</p>
           <p className={`text-[10px] ${filtroResponsavel === 'Jeniffer' ? 'text-pink-200' : 'text-pink-400'}`}>{comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Jeniffer').length}x</p>
         </button>
       </div>
@@ -548,7 +548,7 @@ export default function ComprasPage() {
                     {formatarCabecalhoData(dateKey)}
                   </span>
                   <span className="text-xs font-semibold text-gray-700 num">
-                    R$ {subtotal.toFixed(2)}
+                    {formatBRL(subtotal)}
                   </span>
                 </div>
 
@@ -584,7 +584,7 @@ export default function ComprasPage() {
                         </div>
 
                         <div className="text-right shrink-0">
-                          <p className="text-sm font-bold text-gray-800 num">R$ {c.valor.toFixed(2)}</p>
+                          <p className="text-sm font-bold text-gray-800 num">{formatBRL(c.valor)}</p>
                         </div>
 
                         {!faturaFechada && isOnline && (
@@ -723,7 +723,7 @@ export default function ComprasPage() {
               <span className="font-semibold text-gray-800">{modalExcluir.descricao}</span>
             </p>
             <p className="text-sm text-gray-400 text-center mb-6">
-              <span className="num">R$ {modalExcluir.valor.toFixed(2)}</span> · {modalExcluir.responsavel}
+              <span className="num">{formatBRL(modalExcluir.valor)}</span> · {modalExcluir.responsavel}
             </p>
             <div className="flex gap-3">
               <button
