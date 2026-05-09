@@ -98,7 +98,8 @@ export function processarCSV(
   csvText: string,
   diaVencimento: number = 10,
   ajusteFechamento: number = 0,
-  cartao: string = 'nubank'
+  cartao: string = 'nubank',
+  responsavelPadrao?: 'Matheus' | 'Jeniffer'
 ): TransacaoNubank[] {
   // Remove BOM UTF-8 nos dois formatos possíveis (UTF-8 puro ou lido como Latin-1)
   const csvLimpo = csvText
@@ -126,7 +127,8 @@ export function processarCSV(
       String(primeiroValorPreenchido(row.title, row.descricao, row['Descrição'], row.Descricao) ?? '')
     )
     const responsavel: 'Matheus' | 'Jeniffer' =
-      descricao.toLowerCase().includes('jeniffer') ? 'Jeniffer' : 'Matheus'
+      responsavelPadrao ??
+      (descricao.toLowerCase().includes('jeniffer') ? 'Jeniffer' : 'Matheus')
 
     // Data: formato novo YYYY-MM-DD ou antigo DD/MM/YYYY
     const dataRaw = String(primeiroValorPreenchido(row.date, row.data, row.Data) ?? '')
