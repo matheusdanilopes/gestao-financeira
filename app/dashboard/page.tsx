@@ -529,8 +529,8 @@ export default function Dashboard() {
                   )}
                   {fatura.matheusProjecaoParcelas > 0 && (
                     <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-500">
-                      <span className="whitespace-nowrap">Parc. prev.</span>
-                      <span className="font-medium text-orange-700 num shrink-0">− {fmt(fatura.matheusProjecaoParcelas)}</span>
+                      <span className="whitespace-nowrap shrink-0">Parc. prev.</span>
+                      <span className="font-medium text-orange-700 num text-right">− {fmt(fatura.matheusProjecaoParcelas)}</span>
                     </div>
                   )}
                   <div className="mt-2 h-2 bg-blue-100 rounded-full overflow-hidden">
@@ -564,8 +564,8 @@ export default function Dashboard() {
                   )}
                   {fatura.jenifferProjecaoParcelas > 0 && (
                     <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-500">
-                      <span className="whitespace-nowrap">Parc. prev.</span>
-                      <span className="font-medium text-orange-700 num shrink-0">− {fmt(fatura.jenifferProjecaoParcelas)}</span>
+                      <span className="whitespace-nowrap shrink-0">Parc. prev.</span>
+                      <span className="font-medium text-orange-700 num text-right">− {fmt(fatura.jenifferProjecaoParcelas)}</span>
                     </div>
                   )}
                   <div className="mt-2 h-2 bg-pink-100 rounded-full overflow-hidden">
