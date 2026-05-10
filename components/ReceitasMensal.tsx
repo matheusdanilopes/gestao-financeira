@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths } from 'date-fns'
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { Pencil, Trash2, Plus, TrendingUp, CirclePlus, History, X, Download, WifiOff } from 'lucide-react'
-import { log, numericOnly } from '@/lib/logger'
+import { log, numericOnly, formatBRL } from '@/lib/logger'
 
 const RECEITA_PREFIXO = '[RECEITA] '
 
@@ -131,8 +131,8 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
       await supabase.from('planejamento').update({ pago: true, valor_real: novoTotal }).eq('id', modalRecebimento.id)
     }
 
-    log('receber', 'receitas', `Recebimento: ${paraNomeExibicao(modalRecebimento.item)} — R$ ${valor.toFixed(2)}`, valor)
-    showToast(`R$ ${valor.toFixed(2)} registrado!`)
+    log('receber', 'receitas', `Recebimento: ${paraNomeExibicao(modalRecebimento.item)} — ${formatBRL(valor)}`, valor)
+    showToast(`${formatBRL(valor)} registrado!`)
     setModalRecebimento(null)
     setFormRecebimento({ valor: '', data_recebimento: format(new Date(), 'yyyy-MM-dd'), observacao: '' })
     refetch()
@@ -209,10 +209,10 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
         pago: false,
         valor_real: null,
       }])
-      log('inserir', 'receitas', `Nova receita: ${formData.item} — R$ ${valor.toFixed(2)}`, valor)
+      log('inserir', 'receitas', `Nova receita: ${formData.item} — ${formatBRL(valor)}`, valor)
     } else if (itemSelecionado) {
       await supabase.from('planejamento').update(payload).eq('id', itemSelecionado.id)
-      log('editar', 'receitas', `Editada: ${formData.item} — R$ ${valor.toFixed(2)}`, valor, itemSelecionado.valor_previsto)
+      log('editar', 'receitas', `Editada: ${formData.item} — ${formatBRL(valor)}`, valor, itemSelecionado.valor_previsto)
     }
     setModalAberto(null)
     setItemSelecionado(null)
@@ -296,11 +296,11 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div className="bg-gray-50 rounded-xl p-3 text-center">
             <p className="text-xs text-gray-500 mb-0.5">Previsto</p>
-            <p className="text-lg font-bold text-gray-800">R$ {totalPrevisto.toFixed(2)}</p>
+            <p className="text-lg font-bold text-gray-800">{formatBRL(totalPrevisto)}</p>
           </div>
           <div className="bg-green-50 rounded-xl p-3 text-center">
             <p className="text-xs text-gray-500 mb-0.5">Recebido</p>
-            <p className="text-lg font-bold text-green-700">R$ {totalRecebido.toFixed(2)}</p>
+            <p className="text-lg font-bold text-green-700">{formatBRL(totalRecebido)}</p>
           </div>
         </div>
         <div>
@@ -353,11 +353,11 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
                   {/* Valores */}
                   <div className="text-right shrink-0 mr-1">
                     <p className="text-sm font-semibold text-gray-800">
-                      R$ {item.valor_previsto.toFixed(2)}
+                      {formatBRL(item.valor_previsto)}
                     </p>
                     {recebido > 0 && (
                       <p className={`text-xs font-medium ${concluido ? 'text-green-600' : 'text-yellow-600'}`}>
-                        ✓ R$ {recebido.toFixed(2)}
+                        ✓ {formatBRL(recebido)}
                       </p>
                     )}
                   </div>
@@ -475,8 +475,8 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
               const restante = Math.max(0, modalRecebimento.valor_previsto - recebido)
               return (
                 <div className="bg-green-50 rounded-xl px-3 py-2 mb-4 text-xs text-gray-600 flex justify-between">
-                  <span>Recebido: <strong>R$ {recebido.toFixed(2)}</strong></span>
-                  <span>Restante: <strong className="text-green-700">R$ {restante.toFixed(2)}</strong></span>
+                  <span>Recebido: <strong>{formatBRL(recebido)}</strong></span>
+                  <span>Restante: <strong className="text-green-700">{formatBRL(restante)}</strong></span>
                 </div>
               )
             })()}
@@ -545,7 +545,7 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
                 }`}>
                   <div className="flex items-center gap-3 bg-gray-50 px-3 py-2.5">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-800">R$ {r.valor.toFixed(2)}</p>
+                      <p className="text-sm font-semibold text-gray-800">{formatBRL(r.valor)}</p>
                       <p className="text-xs text-gray-400">
                         {new Date(r.data_recebimento + 'T12:00:00').toLocaleDateString('pt-BR')}
                         {r.observacao && <span className="ml-1">· {r.observacao}</span>}
@@ -586,7 +586,7 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
                   <div className="flex items-center gap-3 bg-gray-50 px-3 py-2.5">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-gray-800">
-                        R$ {(modalHistorico.valor_real ?? modalHistorico.valor_previsto).toFixed(2)}
+                        {formatBRL(modalHistorico.valor_real ?? modalHistorico.valor_previsto)}
                       </p>
                       <p className="text-xs text-gray-400">Recebido integralmente</p>
                     </div>
@@ -620,9 +620,9 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
             <div className="border-t mt-3 pt-3 flex justify-between text-sm font-medium text-gray-600">
               <span>Total recebido</span>
               <span className="text-green-700 font-bold">
-                R$ {(recebimentos[modalHistorico.id] || []).length > 0
-                  ? (recebimentos[modalHistorico.id] || []).reduce((a, r) => a + r.valor, 0).toFixed(2)
-                  : (modalHistorico.pago ? (modalHistorico.valor_real ?? modalHistorico.valor_previsto) : 0).toFixed(2)}
+                {(recebimentos[modalHistorico.id] || []).length > 0
+                  ? formatBRL((recebimentos[modalHistorico.id] || []).reduce((a, r) => a + r.valor, 0))
+                  : formatBRL(modalHistorico.pago ? (modalHistorico.valor_real ?? modalHistorico.valor_previsto) : 0)}
               </span>
             </div>
             <button
