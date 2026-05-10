@@ -7,7 +7,7 @@ import { useGlobalSync } from '@/lib/useGlobalSync'
 import { ptBR } from 'date-fns/locale'
 import { CheckCircle2, AlertCircle, Pencil, Trash2, Plus, CreditCard, Download, RotateCcw, WifiOff, Repeat, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
-import { log, numericOnly } from '@/lib/logger'
+import { log, numericOnly, formatBRL } from '@/lib/logger'
 
 const PREFIXO_CARTAO_1 = '[CARTAO1] '
 const PREFIXO_CARTAO_2 = '[CARTAO2] '
@@ -128,7 +128,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       .eq('id', id)
 
     if (!error) {
-      log('pagar', 'planejamento', `Pago: ${item ? removerPrefixoCartao(item.item) : id} — R$ ${valorNumerico.toFixed(2)}`, valorNumerico)
+      log('pagar', 'planejamento', `Pago: ${item ? removerPrefixoCartao(item.item) : id} — ${formatBRL(valorNumerico)}`, valorNumerico)
       if (diff > 0.01) {
         showToast(`Diferença de ${formatarMoeda(diff)} em relação ao previsto`, 'erro')
       } else {
@@ -223,7 +223,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       setModalAberto(null)
       setItemSelecionado(null)
       refetch()
-      log('editar', 'planejamento', `Editado: ${formData.item} — R$ ${valor.toFixed(2)}`, valor, itemSelecionado.valor_previsto)
+      log('editar', 'planejamento', `Editado: ${formData.item} — ${formatBRL(valor)}`, valor, itemSelecionado.valor_previsto)
     } else {
       console.error('[editarItem] Supabase error:', error)
       showToast(error.message || 'Erro ao editar', 'erro')
@@ -247,7 +247,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       setModalAberto(null)
       setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', tipo_cartao: '', valor_previsto: '' })
       refetch()
-      log('inserir', 'planejamento', `Novo item: ${formData.item} — R$ ${valor.toFixed(2)}`, valor)
+      log('inserir', 'planejamento', `Novo item: ${formData.item} — ${formatBRL(valor)}`, valor)
     } else {
       showToast('Erro ao adicionar', 'erro')
     }
