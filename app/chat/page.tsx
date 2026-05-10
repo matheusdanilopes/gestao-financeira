@@ -243,6 +243,19 @@ export default function ChatPage() {
     try { localStorage.removeItem(convIdKey(userIdRef.current)) } catch { /* ignore */ }
   }
 
+  async function deletarConversa() {
+    const convId = convIdRef.current
+    novaConversa()
+    if (!convId) return
+    setConversas(prev => prev.filter(c => c.id !== convId))
+    try {
+      await fetch(
+        `/api/chat/conversations?conversation_id=${encodeURIComponent(convId)}&user_id=${encodeURIComponent(userIdRef.current)}`,
+        { method: 'DELETE' }
+      )
+    } catch { /* silencioso */ }
+  }
+
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -362,9 +375,9 @@ export default function ChatPage() {
                 <Plus className="w-4 h-4" />
               </button>
               <button
-                onClick={novaConversa}
+                onClick={deletarConversa}
                 className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition"
-                title="Limpar conversa"
+                title="Excluir conversa"
               >
                 <Trash2 className="w-4 h-4" />
               </button>

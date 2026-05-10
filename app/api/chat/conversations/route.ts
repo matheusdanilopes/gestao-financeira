@@ -78,3 +78,35 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ conversations })
 }
+
+export async function DELETE(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  const conversationId = searchParams.get('conversation_id')
+  const userId = searchParams.get('user_id')
+
+  if (!conversationId || !userId) {
+    return NextResponse.json({ error: 'conversation_id e user_id são obrigatórios' }, { status: 400 })
+  }
+
+  const supabase = getSupabase()
+
+  const { data: conv } = await supabase
+    .from('conversations')
+    .select('id')
+    .eq('id', conversationId)
+    .eq('user_id', userId)
+    .single()
+
+  if (!conv) {
+    return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
+  }
+
+  await supabase.from('messages').delete().eq('conversation_id', conversationId)
+  const { error } = await supabase.from('conversations').delete().eq('id', conversationId)
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ success: true })
+}
