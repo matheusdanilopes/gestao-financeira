@@ -64,6 +64,13 @@ function formatarValor(valor: number | null): string {
   return ` — ${formatBRL(valor)}`
 }
 
+// Converte valores no formato legado "R$ 1551.42" (ponto decimal) para "R$ 1.551,42"
+function normalizarDescricao(descricao: string): string {
+  return descricao.replace(/R\$ (\d+)\.(\d{2})(?!\d)/g, (_, intPart, decPart) =>
+    formatBRL(parseFloat(`${intPart}.${decPart}`))
+  )
+}
+
 async function registrarPush(usuarioEmail: string, forcar = false): Promise<string | null> {
   if (!VAPID_PUBLIC) return null
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null
@@ -355,7 +362,7 @@ export default memo(function NotificacoesBell() {
                     <div className="mt-0.5 flex-shrink-0">{iconeAcao(n.acao)}</div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-800 dark:text-gray-100 leading-snug">
-                        {n.descricao}
+                        {normalizarDescricao(n.descricao)}
                       </p>
                       {isConflito && n.metadata && !n.lida && (
                         <div className="flex gap-2 mt-2">
