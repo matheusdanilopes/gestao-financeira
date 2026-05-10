@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { AUTH_DISABLED } from '@/lib/authConfig'
+import { formatBRL } from '@/lib/logger'
 
 interface ConflictMetadata {
   original_id: string
@@ -60,7 +61,14 @@ function corAcao(acao: string) {
 
 function formatarValor(valor: number | null): string {
   if (valor == null) return ''
-  return ` — R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+  return ` — ${formatBRL(valor)}`
+}
+
+// Converte valores no formato legado "R$ 1551.42" (ponto decimal) para "R$ 1.551,42"
+function normalizarDescricao(descricao: string): string {
+  return descricao.replace(/R\$ (\d+)\.(\d{2})(?!\d)/g, (_, intPart, decPart) =>
+    formatBRL(parseFloat(`${intPart}.${decPart}`))
+  )
 }
 
 async function registrarPush(usuarioEmail: string, forcar = false): Promise<string | null> {
@@ -354,7 +362,7 @@ export default memo(function NotificacoesBell() {
                     <div className="mt-0.5 flex-shrink-0">{iconeAcao(n.acao)}</div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-800 dark:text-gray-100 leading-snug">
-                        {n.descricao}
+                        {normalizarDescricao(n.descricao)}
                       </p>
                       {isConflito && n.metadata && !n.lida && (
                         <div className="flex gap-2 mt-2">

@@ -227,7 +227,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
     }])
 
     if (error) { showToast('Erro ao registrar aporte', 'erro'); return }
-    log('aporte', 'investimentos', `Aporte em ${modalAporte.descricao} — R$ ${valor.toFixed(2)}`, valor)
+    log('aporte', 'investimentos', `Aporte em ${modalAporte.descricao} — ${formatBRL(valor)}`, valor)
     showToast(`Aporte de ${formatBRL(valor)} registrado!`)
     setModalAporte(null)
     setFormAporte({ valor: '', saldo_atual: '', data_aporte: format(new Date(), 'yyyy-MM-dd'), observacao: '' })
@@ -238,7 +238,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
     const inv = itens.find(i => i.id === aporte.investimento_id)
     const { error } = await supabase.from('investimentos_aportes').delete().eq('id', aporte.id)
     if (!error) {
-      log('excluir', 'investimentos', `Aporte removido de ${inv?.descricao ?? 'investimento'} — R$ ${aporte.valor.toFixed(2)}`, aporte.valor)
+      log('excluir', 'investimentos', `Aporte removido de ${inv?.descricao ?? 'investimento'} — ${formatBRL(aporte.valor)}`, aporte.valor)
       refetch(); showToast('Aporte removido')
     } else showToast('Erro ao remover aporte', 'erro')
   }

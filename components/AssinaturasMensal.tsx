@@ -10,7 +10,7 @@ import {
   CheckCircle2, AlertTriangle, XCircle, MinusCircle,
   CreditCard, Search, SlidersHorizontal,
 } from 'lucide-react'
-import { log, numericOnly } from '@/lib/logger'
+import { log, numericOnly, formatBRL } from '@/lib/logger'
 
 interface Assinatura {
   id: string
@@ -217,12 +217,12 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     if (modalAberto === 'adicionar') {
       const { error } = await supabase.from('assinaturas').insert([payload])
       if (error) { showToast('Erro ao adicionar', 'erro'); return }
-      log('inserir', 'assinaturas', `Nova assinatura: ${nome} — R$ ${valor.toFixed(2)}`, valor)
+      log('inserir', 'assinaturas', `Nova assinatura: ${nome} — ${formatBRL(valor)}`, valor)
       showToast('Assinatura adicionada!')
     } else if (itemSelecionado) {
       const { error } = await supabase.from('assinaturas').update(payload).eq('id', itemSelecionado.id)
       if (error) { showToast('Erro ao salvar', 'erro'); return }
-      log('editar', 'assinaturas', `Editada: ${nome} — R$ ${valor.toFixed(2)}`, valor)
+      log('editar', 'assinaturas', `Editada: ${nome} — ${formatBRL(valor)}`, valor)
       showToast('Atualizado!')
     }
 
