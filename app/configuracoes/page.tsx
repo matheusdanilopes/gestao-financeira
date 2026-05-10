@@ -65,7 +65,7 @@ export default function ConfiguracoesPage() {
   const [abaAtual, setAbaAtual] = useState<AbaConfiguracoes>('geral')
 
   // --- Geral ---
-  const [cartaoExpandido, setCartaoExpandido] = useState<'nubank' | 'cartao1' | 'cartao2' | null>('nubank')
+  const [cartaoExpandido, setCartaoExpandido] = useState<'nubank' | 'cartao1' | 'cartao2' | null>(null)
   const [diaVencimento, setDiaVencimento] = useState(10)
   const [ajusteFechamento, setAjusteFechamento] = useState(0)
   const [diaVencimentoC1, setDiaVencimentoC1] = useState(10)
