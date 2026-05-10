@@ -87,8 +87,26 @@ export async function POST(req: NextRequest) {
       get(`ajuste_fechamento_${cartao}`, get('ajuste_fechamento', '0'))
     )
 
+    // Busca o responsável padrão cadastrado no planejamento para este cartão.
+    // Se todos os itens [CARTAOx] apontarem para a mesma pessoa, usa como padrão;
+    // caso contrário (cartão compartilhado ou sem cadastro), mantém a lógica pela descrição.
+    const prefixoPlanejamento = cartao === 'cartao1' ? '[CARTAO1]' : '[CARTAO2]'
+    const { data: planos } = await supabase
+      .from('planejamento')
+      .select('responsavel')
+      .ilike('item', `${prefixoPlanejamento}%`)
+
+    const responsaveisUnicos = [
+      ...new Set((planos ?? []).map((p: any) => p.responsavel).filter(Boolean))
+    ]
+    const responsavelPadrao: 'Matheus' | 'Jeniffer' | undefined =
+      responsaveisUnicos.length === 1 &&
+      (responsaveisUnicos[0] === 'Matheus' || responsaveisUnicos[0] === 'Jeniffer')
+        ? (responsaveisUnicos[0] as 'Matheus' | 'Jeniffer')
+        : undefined
+
     const csvText = await file.text()
-    const transacoes = processarCSV(csvText, diaVencimento, ajusteFechamento, cartao)
+    const transacoes = processarCSV(csvText, diaVencimento, ajusteFechamento, cartao, responsavelPadrao)
 
     if (transacoes.length === 0) {
       return NextResponse.json({
