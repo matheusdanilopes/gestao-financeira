@@ -2,6 +2,7 @@
 
 import { X } from 'lucide-react'
 import { useState, useMemo, useEffect } from 'react'
+import { formatBRL } from '@/lib/logger'
 
 type CampoFiltro = 'responsavel' | 'tipo' | 'cartao' | 'categoria' | 'descricao'
 
@@ -235,7 +236,7 @@ export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }:
           <div className="bg-blue-50 rounded-lg p-3 mb-4">
             <p className="text-sm text-gray-600">Valor total</p>
             <p className="text-2xl font-bold text-blue-600">
-              R$ {(itensFiltrados.length === itens.length ? dados.valor : valorFiltrado).toFixed(2)}
+              {formatBRL(itensFiltrados.length === itens.length ? dados.valor : valorFiltrado)}
             </p>
           </div>
 
@@ -273,7 +274,7 @@ export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }:
                       )}
                     </p>
                     <p className="text-sm font-semibold text-green-600">
-                      R$ {(item.valor ?? item.valor_previsto)?.toFixed(2)}
+                      {formatBRL(item.valor ?? item.valor_previsto ?? 0)}
                     </p>
                   </div>
                 )

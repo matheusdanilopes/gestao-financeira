@@ -17,6 +17,7 @@ import ChartDataLabels from 'chartjs-plugin-datalabels'
 import { addMonths, format, startOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { MousePointerClick, AlertCircle } from 'lucide-react'
+import { formatBRL } from '@/lib/logger'
 
 const PROJECAO_OFFSET_MESES = 1
 
@@ -81,7 +82,7 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
               borderRadius: 5,
               color: '#fff',
               font: { weight: 'bold' as const, size: 10 },
-              formatter: (value: number) => `R$${value.toFixed(0)}`,
+              formatter: (value: number) => formatBRL(value),
               align: 'top' as const,
               offset: 8,
               padding: { top: 3, bottom: 3, left: 5, right: 5 },
@@ -157,7 +158,7 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
         padding: 10,
         cornerRadius: 8,
         callbacks: {
-          label: (ctx: any) => ` ${ctx.dataset.label}: R$ ${ctx.parsed.y.toFixed(2)}`,
+          label: (ctx: any) => ` ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y)}`,
         },
       },
       datalabels: {},
@@ -165,7 +166,7 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
     scales: {
       y: {
         ticks: {
-          callback: (value: any) => `R$${Number(value).toFixed(0)}`,
+          callback: (value: any) => formatBRL(Number(value)),
           font: { size: 10 },
           maxTicksLimit: 5,
           color: '#9ca3af',
