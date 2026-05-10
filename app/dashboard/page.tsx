@@ -511,8 +511,8 @@ export default function Dashboard() {
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">NuBank</p>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {/* Matheus NuBank */}
-                <div className="bg-blue-50 border border-blue-100 border-t-2 border-t-blue-400 p-3 rounded-2xl">
-                  <p className="font-semibold text-blue-800 text-sm mb-2">Matheus</p>
+                <div className="bg-blue-50 border border-blue-100 border-t-4 border-t-blue-500 p-3 rounded-2xl">
+                  <p className="font-bold text-blue-800 text-sm uppercase tracking-wide mb-1.5">Matheus</p>
                   <div className="flex justify-between text-xs gap-1 text-gray-500">
                     <span>Atual</span>
                     <span className="font-medium text-gray-800 num">{fmt(fatura.matheusAtual)}</span>
@@ -528,26 +528,26 @@ export default function Dashboard() {
                     </div>
                   )}
                   {fatura.matheusProjecaoParcelas > 0 && (
-                    <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-500">
-                      <span>Parc. prev.</span>
-                      <span className="font-medium text-orange-700 num">− {fmt(fatura.matheusProjecaoParcelas)}</span>
+                    <div className="flex justify-between items-center gap-1 mt-0.5 text-[10px]">
+                      <span className="text-gray-500 whitespace-nowrap shrink-0">Parc. prev.</span>
+                      <span className="font-medium text-orange-700 num whitespace-nowrap">− {fmt(fatura.matheusProjecaoParcelas)}</span>
                     </div>
                   )}
                   <div className="mt-2 h-2 bg-blue-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-400 rounded-full transition-all duration-500" style={{ width: `${fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100) : 0}%` }} />
+                    <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100) : 0}%` }} />
                   </div>
-                  <p className="text-right text-[10px] text-blue-400 mt-0.5 num">{fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100).toFixed(0) : 0}%</p>
-                  <div className={`flex justify-between text-xs font-bold mt-1.5 ${fatura.sobraMatheus < 0 ? 'text-red-600' : matheusSobraWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
-                    <span className="flex items-center gap-0.5">
-                      {fatura.sobraMatheus < 0 ? '⚠ Excesso' : matheusSobraWarning ? <><AlertTriangle className="w-3 h-3 inline-block" /> Atenção!</> : '✓ Sobra'}
+                  <p className="text-right text-[10px] text-blue-500 mt-0.5 num">{fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100).toFixed(0) : 0}%</p>
+                  <div className={`flex justify-between text-xs font-bold mt-1.5 gap-1 ${fatura.sobraMatheus < 0 ? 'text-red-600' : matheusSobraWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
+                    <span className="flex items-center gap-0.5 whitespace-nowrap">
+                      {fatura.sobraMatheus < 0 ? '⚠ Excesso' : matheusSobraWarning ? <><AlertTriangle className="w-3 h-3 inline-block" /> Atenção!</> : '✓ Restante'}
                     </span>
-                    <span className="num">{fmt(Math.abs(fatura.sobraMatheus))}</span>
+                    <span className="num shrink-0">{fmt(Math.abs(fatura.sobraMatheus))}</span>
                   </div>
                 </div>
 
                 {/* Jeniffer NuBank */}
-                <div className="bg-pink-50 border border-pink-100 border-t-2 border-t-pink-400 p-3 rounded-2xl">
-                  <p className="font-semibold text-pink-800 text-sm mb-2">Jeniffer</p>
+                <div className="bg-pink-50 border border-pink-100 border-t-4 border-t-pink-500 p-3 rounded-2xl">
+                  <p className="font-bold text-pink-800 text-sm uppercase tracking-wide mb-1.5">Jeniffer</p>
                   <div className="flex justify-between text-xs gap-1 text-gray-500">
                     <span>Atual</span>
                     <span className="font-medium text-gray-800 num">{fmt(fatura.jenifferAtual)}</span>
@@ -563,20 +563,20 @@ export default function Dashboard() {
                     </div>
                   )}
                   {fatura.jenifferProjecaoParcelas > 0 && (
-                    <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-500">
-                      <span>Parc. prev.</span>
-                      <span className="font-medium text-orange-700 num">− {fmt(fatura.jenifferProjecaoParcelas)}</span>
+                    <div className="flex justify-between items-center gap-1 mt-0.5 text-[10px]">
+                      <span className="text-gray-500 whitespace-nowrap shrink-0">Parc. prev.</span>
+                      <span className="font-medium text-orange-700 num whitespace-nowrap">− {fmt(fatura.jenifferProjecaoParcelas)}</span>
                     </div>
                   )}
                   <div className="mt-2 h-2 bg-pink-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-pink-400 rounded-full transition-all duration-500" style={{ width: `${fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100) : 0}%` }} />
+                    <div className="h-full bg-pink-500 rounded-full transition-all duration-500" style={{ width: `${fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100) : 0}%` }} />
                   </div>
-                  <p className="text-right text-[10px] text-pink-400 mt-0.5 num">{fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100).toFixed(0) : 0}%</p>
-                  <div className={`flex justify-between text-xs font-bold mt-1.5 ${fatura.sobraJeniffer < 0 ? 'text-red-600' : jenifferSobraWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
-                    <span className="flex items-center gap-0.5">
-                      {fatura.sobraJeniffer < 0 ? '⚠ Excesso' : jenifferSobraWarning ? <><AlertTriangle className="w-3 h-3 inline-block" /> Atenção!</> : '✓ Sobra'}
+                  <p className="text-right text-[10px] text-pink-500 mt-0.5 num">{fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100).toFixed(0) : 0}%</p>
+                  <div className={`flex justify-between text-xs font-bold mt-1.5 gap-1 ${fatura.sobraJeniffer < 0 ? 'text-red-600' : jenifferSobraWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
+                    <span className="flex items-center gap-0.5 whitespace-nowrap">
+                      {fatura.sobraJeniffer < 0 ? '⚠ Excesso' : jenifferSobraWarning ? <><AlertTriangle className="w-3 h-3 inline-block" /> Atenção!</> : '✓ Restante'}
                     </span>
-                    <span className="num">{fmt(Math.abs(fatura.sobraJeniffer))}</span>
+                    <span className="num shrink-0">{fmt(Math.abs(fatura.sobraJeniffer))}</span>
                   </div>
                 </div>
               </div>
@@ -636,13 +636,13 @@ export default function Dashboard() {
                             <div className={`mt-1.5 h-2 rounded-full overflow-hidden ${isMatheus ? 'bg-blue-100' : 'bg-pink-100'}`}>
                               <div className={`h-full rounded-full transition-all duration-500 ${isMatheus ? 'bg-blue-400' : 'bg-pink-400'}`} style={{ width: `${pct}%` }} />
                             </div>
-                            <div className={`flex items-center justify-between text-xs font-bold mt-1 ${
+                            <div className={`flex items-center justify-between text-xs font-bold mt-1 gap-1 ${
                               sobra < 0 ? 'text-red-600' : isWarning ? 'text-amber-600' : 'text-emerald-600'
                             }`}>
-                              <span className="flex items-center gap-0.5">
+                              <span className="flex items-center gap-0.5 whitespace-nowrap">
                                 {sobra < 0 ? '⚠ Excesso' : isWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção!</> : '✓ Restante'}
                               </span>
-                              <span className="num">{fmt(Math.abs(sobra))}</span>
+                              <span className="num shrink-0">{fmt(Math.abs(sobra))}</span>
                             </div>
                           </div>
                         )
@@ -658,9 +658,9 @@ export default function Dashboard() {
                         <div className="mt-1.5 h-2 bg-blue-100 rounded-full overflow-hidden">
                           <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${matheusPct}%` }} />
                         </div>
-                        <div className={`flex justify-between text-xs font-bold mt-1 ${matheusRestante < 0 ? 'text-red-600' : matheusResumoWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
-                          <span className="flex items-center gap-0.5">{matheusRestante < 0 ? '⚠ Excesso' : matheusResumoWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção!</> : '✓ Restante'}</span>
-                          <span className="num">{fmt(Math.abs(matheusRestante))}</span>
+                        <div className={`flex justify-between text-xs font-bold mt-1 gap-1 ${matheusRestante < 0 ? 'text-red-600' : matheusResumoWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
+                          <span className="flex items-center gap-0.5 whitespace-nowrap">{matheusRestante < 0 ? '⚠ Excesso' : matheusResumoWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção!</> : '✓ Restante'}</span>
+                          <span className="num shrink-0">{fmt(Math.abs(matheusRestante))}</span>
                         </div>
                       </div>
                       <div className="bg-pink-50 border border-pink-100 border-t-4 border-t-pink-500 p-2 rounded-2xl">
@@ -670,9 +670,9 @@ export default function Dashboard() {
                         <div className="mt-1.5 h-2 bg-pink-100 rounded-full overflow-hidden">
                           <div className="h-full bg-pink-500 rounded-full transition-all duration-500" style={{ width: `${jenifferPct}%` }} />
                         </div>
-                        <div className={`flex justify-between text-xs font-bold mt-1 ${jenifferRestante < 0 ? 'text-red-600' : jenifferResumoWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
-                          <span className="flex items-center gap-0.5">{jenifferRestante < 0 ? '⚠ Excesso' : jenifferResumoWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção!</> : '✓ Restante'}</span>
-                          <span className="num">{fmt(Math.abs(jenifferRestante))}</span>
+                        <div className={`flex justify-between text-xs font-bold mt-1 gap-1 ${jenifferRestante < 0 ? 'text-red-600' : jenifferResumoWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
+                          <span className="flex items-center gap-0.5 whitespace-nowrap">{jenifferRestante < 0 ? '⚠ Excesso' : jenifferResumoWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção!</> : '✓ Restante'}</span>
+                          <span className="num shrink-0">{fmt(Math.abs(jenifferRestante))}</span>
                         </div>
                       </div>
                     </div>

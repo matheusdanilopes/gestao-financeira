@@ -6,7 +6,7 @@ import { format, startOfMonth, subMonths } from 'date-fns'
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { ptBR } from 'date-fns/locale'
 import { PiggyBank, Pencil, Trash2, Plus, Download, CirclePlus, History, X, WifiOff } from 'lucide-react'
-import { log, numericOnly } from '@/lib/logger'
+import { log, numericOnly, formatBRL } from '@/lib/logger'
 
 interface Investimento {
   id: string
@@ -228,7 +228,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
 
     if (error) { showToast('Erro ao registrar aporte', 'erro'); return }
     log('aporte', 'investimentos', `Aporte em ${modalAporte.descricao} — R$ ${valor.toFixed(2)}`, valor)
-    showToast(`Aporte de R$ ${valor.toFixed(2)} registrado!`)
+    showToast(`Aporte de ${formatBRL(valor)} registrado!`)
     setModalAporte(null)
     setFormAporte({ valor: '', saldo_atual: '', data_aporte: format(new Date(), 'yyyy-MM-dd'), observacao: '' })
     refetch()
@@ -297,24 +297,24 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
           <div className="bg-gray-50 rounded-xl p-3 text-center">
             <p className="text-xs text-gray-500 mb-0.5">Saldo atual</p>
             <p className={`text-lg font-bold ${saldo >= 0 ? 'text-gray-800' : 'text-red-600'}`}>
-              R$ {saldo.toFixed(2)}
+              {formatBRL(saldo)}
             </p>
           </div>
           <div className="bg-violet-50 rounded-xl p-3 text-center">
             <p className="text-xs text-violet-500 mb-0.5">Meta prevista</p>
             <p className={`text-lg font-bold ${totalMetaPrevisto >= 0 ? 'text-violet-700' : 'text-red-600'}`}>
-              R$ {totalMetaPrevisto.toFixed(2)}
+              {formatBRL(totalMetaPrevisto)}
             </p>
             <p className="text-xs text-violet-300">{totalPercentual.toFixed(0)}% do previsto</p>
           </div>
           <div className="bg-green-50 rounded-xl p-3 text-center">
             <p className="text-xs text-gray-500 mb-0.5">Total aportado</p>
-            <p className="text-lg font-bold text-green-700">R$ {totalAportadoGeral.toFixed(2)}</p>
+            <p className="text-lg font-bold text-green-700">{formatBRL(totalAportadoGeral)}</p>
           </div>
           <div className="bg-gray-50 rounded-xl p-3 text-center">
             <p className="text-xs text-gray-500 mb-0.5">Restante</p>
             <p className={`text-lg font-bold ${totalMeta - totalAportadoGeral > 0 ? 'text-gray-700' : 'text-green-600'}`}>
-              R$ {Math.max(0, totalMeta - totalAportadoGeral).toFixed(2)}
+              {formatBRL(Math.max(0, totalMeta - totalAportadoGeral))}
             </p>
           </div>
         </div>
@@ -363,18 +363,18 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
                   </div>
                   <div className="text-right shrink-0">
                     <p className={`text-sm font-bold ${concluido ? 'text-green-600' : 'text-violet-700'}`}>
-                      R$ {aportado.toFixed(2)}
+                      {formatBRL(aportado)}
                     </p>
                     <p className="text-xs font-medium text-gray-500">
-                      Meta R$ {meta.toFixed(2)}
+                      Meta {formatBRL(meta)}
                     </p>
                     {metaPrevista !== meta && metaPrevista > 0 && (
                       <p className="text-xs text-violet-400">
-                        Prev. R$ {metaPrevista.toFixed(2)}
+                        Prev. {formatBRL(metaPrevista)}
                       </p>
                     )}
                     {saldoAtualItem !== null && (
-                      <p className="text-xs text-gray-400">Saldo atual R$ {saldoAtualItem.toFixed(2)}</p>
+                      <p className="text-xs text-gray-400">Saldo atual {formatBRL(saldoAtualItem)}</p>
                     )}
                   </div>
                 </div>
@@ -487,9 +487,9 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
               const restante = Math.max(0, meta - aportado)
               return (
                 <div className="bg-violet-50 rounded-xl px-3 py-2 mb-4 text-xs text-gray-600 flex justify-between">
-                  <span>Aportado: <strong className="text-violet-700">R$ {aportado.toFixed(2)}</strong></span>
-                  <span>Meta: <strong>R$ {meta.toFixed(2)}</strong></span>
-                  <span>Falta: <strong className="text-gray-800">R$ {restante.toFixed(2)}</strong></span>
+                  <span>Aportado: <strong className="text-violet-700">{formatBRL(aportado)}</strong></span>
+                  <span>Meta: <strong>{formatBRL(meta)}</strong></span>
+                  <span>Falta: <strong className="text-gray-800">{formatBRL(restante)}</strong></span>
                 </div>
               )
             })()}
@@ -567,13 +567,13 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
                 }`}>
                   <div className="flex items-center gap-3 bg-gray-50 px-3 py-2.5">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-800">R$ {a.valor.toFixed(2)}</p>
+                      <p className="text-sm font-semibold text-gray-800">{formatBRL(a.valor)}</p>
                       <p className="text-xs text-gray-400">
                         {format(new Date(a.data_aporte + 'T12:00:00'), "dd 'de' MMMM", { locale: ptBR })}
                         {a.observacao && <span className="ml-1">· {a.observacao}</span>}
                       </p>
                       {a.saldo_atual !== null && (
-                        <p className="text-xs text-gray-500">Saldo atual no aporte: R$ {a.saldo_atual.toFixed(2)}</p>
+                        <p className="text-xs text-gray-500">Saldo atual no aporte: {formatBRL(a.saldo_atual)}</p>
                       )}
                     </div>
                     {aportePendingDelete === a.id ? (
@@ -606,7 +606,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
             <div className="border-t mt-3 pt-3 flex justify-between text-sm font-medium text-gray-600">
               <span>Total aportado</span>
               <span className="text-violet-700 font-bold">
-                R$ {totalAportado(modalHistorico.id).toFixed(2)}
+                {formatBRL(totalAportado(modalHistorico.id))}
               </span>
             </div>
             <button
@@ -666,7 +666,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
               <div>
                 <label className="text-xs font-medium text-gray-600 mb-1 block">
                   Valor em R$
-                  <span className="ml-1 text-gray-400 font-normal">— saldo: R$ {saldo.toFixed(2)}</span>
+                  <span className="ml-1 text-gray-400 font-normal">— saldo: {formatBRL(saldo)}</span>
                 </label>
                 <input
                   type="text"
@@ -730,7 +730,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
                   <div key={i.id} className="flex justify-between text-sm bg-gray-50 rounded-xl px-3 py-2">
                     <span className="text-gray-700">{i.descricao}</span>
                     <span className="text-violet-700 font-medium">
-                      {i.percentual.toFixed(2)}% · R$ {(saldo > 0 ? saldo * i.percentual / 100 : 0).toFixed(2)}
+                      {i.percentual.toFixed(2)}% · {formatBRL(saldo > 0 ? saldo * i.percentual / 100 : 0)}
                     </span>
                   </div>
                 ))}
