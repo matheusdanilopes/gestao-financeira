@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { AUTH_DISABLED } from '@/lib/authConfig'
+import { formatBRL } from '@/lib/logger'
 
 interface ConflictMetadata {
   original_id: string
@@ -60,7 +61,7 @@ function corAcao(acao: string) {
 
 function formatarValor(valor: number | null): string {
   if (valor == null) return ''
-  return ` — R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+  return ` — ${formatBRL(valor)}`
 }
 
 async function registrarPush(usuarioEmail: string, forcar = false): Promise<string | null> {

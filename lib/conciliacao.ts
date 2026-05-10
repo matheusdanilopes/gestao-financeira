@@ -1,5 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { TransacaoNubank, normalizarDescricaoParaHash } from '@/lib/csvparser'
+import { formatBRL } from '@/lib/logger'
 
 function adicionarDias(dataISO: string, dias: number): string {
   const d = new Date(dataISO + 'T12:00:00')
@@ -84,13 +85,11 @@ async function criarNotificacaoConflito(
   entrada: TransacaoNubank,
   conflito_id: string
 ) {
-  const valorOrigFmt = original.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
-  const valorNovoFmt = entrada.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
   await supabase.from('notificacoes').insert({
     de_usuario: 'sistema',
     nome_usuario: 'Sistema',
     acao: 'conciliacao_conflito',
-    descricao: `Conflito de valor em "${entrada.descricao}": R$ ${valorOrigFmt} → R$ ${valorNovoFmt}`,
+    descricao: `Conflito de valor em "${entrada.descricao}": ${formatBRL(original.valor)} → ${formatBRL(entrada.valor)}`,
     valor: entrada.valor,
     metadata: {
       original_id: original.id,
