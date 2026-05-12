@@ -22,8 +22,8 @@ function limparNomeItem(nome: string): string {
  * POST /api/notificacoes/vencimento
  *
  * Endpoint para cron job diário às 09:00.
- * Usa webpush diretamente — não passa pelo /api/push/send que tem filtro .neq()
- * e excluiria o próprio destinatário.
+ * Cada usuário recebe apenas notificações das suas próprias despesas (responsavel).
+ * Envios em paralelo via Promise.allSettled para evitar timeout serverless.
  *
  * vercel.json: { "path": "/api/notificacoes/vencimento", "schedule": "0 9 * * *" }
  */
@@ -50,72 +50,75 @@ export async function POST(req: NextRequest) {
   const hojeStr   = format(hoje,   'yyyy-MM-dd')
   const amanhaStr = format(amanha, 'yyyy-MM-dd')
 
-  const [{ data: vencemHoje }, { data: vencemAmanha }] = await Promise.all([
-    supabase
-      .from('planejamento')
-      .select('item, responsavel')
-      .eq('data_vencimento', hojeStr)
-      .is('data_pagamento', null)
-      .eq('pago', false),
-    supabase
-      .from('planejamento')
-      .select('item, responsavel')
-      .eq('data_vencimento', amanhaStr)
-      .is('data_pagamento', null)
-      .eq('pago', false),
-  ])
+  const [{ data: vencemHoje }, { data: vencemAmanha }, { data: subscriptions }] =
+    await Promise.all([
+      supabase
+        .from('planejamento')
+        .select('item, responsavel')
+        .eq('data_vencimento', hojeStr)
+        .is('data_pagamento', null)
+        .eq('pago', false),
+      supabase
+        .from('planejamento')
+        .select('item, responsavel')
+        .eq('data_vencimento', amanhaStr)
+        .is('data_pagamento', null)
+        .eq('pago', false),
+      supabase
+        .from('push_subscriptions')
+        .select('usuario, subscription'),
+    ])
 
   const itensHoje   = vencemHoje   ?? []
   const itensAmanha = vencemAmanha ?? []
 
-  if (itensHoje.length === 0 && itensAmanha.length === 0) {
+  if ((itensHoje.length === 0 && itensAmanha.length === 0) || !subscriptions?.length) {
     return NextResponse.json({ ok: true, enviados: 0 })
   }
 
-  const { data: subscriptions } = await supabase
-    .from('push_subscriptions')
-    .select('usuario, subscription')
-
-  if (!subscriptions?.length) {
-    return NextResponse.json({ ok: true, enviados: 0 })
-  }
-
-  const mensagens: Array<{ title: string; body: string }> = []
-
-  for (const item of itensHoje) {
-    mensagens.push({
+  // Privacidade: cada subscription recebe apenas as notificações do seu responsavel
+  const notificacoes = subscriptions.flatMap(sub => {
+    const desteUsuario = (i: { responsavel: string }) => i.responsavel === sub.usuario
+    const msgsHoje = itensHoje.filter(desteUsuario).map(item => ({
       title: '⚠️ Vencimento hoje!',
       body:  `Sua conta ${limparNomeItem(item.item)} vence hoje!`,
-    })
-  }
-  for (const item of itensAmanha) {
-    mensagens.push({
+    }))
+    const msgsAmanha = itensAmanha.filter(desteUsuario).map(item => ({
       title: '📅 Vencimento amanhã',
       body:  `Sua conta ${limparNomeItem(item.item)} vence amanhã.`,
-    })
+    }))
+    return [...msgsHoje, ...msgsAmanha].map(msg => ({ sub, msg }))
+  })
+
+  if (notificacoes.length === 0) {
+    return NextResponse.json({ ok: true, enviados: 0 })
   }
+
+  // Envio em paralelo para evitar timeout serverless
+  const results = await Promise.allSettled(
+    notificacoes.map(({ sub, msg }) =>
+      webpush.sendNotification(
+        sub.subscription,
+        JSON.stringify({ title: msg.title, body: msg.body, url: '/contas' }),
+        { urgency: 'high', TTL: 86400 }
+      )
+    )
+  )
 
   let enviados = 0
-  const expiradas: string[] = []
+  const expiradas = new Set<string>()
 
-  for (const sub of subscriptions) {
-    for (const msg of mensagens) {
-      try {
-        await webpush.sendNotification(
-          sub.subscription,
-          JSON.stringify({ title: msg.title, body: msg.body, url: '/contas' }),
-          { urgency: 'high', TTL: 86400 }
-        )
-        enviados++
-      } catch (err: unknown) {
-        const status = (err as { statusCode?: number })?.statusCode
-        if (status === 410 || status === 404) expiradas.push(sub.usuario)
-      }
+  results.forEach((res, i) => {
+    if (res.status === 'fulfilled') {
+      enviados++
+    } else {
+      const status = (res.reason as { statusCode?: number })?.statusCode
+      if (status === 410 || status === 404) expiradas.add(notificacoes[i].sub.usuario)
     }
-  }
+  })
 
-  if (expiradas.length) {
-    await supabase.from('push_subscriptions').delete().in('usuario', expiradas)
+  if (expiradas.size > 0) {
+    await supabase.from('push_subscriptions').delete().in('usuario', Array.from(expiradas))
   }
 
   return NextResponse.json({ ok: true, enviados })
