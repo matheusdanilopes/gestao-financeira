@@ -19,11 +19,13 @@ async function calcularSaldo(mes: Date): Promise<SaldoData> {
   const mesRefFatura = format(startOfMonth(addMonths(mes, 1)), 'yyyy-MM-dd')
 
   const [{ data: transacoesFatura }, { data: planejamento }] = await Promise.all([
-    supabase.from('transacoes_nubank').select('valor, responsavel').eq('projeto_fatura', mesRefFatura),
+    supabase.from('transacoes_nubank').select('valor, responsavel, cartao').eq('projeto_fatura', mesRefFatura),
     supabase.from('planejamento').select('*').eq('mes_referencia', mesRef),
   ])
 
-  const totalRealizado = transacoesFatura?.reduce((acc, t) => acc + t.valor, 0) || 0
+  const txNubank = (transacoesFatura || []).filter(t => !t.cartao || t.cartao === 'nubank')
+  const txC1 = (transacoesFatura || []).filter(t => t.cartao === 'cartao1')
+  const txC2 = (transacoesFatura || []).filter(t => t.cartao === 'cartao2')
 
   const receitaBase = planejamento?.find(p => p.item === 'Receita Total')?.valor_previsto || 0
   const receitasExtras = (planejamento || [])
@@ -63,10 +65,38 @@ async function calcularSaldo(mes: Date): Promise<SaldoData> {
     .filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]'))
     .reduce((acc, p) => acc + (p.valor_previsto || 0), 0)
 
-  const temLancamentos = totalRealizado > 0
-  const faturaEfetiva = temLancamentos
-    ? totalRealizado
-    : nuBankPrevisto + cartao1PrevTotal + cartao2PrevTotal
+  // Payment-aware effective amounts per card.
+  // Priority: payment amount (invoice paid) > actual transactions > planned budget.
+  const nubankMatheusRow = planejamento?.find(p => p.item === 'NuBank Matheus')
+  const nubankJenifferRow = planejamento?.find(p => p.item === 'NuBank Jeniffer')
+  const nubankJenifferConjRow = planejamento?.find(p => p.item === 'NuBank Jeniffer Conjunto')
+
+  const matheusAtual = txNubank.filter(t => t.responsavel === 'Matheus').reduce((acc, t) => acc + t.valor, 0)
+  const jenifferAtual = txNubank.filter(t => t.responsavel === 'Jeniffer').reduce((acc, t) => acc + t.valor, 0)
+  const totalC1Atual = txC1.reduce((acc, t) => acc + t.valor, 0)
+  const totalC2Atual = txC2.reduce((acc, t) => acc + t.valor, 0)
+
+  const nubankMatheusEfetivo = nubankMatheusRow?.pago
+    ? (nubankMatheusRow.valor_real ?? nubankMatheusRow.valor_previsto)
+    : matheusAtual > 0 ? matheusAtual : matheusPrevisto
+
+  const jenifferNubankPago = !!(nubankJenifferRow?.pago || nubankJenifferConjRow?.pago)
+  const nubankJenifferEfetivo = jenifferNubankPago
+    ? ((nubankJenifferRow?.pago ? (nubankJenifferRow.valor_real ?? nubankJenifferRow.valor_previsto) : 0) +
+       (nubankJenifferConjRow?.pago ? (nubankJenifferConjRow.valor_real ?? nubankJenifferConjRow.valor_previsto) : 0))
+    : jenifferAtual > 0 ? jenifferAtual : jenifferPrevisto
+
+  const cartao1PaidRows = (planejamento || []).filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO1]') && p.pago)
+  const cartao1Efetivo = cartao1PaidRows.length > 0
+    ? cartao1PaidRows.reduce((s, p) => s + (p.valor_real ?? p.valor_previsto), 0)
+    : totalC1Atual > 0 ? totalC1Atual : cartao1PrevTotal
+
+  const cartao2PaidRows = (planejamento || []).filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]') && p.pago)
+  const cartao2Efetivo = cartao2PaidRows.length > 0
+    ? cartao2PaidRows.reduce((s, p) => s + (p.valor_real ?? p.valor_previsto), 0)
+    : totalC2Atual > 0 ? totalC2Atual : cartao2PrevTotal
+
+  const faturaEfetiva = nubankMatheusEfetivo + nubankJenifferEfetivo + cartao1Efetivo + cartao2Efetivo
   const totalGastos = contasFixas + faturaEfetiva
 
   return {

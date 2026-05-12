@@ -213,10 +213,40 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const cartao2TotalAtual = cartao2TotalMatheus + cartao2TotalJeniffer
   const cartao1PrevTotal = cartao1PlanejamentoItems.reduce((s, i) => s + i.previsto, 0)
   const cartao2PrevTotal = cartao2PlanejamentoItems.reduce((s, i) => s + i.previsto, 0)
-  const temLancamentos = totalRealizado > 0 || cartao1TotalAtual > 0 || cartao2TotalAtual > 0
-  const faturaEfetiva = temLancamentos
-    ? totalRealizado + cartao1TotalAtual + cartao2TotalAtual
-    : nuBankPrevisto + cartao1PrevTotal + cartao2PrevTotal
+
+  // Payment-aware effective amounts per card.
+  // Priority: payment amount (invoice paid) > actual transactions > planned budget.
+  // This avoids counting both the individual purchases AND the invoice payment as separate expenses.
+  const nubankMatheusRow = planejamento?.find(p => p.item === 'NuBank Matheus')
+  const nubankJenifferRow = planejamento?.find(p => p.item === 'NuBank Jeniffer')
+  const nubankJenifferConjRow = planejamento?.find(p => p.item === 'NuBank Jeniffer Conjunto')
+
+  const nubankMatheusEfetivo = nubankMatheusRow?.pago
+    ? (nubankMatheusRow.valor_real ?? nubankMatheusRow.valor_previsto)
+    : matheusAtual > 0 ? matheusAtual : matheusPrevisto
+
+  const jenifferNubankPago = !!(nubankJenifferRow?.pago || nubankJenifferConjRow?.pago)
+  const nubankJenifferEfetivo = jenifferNubankPago
+    ? ((nubankJenifferRow?.pago ? (nubankJenifferRow.valor_real ?? nubankJenifferRow.valor_previsto) : 0) +
+       (nubankJenifferConjRow?.pago ? (nubankJenifferConjRow.valor_real ?? nubankJenifferConjRow.valor_previsto) : 0))
+    : jenifferAtual > 0 ? jenifferAtual : jenifferPrevisto
+
+  const cartao1PaidRows = (planejamento || []).filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO1]') && p.pago)
+  const cartao1Efetivo = cartao1PaidRows.length > 0
+    ? cartao1PaidRows.reduce((s, p) => s + (p.valor_real ?? p.valor_previsto), 0)
+    : cartao1TotalAtual > 0 ? cartao1TotalAtual : cartao1PrevTotal
+
+  const cartao2PaidRows = (planejamento || []).filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]') && p.pago)
+  const cartao2Efetivo = cartao2PaidRows.length > 0
+    ? cartao2PaidRows.reduce((s, p) => s + (p.valor_real ?? p.valor_previsto), 0)
+    : cartao2TotalAtual > 0 ? cartao2TotalAtual : cartao2PrevTotal
+
+  const nubankTemDados = totalRealizado > 0 || !!nubankMatheusRow?.pago || !!nubankJenifferRow?.pago || !!nubankJenifferConjRow?.pago
+  const cartao1TemDados = cartao1TotalAtual > 0 || cartao1PaidRows.length > 0
+  const cartao2TemDados = cartao2TotalAtual > 0 || cartao2PaidRows.length > 0
+  const temLancamentosEfetivos = nubankTemDados || cartao1TemDados || cartao2TemDados
+
+  const faturaEfetiva = nubankMatheusEfetivo + nubankJenifferEfetivo + cartao1Efetivo + cartao2Efetivo
   const saldoPrevisto = receitaTotal - totalPlanejado
 
   const contasFixasAtual = (planejamento || [])
@@ -267,7 +297,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     },
     resumoCaixa: {
       receitaTotal, contasFixas: contasFixasAtual,
-      fatura: faturaEfetiva, faturaEhPrevisto: !temLancamentos, extras: 0,
+      fatura: faturaEfetiva, faturaEhPrevisto: !temLancamentosEfetivos, extras: 0,
       totalGastos, sobraLiquida, saldoPrevisto, percentualComprometimento,
     },
     investimentos: (invData || []).map(i => ({ ...i, aportado: aportadoMap[i.id] || 0 })),
