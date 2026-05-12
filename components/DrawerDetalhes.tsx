@@ -1,6 +1,7 @@
 'use client'
 
 import { X } from 'lucide-react'
+import ModalPortal from '@/components/ModalPortal'
 import { useState, useMemo, useEffect } from 'react'
 import { formatBRL } from '@/lib/logger'
 
@@ -138,9 +139,10 @@ export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }:
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/50 z-40 transition-opacity" onClick={onClose} />
+      <ModalPortal>
+      <div className="fixed inset-0 bg-black/50 z-[190] transition-opacity" onClick={onClose} />
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-xl z-50 max-h-[80vh] overflow-y-auto">
+      <div className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-xl z-[200] max-h-[80vh] overflow-y-auto">
         {/* Cabeçalho fixo */}
         <div className="sticky top-0 bg-white border-b border-gray-200 p-4 space-y-3">
           <div className="flex justify-between items-start">
@@ -285,6 +287,7 @@ export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }:
           )}
         </div>
       </div>
+      </ModalPortal>
     </>
   )
 }

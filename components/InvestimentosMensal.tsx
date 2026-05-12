@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
+import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths } from 'date-fns'
 import { useGlobalSync } from '@/lib/useGlobalSync'
@@ -280,7 +281,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl text-sm font-medium shadow-lg ${
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[300] px-4 py-2 rounded-xl text-sm font-medium shadow-lg ${
           toast.tipo === 'ok' ? 'bg-green-600 text-white' : 'bg-red-500 text-white'
         }`}>
           {toast.msg}
@@ -470,7 +471,8 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
 
       {/* ── Modal: registrar aporte ── */}
       {modalAporte && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+        <ModalPortal>
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-6">
             <div className="flex items-start justify-between mb-1">
               <h3 className="text-lg font-bold">Registrar Aporte</h3>
@@ -547,11 +549,13 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* ── Modal: histórico de aportes ── */}
       {modalHistorico && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+        <ModalPortal>
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-6">
             <div className="flex items-start justify-between mb-1">
               <h3 className="text-lg font-bold">Histórico de Aportes</h3>
@@ -627,11 +631,13 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
             </button>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* ── Modal: adicionar / editar investimento ── */}
       {(modalAberto === 'adicionar' || modalAberto === 'editar') && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+        <ModalPortal>
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-6">
             <h3 className="text-lg font-bold mb-5">
               {modalAberto === 'adicionar' ? 'Novo Investimento' : 'Editar Investimento'}
@@ -688,11 +694,13 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* ── Modal: excluir investimento ── */}
       {modalAberto === 'excluir' && itemSelecionado && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+        <ModalPortal>
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-6">
             <h3 className="text-lg font-bold mb-2">Excluir investimento</h3>
             <p className="text-sm text-gray-500 mb-2">
@@ -712,11 +720,13 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* ── Modal: importar mês anterior ── */}
       {modalAberto === 'importar' && previewImport && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+        <ModalPortal>
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-6">
             <h3 className="text-lg font-bold mb-1">Importar mês anterior</h3>
             <p className="text-sm text-gray-500 mb-4">
@@ -753,6 +763,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   )

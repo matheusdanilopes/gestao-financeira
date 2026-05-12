@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState, useCallback } from 'react'
+import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths } from 'date-fns'
 import { useGlobalSync } from '@/lib/useGlobalSync'
@@ -459,7 +460,8 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
 
       {/* ── Modal: registrar recebimento parcial ── */}
       {modalRecebimento && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+        <ModalPortal>
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-6">
             <div className="flex items-start justify-between mb-1">
               <h3 className="text-lg font-bold">Registrar Recebimento</h3>
@@ -524,11 +526,13 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* ── Modal: histórico de recebimentos ── */}
       {modalHistorico && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+        <ModalPortal>
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-6">
             <div className="flex items-start justify-between mb-1">
               <h3 className="text-lg font-bold">Histórico</h3>
@@ -638,11 +642,13 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
             </button>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* ── Modal: adicionar / editar ── */}
       {(modalAberto === 'adicionar' || modalAberto === 'editar') && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+        <ModalPortal>
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-6">
             <h3 className="text-lg font-bold mb-5">
               {modalAberto === 'adicionar' ? 'Nova Receita' : 'Editar Receita'}
@@ -690,11 +696,13 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* ── Modal: excluir ── */}
       {modalAberto === 'excluir' && itemSelecionado && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+        <ModalPortal>
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-6">
             <h3 className="text-lg font-bold mb-2">Excluir receita</h3>
             <p className="text-sm text-gray-500 mb-6">
@@ -710,6 +718,7 @@ export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Dat
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   )

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { Pencil, Trash2, X, ShoppingBag, Lock, WifiOff, SlidersHorizontal, ChevronDown } from 'lucide-react'
@@ -349,7 +350,7 @@ export default function ComprasPage() {
     <div className="min-h-screen bg-gray-50 page-content page-bottom-safe">
 
       {toast && (
-        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-medium shadow-float ${
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-medium shadow-float ${
           toast.tipo === 'ok' ? 'bg-gray-900 text-white' : 'bg-red-500 text-white'
         }`}>
           {toast.msg}
@@ -617,7 +618,8 @@ export default function ComprasPage() {
 
       {/* Modal: editar compra */}
       {modalEditar && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4 modal-overlay">
+        <ModalPortal>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4 modal-overlay">
           <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm lg:max-w-lg p-6 shadow-float modal-sheet sm:modal-center">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-bold">Editar Compra</h3>
@@ -709,11 +711,13 @@ export default function ComprasPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Modal: excluir compra */}
       {modalExcluir && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4 modal-overlay">
+        <ModalPortal>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4 modal-overlay">
           <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm lg:max-w-lg p-6 shadow-float modal-sheet sm:modal-center">
             <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
               <Trash2 className="w-6 h-6 text-red-500" />
@@ -742,6 +746,7 @@ export default function ComprasPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
     </div>
