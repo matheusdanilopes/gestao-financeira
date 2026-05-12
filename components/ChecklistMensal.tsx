@@ -386,7 +386,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 px-4 py-2.5 rounded-2xl shadow-float text-sm font-medium ${
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-2 px-4 py-2.5 rounded-2xl shadow-float text-sm font-medium ${
           toast.tipo === 'ok' ? 'bg-gray-900 text-white' : 'bg-red-600 text-white'
         }`}>
           {toast.tipo === 'ok' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
@@ -620,7 +620,8 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       )}
 
       {modalAberto === 'pagar' && itemSelecionado && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4 modal-overlay">
+        <ModalPortal>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4 modal-overlay">
           <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm p-6 shadow-float modal-sheet sm:modal-center">
             <h3 className="text-lg font-bold mb-1">Registrar Pagamento</h3>
             <p className="text-sm text-gray-500 mb-4">{removerPrefixoCartao(itemSelecionado.item)}</p>
@@ -640,10 +641,12 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {(modalAberto === 'adicionar' || modalAberto === 'editar') && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4 modal-overlay">
+        <ModalPortal>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4 modal-overlay">
           <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm p-6 shadow-float modal-sheet sm:modal-center">
             <h3 className="text-lg font-bold mb-5">{modalAberto === 'adicionar' ? 'Novo Item' : 'Editar Item'}</h3>
             <div className="space-y-4">
@@ -685,10 +688,12 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {modalAberto === 'importar' && previewImport && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 modal-overlay">
+        <ModalPortal>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[200] p-4 modal-overlay">
           <div className="bg-white rounded-3xl max-w-sm w-full p-6 max-h-[80vh] flex flex-col shadow-float">
             <h3 className="text-lg font-bold mb-1">Importar do mês anterior</h3>
             <p className="text-sm text-gray-500 mb-3">
@@ -739,10 +744,12 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {modalAberto === 'excluir' && itemSelecionado && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4 modal-overlay">
+        <ModalPortal>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4 modal-overlay">
           <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm p-6 shadow-float modal-sheet sm:modal-center">
             <h3 className="text-lg font-bold mb-2">Excluir item</h3>
             <p className="text-sm text-gray-500 mb-6">
@@ -754,10 +761,12 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {modalAberto === 'desfazer' && itemSelecionado && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4 modal-overlay">
+        <ModalPortal>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4 modal-overlay">
           <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm p-6 shadow-float modal-sheet sm:modal-center">
             <h3 className="text-lg font-bold mb-2">Desfazer pagamento</h3>
             <p className="text-sm text-gray-500 mb-1">
@@ -777,6 +786,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   )

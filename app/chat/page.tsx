@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import ModalPortal from '@/components/ModalPortal'
 import { Send, Bot, User, Sparkles, Trash2, Plus, History, X, MessageSquare, ChevronRight } from 'lucide-react'
 import NotificacoesBell from '@/components/NotificacoesBell'
 import { supabase } from '@/lib/supabaseClient'
@@ -267,14 +268,17 @@ export default function ChatPage() {
     <div className="flex flex-col h-screen bg-gray-50 pb-16">
       {/* Drawer overlay */}
       {drawerAberto && (
-        <div
-          className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
-          onClick={() => setDrawerAberto(false)}
-        />
+        <ModalPortal>
+          <div
+            className="fixed inset-0 z-[190] bg-black/30 backdrop-blur-sm"
+            onClick={() => setDrawerAberto(false)}
+          />
+        </ModalPortal>
       )}
 
       {/* Drawer de conversas anteriores */}
-      <div className={`fixed top-0 left-0 h-full w-80 lg:w-96 max-w-[85vw] bg-white z-50 shadow-xl flex flex-col transition-transform duration-300 ${drawerAberto ? 'translate-x-0' : '-translate-x-full'}`}>
+      <ModalPortal>
+      <div className={`fixed top-0 left-0 h-full w-80 lg:w-96 max-w-[85vw] bg-white z-[200] shadow-xl flex flex-col transition-transform duration-300 ${drawerAberto ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <History className="w-4 h-4 text-blue-500" />
@@ -347,6 +351,7 @@ export default function ChatPage() {
           )}
         </div>
       </div>
+      </ModalPortal>
 
       {/* Header */}
       <div className="sticky top-0 z-[10] sticky-header border-b border-gray-100 px-4 py-3 flex items-center gap-3">

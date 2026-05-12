@@ -107,6 +107,7 @@ export default function RootLayout({
               </CategorizacaoProvider>
             </MesProvider>
           </RefreshProvider>
+          <div id="modal-root" />
         </ThemeProvider>
       </body>
     </html>

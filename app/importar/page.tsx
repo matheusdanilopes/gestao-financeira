@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
+import ModalPortal from '@/components/ModalPortal'
 import { Upload, CheckCircle2, XCircle, Sparkles, Clock, AlertCircle, ShieldCheck, Trash2, Code2, Copy, Check, X } from 'lucide-react'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
 import { supabase } from '@/lib/supabaseClient'
@@ -606,7 +607,8 @@ export default function ImportarPage() {
 
       {/* Modal: Instruções de Integração via API */}
       {modalApiAberto && (
-        <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50">
+        <ModalPortal>
+        <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-[200]">
           <div className="bg-white rounded-t-2xl w-full max-h-[88vh] overflow-y-auto overflow-x-hidden">
             <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-4 flex items-center justify-between">
               <h2 className="text-lg font-bold flex items-center gap-2">
@@ -744,6 +746,7 @@ export default function ImportarPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
     </div>
