@@ -295,3 +295,20 @@ CREATE POLICY "allow_all_assinaturas" ON assinaturas
 
 CREATE INDEX IF NOT EXISTS idx_assinaturas_cartao ON assinaturas(cartao);
 CREATE INDEX IF NOT EXISTS idx_assinaturas_ativa  ON assinaturas(ativa);
+
+-- 20. Datas de vencimento e pagamento em itens de planejamento (despesas fixas e variáveis)
+-- RN01: data_vencimento obrigatória para despesas não-Cartão (validação no front-end)
+-- RN02: data_pagamento opcional — preenchida ao quitar a despesa
+-- CA04: configuração para ativar/desativar notificações de vencimento
+ALTER TABLE planejamento
+  ADD COLUMN IF NOT EXISTS data_vencimento  DATE,
+  ADD COLUMN IF NOT EXISTS data_pagamento   DATE,
+  ADD COLUMN IF NOT EXISTS created_at       TIMESTAMPTZ DEFAULT NOW();
+
+CREATE INDEX IF NOT EXISTS idx_planejamento_vencimento
+  ON planejamento(data_vencimento)
+  WHERE data_vencimento IS NOT NULL;
+
+INSERT INTO configuracoes (chave, valor)
+  VALUES ('notificacoes_vencimento_ativas', 'true')
+  ON CONFLICT (chave) DO NOTHING;

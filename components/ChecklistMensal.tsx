@@ -3,10 +3,11 @@
 import { useMemo, useState, useCallback } from 'react'
 import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
-import { format, startOfMonth, subMonths, addMonths } from 'date-fns'
+import { format, startOfMonth, subMonths, addMonths, parseISO } from 'date-fns'
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { ptBR } from 'date-fns/locale'
-import { CheckCircle2, AlertCircle, Pencil, Trash2, Plus, CreditCard, Download, RotateCcw, WifiOff, Repeat, ChevronRight } from 'lucide-react'
+import { CheckCircle2, AlertCircle, Pencil, Trash2, Plus, CreditCard, Download, RotateCcw, WifiOff, Repeat, ChevronRight, Bell, Calendar } from 'lucide-react'
+import { calcularStatusVencimento, verificarVencimentos, type StatusVencimento } from '@/lib/notificacoesVencimento'
 import Link from 'next/link'
 import { log, numericOnly, formatBRL } from '@/lib/logger'
 
@@ -42,6 +43,23 @@ interface ItemPlanejamento {
   pago: boolean
   categoria: string
   mes_referencia: string
+  data_vencimento: string | null
+  data_pagamento: string | null
+  created_at: string | null
+}
+
+function StatusBadge({ status }: { status: StatusVencimento }) {
+  if (status === 'Paga') return (
+    <span className="inline-flex items-center text-[10px] font-semibold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
+      Paga
+    </span>
+  )
+  if (status === 'Atrasada') return (
+    <span className="inline-flex items-center text-[10px] font-semibold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">
+      Atrasada
+    </span>
+  )
+  return null
 }
 
 interface Props {
@@ -80,7 +98,9 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
     categoria: 'Fixa',
     tipo_cartao: '' as '' | 'cartao1' | 'cartao2',
     valor_previsto: '',
+    data_vencimento: '',
   })
+  const [dataPagamento, setDataPagamento] = useState('')
   const [importandoMesAnterior, setImportandoMesAnterior] = useState(false)
   const [previewImport, setPreviewImport] = useState<{ itens: any[]; mesOrigem: string } | null>(null)
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null)
@@ -117,15 +137,18 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
     const valorNumerico = parseFloat(valorReal.replace(',', '.'))
     const item = itens.find(i => i.id === id)
     const diff = item ? Math.abs(valorNumerico - item.valor_previsto) : 0
+    // CA03: auto-preenche com hoje, permite edição manual
+    const dpagamento = dataPagamento || format(new Date(), 'yyyy-MM-dd')
 
     // Optimistic update — UI responde antes da confirmação do servidor
     setModalAberto(null)
     setValorReal('')
-    setItens(prev => prev.map(i => i.id === id ? { ...i, pago: true, valor_real: valorNumerico } : i))
+    setDataPagamento('')
+    setItens(prev => prev.map(i => i.id === id ? { ...i, pago: true, valor_real: valorNumerico, data_pagamento: dpagamento } : i))
 
     const { error } = await supabase
       .from('planejamento')
-      .update({ pago: true, valor_real: valorNumerico })
+      .update({ pago: true, valor_real: valorNumerico, data_pagamento: dpagamento })
       .eq('id', id)
 
     if (!error) {
@@ -137,7 +160,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       }
     } else {
       // Rollback
-      setItens(prev => prev.map(i => i.id === id ? { ...i, pago: false, valor_real: item?.valor_real ?? null } : i))
+      setItens(prev => prev.map(i => i.id === id ? { ...i, pago: false, valor_real: item?.valor_real ?? null, data_pagamento: item?.data_pagamento ?? null } : i))
       showToast('Erro ao registrar pagamento', 'erro')
     }
   }
@@ -151,6 +174,8 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
   async function abrirModalPagamento(item: ItemPlanejamento) {
     setItemSelecionado(item)
     setValorReal('')
+    // CA03: pré-preenche data de pagamento com hoje
+    setDataPagamento(format(new Date(), 'yyyy-MM-dd'))
     setModalAberto('pagar')
 
     const responsavel = responsavelNuBank(item.item)
@@ -173,11 +198,11 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
 
     // Optimistic update
     setModalAberto(null)
-    setItens(prev => prev.map(i => i.id === id ? { ...i, pago: false, valor_real: null } : i))
+    setItens(prev => prev.map(i => i.id === id ? { ...i, pago: false, valor_real: null, data_pagamento: null } : i))
 
     const { error } = await supabase
       .from('planejamento')
-      .update({ pago: false, valor_real: null })
+      .update({ pago: false, valor_real: null, data_pagamento: null })
       .eq('id', id)
 
     if (!error) {
@@ -185,7 +210,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       showToast('Pagamento removido')
     } else {
       // Rollback
-      setItens(prev => prev.map(i => i.id === id ? { ...i, pago: true, valor_real: item?.valor_real ?? null } : i))
+      setItens(prev => prev.map(i => i.id === id ? { ...i, pago: true, valor_real: item?.valor_real ?? null, data_pagamento: item?.data_pagamento ?? null } : i))
       showToast('Erro ao desfazer pagamento', 'erro')
     }
   }
@@ -213,11 +238,17 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
     const valor = parseFloat(formData.valor_previsto.replace(',', '.'))
     if (!formData.item.trim()) return
     if (isNaN(valor) || valor <= 0) { showToast('Informe um valor válido', 'erro'); return }
+    // RN01: data_vencimento obrigatória para despesas não-Cartão
+    if (formData.categoria !== 'Cartão' && !formData.data_vencimento) {
+      showToast('Informe a data de vencimento', 'erro')
+      return
+    }
     const updates = {
       item: aplicarPrefixoCartao(formData.item, formData.tipo_cartao),
       responsavel: formData.responsavel,
       categoria: formData.categoria,
       valor_previsto: valor,
+      data_vencimento: formData.data_vencimento || null,
     }
     const { error } = await supabase.from('planejamento').update(updates).eq('id', itemSelecionado.id)
     if (!error) {
@@ -233,6 +264,13 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
 
   async function adicionarItem() {
     const valor = parseFloat(formData.valor_previsto.replace(',', '.'))
+    if (!formData.item.trim()) { showToast('Informe a descrição', 'erro'); return }
+    if (isNaN(valor) || valor <= 0) { showToast('Informe um valor válido', 'erro'); return }
+    // RN01: data_vencimento obrigatória para despesas não-Cartão
+    if (formData.categoria !== 'Cartão' && !formData.data_vencimento) {
+      showToast('Informe a data de vencimento', 'erro')
+      return
+    }
     const primeiroDia = startOfMonth(mesSelecionado)
     const novoItem = {
       mes_referencia: format(primeiroDia, 'yyyy-MM-dd'),
@@ -242,11 +280,13 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       valor_previsto: valor,
       pago: false,
       valor_real: null,
+      data_vencimento: formData.data_vencimento || null,
+      data_pagamento: null,
     }
     const { error } = await supabase.from('planejamento').insert([novoItem])
     if (!error) {
       setModalAberto(null)
-      setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', tipo_cartao: '', valor_previsto: '' })
+      setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', tipo_cartao: '', valor_previsto: '', data_vencimento: '' })
       refetch()
       log('inserir', 'planejamento', `Novo item: ${formData.item} — ${formatBRL(valor)}`, valor)
     } else {
@@ -294,11 +334,14 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       const idsExistentes = (existentes || []).map(i => i.id)
 
       // 2. Insere os itens do mês anterior primeiro — se falhar, os dados existentes são preservados
-      const novosItens = previewImport.itens.map(({ id, mes_referencia, pago, valor_real, parcela_atual, total_parcelas, ...resto }) => ({
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const novosItens = previewImport.itens.map(({ id, mes_referencia, pago, valor_real, data_pagamento, data_vencimento, created_at, parcela_atual, total_parcelas, ...resto }) => ({
         ...resto,
         mes_referencia: mesAtualStr,
         pago: false,
         valor_real: null,
+        data_pagamento: null,
+        data_vencimento: null,
         parcela_atual: parcela_atual ? parcela_atual + 1 : null,
         total_parcelas: total_parcelas ?? null,
       }))
@@ -334,6 +377,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
       categoria: itemEdit.categoria ?? 'Fixa',
       tipo_cartao: tipoCartaoPorItem(itemEdit.item ?? ''),
       valor_previsto: (itemEdit.valor_previsto ?? 0).toString(),
+      data_vencimento: itemEdit.data_vencimento ?? '',
     })
     setModalAberto('editar')
   }
@@ -394,6 +438,34 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
           {toast.msg}
         </div>
       )}
+
+      {/* RN04: Alertas inline de vencimento próximo */}
+      {(() => {
+        const alertas = verificarVencimentos(itens)
+        if (alertas.hoje.length === 0 && alertas.amanha.length === 0) return null
+        return (
+          <div className="space-y-1.5">
+            {alertas.hoje.length > 0 && (
+              <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-2xl px-3 py-2.5">
+                <Bell className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-red-700">Vence hoje!</p>
+                  <p className="text-xs text-red-600 truncate">{alertas.hoje.map(i => removerPrefixoCartao(i.item)).join(', ')}</p>
+                </div>
+              </div>
+            )}
+            {alertas.amanha.length > 0 && (
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-2xl px-3 py-2.5">
+                <Bell className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-amber-700">Vence amanhã</p>
+                  <p className="text-xs text-amber-600 truncate">{alertas.amanha.map(i => removerPrefixoCartao(i.item)).join(', ')}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Resumo / Filtro de status */}
       <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
@@ -462,7 +534,7 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
         <div className="flex gap-2">
           <button
             onClick={() => {
-              setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', tipo_cartao: '', valor_previsto: '' })
+              setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', tipo_cartao: '', valor_previsto: '', data_vencimento: '' })
               setModalAberto('adicionar')
             }}
             className="flex-1 bg-green-600 text-white py-2.5 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-green-700 transition shadow-sm active:scale-[0.97]"
@@ -553,6 +625,15 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
                                   <CreditCard className="w-2.5 h-2.5" /> {tipoCartao === 'cartao1' ? 'Cartão 1' : 'Cartão 2'}
                                 </span>
                               )}
+                              {/* RN03: badge de status automático */}
+                              <StatusBadge status={calcularStatusVencimento(item.data_pagamento, item.data_vencimento)} />
+                              {/* Exibe data de vencimento quando pendente */}
+                              {item.data_vencimento && !item.data_pagamento && (
+                                <span className="inline-flex items-center gap-0.5 text-[10px] text-gray-400">
+                                  <Calendar className="w-2.5 h-2.5" />
+                                  {format(parseISO(item.data_vencimento), 'dd/MM')}
+                                </span>
+                              )}
                             </div>
                           </div>
 
@@ -633,8 +714,18 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
               placeholder={`Previsto: ${formatarMoeda(itemSelecionado.valor_previsto)}`}
               value={valorReal}
               onChange={(e) => setValorReal(numericOnly(e.target.value))}
-              className="w-full border border-gray-200 rounded-2xl p-3 text-lg font-semibold mb-5 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+              className="w-full border border-gray-200 rounded-2xl p-3 text-lg font-semibold mb-4 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
               autoFocus
+            />
+            {/* CA03: data de pagamento auto-preenchida com hoje, editável manualmente */}
+            <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Data de pagamento</label>
+            <input
+              type="date"
+              value={dataPagamento}
+              onChange={(e) => setDataPagamento(e.target.value)}
+              min={itemSelecionado.mes_referencia}
+              max={format(new Date(), 'yyyy-MM-dd')}
+              className="w-full border border-gray-200 rounded-2xl p-3 text-sm mb-5 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
             />
             <div className="flex gap-3">
               <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-2xl bg-gray-100 font-semibold text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]">Cancelar</button>
@@ -681,6 +772,19 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
               <div>
                 <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Valor previsto (R$)</label>
                 <input type="text" inputMode="decimal" value={formData.valor_previsto} onChange={(e) => setFormData({ ...formData, valor_previsto: numericOnly(e.target.value) })} className="w-full border border-gray-200 rounded-2xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow" placeholder="0,00" />
+              </div>
+              {/* CA01: Date Picker — RN01: obrigatório para despesas não-Cartão */}
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">
+                  Data de Vencimento
+                  {formData.categoria !== 'Cartão' && <span className="text-red-400 ml-0.5">*</span>}
+                </label>
+                <input
+                  type="date"
+                  value={formData.data_vencimento}
+                  onChange={(e) => setFormData({ ...formData, data_vencimento: e.target.value })}
+                  className="w-full border border-gray-200 rounded-2xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+                />
               </div>
             </div>
             <div className="flex gap-3 mt-6">

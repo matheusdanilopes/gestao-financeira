@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { descricaoFechamento, calcularDataFechamentoDaFaturaISO } from '@/lib/fatura'
 import {
   Settings, LogOut, Upload, Activity, ChevronDown, Sun, Moon, Monitor,
-  Tags, Plus, Pencil, Trash2, Check, CreditCard, CalendarDays, X,
+  Tags, Plus, Pencil, Trash2, Check, CreditCard, CalendarDays, X, Bell,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -93,6 +93,9 @@ export default function ConfiguracoesPage() {
   const [filtroTabela, setFiltroTabela] = useState('')
   const [filtroBusca, setFiltroBusca] = useState('')
 
+  // --- Notificações ---
+  const [notificacoesVencimentoAtivas, setNotificacoesVencimentoAtivas] = useState(true)
+
   // --- Categorias ---
   const [categorias, setCategorias] = useState<string[]>(CATEGORIAS_PADRAO)
   const [categoriasUso, setCategoriasUso] = useState<Record<string, number>>({})
@@ -161,6 +164,7 @@ export default function ConfiguracoesPage() {
     setDiaVencimentoC2(parseInt(get('dia_vencimento_cartao2', '10')))
     setAjusteFechamentoC2(parseInt(get('ajuste_fechamento_cartao2', '0')))
     setCategorias(parseCategoriasConfig(get('categorias_compras', '')))
+    setNotificacoesVencimentoAtivas(get('notificacoes_vencimento_ativas', 'true') === 'true')
   }
 
   async function carregarFaturas() {
@@ -648,6 +652,43 @@ export default function ConfiguracoesPage() {
                   {label}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* CA04: Toggle de notificações de vencimento */}
+          <div className="bg-white rounded-3xl shadow-card p-4 mb-4">
+            <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+              <Bell className="w-5 h-5 text-gray-500" />
+              Notificações de Vencimento
+            </h2>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-700">Alertas de vencimento</p>
+                <p className="text-xs text-gray-400 mt-0.5">T-1 e no dia do vencimento às 09:00</p>
+              </div>
+              <button
+                type="button"
+                aria-checked={notificacoesVencimentoAtivas}
+                role="switch"
+                onClick={async () => {
+                  const newVal = !notificacoesVencimentoAtivas
+                  setNotificacoesVencimentoAtivas(newVal)
+                  await fetch('/api/configuracoes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ configuracoes: [{ chave: 'notificacoes_vencimento_ativas', valor: String(newVal) }] }),
+                  })
+                }}
+                className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-2 ${
+                  notificacoesVencimentoAtivas ? 'bg-primary-600' : 'bg-gray-200'
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 ${
+                    notificacoesVencimentoAtivas ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
             </div>
           </div>
 
