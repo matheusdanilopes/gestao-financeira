@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { Pencil, Trash2, X, ShoppingBag, Lock, WifiOff, SlidersHorizontal, ChevronDown } from 'lucide-react'
