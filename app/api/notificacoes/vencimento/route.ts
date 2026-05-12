@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
+import webpush from 'web-push'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
 import { format, addDays, startOfDay } from 'date-fns'
+
+const VAPID_PUBLIC  = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY ?? ''
+const VAPID_EMAIL   = process.env.VAPID_EMAIL ?? 'mailto:admin@gestaofinanceira.app'
+
+if (VAPID_PUBLIC && VAPID_PRIVATE) {
+  webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC, VAPID_PRIVATE)
+}
 
 const PREFIXO_CARTAO_1 = '[CARTAO1] '
 const PREFIXO_CARTAO_2 = '[CARTAO2] '
@@ -12,14 +21,17 @@ function limparNomeItem(nome: string): string {
 /**
  * POST /api/notificacoes/vencimento
  *
- * Endpoint para ser chamado por um cron job diário às 09:00.
- * Envia notificações push para despesas que vencem hoje (RN04) e amanhã (RN04).
- * Respeitará a configuração 'notificacoes_vencimento_ativas' (CA04).
+ * Endpoint para cron job diário às 09:00.
+ * Cada usuário recebe apenas notificações das suas próprias despesas (responsavel).
+ * Envios em paralelo via Promise.allSettled para evitar timeout serverless.
  *
- * Exemplo de chamada pelo Vercel Cron (vercel.json):
- * { "path": "/api/notificacoes/vencimento", "schedule": "0 9 * * *" }
+ * vercel.json: { "path": "/api/notificacoes/vencimento", "schedule": "0 9 * * *" }
  */
 export async function POST(req: NextRequest) {
+  if (!VAPID_PUBLIC || !VAPID_PRIVATE) {
+    return NextResponse.json({ ok: true, skipped: 'VAPID não configurado' })
+  }
+
   const supabase = criarSupabaseServer(req)
 
   // CA04: verifica se notificações estão ativas
@@ -33,80 +45,80 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, skipped: 'notificacoes_desativadas' })
   }
 
-  const hoje = startOfDay(new Date())
+  const hoje   = startOfDay(new Date())
   const amanha = addDays(hoje, 1)
-  const hojeStr = format(hoje, 'yyyy-MM-dd')
+  const hojeStr   = format(hoje,   'yyyy-MM-dd')
   const amanhaStr = format(amanha, 'yyyy-MM-dd')
 
-  // Busca despesas não pagas com vencimento hoje ou amanhã
-  const [{ data: vencemHoje }, { data: vencemAmanha }] = await Promise.all([
-    supabase
-      .from('planejamento')
-      .select('item, responsavel')
-      .eq('data_vencimento', hojeStr)
-      .is('data_pagamento', null)
-      .eq('pago', false),
-    supabase
-      .from('planejamento')
-      .select('item, responsavel')
-      .eq('data_vencimento', amanhaStr)
-      .is('data_pagamento', null)
-      .eq('pago', false),
-  ])
+  const [{ data: vencemHoje }, { data: vencemAmanha }, { data: subscriptions }] =
+    await Promise.all([
+      supabase
+        .from('planejamento')
+        .select('item, responsavel')
+        .eq('data_vencimento', hojeStr)
+        .is('data_pagamento', null)
+        .eq('pago', false),
+      supabase
+        .from('planejamento')
+        .select('item, responsavel')
+        .eq('data_vencimento', amanhaStr)
+        .is('data_pagamento', null)
+        .eq('pago', false),
+      supabase
+        .from('push_subscriptions')
+        .select('usuario, subscription'),
+    ])
 
-  const itensHoje = vencemHoje ?? []
+  const itensHoje   = vencemHoje   ?? []
   const itensAmanha = vencemAmanha ?? []
 
-  if (itensHoje.length === 0 && itensAmanha.length === 0) {
+  if ((itensHoje.length === 0 && itensAmanha.length === 0) || !subscriptions?.length) {
     return NextResponse.json({ ok: true, enviados: 0 })
   }
 
-  // Busca as push subscriptions registradas
-  const { data: subscriptions } = await supabase
-    .from('push_subscriptions')
-    .select('usuario, subscription')
-
-  if (!subscriptions || subscriptions.length === 0) {
-    return NextResponse.json({ ok: true, enviados: 0 })
-  }
-
-  const mensagens: Array<{ title: string; body: string; url: string }> = []
-
-  for (const item of itensHoje) {
-    mensagens.push({
+  // Privacidade: cada subscription recebe apenas as notificações do seu responsavel
+  const notificacoes = subscriptions.flatMap(sub => {
+    const desteUsuario = (i: { responsavel: string }) => i.responsavel === sub.usuario
+    const msgsHoje = itensHoje.filter(desteUsuario).map(item => ({
       title: '⚠️ Vencimento hoje!',
-      body: `Sua conta ${limparNomeItem(item.item)} vence hoje!`,
-      url: '/contas',
-    })
-  }
-
-  for (const item of itensAmanha) {
-    mensagens.push({
+      body:  `Sua conta ${limparNomeItem(item.item)} vence hoje!`,
+    }))
+    const msgsAmanha = itensAmanha.filter(desteUsuario).map(item => ({
       title: '📅 Vencimento amanhã',
-      body: `Sua conta ${limparNomeItem(item.item)} vence amanhã.`,
-      url: '/contas',
-    })
+      body:  `Sua conta ${limparNomeItem(item.item)} vence amanhã.`,
+    }))
+    return [...msgsHoje, ...msgsAmanha].map(msg => ({ sub, msg }))
+  })
+
+  if (notificacoes.length === 0) {
+    return NextResponse.json({ ok: true, enviados: 0 })
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || ''
-  let enviados = 0
+  // Envio em paralelo para evitar timeout serverless
+  const results = await Promise.allSettled(
+    notificacoes.map(({ sub, msg }) =>
+      webpush.sendNotification(
+        sub.subscription,
+        JSON.stringify({ title: msg.title, body: msg.body, url: '/contas' }),
+        { urgency: 'high', TTL: 86400 }
+      )
+    )
+  )
 
-  for (const sub of subscriptions) {
-    for (const msg of mensagens) {
-      try {
-        await fetch(`${baseUrl}/api/push/send`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            deUsuario: sub.usuario,
-            payload: { title: msg.title, body: msg.body, url: msg.url },
-          }),
-        })
-        enviados++
-      } catch {
-        // não interrompe o loop em caso de falha individual
-      }
+  let enviados = 0
+  const expiradas = new Set<string>()
+
+  results.forEach((res, i) => {
+    if (res.status === 'fulfilled') {
+      enviados++
+    } else {
+      const status = (res.reason as { statusCode?: number })?.statusCode
+      if (status === 410 || status === 404) expiradas.add(notificacoes[i].sub.usuario)
     }
+  })
+
+  if (expiradas.size > 0) {
+    await supabase.from('push_subscriptions').delete().in('usuario', Array.from(expiradas))
   }
 
   return NextResponse.json({ ok: true, enviados })
