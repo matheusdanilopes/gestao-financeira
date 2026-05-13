@@ -13,8 +13,8 @@ export async function POST(req: NextRequest) {
     if (!file) return NextResponse.json({ error: 'Nenhum arquivo' }, { status: 400 })
 
     const { data: configs } = await supabase.from('configuracoes').select('chave, valor')
-    const diaVencimento = parseInt(configs?.find((c: any) => c.chave === 'dia_vencimento')?.valor || '10')
-    const ajusteFechamento = parseInt(configs?.find((c: any) => c.chave === 'ajuste_fechamento')?.valor || '0')
+    const diaVencimento = parseInt(configs?.find((c: { chave: string; valor: string }) => c.chave === 'dia_vencimento')?.valor || '10')
+    const ajusteFechamento = parseInt(configs?.find((c: { chave: string; valor: string }) => c.chave === 'ajuste_fechamento')?.valor || '0')
 
     const csvText = await file.text()
     const transacoes = processarCSV(csvText, diaVencimento, ajusteFechamento)

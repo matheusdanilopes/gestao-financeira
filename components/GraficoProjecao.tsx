@@ -17,8 +17,15 @@ import { addMonths, format, startOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { MousePointerClick, AlertCircle } from 'lucide-react'
 import { formatBRL } from '@/lib/logger'
+import type { TooltipItem, ActiveElement, ChartEvent, Plugin } from 'chart.js'
 import { useIsDark } from '@/lib/useIsDark'
 import { makeCrosshairPlugin } from '@/lib/chartPlugins'
+
+interface GradientChart {
+  ctx: CanvasRenderingContext2D
+  chartArea?: { top: number; bottom: number }
+  data: { datasets: Array<{ backgroundColor?: string | CanvasGradient | null }> }
+}
 
 const PROJECAO_OFFSET_MESES = 1
 const POLL_DELAY = 40_000 // ms — escalonado para não coincidir com os outros dois gráficos
@@ -47,13 +54,13 @@ interface DadosProjecao {
 
 interface Props {
   mesInicio?: Date
-  onPontoClicado: (serie: string, mes: string, valor: number, itens: any[]) => void
+  onPontoClicado: (serie: string, mes: string, valor: number, itens: Record<string, unknown>[]) => void
 }
 
 // Gradient fill only for Total dataset
 const gradientPlugin = {
   id: 'gradientFillProj',
-  beforeDatasetsDraw(chart: any) {
+  beforeDatasetsDraw(chart: GradientChart) {
     const { ctx, chartArea } = chart
     if (!chartArea) return
     const ds = chart.data.datasets[0]
@@ -80,7 +87,7 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
   // Plugin criado uma única vez — lê isDarkRef.current no draw, sem recriar objeto
   // Preserva as opacidades originais deste gráfico (0.13 / 0.09)
   const plugins = useMemo(
-    () => [gradientPlugin, makeCrosshairPlugin('crosshairProj', isDarkRef, 0.13, 0.09)],
+    () => [gradientPlugin, makeCrosshairPlugin('crosshairProj', isDarkRef, 0.13, 0.09)] as Plugin<'line'>[],
     [isDarkRef],
   )
 
@@ -216,15 +223,15 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
           boxHeight: 8,
           usePointStyle: false,
           callbacks: {
-            title: (items: any[]) => items[0]?.label ?? '',
-            label: (ctx: any) => `  ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y)}`,
+            title: (items: TooltipItem<'line'>[]) => items[0]?.label ?? '',
+            label: (ctx: TooltipItem<'line'>) => `  ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y ?? 0)}`,
           },
         },
       },
       scales: {
         y: {
           ticks: {
-            callback: (v: any) => formatBRL(Number(v)),
+            callback: (v: number | string) => formatBRL(Number(v)),
             font: { size: 10 },
             maxTicksLimit: 5,
             color: txt,
@@ -238,7 +245,7 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
           border: { display: false },
         },
       },
-      onClick: async (_event: any, elements: any[]) => {
+      onClick: async (_event: ChartEvent, elements: ActiveElement[]) => {
         if (!elements.length) return
         const { datasetIndex, index } = elements[0]
         const d = dadosRef.current

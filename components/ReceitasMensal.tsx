@@ -44,7 +44,12 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
 
   // Modais de item (adicionar/editar/excluir)
   const [modalAberto, setModalAberto] = useState<string | null>(null)
-  useEffect(() => { if (autoOpen) setModalAberto('adicionar') }, [autoOpen])
+  useEffect(() => {
+    if (autoOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setModalAberto('adicionar')
+    }
+  }, [autoOpen])
   const [itemSelecionado, setItemSelecionado] = useState<ItemReceita | null>(null)
   const [formData, setFormData] = useState({ item: '', responsavel: 'Matheus', valor_previsto: '' })
 
@@ -73,7 +78,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
       .order('item', { ascending: true })
     const itensList: ItemReceita[] = lista || []
     const ids = itensList.map(i => i.id)
-    let recsMap: Record<string, Recebimento[]> = {}
+    const recsMap: Record<string, Recebimento[]> = {}
     if (ids.length > 0) {
       const { data: recs } = await supabase
         .from('receitas_recebimentos')
@@ -281,10 +286,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
   }
 
   const totalPrevisto = useMemo(() => itens.reduce((acc, i) => acc + i.valor_previsto, 0), [itens])
-  const totalRecebido = useMemo(
-    () => itens.reduce((acc, i) => acc + totalRecebidoItem(i), 0),
-    [itens, recebimentos]
-  )
+  const totalRecebido = itens.reduce((acc, i) => acc + totalRecebidoItem(i), 0)
   const percentual = totalPrevisto > 0 ? Math.min((totalRecebido / totalPrevisto) * 100, 100) : 0
 
   return (
@@ -707,7 +709,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
           <div className="bg-white rounded-2xl w-full max-w-sm p-6">
             <h3 className="text-lg font-bold mb-2">Excluir receita</h3>
             <p className="text-sm text-gray-500 mb-6">
-              Tem certeza que deseja excluir <span className="font-semibold text-gray-800">"{paraNomeExibicao(itemSelecionado.item)}"</span>?
+              Tem certeza que deseja excluir <span className="font-semibold text-gray-800">&quot;{paraNomeExibicao(itemSelecionado.item)}&quot;</span>?
             </p>
             <div className="flex gap-3">
               <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600">

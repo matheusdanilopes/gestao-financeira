@@ -715,7 +715,7 @@ export default function ImportarPage() {
                     {copiado === 'csv' ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-400" />}
                   </button>
                 </div>
-                <p className="text-xs text-gray-400 mt-1.5">Transações com "Jeniffer" no título são atribuídas à Jeniffer. Parcelas no formato <code>2/6</code> são distribuídas automaticamente pelos meses.</p>
+                <p className="text-xs text-gray-400 mt-1.5">Transações com &quot;Jeniffer&quot; no título são atribuídas à Jeniffer. Parcelas no formato <code>2/6</code> são distribuídas automaticamente pelos meses.</p>
               </div>
 
               <div>

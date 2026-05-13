@@ -61,6 +61,100 @@ const PAGE_SIZE = 20
 type AbaConfiguracoes = 'geral' | 'faturas' | 'atividades' | 'categorias'
 type CartaoFaturas = 'nubank' | 'cartao1' | 'cartao2'
 
+// ---- Componente de configuração de cartão (acordeão) ----
+
+function SecaoCartao({
+  titulo,
+  diaVenc,
+  setDiaVenc,
+  ajuste,
+  setAjuste,
+  expandido,
+  onToggle,
+}: {
+  titulo: string
+  diaVenc: number
+  setDiaVenc: (v: number) => void
+  ajuste: number
+  setAjuste: (v: number) => void
+  expandido: boolean
+  onToggle: () => void
+}) {
+  const diaFechamento = diaVenc - 7 + ajuste
+  const resumoFechamento = diaFechamento > 0
+    ? `Fecha dia ${diaFechamento}`
+    : `Fecha dia ${30 + diaFechamento} (mês ant.)`
+
+  return (
+    <div className={`border rounded-2xl overflow-hidden transition-colors ${expandido ? 'border-primary-200' : 'border-gray-200'}`}>
+      <button
+        type="button"
+        onClick={onToggle}
+        className={`w-full flex items-center gap-3 px-4 py-4 transition-colors active:scale-[0.99] ${
+          expandido ? 'bg-primary-50' : 'bg-white hover:bg-gray-50'
+        }`}
+      >
+        <CreditCard className={`w-5 h-5 shrink-0 ${expandido ? 'text-primary-500' : 'text-gray-400'}`} />
+        <div className="flex-1 min-w-0 text-left">
+          <span className={`font-semibold text-sm block ${expandido ? 'text-primary-700' : 'text-gray-700'}`}>
+            {titulo}
+          </span>
+          {!expandido && (
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+              <span className="text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full leading-tight">
+                Vence dia {diaVenc}
+              </span>
+              <span className="text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full leading-tight">
+                {resumoFechamento}
+              </span>
+            </div>
+          )}
+        </div>
+        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 shrink-0 ${expandido ? 'rotate-180' : ''}`} />
+      </button>
+
+      {expandido && (
+        <div className="px-4 pb-4 pt-3 space-y-4 border-t border-primary-100">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Dia de Vencimento</label>
+            <input
+              type="number"
+              min={1}
+              max={31}
+              value={diaVenc}
+              onChange={(e) => setDiaVenc(Math.max(1, Math.min(31, parseInt(e.target.value) || 1)))}
+              className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-primary-400 focus:border-transparent text-lg transition-shadow"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Ajuste Fino do Fechamento</label>
+            <div className="flex gap-3">
+              {([-1, 0, 1] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setAjuste(v)}
+                  className={`flex-1 py-2.5 rounded-2xl border-2 font-semibold transition active:scale-[0.97] ${
+                    ajuste === v
+                      ? 'border-primary-500 bg-primary-50 text-primary-700'
+                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                  }`}
+                >
+                  {v > 0 ? `+${v}` : v}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="bg-primary-50 border border-primary-100 rounded-2xl p-3">
+            <p className="text-xs text-gray-500">Fechamento calculado</p>
+            <p className="font-semibold text-primary-700 mt-0.5">{descricaoFechamento(diaVenc, ajuste)}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function ConfiguracoesPage() {
   const [abaAtual, setAbaAtual] = useState<AbaConfiguracoes>('geral')
 
@@ -122,7 +216,7 @@ export default function ConfiguracoesPage() {
   }
 
   // Gera a lista de meses a exibir na aba Faturas (12 meses atrás até 2 à frente)
-  const mesesExibidos = useMemo<FaturaExibida[]>(() => {
+  const mesesExibidos: FaturaExibida[] = (() => {
     const hoje = new Date()
     const inicio = subMonths(startOfMonth(hoje), 12)
     const fim = addMonths(startOfMonth(hoje), 2)
@@ -145,7 +239,7 @@ export default function ConfiguracoesPage() {
       cursor = addMonths(cursor, 1)
     }
     return lista.reverse() // mais recente primeiro
-  }, [cartaoFaturas, faturasRegistradas, diaVencimento, ajusteFechamento, diaVencimentoC1, ajusteFechamentoC1, diaVencimentoC2, ajusteFechamentoC2])
+  })()
 
   // ---- Loaders ----
 
@@ -435,100 +529,6 @@ export default function ConfiguracoesPage() {
   function inputParaISO(input: string): string {
     // input comes as yyyy-MM-dd from <input type="date">
     return input
-  }
-
-  // ---- Componente de configuração de cartão (acordeão) ----
-
-  function SecaoCartao({
-    titulo,
-    diaVenc,
-    setDiaVenc,
-    ajuste,
-    setAjuste,
-    expandido,
-    onToggle,
-  }: {
-    titulo: string
-    diaVenc: number
-    setDiaVenc: (v: number) => void
-    ajuste: number
-    setAjuste: (v: number) => void
-    expandido: boolean
-    onToggle: () => void
-  }) {
-    const diaFechamento = diaVenc - 7 + ajuste
-    const resumoFechamento = diaFechamento > 0
-      ? `Fecha dia ${diaFechamento}`
-      : `Fecha dia ${30 + diaFechamento} (mês ant.)`
-
-    return (
-      <div className={`border rounded-2xl overflow-hidden transition-colors ${expandido ? 'border-primary-200' : 'border-gray-200'}`}>
-        <button
-          type="button"
-          onClick={onToggle}
-          className={`w-full flex items-center gap-3 px-4 py-4 transition-colors active:scale-[0.99] ${
-            expandido ? 'bg-primary-50' : 'bg-white hover:bg-gray-50'
-          }`}
-        >
-          <CreditCard className={`w-5 h-5 shrink-0 ${expandido ? 'text-primary-500' : 'text-gray-400'}`} />
-          <div className="flex-1 min-w-0 text-left">
-            <span className={`font-semibold text-sm block ${expandido ? 'text-primary-700' : 'text-gray-700'}`}>
-              {titulo}
-            </span>
-            {!expandido && (
-              <div className="flex flex-wrap gap-1.5 mt-1.5">
-                <span className="text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full leading-tight">
-                  Vence dia {diaVenc}
-                </span>
-                <span className="text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full leading-tight">
-                  {resumoFechamento}
-                </span>
-              </div>
-            )}
-          </div>
-          <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 shrink-0 ${expandido ? 'rotate-180' : ''}`} />
-        </button>
-
-        {expandido && (
-          <div className="px-4 pb-4 pt-3 space-y-4 border-t border-primary-100">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Dia de Vencimento</label>
-              <input
-                type="number"
-                min={1}
-                max={31}
-                value={diaVenc}
-                onChange={(e) => setDiaVenc(Math.max(1, Math.min(31, parseInt(e.target.value) || 1)))}
-                className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-primary-400 focus:border-transparent text-lg transition-shadow"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Ajuste Fino do Fechamento</label>
-              <div className="flex gap-3">
-                {([-1, 0, 1] as const).map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => setAjuste(v)}
-                    className={`flex-1 py-2.5 rounded-2xl border-2 font-semibold transition active:scale-[0.97] ${
-                      ajuste === v
-                        ? 'border-primary-500 bg-primary-50 text-primary-700'
-                        : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                    }`}
-                  >
-                    {v > 0 ? `+${v}` : v}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="bg-primary-50 border border-primary-100 rounded-2xl p-3">
-              <p className="text-xs text-gray-500">Fechamento calculado</p>
-              <p className="font-semibold text-primary-700 mt-0.5">{descricaoFechamento(diaVenc, ajuste)}</p>
-            </div>
-          </div>
-        )}
-      </div>
-    )
   }
 
   return (

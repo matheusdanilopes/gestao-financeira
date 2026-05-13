@@ -17,10 +17,17 @@ import { ptBR } from 'date-fns/locale'
 import { AlertCircle } from 'lucide-react'
 import { formatBRL } from '@/lib/logger'
 import { supabase } from '@/lib/supabaseClient'
+import type { ScriptableLineSegmentContext, TooltipItem, Plugin } from 'chart.js'
 import { useIsDark } from '@/lib/useIsDark'
 import { makeCrosshairPlugin } from '@/lib/chartPlugins'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler)
+
+interface GradientChart {
+  ctx: CanvasRenderingContext2D
+  chartArea?: { top: number; bottom: number }
+  data: { datasets: Array<{ backgroundColor?: string | CanvasGradient | null }> }
+}
 
 const MESES_HISTORICO = 6
 const POLL_DELAY = 0 // ms — sem stagger, é o primeiro a carregar
@@ -49,10 +56,10 @@ interface Props {
 // Plugin: canvas gradient fills — recalculated each draw so resizes are handled
 const gradientPlugin = {
   id: 'gradientFill',
-  beforeDatasetsDraw(chart: any) {
+  beforeDatasetsDraw(chart: GradientChart) {
     const { ctx, chartArea } = chart
     if (!chartArea) return
-    chart.data.datasets.forEach((ds: any, i: number) => {
+    chart.data.datasets.forEach((ds, i: number) => {
       const p = PALETTE[i]
       if (!p) return
       const g = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom)
@@ -72,7 +79,7 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
 
   // Plugin criado uma única vez — lê isDarkRef.current no draw, sem recriar objeto
   const plugins = useMemo(
-    () => [gradientPlugin, makeCrosshairPlugin('crosshair', isDarkRef)],
+    () => [gradientPlugin, makeCrosshairPlugin('crosshair', isDarkRef)] as Plugin<'line'>[],
     [isDarkRef],
   )
 
@@ -161,8 +168,8 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
       // Segments from currentMonthIndex onward → dashed + lighter (forecast)
       ...(cmi >= 0 ? {
         segment: {
-          borderDash:  (ctx: any) => ctx.p1DataIndex >= cmi ? [7, 4] : undefined,
-          borderColor: (ctx: any) => ctx.p1DataIndex >= cmi
+          borderDash:  (ctx: ScriptableLineSegmentContext) => ctx.p1DataIndex >= cmi ? [7, 4] : undefined,
+          borderColor: (ctx: ScriptableLineSegmentContext) => ctx.p1DataIndex >= cmi
             ? rgb(PALETTE[pi], 0.50)
             : rgb(PALETTE[pi]),
         },
@@ -212,15 +219,15 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
           boxHeight: 8,
           usePointStyle: true,
           callbacks: {
-            title: (items: any[]) => items[0]?.label ?? '',
-            label: (ctx: any) => `  ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y)}`,
+            title: (items: TooltipItem<'line'>[]) => items[0]?.label ?? '',
+            label: (ctx: TooltipItem<'line'>) => `  ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y ?? 0)}`,
           },
         },
       },
       scales: {
         y: {
           ticks: {
-            callback: (v: any) => formatBRL(Number(v)),
+            callback: (v: number | string) => formatBRL(Number(v)),
             font: { size: 10 },
             maxTicksLimit: 5,
             color: txt,

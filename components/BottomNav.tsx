@@ -267,7 +267,10 @@ export default memo(function BottomNav() {
   }, [])
 
   // Fecha menu ao navegar para outra rota
-  useEffect(() => { setOpenMenu(null) }, [pathname])
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOpenMenu(null)
+  }, [pathname])
 
   const deveExibirMenu = pathname ? ROTAS_COM_MENU.some(r => pathname === r || pathname.startsWith(r + '/')) : false
 

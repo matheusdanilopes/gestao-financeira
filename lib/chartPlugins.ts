@@ -1,19 +1,21 @@
 import type { MutableRefObject } from 'react'
+import type { Plugin } from 'chart.js'
 
-/**
- * Crosshair plugin criado uma única vez por componente.
- * Lê isDarkRef.current no momento do draw, evitando recriar o objeto a cada
- * mudança de tema e eliminando re-registro desnecessário no Chart.js.
- */
+interface CrosshairChart {
+  ctx: CanvasRenderingContext2D
+  chartArea: { top: number; bottom: number }
+  tooltip?: { _active?: Array<{ element: { x: number } }> }
+}
+
 export function makeCrosshairPlugin(
   id: string,
   isDarkRef: MutableRefObject<boolean>,
   darkOpacity = 0.14,
   lightOpacity = 0.10,
-) {
-  return {
+): Plugin<'line'> {
+  const plugin = {
     id,
-    afterDatasetsDraw(chart: any) {
+    afterDatasetsDraw(chart: CrosshairChart) {
       const { ctx, tooltip } = chart
       if (!tooltip?._active?.length) return
       const x = tooltip._active[0].element.x
@@ -31,4 +33,5 @@ export function makeCrosshairPlugin(
       ctx.restore()
     },
   }
+  return plugin as unknown as Plugin<'line'>
 }

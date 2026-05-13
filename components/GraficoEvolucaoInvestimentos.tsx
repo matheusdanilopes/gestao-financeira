@@ -17,10 +17,17 @@ import { ptBR } from 'date-fns/locale'
 import { AlertCircle, PiggyBank } from 'lucide-react'
 import { formatBRL } from '@/lib/logger'
 import { supabase } from '@/lib/supabaseClient'
+import type { TooltipItem, Plugin } from 'chart.js'
 import { useIsDark } from '@/lib/useIsDark'
 import { makeCrosshairPlugin } from '@/lib/chartPlugins'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler)
+
+interface GradientChart {
+  ctx: CanvasRenderingContext2D
+  chartArea?: { top: number; bottom: number }
+  data: { datasets: Array<{ backgroundColor?: string | CanvasGradient | null }> }
+}
 
 const MESES = 6
 const POLL_DELAY = 20_000 // ms — escalonado para não coincidir com EvolucaoMensal
@@ -45,7 +52,7 @@ interface Props {
 // Gradients: realizado (violet fill) + meta (teal very faint fill)
 const gradientPlugin = {
   id: 'gradientFillInv',
-  beforeDatasetsDraw(chart: any) {
+  beforeDatasetsDraw(chart: GradientChart) {
     const { ctx, chartArea } = chart
     if (!chartArea) return
     const [ds0, ds1] = chart.data.datasets
@@ -75,7 +82,7 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual }: Props) {
 
   // Plugin criado uma única vez — lê isDarkRef.current no draw, sem recriar objeto
   const plugins = useMemo(
-    () => [gradientPlugin, makeCrosshairPlugin('crosshairInv', isDarkRef)],
+    () => [gradientPlugin, makeCrosshairPlugin('crosshairInv', isDarkRef)] as Plugin<'line'>[],
     [isDarkRef],
   )
 
@@ -248,15 +255,15 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual }: Props) {
           boxHeight: 8,
           usePointStyle: false,
           callbacks: {
-            title: (items: any[]) => items[0]?.label ?? '',
-            label: (ctx: any) => `  ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y)}`,
+            title: (items: TooltipItem<'line'>[]) => items[0]?.label ?? '',
+            label: (ctx: TooltipItem<'line'>) => `  ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y ?? 0)}`,
           },
         },
       },
       scales: {
         y: {
           ticks: {
-            callback: (v: any) => formatBRL(Number(v)),
+            callback: (v: number | string) => formatBRL(Number(v)),
             font: { size: 10 },
             maxTicksLimit: 5,
             color: txt,

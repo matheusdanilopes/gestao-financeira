@@ -308,10 +308,11 @@ export default function ComprasPage() {
   // Troca de mês: recarrega dados laterais (compras já cobertas pelo useDataSync)
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     verificarFaturaFechada()
     carregarLabelsCartao()
   }, [mesAtualKey]) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { carregarCategorias(); carregarLabelsCartao(); verificarFaturaFechada() }, [])
+  useEffect(() => { carregarCategorias(); carregarLabelsCartao(); verificarFaturaFechada() }, []) // eslint-disable-line react-hooks/set-state-in-effect
 
   return (
     <div className="min-h-screen bg-gray-50 page-content page-bottom-safe">

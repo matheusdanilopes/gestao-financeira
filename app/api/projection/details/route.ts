@@ -4,7 +4,32 @@ import { format, addMonths, startOfMonth, subMonths } from 'date-fns'
 
 const PROJECAO_OFFSET_MESES = 1
 
-function extrairParcelamento(t: any): { atual: number; total: number } | null {
+type TransacaoRow = {
+  descricao?: string | null
+  item?: string | null
+  parcela_atual?: number | string | null
+  total_parcelas?: number | string | null
+  projeto_fatura?: string | null
+  data_compra?: string | null
+  data?: string | null
+  cartao?: string | null
+  responsavel?: string | null
+  valor?: number | null
+  [key: string]: unknown
+}
+
+type PlanejamentoRow = {
+  item?: string | null
+  responsavel?: string | null
+  valor_previsto?: number | null
+  categoria?: string | null
+  parcela_atual?: number | string | null
+  total_parcelas?: number | string | null
+  mes_referencia?: string | null
+  [key: string]: unknown
+}
+
+function extrairParcelamento(t: TransacaoRow | PlanejamentoRow): { atual: number; total: number } | null {
   if (t.parcela_atual && t.total_parcelas) {
     const atual = Number(t.parcela_atual)
     const total = Number(t.total_parcelas)
@@ -26,14 +51,14 @@ function extrairParcelamento(t: any): { atual: number; total: number } | null {
   return null
 }
 
-function buildContracts(transacoes: any[]) {
-  const map = new Map<string, { row: any; fatura: Date; parcela: { atual: number; total: number } }>()
+function buildContracts(transacoes: TransacaoRow[]) {
+  const map = new Map<string, { row: TransacaoRow; fatura: Date; parcela: { atual: number; total: number } }>()
 
   for (const t of transacoes) {
     const parcela = extrairParcelamento(t)
     if (!parcela) continue
 
-    const fatura = startOfMonth(new Date(t.projeto_fatura || t.data_compra || t.data))
+    const fatura = startOfMonth(new Date(t.projeto_fatura || t.data_compra || t.data || ''))
     const origem = subMonths(fatura, parcela.atual - 1)
     const descBase = String(t.descricao || '')
       .replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '')
@@ -52,14 +77,14 @@ function buildContracts(transacoes: any[]) {
   return map
 }
 
-function buildContratosExtras(planejamentos: any[]) {
-  const map = new Map<string, { row: any; mesRef: Date; parcela: { atual: number; total: number } }>()
+function buildContratosExtras(planejamentos: PlanejamentoRow[]) {
+  const map = new Map<string, { row: PlanejamentoRow; mesRef: Date; parcela: { atual: number; total: number } }>()
 
   for (const e of planejamentos) {
     const parcela = extrairParcelamento({ ...e, descricao: e.item })
     if (!parcela) continue
 
-    const mesRef = startOfMonth(new Date(e.mes_referencia))
+    const mesRef = startOfMonth(new Date(e.mes_referencia || ''))
     const origem = subMonths(mesRef, parcela.atual - 1)
     const descBase = String(e.item || '')
       .replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '')
@@ -93,7 +118,7 @@ export async function POST(req: NextRequest) {
     const mesReferencia = mesStr
       ? startOfMonth(new Date(mesStr))
       : startOfMonth(addMonths(startOfMonth(addMonths(new Date(), PROJECAO_OFFSET_MESES)), dataIndex ?? 0))
-    let itens: any[] = []
+    let itens: Record<string, unknown>[] = []
 
     if (serie === 'Despesas') {
       const { data: todasDespesas } = await supabase
@@ -129,7 +154,7 @@ export async function POST(req: NextRequest) {
         ['cartao2', maxCartao2?.[0]?.projeto_fatura],
       ] as [string, string][]).filter(([, f]) => !!f)
 
-      let transacoesBase: any[] = []
+      let transacoesBase: TransacaoRow[] = []
       if (cartoesEFaturas.length > 0) {
         const filtrarResponsavel = serie === 'Matheus' || serie === 'Jeniffer'
         const resultados = await Promise.all(
@@ -143,7 +168,7 @@ export async function POST(req: NextRequest) {
       }
 
       const contratos = buildContracts(transacoesBase)
-      const transacoesFiltradas: any[] = []
+      const transacoesFiltradas: Record<string, unknown>[] = []
 
       for (const { row, fatura, parcela } of contratos.values()) {
         const deltaM =
@@ -170,7 +195,7 @@ export async function POST(req: NextRequest) {
           .not('item', 'ilike', '[RECEITA]%')
 
         const contratosExtras = buildContratosExtras(todasDespesas || [])
-        const extrasDoMes: any[] = []
+        const extrasDoMes: Record<string, unknown>[] = []
 
         for (const { row: e, mesRef: mesExtra, parcela } of contratosExtras.values()) {
           const mesesDiff =

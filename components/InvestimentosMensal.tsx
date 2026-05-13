@@ -44,7 +44,13 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
   const [itemSelecionado, setItemSelecionado] = useState<Investimento | null>(null)
   const [formData, setFormData] = useState({ descricao: '', percentual: '', valor: '' })
   const [ultimoCampo, setUltimoCampo] = useState<'percentual' | 'valor'>('percentual')
-  useEffect(() => { if (autoOpen) { setUltimoCampo('percentual'); setModalAberto('adicionar') } }, [autoOpen])
+  useEffect(() => {
+    if (autoOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setUltimoCampo('percentual')
+      setModalAberto('adicionar')
+    }
+  }, [autoOpen])
 
   // Modais de aporte
   const [modalAporte, setModalAporte] = useState<Investimento | null>(null)
@@ -73,7 +79,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
       .eq('mes_referencia', mesRefStr)
       .order('created_at', { ascending: true })
     const ids = (invData || []).map((i: Investimento) => i.id)
-    let aportesMap: Record<string, Aporte[]> = {}
+    const aportesMap: Record<string, Aporte[]> = {}
     if (ids.length > 0) {
       const { data: aportesData } = await supabase
         .from('investimentos_aportes')
@@ -107,6 +113,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
     if (ultimoCampo === 'percentual') {
       const pct = parseFloat(formData.percentual.replace(',', '.'))
       if (!isNaN(pct) && saldo > 0)
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setFormData(f => ({ ...f, valor: (saldo * pct / 100).toFixed(2) }))
     } else {
       const val = parseFloat(formData.valor.replace(',', '.'))
@@ -705,7 +712,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
             <h3 className="text-lg font-bold mb-2">Excluir investimento</h3>
             <p className="text-sm text-gray-500 mb-2">
               Tem certeza que deseja excluir{' '}
-              <span className="font-semibold text-gray-800">"{itemSelecionado.descricao}"</span>?
+              <span className="font-semibold text-gray-800">&quot;{itemSelecionado.descricao}&quot;</span>?
             </p>
             <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 mb-6">
               Todos os aportes registrados também serão excluídos.

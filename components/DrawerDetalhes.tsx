@@ -7,6 +7,20 @@ import { formatBRL } from '@/lib/logger'
 
 type CampoFiltro = 'responsavel' | 'tipo' | 'cartao' | 'categoria' | 'descricao'
 
+type DrawerItem = {
+  descricao?: string | null
+  item?: string | null
+  cartao?: string | null
+  responsavel?: string | null
+  data_compra?: string | null
+  mes_referencia?: string | null
+  valor?: number | null
+  valor_previsto?: number | null
+  tipo?: string | null
+  categoria?: string | null
+  [key: string]: unknown
+}
+
 const CAMPOS_FILTRO: { value: CampoFiltro; label: string }[] = [
   { value: 'responsavel', label: 'Responsável' },
   { value: 'cartao', label: 'Cartão' },
@@ -30,7 +44,7 @@ function labelValor(campo: CampoFiltro, valor: string, cartaoLabels: Record<stri
   return valor || '—'
 }
 
-function dataOrdenacao(item: any): string {
+function dataOrdenacao(item: DrawerItem): string {
   return item.data_compra || item.mes_referencia || ''
 }
 
@@ -42,7 +56,7 @@ interface Props {
     serie: string
     mes: string
     valor: number
-    itens: any[]
+    itens: DrawerItem[]
   } | null
 }
 
@@ -56,11 +70,11 @@ export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }:
   const itens = dados?.itens || []
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFiltroCampo('responsavel')
     setFiltroValor('Todos')
     setFiltroCampo2('cartao')
     setFiltroValor2('Todos')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dados])
 
   const valoresDisponiveis = useMemo(() => {

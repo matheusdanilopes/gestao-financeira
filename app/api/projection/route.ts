@@ -8,7 +8,31 @@ const JANELA_PARCELAS_MESES = 36
 
 const PROJECAO_OFFSET_MESES = 1
 
-function extrairParcelamento(t: any): { atual: number; total: number } | null {
+type TransacaoRow = {
+  descricao?: string | null
+  item?: string | null
+  parcela_atual?: number | string | null
+  total_parcelas?: number | string | null
+  projeto_fatura?: string | null
+  data_compra?: string | null
+  data?: string | null
+  cartao?: string | null
+  responsavel?: string | null
+  valor?: number | null
+  [key: string]: unknown
+}
+
+type PlanejamentoRow = {
+  item?: string | null
+  responsavel?: string | null
+  valor_previsto?: number | null
+  parcela_atual?: number | string | null
+  total_parcelas?: number | string | null
+  mes_referencia?: string | null
+  [key: string]: unknown
+}
+
+function extrairParcelamento(t: TransacaoRow | PlanejamentoRow): { atual: number; total: number } | null {
   if (t.parcela_atual && t.total_parcelas) {
     const atual = Number(t.parcela_atual)
     const total = Number(t.total_parcelas)
@@ -35,14 +59,14 @@ function extrairParcelamento(t: any): { atual: number; total: number } | null {
  * (maior projeto_fatura). Isso garante que a projeção parta do estado atual
  * de cada contrato, sem reprocessar linhas antigas da mesma série.
  */
-function buildContracts(transacoes: any[]) {
-  const map = new Map<string, { row: any; fatura: Date; parcela: { atual: number; total: number } }>()
+function buildContracts(transacoes: TransacaoRow[]) {
+  const map = new Map<string, { row: TransacaoRow; fatura: Date; parcela: { atual: number; total: number } }>()
 
   for (const t of transacoes) {
     const parcela = extrairParcelamento(t)
     if (!parcela) continue
 
-    const fatura = startOfMonth(new Date(t.projeto_fatura || t.data_compra || t.data))
+    const fatura = startOfMonth(new Date(t.projeto_fatura || t.data_compra || t.data || ''))
     const origem = subMonths(fatura, parcela.atual - 1)
     const descBase = String(t.descricao || '')
       .replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '')
@@ -62,14 +86,14 @@ function buildContracts(transacoes: any[]) {
   return map
 }
 
-function buildContratosExtras(planejamentos: any[]) {
-  const map = new Map<string, { row: any; mesRef: Date; parcela: { atual: number; total: number } }>()
+function buildContratosExtras(planejamentos: PlanejamentoRow[]) {
+  const map = new Map<string, { row: PlanejamentoRow; mesRef: Date; parcela: { atual: number; total: number } }>()
 
   for (const e of planejamentos) {
     const parcela = extrairParcelamento({ ...e, descricao: e.item })
     if (!parcela) continue
 
-    const mesRef = startOfMonth(new Date(e.mes_referencia))
+    const mesRef = startOfMonth(new Date(e.mes_referencia || ''))
     const origem = subMonths(mesRef, parcela.atual - 1)
     const descBase = String(e.item || '')
       .replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '')

@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
   try {
     const { data: configs } = await supabase.from('configuracoes').select('chave, valor')
     const get = (chave: string, fallback: string) =>
-      configs?.find((c: any) => c.chave === chave)?.valor ?? fallback
+      configs?.find((c: { chave: string; valor: string }) => c.chave === chave)?.valor ?? fallback
 
     const diaVencimento = parseInt(get(`dia_vencimento_${cartao}`, get('dia_vencimento', '10')))
     const ajusteFechamento = parseInt(get(`ajuste_fechamento_${cartao}`, get('ajuste_fechamento', '0')))
@@ -189,7 +189,7 @@ export async function POST(req: NextRequest) {
       const csvText = await file.text()
       transacoes = processarCSV(csvText, diaVencimento, ajusteFechamento, cartao)
     } else {
-      let body: any
+      let body: Record<string, unknown>
       try {
         body = await req.json()
       } catch {
