@@ -1,14 +1,13 @@
 'use client'
 
-import { useMemo, useState, useCallback } from 'react'
+import { useMemo, useState, useCallback, useEffect } from 'react'
 import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths, addMonths, parseISO } from 'date-fns'
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { ptBR } from 'date-fns/locale'
-import { CheckCircle2, AlertCircle, Pencil, Trash2, Plus, CreditCard, Download, RotateCcw, WifiOff, Repeat, ChevronRight, Bell, Calendar } from 'lucide-react'
+import { CheckCircle2, AlertCircle, Pencil, Trash2, Plus, CreditCard, Download, RotateCcw, WifiOff, Bell, Calendar } from 'lucide-react'
 import { calcularStatusVencimento, verificarVencimentos, type StatusVencimento } from '@/lib/notificacoesVencimento'
-import Link from 'next/link'
 import { log, numericOnly, formatBRL } from '@/lib/logger'
 
 const PREFIXO_CARTAO_1 = '[CARTAO1] '
@@ -64,6 +63,7 @@ function StatusBadge({ status }: { status: StatusVencimento }) {
 
 interface Props {
   mesSelecionado: Date
+  autoOpen?: boolean
 }
 
 function formatarMoeda(v: number): string {
@@ -86,10 +86,14 @@ function aplicarPrefixoCartao(item: string, tipo: '' | 'cartao1' | 'cartao2') {
   return item
 }
 
-export default function ChecklistMensal({ mesSelecionado }: Props) {
+export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
   const [itens, setItens] = useState<ItemPlanejamento[]>([])
   const [filtroStatus, setFiltroStatus] = useState<'' | 'pago' | 'pendente'>('')
   const [modalAberto, setModalAberto] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (autoOpen) setModalAberto('adicionar')
+  }, [autoOpen])
   const [itemSelecionado, setItemSelecionado] = useState<ItemPlanejamento | null>(null)
   const [valorReal, setValorReal] = useState('')
   const [formData, setFormData] = useState({
@@ -549,21 +553,6 @@ export default function ChecklistMensal({ mesSelecionado }: Props) {
           </button>
         </div>
       )}
-
-      {/* Card de navegação para assinaturas */}
-      <Link
-        href="/assinaturas"
-        className="flex items-center gap-3 bg-white rounded-2xl shadow-card px-4 py-3 border border-gray-100 hover:bg-gray-50 transition active:scale-[0.98]"
-      >
-        <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
-          <Repeat className="w-5 h-5 text-indigo-600" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-800">Assinaturas</p>
-          <p className="text-xs text-gray-400">Gerenciar cobranças recorrentes no cartão</p>
-        </div>
-        <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
-      </Link>
 
       {/* Lista agrupada por categoria */}
       {gruposPorCategoria.length === 0 ? (

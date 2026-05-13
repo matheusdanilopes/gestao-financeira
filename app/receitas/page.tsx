@@ -1,11 +1,15 @@
 'use client'
 
+import { Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import MonthSelector from '@/components/MonthSelector'
 import ReceitasMensal from '@/components/ReceitasMensal'
 import { useMes } from '@/components/MesProvider'
 
-export default function ReceitasPage() {
+function ReceitasContent() {
   const { mesAtual, setMesAtual } = useMes()
+  const searchParams = useSearchParams()
+  const autoOpen = searchParams.get('add') === 'true'
 
   return (
     <div className="min-h-screen bg-gray-50 page-bottom-safe page-enter">
@@ -15,8 +19,16 @@ export default function ReceitasPage() {
       </div>
 
       <div className="page-content">
-        <ReceitasMensal mesSelecionado={mesAtual} />
+        <ReceitasMensal mesSelecionado={mesAtual} autoOpen={autoOpen} />
       </div>
     </div>
+  )
+}
+
+export default function ReceitasPage() {
+  return (
+    <Suspense>
+      <ReceitasContent />
+    </Suspense>
   )
 }

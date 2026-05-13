@@ -1,18 +1,19 @@
 'use client'
 
-import { Suspense, useCallback, useState } from 'react'
+import { Suspense, useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { supabase } from '@/lib/supabaseClient'
-import { format, startOfMonth, addMonths } from 'date-fns'
-import InvestimentosMensal from '@/components/InvestimentosMensal'
 import MonthSelector from '@/components/MonthSelector'
+import ChecklistMensal from '@/components/ChecklistMensal'
+import ReceitasMensal from '@/components/ReceitasMensal'
+import InvestimentosMensal from '@/components/InvestimentosMensal'
 import { useMes } from '@/components/MesProvider'
 import { useDataSync } from '@/lib/useDataSync'
+import { supabase } from '@/lib/supabaseClient'
+import { format, startOfMonth, addMonths } from 'date-fns'
 
-interface SaldoData {
-  saldo: number
-  saldoPrevisto: number
-}
+type Tab = 'despesas' | 'receitas' | 'investimentos'
+
+interface SaldoData { saldo: number; saldoPrevisto: number }
 
 async function calcularSaldo(mes: Date): Promise<SaldoData> {
   const primeiroDia = startOfMonth(mes)
@@ -104,15 +105,25 @@ async function calcularSaldo(mes: Date): Promise<SaldoData> {
   }
 }
 
-function InvestimentosContent() {
-  const { mesAtual, setMesAtual } = useMes()
+function FinancasContent() {
   const searchParams = useSearchParams()
-  const autoOpen = searchParams.get('add') === 'true'
+  const [abaAtual, setAbaAtual] = useState<Tab>('despesas')
+  const { mesAtual, setMesAtual } = useMes()
+
+  // Sincroniza a tab com o parâmetro da URL sempre que a navegação mudar
+  useEffect(() => {
+    const tab = searchParams.get('tab') as Tab | null
+    if (tab === 'receitas' || tab === 'investimentos' || tab === 'despesas') {
+      setAbaAtual(tab)
+    } else {
+      setAbaAtual('despesas')
+    }
+  }, [searchParams])
+
   const [saldo, setSaldo] = useState(0)
   const [saldoPrevisto, setSaldoPrevisto] = useState(0)
 
   const fetcher = useCallback(() => calcularSaldo(mesAtual), [mesAtual])
-
   const { status } = useDataSync({
     cacheKey: `investimentos-saldo:${format(mesAtual, 'yyyy-MM')}`,
     tables: ['transacoes_nubank', 'planejamento'],
@@ -124,37 +135,51 @@ function InvestimentosContent() {
     },
   })
 
-  const carregando = status === 'loading'
+  const carregandoInvest = status === 'loading'
+
+  const titulos: Record<Tab, string> = {
+    despesas:      'Despesas',
+    receitas:      'Receitas',
+    investimentos: 'Investimentos',
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 page-bottom-safe page-enter">
       <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 px-4 md:px-6 lg:px-8 z-[10]">
-        <h1 className="text-xl font-bold text-gray-900 mb-3">Investimentos</h1>
+        <h1 className="text-xl font-bold text-gray-900 mb-3">{titulos[abaAtual]}</h1>
         <MonthSelector value={mesAtual} onChange={setMesAtual} />
       </div>
 
       <div className="page-content">
-        {carregando ? (
-          <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-6 animate-pulse space-y-3">
-            <div className="h-5 bg-gray-100 rounded-xl w-1/2" />
-            <div className="grid grid-cols-2 gap-3">
-              <div className="h-20 bg-gray-100 rounded-2xl" />
-              <div className="h-20 bg-gray-100 rounded-2xl" />
+        {abaAtual === 'despesas' && (
+          <ChecklistMensal mesSelecionado={mesAtual} />
+        )}
+        {abaAtual === 'receitas' && (
+          <ReceitasMensal mesSelecionado={mesAtual} />
+        )}
+        {abaAtual === 'investimentos' && (
+          carregandoInvest ? (
+            <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-6 animate-pulse space-y-3">
+              <div className="h-5 bg-gray-100 rounded-xl w-1/2" />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="h-20 bg-gray-100 rounded-2xl" />
+                <div className="h-20 bg-gray-100 rounded-2xl" />
+              </div>
+              <div className="h-2 bg-gray-100 rounded-full" />
             </div>
-            <div className="h-2 bg-gray-100 rounded-full" />
-          </div>
-        ) : (
-          <InvestimentosMensal mesSelecionado={mesAtual} saldo={saldo} saldoPrevisto={saldoPrevisto} autoOpen={autoOpen} />
+          ) : (
+            <InvestimentosMensal mesSelecionado={mesAtual} saldo={saldo} saldoPrevisto={saldoPrevisto} />
+          )
         )}
       </div>
     </div>
   )
 }
 
-export default function InvestimentosPage() {
+export default function FinancasPage() {
   return (
     <Suspense>
-      <InvestimentosContent />
+      <FinancasContent />
     </Suspense>
   )
 }

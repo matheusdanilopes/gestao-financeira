@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths } from 'date-fns'
@@ -37,12 +37,13 @@ function paraNomeExibicao(nome: string) {
   return nome.startsWith(RECEITA_PREFIXO) ? nome.replace(RECEITA_PREFIXO, '') : nome
 }
 
-export default function ReceitasMensal({ mesSelecionado }: { mesSelecionado: Date }) {
+export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSelecionado: Date; autoOpen?: boolean }) {
   const [itens, setItens] = useState<ItemReceita[]>([])
   const [recebimentos, setRecebimentos] = useState<Record<string, Recebimento[]>>({})
 
   // Modais de item (adicionar/editar/excluir)
   const [modalAberto, setModalAberto] = useState<string | null>(null)
+  useEffect(() => { if (autoOpen) setModalAberto('adicionar') }, [autoOpen])
   const [itemSelecionado, setItemSelecionado] = useState<ItemReceita | null>(null)
   const [formData, setFormData] = useState({ item: '', responsavel: 'Matheus', valor_previsto: '' })
 

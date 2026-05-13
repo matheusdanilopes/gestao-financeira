@@ -1,12 +1,15 @@
 'use client'
 
+import { Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import MonthSelector from '@/components/MonthSelector'
 import ChecklistMensal from '@/components/ChecklistMensal'
-import { addMonths, subMonths, format } from 'date-fns'
 import { useMes } from '@/components/MesProvider'
 
-export default function ContasPage() {
+function ContasContent() {
   const { mesAtual, setMesAtual } = useMes()
+  const searchParams = useSearchParams()
+  const autoOpen = searchParams.get('add') === 'true'
 
   return (
     <div className="min-h-screen bg-gray-50 page-bottom-safe page-enter">
@@ -16,8 +19,16 @@ export default function ContasPage() {
       </div>
 
       <div className="page-content">
-        <ChecklistMensal mesSelecionado={mesAtual} />
+        <ChecklistMensal mesSelecionado={mesAtual} autoOpen={autoOpen} />
       </div>
     </div>
+  )
+}
+
+export default function ContasPage() {
+  return (
+    <Suspense>
+      <ContasContent />
+    </Suspense>
   )
 }

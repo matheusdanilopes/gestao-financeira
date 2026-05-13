@@ -1,31 +1,245 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Receipt, TrendingUp, ShoppingCart, MessageCircle, SlidersHorizontal, PiggyBank, Sparkles, BarChart3 } from 'lucide-react'
+import { usePathname, useRouter } from 'next/navigation'
+import {
+  LayoutDashboard, Receipt, TrendingUp, ShoppingCart, MessageCircle,
+  SlidersHorizontal, PiggyBank, Sparkles, BarChart3, Plus, MoreHorizontal, Wallet, CreditCard, RepeatIcon,
+} from 'lucide-react'
 import { memo, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabaseClient'
 import { AUTH_DISABLED } from '@/lib/authConfig'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
+import ModalPortal from '@/components/ModalPortal'
 
-const ROTAS_COM_MENU = ['/dashboard', '/contas', '/receitas', '/investimentos', '/assinaturas', '/compras', '/chat', '/configuracoes', '/importar']
-
-const navItems = [
-  { href: '/dashboard',     label: 'Dashboard',  icon: LayoutDashboard,  desktopOnly: false },
-  { href: '/contas',        label: 'Despesas',   icon: Receipt,           desktopOnly: false },
-  { href: '/receitas',      label: 'Receitas',   icon: TrendingUp,        desktopOnly: false },
-  { href: '/investimentos', label: 'Investir',   icon: PiggyBank,         desktopOnly: false },
-  { href: '/compras',       label: 'Compras',    icon: ShoppingCart,      desktopOnly: false },
-  { href: '/chat',          label: 'IA',         icon: MessageCircle,     desktopOnly: false },
-  { href: '/configuracoes', label: 'Config',     icon: SlidersHorizontal, desktopOnly: false },
-  { href: '/analytics',    label: 'Analytics',  icon: BarChart3,          desktopOnly: true  },
+const ROTAS_COM_MENU = [
+  '/dashboard', '/contas', '/receitas', '/investimentos', '/assinaturas',
+  '/compras', '/chat', '/configuracoes', '/importar', '/financas', '/extras',
 ]
+
+const ROTAS_FINANCAS = ['/financas', '/contas', '/receitas', '/investimentos']
+const ROTAS_CARTAO   = ['/compras', '/assinaturas']
+const ROTAS_EXTRAS   = ['/extras', '/chat', '/configuracoes']
+
+const desktopItems = [
+  { href: '/dashboard',     label: 'Dashboard',    icon: LayoutDashboard,   desktopOnly: false },
+  { href: '/contas',        label: 'Despesas',      icon: Receipt,           desktopOnly: false },
+  { href: '/receitas',      label: 'Receitas',      icon: TrendingUp,        desktopOnly: false },
+  { href: '/investimentos', label: 'Investir',      icon: PiggyBank,         desktopOnly: false },
+  { href: '/compras',       label: 'Compras',       icon: ShoppingCart,      desktopOnly: false },
+  { href: '/assinaturas',   label: 'Assinaturas',   icon: RepeatIcon,        desktopOnly: false },
+  { href: '/chat',          label: 'IA',            icon: MessageCircle,     desktopOnly: false },
+  { href: '/configuracoes', label: 'Config',        icon: SlidersHorizontal, desktopOnly: false },
+  { href: '/analytics',     label: 'Analytics',     icon: BarChart3,         desktopOnly: true  },
+]
+
+// ── Sub-menus ─────────────────────────────────────────────────────────────────
+
+function FinancasMenuPopover({ onClose, router }: { onClose: () => void; router: ReturnType<typeof useRouter> }) {
+  const opcoes = [
+    { tab: 'despesas',      label: 'Despesas',      Icon: Receipt,    cor: 'text-red-500',   bg: 'bg-red-50'   },
+    { tab: 'receitas',      label: 'Receitas',      Icon: TrendingUp, cor: 'text-green-600', bg: 'bg-green-50' },
+    { tab: 'investimentos', label: 'Investimentos', Icon: PiggyBank,  cor: 'text-blue-600',  bg: 'bg-blue-50'  },
+  ]
+
+  return (
+    <div className="fixed bottom-[72px] left-3 z-[51] modal-center">
+      <div className="bg-white rounded-3xl shadow-float border border-gray-100 overflow-hidden w-56">
+        {opcoes.map(({ tab, label, Icon, cor, bg }, i) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => { router.push(`/financas?tab=${tab}`); onClose() }}
+            className={`w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50
+                        active:bg-gray-100 transition-colors duration-150
+                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
+                        ${i < opcoes.length - 1 ? 'border-b border-gray-100' : ''}`}
+          >
+            <div className={`w-8 h-8 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
+              <Icon className={`w-4 h-4 ${cor}`} strokeWidth={1.8} />
+            </div>
+            <span className="text-sm font-semibold text-gray-700">{label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function CartaoMenuPopover({ onClose, router }: { onClose: () => void; router: ReturnType<typeof useRouter> }) {
+  const opcoes = [
+    { href: '/compras',      label: 'Compras',      Icon: ShoppingCart, cor: 'text-orange-500', bg: 'bg-orange-50' },
+    { href: '/assinaturas',  label: 'Assinaturas',  Icon: RepeatIcon,   cor: 'text-indigo-600', bg: 'bg-indigo-50' },
+  ]
+
+  return (
+    <div className="fixed bottom-[72px] right-14 z-[51] modal-center">
+      <div className="bg-white rounded-3xl shadow-float border border-gray-100 overflow-hidden w-56">
+        {opcoes.map(({ href, label, Icon, cor, bg }, i) => (
+          <button
+            key={href}
+            type="button"
+            onClick={() => { router.push(href); onClose() }}
+            className={`w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50
+                        active:bg-gray-100 transition-colors duration-150
+                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
+                        ${i < opcoes.length - 1 ? 'border-b border-gray-100' : ''}`}
+          >
+            <div className={`w-8 h-8 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
+              <Icon className={`w-4 h-4 ${cor}`} strokeWidth={1.8} />
+            </div>
+            <span className="text-sm font-semibold text-gray-700">{label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function FabMenuPopover({ onClose, router }: { onClose: () => void; router: ReturnType<typeof useRouter> }) {
+  const opcoes = [
+    { href: '/contas?add=true',        label: 'Nova Despesa',       Icon: Receipt,    cor: 'text-red-500',   bg: 'bg-red-50'   },
+    { href: '/receitas?add=true',      label: 'Nova Receita',       Icon: TrendingUp, cor: 'text-green-600', bg: 'bg-green-50' },
+    { href: '/investimentos?add=true', label: 'Novo Investimento',  Icon: PiggyBank,  cor: 'text-blue-600',  bg: 'bg-blue-50'  },
+  ]
+
+  return (
+    <div className="fixed bottom-[72px] left-1/2 -translate-x-1/2 z-[51] modal-center">
+      <div className="bg-white rounded-3xl shadow-float border border-gray-100 overflow-hidden w-56">
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-primary-600 rounded-t-3xl">
+          <Plus className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
+          <span className="text-xs font-semibold text-white uppercase tracking-wide">Novo lançamento</span>
+        </div>
+        {opcoes.map(({ href, label, Icon, cor, bg }, i) => (
+          <button
+            key={href}
+            type="button"
+            onClick={() => { router.push(href); onClose() }}
+            className={`w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50
+                        active:bg-gray-100 transition-colors duration-150
+                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
+                        ${i < opcoes.length - 1 ? 'border-b border-gray-100' : ''}`}
+          >
+            <div className={`w-8 h-8 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
+              <Icon className={`w-4 h-4 ${cor}`} strokeWidth={1.8} />
+            </div>
+            <span className="text-sm font-semibold text-gray-700">{label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ExtrasMenuPopover({ onClose, router }: { onClose: () => void; router: ReturnType<typeof useRouter> }) {
+  const opcoes = [
+    { href: '/chat',          label: 'IA Assistant',  Icon: MessageCircle,     cor: 'text-primary-600', bg: 'bg-primary-50' },
+    { href: '/configuracoes', label: 'Configurações', Icon: SlidersHorizontal, cor: 'text-gray-600',    bg: 'bg-gray-100'   },
+  ]
+
+  return (
+    <div className="fixed bottom-[72px] right-3 z-[51] modal-center">
+      <div className="bg-white rounded-3xl shadow-float border border-gray-100 overflow-hidden w-56">
+        {opcoes.map(({ href, label, Icon, cor, bg }, i) => (
+          <button
+            key={href}
+            type="button"
+            onClick={() => { router.push(href); onClose() }}
+            className={`w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50
+                        active:bg-gray-100 transition-colors duration-150
+                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
+                        ${i < opcoes.length - 1 ? 'border-b border-gray-100' : ''}`}
+          >
+            <div className={`w-8 h-8 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
+              <Icon className={`w-4 h-4 ${cor}`} strokeWidth={1.8} />
+            </div>
+            <span className="text-sm font-semibold text-gray-700">{label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Nav item button (Finanças / Extras) ───────────────────────────────────────
+
+function MobileMenuButton({
+  label, icon: Icon, isActive, onClick, ariaExpanded,
+}: {
+  label: string
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>
+  isActive: boolean
+  onClick: () => void
+  ariaExpanded: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-expanded={ariaExpanded}
+      className="flex flex-col items-center justify-center gap-0.5 flex-1 py-2
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
+                 focus-visible:ring-offset-1 rounded-xl transition-all duration-200"
+    >
+      <span className={`flex items-center justify-center w-10 h-6 rounded-full transition-all duration-200
+                        ${isActive ? 'bg-primary-100' : ''}`}>
+        <Icon
+          className={`transition-all duration-200 w-[20px] h-[20px]
+                      ${isActive ? 'text-primary-600' : 'text-gray-400'}`}
+          strokeWidth={isActive ? 2.5 : 1.8}
+        />
+      </span>
+      <span className={`text-[10px] font-medium transition-colors duration-200 leading-none
+                        ${isActive ? 'text-primary-600' : 'text-gray-400'}`}>
+        {label}
+      </span>
+    </button>
+  )
+}
+
+// ── Nav item link (Dashboard / Compras) ───────────────────────────────────────
+
+function MobileNavItem({
+  href, label, icon: Icon, isActive,
+}: {
+  href: string
+  label: string
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>
+  isActive: boolean
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex flex-col items-center justify-center gap-0.5 flex-1 py-2
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
+                 focus-visible:ring-offset-1 rounded-xl transition-all duration-200"
+      aria-current={isActive ? 'page' : undefined}
+    >
+      <span className={`flex items-center justify-center w-10 h-6 rounded-full transition-all duration-200
+                        ${isActive ? 'bg-primary-100' : ''}`}>
+        <Icon
+          className={`transition-all duration-200 w-[20px] h-[20px]
+                      ${isActive ? 'text-primary-600' : 'text-gray-400'}`}
+          strokeWidth={isActive ? 2.5 : 1.8}
+        />
+      </span>
+      <span className={`text-[10px] font-medium transition-colors duration-200 leading-none
+                        ${isActive ? 'text-primary-600' : 'text-gray-400'}`}>
+        {label}
+      </span>
+    </Link>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 
 export default memo(function BottomNav() {
   const pathname = usePathname()
+  const router   = useRouter()
   const [session, setSession] = useState<Session | null>(null)
   const [isCheckingSession, setIsCheckingSession] = useState(true)
+  const [openMenu, setOpenMenu] = useState<'financas' | 'cartao' | 'extras' | 'fab' | null>(null)
   const { categorizando } = useCategorizacao()
 
   useEffect(() => {
@@ -52,10 +266,17 @@ export default memo(function BottomNav() {
     }
   }, [])
 
-  const deveExibirMenu = pathname ? ROTAS_COM_MENU.includes(pathname) : false
+  // Fecha menu ao navegar para outra rota
+  useEffect(() => { setOpenMenu(null) }, [pathname])
+
+  const deveExibirMenu = pathname ? ROTAS_COM_MENU.some(r => pathname === r || pathname.startsWith(r + '/')) : false
 
   if (!deveExibirMenu) return null
   if (!AUTH_DISABLED && (isCheckingSession || !session)) return null
+
+  const isFinancasActive = ROTAS_FINANCAS.some(r => pathname === r || pathname.startsWith(r + '/'))
+  const isCartaoActive   = ROTAS_CARTAO.some(r => pathname === r || pathname.startsWith(r + '/'))
+  const isExtrasActive   = ROTAS_EXTRAS.some(r => pathname === r || pathname.startsWith(r + '/'))
 
   return (
     <div
@@ -69,10 +290,62 @@ export default memo(function BottomNav() {
           Categorizando com IA…
         </div>
       )}
+
       <nav aria-label="Navegação principal">
-        {/* Mobile: horizontal centered row. Desktop: items left-aligned in top bar */}
-        <div className="flex justify-around items-center h-16 px-0.5 lg:justify-start lg:h-14 lg:px-4 lg:gap-1">
-          {navItems.map(({ href, label, icon: Icon, desktopOnly }) => {
+        {/* ── Mobile: 5 itens com FAB central ──────────────────────────────── */}
+        <div className="flex lg:hidden justify-around items-center h-16 px-1">
+          <MobileNavItem
+            href="/dashboard"
+            label="Dashboard"
+            icon={LayoutDashboard}
+            isActive={pathname === '/dashboard'}
+          />
+
+          <MobileMenuButton
+            label="Finanças"
+            icon={Wallet}
+            isActive={isFinancasActive || openMenu === 'financas'}
+            ariaExpanded={openMenu === 'financas'}
+            onClick={() => setOpenMenu(p => p === 'financas' ? null : 'financas')}
+          />
+
+          {/* FAB — Lançamento Rápido */}
+          <button
+            type="button"
+            aria-label="Lançamento rápido"
+            aria-expanded={openMenu === 'fab'}
+            onClick={() => setOpenMenu(p => p === 'fab' ? null : 'fab')}
+            className="flex flex-col items-center justify-center flex-none -mt-5"
+          >
+            <span className={`w-14 h-14 rounded-full flex items-center justify-center shadow-float
+                              transition-all duration-200 active:scale-95
+                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2
+                              ${openMenu === 'fab' ? 'bg-primary-700' : 'bg-primary-600'}`}>
+              <Plus className={`w-6 h-6 text-white transition-transform duration-200 ${openMenu === 'fab' ? 'rotate-45' : ''}`} strokeWidth={2.5} />
+            </span>
+            <span className="text-[10px] font-medium text-gray-400 mt-0.5 leading-none">Adicionar</span>
+          </button>
+
+          <MobileMenuButton
+            label="Cartão"
+            icon={CreditCard}
+            isActive={isCartaoActive || openMenu === 'cartao'}
+            ariaExpanded={openMenu === 'cartao'}
+            onClick={() => setOpenMenu(p => p === 'cartao' ? null : 'cartao')}
+          />
+
+          <MobileMenuButton
+            label="Extras"
+            icon={MoreHorizontal}
+            isActive={isExtrasActive || openMenu === 'extras'}
+            ariaExpanded={openMenu === 'extras'}
+            onClick={() => setOpenMenu(p => p === 'extras' ? null : 'extras')}
+          />
+        </div>
+
+        {/* ── Desktop: barra superior com todos os itens ────────────────────── */}
+        <div className="hidden lg:flex justify-start items-center h-14 px-4 gap-1">
+          {desktopItems.map(({ href, label, icon: Icon, desktopOnly }) => {
             const isActive = pathname === href
             return (
               <Link
@@ -80,32 +353,48 @@ export default memo(function BottomNav() {
                 href={href}
                 className={`
                   ${desktopOnly ? 'hidden md:flex' : 'flex'}
-                  flex-col items-center justify-center gap-0.5 flex-1 py-2
-                  lg:flex-row lg:flex-none lg:gap-1.5 lg:px-3 lg:py-1.5 lg:rounded-xl lg:flex-initial
+                  flex-row items-center gap-1.5 px-3 py-1.5 rounded-xl flex-none
                   transition-all duration-200
-                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-1 rounded-xl
+                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-1
                 `}
                 aria-current={isActive ? 'page' : undefined}
               >
-                <span className={`flex items-center justify-center w-9 h-6 rounded-full transition-all duration-200
-                                  lg:w-auto lg:h-auto lg:rounded-none
-                                  ${isActive ? 'bg-primary-100 lg:bg-transparent' : ''}`}>
-                  <Icon
-                    className={`transition-all duration-200
-                      w-[18px] h-[18px] lg:w-4 lg:h-4
-                      ${isActive ? 'text-primary-600' : 'text-gray-400 lg:text-gray-500'}`}
-                    strokeWidth={isActive ? 2.5 : 1.8}
-                  />
-                </span>
-                <span className={`text-[11px] font-medium transition-colors duration-200 leading-none
-                                  lg:text-[13px] lg:leading-none
-                                  ${isActive ? 'text-primary-600' : 'text-gray-400 lg:text-gray-600'}`}>
+                <Icon
+                  className={`w-4 h-4 transition-all duration-200 ${isActive ? 'text-primary-600' : 'text-gray-500'}`}
+                  strokeWidth={isActive ? 2.5 : 1.8}
+                />
+                <span className={`text-[13px] font-medium leading-none transition-colors duration-200
+                                  ${isActive ? 'text-primary-600' : 'text-gray-600'}`}>
                   {label}
                 </span>
               </Link>
             )
           })}
         </div>
+
+        {/* ── Menus flutuantes via portal ────────────────────────────────────── */}
+        {openMenu && (
+          <ModalPortal>
+            <div
+              className="fixed inset-0 z-[49] modal-overlay"
+              style={{ background: 'rgba(0,0,0,0.25)' }}
+              onClick={() => setOpenMenu(null)}
+              aria-hidden="true"
+            />
+            {openMenu === 'fab' && (
+              <FabMenuPopover onClose={() => setOpenMenu(null)} router={router} />
+            )}
+            {openMenu === 'financas' && (
+              <FinancasMenuPopover onClose={() => setOpenMenu(null)} router={router} />
+            )}
+            {openMenu === 'cartao' && (
+              <CartaoMenuPopover onClose={() => setOpenMenu(null)} router={router} />
+            )}
+            {openMenu === 'extras' && (
+              <ExtrasMenuPopover onClose={() => setOpenMenu(null)} router={router} />
+            )}
+          </ModalPortal>
+        )}
       </nav>
     </div>
   )

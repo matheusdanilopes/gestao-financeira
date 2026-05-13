@@ -31,9 +31,10 @@ interface Props {
   mesSelecionado: Date
   saldo: number
   saldoPrevisto?: number
+  autoOpen?: boolean
 }
 
-export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevisto = 0 }: Props) {
+export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevisto = 0, autoOpen }: Props) {
   const [itens, setItens] = useState<Investimento[]>([])
   const [aportes, setAportes] = useState<Record<string, Aporte[]>>({})
 
@@ -42,6 +43,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
   const [itemSelecionado, setItemSelecionado] = useState<Investimento | null>(null)
   const [formData, setFormData] = useState({ descricao: '', percentual: '', valor: '' })
   const [ultimoCampo, setUltimoCampo] = useState<'percentual' | 'valor'>('percentual')
+  useEffect(() => { if (autoOpen) { setUltimoCampo('percentual'); setModalAberto('adicionar') } }, [autoOpen])
 
   // Modais de aporte
   const [modalAporte, setModalAporte] = useState<Investimento | null>(null)
