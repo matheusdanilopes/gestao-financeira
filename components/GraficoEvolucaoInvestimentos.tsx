@@ -32,9 +32,8 @@ function rgba(c: { r: number; g: number; b: number }, a = 1) {
 
 interface DadosInvestimento {
   labels: string[]
-  realizado: (number | null)[] // null para meses futuros
+  realizado: number[]
   meta: number[]
-  sepIdx: number               // índice onde começa o futuro (-1 se tudo passado)
 }
 
 interface Props {
@@ -66,71 +65,6 @@ const gradientPlugin = {
   },
 }
 
-function roundRect(
-  ctx: CanvasRenderingContext2D,
-  x: number, y: number, w: number, h: number, r: number
-) {
-  ctx.beginPath()
-  ctx.moveTo(x + r, y)
-  ctx.lineTo(x + w - r, y)
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r)
-  ctx.lineTo(x + w, y + h - r)
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
-  ctx.lineTo(x + r, y + h)
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r)
-  ctx.lineTo(x, y + r)
-  ctx.quadraticCurveTo(x, y, x + r, y)
-  ctx.closePath()
-}
-
-// Vertical separator at the today/future boundary + "hoje" pill badge
-function makeSeparatorPlugin(isDark: boolean) {
-  return {
-    id: 'separatorInv',
-    afterDatasetsDraw(chart: any) {
-      const realizado = chart.data.datasets[0]?.data as (number | null)[] | undefined
-      if (!realizado) return
-      const sepIdx = realizado.findIndex(v => v === null)
-      if (sepIdx <= 0) return
-
-      const { ctx, scales, chartArea } = chart
-      if (!scales?.x || !chartArea) return
-
-      const x = scales.x.getPixelForValue(sepIdx)
-      const { top, bottom } = chartArea
-
-      // Dashed vertical line
-      ctx.save()
-      ctx.beginPath()
-      ctx.moveTo(x, top)
-      ctx.lineTo(x, bottom)
-      ctx.lineWidth = 1
-      ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.10)'
-      ctx.setLineDash([3, 3])
-      ctx.stroke()
-
-      // "hoje" pill badge
-      const text = 'hoje'
-      ctx.font = '9px system-ui, -apple-system, sans-serif'
-      const tw = ctx.measureText(text).width
-      const ph = 13
-      const pw = tw + 10
-      const px = x - pw / 2
-      const py = top - 18
-
-      roundRect(ctx, px, py, pw, ph, 4)
-      ctx.fillStyle = isDark ? 'rgba(124,58,237,0.28)' : 'rgba(124,58,237,0.10)'
-      ctx.fill()
-
-      ctx.fillStyle = isDark ? 'rgba(196,181,253,0.90)' : 'rgba(109,40,217,0.75)'
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillText(text, x, py + ph / 2)
-
-      ctx.restore()
-    },
-  }
-}
 
 function makeCrosshair(isDark: boolean) {
   return {
@@ -225,12 +159,11 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual }: Props) {
           desMap.set(mes, (desMap.get(mes) || 0) + valor)
       }
 
-      const realizado: (number | null)[] = []
+      const realizado: number[] = []
       const meta: number[] = []
 
       for (const mes of mesesRef) {
-        const isFuturo = mes > hojeRef
-        realizado.push(isFuturo ? null : (aportesMap.get(mes) || 0))
+        realizado.push(aportesMap.get(mes) || 0)
         const pct   = pctMap.get(mes) || 0
         const saldo = (recMap.get(mes) || 0) - (desMap.get(mes) || 0)
         meta.push(pct > 0 && saldo > 0 ? (saldo * pct) / 100 : 0)
@@ -242,7 +175,6 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual }: Props) {
         ),
         realizado,
         meta,
-        sepIdx: realizado.findIndex(v => v === null),
       })
     } catch {
       setErro('Não foi possível carregar a evolução de investimentos.')
@@ -273,7 +205,6 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual }: Props) {
           borderWidth: 2.5,
           tension: 0.42,
           fill: true,
-          spanGaps: false,
           pointRadius: 3,
           pointHoverRadius: 10,
           pointHitRadius: 24,
@@ -305,7 +236,7 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual }: Props) {
   }, [dados, isDark])
 
   const plugins = useMemo(
-    () => [gradientPlugin, makeSeparatorPlugin(isDark), makeCrosshair(isDark)],
+    () => [gradientPlugin, makeCrosshair(isDark)],
     [isDark]
   )
 
@@ -317,7 +248,6 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual }: Props) {
     return {
       responsive: true,
       maintainAspectRatio: false,
-      layout: { padding: { top: 20 } },
       interaction: { mode: 'index' as const, intersect: false },
       animation: { duration: 750, easing: 'easeInOutCubic' as const },
       plugins: {
@@ -345,10 +275,7 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual }: Props) {
           usePointStyle: false,
           callbacks: {
             title: (items: any[]) => items[0]?.label ?? '',
-            label: (ctx: any) =>
-              ctx.parsed.y === null
-                ? `  ${ctx.dataset.label}: —`
-                : `  ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y)}`,
+            label: (ctx: any) => `  ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y)}`,
           },
         },
       },
@@ -397,7 +324,7 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual }: Props) {
 
   const hasData =
     dados !== null &&
-    (dados.realizado.some(v => v !== null && v > 0) || dados.meta.some(v => v > 0))
+    (dados.realizado.some(v => v > 0) || dados.meta.some(v => v > 0))
 
   if (!hasData) {
     return (
@@ -415,8 +342,6 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual }: Props) {
 
   if (!chartData) return null
 
-  const temFuturo = dados.sepIdx >= 0
-
   return (
     <div>
       <div className="h-56 md:h-64 lg:h-72">
@@ -430,7 +355,7 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual }: Props) {
         </span>
         <span className="flex items-center gap-1.5">
           <span className="inline-block w-5 border-t border-dashed border-teal-400" />
-          {temFuturo ? 'Meta / Projeção' : 'Meta'}
+          Meta
         </span>
       </p>
     </div>
