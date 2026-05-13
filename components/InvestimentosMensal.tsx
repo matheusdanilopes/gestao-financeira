@@ -377,7 +377,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
                       <p className="text-sm font-medium text-gray-800 truncate">{item.descricao}</p>
                       <p className="text-xs text-gray-400">{item.percentual.toFixed(2)}% do saldo</p>
                     </div>
-                    <div className="text-right shrink-0">
+                    <div className="text-right shrink-0 mr-1">
                       <p className={`text-sm font-bold ${concluido ? 'text-green-600' : 'text-violet-700'}`}>
                         {formatBRL(aportado)}
                       </p>
@@ -393,46 +393,45 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
                         <p className="text-xs text-gray-400">Saldo atual {formatBRL(saldoAtualItem)}</p>
                       )}
                     </div>
+                    {/* Ações rápidas */}
+                    <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                      {(aportes[item.id] || []).length > 0 && (
+                        <button
+                          onClick={() => setModalHistorico(item)}
+                          className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition"
+                          title="Histórico de aportes"
+                        >
+                          <History className="w-4 h-4" />
+                        </button>
+                      )}
+                      {isOnline && (
+                        <button
+                          onClick={() => {
+                            setModalAporte(item)
+                            setFormAporte({
+                              valor: '',
+                              saldo_atual: ultimoSaldoAtual(item.id)?.toFixed(2) || '',
+                              data_aporte: format(new Date(), 'yyyy-MM-dd'),
+                              observacao: '',
+                            })
+                          }}
+                          className="p-1.5 rounded-lg text-violet-600 hover:bg-violet-100 transition"
+                          title="Registrar aporte"
+                        >
+                          <CirclePlus className="w-5 h-5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Barra de progresso do item */}
-                  <div className="mb-2.5 pl-5">
+                  <div className="pl-5">
                     <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
                       <div
                         className={`h-1.5 rounded-full transition-all duration-500 ${concluido ? 'bg-green-500' : 'bg-violet-400'}`}
                         style={{ width: `${progresso}%` }}
                       />
                     </div>
-                  </div>
-
-                  {/* Ações rápidas */}
-                  <div className="flex items-center gap-1 pl-5" onClick={(e) => e.stopPropagation()}>
-                    {(aportes[item.id] || []).length > 0 && (
-                      <button
-                        onClick={() => setModalHistorico(item)}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 bg-gray-50 hover:bg-gray-100 transition"
-                      >
-                        <History className="w-3.5 h-3.5" />
-                        {(aportes[item.id] || []).length} aporte(s)
-                      </button>
-                    )}
-                    {isOnline && (
-                      <button
-                        onClick={() => {
-                          setModalAporte(item)
-                          setFormAporte({
-                            valor: '',
-                            saldo_atual: ultimoSaldoAtual(item.id)?.toFixed(2) || '',
-                            data_aporte: format(new Date(), 'yyyy-MM-dd'),
-                            observacao: '',
-                          })
-                        }}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-violet-700 bg-violet-50 hover:bg-violet-100 transition"
-                      >
-                        <CirclePlus className="w-3.5 h-3.5" />
-                        Aportar
-                      </button>
-                    )}
                   </div>
                 </div>
               </SwipeableItem>
