@@ -319,42 +319,42 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       </div>
 
       {/* Cards interativos de responsável */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-1.5">
         <button
           onClick={() => setFiltroResponsavel('')}
-          className={`rounded-2xl p-3 text-center transition-all duration-200 active:scale-[0.97] ${
+          className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
             filtroResponsavel === ''
-              ? 'bg-gradient-to-br from-indigo-500 to-indigo-700 shadow-lg ring-2 ring-indigo-300 ring-offset-1'
-              : 'bg-indigo-50 border border-indigo-100 shadow-sm'
+              ? 'bg-primary-50 border-primary-200'
+              : 'bg-white border-gray-100'
           }`}
         >
-          <p className={`text-[10px] font-medium mb-0.5 ${filtroResponsavel === '' ? 'text-indigo-100' : 'text-indigo-500'}`}>Total</p>
-          <p className={`text-sm font-bold leading-tight ${filtroResponsavel === '' ? 'text-white' : 'text-indigo-700'}`}>R$ {totalAtivo.toFixed(2)}</p>
-          <p className={`text-[10px] mt-0.5 ${filtroResponsavel === '' ? 'text-indigo-200' : 'text-indigo-400'}`}>{countPorResponsavel[''] } ativa(s)</p>
+          <p className={`text-[11px] font-medium mb-0.5 ${filtroResponsavel === '' ? 'text-primary-500' : 'text-gray-400'}`}>Total</p>
+          <p className={`text-xs font-bold num leading-tight ${filtroResponsavel === '' ? 'text-primary-700' : 'text-gray-700'}`}>{formatBRL(totalAtivo)}</p>
+          <p className={`text-[9px] mt-0.5 ${filtroResponsavel === '' ? 'text-primary-400' : 'text-gray-400'}`}>{countPorResponsavel['']} ativa(s)</p>
         </button>
         <button
           onClick={() => setFiltroResponsavel(filtroResponsavel === 'Matheus' ? '' : 'Matheus')}
-          className={`rounded-2xl p-3 text-center transition-all duration-200 active:scale-[0.97] ${
+          className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
             filtroResponsavel === 'Matheus'
-              ? 'bg-blue-600 shadow-lg ring-2 ring-blue-300 ring-offset-1'
-              : 'bg-blue-50 border border-blue-100 shadow-sm'
+              ? 'bg-blue-50 border-blue-200'
+              : 'bg-white border-gray-100'
           }`}
         >
-          <p className={`text-[10px] font-medium mb-0.5 ${filtroResponsavel === 'Matheus' ? 'text-blue-200' : 'text-blue-500'}`}>Matheus</p>
-          <p className={`text-sm font-bold leading-tight ${filtroResponsavel === 'Matheus' ? 'text-white' : 'text-blue-700'}`}>R$ {totalMatheus.toFixed(2)}</p>
-          <p className={`text-[10px] mt-0.5 ${filtroResponsavel === 'Matheus' ? 'text-blue-200' : 'text-blue-400'}`}>{countPorResponsavel.Matheus} ativa(s)</p>
+          <p className={`text-[11px] font-medium mb-0.5 ${filtroResponsavel === 'Matheus' ? 'text-blue-500' : 'text-gray-400'}`}>Matheus</p>
+          <p className={`text-xs font-bold num leading-tight ${filtroResponsavel === 'Matheus' ? 'text-blue-700' : 'text-gray-700'}`}>{formatBRL(totalMatheus)}</p>
+          <p className={`text-[9px] mt-0.5 ${filtroResponsavel === 'Matheus' ? 'text-blue-400' : 'text-gray-400'}`}>{countPorResponsavel.Matheus} ativa(s)</p>
         </button>
         <button
           onClick={() => setFiltroResponsavel(filtroResponsavel === 'Jeniffer' ? '' : 'Jeniffer')}
-          className={`rounded-2xl p-3 text-center transition-all duration-200 active:scale-[0.97] ${
+          className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
             filtroResponsavel === 'Jeniffer'
-              ? 'bg-pink-500 shadow-lg ring-2 ring-pink-300 ring-offset-1'
-              : 'bg-pink-50 border border-pink-100 shadow-sm'
+              ? 'bg-pink-50 border-pink-200'
+              : 'bg-white border-gray-100'
           }`}
         >
-          <p className={`text-[10px] font-medium mb-0.5 ${filtroResponsavel === 'Jeniffer' ? 'text-pink-200' : 'text-pink-500'}`}>Jeniffer</p>
-          <p className={`text-sm font-bold leading-tight ${filtroResponsavel === 'Jeniffer' ? 'text-white' : 'text-pink-700'}`}>R$ {totalJeniffer.toFixed(2)}</p>
-          <p className={`text-[10px] mt-0.5 ${filtroResponsavel === 'Jeniffer' ? 'text-pink-200' : 'text-pink-400'}`}>{countPorResponsavel.Jeniffer} ativa(s)</p>
+          <p className={`text-[11px] font-medium mb-0.5 ${filtroResponsavel === 'Jeniffer' ? 'text-pink-500' : 'text-gray-400'}`}>Jeniffer</p>
+          <p className={`text-xs font-bold num leading-tight ${filtroResponsavel === 'Jeniffer' ? 'text-pink-600' : 'text-gray-700'}`}>{formatBRL(totalJeniffer)}</p>
+          <p className={`text-[9px] mt-0.5 ${filtroResponsavel === 'Jeniffer' ? 'text-pink-400' : 'text-gray-400'}`}>{countPorResponsavel.Jeniffer} ativa(s)</p>
         </button>
       </div>
 
