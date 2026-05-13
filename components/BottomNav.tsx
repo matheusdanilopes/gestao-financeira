@@ -2,25 +2,66 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Receipt, TrendingUp, ShoppingCart, MessageCircle, SlidersHorizontal, PiggyBank, Sparkles, BarChart3 } from 'lucide-react'
+import {
+  LayoutDashboard, Receipt, TrendingUp, ShoppingCart, MessageCircle,
+  SlidersHorizontal, PiggyBank, Sparkles, BarChart3, Plus, MoreHorizontal, Wallet,
+} from 'lucide-react'
 import { memo, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabaseClient'
 import { AUTH_DISABLED } from '@/lib/authConfig'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
 
-const ROTAS_COM_MENU = ['/dashboard', '/contas', '/receitas', '/investimentos', '/assinaturas', '/compras', '/chat', '/configuracoes', '/importar']
-
-const navItems = [
-  { href: '/dashboard',     label: 'Dashboard',  icon: LayoutDashboard,  desktopOnly: false },
-  { href: '/contas',        label: 'Despesas',   icon: Receipt,           desktopOnly: false },
-  { href: '/receitas',      label: 'Receitas',   icon: TrendingUp,        desktopOnly: false },
-  { href: '/investimentos', label: 'Investir',   icon: PiggyBank,         desktopOnly: false },
-  { href: '/compras',       label: 'Compras',    icon: ShoppingCart,      desktopOnly: false },
-  { href: '/chat',          label: 'IA',         icon: MessageCircle,     desktopOnly: false },
-  { href: '/configuracoes', label: 'Config',     icon: SlidersHorizontal, desktopOnly: false },
-  { href: '/analytics',    label: 'Analytics',  icon: BarChart3,          desktopOnly: true  },
+const ROTAS_COM_MENU = [
+  '/dashboard', '/contas', '/receitas', '/investimentos', '/assinaturas',
+  '/compras', '/chat', '/configuracoes', '/importar', '/financas', '/extras',
 ]
+
+const ROTAS_FINANCAS = ['/financas', '/contas', '/receitas', '/investimentos']
+const ROTAS_EXTRAS   = ['/extras', '/chat', '/configuracoes']
+
+const desktopItems = [
+  { href: '/dashboard',     label: 'Dashboard',    icon: LayoutDashboard,   desktopOnly: false },
+  { href: '/contas',        label: 'Despesas',      icon: Receipt,           desktopOnly: false },
+  { href: '/receitas',      label: 'Receitas',      icon: TrendingUp,        desktopOnly: false },
+  { href: '/investimentos', label: 'Investir',      icon: PiggyBank,         desktopOnly: false },
+  { href: '/compras',       label: 'Compras',       icon: ShoppingCart,      desktopOnly: false },
+  { href: '/chat',          label: 'IA',            icon: MessageCircle,     desktopOnly: false },
+  { href: '/configuracoes', label: 'Config',        icon: SlidersHorizontal, desktopOnly: false },
+  { href: '/analytics',     label: 'Analytics',     icon: BarChart3,         desktopOnly: true  },
+]
+
+function MobileNavItem({
+  href, label, icon: Icon, isActive,
+}: {
+  href: string
+  label: string
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>
+  isActive: boolean
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex flex-col items-center justify-center gap-0.5 flex-1 py-2
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
+                 focus-visible:ring-offset-1 rounded-xl transition-all duration-200"
+      aria-current={isActive ? 'page' : undefined}
+    >
+      <span className={`flex items-center justify-center w-10 h-6 rounded-full transition-all duration-200
+                        ${isActive ? 'bg-primary-100' : ''}`}>
+        <Icon
+          className={`transition-all duration-200 w-[20px] h-[20px]
+                      ${isActive ? 'text-primary-600' : 'text-gray-400'}`}
+          strokeWidth={isActive ? 2.5 : 1.8}
+        />
+      </span>
+      <span className={`text-[10px] font-medium transition-colors duration-200 leading-none
+                        ${isActive ? 'text-primary-600' : 'text-gray-400'}`}>
+        {label}
+      </span>
+    </Link>
+  )
+}
 
 export default memo(function BottomNav() {
   const pathname = usePathname()
@@ -52,10 +93,13 @@ export default memo(function BottomNav() {
     }
   }, [])
 
-  const deveExibirMenu = pathname ? ROTAS_COM_MENU.includes(pathname) : false
+  const deveExibirMenu = pathname ? ROTAS_COM_MENU.some(r => pathname === r || pathname.startsWith(r + '/')) : false
 
   if (!deveExibirMenu) return null
   if (!AUTH_DISABLED && (isCheckingSession || !session)) return null
+
+  const isFinancasActive = ROTAS_FINANCAS.some(r => pathname === r || pathname.startsWith(r + '/'))
+  const isExtrasActive   = ROTAS_EXTRAS.some(r => pathname === r || pathname.startsWith(r + '/'))
 
   return (
     <div
@@ -69,10 +113,56 @@ export default memo(function BottomNav() {
           Categorizando com IA…
         </div>
       )}
+
       <nav aria-label="Navegação principal">
-        {/* Mobile: horizontal centered row. Desktop: items left-aligned in top bar */}
-        <div className="flex justify-around items-center h-16 px-0.5 lg:justify-start lg:h-14 lg:px-4 lg:gap-1">
-          {navItems.map(({ href, label, icon: Icon, desktopOnly }) => {
+        {/* ── Mobile: 5 itens com FAB central ───────────────────────────────── */}
+        <div className="flex lg:hidden justify-around items-center h-16 px-1">
+          <MobileNavItem
+            href="/dashboard"
+            label="Dashboard"
+            icon={LayoutDashboard}
+            isActive={pathname === '/dashboard'}
+          />
+
+          <MobileNavItem
+            href="/financas"
+            label="Finanças"
+            icon={Wallet}
+            isActive={isFinancasActive}
+          />
+
+          {/* FAB — Lançamento Rápido */}
+          <Link
+            href="/financas?tab=despesas"
+            aria-label="Lançamento rápido"
+            className="flex flex-col items-center justify-center flex-none -mt-5"
+          >
+            <span className="w-14 h-14 rounded-full bg-primary-600 flex items-center justify-center
+                             shadow-float transition-all duration-200 active:scale-95 active:bg-primary-700
+                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2">
+              <Plus className="w-6 h-6 text-white" strokeWidth={2.5} />
+            </span>
+            <span className="text-[10px] font-medium text-gray-400 mt-0.5 leading-none">Adicionar</span>
+          </Link>
+
+          <MobileNavItem
+            href="/compras"
+            label="Compras"
+            icon={ShoppingCart}
+            isActive={pathname === '/compras' || pathname.startsWith('/compras/')}
+          />
+
+          <MobileNavItem
+            href="/extras"
+            label="Extras"
+            icon={MoreHorizontal}
+            isActive={isExtrasActive}
+          />
+        </div>
+
+        {/* ── Desktop: barra superior com todos os itens ────────────────────── */}
+        <div className="hidden lg:flex justify-start items-center h-14 px-4 gap-1">
+          {desktopItems.map(({ href, label, icon: Icon, desktopOnly }) => {
             const isActive = pathname === href
             return (
               <Link
@@ -80,26 +170,18 @@ export default memo(function BottomNav() {
                 href={href}
                 className={`
                   ${desktopOnly ? 'hidden md:flex' : 'flex'}
-                  flex-col items-center justify-center gap-0.5 flex-1 py-2
-                  lg:flex-row lg:flex-none lg:gap-1.5 lg:px-3 lg:py-1.5 lg:rounded-xl lg:flex-initial
+                  flex-row items-center gap-1.5 px-3 py-1.5 rounded-xl flex-none
                   transition-all duration-200
-                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-1 rounded-xl
+                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-1
                 `}
                 aria-current={isActive ? 'page' : undefined}
               >
-                <span className={`flex items-center justify-center w-9 h-6 rounded-full transition-all duration-200
-                                  lg:w-auto lg:h-auto lg:rounded-none
-                                  ${isActive ? 'bg-primary-100 lg:bg-transparent' : ''}`}>
-                  <Icon
-                    className={`transition-all duration-200
-                      w-[18px] h-[18px] lg:w-4 lg:h-4
-                      ${isActive ? 'text-primary-600' : 'text-gray-400 lg:text-gray-500'}`}
-                    strokeWidth={isActive ? 2.5 : 1.8}
-                  />
-                </span>
-                <span className={`text-[11px] font-medium transition-colors duration-200 leading-none
-                                  lg:text-[13px] lg:leading-none
-                                  ${isActive ? 'text-primary-600' : 'text-gray-400 lg:text-gray-600'}`}>
+                <Icon
+                  className={`w-4 h-4 transition-all duration-200 ${isActive ? 'text-primary-600' : 'text-gray-500'}`}
+                  strokeWidth={isActive ? 2.5 : 1.8}
+                />
+                <span className={`text-[13px] font-medium leading-none transition-colors duration-200
+                                  ${isActive ? 'text-primary-600' : 'text-gray-600'}`}>
                   {label}
                 </span>
               </Link>
