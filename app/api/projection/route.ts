@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
 import { format, addMonths, startOfMonth, subMonths } from 'date-fns'
 
+// Janela máxima de busca de parcelamentos no planejamento.
+// 36 meses cobre qualquer plano de até 3 anos ainda ativo.
+const JANELA_PARCELAS_MESES = 36
+
 const PROJECAO_OFFSET_MESES = 1
 
 function extrairParcelamento(t: any): { atual: number; total: number } | null {
@@ -119,10 +123,12 @@ export async function POST(req: NextRequest) {
     )
     const transacoesUltimaFatura = transacoesResults.flatMap(r => r.data || [])
 
+    const janelaInicio = format(subMonths(new Date(), JANELA_PARCELAS_MESES), 'yyyy-MM-dd')
     const { data: todasDespesas } = await supabase
       .from('planejamento')
       .select('*')
       .not('item', 'ilike', '[RECEITA]%')
+      .gte('mes_referencia', janelaInicio)
 
     // Contratos: apenas parcelamentos da última fatura, deduplicados por série
     const contratos = buildContracts(transacoesUltimaFatura || [])

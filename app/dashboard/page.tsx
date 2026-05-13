@@ -42,6 +42,7 @@ const GraficoEvolucaoInvestimentos = dynamic(
 import DrawerDetalhes from '@/components/DrawerDetalhes'
 import { InfoPopover } from '@/components/InfoPopover'
 import { useGlobalSync } from '@/lib/useGlobalSync'
+import { formatBRL as fmt } from '@/lib/logger'
 
 const NUBANK_ITEMS = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto'])
 
@@ -94,9 +95,6 @@ interface DashboardData {
   dataFechamentoNubank: string | null
 }
 
-function fmt(v: number) {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
-}
 
 async function carregarDados(mes: Date): Promise<DashboardData> {
   const primeiroDia = startOfMonth(mes)

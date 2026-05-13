@@ -17,9 +17,11 @@ import { addMonths, format, startOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { MousePointerClick, AlertCircle } from 'lucide-react'
 import { formatBRL } from '@/lib/logger'
-import { useTheme } from '@/components/ThemeProvider'
+import { useIsDark } from '@/lib/useIsDark'
+import { makeCrosshairPlugin } from '@/lib/chartPlugins'
 
 const PROJECAO_OFFSET_MESES = 1
+const POLL_DELAY = 40_000 // ms — escalonado para não coincidir com os outros dois gráficos
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
 
@@ -64,50 +66,23 @@ const gradientPlugin = {
   },
 }
 
-function makeCrosshair(isDark: boolean) {
-  return {
-    id: 'crosshairProj',
-    afterDatasetsDraw(chart: any) {
-      const { ctx, tooltip } = chart
-      if (!tooltip?._active?.length) return
-      const x = tooltip._active[0].element.x
-      const { top, bottom } = chart.chartArea
-      ctx.save()
-      ctx.beginPath()
-      ctx.moveTo(x, top)
-      ctx.lineTo(x, bottom)
-      ctx.lineWidth = 1
-      ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.13)' : 'rgba(0,0,0,0.09)'
-      ctx.setLineDash([5, 4])
-      ctx.stroke()
-      ctx.restore()
-    },
-  }
-}
-
 export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
   const [dados, setDados] = useState<DadosProjecao | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
-  const { theme } = useTheme()
-  const [isDark, setIsDark] = useState(false)
+  const { isDark, isDarkRef } = useIsDark()
 
   // Refs so the onClick closure never goes stale
   const dadosRef = useRef<DadosProjecao | null>(null)
   const onClickRef = useRef(onPontoClicado)
   useEffect(() => { onClickRef.current = onPontoClicado }, [onPontoClicado])
 
-  useEffect(() => {
-    const sync = () =>
-      setIsDark(
-        theme === 'dark' ||
-        (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-      )
-    sync()
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
-  }, [theme])
+  // Plugin criado uma única vez — lê isDarkRef.current no draw, sem recriar objeto
+  // Preserva as opacidades originais deste gráfico (0.13 / 0.09)
+  const plugins = useMemo(
+    () => [gradientPlugin, makeCrosshairPlugin('crosshairProj', isDarkRef, 0.13, 0.09)],
+    [isDarkRef],
+  )
 
   const carregar = useCallback(async () => {
     setCarregando(true)
@@ -144,8 +119,14 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
 
   useEffect(() => {
     carregar()
-    const t = setInterval(carregar, 60_000)
-    return () => clearInterval(t)
+    let intervalId: ReturnType<typeof setInterval>
+    const timeoutId = setTimeout(() => {
+      intervalId = setInterval(carregar, 60_000)
+    }, POLL_DELAY)
+    return () => {
+      clearTimeout(timeoutId)
+      clearInterval(intervalId)
+    }
   }, [carregar])
 
   const chartData = useMemo(() => {
@@ -200,8 +181,6 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
       ],
     }
   }, [dados, isDark])
-
-  const plugins = useMemo(() => [gradientPlugin, makeCrosshair(isDark)], [isDark])
 
   const options = useMemo(() => {
     const txt  = isDark ? '#9ca3af' : '#6b7280'
