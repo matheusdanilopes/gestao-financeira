@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
-import { AlertTriangle, CreditCard, Wallet, BarChart3, PiggyBank, TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import { AlertTriangle, CreditCard, Wallet, BarChart3, PiggyBank, TrendingUp, TrendingDown, Minus, LineChart } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
 import MonthSelector from '@/components/MonthSelector'
@@ -15,6 +15,15 @@ const GraficoProjecao = dynamic(() => import('@/components/GraficoProjecao'), {
   loading: () => (
     <div className="h-72 flex items-center justify-center">
       <div className="w-8 h-8 border-2 border-gray-200 border-t-primary-500 rounded-full animate-spin" />
+    </div>
+  ),
+})
+
+const GraficoEvolucaoMensal = dynamic(() => import('@/components/GraficoEvolucaoMensal'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-64 flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-gray-200 border-t-emerald-500 rounded-full animate-spin" />
     </div>
   ),
 })
@@ -875,6 +884,21 @@ export default function Dashboard() {
               setDrawerAberto(true)
             }}
           />
+        </div>
+
+        {/* ── Evolução Financeira Mensal ── */}
+        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center">
+              <LineChart className="w-4 h-4 text-emerald-600" />
+            </div>
+            <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
+              Evolução Financeira
+              <InfoPopover texto="Visão mensal das receitas, despesas e investimentos dos últimos 6 meses. Receitas e despesas são baseadas no planejamento do mês; investimentos refletem aportes realizados." />
+            </h2>
+          </div>
+          <p className="text-xs text-gray-400 mb-4 ml-10">Últimos 6 meses · Passe o cursor para detalhes</p>
+          <GraficoEvolucaoMensal mesAtual={mesAtual} />
         </div>
 
       </div>{/* /px-4 */}
