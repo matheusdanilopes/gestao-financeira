@@ -6,7 +6,8 @@ import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths, addMonths, parseISO } from 'date-fns'
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { ptBR } from 'date-fns/locale'
-import { CheckCircle2, AlertCircle, Pencil, Trash2, Plus, CreditCard, Download, RotateCcw, WifiOff, Bell, Calendar } from 'lucide-react'
+import { CheckCircle2, AlertCircle, Plus, CreditCard, Download, RotateCcw, WifiOff, Bell, Calendar } from 'lucide-react'
+import { SwipeableItem } from '@/components/SwipeableItem'
 import { calcularStatusVencimento, verificarVencimentos, type StatusVencimento } from '@/lib/notificacoesVencimento'
 import { log, numericOnly, formatBRL } from '@/lib/logger'
 
@@ -590,97 +591,96 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
                     const tipoCartao = tipoCartaoPorItem(item.item)
                     const diff = item.pago && item.valor_real !== null ? Math.abs(item.valor_real - item.valor_previsto) : 0
                     return (
-                      <div
+                      <SwipeableItem
                         key={item.id}
-                        className={`px-4 py-3 transition-colors border-l-4 ${
-                          item.responsavel === 'Jeniffer'
-                            ? 'border-l-pink-400'
-                            : 'border-l-blue-400'
-                        } ${item.pago ? 'bg-gray-50' : 'bg-white'}`}
+                        onDelete={() => { setItemSelecionado(item); setModalAberto('excluir') }}
+                        disabled={!isOnline}
                       >
-                        <div className="flex items-center gap-3">
-                          {/* Status dot */}
-                          <div className={`w-2 h-2 rounded-full shrink-0 ${item.pago ? 'bg-green-500' : 'bg-gray-300'}`} />
+                        <div
+                          className={`px-4 py-3 transition-colors border-l-4 ${
+                            item.responsavel === 'Jeniffer'
+                              ? 'border-l-pink-400'
+                              : 'border-l-blue-400'
+                          } ${item.pago ? 'bg-gray-50' : 'bg-white'} ${isOnline ? 'cursor-pointer active:bg-gray-50 hover:bg-gray-50/50' : ''}`}
+                          onClick={() => { if (isOnline) abrirModalEditar(item) }}
+                          role={isOnline ? 'button' : undefined}
+                          tabIndex={isOnline ? 0 : undefined}
+                          onKeyDown={isOnline ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirModalEditar(item) } } : undefined}
+                          aria-label={isOnline ? `Editar ${removerPrefixoCartao(item.item)}` : undefined}
+                        >
+                          <div className="flex items-center gap-3">
+                            {/* Status dot */}
+                            <div className={`w-2 h-2 rounded-full shrink-0 ${item.pago ? 'bg-green-500' : 'bg-gray-300'}`} />
 
-                          {/* Info */}
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-medium truncate ${item.pago ? 'text-gray-500 line-through' : 'text-gray-800'}`}>
-                              {removerPrefixoCartao(item.item)}
-                            </p>
-                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                              <span className="text-[10px] text-gray-400">{item.responsavel}</span>
-                              {tipoCartao && (
-                                <span className="inline-flex items-center gap-0.5 text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">
-                                  <CreditCard className="w-2.5 h-2.5" /> {tipoCartao === 'cartao1' ? 'Cartão 1' : 'Cartão 2'}
-                                </span>
-                              )}
-                              {/* RN03: badge de status automático */}
-                              <StatusBadge status={calcularStatusVencimento(item.data_pagamento, item.data_vencimento)} />
-                              {/* Exibe data de vencimento quando pendente */}
-                              {item.data_vencimento && !item.data_pagamento && (
-                                <span className="inline-flex items-center gap-0.5 text-[10px] text-gray-400">
-                                  <Calendar className="w-2.5 h-2.5" />
-                                  {format(parseISO(item.data_vencimento), 'dd/MM')}
-                                </span>
+                            {/* Info */}
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm font-medium truncate ${item.pago ? 'text-gray-500 line-through' : 'text-gray-800'}`}>
+                                {removerPrefixoCartao(item.item)}
+                              </p>
+                              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                <span className="text-[10px] text-gray-400">{item.responsavel}</span>
+                                {tipoCartao && (
+                                  <span className="inline-flex items-center gap-0.5 text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">
+                                    <CreditCard className="w-2.5 h-2.5" /> {tipoCartao === 'cartao1' ? 'Cartão 1' : 'Cartão 2'}
+                                  </span>
+                                )}
+                                {/* RN03: badge de status automático */}
+                                <StatusBadge status={calcularStatusVencimento(item.data_pagamento, item.data_vencimento)} />
+                                {/* Exibe data de vencimento quando pendente */}
+                                {item.data_vencimento && !item.data_pagamento && (
+                                  <span className="inline-flex items-center gap-0.5 text-[10px] text-gray-400">
+                                    <Calendar className="w-2.5 h-2.5" />
+                                    {format(parseISO(item.data_vencimento), 'dd/MM')}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Valores */}
+                            <div className="text-right shrink-0 mr-1">
+                              <p className="text-sm font-semibold text-gray-800 num">
+                                {formatarMoeda(item.valor_previsto)}
+                              </p>
+                              {item.pago && (
+                                <p className={`text-xs font-medium num ${diff > 0.01 ? 'text-red-500' : 'text-emerald-600'}`}>
+                                  ✓ {formatarMoeda(item.valor_real ?? item.valor_previsto)}
+                                </p>
                               )}
                             </div>
-                          </div>
 
-                          {/* Valores */}
-                          <div className="text-right shrink-0 mr-1">
-                            <p className="text-sm font-semibold text-gray-800 num">
-                              {formatarMoeda(item.valor_previsto)}
-                            </p>
-                            {item.pago && (
-                              <p className={`text-xs font-medium num ${diff > 0.01 ? 'text-red-500' : 'text-emerald-600'}`}>
-                                ✓ {formatarMoeda(item.valor_real ?? item.valor_previsto)}
-                              </p>
+                            {/* Ação de pagamento */}
+                            {isOnline && (
+                              <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                                {!item.pago ? (
+                                  <button
+                                    onClick={() => abrirModalPagamento(item)}
+                                    className="p-1.5 rounded-xl text-green-600 hover:bg-green-100 active:bg-green-200 transition"
+                                    aria-label="Registrar pagamento"
+                                  >
+                                    <CheckCircle2 className="w-5 h-5" />
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => { setItemSelecionado(item); setModalAberto('desfazer') }}
+                                    className="p-1.5 rounded-lg text-amber-500 hover:bg-amber-50 transition"
+                                    title="Desfazer pagamento"
+                                  >
+                                    <RotateCcw className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
                             )}
                           </div>
 
-                          {/* Ações — ocultas quando offline */}
-                          {isOnline && (
-                            <div className="flex items-center gap-0.5 shrink-0">
-                              {!item.pago ? (
-                                <button
-                                  onClick={() => abrirModalPagamento(item)}
-                                  className="p-1.5 rounded-xl text-green-600 hover:bg-green-100 active:bg-green-200 transition"
-                                >
-                                  <CheckCircle2 className="w-5 h-5" />
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => { setItemSelecionado(item); setModalAberto('desfazer') }}
-                                  className="p-1.5 rounded-lg text-amber-500 hover:bg-amber-50 transition"
-                                  title="Desfazer pagamento"
-                                >
-                                  <RotateCcw className="w-4 h-4" />
-                                </button>
-                              )}
-                              <button
-                                onClick={() => abrirModalEditar(item)}
-                                className="p-1.5 rounded-xl text-primary-500 hover:bg-primary-50 active:bg-primary-100 transition"
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => { setItemSelecionado(item); setModalAberto('excluir') }}
-                                className="p-1.5 rounded-xl text-red-400 hover:bg-red-50 active:bg-red-100 transition"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                          {/* Alerta de diferença */}
+                          {diff > 0.01 && (
+                            <div className="mt-1.5 ml-5 flex items-center gap-1 text-xs text-red-500">
+                              <AlertCircle className="w-3 h-3" />
+                              Diferença de {formatarMoeda(diff)} em relação ao previsto
                             </div>
                           )}
                         </div>
-
-                        {/* Alerta de diferença */}
-                        {diff > 0.01 && (
-                          <div className="mt-1.5 ml-5 flex items-center gap-1 text-xs text-red-500">
-                            <AlertCircle className="w-3 h-3" />
-                            Diferença de {formatarMoeda(diff)} em relação ao previsto
-                          </div>
-                        )}
-                      </div>
+                      </SwipeableItem>
                     )
                   })}
                 </div>

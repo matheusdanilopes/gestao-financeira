@@ -7,10 +7,11 @@ import { format, startOfMonth, addMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import {
-  Repeat, Pencil, Trash2, Plus, X, WifiOff,
+  Repeat, Plus, X, WifiOff,
   CheckCircle2, AlertTriangle, XCircle, MinusCircle,
   CreditCard, Search, SlidersHorizontal,
 } from 'lucide-react'
+import { SwipeableItem } from '@/components/SwipeableItem'
 import { log, numericOnly, formatBRL } from '@/lib/logger'
 
 interface Assinatura {
@@ -459,64 +460,62 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
               {grupo.map(item => {
                 const status = statusTransacao(item)
                 return (
-                  <div
+                  <SwipeableItem
                     key={item.id}
-                    className={`px-4 py-3 flex items-center gap-3 ${!item.ativa ? 'opacity-50' : ''}`}
+                    onDelete={() => { setItemSelecionado(item); setModalAberto('excluir') }}
+                    disabled={!isOnline}
                   >
-                    <StatusBadge status={status} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <p className={`text-sm font-medium truncate ${
-                          item.ativa ? 'text-gray-800' : 'text-gray-400 line-through'
-                        }`}>
-                          {item.nome}
+                    <div
+                      className={`px-4 py-3 flex items-center gap-3 ${!item.ativa ? 'opacity-50' : ''} ${isOnline ? 'cursor-pointer active:bg-gray-50 hover:bg-gray-50/50' : ''}`}
+                      onClick={() => { if (isOnline) abrirEditar(item) }}
+                      role={isOnline ? 'button' : undefined}
+                      tabIndex={isOnline ? 0 : undefined}
+                      onKeyDown={isOnline ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirEditar(item) } } : undefined}
+                      aria-label={isOnline ? `Editar ${item.nome}` : undefined}
+                    >
+                      <StatusBadge status={status} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className={`text-sm font-medium truncate ${
+                            item.ativa ? 'text-gray-800' : 'text-gray-400 line-through'
+                          }`}>
+                            {item.nome}
+                          </p>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400 shrink-0">
+                            {item.categoria}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-400">
+                          {item.responsavel}
+                          {item.dia_cobranca ? ` · dia ${item.dia_cobranca}` : ''}
+                          {item.observacao ? ` · ${item.observacao}` : ''}
                         </p>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400 shrink-0">
-                          {item.categoria}
-                        </span>
                       </div>
-                      <p className="text-xs text-gray-400">
-                        {item.responsavel}
-                        {item.dia_cobranca ? ` · dia ${item.dia_cobranca}` : ''}
-                        {item.observacao ? ` · ${item.observacao}` : ''}
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className={`text-sm font-bold ${item.ativa ? 'text-indigo-700' : 'text-gray-400'}`}>
-                        R$ {item.valor.toFixed(2)}
-                      </p>
-                    </div>
-                    {isOnline && (
-                      <div className="flex items-center gap-0.5 shrink-0">
-                        <button
-                          onClick={() => toggleAtiva(item)}
-                          title={item.ativa ? 'Desativar' : 'Ativar'}
-                          className={`p-1.5 rounded-lg transition ${
-                            item.ativa
-                              ? 'text-gray-400 hover:bg-gray-50'
-                              : 'text-green-600 hover:bg-green-50'
-                          }`}
-                        >
-                          {item.ativa
-                            ? <MinusCircle className="w-4 h-4" />
-                            : <CheckCircle2 className="w-4 h-4" />
-                          }
-                        </button>
-                        <button
-                          onClick={() => abrirEditar(item)}
-                          className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 transition"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => { setItemSelecionado(item); setModalAberto('excluir') }}
-                          className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                      <div className="text-right shrink-0">
+                        <p className={`text-sm font-bold ${item.ativa ? 'text-indigo-700' : 'text-gray-400'}`}>
+                          R$ {item.valor.toFixed(2)}
+                        </p>
                       </div>
-                    )}
-                  </div>
+                      {isOnline && (
+                        <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => toggleAtiva(item)}
+                            title={item.ativa ? 'Desativar' : 'Ativar'}
+                            className={`p-1.5 rounded-lg transition ${
+                              item.ativa
+                                ? 'text-gray-400 hover:bg-gray-50'
+                                : 'text-green-600 hover:bg-green-50'
+                            }`}
+                          >
+                            {item.ativa
+                              ? <MinusCircle className="w-4 h-4" />
+                              : <CheckCircle2 className="w-4 h-4" />
+                            }
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </SwipeableItem>
                 )
               })}
             </div>

@@ -6,7 +6,8 @@ import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths } from 'date-fns'
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { ptBR } from 'date-fns/locale'
-import { PiggyBank, Pencil, Trash2, Plus, Download, CirclePlus, History, X, WifiOff } from 'lucide-react'
+import { PiggyBank, Plus, Download, CirclePlus, History, Trash2, X, WifiOff } from 'lucide-react'
+import { SwipeableItem } from '@/components/SwipeableItem'
 import { log, numericOnly, formatBRL } from '@/lib/logger'
 
 interface Investimento {
@@ -356,55 +357,66 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
             const concluido = aportado >= meta && meta > 0
 
             return (
-              <div key={item.id} className={`px-4 py-3 ${concluido ? 'bg-green-50/40' : ''}`}>
-                {/* Linha principal */}
-                <div className="flex items-center gap-3 mb-2">
-                  <div className={`w-2 h-2 rounded-full shrink-0 ${concluido ? 'bg-green-500' : 'bg-violet-400'}`} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{item.descricao}</p>
-                    <p className="text-xs text-gray-400">{item.percentual.toFixed(2)}% do saldo</p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className={`text-sm font-bold ${concluido ? 'text-green-600' : 'text-violet-700'}`}>
-                      {formatBRL(aportado)}
-                    </p>
-                    <p className="text-xs font-medium text-gray-500">
-                      Meta {formatBRL(meta)}
-                    </p>
-                    {metaPrevista !== meta && metaPrevista > 0 && (
-                      <p className="text-xs text-violet-400">
-                        Prev. {formatBRL(metaPrevista)}
+              <SwipeableItem
+                key={item.id}
+                onDelete={() => { setItemSelecionado(item); setModalAberto('excluir') }}
+                disabled={!isOnline}
+              >
+                <div
+                  className={`px-4 py-3 ${concluido ? 'bg-green-50/40' : ''} ${isOnline ? 'cursor-pointer active:bg-gray-50 hover:bg-gray-50/50' : ''}`}
+                  onClick={() => { if (isOnline) abrirEditar(item) }}
+                  role={isOnline ? 'button' : undefined}
+                  tabIndex={isOnline ? 0 : undefined}
+                  onKeyDown={isOnline ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirEditar(item) } } : undefined}
+                  aria-label={isOnline ? `Editar ${item.descricao}` : undefined}
+                >
+                  {/* Linha principal */}
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${concluido ? 'bg-green-500' : 'bg-violet-400'}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{item.descricao}</p>
+                      <p className="text-xs text-gray-400">{item.percentual.toFixed(2)}% do saldo</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className={`text-sm font-bold ${concluido ? 'text-green-600' : 'text-violet-700'}`}>
+                        {formatBRL(aportado)}
                       </p>
-                    )}
-                    {saldoAtualItem !== null && (
-                      <p className="text-xs text-gray-400">Saldo atual {formatBRL(saldoAtualItem)}</p>
-                    )}
+                      <p className="text-xs font-medium text-gray-500">
+                        Meta {formatBRL(meta)}
+                      </p>
+                      {metaPrevista !== meta && metaPrevista > 0 && (
+                        <p className="text-xs text-violet-400">
+                          Prev. {formatBRL(metaPrevista)}
+                        </p>
+                      )}
+                      {saldoAtualItem !== null && (
+                        <p className="text-xs text-gray-400">Saldo atual {formatBRL(saldoAtualItem)}</p>
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                {/* Barra de progresso do item */}
-                <div className="mb-2.5 pl-5">
-                  <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                    <div
-                      className={`h-1.5 rounded-full transition-all duration-500 ${concluido ? 'bg-green-500' : 'bg-violet-400'}`}
-                      style={{ width: `${progresso}%` }}
-                    />
+                  {/* Barra de progresso do item */}
+                  <div className="mb-2.5 pl-5">
+                    <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className={`h-1.5 rounded-full transition-all duration-500 ${concluido ? 'bg-green-500' : 'bg-violet-400'}`}
+                        style={{ width: `${progresso}%` }}
+                      />
+                    </div>
                   </div>
-                </div>
 
-                {/* Ações — ocultas quando offline */}
-                <div className="flex items-center gap-1 pl-5">
-                  {(aportes[item.id] || []).length > 0 && (
-                    <button
-                      onClick={() => setModalHistorico(item)}
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 bg-gray-50 hover:bg-gray-100 transition"
-                    >
-                      <History className="w-3.5 h-3.5" />
-                      {(aportes[item.id] || []).length} aporte(s)
-                    </button>
-                  )}
-                  {isOnline && (
-                    <>
+                  {/* Ações rápidas */}
+                  <div className="flex items-center gap-1 pl-5" onClick={(e) => e.stopPropagation()}>
+                    {(aportes[item.id] || []).length > 0 && (
+                      <button
+                        onClick={() => setModalHistorico(item)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 bg-gray-50 hover:bg-gray-100 transition"
+                      >
+                        <History className="w-3.5 h-3.5" />
+                        {(aportes[item.id] || []).length} aporte(s)
+                      </button>
+                    )}
+                    {isOnline && (
                       <button
                         onClick={() => {
                           setModalAporte(item)
@@ -420,23 +432,10 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
                         <CirclePlus className="w-3.5 h-3.5" />
                         Aportar
                       </button>
-                      <div className="flex-1" />
-                      <button
-                        onClick={() => abrirEditar(item)}
-                        className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 transition"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => { setItemSelecionado(item); setModalAberto('excluir') }}
-                        className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
+              </SwipeableItem>
             )
           })
         )}

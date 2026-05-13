@@ -5,7 +5,8 @@ import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths } from 'date-fns'
 import { useGlobalSync } from '@/lib/useGlobalSync'
-import { Pencil, Trash2, Plus, TrendingUp, CirclePlus, History, X, Download, WifiOff } from 'lucide-react'
+import { Plus, TrendingUp, CirclePlus, History, Trash2, X, Download, WifiOff } from 'lucide-react'
+import { SwipeableItem } from '@/components/SwipeableItem'
 import { log, numericOnly, formatBRL } from '@/lib/logger'
 
 const RECEITA_PREFIXO = '[RECEITA] '
@@ -337,46 +338,57 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
             const showHistory = hasRecs || (item.pago && !hasRecs)
 
             return (
-              <div key={item.id} className={`px-4 py-3 transition-colors ${concluido ? 'bg-green-50/60' : 'bg-white'}`}>
-                <div className="flex items-center gap-3">
-                  {/* Status dot */}
-                  <div className={`w-2 h-2 rounded-full shrink-0 mt-0.5 ${
-                    concluido ? 'bg-green-500' : parcial ? 'bg-yellow-400' : 'bg-gray-300'
-                  }`} />
+              <SwipeableItem
+                key={item.id}
+                onDelete={() => { setItemSelecionado(item); setModalAberto('excluir') }}
+                disabled={!isOnline}
+              >
+                <div
+                  className={`px-4 py-3 transition-colors ${concluido ? 'bg-green-50/60' : 'bg-white'} ${isOnline ? 'cursor-pointer active:bg-gray-50 hover:bg-gray-50/50' : ''}`}
+                  onClick={() => { if (isOnline) abrirEditar(item) }}
+                  role={isOnline ? 'button' : undefined}
+                  tabIndex={isOnline ? 0 : undefined}
+                  onKeyDown={isOnline ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirEditar(item) } } : undefined}
+                  aria-label={isOnline ? `Editar ${paraNomeExibicao(item.item)}` : undefined}
+                >
+                  <div className="flex items-center gap-3">
+                    {/* Status dot */}
+                    <div className={`w-2 h-2 rounded-full shrink-0 mt-0.5 ${
+                      concluido ? 'bg-green-500' : parcial ? 'bg-yellow-400' : 'bg-gray-300'
+                    }`} />
 
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">
-                      {paraNomeExibicao(item.item)}
-                    </p>
-                    <p className="text-xs text-gray-400">{item.responsavel}</p>
-                  </div>
-
-                  {/* Valores */}
-                  <div className="text-right shrink-0 mr-1">
-                    <p className="text-sm font-semibold text-gray-800">
-                      {formatBRL(item.valor_previsto)}
-                    </p>
-                    {recebido > 0 && (
-                      <p className={`text-xs font-medium ${concluido ? 'text-green-600' : 'text-yellow-600'}`}>
-                        ✓ {formatBRL(recebido)}
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">
+                        {paraNomeExibicao(item.item)}
                       </p>
-                    )}
-                  </div>
+                      <p className="text-xs text-gray-400">{item.responsavel}</p>
+                    </div>
 
-                  {/* Ações — ocultas quando offline */}
-                  <div className="flex items-center gap-0.5 shrink-0">
-                    {showHistory && (
-                      <button
-                        onClick={() => { setModalHistorico(item); setRecebimentoPendingDelete(null) }}
-                        className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition"
-                        title="Histórico"
-                      >
-                        <History className="w-4 h-4" />
-                      </button>
-                    )}
-                    {isOnline && (
-                      <>
+                    {/* Valores */}
+                    <div className="text-right shrink-0 mr-1">
+                      <p className="text-sm font-semibold text-gray-800">
+                        {formatBRL(item.valor_previsto)}
+                      </p>
+                      {recebido > 0 && (
+                        <p className={`text-xs font-medium ${concluido ? 'text-green-600' : 'text-yellow-600'}`}>
+                          ✓ {formatBRL(recebido)}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Ações rápidas */}
+                    <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                      {showHistory && (
+                        <button
+                          onClick={() => { setModalHistorico(item); setRecebimentoPendingDelete(null) }}
+                          className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition"
+                          title="Histórico"
+                        >
+                          <History className="w-4 h-4" />
+                        </button>
+                      )}
+                      {isOnline && (
                         <button
                           onClick={() => {
                             setModalRecebimento(item)
@@ -387,35 +399,23 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
                         >
                           <CirclePlus className="w-5 h-5" />
                         </button>
-                        <button
-                          onClick={() => abrirEditar(item)}
-                          className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 transition"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => { setItemSelecionado(item); setModalAberto('excluir') }}
-                          className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </>
-                    )}
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                {/* Barra de progresso por item */}
-                <div className="mt-2 ml-4">
-                  <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                    <div
-                      className={`h-1.5 rounded-full transition-all duration-500 ${
-                        concluido ? 'bg-green-500' : parcial ? 'bg-yellow-400' : 'bg-gray-200'
-                      }`}
-                      style={{ width: `${progresso}%` }}
-                    />
+                  {/* Barra de progresso por item */}
+                  <div className="mt-2 ml-4">
+                    <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className={`h-1.5 rounded-full transition-all duration-500 ${
+                          concluido ? 'bg-green-500' : parcial ? 'bg-yellow-400' : 'bg-gray-200'
+                        }`}
+                        style={{ width: `${progresso}%` }}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
+              </SwipeableItem>
             )
           })
         )}
