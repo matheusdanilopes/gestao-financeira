@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { Suspense, useCallback, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths } from 'date-fns'
 import InvestimentosMensal from '@/components/InvestimentosMensal'
@@ -65,8 +66,6 @@ async function calcularSaldo(mes: Date): Promise<SaldoData> {
     .filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]'))
     .reduce((acc, p) => acc + (p.valor_previsto || 0), 0)
 
-  // Payment-aware effective amounts per card.
-  // Priority: payment amount (invoice paid) > actual transactions > planned budget.
   const nubankMatheusRow = planejamento?.find(p => p.item === 'NuBank Matheus')
   const nubankJenifferRow = planejamento?.find(p => p.item === 'NuBank Jeniffer')
   const nubankJenifferConjRow = planejamento?.find(p => p.item === 'NuBank Jeniffer Conjunto')
@@ -105,8 +104,10 @@ async function calcularSaldo(mes: Date): Promise<SaldoData> {
   }
 }
 
-export default function InvestimentosPage() {
+function InvestimentosContent() {
   const { mesAtual, setMesAtual } = useMes()
+  const searchParams = useSearchParams()
+  const autoOpen = searchParams.get('add') === 'true'
   const [saldo, setSaldo] = useState(0)
   const [saldoPrevisto, setSaldoPrevisto] = useState(0)
 
@@ -143,9 +144,17 @@ export default function InvestimentosPage() {
             <div className="h-2 bg-gray-100 rounded-full" />
           </div>
         ) : (
-          <InvestimentosMensal mesSelecionado={mesAtual} saldo={saldo} saldoPrevisto={saldoPrevisto} />
+          <InvestimentosMensal mesSelecionado={mesAtual} saldo={saldo} saldoPrevisto={saldoPrevisto} autoOpen={autoOpen} />
         )}
       </div>
     </div>
+  )
+}
+
+export default function InvestimentosPage() {
+  return (
+    <Suspense>
+      <InvestimentosContent />
+    </Suspense>
   )
 }

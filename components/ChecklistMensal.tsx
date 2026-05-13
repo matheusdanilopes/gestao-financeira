@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useCallback } from 'react'
+import { useMemo, useState, useCallback, useEffect } from 'react'
 import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths, addMonths, parseISO } from 'date-fns'
@@ -64,6 +64,7 @@ function StatusBadge({ status }: { status: StatusVencimento }) {
 
 interface Props {
   mesSelecionado: Date
+  autoOpen?: boolean
 }
 
 function formatarMoeda(v: number): string {
@@ -86,10 +87,14 @@ function aplicarPrefixoCartao(item: string, tipo: '' | 'cartao1' | 'cartao2') {
   return item
 }
 
-export default function ChecklistMensal({ mesSelecionado }: Props) {
+export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
   const [itens, setItens] = useState<ItemPlanejamento[]>([])
   const [filtroStatus, setFiltroStatus] = useState<'' | 'pago' | 'pendente'>('')
   const [modalAberto, setModalAberto] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (autoOpen) setModalAberto('adicionar')
+  }, [autoOpen])
   const [itemSelecionado, setItemSelecionado] = useState<ItemPlanejamento | null>(null)
   const [valorReal, setValorReal] = useState('')
   const [formData, setFormData] = useState({

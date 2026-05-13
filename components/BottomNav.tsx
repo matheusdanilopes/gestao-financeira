@@ -65,6 +65,37 @@ function FinancasMenuPopover({ onClose, router }: { onClose: () => void; router:
   )
 }
 
+function FabMenuPopover({ onClose, router }: { onClose: () => void; router: ReturnType<typeof useRouter> }) {
+  const opcoes = [
+    { href: '/contas?add=true',        label: 'Despesa',       Icon: Receipt,    cor: 'text-red-500',   bg: 'bg-red-50'   },
+    { href: '/receitas?add=true',      label: 'Receita',       Icon: TrendingUp, cor: 'text-green-600', bg: 'bg-green-50' },
+    { href: '/investimentos?add=true', label: 'Investimento',  Icon: PiggyBank,  cor: 'text-blue-600',  bg: 'bg-blue-50'  },
+  ]
+
+  return (
+    <div className="fixed bottom-[72px] left-1/2 -translate-x-1/2 z-[51] modal-center">
+      <div className="bg-white rounded-3xl shadow-float border border-gray-100 overflow-hidden w-56">
+        {opcoes.map(({ href, label, Icon, cor, bg }, i) => (
+          <button
+            key={href}
+            type="button"
+            onClick={() => { router.push(href); onClose() }}
+            className={`w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50
+                        active:bg-gray-100 transition-colors duration-150
+                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
+                        ${i < opcoes.length - 1 ? 'border-b border-gray-100' : ''}`}
+          >
+            <div className={`w-8 h-8 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
+              <Icon className={`w-4 h-4 ${cor}`} strokeWidth={1.8} />
+            </div>
+            <span className="text-sm font-semibold text-gray-700">{label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function ExtrasMenuPopover({ onClose, router }: { onClose: () => void; router: ReturnType<typeof useRouter> }) {
   const opcoes = [
     { href: '/chat',          label: 'IA Assistant',  Icon: MessageCircle,     cor: 'text-primary-600', bg: 'bg-primary-50' },
@@ -172,7 +203,7 @@ export default memo(function BottomNav() {
   const router   = useRouter()
   const [session, setSession] = useState<Session | null>(null)
   const [isCheckingSession, setIsCheckingSession] = useState(true)
-  const [openMenu, setOpenMenu] = useState<'financas' | 'extras' | null>(null)
+  const [openMenu, setOpenMenu] = useState<'financas' | 'extras' | 'fab' | null>(null)
   const { categorizando } = useCategorizacao()
 
   useEffect(() => {
@@ -242,18 +273,21 @@ export default memo(function BottomNav() {
           />
 
           {/* FAB — Lançamento Rápido */}
-          <Link
-            href="/financas"
+          <button
+            type="button"
             aria-label="Lançamento rápido"
+            aria-expanded={openMenu === 'fab'}
+            onClick={() => setOpenMenu(p => p === 'fab' ? null : 'fab')}
             className="flex flex-col items-center justify-center flex-none -mt-5"
           >
-            <span className="w-14 h-14 rounded-full bg-primary-600 flex items-center justify-center
-                             shadow-float transition-all duration-200 active:scale-95 active:bg-primary-700
-                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2">
-              <Plus className="w-6 h-6 text-white" strokeWidth={2.5} />
+            <span className={`w-14 h-14 rounded-full flex items-center justify-center shadow-float
+                              transition-all duration-200 active:scale-95
+                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2
+                              ${openMenu === 'fab' ? 'bg-primary-700' : 'bg-primary-600'}`}>
+              <Plus className={`w-6 h-6 text-white transition-transform duration-200 ${openMenu === 'fab' ? 'rotate-45' : ''}`} strokeWidth={2.5} />
             </span>
             <span className="text-[10px] font-medium text-gray-400 mt-0.5 leading-none">Adicionar</span>
-          </Link>
+          </button>
 
           <MobileNavItem
             href="/compras"
@@ -309,6 +343,9 @@ export default memo(function BottomNav() {
               onClick={() => setOpenMenu(null)}
               aria-hidden="true"
             />
+            {openMenu === 'fab' && (
+              <FabMenuPopover onClose={() => setOpenMenu(null)} router={router} />
+            )}
             {openMenu === 'financas' && (
               <FinancasMenuPopover onClose={() => setOpenMenu(null)} router={router} />
             )}
