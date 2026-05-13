@@ -865,21 +865,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ── Evolução Financeira Mensal ── */}
-        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center">
-              <LineChart className="w-4 h-4 text-emerald-600" />
-            </div>
-            <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
-              Evolução Financeira
-              <InfoPopover texto="Visão mensal das receitas, despesas e investimentos dos últimos 12 meses. Receitas e despesas são baseadas no planejamento do mês; investimentos refletem aportes realizados." />
-            </h2>
-          </div>
-          <p className="text-xs text-gray-400 mb-4 ml-10">Últimos 12 meses · Passe o cursor para detalhes</p>
-          <GraficoEvolucaoMensal mesAtual={mesAtual} />
-        </div>
-
         {/* ── Projeção de Parcelamentos ── */}
         <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
           <div className="flex items-center gap-2 mb-1">
@@ -899,6 +884,21 @@ export default function Dashboard() {
               setDrawerAberto(true)
             }}
           />
+        </div>
+
+        {/* ── Evolução Financeira Mensal ── */}
+        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center">
+              <LineChart className="w-4 h-4 text-emerald-600" />
+            </div>
+            <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
+              Evolução Financeira
+              <InfoPopover texto="Visão mensal das receitas, despesas e investimentos dos últimos 6 meses. Receitas e despesas são baseadas no planejamento do mês; investimentos refletem aportes realizados." />
+            </h2>
+          </div>
+          <p className="text-xs text-gray-400 mb-4 ml-10">Últimos 6 meses · Passe o cursor para detalhes</p>
+          <GraficoEvolucaoMensal mesAtual={mesAtual} />
         </div>
 
       </div>{/* /px-4 */}

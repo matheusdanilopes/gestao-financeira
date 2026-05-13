@@ -22,7 +22,7 @@ import { useTheme } from '@/components/ThemeProvider'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
 
-const MESES_HISTORICO = 12
+const MESES_HISTORICO = 6
 
 interface EvolucaoMensal {
   labels: string[]
