@@ -57,7 +57,6 @@ const trendOptions: ChartOptions<'line'> = {
   interaction: { mode: 'index', intersect: false },
   plugins: {
     legend: { display: false },
-    datalabels: { display: false },
     tooltip: {
       ...baseTooltip,
       callbacks: {
@@ -92,7 +91,6 @@ const donutOptions: ChartOptions<'doughnut'> = {
   cutout: '68%',
   plugins: {
     legend: { display: false },
-    datalabels: { display: false },
     tooltip: {
       ...baseTooltip,
       displayColors: true,
@@ -111,7 +109,6 @@ const barBaseOptions: ChartOptions<'bar'> = {
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
-    datalabels: { display: false },
     legend: { position: 'top', labels: { font: { size: 11 }, usePointStyle: true, boxHeight: 8, padding: 12 } },
     tooltip: {
       ...baseTooltip,
