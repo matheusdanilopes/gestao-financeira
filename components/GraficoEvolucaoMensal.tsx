@@ -212,7 +212,7 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
         legend: {
           position: 'bottom' as const,
           labels: {
-            font: { size: 12, weight: '500' as const },
+            font: { size: 12 },
             boxWidth: 28,
             boxHeight: 3,
             padding: 24,
