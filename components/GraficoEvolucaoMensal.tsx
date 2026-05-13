@@ -258,29 +258,11 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
     }
   }, [isDark])
 
-  // Last-month summary values (rightmost = mesAtual)
-  const resumo = useMemo(() => {
-    if (!dados) return null
-    const n = dados.receitas.length - 1
-    return {
-      receitas:      dados.receitas[n]      ?? 0,
-      despesas:      dados.despesas[n]      ?? 0,
-      investimentos: dados.investimentos[n] ?? 0,
-    }
-  }, [dados])
-
   /* ── loading ── */
   if (carregando) {
     return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-3 gap-3">
-          {[0, 1, 2].map(i => (
-            <div key={i} className="animate-pulse h-[58px] bg-gray-100 rounded-2xl" />
-          ))}
-        </div>
-        <div className="animate-pulse h-64 bg-gray-50 rounded-2xl flex items-center justify-center">
-          <div className="w-8 h-8 border-2 border-gray-200 border-t-emerald-500 rounded-full animate-spin" />
-        </div>
+      <div className="h-64 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-gray-200 border-t-emerald-500 rounded-full animate-spin" />
       </div>
     )
   }
@@ -304,42 +286,8 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
   if (!chartData) return null
 
   return (
-    <div className="space-y-4">
-
-      {/* ── Summary chips ── */}
-      {resumo && (
-        <div className="grid grid-cols-3 gap-3">
-          <div className="flex flex-col gap-1 bg-emerald-50 border border-emerald-100 rounded-2xl px-3 py-2.5">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-              <span className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wide">Receitas</span>
-            </div>
-            <span className="text-sm font-bold text-emerald-700 num">{formatBRL(resumo.receitas)}</span>
-          </div>
-
-          <div className="flex flex-col gap-1 bg-red-50 border border-red-100 rounded-2xl px-3 py-2.5">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
-              <span className="text-[11px] font-semibold text-red-500 uppercase tracking-wide">Despesas</span>
-            </div>
-            <span className="text-sm font-bold text-red-600 num">{formatBRL(resumo.despesas)}</span>
-          </div>
-
-          <div className="flex flex-col gap-1 bg-violet-50 border border-violet-100 rounded-2xl px-3 py-2.5">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-violet-500 shrink-0" />
-              <span className="text-[11px] font-semibold text-violet-600 uppercase tracking-wide">Invest.</span>
-            </div>
-            <span className="text-sm font-bold text-violet-700 num">{formatBRL(resumo.investimentos)}</span>
-          </div>
-        </div>
-      )}
-
-      {/* ── Chart ── */}
-      <div className="h-56 md:h-64 lg:h-72">
-        <Line data={chartData} options={options} plugins={plugins} />
-      </div>
-
+    <div className="h-56 md:h-64 lg:h-72">
+      <Line data={chartData} options={options} plugins={plugins} />
     </div>
   )
 }
