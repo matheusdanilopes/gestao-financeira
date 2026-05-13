@@ -69,7 +69,7 @@ function getCartaoColors(val: string, labels: Record<string, string>) {
   if (label.includes('jeniffer') || label.includes('jennifer'))
                                   return { border: 'border-l-violet-500', chip: 'bg-violet-500 text-white' }
   if (label.includes('nubank') || val === 'nubank')
-                                  return { border: 'border-l-pink-400',   chip: 'bg-pink-400 text-white' }
+                                  return { border: 'border-l-blue-500',   chip: 'bg-blue-500 text-white' }
   return { border: 'border-l-gray-200', chip: 'bg-gray-600 text-white' }
 }
 
