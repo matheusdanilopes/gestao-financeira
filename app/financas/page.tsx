@@ -1,8 +1,7 @@
 'use client'
 
 import { Suspense, useCallback, useEffect, useState } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
-import { ChevronLeft } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
 import MonthSelector from '@/components/MonthSelector'
 import ChecklistMensal from '@/components/ChecklistMensal'
 import ReceitasMensal from '@/components/ReceitasMensal'
@@ -13,12 +12,6 @@ import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths } from 'date-fns'
 
 type Tab = 'despesas' | 'receitas' | 'investimentos'
-
-const TABS: { key: Tab; label: string }[] = [
-  { key: 'despesas',      label: 'Despesas' },
-  { key: 'receitas',      label: 'Receitas' },
-  { key: 'investimentos', label: 'Investimentos' },
-]
 
 interface SaldoData { saldo: number; saldoPrevisto: number }
 
@@ -114,7 +107,6 @@ async function calcularSaldo(mes: Date): Promise<SaldoData> {
 
 function FinancasContent() {
   const searchParams = useSearchParams()
-  const router = useRouter()
   const [abaAtual, setAbaAtual] = useState<Tab>('despesas')
   const { mesAtual, setMesAtual } = useMes()
 
@@ -152,47 +144,10 @@ function FinancasContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-6 page-enter">
-      <div className="sticky top-0 sticky-header pt-3 pb-3 px-4 md:px-6 z-[10]">
-        <div className="flex items-center gap-1 mb-3">
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="p-1.5 -ml-1.5 rounded-xl text-gray-400 hover:text-gray-600
-                       hover:bg-gray-100 transition-colors active:scale-95
-                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-            aria-label="Voltar"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <h1 className="text-xl font-bold text-gray-900">{titulos[abaAtual]}</h1>
-        </div>
+    <div className="min-h-screen bg-gray-50 page-bottom-safe page-enter">
+      <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 px-4 md:px-6 lg:px-8 z-[10]">
+        <h1 className="text-xl font-bold text-gray-900 mb-3">{titulos[abaAtual]}</h1>
         <MonthSelector value={mesAtual} onChange={setMesAtual} />
-
-        {/* Segmented Control */}
-        <div
-          role="tablist"
-          aria-label="Seção financeira"
-          className="flex gap-1 mt-3 p-1 bg-gray-100 rounded-2xl"
-        >
-          {TABS.map(({ key, label }) => (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              aria-selected={abaAtual === key}
-              onClick={() => setAbaAtual(key)}
-              className={`flex-1 py-1.5 rounded-xl text-sm font-semibold transition-all duration-200
-                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
-                          ${abaAtual === key
-                            ? 'bg-white text-primary-700 shadow-sm'
-                            : 'text-gray-500 hover:text-gray-700'
-                          }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
       </div>
 
       <div className="page-content">
