@@ -162,6 +162,19 @@ export default memo(function NotificacoesBell() {
     return () => { void supabase.removeChannel(channel) }
   }, [usuarioEmail])
 
+  // Escuta mensagens do service worker (enviadas pelo push handler) para atualizar
+  // o sino mesmo quando o Supabase Realtime ainda não reconectou.
+  useEffect(() => {
+    if (!usuarioEmail || !('serviceWorker' in navigator)) return
+    function handleSWMessage(event: MessageEvent) {
+      if (event.data?.type === 'PUSH_RECEIVED') {
+        void carregarNotificacoes(usuarioEmail!)
+      }
+    }
+    navigator.serviceWorker.addEventListener('message', handleSWMessage)
+    return () => navigator.serviceWorker.removeEventListener('message', handleSWMessage)
+  }, [usuarioEmail])
+
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {

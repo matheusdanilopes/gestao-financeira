@@ -88,7 +88,11 @@ self.addEventListener('fetch', (event) => {
 // ── Push Notifications ─────────────────────────────────────────────────────
 
 self.addEventListener('push', function (event) {
-  const data = event.data ? event.data.json() : {}
+  let data = {}
+  try {
+    data = event.data ? event.data.json() : {}
+  } catch (_) {}
+
   const title = data.title || 'Gestão Financeira'
   const options = {
     body: data.body || '',
@@ -96,22 +100,38 @@ self.addEventListener('push', function (event) {
     badge: '/icon-192.png',
     data: { url: data.url || '/dashboard' },
     vibrate: [200, 100, 200],
+    requireInteraction: false,
   }
-  event.waitUntil(self.registration.showNotification(title, options))
+
+  event.waitUntil(
+    Promise.all([
+      // Exibe a notificação do sistema — funciona mesmo com o app fechado
+      self.registration.showNotification(title, options).catch(() => {}),
+      // Avisa clientes abertos para recarregar notificações sem depender só do Realtime
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+        .then(function (clientList) {
+          clientList.forEach(function (client) {
+            client.postMessage({ type: 'PUSH_RECEIVED' })
+          })
+        }),
+    ])
+  )
 })
 
 self.addEventListener('notificationclick', function (event) {
   event.notification.close()
+  const targetUrl = event.notification.data?.url || '/dashboard'
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
       for (const client of clientList) {
-        if (client.url && 'focus' in client) {
-          client.navigate(event.notification.data.url || '/dashboard')
-          return client.focus()
+        if ('focus' in client) {
+          return client.navigate(targetUrl).then(function (c) {
+            return c ? c.focus() : client.focus()
+          })
         }
       }
       if (clients.openWindow) {
-        return clients.openWindow(event.notification.data.url || '/dashboard')
+        return clients.openWindow(targetUrl)
       }
     })
   )
