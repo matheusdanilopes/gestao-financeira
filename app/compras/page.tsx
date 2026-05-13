@@ -454,7 +454,7 @@ export default function ComprasPage() {
                     : val === 'nubank' ? 'bg-blue-500 text-white'
                     : val === 'cartao1' ? 'bg-pink-400 text-white'
                     : 'bg-violet-500 text-white'
-                  : 'bg-white border border-gray-200 text-gray-400'
+                  : 'bg-white border border-gray-200 text-gray-400 dark:text-gray-300'
               }`}
             >
               {label}
@@ -466,7 +466,7 @@ export default function ComprasPage() {
           className={`shrink-0 flex items-center gap-1 py-1.5 px-2.5 rounded-lg border text-[11px] font-medium transition-colors ${
             filtrosAtivos
               ? 'bg-primary-50 border-primary-200 text-primary-600'
-              : 'bg-white border-gray-200 text-gray-400'
+              : 'bg-white border-gray-200 text-gray-400 dark:text-gray-300'
           }`}
         >
           <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -532,7 +532,7 @@ export default function ComprasPage() {
               : 'bg-white border-gray-100'
           }`}
         >
-          <p className={`text-[10px] font-medium mb-0.5 ${filtroResponsavel === '' ? 'text-primary-500' : 'text-gray-400'}`}>Total</p>
+          <p className={`text-[11px] font-medium mb-0.5 ${filtroResponsavel === '' ? 'text-primary-500' : 'text-gray-400'}`}>Total</p>
           <p className={`text-xs font-bold num leading-tight ${filtroResponsavel === '' ? 'text-primary-700' : 'text-gray-700'}`}>{formatBRL(total)}</p>
           <p className={`text-[9px] mt-0.5 ${filtroResponsavel === '' ? 'text-primary-400' : 'text-gray-400'}`}>{comprasSemFiltroResponsavel.length} itens</p>
         </button>
@@ -544,7 +544,7 @@ export default function ComprasPage() {
               : 'bg-white border-gray-100'
           }`}
         >
-          <p className={`text-[10px] font-medium mb-0.5 ${filtroResponsavel === 'Matheus' ? 'text-blue-500' : 'text-gray-400'}`}>Matheus</p>
+          <p className={`text-[11px] font-medium mb-0.5 ${filtroResponsavel === 'Matheus' ? 'text-blue-500' : 'text-gray-400'}`}>Matheus</p>
           <p className={`text-xs font-bold num leading-tight ${filtroResponsavel === 'Matheus' ? 'text-blue-700' : 'text-gray-700'}`}>{formatBRL(totalMatheus)}</p>
           <p className={`text-[9px] mt-0.5 ${filtroResponsavel === 'Matheus' ? 'text-blue-400' : 'text-gray-400'}`}>{comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Matheus').length}x</p>
         </button>
@@ -556,7 +556,7 @@ export default function ComprasPage() {
               : 'bg-white border-gray-100'
           }`}
         >
-          <p className={`text-[10px] font-medium mb-0.5 ${filtroResponsavel === 'Jeniffer' ? 'text-pink-500' : 'text-gray-400'}`}>Jeniffer</p>
+          <p className={`text-[11px] font-medium mb-0.5 ${filtroResponsavel === 'Jeniffer' ? 'text-pink-500' : 'text-gray-400'}`}>Jeniffer</p>
           <p className={`text-xs font-bold num leading-tight ${filtroResponsavel === 'Jeniffer' ? 'text-pink-600' : 'text-gray-700'}`}>{formatBRL(totalJeniffer)}</p>
           <p className={`text-[9px] mt-0.5 ${filtroResponsavel === 'Jeniffer' ? 'text-pink-400' : 'text-gray-400'}`}>{comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Jeniffer').length}x</p>
         </button>
@@ -643,7 +643,7 @@ export default function ComprasPage() {
                               {c.descricao}
                             </p>
                             {metaParts.length > 0 && (
-                              <p className="text-xs text-gray-400 mt-0.5 leading-tight truncate">
+                              <p className="text-xs text-gray-400 dark:text-gray-300 mt-0.5 leading-tight truncate">
                                 {metaParts.join(' · ')}
                               </p>
                             )}
