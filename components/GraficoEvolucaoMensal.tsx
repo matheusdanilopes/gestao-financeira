@@ -116,7 +116,7 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
       // Today's month reference — used to split real vs. forecast
       const hojeRef = format(startOfMonth(new Date()), 'yyyy-MM-dd')
 
-      const [{ data: plan }, { data: aportes }] = await Promise.all([
+      const [{ data: plan }, { data: aportes }, { data: invPlano }] = await Promise.all([
         supabase
           .from('planejamento')
           .select('item, valor_previsto, valor_real, pago, mes_referencia')
@@ -126,6 +126,10 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
           .select('valor, data_aporte')
           .gte('data_aporte', mesesRef[0])
           .lte('data_aporte', fimPeriodo),
+        supabase
+          .from('investimentos')
+          .select('percentual, mes_referencia')
+          .in('mes_referencia', mesesRef),
       ])
 
       const rec = new Map<string, number>()
@@ -149,11 +153,27 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
           des.set(mes, (des.get(mes) || 0) + valor)
       }
 
-      // Investimentos: actual deposits for all months (aportes are always real amounts)
+      // Sum planned percentual per month from investimentos table
+      const pctPorMes = new Map<string, number>()
+      for (const iv of (invPlano || [])) {
+        const mes: string = iv.mes_referencia
+        pctPorMes.set(mes, (pctPorMes.get(mes) || 0) + iv.percentual)
+      }
+
+      // Investimentos: use actual aportes when available; otherwise compute the
+      // planned meta (surplus × percentual / 100) so months with a goal never show 0.
       const inv = new Map<string, number>()
       for (const a of (aportes || [])) {
         const mes = format(startOfMonth(new Date(a.data_aporte + 'T12:00:00')), 'yyyy-MM-dd')
         inv.set(mes, (inv.get(mes) || 0) + a.valor)
+      }
+
+      for (const mes of mesesRef) {
+        if (inv.get(mes)) continue          // actual aporte already recorded — keep it
+        const pct = pctPorMes.get(mes)
+        if (!pct) continue                  // no investment plan for this month
+        const saldo = (rec.get(mes) || 0) - (des.get(mes) || 0)
+        if (saldo > 0) inv.set(mes, saldo * pct / 100)
       }
 
       setDados({
