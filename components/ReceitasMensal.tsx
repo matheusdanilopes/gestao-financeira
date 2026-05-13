@@ -5,7 +5,7 @@ import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths } from 'date-fns'
 import { useGlobalSync } from '@/lib/useGlobalSync'
-import { Plus, TrendingUp, CirclePlus, History, X, Download, WifiOff } from 'lucide-react'
+import { Plus, TrendingUp, CirclePlus, History, Trash2, X, Download, WifiOff } from 'lucide-react'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { log, numericOnly, formatBRL } from '@/lib/logger'
 

@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths } from 'date-fns'
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { ptBR } from 'date-fns/locale'
-import { PiggyBank, Plus, Download, CirclePlus, History, X, WifiOff } from 'lucide-react'
+import { PiggyBank, Plus, Download, CirclePlus, History, Trash2, X, WifiOff } from 'lucide-react'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { log, numericOnly, formatBRL } from '@/lib/logger'
 
