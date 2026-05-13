@@ -133,7 +133,7 @@ export default memo(function BottomNav() {
 
           {/* FAB — Lançamento Rápido */}
           <Link
-            href="/financas?tab=despesas"
+            href="/financas"
             aria-label="Lançamento rápido"
             className="flex flex-col items-center justify-center flex-none -mt-5"
           >

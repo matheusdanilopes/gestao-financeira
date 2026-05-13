@@ -1,7 +1,6 @@
 'use client'
 
-import { Suspense, useCallback, useState } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useCallback, useState } from 'react'
 import MonthSelector from '@/components/MonthSelector'
 import ChecklistMensal from '@/components/ChecklistMensal'
 import ReceitasMensal from '@/components/ReceitasMensal'
@@ -111,15 +110,9 @@ async function calcularSaldo(mes: Date): Promise<SaldoData> {
   }
 }
 
-function FinancasContent() {
-  const searchParams = useSearchParams()
-  const router = useRouter()
+export default function FinancasPage() {
+  const [abaAtual, setAbaAtual] = useState<Tab>('despesas')
   const { mesAtual, setMesAtual } = useMes()
-
-  const tabParam = searchParams.get('tab') as Tab | null
-  const abaAtual: Tab = tabParam && ['despesas', 'receitas', 'investimentos'].includes(tabParam)
-    ? tabParam
-    : 'despesas'
 
   const [saldo, setSaldo] = useState(0)
   const [saldoPrevisto, setSaldoPrevisto] = useState(0)
@@ -138,12 +131,6 @@ function FinancasContent() {
 
   const carregandoInvest = status === 'loading'
 
-  function setTab(tab: Tab) {
-    const params = new URLSearchParams(searchParams.toString())
-    params.set('tab', tab)
-    router.replace(`/financas?${params.toString()}`)
-  }
-
   const titulos: Record<Tab, string> = {
     despesas:      'Despesas',
     receitas:      'Receitas',
@@ -160,19 +147,20 @@ function FinancasContent() {
         <div
           role="tablist"
           aria-label="Seção financeira"
-          className="flex gap-1 mt-3 p-1 bg-gray-100 rounded-2xl dark:bg-gray-800"
+          className="flex gap-1 mt-3 p-1 bg-gray-100 rounded-2xl"
         >
           {TABS.map(({ key, label }) => (
             <button
               key={key}
+              type="button"
               role="tab"
               aria-selected={abaAtual === key}
-              onClick={() => setTab(key)}
+              onClick={() => setAbaAtual(key)}
               className={`flex-1 py-1.5 rounded-xl text-sm font-semibold transition-all duration-200
                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
                           ${abaAtual === key
-                            ? 'bg-white text-primary-700 shadow-sm dark:bg-gray-700 dark:text-primary-300'
-                            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                            ? 'bg-white text-primary-700 shadow-sm'
+                            : 'text-gray-500 hover:text-gray-700'
                           }`}
             >
               {label}
@@ -204,13 +192,5 @@ function FinancasContent() {
         )}
       </div>
     </div>
-  )
-}
-
-export default function FinancasPage() {
-  return (
-    <Suspense>
-      <FinancasContent />
-    </Suspense>
   )
 }
