@@ -351,7 +351,6 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual }: Props) {
                 : `  ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y)}`,
           },
         },
-        datalabels: { display: false },
       },
       scales: {
         y: {

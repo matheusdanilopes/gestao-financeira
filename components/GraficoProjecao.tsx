@@ -241,7 +241,6 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
             label: (ctx: any) => `  ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y)}`,
           },
         },
-        datalabels: { display: false },
       },
       scales: {
         y: {

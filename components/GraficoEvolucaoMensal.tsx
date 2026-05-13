@@ -244,7 +244,6 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
             label: (ctx: any) => `  ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y)}`,
           },
         },
-        datalabels: { display: false },
       },
       scales: {
         y: {
