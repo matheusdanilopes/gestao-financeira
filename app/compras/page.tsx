@@ -62,14 +62,17 @@ const CARTAO_LABEL: Record<string, string> = {
   cartao2: 'Cartão 2',
 }
 
+function getCartaoColors(val: string, labels: Record<string, string>) {
+  const label = (labels[val] || val).toLowerCase()
+  if (label.includes('picpay')) return { border: 'border-l-green-500', chip: 'bg-green-500 text-white' }
+  if (label.includes('nubank') || label.includes('jeniffer') || label.includes('jennifer') || val === 'nubank')
+    return { border: 'border-l-pink-400', chip: 'bg-pink-400 text-white' }
+  return { border: 'border-l-gray-200', chip: 'bg-gray-600 text-white' }
+}
+
 function getCartaoBorderColor(cartao: string | undefined, labels: Record<string, string>): string {
   if (!cartao) return 'border-l-gray-200'
-  const label = (labels[cartao] || cartao).toLowerCase()
-  if (label.includes('picpay')) return 'border-l-green-500'
-  if (label.includes('conjunto')) return 'border-l-pink-400'
-  if (label.includes('jeniffer') || label.includes('jennifer')) return 'border-l-violet-500'
-  if (cartao === 'nubank' || label.includes('nubank')) return 'border-l-blue-500'
-  return 'border-l-gray-200'
+  return getCartaoColors(cartao, labels).border
 }
 
 const SWIPE_REVEAL_WIDTH = 72
@@ -450,10 +453,7 @@ export default function ComprasPage() {
               onClick={() => setFiltroCartao(val as '' | 'nubank' | 'cartao1' | 'cartao2')}
               className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all active:scale-95 truncate ${
                 filtroCartao === val
-                  ? val === '' ? 'bg-gray-700 text-white'
-                    : val === 'nubank' ? 'bg-blue-500 text-white'
-                    : val === 'cartao1' ? 'bg-pink-400 text-white'
-                    : 'bg-violet-500 text-white'
+                  ? val === '' ? 'bg-gray-700 text-white' : getCartaoColors(val, cartaoLabels).chip
                   : 'bg-white border border-gray-200 text-gray-400 dark:text-gray-300'
               }`}
             >
