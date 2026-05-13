@@ -99,14 +99,18 @@ function CartaoMenuPopover({ onClose, router }: { onClose: () => void; router: R
 
 function FabMenuPopover({ onClose, router }: { onClose: () => void; router: ReturnType<typeof useRouter> }) {
   const opcoes = [
-    { href: '/contas?add=true',        label: 'Despesa',       Icon: Receipt,    cor: 'text-red-500',   bg: 'bg-red-50'   },
-    { href: '/receitas?add=true',      label: 'Receita',       Icon: TrendingUp, cor: 'text-green-600', bg: 'bg-green-50' },
-    { href: '/investimentos?add=true', label: 'Investimento',  Icon: PiggyBank,  cor: 'text-blue-600',  bg: 'bg-blue-50'  },
+    { href: '/contas?add=true',        label: 'Nova Despesa',       Icon: Receipt,    cor: 'text-red-500',   bg: 'bg-red-50'   },
+    { href: '/receitas?add=true',      label: 'Nova Receita',       Icon: TrendingUp, cor: 'text-green-600', bg: 'bg-green-50' },
+    { href: '/investimentos?add=true', label: 'Novo Investimento',  Icon: PiggyBank,  cor: 'text-blue-600',  bg: 'bg-blue-50'  },
   ]
 
   return (
     <div className="fixed bottom-[72px] left-1/2 -translate-x-1/2 z-[51] modal-center">
       <div className="bg-white rounded-3xl shadow-float border border-gray-100 overflow-hidden w-56">
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-primary-600 rounded-t-3xl">
+          <Plus className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
+          <span className="text-xs font-semibold text-white uppercase tracking-wide">Novo lançamento</span>
+        </div>
         {opcoes.map(({ href, label, Icon, cor, bg }, i) => (
           <button
             key={href}
