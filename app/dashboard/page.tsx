@@ -27,6 +27,18 @@ const GraficoEvolucaoMensal = dynamic(() => import('@/components/GraficoEvolucao
     </div>
   ),
 })
+
+const GraficoEvolucaoInvestimentos = dynamic(
+  () => import('@/components/GraficoEvolucaoInvestimentos'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-56 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-gray-200 border-t-violet-500 rounded-full animate-spin" />
+      </div>
+    ),
+  }
+)
 import DrawerDetalhes from '@/components/DrawerDetalhes'
 import { InfoPopover } from '@/components/InfoPopover'
 import { useGlobalSync } from '@/lib/useGlobalSync'
@@ -864,6 +876,21 @@ export default function Dashboard() {
             )}
           </div>
         )}
+
+        {/* ── Evolução de Investimentos ── */}
+        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center">
+              <PiggyBank className="w-4 h-4 text-violet-600" />
+            </div>
+            <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
+              Evolução de Investimentos
+              <InfoPopover texto="Evolução dos aportes mês a mês nos últimos 6 meses. A linha sólida mostra o valor efetivamente investido; a linha tracejada indica a meta calculada (percentual do saldo). Meses futuros exibem apenas a projeção da meta." />
+            </h2>
+          </div>
+          <p className="text-xs text-gray-400 mb-4 ml-10">Últimos 6 meses · Realizado vs. Meta</p>
+          <GraficoEvolucaoInvestimentos mesAtual={mesAtual} />
+        </div>
 
         {/* ── Projeção de Parcelamentos ── */}
         <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
