@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef, type ReactNode } from 'react'
 import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 import { useGlobalSync } from '@/lib/useGlobalSync'
-import { Pencil, Trash2, X, ShoppingBag, Lock, WifiOff, SlidersHorizontal, ChevronDown } from 'lucide-react'
+import { Trash2, X, ShoppingBag, Lock, WifiOff, SlidersHorizontal, ChevronDown } from 'lucide-react'
 import MonthSelector from '@/components/MonthSelector'
 import EmptyState from '@/components/EmptyState'
 import { addMonths, subMonths, format, startOfMonth, isToday, isYesterday, parseISO } from 'date-fns'
@@ -13,22 +13,6 @@ import { log, numericOnly, formatBRL } from '@/lib/logger'
 import { useMes } from '@/components/MesProvider'
 import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
 import { calcularProjetoFatura } from '@/lib/fatura'
-
-const CATEGORIA_CORES: Record<string, string> = {
-  Alimentação: 'bg-orange-100 text-orange-700',
-  Mercado:     'bg-green-100 text-green-700',
-  Transporte:  'bg-sky-100 text-sky-700',
-  Saúde:       'bg-red-100 text-red-700',
-  Lazer:       'bg-purple-100 text-purple-700',
-  Educação:    'bg-indigo-100 text-indigo-700',
-  Moradia:     'bg-yellow-100 text-yellow-800',
-  Vestuário:   'bg-pink-100 text-pink-700',
-  Tecnologia:  'bg-cyan-100 text-cyan-700',
-  Serviços:    'bg-teal-100 text-teal-700',
-  Viagem:      'bg-blue-100 text-blue-700',
-  Pet:         'bg-lime-100 text-lime-700',
-  Outros:      'bg-gray-100 text-gray-600',
-}
 
 type Compra = {
   hash_linha: string
@@ -78,38 +62,129 @@ const CARTAO_LABEL: Record<string, string> = {
   cartao2: 'Cartão 2',
 }
 
-const CARTAO_BADGE_COLOR: Record<string, string> = {
-  nubank: 'bg-purple-100 text-purple-700',
-  cartao1: 'bg-blue-100 text-blue-700',
-  cartao2: 'bg-pink-100 text-pink-700',
+function getCartaoColors(val: string, labels: Record<string, string>) {
+  const label = (labels[val] || val).toLowerCase()
+  if (label.includes('picpay'))  return { border: 'border-l-green-500',  chip: 'bg-green-500 text-white' }
+  if (label.includes('conjunto')) return { border: 'border-l-pink-400',   chip: 'bg-pink-400 text-white' }
+  if (label.includes('jeniffer') || label.includes('jennifer'))
+                                  return { border: 'border-l-violet-500', chip: 'bg-violet-500 text-white' }
+  if (label.includes('nubank') || val === 'nubank')
+                                  return { border: 'border-l-blue-500',   chip: 'bg-blue-500 text-white' }
+  return { border: 'border-l-gray-200', chip: 'bg-gray-600 text-white' }
 }
 
-function Avatar({ responsavel }: { responsavel: string }) {
-  if (responsavel === 'Matheus')
-    return <span className="flex-shrink-0 w-7 h-7 rounded-full bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center">M</span>
-  if (responsavel === 'Jeniffer')
-    return <span className="flex-shrink-0 w-7 h-7 rounded-full bg-pink-100 text-pink-700 text-xs font-bold flex items-center justify-center">J</span>
-  return <span className="flex-shrink-0 w-7 h-7 rounded-full bg-gray-100 text-gray-500 text-xs font-bold flex items-center justify-center">?</span>
+function getCartaoBorderColor(cartao: string | undefined, labels: Record<string, string>): string {
+  if (!cartao) return 'border-l-gray-200'
+  return getCartaoColors(cartao, labels).border
 }
 
-function CategoriaBadge({ categoria }: { categoria: string | null }) {
-  if (!categoria) return null
-  const cor = CATEGORIA_CORES[categoria] ?? 'bg-gray-100 text-gray-600'
+const SWIPE_REVEAL_WIDTH = 72
+const SWIPE_DELETE_THRESHOLD = -60
+
+function SwipeableItem({
+  children,
+  onDelete,
+  disabled = false,
+}: {
+  children: ReactNode
+  onDelete: () => void
+  disabled?: boolean
+}) {
+  const [translateX, setTranslateX] = useState(0)
+  const [animating, setAnimating] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const onDeleteRef = useRef(onDelete)
+
+  useEffect(() => { onDeleteRef.current = onDelete })
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el || disabled) return
+
+    let startX = 0, startY = 0
+    let active = false
+    let direction: 'h' | 'v' | null = null
+    let currentDx = 0
+
+    function onTouchStart(e: TouchEvent) {
+      startX = e.touches[0].clientX
+      startY = e.touches[0].clientY
+      active = true
+      direction = null
+      currentDx = 0
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      if (!active) return
+      const dx = e.touches[0].clientX - startX
+      const dy = e.touches[0].clientY - startY
+      if (direction === null) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return
+        direction = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v'
+      }
+      if (direction !== 'h' || dx >= 0) return
+      e.preventDefault()
+      currentDx = Math.max(dx, -SWIPE_REVEAL_WIDTH * 1.5)
+      setTranslateX(currentDx)
+      setAnimating(false)
+    }
+
+    function onTouchEnd() {
+      if (!active) return
+      const wasHorizontal = direction === 'h'
+      active = false
+      direction = null
+      if (!wasHorizontal) return
+      setAnimating(true)
+      if (currentDx <= SWIPE_DELETE_THRESHOLD) {
+        onDeleteRef.current()
+      }
+      setTranslateX(0)
+      currentDx = 0
+    }
+
+    function onTouchCancel() {
+      active = false
+      direction = null
+      currentDx = 0
+      setAnimating(true)
+      setTranslateX(0)
+    }
+
+    el.addEventListener('touchstart', onTouchStart, { passive: true })
+    el.addEventListener('touchmove', onTouchMove, { passive: false })
+    el.addEventListener('touchend', onTouchEnd, { passive: true })
+    el.addEventListener('touchcancel', onTouchCancel, { passive: true })
+
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchmove', onTouchMove)
+      el.removeEventListener('touchend', onTouchEnd)
+      el.removeEventListener('touchcancel', onTouchCancel)
+    }
+  }, [disabled])
+
+  const revealProgress = Math.min(Math.abs(translateX) / SWIPE_REVEAL_WIDTH, 1)
+
   return (
-    <span className={`inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-full ${cor}`}>
-      {categoria}
-    </span>
-  )
-}
-
-function CartaoBadge({ cartao, labels }: { cartao?: string; labels: Record<string, string> }) {
-  if (!cartao) return null
-  const label = labels[cartao] ?? cartao
-  const cor = CARTAO_BADGE_COLOR[cartao] ?? 'bg-gray-100 text-gray-600'
-  return (
-    <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${cor}`}>
-      {label}
-    </span>
+    <div ref={containerRef} className="relative overflow-hidden select-none">
+      <div
+        aria-hidden="true"
+        className="absolute inset-y-0 right-0 flex items-center justify-center bg-red-500"
+        style={{ width: SWIPE_REVEAL_WIDTH, opacity: revealProgress }}
+      >
+        <Trash2 className="w-5 h-5 text-white" />
+      </div>
+      <div
+        style={{
+          transform: `translateX(${translateX}px)`,
+          transition: animating ? 'transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none',
+          willChange: translateX !== 0 ? 'transform' : 'auto',
+        }}
+      >
+        {children}
+      </div>
+    </div>
   )
 }
 
@@ -367,136 +442,126 @@ export default function ComprasPage() {
         />
       </div>
 
-      {/* Filtro de cartão */}
-      <div className="flex gap-1.5 mb-3">
-        {([
-          ['', 'Todos'],
-          ['nubank', cartaoLabels.nubank],
-          ['cartao1', cartaoLabels.cartao1],
-          ['cartao2', cartaoLabels.cartao2],
-        ] as [string, string][]).map(([val, label]) => (
-          <button
-            key={val}
-            onClick={() => setFiltroCartao(val as '' | 'nubank' | 'cartao1' | 'cartao2')}
-            className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all active:scale-95 ${
-              filtroCartao === val
-                ? val === '' ? 'bg-gray-800 text-white shadow-sm'
-                  : val === 'nubank' ? 'bg-purple-600 text-white shadow-sm'
-                  : val === 'cartao1' ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-pink-500 text-white shadow-sm'
-                : 'bg-white border border-gray-200 text-gray-500 shadow-card'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* Filtros secundários — colapsáveis */}
-      <div className="mb-3">
+      {/* Filtros: chips de cartão + toggle de filtros secundários na mesma linha */}
+      <div className="flex items-center gap-2 mb-2">
+        <div className="flex gap-1 flex-1">
+          {([
+            ['', 'Todos'],
+            ['nubank', cartaoLabels.nubank],
+            ['cartao1', cartaoLabels.cartao1],
+            ['cartao2', cartaoLabels.cartao2],
+          ] as [string, string][]).map(([val, label]) => (
+            <button
+              key={val}
+              onClick={() => setFiltroCartao(val as '' | 'nubank' | 'cartao1' | 'cartao2')}
+              className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all active:scale-95 truncate ${
+                filtroCartao === val
+                  ? val === '' ? 'bg-gray-700 text-white' : getCartaoColors(val, cartaoLabels).chip
+                  : 'bg-white border border-gray-200 text-gray-400 dark:text-gray-300'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <button
           onClick={() => setFiltrosExpandidos(v => !v)}
-          className={`w-full flex items-center justify-between bg-white border rounded-2xl px-3 py-2.5 text-sm shadow-card transition-colors ${
-            filtrosAtivos ? 'border-primary-200 text-primary-600' : 'border-gray-100 text-gray-500'
+          className={`shrink-0 flex items-center gap-1 py-1.5 px-2.5 rounded-lg border text-[11px] font-medium transition-colors ${
+            filtrosAtivos
+              ? 'bg-primary-50 border-primary-200 text-primary-600'
+              : 'bg-white border-gray-200 text-gray-400 dark:text-gray-300'
           }`}
         >
-          <span className="flex items-center gap-2 font-medium">
-            <SlidersHorizontal className="w-4 h-4" />
-            Filtros
-            {filtrosAtivos && (
-              <span className="bg-primary-100 text-primary-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                ativos
-              </span>
-            )}
-          </span>
-          <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${filtrosExpandidos ? 'rotate-180' : ''}`} />
+          <SlidersHorizontal className="w-3.5 h-3.5" />
+          {filtrosAtivos ? 'Ativos' : 'Filtros'}
+          <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${filtrosExpandidos ? 'rotate-180' : ''}`} />
         </button>
-
-        {filtrosExpandidos && (
-          <div className="bg-white rounded-b-2xl border border-t-0 border-gray-100 shadow-card px-3 pb-3 pt-2 grid grid-cols-2 gap-2 mt-0">
-            <input
-              type="text"
-              className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm col-span-2 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
-              placeholder="Buscar por descrição…"
-              value={filtroDescricaoInput}
-              onChange={(e) => handleFiltroDescricaoChange(e.target.value)}
-            />
-            <select
-              className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm col-span-2 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
-              value={filtroCategoria}
-              onChange={(e) => setFiltroCategoria(e.target.value)}
-            >
-              <option value="">Categoria (todas)</option>
-              {categorias.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
-            <input
-              type="text"
-              inputMode="decimal"
-              className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
-              placeholder="Valor mínimo"
-              value={filtroValorMin}
-              onChange={(e) => setFiltroValorMin(numericOnly(e.target.value))}
-            />
-            <input
-              type="number"
-              min="1"
-              max="31"
-              className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
-              placeholder="Dia"
-              value={filtroDia}
-              onChange={(e) => setFiltroDia(e.target.value)}
-            />
-            {filtrosAtivos && (
-              <button
-                onClick={limparFiltros}
-                className="col-span-2 text-xs text-red-500 hover:text-red-700 py-1 font-semibold transition-colors"
-              >
-                Limpar filtros
-              </button>
-            )}
-          </div>
-        )}
       </div>
 
-      {/* Resumo / Filtro de responsável */}
-      <div className="grid grid-cols-3 gap-2 mb-4">
+      {filtrosExpandidos && (
+        <div className="bg-white rounded-xl border border-gray-100 px-3 pb-3 pt-2.5 grid grid-cols-2 gap-2 mb-2">
+          <input
+            type="text"
+            className="bg-gray-50 border border-transparent rounded-lg p-2 text-sm col-span-2 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+            placeholder="Buscar por descrição…"
+            value={filtroDescricaoInput}
+            onChange={(e) => handleFiltroDescricaoChange(e.target.value)}
+          />
+          <select
+            className="bg-gray-50 border border-transparent rounded-lg p-2 text-sm col-span-2 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+            value={filtroCategoria}
+            onChange={(e) => setFiltroCategoria(e.target.value)}
+          >
+            <option value="">Categoria (todas)</option>
+            {categorias.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
+          <input
+            type="text"
+            inputMode="decimal"
+            className="bg-gray-50 border border-transparent rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+            placeholder="Valor mínimo"
+            value={filtroValorMin}
+            onChange={(e) => setFiltroValorMin(numericOnly(e.target.value))}
+          />
+          <input
+            type="number"
+            min="1"
+            max="31"
+            className="bg-gray-50 border border-transparent rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+            placeholder="Dia"
+            value={filtroDia}
+            onChange={(e) => setFiltroDia(e.target.value)}
+          />
+          {filtrosAtivos && (
+            <button
+              onClick={limparFiltros}
+              className="col-span-2 text-xs text-red-500 hover:text-red-700 py-1 font-semibold transition-colors"
+            >
+              Limpar filtros
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Resumo / Filtro de responsável — compacto */}
+      <div className="grid grid-cols-3 gap-1.5 mb-3">
         <button
           onClick={() => setFiltroResponsavel('')}
-          className={`rounded-2xl p-3 text-center transition-all duration-200 active:scale-[0.97] ${
+          className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
             filtroResponsavel === ''
-              ? 'bg-gradient-to-br from-primary-500 to-primary-700 shadow-md ring-2 ring-primary-300 ring-offset-1'
-              : 'bg-white border border-primary-100 shadow-card'
+              ? 'bg-primary-50 border-primary-200'
+              : 'bg-white border-gray-100'
           }`}
         >
-          <p className={`text-[11px] mb-0.5 font-medium ${filtroResponsavel === '' ? 'text-primary-100' : 'text-primary-500'}`}>Total</p>
-          <p className={`text-sm font-bold num ${filtroResponsavel === '' ? 'text-white' : 'text-primary-700'}`}>{formatBRL(total)}</p>
-          <p className={`text-[10px] ${filtroResponsavel === '' ? 'text-primary-200' : 'text-primary-400'}`}>{comprasSemFiltroResponsavel.length} itens</p>
+          <p className={`text-[11px] font-medium mb-0.5 ${filtroResponsavel === '' ? 'text-primary-500' : 'text-gray-400'}`}>Total</p>
+          <p className={`text-xs font-bold num leading-tight ${filtroResponsavel === '' ? 'text-primary-700' : 'text-gray-700'}`}>{formatBRL(total)}</p>
+          <p className={`text-[9px] mt-0.5 ${filtroResponsavel === '' ? 'text-primary-400' : 'text-gray-400'}`}>{comprasSemFiltroResponsavel.length} itens</p>
         </button>
         <button
           onClick={() => setFiltroResponsavel(filtroResponsavel === 'Matheus' ? '' : 'Matheus')}
-          className={`rounded-2xl p-3 text-center transition-all duration-200 active:scale-[0.97] ${
+          className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
             filtroResponsavel === 'Matheus'
-              ? 'bg-blue-600 shadow-md ring-2 ring-blue-300 ring-offset-1'
-              : 'bg-white border border-blue-100 shadow-card'
+              ? 'bg-blue-50 border-blue-200'
+              : 'bg-white border-gray-100'
           }`}
         >
-          <p className={`text-[11px] mb-0.5 font-medium ${filtroResponsavel === 'Matheus' ? 'text-blue-100' : 'text-blue-400'}`}>Matheus</p>
-          <p className={`text-sm font-bold num ${filtroResponsavel === 'Matheus' ? 'text-white' : 'text-blue-700'}`}>{formatBRL(totalMatheus)}</p>
-          <p className={`text-[10px] ${filtroResponsavel === 'Matheus' ? 'text-blue-200' : 'text-blue-400'}`}>{comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Matheus').length}x</p>
+          <p className={`text-[11px] font-medium mb-0.5 ${filtroResponsavel === 'Matheus' ? 'text-blue-500' : 'text-gray-400'}`}>Matheus</p>
+          <p className={`text-xs font-bold num leading-tight ${filtroResponsavel === 'Matheus' ? 'text-blue-700' : 'text-gray-700'}`}>{formatBRL(totalMatheus)}</p>
+          <p className={`text-[9px] mt-0.5 ${filtroResponsavel === 'Matheus' ? 'text-blue-400' : 'text-gray-400'}`}>{comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Matheus').length}x</p>
         </button>
         <button
           onClick={() => setFiltroResponsavel(filtroResponsavel === 'Jeniffer' ? '' : 'Jeniffer')}
-          className={`rounded-2xl p-3 text-center transition-all duration-200 active:scale-[0.97] ${
+          className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
             filtroResponsavel === 'Jeniffer'
-              ? 'bg-pink-500 shadow-md ring-2 ring-pink-300 ring-offset-1'
-              : 'bg-white border border-pink-100 shadow-card'
+              ? 'bg-pink-50 border-pink-200'
+              : 'bg-white border-gray-100'
           }`}
         >
-          <p className={`text-[11px] mb-0.5 font-medium ${filtroResponsavel === 'Jeniffer' ? 'text-pink-100' : 'text-pink-400'}`}>Jeniffer</p>
-          <p className={`text-sm font-bold num ${filtroResponsavel === 'Jeniffer' ? 'text-white' : 'text-pink-600'}`}>{formatBRL(totalJeniffer)}</p>
-          <p className={`text-[10px] ${filtroResponsavel === 'Jeniffer' ? 'text-pink-200' : 'text-pink-400'}`}>{comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Jeniffer').length}x</p>
+          <p className={`text-[11px] font-medium mb-0.5 ${filtroResponsavel === 'Jeniffer' ? 'text-pink-500' : 'text-gray-400'}`}>Jeniffer</p>
+          <p className={`text-xs font-bold num leading-tight ${filtroResponsavel === 'Jeniffer' ? 'text-pink-600' : 'text-gray-700'}`}>{formatBRL(totalJeniffer)}</p>
+          <p className={`text-[9px] mt-0.5 ${filtroResponsavel === 'Jeniffer' ? 'text-pink-400' : 'text-gray-400'}`}>{comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Jeniffer').length}x</p>
         </button>
       </div>
 
@@ -520,11 +585,10 @@ export default function ComprasPage() {
       {loading ? (
         <div className="bg-white rounded-3xl border border-gray-100 shadow-card divide-y">
           {[1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="p-4 flex items-center gap-3 animate-pulse">
-              <div className="w-7 h-7 rounded-full bg-gray-200 shrink-0" />
+            <div key={i} className="px-4 py-3.5 flex items-center gap-3 border-l-4 border-l-gray-200 animate-pulse">
               <div className="flex-1 space-y-2">
-                <div className="h-3 bg-gray-200 rounded-xl w-3/4" />
-                <div className="h-2.5 bg-gray-100 rounded-xl w-1/2" />
+                <div className="h-3.5 bg-gray-200 rounded-xl w-3/4" />
+                <div className="h-2.5 bg-gray-100 rounded-xl w-2/5" />
               </div>
               <div className="h-4 bg-gray-200 rounded-xl w-16" />
             </div>
@@ -556,57 +620,42 @@ export default function ComprasPage() {
                 <div className="divide-y divide-gray-50">
                   {items.map((c) => {
                     const isParcelado = c.parcela_atual && c.total_parcelas
+                    const canInteract = !faturaFechada && isOnline
+                    const borderColor = getCartaoBorderColor(c.cartao, cartaoLabels)
+                    const metaParts = [
+                      c.responsavel,
+                      isParcelado ? `${c.parcela_atual}/${c.total_parcelas}x` : null,
+                      c.categoria || null,
+                    ].filter(Boolean) as string[]
                     return (
-                      <div
+                      <SwipeableItem
                         key={c.hash_linha}
-                        className={`px-3 py-3.5 flex items-center gap-3 transition-colors active:bg-gray-50 ${
-                          c.responsavel === 'Matheus'
-                            ? 'border-l-4 border-l-blue-400'
-                            : c.responsavel === 'Jeniffer'
-                              ? 'border-l-4 border-l-pink-400'
-                              : 'border-l-4 border-l-gray-200'
-                        }`}
+                        onDelete={() => setModalExcluir(c)}
+                        disabled={!canInteract}
                       >
-                        <Avatar responsavel={c.responsavel} />
-
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-800 truncate leading-tight">
-                            {c.descricao}
-                          </p>
-                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                            {c.categoria && <CategoriaBadge categoria={c.categoria} />}
-                            <CartaoBadge cartao={c.cartao} labels={cartaoLabels} />
-                            {isParcelado && (
-                              <span className="inline-block text-[10px] font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">
-                                {c.parcela_atual}/{c.total_parcelas}x
-                              </span>
+                        <div
+                          className={`px-4 py-3.5 flex items-center gap-3 border-l-4 ${borderColor} bg-white transition-colors ${canInteract ? 'cursor-pointer active:bg-gray-50 hover:bg-gray-50/50' : 'cursor-default'}`}
+                          onClick={() => { if (canInteract) abrirEditar(c) }}
+                          role={canInteract ? 'button' : undefined}
+                          aria-label={canInteract ? `Editar ${c.descricao}` : undefined}
+                          tabIndex={canInteract ? 0 : undefined}
+                          onKeyDown={canInteract ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirEditar(c) } } : undefined}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[15px] font-semibold text-gray-900 leading-snug truncate">
+                              {c.descricao}
+                            </p>
+                            {metaParts.length > 0 && (
+                              <p className="text-xs text-gray-400 dark:text-gray-300 mt-0.5 leading-tight truncate">
+                                {metaParts.join(' · ')}
+                              </p>
                             )}
                           </div>
-                        </div>
-
-                        <div className="text-right shrink-0">
-                          <p className="text-sm font-bold text-gray-800 num">{formatBRL(c.valor)}</p>
-                        </div>
-
-                        {!faturaFechada && isOnline && (
-                          <div className="flex items-center gap-0.5 shrink-0">
-                            <button
-                              onClick={() => abrirEditar(c)}
-                              className="p-2 rounded-xl text-primary-500 hover:bg-primary-50 active:bg-primary-100 transition-colors"
-                              aria-label="Editar"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => setModalExcluir(c)}
-                              className="p-2 rounded-xl text-red-400 hover:bg-red-50 active:bg-red-100 transition-colors"
-                              aria-label="Excluir"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                          <div className="text-right shrink-0">
+                            <p className="text-[15px] font-bold text-gray-900 num">{formatBRL(c.valor)}</p>
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      </SwipeableItem>
                     )
                   })}
                 </div>
