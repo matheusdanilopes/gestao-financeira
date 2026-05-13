@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Receipt, TrendingUp, ShoppingCart, MessageCircle,
   SlidersHorizontal, PiggyBank, Sparkles, BarChart3, Plus, MoreHorizontal, Wallet,
@@ -11,6 +11,7 @@ import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabaseClient'
 import { AUTH_DISABLED } from '@/lib/authConfig'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
+import ModalPortal from '@/components/ModalPortal'
 
 const ROTAS_COM_MENU = [
   '/dashboard', '/contas', '/receitas', '/investimentos', '/assinaturas',
@@ -21,15 +22,121 @@ const ROTAS_FINANCAS = ['/financas', '/contas', '/receitas', '/investimentos']
 const ROTAS_EXTRAS   = ['/extras', '/chat', '/configuracoes']
 
 const desktopItems = [
-  { href: '/dashboard',     label: 'Dashboard',    icon: LayoutDashboard,   desktopOnly: false },
-  { href: '/contas',        label: 'Despesas',      icon: Receipt,           desktopOnly: false },
-  { href: '/receitas',      label: 'Receitas',      icon: TrendingUp,        desktopOnly: false },
-  { href: '/investimentos', label: 'Investir',      icon: PiggyBank,         desktopOnly: false },
-  { href: '/compras',       label: 'Compras',       icon: ShoppingCart,      desktopOnly: false },
-  { href: '/chat',          label: 'IA',            icon: MessageCircle,     desktopOnly: false },
-  { href: '/configuracoes', label: 'Config',        icon: SlidersHorizontal, desktopOnly: false },
-  { href: '/analytics',     label: 'Analytics',     icon: BarChart3,         desktopOnly: true  },
+  { href: '/dashboard',     label: 'Dashboard',  icon: LayoutDashboard,   desktopOnly: false },
+  { href: '/contas',        label: 'Despesas',    icon: Receipt,           desktopOnly: false },
+  { href: '/receitas',      label: 'Receitas',    icon: TrendingUp,        desktopOnly: false },
+  { href: '/investimentos', label: 'Investir',    icon: PiggyBank,         desktopOnly: false },
+  { href: '/compras',       label: 'Compras',     icon: ShoppingCart,      desktopOnly: false },
+  { href: '/chat',          label: 'IA',          icon: MessageCircle,     desktopOnly: false },
+  { href: '/configuracoes', label: 'Config',      icon: SlidersHorizontal, desktopOnly: false },
+  { href: '/analytics',     label: 'Analytics',   icon: BarChart3,         desktopOnly: true  },
 ]
+
+// ── Sub-menus ─────────────────────────────────────────────────────────────────
+
+function FinancasMenuSheet({ onClose, router }: { onClose: () => void; router: ReturnType<typeof useRouter> }) {
+  const opcoes = [
+    { tab: 'despesas',      label: 'Despesas',      Icon: Receipt,    cor: 'text-red-500',    bg: 'bg-red-50'   },
+    { tab: 'receitas',      label: 'Receitas',      Icon: TrendingUp, cor: 'text-green-600',  bg: 'bg-green-50' },
+    { tab: 'investimentos', label: 'Investimentos', Icon: PiggyBank,  cor: 'text-blue-600',   bg: 'bg-blue-50'  },
+  ]
+
+  return (
+    <div className="fixed bottom-16 left-0 right-0 z-[51] modal-sheet">
+      <div className="bg-white rounded-t-3xl shadow-float max-w-md mx-auto lg:max-w-2xl">
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full bg-gray-200" />
+        </div>
+        <p className="text-center text-[11px] font-semibold text-gray-400 uppercase tracking-widest py-2">
+          Finanças
+        </p>
+        <div className="grid grid-cols-3 gap-3 px-5 pb-6">
+          {opcoes.map(({ tab, label, Icon, cor, bg }) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => { router.push(`/financas?tab=${tab}`); onClose() }}
+              className={`flex flex-col items-center gap-2.5 py-5 rounded-3xl ${bg}
+                          active:scale-95 transition-transform duration-150
+                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400`}
+            >
+              <Icon className={`w-7 h-7 ${cor}`} strokeWidth={1.8} />
+              <span className={`text-sm font-semibold ${cor}`}>{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ExtrasMenuPopover({ onClose, router }: { onClose: () => void; router: ReturnType<typeof useRouter> }) {
+  const opcoes = [
+    { href: '/chat',          label: 'IA Assistant',  Icon: MessageCircle,     cor: 'text-primary-600', bg: 'bg-primary-50' },
+    { href: '/configuracoes', label: 'Configurações', Icon: SlidersHorizontal, cor: 'text-gray-600',    bg: 'bg-gray-100'   },
+  ]
+
+  return (
+    <div className="fixed bottom-[72px] right-3 z-[51] modal-center">
+      <div className="bg-white rounded-3xl shadow-float border border-gray-100 overflow-hidden w-56">
+        {opcoes.map(({ href, label, Icon, cor, bg }, i) => (
+          <button
+            key={href}
+            type="button"
+            onClick={() => { router.push(href); onClose() }}
+            className={`w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50
+                        active:bg-gray-100 transition-colors duration-150
+                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
+                        ${i < opcoes.length - 1 ? 'border-b border-gray-100' : ''}`}
+          >
+            <div className={`w-8 h-8 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
+              <Icon className={`w-4 h-4 ${cor}`} strokeWidth={1.8} />
+            </div>
+            <span className="text-sm font-semibold text-gray-700">{label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Nav item button (Finanças / Extras) ───────────────────────────────────────
+
+function MobileMenuButton({
+  label, icon: Icon, isActive, onClick, ariaExpanded,
+}: {
+  label: string
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>
+  isActive: boolean
+  onClick: () => void
+  ariaExpanded: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-expanded={ariaExpanded}
+      className="flex flex-col items-center justify-center gap-0.5 flex-1 py-2
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
+                 focus-visible:ring-offset-1 rounded-xl transition-all duration-200"
+    >
+      <span className={`flex items-center justify-center w-10 h-6 rounded-full transition-all duration-200
+                        ${isActive ? 'bg-primary-100' : ''}`}>
+        <Icon
+          className={`transition-all duration-200 w-[20px] h-[20px]
+                      ${isActive ? 'text-primary-600' : 'text-gray-400'}`}
+          strokeWidth={isActive ? 2.5 : 1.8}
+        />
+      </span>
+      <span className={`text-[10px] font-medium transition-colors duration-200 leading-none
+                        ${isActive ? 'text-primary-600' : 'text-gray-400'}`}>
+        {label}
+      </span>
+    </button>
+  )
+}
+
+// ── Nav item link (Dashboard / Compras) ───────────────────────────────────────
 
 function MobileNavItem({
   href, label, icon: Icon, isActive,
@@ -63,10 +170,14 @@ function MobileNavItem({
   )
 }
 
+// ── Main component ────────────────────────────────────────────────────────────
+
 export default memo(function BottomNav() {
   const pathname = usePathname()
+  const router   = useRouter()
   const [session, setSession] = useState<Session | null>(null)
   const [isCheckingSession, setIsCheckingSession] = useState(true)
+  const [openMenu, setOpenMenu] = useState<'financas' | 'extras' | null>(null)
   const { categorizando } = useCategorizacao()
 
   useEffect(() => {
@@ -93,6 +204,9 @@ export default memo(function BottomNav() {
     }
   }, [])
 
+  // Fecha menu ao navegar para outra rota
+  useEffect(() => { setOpenMenu(null) }, [pathname])
+
   const deveExibirMenu = pathname ? ROTAS_COM_MENU.some(r => pathname === r || pathname.startsWith(r + '/')) : false
 
   if (!deveExibirMenu) return null
@@ -115,7 +229,7 @@ export default memo(function BottomNav() {
       )}
 
       <nav aria-label="Navegação principal">
-        {/* ── Mobile: 5 itens com FAB central ───────────────────────────────── */}
+        {/* ── Mobile: 5 itens com FAB central ──────────────────────────────── */}
         <div className="flex lg:hidden justify-around items-center h-16 px-1">
           <MobileNavItem
             href="/dashboard"
@@ -124,11 +238,12 @@ export default memo(function BottomNav() {
             isActive={pathname === '/dashboard'}
           />
 
-          <MobileNavItem
-            href="/financas"
+          <MobileMenuButton
             label="Finanças"
             icon={Wallet}
-            isActive={isFinancasActive}
+            isActive={isFinancasActive || openMenu === 'financas'}
+            ariaExpanded={openMenu === 'financas'}
+            onClick={() => setOpenMenu(p => p === 'financas' ? null : 'financas')}
           />
 
           {/* FAB — Lançamento Rápido */}
@@ -152,11 +267,12 @@ export default memo(function BottomNav() {
             isActive={pathname === '/compras' || pathname.startsWith('/compras/')}
           />
 
-          <MobileNavItem
-            href="/extras"
+          <MobileMenuButton
             label="Extras"
             icon={MoreHorizontal}
-            isActive={isExtrasActive}
+            isActive={isExtrasActive || openMenu === 'extras'}
+            ariaExpanded={openMenu === 'extras'}
+            onClick={() => setOpenMenu(p => p === 'extras' ? null : 'extras')}
           />
         </div>
 
@@ -188,6 +304,24 @@ export default memo(function BottomNav() {
             )
           })}
         </div>
+
+        {/* ── Menus flutuantes via portal ────────────────────────────────────── */}
+        {openMenu && (
+          <ModalPortal>
+            <div
+              className="fixed inset-0 z-[49] modal-overlay"
+              style={{ background: 'rgba(0,0,0,0.25)' }}
+              onClick={() => setOpenMenu(null)}
+              aria-hidden="true"
+            />
+            {openMenu === 'financas' && (
+              <FinancasMenuSheet onClose={() => setOpenMenu(null)} router={router} />
+            )}
+            {openMenu === 'extras' && (
+              <ExtrasMenuPopover onClose={() => setOpenMenu(null)} router={router} />
+            )}
+          </ModalPortal>
+        )}
       </nav>
     </div>
   )

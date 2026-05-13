@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { Suspense, useCallback, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import MonthSelector from '@/components/MonthSelector'
 import ChecklistMensal from '@/components/ChecklistMensal'
 import ReceitasMensal from '@/components/ReceitasMensal'
@@ -110,8 +111,12 @@ async function calcularSaldo(mes: Date): Promise<SaldoData> {
   }
 }
 
-export default function FinancasPage() {
-  const [abaAtual, setAbaAtual] = useState<Tab>('despesas')
+function FinancasContent() {
+  const searchParams = useSearchParams()
+  const [abaAtual, setAbaAtual] = useState<Tab>(() => {
+    const tab = searchParams.get('tab')
+    return (tab === 'receitas' || tab === 'investimentos') ? tab : 'despesas'
+  })
   const { mesAtual, setMesAtual } = useMes()
 
   const [saldo, setSaldo] = useState(0)
@@ -192,5 +197,13 @@ export default function FinancasPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function FinancasPage() {
+  return (
+    <Suspense>
+      <FinancasContent />
+    </Suspense>
   )
 }
