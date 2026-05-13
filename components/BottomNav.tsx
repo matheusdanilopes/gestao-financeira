@@ -15,7 +15,7 @@ import ModalPortal from '@/components/ModalPortal'
 
 const ROTAS_COM_MENU = [
   '/dashboard', '/contas', '/receitas', '/investimentos', '/assinaturas',
-  '/compras', '/chat', '/configuracoes', '/importar', '/financas', '/extras',
+  '/compras', '/chat', '/configuracoes', '/importar', '/extras',
 ]
 
 const ROTAS_FINANCAS = ['/financas', '/contas', '/receitas', '/investimentos']

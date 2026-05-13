@@ -1,7 +1,8 @@
 'use client'
 
-import { Suspense, useCallback, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { Suspense, useCallback, useEffect, useState } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
+import { ChevronLeft } from 'lucide-react'
 import MonthSelector from '@/components/MonthSelector'
 import ChecklistMensal from '@/components/ChecklistMensal'
 import ReceitasMensal from '@/components/ReceitasMensal'
@@ -113,11 +114,19 @@ async function calcularSaldo(mes: Date): Promise<SaldoData> {
 
 function FinancasContent() {
   const searchParams = useSearchParams()
-  const [abaAtual, setAbaAtual] = useState<Tab>(() => {
-    const tab = searchParams.get('tab')
-    return (tab === 'receitas' || tab === 'investimentos') ? tab : 'despesas'
-  })
+  const router = useRouter()
+  const [abaAtual, setAbaAtual] = useState<Tab>('despesas')
   const { mesAtual, setMesAtual } = useMes()
+
+  // Sincroniza a tab com o parâmetro da URL sempre que a navegação mudar
+  useEffect(() => {
+    const tab = searchParams.get('tab') as Tab | null
+    if (tab === 'receitas' || tab === 'investimentos' || tab === 'despesas') {
+      setAbaAtual(tab)
+    } else {
+      setAbaAtual('despesas')
+    }
+  }, [searchParams])
 
   const [saldo, setSaldo] = useState(0)
   const [saldoPrevisto, setSaldoPrevisto] = useState(0)
@@ -143,9 +152,21 @@ function FinancasContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 page-bottom-safe page-enter">
-      <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 px-4 md:px-6 lg:px-8 z-[10]">
-        <h1 className="text-xl font-bold text-gray-900 mb-3">{titulos[abaAtual]}</h1>
+    <div className="min-h-screen bg-gray-50 pb-6 page-enter">
+      <div className="sticky top-0 sticky-header pt-3 pb-3 px-4 md:px-6 z-[10]">
+        <div className="flex items-center gap-1 mb-3">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="p-1.5 -ml-1.5 rounded-xl text-gray-400 hover:text-gray-600
+                       hover:bg-gray-100 transition-colors active:scale-95
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+            aria-label="Voltar"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <h1 className="text-xl font-bold text-gray-900">{titulos[abaAtual]}</h1>
+        </div>
         <MonthSelector value={mesAtual} onChange={setMesAtual} />
 
         {/* Segmented Control */}
