@@ -347,17 +347,6 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual }: Props) {
       <div className="h-56 md:h-64 lg:h-72">
         <Line data={chartData} options={options} plugins={plugins} />
       </div>
-
-      <p className="flex items-center justify-center gap-5 text-[11px] text-gray-400 mt-3">
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block w-5 h-0.5 rounded-full bg-violet-500" />
-          Realizado
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block w-5 border-t border-dashed border-teal-400" />
-          Meta
-        </span>
-      </p>
     </div>
   )
 }
