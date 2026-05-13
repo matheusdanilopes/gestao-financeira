@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Receipt, TrendingUp, ShoppingCart, MessageCircle,
-  SlidersHorizontal, PiggyBank, Sparkles, BarChart3, Plus, MoreHorizontal, Wallet,
+  SlidersHorizontal, PiggyBank, Sparkles, BarChart3, Plus, MoreHorizontal, Wallet, CreditCard, RepeatIcon,
 } from 'lucide-react'
 import { memo, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
@@ -19,17 +19,19 @@ const ROTAS_COM_MENU = [
 ]
 
 const ROTAS_FINANCAS = ['/financas', '/contas', '/receitas', '/investimentos']
+const ROTAS_CARTAO   = ['/compras', '/assinaturas']
 const ROTAS_EXTRAS   = ['/extras', '/chat', '/configuracoes']
 
 const desktopItems = [
-  { href: '/dashboard',     label: 'Dashboard',  icon: LayoutDashboard,   desktopOnly: false },
-  { href: '/contas',        label: 'Despesas',    icon: Receipt,           desktopOnly: false },
-  { href: '/receitas',      label: 'Receitas',    icon: TrendingUp,        desktopOnly: false },
-  { href: '/investimentos', label: 'Investir',    icon: PiggyBank,         desktopOnly: false },
-  { href: '/compras',       label: 'Compras',     icon: ShoppingCart,      desktopOnly: false },
-  { href: '/chat',          label: 'IA',          icon: MessageCircle,     desktopOnly: false },
-  { href: '/configuracoes', label: 'Config',      icon: SlidersHorizontal, desktopOnly: false },
-  { href: '/analytics',     label: 'Analytics',   icon: BarChart3,         desktopOnly: true  },
+  { href: '/dashboard',     label: 'Dashboard',    icon: LayoutDashboard,   desktopOnly: false },
+  { href: '/contas',        label: 'Despesas',      icon: Receipt,           desktopOnly: false },
+  { href: '/receitas',      label: 'Receitas',      icon: TrendingUp,        desktopOnly: false },
+  { href: '/investimentos', label: 'Investir',      icon: PiggyBank,         desktopOnly: false },
+  { href: '/compras',       label: 'Compras',       icon: ShoppingCart,      desktopOnly: false },
+  { href: '/assinaturas',   label: 'Assinaturas',   icon: RepeatIcon,        desktopOnly: false },
+  { href: '/chat',          label: 'IA',            icon: MessageCircle,     desktopOnly: false },
+  { href: '/configuracoes', label: 'Config',        icon: SlidersHorizontal, desktopOnly: false },
+  { href: '/analytics',     label: 'Analytics',     icon: BarChart3,         desktopOnly: true  },
 ]
 
 // ── Sub-menus ─────────────────────────────────────────────────────────────────
@@ -49,6 +51,36 @@ function FinancasMenuPopover({ onClose, router }: { onClose: () => void; router:
             key={tab}
             type="button"
             onClick={() => { router.push(`/financas?tab=${tab}`); onClose() }}
+            className={`w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50
+                        active:bg-gray-100 transition-colors duration-150
+                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
+                        ${i < opcoes.length - 1 ? 'border-b border-gray-100' : ''}`}
+          >
+            <div className={`w-8 h-8 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
+              <Icon className={`w-4 h-4 ${cor}`} strokeWidth={1.8} />
+            </div>
+            <span className="text-sm font-semibold text-gray-700">{label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function CartaoMenuPopover({ onClose, router }: { onClose: () => void; router: ReturnType<typeof useRouter> }) {
+  const opcoes = [
+    { href: '/compras',      label: 'Compras',      Icon: ShoppingCart, cor: 'text-orange-500', bg: 'bg-orange-50' },
+    { href: '/assinaturas',  label: 'Assinaturas',  Icon: RepeatIcon,   cor: 'text-indigo-600', bg: 'bg-indigo-50' },
+  ]
+
+  return (
+    <div className="fixed bottom-[72px] right-14 z-[51] modal-center">
+      <div className="bg-white rounded-3xl shadow-float border border-gray-100 overflow-hidden w-56">
+        {opcoes.map(({ href, label, Icon, cor, bg }, i) => (
+          <button
+            key={href}
+            type="button"
+            onClick={() => { router.push(href); onClose() }}
             className={`w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50
                         active:bg-gray-100 transition-colors duration-150
                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
@@ -203,7 +235,7 @@ export default memo(function BottomNav() {
   const router   = useRouter()
   const [session, setSession] = useState<Session | null>(null)
   const [isCheckingSession, setIsCheckingSession] = useState(true)
-  const [openMenu, setOpenMenu] = useState<'financas' | 'extras' | 'fab' | null>(null)
+  const [openMenu, setOpenMenu] = useState<'financas' | 'cartao' | 'extras' | 'fab' | null>(null)
   const { categorizando } = useCategorizacao()
 
   useEffect(() => {
@@ -239,6 +271,7 @@ export default memo(function BottomNav() {
   if (!AUTH_DISABLED && (isCheckingSession || !session)) return null
 
   const isFinancasActive = ROTAS_FINANCAS.some(r => pathname === r || pathname.startsWith(r + '/'))
+  const isCartaoActive   = ROTAS_CARTAO.some(r => pathname === r || pathname.startsWith(r + '/'))
   const isExtrasActive   = ROTAS_EXTRAS.some(r => pathname === r || pathname.startsWith(r + '/'))
 
   return (
@@ -289,11 +322,12 @@ export default memo(function BottomNav() {
             <span className="text-[10px] font-medium text-gray-400 mt-0.5 leading-none">Adicionar</span>
           </button>
 
-          <MobileNavItem
-            href="/compras"
-            label="Compras"
-            icon={ShoppingCart}
-            isActive={pathname === '/compras' || pathname.startsWith('/compras/')}
+          <MobileMenuButton
+            label="Cartão"
+            icon={CreditCard}
+            isActive={isCartaoActive || openMenu === 'cartao'}
+            ariaExpanded={openMenu === 'cartao'}
+            onClick={() => setOpenMenu(p => p === 'cartao' ? null : 'cartao')}
           />
 
           <MobileMenuButton
@@ -348,6 +382,9 @@ export default memo(function BottomNav() {
             )}
             {openMenu === 'financas' && (
               <FinancasMenuPopover onClose={() => setOpenMenu(null)} router={router} />
+            )}
+            {openMenu === 'cartao' && (
+              <CartaoMenuPopover onClose={() => setOpenMenu(null)} router={router} />
             )}
             {openMenu === 'extras' && (
               <ExtrasMenuPopover onClose={() => setOpenMenu(null)} router={router} />
