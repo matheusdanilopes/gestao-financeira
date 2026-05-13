@@ -436,136 +436,129 @@ export default function ComprasPage() {
         />
       </div>
 
-      {/* Filtro de cartão */}
-      <div className="flex gap-1.5 mb-3">
-        {([
-          ['', 'Todos'],
-          ['nubank', cartaoLabels.nubank],
-          ['cartao1', cartaoLabels.cartao1],
-          ['cartao2', cartaoLabels.cartao2],
-        ] as [string, string][]).map(([val, label]) => (
-          <button
-            key={val}
-            onClick={() => setFiltroCartao(val as '' | 'nubank' | 'cartao1' | 'cartao2')}
-            className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all active:scale-95 ${
-              filtroCartao === val
-                ? val === '' ? 'bg-gray-800 text-white shadow-sm'
-                  : val === 'nubank' ? 'bg-purple-600 text-white shadow-sm'
-                  : val === 'cartao1' ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-pink-500 text-white shadow-sm'
-                : 'bg-white border border-gray-200 text-gray-500 shadow-card'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* Filtros secundários — colapsáveis */}
-      <div className="mb-3">
+      {/* Filtros: chips de cartão + toggle de filtros secundários na mesma linha */}
+      <div className="flex items-center gap-2 mb-2">
+        <div className="flex gap-1 flex-1">
+          {([
+            ['', 'Todos'],
+            ['nubank', cartaoLabels.nubank],
+            ['cartao1', cartaoLabels.cartao1],
+            ['cartao2', cartaoLabels.cartao2],
+          ] as [string, string][]).map(([val, label]) => (
+            <button
+              key={val}
+              onClick={() => setFiltroCartao(val as '' | 'nubank' | 'cartao1' | 'cartao2')}
+              className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all active:scale-95 truncate ${
+                filtroCartao === val
+                  ? val === '' ? 'bg-gray-700 text-white'
+                    : val === 'nubank' ? 'bg-blue-500 text-white'
+                    : val === 'cartao1' ? 'bg-pink-400 text-white'
+                    : 'bg-violet-500 text-white'
+                  : 'bg-white border border-gray-200 text-gray-400'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <button
           onClick={() => setFiltrosExpandidos(v => !v)}
-          className={`w-full flex items-center justify-between bg-white border rounded-2xl px-3 py-2.5 text-sm shadow-card transition-colors ${
-            filtrosAtivos ? 'border-primary-200 text-primary-600' : 'border-gray-100 text-gray-500'
+          className={`shrink-0 flex items-center gap-1 py-1.5 px-2.5 rounded-lg border text-[11px] font-medium transition-colors ${
+            filtrosAtivos
+              ? 'bg-primary-50 border-primary-200 text-primary-600'
+              : 'bg-white border-gray-200 text-gray-400'
           }`}
         >
-          <span className="flex items-center gap-2 font-medium">
-            <SlidersHorizontal className="w-4 h-4" />
-            Filtros
-            {filtrosAtivos && (
-              <span className="bg-primary-100 text-primary-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                ativos
-              </span>
-            )}
-          </span>
-          <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${filtrosExpandidos ? 'rotate-180' : ''}`} />
+          <SlidersHorizontal className="w-3.5 h-3.5" />
+          {filtrosAtivos ? 'Ativos' : 'Filtros'}
+          <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${filtrosExpandidos ? 'rotate-180' : ''}`} />
         </button>
-
-        {filtrosExpandidos && (
-          <div className="bg-white rounded-b-2xl border border-t-0 border-gray-100 shadow-card px-3 pb-3 pt-2 grid grid-cols-2 gap-2 mt-0">
-            <input
-              type="text"
-              className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm col-span-2 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
-              placeholder="Buscar por descrição…"
-              value={filtroDescricaoInput}
-              onChange={(e) => handleFiltroDescricaoChange(e.target.value)}
-            />
-            <select
-              className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm col-span-2 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
-              value={filtroCategoria}
-              onChange={(e) => setFiltroCategoria(e.target.value)}
-            >
-              <option value="">Categoria (todas)</option>
-              {categorias.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
-            <input
-              type="text"
-              inputMode="decimal"
-              className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
-              placeholder="Valor mínimo"
-              value={filtroValorMin}
-              onChange={(e) => setFiltroValorMin(numericOnly(e.target.value))}
-            />
-            <input
-              type="number"
-              min="1"
-              max="31"
-              className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
-              placeholder="Dia"
-              value={filtroDia}
-              onChange={(e) => setFiltroDia(e.target.value)}
-            />
-            {filtrosAtivos && (
-              <button
-                onClick={limparFiltros}
-                className="col-span-2 text-xs text-red-500 hover:text-red-700 py-1 font-semibold transition-colors"
-              >
-                Limpar filtros
-              </button>
-            )}
-          </div>
-        )}
       </div>
 
-      {/* Resumo / Filtro de responsável */}
-      <div className="grid grid-cols-3 gap-2 mb-4">
+      {filtrosExpandidos && (
+        <div className="bg-white rounded-xl border border-gray-100 px-3 pb-3 pt-2.5 grid grid-cols-2 gap-2 mb-2">
+          <input
+            type="text"
+            className="bg-gray-50 border border-transparent rounded-lg p-2 text-sm col-span-2 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+            placeholder="Buscar por descrição…"
+            value={filtroDescricaoInput}
+            onChange={(e) => handleFiltroDescricaoChange(e.target.value)}
+          />
+          <select
+            className="bg-gray-50 border border-transparent rounded-lg p-2 text-sm col-span-2 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+            value={filtroCategoria}
+            onChange={(e) => setFiltroCategoria(e.target.value)}
+          >
+            <option value="">Categoria (todas)</option>
+            {categorias.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
+          <input
+            type="text"
+            inputMode="decimal"
+            className="bg-gray-50 border border-transparent rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+            placeholder="Valor mínimo"
+            value={filtroValorMin}
+            onChange={(e) => setFiltroValorMin(numericOnly(e.target.value))}
+          />
+          <input
+            type="number"
+            min="1"
+            max="31"
+            className="bg-gray-50 border border-transparent rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+            placeholder="Dia"
+            value={filtroDia}
+            onChange={(e) => setFiltroDia(e.target.value)}
+          />
+          {filtrosAtivos && (
+            <button
+              onClick={limparFiltros}
+              className="col-span-2 text-xs text-red-500 hover:text-red-700 py-1 font-semibold transition-colors"
+            >
+              Limpar filtros
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Resumo / Filtro de responsável — compacto */}
+      <div className="grid grid-cols-3 gap-1.5 mb-3">
         <button
           onClick={() => setFiltroResponsavel('')}
-          className={`rounded-2xl p-3 text-center transition-all duration-200 active:scale-[0.97] ${
+          className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
             filtroResponsavel === ''
-              ? 'bg-gradient-to-br from-primary-500 to-primary-700 shadow-md ring-2 ring-primary-300 ring-offset-1'
-              : 'bg-white border border-primary-100 shadow-card'
+              ? 'bg-primary-50 border-primary-200'
+              : 'bg-white border-gray-100'
           }`}
         >
-          <p className={`text-[11px] mb-0.5 font-medium ${filtroResponsavel === '' ? 'text-primary-100' : 'text-primary-500'}`}>Total</p>
-          <p className={`text-sm font-bold num ${filtroResponsavel === '' ? 'text-white' : 'text-primary-700'}`}>{formatBRL(total)}</p>
-          <p className={`text-[10px] ${filtroResponsavel === '' ? 'text-primary-200' : 'text-primary-400'}`}>{comprasSemFiltroResponsavel.length} itens</p>
+          <p className={`text-[10px] font-medium mb-0.5 ${filtroResponsavel === '' ? 'text-primary-500' : 'text-gray-400'}`}>Total</p>
+          <p className={`text-xs font-bold num leading-tight ${filtroResponsavel === '' ? 'text-primary-700' : 'text-gray-700'}`}>{formatBRL(total)}</p>
+          <p className={`text-[9px] mt-0.5 ${filtroResponsavel === '' ? 'text-primary-400' : 'text-gray-400'}`}>{comprasSemFiltroResponsavel.length} itens</p>
         </button>
         <button
           onClick={() => setFiltroResponsavel(filtroResponsavel === 'Matheus' ? '' : 'Matheus')}
-          className={`rounded-2xl p-3 text-center transition-all duration-200 active:scale-[0.97] ${
+          className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
             filtroResponsavel === 'Matheus'
-              ? 'bg-blue-600 shadow-md ring-2 ring-blue-300 ring-offset-1'
-              : 'bg-white border border-blue-100 shadow-card'
+              ? 'bg-blue-50 border-blue-200'
+              : 'bg-white border-gray-100'
           }`}
         >
-          <p className={`text-[11px] mb-0.5 font-medium ${filtroResponsavel === 'Matheus' ? 'text-blue-100' : 'text-blue-400'}`}>Matheus</p>
-          <p className={`text-sm font-bold num ${filtroResponsavel === 'Matheus' ? 'text-white' : 'text-blue-700'}`}>{formatBRL(totalMatheus)}</p>
-          <p className={`text-[10px] ${filtroResponsavel === 'Matheus' ? 'text-blue-200' : 'text-blue-400'}`}>{comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Matheus').length}x</p>
+          <p className={`text-[10px] font-medium mb-0.5 ${filtroResponsavel === 'Matheus' ? 'text-blue-500' : 'text-gray-400'}`}>Matheus</p>
+          <p className={`text-xs font-bold num leading-tight ${filtroResponsavel === 'Matheus' ? 'text-blue-700' : 'text-gray-700'}`}>{formatBRL(totalMatheus)}</p>
+          <p className={`text-[9px] mt-0.5 ${filtroResponsavel === 'Matheus' ? 'text-blue-400' : 'text-gray-400'}`}>{comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Matheus').length}x</p>
         </button>
         <button
           onClick={() => setFiltroResponsavel(filtroResponsavel === 'Jeniffer' ? '' : 'Jeniffer')}
-          className={`rounded-2xl p-3 text-center transition-all duration-200 active:scale-[0.97] ${
+          className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
             filtroResponsavel === 'Jeniffer'
-              ? 'bg-pink-500 shadow-md ring-2 ring-pink-300 ring-offset-1'
-              : 'bg-white border border-pink-100 shadow-card'
+              ? 'bg-pink-50 border-pink-200'
+              : 'bg-white border-gray-100'
           }`}
         >
-          <p className={`text-[11px] mb-0.5 font-medium ${filtroResponsavel === 'Jeniffer' ? 'text-pink-100' : 'text-pink-400'}`}>Jeniffer</p>
-          <p className={`text-sm font-bold num ${filtroResponsavel === 'Jeniffer' ? 'text-white' : 'text-pink-600'}`}>{formatBRL(totalJeniffer)}</p>
-          <p className={`text-[10px] ${filtroResponsavel === 'Jeniffer' ? 'text-pink-200' : 'text-pink-400'}`}>{comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Jeniffer').length}x</p>
+          <p className={`text-[10px] font-medium mb-0.5 ${filtroResponsavel === 'Jeniffer' ? 'text-pink-500' : 'text-gray-400'}`}>Jeniffer</p>
+          <p className={`text-xs font-bold num leading-tight ${filtroResponsavel === 'Jeniffer' ? 'text-pink-600' : 'text-gray-700'}`}>{formatBRL(totalJeniffer)}</p>
+          <p className={`text-[9px] mt-0.5 ${filtroResponsavel === 'Jeniffer' ? 'text-pink-400' : 'text-gray-400'}`}>{comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Jeniffer').length}x</p>
         </button>
       </div>
 
