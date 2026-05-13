@@ -34,37 +34,32 @@ const desktopItems = [
 
 // ── Sub-menus ─────────────────────────────────────────────────────────────────
 
-function FinancasMenuSheet({ onClose, router }: { onClose: () => void; router: ReturnType<typeof useRouter> }) {
+function FinancasMenuPopover({ onClose, router }: { onClose: () => void; router: ReturnType<typeof useRouter> }) {
   const opcoes = [
-    { tab: 'despesas',      label: 'Despesas',      Icon: Receipt,    cor: 'text-red-500',    bg: 'bg-red-50'   },
-    { tab: 'receitas',      label: 'Receitas',      Icon: TrendingUp, cor: 'text-green-600',  bg: 'bg-green-50' },
-    { tab: 'investimentos', label: 'Investimentos', Icon: PiggyBank,  cor: 'text-blue-600',   bg: 'bg-blue-50'  },
+    { tab: 'despesas',      label: 'Despesas',      Icon: Receipt,    cor: 'text-red-500',   bg: 'bg-red-50'   },
+    { tab: 'receitas',      label: 'Receitas',      Icon: TrendingUp, cor: 'text-green-600', bg: 'bg-green-50' },
+    { tab: 'investimentos', label: 'Investimentos', Icon: PiggyBank,  cor: 'text-blue-600',  bg: 'bg-blue-50'  },
   ]
 
   return (
-    <div className="fixed bottom-16 left-0 right-0 z-[51] modal-sheet">
-      <div className="bg-white rounded-t-3xl shadow-float max-w-md mx-auto lg:max-w-2xl">
-        <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full bg-gray-200" />
-        </div>
-        <p className="text-center text-[11px] font-semibold text-gray-400 uppercase tracking-widest py-2">
-          Finanças
-        </p>
-        <div className="grid grid-cols-3 gap-3 px-5 pb-6">
-          {opcoes.map(({ tab, label, Icon, cor, bg }) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => { router.push(`/financas?tab=${tab}`); onClose() }}
-              className={`flex flex-col items-center gap-2.5 py-5 rounded-3xl ${bg}
-                          active:scale-95 transition-transform duration-150
-                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400`}
-            >
-              <Icon className={`w-7 h-7 ${cor}`} strokeWidth={1.8} />
-              <span className={`text-sm font-semibold ${cor}`}>{label}</span>
-            </button>
-          ))}
-        </div>
+    <div className="fixed bottom-[72px] left-3 z-[51] modal-center">
+      <div className="bg-white rounded-3xl shadow-float border border-gray-100 overflow-hidden w-56">
+        {opcoes.map(({ tab, label, Icon, cor, bg }, i) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => { router.push(`/financas?tab=${tab}`); onClose() }}
+            className={`w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50
+                        active:bg-gray-100 transition-colors duration-150
+                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
+                        ${i < opcoes.length - 1 ? 'border-b border-gray-100' : ''}`}
+          >
+            <div className={`w-8 h-8 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
+              <Icon className={`w-4 h-4 ${cor}`} strokeWidth={1.8} />
+            </div>
+            <span className="text-sm font-semibold text-gray-700">{label}</span>
+          </button>
+        ))}
       </div>
     </div>
   )
@@ -315,7 +310,7 @@ export default memo(function BottomNav() {
               aria-hidden="true"
             />
             {openMenu === 'financas' && (
-              <FinancasMenuSheet onClose={() => setOpenMenu(null)} router={router} />
+              <FinancasMenuPopover onClose={() => setOpenMenu(null)} router={router} />
             )}
             {openMenu === 'extras' && (
               <ExtrasMenuPopover onClose={() => setOpenMenu(null)} router={router} />
