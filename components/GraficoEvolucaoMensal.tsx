@@ -12,7 +12,7 @@ import {
   Legend,
   Filler,
 } from 'chart.js'
-import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns'
+import { format, startOfMonth, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { AlertCircle } from 'lucide-react'
 import { formatBRL } from '@/lib/logger'
@@ -24,9 +24,8 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip,
 const MESES_HISTORICO = 6
 
 const PALETTE = [
-  { r: 16,  g: 185, b: 129 }, // Receitas   — emerald
-  { r: 239, g: 68,  b: 68  }, // Despesas   — red
-  { r: 139, g: 92,  b: 246 }, // Investimentos — violet
+  { r: 16,  g: 185, b: 129 }, // Receitas — emerald
+  { r: 239, g: 68,  b: 68  }, // Despesas — red
 ] as const
 
 function rgb(p: (typeof PALETTE)[number], a = 1) {
@@ -37,7 +36,6 @@ interface EvolucaoMensal {
   labels: string[]
   receitas: number[]
   despesas: number[]
-  investimentos: number[]
   /** Index of today's month in the array; -1 when outside the displayed window */
   currentMonthIndex: number
 }
@@ -112,23 +110,13 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
       for (let i = MESES_HISTORICO - 1; i >= 0; i--)
         mesesRef.push(format(startOfMonth(subMonths(mesAtual, i)), 'yyyy-MM-dd'))
 
-      const fimPeriodo = format(endOfMonth(mesAtual), 'yyyy-MM-dd')
       // Today's month reference — used to split real vs. forecast
       const hojeRef = format(startOfMonth(new Date()), 'yyyy-MM-dd')
 
-      const [{ data: plan }, { data: aportes }, { data: invPlano }] = await Promise.all([
+      const [{ data: plan }] = await Promise.all([
         supabase
           .from('planejamento')
           .select('item, valor_previsto, valor_real, pago, mes_referencia')
-          .in('mes_referencia', mesesRef),
-        supabase
-          .from('investimentos_aportes')
-          .select('valor, data_aporte')
-          .gte('data_aporte', mesesRef[0])
-          .lte('data_aporte', fimPeriodo),
-        supabase
-          .from('investimentos')
-          .select('percentual, mes_referencia')
           .in('mes_referencia', mesesRef),
       ])
 
@@ -153,34 +141,10 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
           des.set(mes, (des.get(mes) || 0) + valor)
       }
 
-      // Sum planned percentual per month from investimentos table
-      const pctPorMes = new Map<string, number>()
-      for (const iv of (invPlano || [])) {
-        const mes: string = iv.mes_referencia
-        pctPorMes.set(mes, (pctPorMes.get(mes) || 0) + iv.percentual)
-      }
-
-      // Investimentos: use actual aportes when available; otherwise compute the
-      // planned meta (surplus × percentual / 100) so months with a goal never show 0.
-      const inv = new Map<string, number>()
-      for (const a of (aportes || [])) {
-        const mes = format(startOfMonth(new Date(a.data_aporte + 'T12:00:00')), 'yyyy-MM-dd')
-        inv.set(mes, (inv.get(mes) || 0) + a.valor)
-      }
-
-      for (const mes of mesesRef) {
-        if (inv.get(mes)) continue          // actual aporte already recorded — keep it
-        const pct = pctPorMes.get(mes)
-        if (!pct) continue                  // no investment plan for this month
-        const saldo = (rec.get(mes) || 0) - (des.get(mes) || 0)
-        if (saldo > 0) inv.set(mes, saldo * pct / 100)
-      }
-
       setDados({
         labels:            mesesRef.map(m => format(new Date(m + 'T12:00:00'), 'MMM/yy', { locale: ptBR })),
         receitas:          mesesRef.map(m => rec.get(m) || 0),
         despesas:          mesesRef.map(m => des.get(m) || 0),
-        investimentos:     mesesRef.map(m => inv.get(m) || 0),
         currentMonthIndex: mesesRef.findIndex(m => m === hojeRef),
       })
     } catch {
@@ -231,9 +195,8 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
     return {
       labels: dados.labels,
       datasets: [
-        mkDs('Receitas',       dados.receitas,       0),
-        mkDs('Despesas',       dados.despesas,       1),
-        mkDs('Investimentos',  dados.investimentos,  2),
+        mkDs('Receitas',  dados.receitas,  0),
+        mkDs('Despesas',  dados.despesas,  1),
       ],
     }
   }, [dados, isDark])
