@@ -8,7 +8,6 @@ import {
   LinearScale,
   PointElement,
   LineElement,
-  Title,
   Tooltip,
   Legend,
   Filler,
@@ -20,9 +19,20 @@ import { formatBRL } from '@/lib/logger'
 import { supabase } from '@/lib/supabaseClient'
 import { useTheme } from '@/components/ThemeProvider'
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler)
 
 const MESES_HISTORICO = 6
+
+// [r, g, b] for each series: Receitas, Despesas, Investimentos
+const PALETTE = [
+  { r: 16,  g: 185, b: 129 },
+  { r: 239, g: 68,  b: 68  },
+  { r: 139, g: 92,  b: 246 },
+] as const
+
+function rgb(p: (typeof PALETTE)[number], a = 1) {
+  return `rgba(${p.r},${p.g},${p.b},${a})`
+}
 
 interface EvolucaoMensal {
   labels: string[]
@@ -35,6 +45,46 @@ interface Props {
   mesAtual: Date
 }
 
+// Inline Chart.js plugin: paint canvas gradient fills before each draw
+const gradientPlugin = {
+  id: 'gradientFill',
+  beforeDatasetsDraw(chart: any) {
+    const { ctx, chartArea } = chart
+    if (!chartArea) return
+    chart.data.datasets.forEach((ds: any, i: number) => {
+      const p = PALETTE[i]
+      if (!p) return
+      const g = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom)
+      g.addColorStop(0,   rgb(p, 0.20))
+      g.addColorStop(0.5, rgb(p, 0.06))
+      g.addColorStop(1,   rgb(p, 0))
+      ds.backgroundColor = g
+    })
+  },
+}
+
+// Inline plugin: subtle dashed vertical crosshair on hover
+function makeCrosshairPlugin(isDark: boolean) {
+  return {
+    id: 'crosshair',
+    afterDatasetsDraw(chart: any) {
+      const { ctx, tooltip } = chart
+      if (!tooltip?._active?.length) return
+      const x = tooltip._active[0].element.x
+      const { top, bottom } = chart.chartArea
+      ctx.save()
+      ctx.beginPath()
+      ctx.moveTo(x, top)
+      ctx.lineTo(x, bottom)
+      ctx.lineWidth = 1
+      ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.10)'
+      ctx.setLineDash([5, 4])
+      ctx.stroke()
+      ctx.restore()
+    },
+  }
+}
+
 export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
   const [dados, setDados] = useState<EvolucaoMensal | null>(null)
   const [carregando, setCarregando] = useState(true)
@@ -43,29 +93,27 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
   const [isDark, setIsDark] = useState(false)
 
   useEffect(() => {
-    const atualizar = () => {
+    const sync = () =>
       setIsDark(
         theme === 'dark' ||
         (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
       )
-    }
-    atualizar()
+    sync()
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    mq.addEventListener('change', atualizar)
-    return () => mq.removeEventListener('change', atualizar)
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
   }, [theme])
 
   const carregar = useCallback(async () => {
     setErro(null)
     try {
       const mesesRef: string[] = []
-      for (let i = MESES_HISTORICO - 1; i >= 0; i--) {
+      for (let i = MESES_HISTORICO - 1; i >= 0; i--)
         mesesRef.push(format(startOfMonth(subMonths(mesAtual, i)), 'yyyy-MM-dd'))
-      }
 
       const fimPeriodo = format(endOfMonth(mesAtual), 'yyyy-MM-dd')
 
-      const [{ data: planejamento }, { data: aportes }] = await Promise.all([
+      const [{ data: plan }, { data: aportes }] = await Promise.all([
         supabase
           .from('planejamento')
           .select('item, valor_previsto, valor_real, pago, mes_referencia')
@@ -77,35 +125,30 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
           .lte('data_aporte', fimPeriodo),
       ])
 
-      const receitasPorMes = new Map<string, number>()
-      const despesasPorMes = new Map<string, number>()
+      const rec = new Map<string, number>()
+      const des = new Map<string, number>()
 
-      for (const p of (planejamento || [])) {
+      for (const p of (plan || [])) {
         const mes: string = p.mes_referencia
         const item = String(p.item || '')
         const valor = p.pago && p.valor_real != null ? p.valor_real : (p.valor_previsto || 0)
-
-        if (item === 'Receita Total' || item.startsWith('[RECEITA]')) {
-          receitasPorMes.set(mes, (receitasPorMes.get(mes) || 0) + valor)
-        } else {
-          despesasPorMes.set(mes, (despesasPorMes.get(mes) || 0) + valor)
-        }
+        if (item === 'Receita Total' || item.startsWith('[RECEITA]'))
+          rec.set(mes, (rec.get(mes) || 0) + valor)
+        else
+          des.set(mes, (des.get(mes) || 0) + valor)
       }
 
-      const investimentosPorMes = new Map<string, number>()
+      const inv = new Map<string, number>()
       for (const a of (aportes || [])) {
-        // data_aporte can be 'yyyy-MM-dd' — parse as local noon to avoid timezone shifts
         const mes = format(startOfMonth(new Date(a.data_aporte + 'T12:00:00')), 'yyyy-MM-dd')
-        investimentosPorMes.set(mes, (investimentosPorMes.get(mes) || 0) + a.valor)
+        inv.set(mes, (inv.get(mes) || 0) + a.valor)
       }
 
       setDados({
-        labels: mesesRef.map(m =>
-          format(new Date(m + 'T12:00:00'), "MMM/yy", { locale: ptBR })
-        ),
-        receitas: mesesRef.map(m => receitasPorMes.get(m) || 0),
-        despesas: mesesRef.map(m => despesasPorMes.get(m) || 0),
-        investimentos: mesesRef.map(m => investimentosPorMes.get(m) || 0),
+        labels:       mesesRef.map(m => format(new Date(m + 'T12:00:00'), 'MMM/yy', { locale: ptBR })),
+        receitas:     mesesRef.map(m => rec.get(m) || 0),
+        despesas:     mesesRef.map(m => des.get(m) || 0),
+        investimentos:mesesRef.map(m => inv.get(m) || 0),
       })
     } catch {
       setErro('Não foi possível carregar a evolução financeira.')
@@ -117,95 +160,80 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
   useEffect(() => {
     setCarregando(true)
     carregar()
-    const intervalo = setInterval(carregar, 60_000)
-    return () => clearInterval(intervalo)
+    const t = setInterval(carregar, 60_000)
+    return () => clearInterval(t)
   }, [carregar])
 
   const chartData = useMemo(() => {
     if (!dados) return null
-    const pointBorder = isDark ? '#111827' : '#ffffff'
+    const pBorder = isDark ? '#0f172a' : '#ffffff'
+    const mkDs = (label: string, data: number[], pi: number) => ({
+      label,
+      data,
+      borderColor: rgb(PALETTE[pi]),
+      backgroundColor: 'transparent', // overwritten by gradientPlugin each draw
+      borderWidth: 2.5,
+      tension: 0.42,
+      fill: true,
+      pointRadius: 0,
+      pointHoverRadius: 9,
+      pointHitRadius: 24,
+      pointBackgroundColor: rgb(PALETTE[pi]),
+      pointBorderColor: pBorder,
+      pointBorderWidth: 2.5,
+      pointHoverBorderWidth: 2.5,
+    })
     return {
       labels: dados.labels,
       datasets: [
-        {
-          label: 'Receitas',
-          data: dados.receitas,
-          borderColor: 'rgb(16, 185, 129)',
-          backgroundColor: 'rgba(16, 185, 129, 0.08)',
-          borderWidth: 2.5,
-          tension: 0.4,
-          fill: false,
-          pointRadius: 4,
-          pointHoverRadius: 7,
-          pointBackgroundColor: 'rgb(16, 185, 129)',
-          pointBorderColor: pointBorder,
-          pointBorderWidth: 2,
-        },
-        {
-          label: 'Despesas',
-          data: dados.despesas,
-          borderColor: 'rgb(239, 68, 68)',
-          backgroundColor: 'rgba(239, 68, 68, 0.08)',
-          borderWidth: 2.5,
-          tension: 0.4,
-          fill: false,
-          pointRadius: 4,
-          pointHoverRadius: 7,
-          pointBackgroundColor: 'rgb(239, 68, 68)',
-          pointBorderColor: pointBorder,
-          pointBorderWidth: 2,
-        },
-        {
-          label: 'Investimentos',
-          data: dados.investimentos,
-          borderColor: 'rgb(139, 92, 246)',
-          backgroundColor: 'rgba(139, 92, 246, 0.08)',
-          borderWidth: 2.5,
-          tension: 0.4,
-          fill: false,
-          pointRadius: 4,
-          pointHoverRadius: 7,
-          pointBackgroundColor: 'rgb(139, 92, 246)',
-          pointBorderColor: pointBorder,
-          pointBorderWidth: 2,
-        },
+        mkDs('Receitas',      dados.receitas,      0),
+        mkDs('Despesas',      dados.despesas,      1),
+        mkDs('Investimentos', dados.investimentos, 2),
       ],
     }
   }, [dados, isDark])
 
+  const plugins = useMemo(
+    () => [gradientPlugin, makeCrosshairPlugin(isDark)],
+    [isDark]
+  )
+
   const options = useMemo(() => {
-    const textColor = isDark ? '#9ca3af' : '#6b7280'
-    const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'
-    const tooltipBg = isDark ? 'rgba(31,41,55,0.97)' : 'rgba(17,24,39,0.92)'
+    const txt  = isDark ? '#9ca3af' : '#6b7280'
+    const grid = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.045)'
+    const tbg  = isDark ? 'rgba(15,23,42,0.97)'   : 'rgba(15,23,42,0.93)'
 
     return {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index' as const, intersect: false },
-      animation: { duration: 500, easing: 'easeInOutQuart' as const },
+      animation: { duration: 750, easing: 'easeInOutCubic' as const },
       plugins: {
         legend: {
           position: 'bottom' as const,
           labels: {
-            font: { size: 12 },
-            boxWidth: 10,
-            boxHeight: 10,
-            padding: 20,
-            usePointStyle: true,
-            pointStyleWidth: 10,
-            color: textColor,
+            font: { size: 12, weight: '500' as const },
+            boxWidth: 28,
+            boxHeight: 3,
+            padding: 24,
+            color: txt,
+            usePointStyle: false,
           },
         },
         tooltip: {
-          backgroundColor: tooltipBg,
-          titleColor: '#f9fafb',
-          bodyColor: '#d1d5db',
-          padding: 12,
-          cornerRadius: 10,
-          borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.12)',
+          backgroundColor: tbg,
+          titleColor: '#f1f5f9',
+          bodyColor:  '#94a3b8',
+          padding: { top: 10, right: 16, bottom: 10, left: 16 },
+          cornerRadius: 12,
+          borderColor: 'rgba(255,255,255,0.08)',
           borderWidth: 1,
+          boxWidth: 8,
+          boxHeight: 8,
+          usePointStyle: true,
           callbacks: {
-            label: (ctx: any) => ` ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y)}`,
+            title: (items: any[]) => items[0]?.label ?? '',
+            label: (ctx: any) => `  ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y)}`,
           },
         },
         datalabels: { display: false },
@@ -213,16 +241,16 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
       scales: {
         y: {
           ticks: {
-            callback: (value: any) => formatBRL(Number(value)),
+            callback: (v: any) => formatBRL(Number(v)),
             font: { size: 10 },
-            maxTicksLimit: 6,
-            color: textColor,
+            maxTicksLimit: 5,
+            color: txt,
           },
-          grid: { color: gridColor },
-          border: { display: false },
+          grid: { color: grid, lineWidth: 1 },
+          border: { display: false, dash: [4, 4] },
         },
         x: {
-          ticks: { font: { size: 11 }, color: textColor },
+          ticks: { font: { size: 11 }, color: txt, padding: 8 },
           grid: { display: false },
           border: { display: false },
         },
@@ -230,15 +258,34 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
     }
   }, [isDark])
 
+  // Last-month summary values (rightmost = mesAtual)
+  const resumo = useMemo(() => {
+    if (!dados) return null
+    const n = dados.receitas.length - 1
+    return {
+      receitas:      dados.receitas[n]      ?? 0,
+      despesas:      dados.despesas[n]      ?? 0,
+      investimentos: dados.investimentos[n] ?? 0,
+    }
+  }, [dados])
+
+  /* ── loading ── */
   if (carregando) {
     return (
-      <div className="h-64 md:h-72 flex flex-col items-center justify-center gap-3 text-gray-400">
-        <div className="w-8 h-8 border-2 border-gray-200 border-t-emerald-500 rounded-full animate-spin" />
-        <span className="text-sm">Carregando evolução…</span>
+      <div className="space-y-4">
+        <div className="grid grid-cols-3 gap-3">
+          {[0, 1, 2].map(i => (
+            <div key={i} className="animate-pulse h-[58px] bg-gray-100 rounded-2xl" />
+          ))}
+        </div>
+        <div className="animate-pulse h-64 bg-gray-50 rounded-2xl flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-gray-200 border-t-emerald-500 rounded-full animate-spin" />
+        </div>
       </div>
     )
   }
 
+  /* ── error ── */
   if (erro) {
     return (
       <div className="h-64 flex flex-col items-center justify-center gap-3 text-red-400">
@@ -257,8 +304,42 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
   if (!chartData) return null
 
   return (
-    <div className="h-64 md:h-72 lg:h-80">
-      <Line data={chartData} options={options} />
+    <div className="space-y-4">
+
+      {/* ── Summary chips ── */}
+      {resumo && (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="flex flex-col gap-1 bg-emerald-50 border border-emerald-100 rounded-2xl px-3 py-2.5">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+              <span className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wide">Receitas</span>
+            </div>
+            <span className="text-sm font-bold text-emerald-700 num">{formatBRL(resumo.receitas)}</span>
+          </div>
+
+          <div className="flex flex-col gap-1 bg-red-50 border border-red-100 rounded-2xl px-3 py-2.5">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+              <span className="text-[11px] font-semibold text-red-500 uppercase tracking-wide">Despesas</span>
+            </div>
+            <span className="text-sm font-bold text-red-600 num">{formatBRL(resumo.despesas)}</span>
+          </div>
+
+          <div className="flex flex-col gap-1 bg-violet-50 border border-violet-100 rounded-2xl px-3 py-2.5">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-violet-500 shrink-0" />
+              <span className="text-[11px] font-semibold text-violet-600 uppercase tracking-wide">Invest.</span>
+            </div>
+            <span className="text-sm font-bold text-violet-700 num">{formatBRL(resumo.investimentos)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Chart ── */}
+      <div className="h-56 md:h-64 lg:h-72">
+        <Line data={chartData} options={options} plugins={plugins} />
+      </div>
+
     </div>
   )
 }
