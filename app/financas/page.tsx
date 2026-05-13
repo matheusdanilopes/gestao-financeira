@@ -114,6 +114,7 @@ function FinancasContent() {
   useEffect(() => {
     const tab = searchParams.get('tab') as Tab | null
     if (tab === 'receitas' || tab === 'investimentos' || tab === 'despesas') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAbaAtual(tab)
     } else {
       setAbaAtual('despesas')

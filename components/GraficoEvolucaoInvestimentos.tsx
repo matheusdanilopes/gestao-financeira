@@ -17,11 +17,20 @@ import { ptBR } from 'date-fns/locale'
 import { AlertCircle, PiggyBank } from 'lucide-react'
 import { formatBRL } from '@/lib/logger'
 import { supabase } from '@/lib/supabaseClient'
-import { useTheme } from '@/components/ThemeProvider'
+import type { TooltipItem, Plugin } from 'chart.js'
+import { useIsDark } from '@/lib/useIsDark'
+import { makeCrosshairPlugin } from '@/lib/chartPlugins'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler)
 
+interface GradientChart {
+  ctx: CanvasRenderingContext2D
+  chartArea?: { top: number; bottom: number }
+  data: { datasets: Array<{ backgroundColor?: string | CanvasGradient | null }> }
+}
+
 const MESES = 6
+const POLL_DELAY = 20_000 // ms — escalonado para não coincidir com EvolucaoMensal
 
 const VIOLET = { r: 124, g: 58,  b: 237 } // violet-600 — realizado
 const TEAL   = { r: 20,  g: 184, b: 166 } // teal-500   — meta
@@ -43,7 +52,7 @@ interface Props {
 // Gradients: realizado (violet fill) + meta (teal very faint fill)
 const gradientPlugin = {
   id: 'gradientFillInv',
-  beforeDatasetsDraw(chart: any) {
+  beforeDatasetsDraw(chart: GradientChart) {
     const { ctx, chartArea } = chart
     if (!chartArea) return
     const [ds0, ds1] = chart.data.datasets
@@ -65,46 +74,17 @@ const gradientPlugin = {
   },
 }
 
-
-function makeCrosshair(isDark: boolean) {
-  return {
-    id: 'crosshairInv',
-    afterDatasetsDraw(chart: any) {
-      const { ctx, tooltip } = chart
-      if (!tooltip?._active?.length) return
-      const x = tooltip._active[0].element.x
-      const { top, bottom } = chart.chartArea
-      ctx.save()
-      ctx.beginPath()
-      ctx.moveTo(x, top)
-      ctx.lineTo(x, bottom)
-      ctx.lineWidth = 1
-      ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.10)'
-      ctx.setLineDash([5, 4])
-      ctx.stroke()
-      ctx.restore()
-    },
-  }
-}
-
 export default function GraficoEvolucaoInvestimentos({ mesAtual }: Props) {
   const [dados, setDados] = useState<DadosInvestimento | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
-  const { theme } = useTheme()
-  const [isDark, setIsDark] = useState(false)
+  const { isDark, isDarkRef } = useIsDark()
 
-  useEffect(() => {
-    const sync = () =>
-      setIsDark(
-        theme === 'dark' ||
-        (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-      )
-    sync()
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
-  }, [theme])
+  // Plugin criado uma única vez — lê isDarkRef.current no draw, sem recriar objeto
+  const plugins = useMemo(
+    () => [gradientPlugin, makeCrosshairPlugin('crosshairInv', isDarkRef)] as Plugin<'line'>[],
+    [isDarkRef],
+  )
 
   const carregar = useCallback(async () => {
     setErro(null)
@@ -186,8 +166,14 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual }: Props) {
   useEffect(() => {
     setCarregando(true)
     carregar()
-    const t = setInterval(carregar, 60_000)
-    return () => clearInterval(t)
+    let intervalId: ReturnType<typeof setInterval>
+    const timeoutId = setTimeout(() => {
+      intervalId = setInterval(carregar, 60_000)
+    }, POLL_DELAY)
+    return () => {
+      clearTimeout(timeoutId)
+      clearInterval(intervalId)
+    }
   }, [carregar])
 
   const chartData = useMemo(() => {
@@ -235,11 +221,6 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual }: Props) {
     }
   }, [dados, isDark])
 
-  const plugins = useMemo(
-    () => [gradientPlugin, makeCrosshair(isDark)],
-    [isDark]
-  )
-
   const options = useMemo(() => {
     const txt  = isDark ? '#9ca3af' : '#6b7280'
     const grid = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.045)'
@@ -274,15 +255,15 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual }: Props) {
           boxHeight: 8,
           usePointStyle: false,
           callbacks: {
-            title: (items: any[]) => items[0]?.label ?? '',
-            label: (ctx: any) => `  ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y)}`,
+            title: (items: TooltipItem<'line'>[]) => items[0]?.label ?? '',
+            label: (ctx: TooltipItem<'line'>) => `  ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y ?? 0)}`,
           },
         },
       },
       scales: {
         y: {
           ticks: {
-            callback: (v: any) => formatBRL(Number(v)),
+            callback: (v: number | string) => formatBRL(Number(v)),
             font: { size: 10 },
             maxTicksLimit: 5,
             color: txt,

@@ -42,6 +42,7 @@ const GraficoEvolucaoInvestimentos = dynamic(
 import DrawerDetalhes from '@/components/DrawerDetalhes'
 import { InfoPopover } from '@/components/InfoPopover'
 import { useGlobalSync } from '@/lib/useGlobalSync'
+import { formatBRL as fmt } from '@/lib/logger'
 
 const NUBANK_ITEMS = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto'])
 
@@ -94,9 +95,6 @@ interface DashboardData {
   dataFechamentoNubank: string | null
 }
 
-function fmt(v: number) {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
-}
 
 async function carregarDados(mes: Date): Promise<DashboardData> {
   const primeiroDia = startOfMonth(mes)
@@ -123,8 +121,8 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     supabase.from('assinaturas').select('nome, valor, responsavel, ativa').eq('cartao', 'nubank'),
   ])
 
-  const diaVencNubank = parseInt(nubankConfigs?.find((c: any) => c.chave === 'dia_vencimento')?.valor || '10')
-  const ajusteNubank  = parseInt(nubankConfigs?.find((c: any) => c.chave === 'ajuste_fechamento')?.valor || '0')
+  const diaVencNubank = parseInt(nubankConfigs?.find((c: { chave: string; valor: string }) => c.chave === 'dia_vencimento')?.valor || '10')
+  const ajusteNubank  = parseInt(nubankConfigs?.find((c: { chave: string; valor: string }) => c.chave === 'ajuste_fechamento')?.valor || '0')
   const mesRefFaturaDate = startOfMonth(addMonths(mes, 1))
   const dataFechamentoNubank = faturaRegistradaData?.[0]?.data_fechamento
     || format(calcularDataFechamentoDaFatura(mesRefFaturaDate, diaVencNubank, ajusteNubank), 'yyyy-MM-dd')
@@ -138,11 +136,11 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     (planejamento?.find(p => p.item === 'NuBank Jeniffer')?.valor_previsto || 0) +
     (planejamento?.find(p => p.item === 'NuBank Jeniffer Conjunto')?.valor_previsto || 0)
 
-  const toCartaoItem = (p: any, prefixo: string): CartaoItem => ({
+  const toCartaoItem = (p: { item: string; responsavel: string | null; valor_previsto: number | null; valor_real: number | null }, prefixo: string): CartaoItem => ({
     nome: p.item.replace(prefixo, '').trim(),
     responsavel: p.responsavel || '',
-    previsto: p.valor_previsto,
-    pago: p.valor_real ?? p.valor_previsto,
+    previsto: p.valor_previsto ?? 0,
+    pago: p.valor_real ?? p.valor_previsto ?? 0,
   })
 
   const cartao1PlanejamentoItems: CartaoItem[] = (planejamento || [])
@@ -282,17 +280,19 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const sobraLiquida = receitaTotal - totalGastos
   const percentualComprometimento = receitaTotal > 0 ? (totalGastos / receitaTotal) * 100 : 0
 
-  const assinAtivas = (assinaturasData || []).filter((a: any) => a.ativa)
-  const txFaturaList = transacoesFatura || []
+  type AssinaturaRow = { nome: string; valor: number; responsavel: string; ativa: boolean }
+  type TransacaoRow = { valor: number; responsavel: string | null; descricao: string | null }
+  const assinAtivas = (assinaturasData || []).filter((a: AssinaturaRow) => a.ativa)
+  const txFaturaList: TransacaoRow[] = transacoesFatura || []
   const calcNaoPaga = (responsavel: string) =>
     assinAtivas
-      .filter((a: any) => a.responsavel === responsavel && !txFaturaList.some((tx: any) => tx.descricao?.toLowerCase().includes(a.nome.toLowerCase())))
-      .reduce((sum: number, a: any) => sum + a.valor, 0)
+      .filter((a: AssinaturaRow) => a.responsavel === responsavel && !txFaturaList.some((tx: TransacaoRow) => tx.descricao?.toLowerCase().includes(a.nome.toLowerCase())))
+      .reduce((sum: number, a: AssinaturaRow) => sum + a.valor, 0)
   const assinNaoPagaMatheus = calcNaoPaga('Matheus')
   const assinNaoPagaJeniffer = calcNaoPaga('Jeniffer')
 
   const ids = (invData || []).map(i => i.id)
-  let aportadoMap: Record<string, number> = {}
+  const aportadoMap: Record<string, number> = {}
   if (ids.length > 0) {
     const { data: aportesData } = await supabase
       .from('investimentos_aportes').select('investimento_id, valor').in('investimento_id', ids)
@@ -343,7 +343,7 @@ export default function Dashboard() {
   const [investimentos, setInvestimentos] = useState<{ id: string; descricao: string; percentual: number; aportado: number }[]>([])
   const [assinaturasNaopagas, setAssinaturasNaopagas] = useState({ matheus: 0, jeniffer: 0 })
   const [drawerAberto, setDrawerAberto] = useState(false)
-  const [detalhesPonto, setDetalhesPonto] = useState<any>(null)
+  const [detalhesPonto, setDetalhesPonto] = useState<{ serie: string; mes: string; valor: number; itens: Record<string, unknown>[] } | null>(null) // itens typed loosely; DrawerDetalhes accepts DrawerItem[] which is compatible
   const [dataFechamentoNubank, setDataFechamentoNubank] = useState<string | null>(null)
 
   // Aplica dados vindos do cache (stale) ou do fetch fresco — sem mostrar skeleton
@@ -357,7 +357,7 @@ export default function Dashboard() {
   }, [])
 
   const fetcher = useCallback(
-    () => carregarDados(mesAtual), // eslint-disable-line react-hooks/exhaustive-deps
+    () => carregarDados(mesAtual),  
     [mesAtual]
   )
 

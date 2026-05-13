@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
         .order('valor')
         .order('data')
       if (err2) throw new Error(err2.message)
-      transacoes = (legado ?? []).map((r: any) => ({ ...r, data_compra: r.data }))
+      transacoes = (legado ?? [] as (Transacao & { data: string })[]).map(r => ({ ...r, data_compra: r.data }))
     } else {
       if (error) throw new Error(error.message)
       transacoes = data ?? []

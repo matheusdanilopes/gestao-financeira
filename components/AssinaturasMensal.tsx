@@ -672,7 +672,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
             <h3 className="text-lg font-bold mb-2">Excluir assinatura</h3>
             <p className="text-sm text-gray-500 mb-6">
               Tem certeza que deseja excluir{' '}
-              <span className="font-semibold text-gray-800">"{itemSelecionado.nome}"</span>?
+              <span className="font-semibold text-gray-800">&quot;{itemSelecionado.nome}&quot;</span>?
             </p>
             <div className="flex gap-3">
               <button onClick={fecharModal} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600">

@@ -17,11 +17,20 @@ import { ptBR } from 'date-fns/locale'
 import { AlertCircle } from 'lucide-react'
 import { formatBRL } from '@/lib/logger'
 import { supabase } from '@/lib/supabaseClient'
-import { useTheme } from '@/components/ThemeProvider'
+import type { ScriptableLineSegmentContext, TooltipItem, Plugin } from 'chart.js'
+import { useIsDark } from '@/lib/useIsDark'
+import { makeCrosshairPlugin } from '@/lib/chartPlugins'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler)
 
+interface GradientChart {
+  ctx: CanvasRenderingContext2D
+  chartArea?: { top: number; bottom: number }
+  data: { datasets: Array<{ backgroundColor?: string | CanvasGradient | null }> }
+}
+
 const MESES_HISTORICO = 6
+const POLL_DELAY = 0 // ms — sem stagger, é o primeiro a carregar
 
 const PALETTE = [
   { r: 16,  g: 185, b: 129 }, // Receitas — emerald
@@ -47,10 +56,10 @@ interface Props {
 // Plugin: canvas gradient fills — recalculated each draw so resizes are handled
 const gradientPlugin = {
   id: 'gradientFill',
-  beforeDatasetsDraw(chart: any) {
+  beforeDatasetsDraw(chart: GradientChart) {
     const { ctx, chartArea } = chart
     if (!chartArea) return
-    chart.data.datasets.forEach((ds: any, i: number) => {
+    chart.data.datasets.forEach((ds, i: number) => {
       const p = PALETTE[i]
       if (!p) return
       const g = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom)
@@ -62,46 +71,17 @@ const gradientPlugin = {
   },
 }
 
-// Plugin: subtle dashed vertical crosshair on hover
-function makeCrosshairPlugin(isDark: boolean) {
-  return {
-    id: 'crosshair',
-    afterDatasetsDraw(chart: any) {
-      const { ctx, tooltip } = chart
-      if (!tooltip?._active?.length) return
-      const x = tooltip._active[0].element.x
-      const { top, bottom } = chart.chartArea
-      ctx.save()
-      ctx.beginPath()
-      ctx.moveTo(x, top)
-      ctx.lineTo(x, bottom)
-      ctx.lineWidth = 1
-      ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.10)'
-      ctx.setLineDash([5, 4])
-      ctx.stroke()
-      ctx.restore()
-    },
-  }
-}
-
 export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
   const [dados, setDados] = useState<EvolucaoMensal | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
-  const { theme } = useTheme()
-  const [isDark, setIsDark] = useState(false)
+  const { isDark, isDarkRef } = useIsDark()
 
-  useEffect(() => {
-    const sync = () =>
-      setIsDark(
-        theme === 'dark' ||
-        (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-      )
-    sync()
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
-  }, [theme])
+  // Plugin criado uma única vez — lê isDarkRef.current no draw, sem recriar objeto
+  const plugins = useMemo(
+    () => [gradientPlugin, makeCrosshairPlugin('crosshair', isDarkRef)] as Plugin<'line'>[],
+    [isDarkRef],
+  )
 
   const carregar = useCallback(async () => {
     setErro(null)
@@ -113,12 +93,10 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
       // Today's month reference — used to split real vs. forecast
       const hojeRef = format(startOfMonth(new Date()), 'yyyy-MM-dd')
 
-      const [{ data: plan }] = await Promise.all([
-        supabase
-          .from('planejamento')
-          .select('item, valor_previsto, valor_real, pago, mes_referencia')
-          .in('mes_referencia', mesesRef),
-      ])
+      const { data: plan } = await supabase
+        .from('planejamento')
+        .select('item, valor_previsto, valor_real, pago, mes_referencia')
+        .in('mes_referencia', mesesRef)
 
       const rec = new Map<string, number>()
       const des = new Map<string, number>()
@@ -157,8 +135,14 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
   useEffect(() => {
     setCarregando(true)
     carregar()
-    const t = setInterval(carregar, 60_000)
-    return () => clearInterval(t)
+    let intervalId: ReturnType<typeof setInterval>
+    const timeoutId = setTimeout(() => {
+      intervalId = setInterval(carregar, 60_000)
+    }, POLL_DELAY)
+    return () => {
+      clearTimeout(timeoutId)
+      clearInterval(intervalId)
+    }
   }, [carregar])
 
   const chartData = useMemo(() => {
@@ -184,8 +168,8 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
       // Segments from currentMonthIndex onward → dashed + lighter (forecast)
       ...(cmi >= 0 ? {
         segment: {
-          borderDash:  (ctx: any) => ctx.p1DataIndex >= cmi ? [7, 4] : undefined,
-          borderColor: (ctx: any) => ctx.p1DataIndex >= cmi
+          borderDash:  (ctx: ScriptableLineSegmentContext) => ctx.p1DataIndex >= cmi ? [7, 4] : undefined,
+          borderColor: (ctx: ScriptableLineSegmentContext) => ctx.p1DataIndex >= cmi
             ? rgb(PALETTE[pi], 0.50)
             : rgb(PALETTE[pi]),
         },
@@ -195,16 +179,11 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
     return {
       labels: dados.labels,
       datasets: [
-        mkDs('Receitas',  dados.receitas,  0),
-        mkDs('Despesas',  dados.despesas,  1),
+        mkDs('Receitas', dados.receitas, 0),
+        mkDs('Despesas', dados.despesas, 1),
       ],
     }
   }, [dados, isDark])
-
-  const plugins = useMemo(
-    () => [gradientPlugin, makeCrosshairPlugin(isDark)],
-    [isDark]
-  )
 
   const options = useMemo(() => {
     const txt  = isDark ? '#9ca3af' : '#6b7280'
@@ -240,15 +219,15 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
           boxHeight: 8,
           usePointStyle: true,
           callbacks: {
-            title: (items: any[]) => items[0]?.label ?? '',
-            label: (ctx: any) => `  ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y)}`,
+            title: (items: TooltipItem<'line'>[]) => items[0]?.label ?? '',
+            label: (ctx: TooltipItem<'line'>) => `  ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y ?? 0)}`,
           },
         },
       },
       scales: {
         y: {
           ticks: {
-            callback: (v: any) => formatBRL(Number(v)),
+            callback: (v: number | string) => formatBRL(Number(v)),
             font: { size: 10 },
             maxTicksLimit: 5,
             color: txt,

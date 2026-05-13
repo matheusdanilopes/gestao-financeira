@@ -50,7 +50,7 @@ async function inserirTransacao(
   let result = await supabase.from('transacoes_nubank').insert(item)
 
   if (result.error?.message?.includes('data_compra')) {
-    const { data_compra, ...resto } = item as any
+    const { data_compra, ...resto } = item as TransacaoNubank & Record<string, unknown>
     result = await supabase.from('transacoes_nubank').insert({ ...resto, data: data_compra })
   }
 
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
 
     const { data: configs } = await supabase.from('configuracoes').select('chave, valor')
     const get = (chave: string, fallback: string) =>
-      configs?.find((c: any) => c.chave === chave)?.valor ?? fallback
+      configs?.find((c: { chave: string; valor: string }) => c.chave === chave)?.valor ?? fallback
 
     // Usa configurações específicas do cartão quando disponíveis; senão, cai no padrão global
     const diaVencimento = parseInt(
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
       .ilike('item', `${prefixoPlanejamento}%`)
 
     const responsaveisUnicos = [
-      ...new Set((planos ?? []).map((p: any) => p.responsavel).filter(Boolean))
+      ...new Set((planos ?? []).map((p: { responsavel: string | null }) => p.responsavel).filter(Boolean))
     ]
     const responsavelPadrao: 'Matheus' | 'Jeniffer' | undefined =
       responsaveisUnicos.length === 1 &&

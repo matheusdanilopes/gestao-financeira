@@ -46,6 +46,8 @@ interface ItemPlanejamento {
   data_vencimento: string | null
   data_pagamento: string | null
   created_at: string | null
+  parcela_atual?: number | null
+  total_parcelas?: number | null
 }
 
 function StatusBadge({ status }: { status: StatusVencimento }) {
@@ -107,7 +109,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
   })
   const [dataPagamento, setDataPagamento] = useState('')
   const [importandoMesAnterior, setImportandoMesAnterior] = useState(false)
-  const [previewImport, setPreviewImport] = useState<{ itens: any[]; mesOrigem: string } | null>(null)
+  const [previewImport, setPreviewImport] = useState<{ itens: ItemPlanejamento[]; mesOrigem: string } | null>(null)
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null)
 
   const mesRefStr = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
@@ -847,7 +849,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
           <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm p-6 shadow-float modal-sheet sm:modal-center">
             <h3 className="text-lg font-bold mb-2">Excluir item</h3>
             <p className="text-sm text-gray-500 mb-6">
-              Tem certeza que deseja excluir <span className="font-semibold text-gray-800">"{removerPrefixoCartao(itemSelecionado.item)}"</span>?
+              Tem certeza que deseja excluir <span className="font-semibold text-gray-800">&quot;{removerPrefixoCartao(itemSelecionado.item)}&quot;</span>?
             </p>
             <div className="flex gap-3">
               <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-2xl bg-gray-100 font-semibold text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]">Cancelar</button>

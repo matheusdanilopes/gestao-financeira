@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
           .order('data')
         if (errLegado) throw new Error(errLegado.message)
         // Normaliza para o formato atual
-        const normalizado = (dataLegado ?? []).map((r: any) => ({ ...r, data_compra: r.data }))
+        const normalizado = (dataLegado ?? [] as (Transacao & { data: string })[]).map(r => ({ ...r, data_compra: r.data }))
         return NextResponse.json(detectarDuplicatas(normalizado))
       }
       throw new Error(error.message)
