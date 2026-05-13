@@ -23,11 +23,10 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip,
 
 const MESES_HISTORICO = 6
 
-// [r, g, b] for each series: Receitas, Despesas, Investimentos
 const PALETTE = [
-  { r: 16,  g: 185, b: 129 },
-  { r: 239, g: 68,  b: 68  },
-  { r: 139, g: 92,  b: 246 },
+  { r: 16,  g: 185, b: 129 }, // Receitas   — emerald
+  { r: 239, g: 68,  b: 68  }, // Despesas   — red
+  { r: 139, g: 92,  b: 246 }, // Investimentos — violet
 ] as const
 
 function rgb(p: (typeof PALETTE)[number], a = 1) {
@@ -39,13 +38,15 @@ interface EvolucaoMensal {
   receitas: number[]
   despesas: number[]
   investimentos: number[]
+  /** Index of today's month in the array; -1 when outside the displayed window */
+  currentMonthIndex: number
 }
 
 interface Props {
   mesAtual: Date
 }
 
-// Inline Chart.js plugin: paint canvas gradient fills before each draw
+// Plugin: canvas gradient fills — recalculated each draw so resizes are handled
 const gradientPlugin = {
   id: 'gradientFill',
   beforeDatasetsDraw(chart: any) {
@@ -55,15 +56,15 @@ const gradientPlugin = {
       const p = PALETTE[i]
       if (!p) return
       const g = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom)
-      g.addColorStop(0,   rgb(p, 0.20))
-      g.addColorStop(0.5, rgb(p, 0.06))
+      g.addColorStop(0,   rgb(p, 0.18))
+      g.addColorStop(0.5, rgb(p, 0.05))
       g.addColorStop(1,   rgb(p, 0))
       ds.backgroundColor = g
     })
   },
 }
 
-// Inline plugin: subtle dashed vertical crosshair on hover
+// Plugin: subtle dashed vertical crosshair on hover
 function makeCrosshairPlugin(isDark: boolean) {
   return {
     id: 'crosshair',
@@ -112,6 +113,8 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
         mesesRef.push(format(startOfMonth(subMonths(mesAtual, i)), 'yyyy-MM-dd'))
 
       const fimPeriodo = format(endOfMonth(mesAtual), 'yyyy-MM-dd')
+      // Today's month reference — used to split real vs. forecast
+      const hojeRef = format(startOfMonth(new Date()), 'yyyy-MM-dd')
 
       const [{ data: plan }, { data: aportes }] = await Promise.all([
         supabase
@@ -131,13 +134,22 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
       for (const p of (plan || [])) {
         const mes: string = p.mes_referencia
         const item = String(p.item || '')
-        const valor = p.pago && p.valor_real != null ? p.valor_real : (p.valor_previsto || 0)
+
+        // Past months → use valor_real when the item was actually paid/received;
+        // fall back to valor_previsto when there is no real record.
+        // Current month and future → always use valor_previsto (forecast).
+        const isPast = mes < hojeRef
+        const valor = isPast && p.pago && p.valor_real != null
+          ? p.valor_real
+          : (p.valor_previsto || 0)
+
         if (item === 'Receita Total' || item.startsWith('[RECEITA]'))
           rec.set(mes, (rec.get(mes) || 0) + valor)
         else
           des.set(mes, (des.get(mes) || 0) + valor)
       }
 
+      // Investimentos: actual deposits for all months (aportes are always real amounts)
       const inv = new Map<string, number>()
       for (const a of (aportes || [])) {
         const mes = format(startOfMonth(new Date(a.data_aporte + 'T12:00:00')), 'yyyy-MM-dd')
@@ -145,10 +157,11 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
       }
 
       setDados({
-        labels:       mesesRef.map(m => format(new Date(m + 'T12:00:00'), 'MMM/yy', { locale: ptBR })),
-        receitas:     mesesRef.map(m => rec.get(m) || 0),
-        despesas:     mesesRef.map(m => des.get(m) || 0),
-        investimentos:mesesRef.map(m => inv.get(m) || 0),
+        labels:            mesesRef.map(m => format(new Date(m + 'T12:00:00'), 'MMM/yy', { locale: ptBR })),
+        receitas:          mesesRef.map(m => rec.get(m) || 0),
+        despesas:          mesesRef.map(m => des.get(m) || 0),
+        investimentos:     mesesRef.map(m => inv.get(m) || 0),
+        currentMonthIndex: mesesRef.findIndex(m => m === hojeRef),
       })
     } catch {
       setErro('Não foi possível carregar a evolução financeira.')
@@ -167,6 +180,8 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
   const chartData = useMemo(() => {
     if (!dados) return null
     const pBorder = isDark ? '#0f172a' : '#ffffff'
+    const cmi = dados.currentMonthIndex
+
     const mkDs = (label: string, data: number[], pi: number) => ({
       label,
       data,
@@ -182,13 +197,23 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
       pointBorderColor: pBorder,
       pointBorderWidth: 2.5,
       pointHoverBorderWidth: 2.5,
+      // Segments from currentMonthIndex onward → dashed + lighter (forecast)
+      ...(cmi >= 0 ? {
+        segment: {
+          borderDash:  (ctx: any) => ctx.p1DataIndex >= cmi ? [7, 4] : undefined,
+          borderColor: (ctx: any) => ctx.p1DataIndex >= cmi
+            ? rgb(PALETTE[pi], 0.50)
+            : rgb(PALETTE[pi]),
+        },
+      } : {}),
     })
+
     return {
       labels: dados.labels,
       datasets: [
-        mkDs('Receitas',      dados.receitas,      0),
-        mkDs('Despesas',      dados.despesas,      1),
-        mkDs('Investimentos', dados.investimentos, 2),
+        mkDs('Receitas',       dados.receitas,       0),
+        mkDs('Despesas',       dados.despesas,       1),
+        mkDs('Investimentos',  dados.investimentos,  2),
       ],
     }
   }, [dados, isDark])
@@ -285,9 +310,26 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
 
   if (!chartData) return null
 
+  const showHint = dados !== null && dados.currentMonthIndex >= 0
+
   return (
-    <div className="h-56 md:h-64 lg:h-72">
-      <Line data={chartData} options={options} plugins={plugins} />
+    <div>
+      <div className="h-56 md:h-64 lg:h-72">
+        <Line data={chartData} options={options} plugins={plugins} />
+      </div>
+
+      {showHint && (
+        <p className="flex items-center justify-center gap-5 text-[11px] text-gray-400 mt-3">
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block w-6 h-0.5 rounded-full bg-gray-400" />
+            Realizado
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block w-5 border-t border-dashed border-gray-400" />
+            Previsto
+          </span>
+        </p>
+      )}
     </div>
   )
 }
