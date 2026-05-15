@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef, Suspense, useCallback, type FormEvent } from 'react'
+import { useState, useEffect, useRef, Suspense, useCallback, type FormEvent, type ReactNode } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { Heart, Plus, Check, ExternalLink, X, Star, Search, RotateCcw } from 'lucide-react'
+import { Heart, Plus, Check, ExternalLink, X, Star, Search, RotateCcw, Trash2 } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { useWishlist, type WishlistItem } from '@/lib/useWishlist'
@@ -56,32 +56,35 @@ function corUsuario(email: string | null): string {
 // ── Toast ─────────────────────────────────────────────────────────────────────
 
 function Toast({
-  nome,
+  mensagem,
+  icone,
   onDesfazer,
   onClose,
 }: {
-  nome: string
+  mensagem: ReactNode
+  icone: ReactNode
   onDesfazer: () => void
   onClose: () => void
 }) {
-  useEffect(() => {
-    const t = setTimeout(onClose, 4000)
-    return () => clearTimeout(t)
-  }, [onClose])
-
   return (
     <div className="fixed bottom-24 left-4 right-4 z-[300] max-w-md mx-auto toast-enter">
       <div className="flex items-center gap-3 bg-gray-900 text-white rounded-2xl px-4 py-3.5 shadow-float">
-        <Check className="w-4 h-4 text-green-400 flex-none" strokeWidth={2.5} />
-        <p className="flex-1 text-sm font-medium truncate">
-          <span className="text-gray-300">"{nome}"</span> realizado!
-        </p>
+        <span className="flex-none">{icone}</span>
+        <p className="flex-1 text-sm font-medium truncate">{mensagem}</p>
         <button
           type="button"
           onClick={onDesfazer}
           className="text-xs font-semibold text-primary-300 hover:text-primary-200 py-1 px-2 rounded-lg transition-colors"
         >
           Desfazer
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-gray-500 hover:text-gray-300 transition-colors"
+          aria-label="Fechar"
+        >
+          <X className="w-3.5 h-3.5" />
         </button>
       </div>
     </div>
@@ -523,14 +526,33 @@ function WishlistContent() {
     adicionar, editar, marcarRealizado, desfazerRealizado, toggleFavorito, excluir,
   } = useWishlist()
 
+  type ToastAtivo =
+    | { kind: 'realizou'; id: string; nome: string }
+    | { kind: 'excluiu';  id: string; nome: string }
+
   const [aba, setAba] = useState<'ativos' | 'historico'>('ativos')
   const [modalAberto, setModalAberto] = useState(searchParams.get('add') === 'true')
   const [itemEditando, setItemEditando] = useState<WishlistItem | null>(null)
   const [buscaAberta, setBuscaAberta] = useState(false)
   const [busca, setBusca] = useState('')
   const [filtroCategoria, setFiltroCategoria] = useState<string | null>(null)
-  const [toast, setToast] = useState<{ itemId: string; nome: string } | null>(null)
+  const [activeToast, setActiveToast] = useState<ToastAtivo | null>(null)
+  const [pendingExcluirId, setPendingExcluirId] = useState<string | null>(null)
   const [hintVisto, setHintVisto] = useState(true)
+  const toastTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingExcluirRef = useRef<string | null>(null)
+
+  function clearToastTimer() {
+    if (toastTimerRef.current) { clearTimeout(toastTimerRef.current); toastTimerRef.current = null }
+  }
+
+  function commitPendingExcluir() {
+    if (pendingExcluirRef.current) {
+      excluir(pendingExcluirRef.current)
+      pendingExcluirRef.current = null
+      setPendingExcluirId(null)
+    }
+  }
 
   useEffect(() => {
     if (!localStorage.getItem(HINT_KEY)) setHintVisto(false)
@@ -551,14 +573,25 @@ function WishlistContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // FAB do BottomNav abre o modal diretamente
+  useEffect(() => {
+    function handler() { setItemEditando(null); setModalAberto(true) }
+    window.addEventListener('wishlist:open-add', handler)
+    return () => window.removeEventListener('wishlist:open-add', handler)
+  }, [])
+
   const categoriasUsadas = [...new Set(ativos.map(i => i.categoria).filter(Boolean) as string[])]
   const totalAtivos = ativos.reduce((s, i) => s + (i.valor_estimado ?? 0), 0)
 
-  const ativosFiltrados = ativos.filter(item => {
-    if (filtroCategoria && item.categoria !== filtroCategoria) return false
-    if (busca && !item.nome.toLowerCase().includes(busca.toLowerCase())) return false
-    return true
-  })
+  const ativosFiltrados = ativos
+    .filter(i => i.id !== pendingExcluirId)
+    .filter(item => {
+      if (filtroCategoria && item.categoria !== filtroCategoria) return false
+      if (busca && !item.nome.toLowerCase().includes(busca.toLowerCase())) return false
+      return true
+    })
+
+  const historicoDis = historico.filter(i => i.id !== pendingExcluirId)
 
   function abrirEditar(item: WishlistItem) {
     setItemEditando(item)
@@ -586,17 +619,49 @@ function WishlistContent() {
   }
 
   async function handleRealizar(id: string) {
+    commitPendingExcluir()
+    clearToastTimer()
     const item = ativos.find(i => i.id === id)
     await marcarRealizado(id)
-    if (item) setToast({ itemId: id, nome: item.nome })
+    if (item) {
+      setActiveToast({ kind: 'realizou', id, nome: item.nome })
+      toastTimerRef.current = setTimeout(() => setActiveToast(null), 4000)
+    }
+  }
+
+  function handleExcluir(id: string) {
+    commitPendingExcluir()
+    clearToastTimer()
+    const item = [...ativos, ...historico].find(i => i.id === id)
+    if (!item) { excluir(id); return }
+    pendingExcluirRef.current = id
+    setPendingExcluirId(id)
+    setActiveToast({ kind: 'excluiu', id, nome: item.nome })
+    toastTimerRef.current = setTimeout(() => {
+      commitPendingExcluir()
+      setActiveToast(null)
+    }, 4000)
   }
 
   const handleDesfazer = useCallback(async () => {
-    if (!toast) return
-    const { itemId } = toast
-    setToast(null)
-    await desfazerRealizado(itemId)
-  }, [toast, desfazerRealizado])
+    clearToastTimer()
+    if (!activeToast) return
+    if (activeToast.kind === 'realizou') {
+      setActiveToast(null)
+      await desfazerRealizado(activeToast.id)
+    } else {
+      pendingExcluirRef.current = null
+      setPendingExcluirId(null)
+      setActiveToast(null)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeToast, desfazerRealizado])
+
+  function handleFecharToast() {
+    clearToastTimer()
+    commitPendingExcluir()
+    setActiveToast(null)
+  }
 
   const handleFavoritar = useCallback((id: string) => {
     toggleFavorito(id, ativos)
@@ -703,7 +768,7 @@ function WishlistContent() {
 
       {/* Content */}
       <div className="px-4 pt-4">
-        {(aba === 'ativos' ? ativosFiltrados : historico).length === 0 ? (
+        {(aba === 'ativos' ? ativosFiltrados : historicoDis).length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-16 h-16 rounded-2xl bg-pink-50 flex items-center justify-center mb-4">
               <Heart className="w-8 h-8 text-pink-300" strokeWidth={1.5} />
@@ -742,15 +807,15 @@ function WishlistContent() {
                     mostraHint={idx === 0 && !hintVisto}
                     onEditar={abrirEditar}
                     onRealizar={handleRealizar}
-                    onExcluir={excluir}
+                    onExcluir={handleExcluir}
                     onFavoritar={handleFavoritar}
                   />
                 ))
-              : historico.map(item => (
+              : historicoDis.map(item => (
                   <CardRealizado
                     key={item.id}
                     item={item}
-                    onExcluir={excluir}
+                    onExcluir={handleExcluir}
                     onRestaurar={desfazerRealizado}
                   />
                 ))
@@ -768,12 +833,21 @@ function WishlistContent() {
         />
       )}
 
-      {/* Toast */}
-      {toast && (
+      {/* Toast unificado (realizou / excluiu) */}
+      {activeToast && (
         <Toast
-          nome={toast.nome}
+          mensagem={
+            activeToast.kind === 'realizou'
+              ? <><span className="text-gray-300">&ldquo;{activeToast.nome}&rdquo;</span> realizado!</>
+              : <><span className="text-gray-300">&ldquo;{activeToast.nome}&rdquo;</span> removido</>
+          }
+          icone={
+            activeToast.kind === 'realizou'
+              ? <Check className="w-4 h-4 text-green-400" strokeWidth={2.5} />
+              : <Trash2 className="w-4 h-4 text-red-400" strokeWidth={2} />
+          }
           onDesfazer={handleDesfazer}
-          onClose={() => setToast(null)}
+          onClose={handleFecharToast}
         />
       )}
     </div>

@@ -317,12 +317,22 @@ export default memo(function BottomNav() {
             onClick={() => setOpenMenu(p => p === 'financas' ? null : 'financas')}
           />
 
-          {/* FAB — Lançamento Rápido */}
+          {/* FAB — contextual: abre modal direto nas páginas de módulo */}
           <button
             type="button"
-            aria-label="Lançamento rápido"
+            aria-label="Adicionar"
             aria-expanded={openMenu === 'fab'}
-            onClick={() => setOpenMenu(p => p === 'fab' ? null : 'fab')}
+            onClick={() => {
+              if (pathname === '/wishlist') {
+                window.dispatchEvent(new CustomEvent('wishlist:open-add'))
+                return
+              }
+              if (pathname === '/lista-mercado') {
+                window.dispatchEvent(new CustomEvent('lista-mercado:open-add'))
+                return
+              }
+              setOpenMenu(p => p === 'fab' ? null : 'fab')
+            }}
             className="flex flex-col items-center justify-center flex-none -mt-5"
           >
             <span className={`w-14 h-14 rounded-full flex items-center justify-center shadow-float
