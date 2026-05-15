@@ -43,6 +43,11 @@ export interface UseDataSyncOptions {
    * Use quando quiser receber os dados fora do fetcher.
    */
   onData?: (data: unknown) => void
+  /**
+   * Callback chamado ao reconectar, antes do fetch.
+   * Use para flush de operações offline pendentes.
+   */
+  onReconnect?: () => Promise<void>
   /** Intervalo de polling em ms quando Realtime falha (padrão: 45 000) */
   pollInterval?: number
   /** Se false, o hook fica inativo (útil p/ condicionar por mês/rota) */
@@ -56,6 +61,7 @@ export function useDataSync({
   tables,
   fetcher,
   onData,
+  onReconnect,
   pollInterval = POLL_INTERVAL_DEFAULT,
   enabled = true,
 }: UseDataSyncOptions): UseDataSyncReturn {
@@ -73,6 +79,8 @@ export function useDataSync({
   const isOnlineRef = useRef(
     typeof navigator !== 'undefined' ? navigator.onLine : true
   )
+  const onReconnectRef = useRef(onReconnect)
+  useEffect(() => { onReconnectRef.current = onReconnect }, [onReconnect])
 
   // ── Cache helpers ──────────────────────────────────────────────
   const readCache = useCallback((): unknown | null => {
@@ -173,10 +181,11 @@ export function useDataSync({
 
   // ── Online / Offline ───────────────────────────────────────────
   useEffect(() => {
-    function handleOnline() {
+    async function handleOnline() {
       isOnlineRef.current = true
       setIsOnline(true)
       setStatus('loading')
+      if (onReconnectRef.current) await onReconnectRef.current()
       setupRealtime()
       doFetch()
     }

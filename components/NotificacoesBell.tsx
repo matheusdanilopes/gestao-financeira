@@ -198,15 +198,17 @@ export default memo(function NotificacoesBell() {
   async function registrarServiceWorker(email: string) {
     if (!('serviceWorker' in navigator)) return
 
+    // iOS fora do modo standalone não suporta push — mostra instrução de instalação
     if (isIOS() && !isStandalone()) {
       setIosNaoInstalado(true)
       return
     }
 
     try {
-      const reg = await navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+      // SW já foi registrado globalmente pelo ClientShell; aguarda ficar pronto
+      const reg = await navigator.serviceWorker.ready
 
-      // Detecta atualização do SW e força nova assinatura
+      // Detecta atualização do SW e força nova assinatura de push
       reg.addEventListener('updatefound', () => {
         const novoSW = reg.installing
         if (!novoSW) return
