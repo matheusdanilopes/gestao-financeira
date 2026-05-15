@@ -10,13 +10,23 @@ export type ItemMercado = {
   quantidade: number
   preco_unit: number | null
   comprado: boolean
+  criado_por: string | null
   created_at: string
   updated_at: string
+}
+
+async function getUsuario(): Promise<string | null> {
+  const { data: { user } } = await supabase.auth.getUser()
+  return user?.email ?? null
 }
 
 export function useListaMercado() {
   const [itens, setItens] = useState<ItemMercado[]>([])
   const timersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  // Tracks optimistic updates that haven't been confirmed by DB yet.
+  // Merged into fetched data so a realtime event from another user
+  // can't overwrite a pending toggle/edit before the 400ms save fires.
+  const pendingUpdatesRef = useRef<Record<string, Partial<ItemMercado>>>({})
 
   useDataSync({
     cacheKey: 'lista-mercado',
@@ -29,27 +39,40 @@ export function useListaMercado() {
       if (error) throw error
       return data ?? []
     },
-    onData: (data) => setItens(data as ItemMercado[]),
+    onData: (data) => {
+      const items = data as ItemMercado[]
+      const pending = pendingUpdatesRef.current
+      setItens(items.map(item => {
+        const p = pending[item.id]
+        return p ? { ...item, ...p } : item
+      }))
+    },
   })
 
+  // Total de todos os itens (pendentes + comprados) — valor da compra completa
   const total = itens.reduce((s, i) => s + i.quantidade * (i.preco_unit ?? 0), 0)
 
-  // Persiste campo(s) no Supabase com debounce de 400ms
+  // Itens sem preço definido (independente de estar comprado ou não)
+  const semPreco = itens.filter(i => i.preco_unit == null).length
+
   const _salvar = useCallback((id: string, campos: Partial<ItemMercado>) => {
     setItens(prev => prev.map(i => i.id === id ? { ...i, ...campos } : i))
+    pendingUpdatesRef.current[id] = { ...(pendingUpdatesRef.current[id] ?? {}), ...campos }
     if (timersRef.current[id]) clearTimeout(timersRef.current[id])
     timersRef.current[id] = setTimeout(async () => {
       await supabase
         .from('lista_mercado_itens')
         .update({ ...campos, updated_at: new Date().toISOString() })
         .eq('id', id)
+      delete pendingUpdatesRef.current[id]
     }, 400)
   }, [])
 
   const adicionar = useCallback(async (nome: string, quantidade = 1) => {
     const nomeTrimado = nome.trim()
     if (!nomeTrimado) return
-    const payload = { nome: nomeTrimado, quantidade, preco_unit: null as number | null, comprado: false }
+    const criado_por = await getUsuario()
+    const payload = { nome: nomeTrimado, quantidade, preco_unit: null as number | null, comprado: false, criado_por }
     const tempId = crypto.randomUUID()
     const now = new Date().toISOString()
     setItens(prev => [...prev, { ...payload, id: tempId, created_at: now, updated_at: now }])
@@ -105,5 +128,5 @@ export function useListaMercado() {
     await supabase.from('lista_mercado_itens').delete().in('id', ids)
   }, [])
 
-  return { itens, total, adicionar, alterarQuantidade, definirPreco, editarNome, toggleComprado, excluir, limparComprados }
+  return { itens, total, semPreco, adicionar, alterarQuantidade, definirPreco, editarNome, toggleComprado, excluir, limparComprados }
 }
