@@ -442,28 +442,28 @@ function ItemRow({
         </div>
 
         {/* Controles de quantidade */}
-        <div className="flex items-center gap-1 flex-none">
+        <div className="flex items-center gap-0.5 flex-none">
           <button
             type="button"
             onClick={() => onAlterarQtd(item.id, -1)}
             disabled={item.quantidade <= 1}
-            className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center
+            className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center
                        text-gray-600 hover:bg-gray-200 disabled:opacity-30 transition-colors active:scale-90"
             aria-label="Diminuir quantidade"
           >
-            <Minus className="w-3.5 h-3.5" strokeWidth={2.5} />
+            <Minus className="w-3 h-3" strokeWidth={2.5} />
           </button>
-          <span className="text-sm font-semibold text-gray-900 w-7 text-center tabular-nums">
+          <span className="text-sm font-semibold text-gray-900 w-6 text-center tabular-nums">
             {item.quantidade}
           </span>
           <button
             type="button"
             onClick={() => onAlterarQtd(item.id, +1)}
-            className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center
+            className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center
                        text-gray-600 hover:bg-gray-200 transition-colors active:scale-90"
             aria-label="Aumentar quantidade"
           >
-            <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
+            <Plus className="w-3 h-3" strokeWidth={2.5} />
           </button>
         </div>
 
