@@ -23,6 +23,10 @@ async function getUsuario(): Promise<string | null> {
 export function useListaMercado() {
   const [itens, setItens] = useState<ItemMercado[]>([])
   const timersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  // Tracks optimistic updates that haven't been confirmed by DB yet.
+  // Merged into fetched data so a realtime event from another user
+  // can't overwrite a pending toggle/edit before the 400ms save fires.
+  const pendingUpdatesRef = useRef<Record<string, Partial<ItemMercado>>>({})
 
   useDataSync({
     cacheKey: 'lista-mercado',
@@ -35,7 +39,14 @@ export function useListaMercado() {
       if (error) throw error
       return data ?? []
     },
-    onData: (data) => setItens(data as ItemMercado[]),
+    onData: (data) => {
+      const items = data as ItemMercado[]
+      const pending = pendingUpdatesRef.current
+      setItens(items.map(item => {
+        const p = pending[item.id]
+        return p ? { ...item, ...p } : item
+      }))
+    },
   })
 
   // Total apenas dos pendentes (comprado=false)
@@ -48,12 +59,14 @@ export function useListaMercado() {
 
   const _salvar = useCallback((id: string, campos: Partial<ItemMercado>) => {
     setItens(prev => prev.map(i => i.id === id ? { ...i, ...campos } : i))
+    pendingUpdatesRef.current[id] = { ...(pendingUpdatesRef.current[id] ?? {}), ...campos }
     if (timersRef.current[id]) clearTimeout(timersRef.current[id])
     timersRef.current[id] = setTimeout(async () => {
       await supabase
         .from('lista_mercado_itens')
         .update({ ...campos, updated_at: new Date().toISOString() })
         .eq('id', id)
+      delete pendingUpdatesRef.current[id]
     }, 400)
   }, [])
 
