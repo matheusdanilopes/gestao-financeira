@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
       faturaStats[fatura].totalNoBanco = count ?? 0
     }
 
-    await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas)
+    await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, conflitos)
 
     return NextResponse.json({
       success: true,
