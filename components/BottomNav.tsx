@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Receipt, TrendingUp, ShoppingCart, MessageCircle,
   SlidersHorizontal, PiggyBank, Sparkles, BarChart3, Plus, MoreHorizontal, Wallet, CreditCard, RepeatIcon,
+  Heart, ShoppingBasket,
 } from 'lucide-react'
 import { memo, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
@@ -16,11 +17,12 @@ import ModalPortal from '@/components/ModalPortal'
 const ROTAS_COM_MENU = [
   '/dashboard', '/contas', '/receitas', '/investimentos', '/assinaturas',
   '/compras', '/chat', '/configuracoes', '/importar', '/financas', '/extras',
+  '/wishlist', '/lista-mercado',
 ]
 
 const ROTAS_FINANCAS = ['/financas', '/contas', '/receitas', '/investimentos']
 const ROTAS_CARTAO   = ['/compras', '/assinaturas']
-const ROTAS_EXTRAS   = ['/extras', '/chat', '/configuracoes']
+const ROTAS_EXTRAS   = ['/extras', '/chat', '/configuracoes', '/wishlist', '/lista-mercado']
 
 const desktopItems = [
   { href: '/dashboard',     label: 'Dashboard',    icon: LayoutDashboard,   desktopOnly: false },
@@ -29,6 +31,8 @@ const desktopItems = [
   { href: '/investimentos', label: 'Investir',      icon: PiggyBank,         desktopOnly: false },
   { href: '/compras',       label: 'Compras',       icon: ShoppingCart,      desktopOnly: false },
   { href: '/assinaturas',   label: 'Assinaturas',   icon: RepeatIcon,        desktopOnly: false },
+  { href: '/wishlist',      label: 'Wishlist',      icon: Heart,             desktopOnly: false },
+  { href: '/lista-mercado', label: 'Mercado',       icon: ShoppingBasket,    desktopOnly: false },
   { href: '/chat',          label: 'IA',            icon: MessageCircle,     desktopOnly: false },
   { href: '/configuracoes', label: 'Config',        icon: SlidersHorizontal, desktopOnly: false },
   { href: '/analytics',     label: 'Analytics',     icon: BarChart3,         desktopOnly: true  },
@@ -99,9 +103,8 @@ function CartaoMenuPopover({ onClose, router }: { onClose: () => void; router: R
 
 function FabMenuPopover({ onClose, router }: { onClose: () => void; router: ReturnType<typeof useRouter> }) {
   const opcoes = [
-    { href: '/contas?add=true',        label: 'Nova Despesa',       Icon: Receipt,    cor: 'text-red-500',   bg: 'bg-red-50'   },
-    { href: '/receitas?add=true',      label: 'Nova Receita',       Icon: TrendingUp, cor: 'text-green-600', bg: 'bg-green-50' },
-    { href: '/investimentos?add=true', label: 'Novo Investimento',  Icon: PiggyBank,  cor: 'text-blue-600',  bg: 'bg-blue-50'  },
+    { href: '/wishlist?add=true', label: 'Novo Desejo',        Icon: Heart,          cor: 'text-pink-500',  bg: 'bg-pink-50'  },
+    { href: '/lista-mercado',     label: 'Lista de Mercado',   Icon: ShoppingBasket, cor: 'text-green-600', bg: 'bg-green-50' },
   ]
 
   return (
@@ -109,7 +112,7 @@ function FabMenuPopover({ onClose, router }: { onClose: () => void; router: Retu
       <div className="bg-white rounded-3xl shadow-float border border-gray-100 overflow-hidden w-56">
         <div className="flex items-center gap-2 px-4 py-2.5 bg-primary-600 rounded-t-3xl">
           <Plus className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
-          <span className="text-xs font-semibold text-white uppercase tracking-wide">Novo lançamento</span>
+          <span className="text-xs font-semibold text-white uppercase tracking-wide">Planejar</span>
         </div>
         {opcoes.map(({ href, label, Icon, cor, bg }, i) => (
           <button
@@ -134,6 +137,8 @@ function FabMenuPopover({ onClose, router }: { onClose: () => void; router: Retu
 
 function ExtrasMenuPopover({ onClose, router }: { onClose: () => void; router: ReturnType<typeof useRouter> }) {
   const opcoes = [
+    { href: '/wishlist',      label: 'Wishlist',      Icon: Heart,             cor: 'text-pink-500',    bg: 'bg-pink-50'    },
+    { href: '/lista-mercado', label: 'Lista Mercado', Icon: ShoppingBasket,    cor: 'text-green-600',   bg: 'bg-green-50'   },
     { href: '/chat',          label: 'IA Assistant',  Icon: MessageCircle,     cor: 'text-primary-600', bg: 'bg-primary-50' },
     { href: '/configuracoes', label: 'Configurações', Icon: SlidersHorizontal, cor: 'text-gray-600',    bg: 'bg-gray-100'   },
   ]
