@@ -12,25 +12,37 @@ if (VAPID_PUBLIC && VAPID_PRIVATE) {
 export async function notificarImportacao(
   supabase: SupabaseClient,
   tipo: 'sucesso' | 'erro',
-  novas?: number
+  novas?: number,
+  conflitos?: number
 ) {
   if (!VAPID_PUBLIC || !VAPID_PRIVATE) return
 
-  const payload =
-    tipo === 'sucesso'
-      ? {
-          title: 'Novas compras importadas',
-          body:
-            novas && novas > 0
-              ? `${novas} nova${novas !== 1 ? 's compras foram' : ' compra foi'} importada${novas !== 1 ? 's' : ''} com sucesso.`
-              : 'As compras foram importadas com sucesso.',
-          url: '/importar',
-        }
-      : {
-          title: 'Importação não concluída',
-          body: 'Algo deu errado na importação. Acesse o app para verificar o que aconteceu.',
-          url: '/importar',
-        }
+  let title: string
+  let body: string
+
+  if (tipo === 'sucesso') {
+    const temNovas = (novas ?? 0) > 0
+    const temConflitos = (conflitos ?? 0) > 0
+
+    if (temNovas) {
+      const n = novas!
+      title = 'Novas compras importadas'
+      body = `${n} nova${n !== 1 ? 's compras foram' : ' compra foi'} importada${n !== 1 ? 's' : ''} com sucesso.`
+    } else {
+      title = 'Importação concluída'
+      body = 'Nenhuma compra nova foi encontrada.'
+    }
+
+    if (temConflitos) {
+      const c = conflitos!
+      body += ` ${c} conflito${c !== 1 ? 's' : ''} de valor ${c !== 1 ? 'precisam' : 'precisa'} de revisão.`
+    }
+  } else {
+    title = 'Importação não concluída'
+    body = 'Algo deu errado na importação. Acesse o app para verificar o que aconteceu.'
+  }
+
+  const payload = { title, body, url: '/importar' }
 
   try {
     const { data: subs } = await supabase.from('push_subscriptions').select('*')

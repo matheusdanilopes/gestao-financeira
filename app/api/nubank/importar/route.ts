@@ -279,7 +279,7 @@ export async function POST(req: NextRequest) {
       parseFloat(importacaoPublica.total)
     )
 
-    await notificarImportacao(supabase, 'sucesso', importacaoPublica.novas)
+    await notificarImportacao(supabase, 'sucesso', importacaoPublica.novas, importacaoPublica.conflitos)
 
     return NextResponse.json({
       success: true,
