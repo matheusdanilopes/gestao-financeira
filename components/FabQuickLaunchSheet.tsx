@@ -90,7 +90,7 @@ function QuickAddWishlist({
         ref={nomeRef}
         value={nome}
         onChange={e => setNome(e.target.value)}
-        placeholder={isPedido ? 'O que você quer pedir?' : 'O que você deseja?'}
+        placeholder="O que você deseja?"
         className="input-base"
         maxLength={80}
         required
