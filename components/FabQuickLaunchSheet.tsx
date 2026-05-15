@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useRef, type FormEvent } from 'react'
 import {
-  Heart, ShoppingBasket, Package, X, ChevronLeft,
+  Heart, ShoppingBasket, X, ChevronLeft,
   Plus, Minus, Check, Loader2,
 } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 
-type View = 'menu' | 'wishlist' | 'mercado' | 'pedido'
+type View = 'menu' | 'wishlist' | 'mercado'
 
 const PRIORIDADES = [
   { value: 'alta'  as const, label: 'Alta',  active: 'bg-red-100 text-red-600 ring-red-300'     },
@@ -29,18 +29,16 @@ async function getUsuario(): Promise<string | null> {
 // ── Quick Add Wishlist / Pedido ───────────────────────────────────────────────
 
 function QuickAddWishlist({
-  isPedido,
   onClose,
   onBack,
 }: {
-  isPedido: boolean
   onClose: () => void
   onBack: () => void
 }) {
   const nomeRef = useRef<HTMLInputElement>(null)
   const [nome, setNome] = useState('')
   const [prioridade, setPrioridade] = useState<'alta' | 'media' | 'baixa'>('media')
-  const [emoji, setEmoji] = useState(isPedido ? '📦' : '')
+  const [emoji, setEmoji] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
 
@@ -60,7 +58,7 @@ function QuickAddWishlist({
         nome:       nome.trim(),
         emoji:      emoji || null,
         prioridade,
-        categoria:  isPedido ? 'Pedido' : null,
+        categoria:  null,
         favoritado: false,
         realizado:  false,
         criado_por,
@@ -85,9 +83,7 @@ function QuickAddWishlist({
         >
           <ChevronLeft className="w-5 h-5 text-gray-500" />
         </button>
-        <h3 className="text-base font-bold text-gray-900">
-          {isPedido ? '📦 Novo Pedido' : '💖 Novo Desejo'}
-        </h3>
+        <h3 className="text-base font-bold text-gray-900">💖 Novo Desejo</h3>
       </div>
 
       <input
@@ -266,21 +262,12 @@ function QuickAddMercado({
 
 const OPCOES = [
   {
-    id:    'pedido'   as const,
-    label: 'Novo Pedido',
-    emoji: '📦',
-    bg:    'bg-orange-50  dark:bg-orange-950/40',
-    cor:   'text-orange-700 dark:text-orange-400',
-    ring:  'ring-orange-100 dark:ring-orange-900/50',
-    Icon:  Package,
-  },
-  {
     id:    'wishlist' as const,
     label: 'Wishlist',
     emoji: '💖',
-    bg:    'bg-pink-50    dark:bg-pink-950/40',
-    cor:   'text-pink-700   dark:text-pink-400',
-    ring:  'ring-pink-100   dark:ring-pink-900/50',
+    bg:    'bg-pink-50  dark:bg-pink-950/40',
+    cor:   'text-pink-700 dark:text-pink-400',
+    ring:  'ring-pink-100 dark:ring-pink-900/50',
     Icon:  Heart,
   },
   {
@@ -355,7 +342,7 @@ export default function FabQuickLaunchSheet({ onClose }: { onClose: () => void }
                   </button>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   {OPCOES.map(({ id, label, emoji, bg, cor, ring }) => (
                     <button
                       key={id}
@@ -376,12 +363,8 @@ export default function FabQuickLaunchSheet({ onClose }: { onClose: () => void }
               </div>
             )}
 
-            {(view === 'wishlist' || view === 'pedido') && (
-              <QuickAddWishlist
-                isPedido={view === 'pedido'}
-                onClose={onClose}
-                onBack={() => setView('menu')}
-              />
+            {view === 'wishlist' && (
+              <QuickAddWishlist onClose={onClose} onBack={() => setView('menu')} />
             )}
 
             {view === 'mercado' && (
