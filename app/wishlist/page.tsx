@@ -69,7 +69,9 @@ function ModalWishlist({
     try {
       await onSalvar(form)
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Erro ao salvar'
+      const msg = e != null && typeof e === 'object' && 'message' in e
+        ? String((e as { message: unknown }).message)
+        : 'Erro ao salvar'
       setErro(msg)
     } finally {
       setSalvando(false)

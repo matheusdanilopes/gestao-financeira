@@ -296,7 +296,9 @@ export default function ListaMercadoPage() {
       setNovoNome('')
       inputAddRef.current?.focus()
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Erro ao adicionar'
+      const msg = e != null && typeof e === 'object' && 'message' in e
+        ? String((e as { message: unknown }).message)
+        : 'Erro ao adicionar'
       setErro(msg)
     }
   }
