@@ -50,6 +50,7 @@ function ModalWishlist({
     link_ref:       item?.link_ref       ?? '',
   })
   const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
 
   useEffect(() => {
     const t = setTimeout(() => nomeRef.current?.focus(), 100)
@@ -63,8 +64,16 @@ function ModalWishlist({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.nome.trim()) return
+    setErro('')
     setSalvando(true)
-    try { await onSalvar(form) } finally { setSalvando(false) }
+    try {
+      await onSalvar(form)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Erro ao salvar'
+      setErro(msg)
+    } finally {
+      setSalvando(false)
+    }
   }
 
   return (
@@ -169,6 +178,13 @@ function ModalWishlist({
                            placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
               />
             </div>
+
+            {/* Erro */}
+            {erro && (
+              <p className="text-xs text-red-500 bg-red-50 rounded-xl px-3 py-2 font-medium">
+                {erro}
+              </p>
+            )}
 
             {/* Ações */}
             <div className="flex gap-3 pt-1 pb-safe">

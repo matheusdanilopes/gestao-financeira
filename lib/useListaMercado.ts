@@ -62,7 +62,7 @@ export function useListaMercado() {
 
     if (error) {
       setItens(prev => prev.filter(i => i.id !== tempId))
-      return
+      throw error
     }
     setItens(prev => prev.map(i => i.id === tempId ? (data as ItemMercado) : i))
   }, [])

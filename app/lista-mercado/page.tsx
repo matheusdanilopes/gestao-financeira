@@ -281,6 +281,7 @@ export default function ListaMercadoPage() {
 
   const [novoNome, setNovoNome] = useState('')
   const [itemPreco, setItemPreco] = useState<ItemMercado | null>(null)
+  const [erro, setErro] = useState('')
   const inputAddRef = useRef<HTMLInputElement>(null)
 
   const comprados = itens.filter(i => i.comprado)
@@ -289,9 +290,15 @@ export default function ListaMercadoPage() {
   async function handleAdicionar(e: React.FormEvent) {
     e.preventDefault()
     if (!novoNome.trim()) return
-    await adicionar(novoNome)
-    setNovoNome('')
-    inputAddRef.current?.focus()
+    setErro('')
+    try {
+      await adicionar(novoNome)
+      setNovoNome('')
+      inputAddRef.current?.focus()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Erro ao adicionar'
+      setErro(msg)
+    }
   }
 
   // Wrappers que passam snapshot do estado atual (evita closure stale)
@@ -322,7 +329,7 @@ export default function ListaMercadoPage() {
             ref={inputAddRef}
             type="text"
             value={novoNome}
-            onChange={e => setNovoNome(e.target.value)}
+            onChange={e => { setNovoNome(e.target.value); if (erro) setErro('') }}
             placeholder="Adicionar item…"
             className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-900
                        placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
@@ -338,6 +345,9 @@ export default function ListaMercadoPage() {
             <Plus className="w-5 h-5" strokeWidth={2.5} />
           </button>
         </form>
+        {erro && (
+          <p className="text-xs text-red-500 mt-1.5 font-medium">{erro}</p>
+        )}
       </div>
 
       {/* Lista */}
