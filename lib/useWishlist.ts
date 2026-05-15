@@ -67,8 +67,9 @@ export function useWishlist() {
     categoria?: string | null
     nota?: string | null
     link_ref?: string | null
+    criado_por?: string | null
   }) => {
-    const criado_por = await getUsuario()
+    const criado_por = campos.criado_por ?? await getUsuario()
     const payload = {
       nome:           campos.nome.trim(),
       emoji:          campos.emoji          ?? null,
@@ -101,7 +102,7 @@ export function useWishlist() {
 
   const editar = useCallback(async (
     id: string,
-    campos: Partial<Omit<WishlistItem, 'id' | 'created_at' | 'criado_por'>>
+    campos: Partial<Omit<WishlistItem, 'id' | 'created_at'>>
   ) => {
     setItens(prev => prev.map(i => i.id === id ? { ...i, ...campos } : i))
     const { error } = await supabase

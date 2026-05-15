@@ -6,6 +6,7 @@ import { Heart, Plus, Check, ExternalLink, X, Star, Search, RotateCcw, Trash2 } 
 import ModalPortal from '@/components/ModalPortal'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { useWishlist, type WishlistItem } from '@/lib/useWishlist'
+import { supabase } from '@/lib/supabaseClient'
 import { formatBRL } from '@/lib/logger'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -121,14 +122,19 @@ type ModalForm = {
   categoria: string
   nota: string
   link_ref: string
+  criado_por: string | null
 }
 
 function ModalWishlist({
   item,
+  criadorPadrao,
+  usuariosConhecidos,
   onClose,
   onSalvar,
 }: {
   item: WishlistItem | null
+  criadorPadrao: string | null
+  usuariosConhecidos: string[]
   onClose: () => void
   onSalvar: (form: ModalForm) => Promise<void>
 }) {
@@ -141,6 +147,7 @@ function ModalWishlist({
     categoria:      item?.categoria      ?? '',
     nota:           item?.nota           ?? '',
     link_ref:       item?.link_ref       ?? '',
+    criado_por:     item?.criado_por     ?? criadorPadrao ?? null,
   })
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
@@ -236,20 +243,22 @@ function ModalWishlist({
               {/* Categoria */}
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1.5">Categoria</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {CATEGORIAS.map(cat => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setField('categoria', form.categoria === cat ? '' : cat)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all
-                                  ${form.categoria === cat
-                                    ? 'bg-primary-600 text-white border-primary-600'
-                                    : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-300'}`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
+                <div className="relative">
+                  <select
+                    value={form.categoria}
+                    onChange={e => setField('categoria', e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900
+                               bg-white focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent
+                               appearance-none pr-10"
+                  >
+                    <option value="">Sem categoria</option>
+                    {CATEGORIAS.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                    ▾
+                  </span>
                 </div>
               </div>
 
@@ -314,6 +323,35 @@ function ModalWishlist({
                              placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
                 />
               </div>
+
+              {/* Criador */}
+              {usuariosConhecidos.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Adicionado por</label>
+                  <div className="flex gap-2">
+                    {usuariosConhecidos.map(email => {
+                      const isAtivo = form.criado_por === email
+                      const cor = corUsuario(email)
+                      return (
+                        <button
+                          key={email}
+                          type="button"
+                          onClick={() => setField('criado_por', email)}
+                          className={`flex-1 flex items-center gap-2.5 px-3 py-2.5 rounded-xl border-2 transition-all
+                                      ${isAtivo
+                                        ? `${cor} border-current`
+                                        : 'bg-gray-50 border-transparent text-gray-700 hover:bg-gray-100'}`}
+                        >
+                          <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-none ${cor}`}>
+                            {nomeCurto(email)[0]}
+                          </span>
+                          <span className="text-sm font-semibold truncate">{nomeCurto(email)}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
               {erro && (
                 <p className="text-xs text-red-500 bg-red-50 rounded-xl px-3 py-2 font-medium">{erro}</p>
@@ -532,6 +570,12 @@ function WishlistContent() {
     | { kind: 'realizou'; id: string; nome: string }
     | { kind: 'excluiu';  id: string; nome: string }
 
+  const [usuarioAtual, setUsuarioAtual] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => setUsuarioAtual(user?.email ?? null))
+  }, [])
+
   const [aba, setAba] = useState<'ativos' | 'historico'>('ativos')
   const [modalAberto, setModalAberto] = useState(searchParams.get('add') === 'true')
   const [itemEditando, setItemEditando] = useState<WishlistItem | null>(null)
@@ -586,6 +630,11 @@ function WishlistContent() {
   const categoriasUsadas = [...new Set(ativos.map(i => i.categoria).filter(Boolean) as string[])]
   const totalAtivos = ativos.reduce((s, i) => s + (i.valor_estimado ?? 0), 0)
 
+  const usuariosConhecidos = [...new Set([
+    ...(usuarioAtual ? [usuarioAtual] : []),
+    ...[...ativos, ...historico].map(i => i.criado_por).filter(Boolean) as string[],
+  ])]
+
   const ativosFiltrados = ativos
     .filter(i => i.id !== pendingExcluirId)
     .filter(item => {
@@ -633,6 +682,7 @@ function WishlistContent() {
       categoria:      form.categoria || null,
       nota:           form.nota.trim() || null,
       link_ref:       form.link_ref.trim() || null,
+      criado_por:     form.criado_por,
     }
     if (itemEditando) await editar(itemEditando.id, campos)
     else await adicionar(campos)
@@ -881,6 +931,8 @@ function WishlistContent() {
       {modalAberto && (
         <ModalWishlist
           item={itemEditando}
+          criadorPadrao={usuarioAtual}
+          usuariosConhecidos={usuariosConhecidos}
           onClose={fecharModal}
           onSalvar={handleSalvar}
         />
