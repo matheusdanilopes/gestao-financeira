@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { ShoppingBasket, Plus, Minus, X, Check, Trash2, ChevronDown } from 'lucide-react'
+import { ShoppingBasket, Plus, Minus, Check, Trash2 } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { useListaMercado, type ItemMercado } from '@/lib/useListaMercado'

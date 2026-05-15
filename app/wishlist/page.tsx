@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { Heart, Plus, Check, Trash2, ExternalLink, X, ArrowLeft } from 'lucide-react'
+import { Heart, Plus, Check, ExternalLink, X } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { useWishlist, type WishlistItem } from '@/lib/useWishlist'
