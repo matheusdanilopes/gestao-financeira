@@ -54,6 +54,15 @@ function corUsuario(email: string | null): string {
   return 'bg-gray-100 text-gray-500'
 }
 
+// Quando só um usuário é conhecido, infere o nome do parceiro pelo email atual
+function inferirParceiro(emailAtual: string | null): string | null {
+  if (!emailAtual) return null
+  const e = emailAtual.toLowerCase()
+  if (e.includes('matheus')) return 'Jeniffer'
+  if (e.includes('jeniffer') || e.includes('jennifer')) return 'Matheus'
+  return null
+}
+
 // ── Toast ─────────────────────────────────────────────────────────────────────
 
 function Toast({
@@ -650,11 +659,19 @@ function WishlistContent() {
   const categoriasUsadas = [...new Set(ativos.map(i => i.categoria).filter(Boolean) as string[])]
   const totalAtivos = ativos.reduce((s, i) => s + (i.valor_estimado ?? 0), 0)
 
-  const usuariosConhecidos = [...new Set([
-    ...(usuarioAtual ? [usuarioAtual] : []),
-    ...[...ativos, ...historico].map(i => i.criado_por).filter(Boolean) as string[],
-    ...extraUsuarios,
-  ])]
+  const usuariosConhecidos = (() => {
+    const base = [...new Set([
+      ...(usuarioAtual ? [usuarioAtual] : []),
+      ...[...ativos, ...historico].map(i => i.criado_por).filter(Boolean) as string[],
+      ...extraUsuarios,
+    ])]
+    // Se só um usuário é conhecido, adiciona o parceiro inferido pelo nome do email
+    if (base.length < 2) {
+      const parceiro = inferirParceiro(usuarioAtual)
+      if (parceiro) base.push(parceiro)
+    }
+    return base
+  })()
 
   const ativosFiltrados = ativos
     .filter(i => i.id !== pendingExcluirId)
