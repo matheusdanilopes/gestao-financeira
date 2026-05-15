@@ -686,10 +686,10 @@ function WishlistContent() {
     .filter(i => i.id !== pendingExcluirId)
     .filter(i => !filtroUsuario || i.criado_por === filtroUsuario)
 
-  // Per-user stats for the active tab
-  function calcStats(lista: WishlistItem[]) {
-    const emails = [...new Set(lista.map(i => i.criado_por).filter(Boolean) as string[])]
-    return emails.map(email => ({
+  // Per-user stats: baseia nos usuários conhecidos para sempre mostrar ambos os cards,
+  // mesmo que um deles ainda não tenha itens na aba atual
+  function calcStats(lista: WishlistItem[], usuarios: string[]) {
+    return usuarios.map(email => ({
       email,
       nome: nomeCurto(email),
       count: lista.filter(i => i.criado_por === email).length,
@@ -699,7 +699,10 @@ function WishlistContent() {
 
   const ativosBase = ativos.filter(i => i.id !== pendingExcluirId)
   const historicoBase = historico.filter(i => i.id !== pendingExcluirId)
-  const statsAtuais = aba === 'ativos' ? calcStats(ativosBase) : calcStats(historicoBase)
+  const statsAtuais = calcStats(
+    aba === 'ativos' ? ativosBase : historicoBase,
+    usuariosConhecidos,
+  )
 
   function abrirEditar(item: WishlistItem) {
     setItemEditando(item)
@@ -875,7 +878,7 @@ function WishlistContent() {
         </div>
 
         {/* Cards de usuário */}
-        {statsAtuais.length > 1 && (
+        {usuariosConhecidos.length > 1 && (
           <div className="flex gap-2 mt-2.5">
             {statsAtuais.map(stat => {
               const isActive = filtroUsuario === stat.email
