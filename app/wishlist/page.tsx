@@ -337,13 +337,17 @@ function ModalWishlist({
                           key={email}
                           type="button"
                           onClick={() => setField('criado_por', email)}
-                          className={`flex-1 flex items-center gap-2.5 px-3 py-2.5 rounded-xl border-2 transition-all
+                          className={`flex-1 flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all
                                       ${isAtivo
-                                        ? `${cor} border-current`
-                                        : 'bg-gray-50 border-transparent text-gray-700 hover:bg-gray-100'}`}
+                                        ? `${cor} ring-2 ring-inset ring-current`
+                                        : 'bg-gray-50 text-gray-600'}`}
                         >
-                          <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-none ${cor}`}>
-                            {nomeCurto(email)[0]}
+                          <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-none
+                                           ${isAtivo ? 'bg-white/40' : cor}`}>
+                            {isAtivo
+                              ? <Check className="w-4 h-4" strokeWidth={3} />
+                              : nomeCurto(email)[0]
+                            }
                           </span>
                           <span className="text-sm font-semibold truncate">{nomeCurto(email)}</span>
                         </button>
@@ -571,10 +575,26 @@ function WishlistContent() {
     | { kind: 'excluiu';  id: string; nome: string }
 
   const [usuarioAtual, setUsuarioAtual] = useState<string | null>(null)
+  const [extraUsuarios, setExtraUsuarios] = useState<string[]>([])
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setUsuarioAtual(user?.email ?? null))
   }, [])
+
+  // Busca criadores conhecidos de lista_mercado_itens (parceiro pode nunca ter adicionado wishlist)
+  useEffect(() => {
+    if (usuarioAtual === null) return
+    supabase
+      .from('lista_mercado_itens')
+      .select('criado_por')
+      .not('criado_por', 'is', null)
+      .then(({ data }) => {
+        const emails = (data ?? [])
+          .map((r: { criado_por: string | null }) => r.criado_por)
+          .filter((e): e is string => e !== null)
+        setExtraUsuarios(emails)
+      })
+  }, [usuarioAtual])
 
   const [aba, setAba] = useState<'ativos' | 'historico'>('ativos')
   const [modalAberto, setModalAberto] = useState(searchParams.get('add') === 'true')
@@ -633,6 +653,7 @@ function WishlistContent() {
   const usuariosConhecidos = [...new Set([
     ...(usuarioAtual ? [usuarioAtual] : []),
     ...[...ativos, ...historico].map(i => i.criado_por).filter(Boolean) as string[],
+    ...extraUsuarios,
   ])]
 
   const ativosFiltrados = ativos

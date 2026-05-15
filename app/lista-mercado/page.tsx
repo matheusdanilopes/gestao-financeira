@@ -493,7 +493,7 @@ function InputAdicionar({
 
 export default function ListaMercadoPage() {
   const {
-    itens, total, semPreco,
+    itens,
     adicionar, alterarQuantidade, definirPreco, editarNome,
     toggleComprado, excluir, limparComprados,
   } = useListaMercado()
@@ -534,6 +534,9 @@ export default function ListaMercadoPage() {
 
   const comprados = itens.filter(i => i.comprado && i.id !== pendingExcluirId)
   const pendentes = itens.filter(i => !i.comprado && i.id !== pendingExcluirId)
+  // Computed from pendentes so checked items are excluded in the same render cycle
+  const total     = pendentes.reduce((s, i) => s + i.quantidade * (i.preco_unit ?? 0), 0)
+  const semPreco  = pendentes.filter(i => i.preco_unit == null).length
 
   const handleToggle = useCallback((id: string) => toggleComprado(id, itens), [toggleComprado, itens])
   const handleQtd    = useCallback((id: string, d: number) => alterarQuantidade(id, d, itens), [alterarQuantidade, itens])
