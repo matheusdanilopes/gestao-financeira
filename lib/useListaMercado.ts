@@ -49,13 +49,11 @@ export function useListaMercado() {
     },
   })
 
-  // Total apenas dos pendentes (comprado=false)
-  const total = itens
-    .filter(i => !i.comprado)
-    .reduce((s, i) => s + i.quantidade * (i.preco_unit ?? 0), 0)
+  // Total de todos os itens (pendentes + comprados) — valor da compra completa
+  const total = itens.reduce((s, i) => s + i.quantidade * (i.preco_unit ?? 0), 0)
 
-  // Itens pendentes sem preço definido
-  const semPreco = itens.filter(i => !i.comprado && i.preco_unit == null).length
+  // Itens sem preço definido (independente de estar comprado ou não)
+  const semPreco = itens.filter(i => i.preco_unit == null).length
 
   const _salvar = useCallback((id: string, campos: Partial<ItemMercado>) => {
     setItens(prev => prev.map(i => i.id === id ? { ...i, ...campos } : i))
