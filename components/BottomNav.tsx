@@ -13,6 +13,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { AUTH_DISABLED } from '@/lib/authConfig'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
 import ModalPortal from '@/components/ModalPortal'
+import FabQuickLaunchSheet from '@/components/FabQuickLaunchSheet'
 
 const ROTAS_COM_MENU = [
   '/dashboard', '/contas', '/receitas', '/investimentos', '/assinaturas',
@@ -101,39 +102,6 @@ function CartaoMenuPopover({ onClose, router }: { onClose: () => void; router: R
   )
 }
 
-function FabMenuPopover({ onClose, router }: { onClose: () => void; router: ReturnType<typeof useRouter> }) {
-  const opcoes = [
-    { href: '/wishlist?add=true', label: 'Novo Desejo',        Icon: Heart,          cor: 'text-pink-500',  bg: 'bg-pink-50'  },
-    { href: '/lista-mercado',     label: 'Lista de Mercado',   Icon: ShoppingBasket, cor: 'text-green-600', bg: 'bg-green-50' },
-  ]
-
-  return (
-    <div className="fixed bottom-[72px] left-1/2 -translate-x-1/2 z-[51] modal-center">
-      <div className="bg-white rounded-3xl shadow-float border border-gray-100 overflow-hidden w-56">
-        <div className="flex items-center gap-2 px-4 py-2.5 bg-primary-600 rounded-t-3xl">
-          <Plus className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
-          <span className="text-xs font-semibold text-white uppercase tracking-wide">Planejar</span>
-        </div>
-        {opcoes.map(({ href, label, Icon, cor, bg }, i) => (
-          <button
-            key={href}
-            type="button"
-            onClick={() => { router.push(href); onClose() }}
-            className={`w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50
-                        active:bg-gray-100 transition-colors duration-150
-                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
-                        ${i < opcoes.length - 1 ? 'border-b border-gray-100' : ''}`}
-          >
-            <div className={`w-8 h-8 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
-              <Icon className={`w-4 h-4 ${cor}`} strokeWidth={1.8} />
-            </div>
-            <span className="text-sm font-semibold text-gray-700">{label}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 function ExtrasMenuPopover({ onClose, router }: { onClose: () => void; router: ReturnType<typeof useRouter> }) {
   const opcoes = [
@@ -244,7 +212,8 @@ export default memo(function BottomNav() {
   const router   = useRouter()
   const [session, setSession] = useState<Session | null>(null)
   const [isCheckingSession, setIsCheckingSession] = useState(true)
-  const [openMenu, setOpenMenu] = useState<'financas' | 'cartao' | 'extras' | 'fab' | null>(null)
+  const [openMenu, setOpenMenu] = useState<'financas' | 'cartao' | 'extras' | null>(null)
+  const [fabSheetOpen, setFabSheetOpen] = useState(false)
   const { categorizando } = useCategorizacao()
 
   useEffect(() => {
@@ -271,10 +240,12 @@ export default memo(function BottomNav() {
     }
   }, [])
 
-  // Fecha menu ao navegar para outra rota
+  // Fecha menus ao navegar para outra rota
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setOpenMenu(null)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFabSheetOpen(false)
   }, [pathname])
 
   const deveExibirMenu = pathname ? ROTAS_COM_MENU.some(r => pathname === r || pathname.startsWith(r + '/')) : false
@@ -317,31 +288,30 @@ export default memo(function BottomNav() {
             onClick={() => setOpenMenu(p => p === 'financas' ? null : 'financas')}
           />
 
-          {/* FAB — contextual: abre modal direto nas páginas de módulo */}
+          {/* FAB — central de lançamento rápido */}
           <button
             type="button"
-            aria-label="Adicionar"
-            aria-expanded={openMenu === 'fab'}
+            aria-label={fabSheetOpen ? 'Fechar menu' : 'Lançamento rápido'}
+            aria-expanded={fabSheetOpen}
             onClick={() => {
-              if (pathname === '/wishlist') {
-                window.dispatchEvent(new CustomEvent('wishlist:open-add'))
-                return
-              }
-              if (pathname === '/lista-mercado') {
-                window.dispatchEvent(new CustomEvent('lista-mercado:open-add'))
-                return
-              }
-              setOpenMenu(p => p === 'fab' ? null : 'fab')
+              setOpenMenu(null)
+              setFabSheetOpen(p => !p)
             }}
-            className="flex flex-col items-center justify-center flex-none -mt-5"
+            className="flex flex-col items-center justify-center flex-none -mt-5 group"
           >
-            <span className={`w-14 h-14 rounded-full flex items-center justify-center shadow-float
-                              transition-all duration-200 active:scale-95
-                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2
-                              ${openMenu === 'fab' ? 'bg-primary-700' : 'bg-primary-600'}`}>
-              <Plus className={`w-6 h-6 text-white transition-transform duration-200 ${openMenu === 'fab' ? 'rotate-45' : ''}`} strokeWidth={2.5} />
+            <span className={`w-14 h-14 rounded-full flex items-center justify-center
+                              fab-premium
+                              ${fabSheetOpen ? 'fab-premium-active' : ''}
+                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2`}>
+              <Plus
+                className={`w-6 h-6 text-white transition-transform duration-300
+                            ${fabSheetOpen ? 'rotate-45' : ''}`}
+                strokeWidth={2.5}
+              />
             </span>
-            <span className="text-[10px] font-medium text-gray-400 mt-0.5 leading-none">Adicionar</span>
+            <span className="text-[10px] font-medium text-gray-400 mt-0.5 leading-none">
+              Adicionar
+            </span>
           </button>
 
           <MobileMenuButton
@@ -399,9 +369,6 @@ export default memo(function BottomNav() {
               onClick={() => setOpenMenu(null)}
               aria-hidden="true"
             />
-            {openMenu === 'fab' && (
-              <FabMenuPopover onClose={() => setOpenMenu(null)} router={router} />
-            )}
             {openMenu === 'financas' && (
               <FinancasMenuPopover onClose={() => setOpenMenu(null)} router={router} />
             )}
@@ -412,6 +379,11 @@ export default memo(function BottomNav() {
               <ExtrasMenuPopover onClose={() => setOpenMenu(null)} router={router} />
             )}
           </ModalPortal>
+        )}
+
+        {/* ── FAB Quick Launch Sheet ─────────────────────────────────────────── */}
+        {fabSheetOpen && (
+          <FabQuickLaunchSheet onClose={() => setFabSheetOpen(false)} />
         )}
       </nav>
     </div>
