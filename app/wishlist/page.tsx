@@ -536,6 +536,7 @@ function WishlistContent() {
   const [buscaAberta, setBuscaAberta] = useState(false)
   const [busca, setBusca] = useState('')
   const [filtroCategoria, setFiltroCategoria] = useState<string | null>(null)
+  const [filtroUsuario, setFiltroUsuario] = useState<string | null>(null)
   const [activeToast, setActiveToast] = useState<ToastAtivo | null>(null)
   const [pendingExcluirId, setPendingExcluirId] = useState<string | null>(null)
   const [hintVisto, setHintVisto] = useState(true)
@@ -586,12 +587,30 @@ function WishlistContent() {
   const ativosFiltrados = ativos
     .filter(i => i.id !== pendingExcluirId)
     .filter(item => {
+      if (filtroUsuario && item.criado_por !== filtroUsuario) return false
       if (filtroCategoria && item.categoria !== filtroCategoria) return false
       if (busca && !item.nome.toLowerCase().includes(busca.toLowerCase())) return false
       return true
     })
 
-  const historicoDis = historico.filter(i => i.id !== pendingExcluirId)
+  const historicoDis = historico
+    .filter(i => i.id !== pendingExcluirId)
+    .filter(i => !filtroUsuario || i.criado_por === filtroUsuario)
+
+  // Per-user stats for the active tab
+  function calcStats(lista: WishlistItem[]) {
+    const emails = [...new Set(lista.map(i => i.criado_por).filter(Boolean) as string[])]
+    return emails.map(email => ({
+      email,
+      nome: nomeCurto(email),
+      count: lista.filter(i => i.criado_por === email).length,
+      total: lista.filter(i => i.criado_por === email).reduce((s, i) => s + (i.valor_estimado ?? 0), 0),
+    }))
+  }
+
+  const ativosBase = ativos.filter(i => i.id !== pendingExcluirId)
+  const historicoBase = historico.filter(i => i.id !== pendingExcluirId)
+  const statsAtuais = aba === 'ativos' ? calcStats(ativosBase) : calcStats(historicoBase)
 
   function abrirEditar(item: WishlistItem) {
     setItemEditando(item)
@@ -670,7 +689,7 @@ function WishlistContent() {
   return (
     <div className="min-h-screen pb-32 page-enter">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-gray-100 px-4 pt-4 pb-3">
+      <div className="sticky top-0 z-10 sticky-header border-b border-gray-100 px-4 pb-3">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-10 h-10 rounded-2xl bg-pink-50 flex items-center justify-center flex-none">
             <Heart className="w-5 h-5 text-pink-500" strokeWidth={1.8} />
@@ -754,7 +773,7 @@ function WishlistContent() {
             <button
               key={tab}
               type="button"
-              onClick={() => setAba(tab)}
+              onClick={() => { setAba(tab); setFiltroUsuario(null) }}
               className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-150
                           ${aba === tab ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
             >
@@ -764,6 +783,38 @@ function WishlistContent() {
             </button>
           ))}
         </div>
+
+        {/* Cards de usuário */}
+        {statsAtuais.length > 1 && (
+          <div className="flex gap-2 mt-2.5">
+            {statsAtuais.map(stat => {
+              const isActive = filtroUsuario === stat.email
+              const cor = corUsuario(stat.email)
+              return (
+                <button
+                  key={stat.email}
+                  type="button"
+                  onClick={() => setFiltroUsuario(isActive ? null : stat.email)}
+                  className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-xl border transition-all text-left
+                              ${isActive
+                                ? `${cor} border-current`
+                                : 'bg-gray-50 border-transparent hover:bg-gray-100 text-gray-700'}`}
+                >
+                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-none ${cor}`}>
+                    {stat.nome[0]}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold leading-none truncate mb-0.5">{stat.nome}</p>
+                    <p className={`text-[10px] leading-none ${isActive ? 'opacity-70' : 'text-gray-400'}`}>
+                      {stat.count} {stat.count === 1 ? 'item' : 'itens'}
+                      {stat.total > 0 && <> · {formatBRL(stat.total)}</>}
+                    </p>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Content */}
@@ -775,17 +826,17 @@ function WishlistContent() {
             </div>
             <p className="text-sm font-semibold text-gray-700 mb-1">
               {aba === 'ativos'
-                ? (busca || filtroCategoria ? 'Nenhum resultado' : 'Nenhum desejo ainda')
+                ? (busca || filtroCategoria || filtroUsuario ? 'Nenhum resultado' : 'Nenhum desejo ainda')
                 : 'Nenhum desejo realizado'}
             </p>
             <p className="text-xs text-gray-400 max-w-[200px]">
               {aba === 'ativos'
-                ? (busca || filtroCategoria
-                    ? 'Tente outros termos ou categorias'
+                ? (busca || filtroCategoria || filtroUsuario
+                    ? 'Tente outros termos ou filtros'
                     : 'Adicione coisas que vocês querem no futuro')
                 : 'Seus desejos realizados aparecem aqui'}
             </p>
-            {aba === 'ativos' && !busca && !filtroCategoria && (
+            {aba === 'ativos' && !busca && !filtroCategoria && !filtroUsuario && (
               <button
                 type="button"
                 onClick={() => { setItemEditando(null); setModalAberto(true) }}
