@@ -1,6 +1,7 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
+import { useEffect } from 'react'
 import NotificacoesBell from './NotificacoesBell'
 import DataStatusIndicator from './DataStatusIndicator'
 import { useRefreshContext } from './RefreshProvider'
@@ -19,6 +20,13 @@ const ROTAS_COM_REFRESH = [
 export default function ClientShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { syncState } = useRefreshContext()
+
+  // Registra o SW globalmente em todas as rotas para garantir cache offline
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {})
+    }
+  }, [])
 
   const mostrarBell = pathname ? ROTAS_COM_BELL.includes(pathname) : false
   const mostrarRefresh = pathname ? ROTAS_COM_REFRESH.includes(pathname) : false

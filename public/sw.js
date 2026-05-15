@@ -1,9 +1,25 @@
-const CACHE_NAME = 'gestao-financeira-v2'
+const CACHE_NAME = 'gestao-financeira-v3'
+
+// Rotas críticas pré-cacheadas no install para garantir abertura offline
+// independente do histórico de navegação do usuário.
+const PRECACHE_ROUTES = ['/', '/dashboard', '/lista-mercado']
 
 // ── Lifecycle ──────────────────────────────────────────────────────────────
 
 self.addEventListener('install', (event) => {
   self.skipWaiting()
+  // Pré-cacheia rotas críticas enquanto o servidor ainda está acessível
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(cache =>
+      Promise.allSettled(
+        PRECACHE_ROUTES.map(url =>
+          fetch(url, { redirect: 'follow' })
+            .then(res => { if (res.ok) return cache.put(url, res) })
+            .catch(() => { /* sem rede durante install — será cacheado na 1ª visita */ })
+        )
+      )
+    )
+  )
 })
 
 self.addEventListener('activate', (event) => {
@@ -62,21 +78,24 @@ self.addEventListener('fetch', (event) => {
         .catch(() =>
           caches.match(request).then(cached => {
             if (cached) return cached
-            // Fallback para qualquer página em cache — React re-roteará via URL
-            return caches.match('/dashboard').then(shell => {
+            // Fallback para /lista-mercado (rota com suporte offline completo)
+            return caches.match('/lista-mercado').then(shell => {
               if (shell) return shell
-              // Último recurso: varredura em qualquer entrada de navegação
-              return caches.open(CACHE_NAME).then(cache =>
-                cache.keys().then(keys => {
-                  const nav = keys.find(k => {
-                    const u = new URL(k.url)
-                    return u.origin === self.location.origin &&
-                      !u.pathname.startsWith('/_next/') &&
-                      !u.pathname.startsWith('/api/')
+              // Fallback para /dashboard ou qualquer página em cache
+              return caches.match('/dashboard').then(dash => {
+                if (dash) return dash
+                return caches.open(CACHE_NAME).then(cache =>
+                  cache.keys().then(keys => {
+                    const nav = keys.find(k => {
+                      const u = new URL(k.url)
+                      return u.origin === self.location.origin &&
+                        !u.pathname.startsWith('/_next/') &&
+                        !u.pathname.startsWith('/api/')
+                    })
+                    return nav ? cache.match(nav) : undefined
                   })
-                  return nav ? cache.match(nav) : undefined
-                })
-              )
+                )
+              })
             })
           })
         )
