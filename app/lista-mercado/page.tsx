@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback, type FormEvent, type ChangeEvent } from 'react'
-import { ShoppingBasket, Plus, Minus, Check, Trash2, X, Pencil, ChevronDown, ChevronUp } from 'lucide-react'
+import { ShoppingBasket, Plus, Minus, Check, Trash2, X, Pencil, ChevronDown, ChevronUp, WifiOff, RefreshCw, AlertCircle } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { useListaMercado, type ItemMercado } from '@/lib/useListaMercado'
@@ -657,6 +657,7 @@ export default function ListaMercadoPage() {
     itens,
     adicionar, alterarQuantidade, definirPreco, editarNome,
     toggleComprado, excluir, limparComprados,
+    isOnline, pendingCount, syncStatus,
   } = useListaMercado()
 
   const [itemPreco, setItemPreco] = useState<ItemMercado | null>(null)
@@ -759,7 +760,7 @@ export default function ListaMercadoPage() {
           </div>
           <div className="flex-1 min-w-0">
             <h1 className="text-lg font-bold text-gray-900 leading-none">Lista de Mercado</h1>
-            <div className="flex items-center gap-2 mt-0.5">
+            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               <p className="text-xs text-gray-400">
                 {pendentes.length} {pendentes.length === 1 ? 'item pendente' : 'itens pendentes'}
                 {comprados.length > 0 && (
@@ -769,6 +770,30 @@ export default function ListaMercadoPage() {
               {totalItens > 0 && comprados.length > 0 && (
                 <span className="text-[10px] font-semibold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full tabular-nums">
                   {comprados.length}/{totalItens}
+                </span>
+              )}
+              {!isOnline && (
+                <span className="flex items-center gap-1 text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">
+                  <WifiOff className="w-2.5 h-2.5" strokeWidth={2.5} />
+                  Offline{pendingCount > 0 ? ` · ${pendingCount}` : ''}
+                </span>
+              )}
+              {isOnline && syncStatus === 'syncing' && (
+                <span className="flex items-center gap-1 text-[10px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">
+                  <RefreshCw className="w-2.5 h-2.5 animate-spin" strokeWidth={2.5} />
+                  Sincronizando
+                </span>
+              )}
+              {isOnline && syncStatus === 'error' && (
+                <span className="flex items-center gap-1 text-[10px] font-semibold text-red-500 bg-red-50 px-1.5 py-0.5 rounded-full">
+                  <AlertCircle className="w-2.5 h-2.5" strokeWidth={2.5} />
+                  Erro de sync
+                </span>
+              )}
+              {isOnline && syncStatus === 'pending' && (
+                <span className="flex items-center gap-1 text-[10px] font-semibold text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded-full">
+                  <RefreshCw className="w-2.5 h-2.5" strokeWidth={2.5} />
+                  {pendingCount} pendente{pendingCount > 1 ? 's' : ''}
                 </span>
               )}
             </div>
