@@ -79,14 +79,15 @@ function BottomSheetPreco({
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
+    const viewport = vv
     function update() {
-      setKeyboardOffset(Math.max(0, window.innerHeight - vv.height - vv.offsetTop))
+      setKeyboardOffset(Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop))
     }
-    vv.addEventListener('resize', update)
-    vv.addEventListener('scroll', update)
+    viewport.addEventListener('resize', update)
+    viewport.addEventListener('scroll', update)
     return () => {
-      vv.removeEventListener('resize', update)
-      vv.removeEventListener('scroll', update)
+      viewport.removeEventListener('resize', update)
+      viewport.removeEventListener('scroll', update)
     }
   }, [])
 
