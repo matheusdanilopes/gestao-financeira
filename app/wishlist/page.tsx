@@ -14,9 +14,9 @@ import { ptBR } from 'date-fns/locale'
 // ── Constantes ────────────────────────────────────────────────────────────────
 
 const PRIORIDADE = {
-  alta:  { label: 'Alta',  bg: 'bg-red-50',    text: 'text-red-600',   dot: 'bg-red-400'   },
-  media: { label: 'Média', bg: 'bg-amber-50',  text: 'text-amber-600', dot: 'bg-amber-400' },
-  baixa: { label: 'Baixa', bg: 'bg-slate-100', text: 'text-slate-500', dot: 'bg-slate-400' },
+  alta:  { label: 'Alta',  bg: 'bg-red-50',    text: 'text-red-600',   dot: 'bg-red-400',   borderColor: '#f87171' },
+  media: { label: 'Média', bg: 'bg-amber-50',  text: 'text-amber-600', dot: 'bg-amber-400', borderColor: '#fbbf24' },
+  baixa: { label: 'Baixa', bg: 'bg-slate-100', text: 'text-slate-500', dot: 'bg-slate-400', borderColor: '#e2e8f0' },
 } as const
 
 type Prioridade = keyof typeof PRIORIDADE
@@ -34,6 +34,15 @@ const EMOJIS = [
 
 const HINT_KEY = 'wishlist-swipe-hint'
 
+const USER_PALETTE = [
+  'bg-violet-100 text-violet-700',
+  'bg-orange-100 text-orange-700',
+  'bg-teal-100 text-teal-700',
+  'bg-emerald-100 text-emerald-700',
+  'bg-rose-100 text-rose-700',
+  'bg-sky-100 text-sky-700',
+]
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatarData(iso: string) {
@@ -46,12 +55,18 @@ function nomeCurto(email: string | null): string {
   return parte.charAt(0).toUpperCase() + parte.slice(1)
 }
 
+function emailHash(s: string): number {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0
+  return Math.abs(h)
+}
+
 function corUsuario(email: string | null): string {
   if (!email) return 'bg-gray-100 text-gray-500'
   const e = email.toLowerCase()
   if (e.includes('matheus')) return 'bg-matheus-light text-matheus'
   if (e.includes('jeniffer') || e.includes('jennifer')) return 'bg-jeniffer-light text-jeniffer'
-  return 'bg-gray-100 text-gray-500'
+  return USER_PALETTE[emailHash(email) % USER_PALETTE.length]
 }
 
 // Quando só um usuário é conhecido, infere o nome do parceiro pelo email atual
@@ -161,6 +176,9 @@ function ModalWishlist({
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
   const [emojiAberto, setEmojiAberto] = useState(false)
+  const [detalhesAbertos, setDetalhesAbertos] = useState(
+    !!(item?.categoria || item?.nota || item?.link_ref)
+  )
 
   useEffect(() => {
     const t = setTimeout(() => nomeRef.current?.focus(), 100)
@@ -249,25 +267,21 @@ function ModalWishlist({
                 )}
               </div>
 
-              {/* Categoria */}
+              {/* Prioridade */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">Categoria</label>
-                <div className="relative">
-                  <select
-                    value={form.categoria}
-                    onChange={e => setField('categoria', e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900
-                               bg-white focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent
-                               appearance-none pr-10"
-                  >
-                    <option value="">Sem categoria</option>
-                    {CATEGORIAS.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                    ▾
-                  </span>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">Prioridade</label>
+                <div className="flex gap-2">
+                  {(Object.keys(PRIORIDADE) as Prioridade[]).map(p => {
+                    const cfg = PRIORIDADE[p]
+                    const ativo = form.prioridade === p
+                    return (
+                      <button key={p} type="button" onClick={() => setField('prioridade', p)}
+                        className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all duration-150
+                                    ${ativo ? `${cfg.bg} ${cfg.text} border-current` : 'bg-gray-50 text-gray-400 border-transparent hover:bg-gray-100'}`}>
+                        {cfg.label}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 
@@ -289,81 +303,101 @@ function ModalWishlist({
                 </div>
               </div>
 
-              {/* Prioridade */}
+              {/* Toggle detalhes */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">Prioridade</label>
-                <div className="flex gap-2">
-                  {(Object.keys(PRIORIDADE) as Prioridade[]).map(p => {
-                    const cfg = PRIORIDADE[p]
-                    const ativo = form.prioridade === p
-                    return (
-                      <button key={p} type="button" onClick={() => setField('prioridade', p)}
-                        className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all duration-150
-                                    ${ativo ? `${cfg.bg} ${cfg.text} border-current` : 'bg-gray-50 text-gray-400 border-transparent hover:bg-gray-100'}`}>
-                        {cfg.label}
-                      </button>
-                    )
-                  })}
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setDetalhesAbertos(v => !v)}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-700 transition-colors py-1"
+                >
+                  Detalhes {detalhesAbertos ? '↑' : '↓'}
+                </button>
               </div>
 
-              {/* Nota */}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">Nota</label>
-                <textarea
-                  value={form.nota}
-                  onChange={e => setField('nota', e.target.value)}
-                  placeholder="Observações, contexto, qual modelo…"
-                  rows={2}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-gray-900 resize-none
-                             placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
-                />
-              </div>
-
-              {/* Link */}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">Link de referência</label>
-                <input
-                  type="text"
-                  value={form.link_ref}
-                  onChange={e => setField('link_ref', e.target.value)}
-                  placeholder="https://..."
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900
-                             placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
-                />
-              </div>
-
-              {/* Criador */}
-              {usuariosConhecidos.length > 0 && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Adicionado por</label>
-                  <div className="flex gap-2">
-                    {usuariosConhecidos.map(email => {
-                      const isAtivo = form.criado_por === email
-                      const cor = corUsuario(email)
-                      return (
-                        <button
-                          key={email}
-                          type="button"
-                          onClick={() => setField('criado_por', email)}
-                          className={`flex-1 flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all
-                                      ${isAtivo
-                                        ? `${cor} ring-2 ring-inset ring-current`
-                                        : 'bg-gray-50 text-gray-600'}`}
-                        >
-                          <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-none
-                                           ${isAtivo ? 'bg-white/40' : cor}`}>
-                            {isAtivo
-                              ? <Check className="w-4 h-4" strokeWidth={3} />
-                              : nomeCurto(email)[0]
-                            }
-                          </span>
-                          <span className="text-sm font-semibold truncate">{nomeCurto(email)}</span>
-                        </button>
-                      )
-                    })}
+              {/* Detalhes colapsáveis */}
+              {detalhesAbertos && (
+                <>
+                  {/* Categoria */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1.5">Categoria</label>
+                    <div className="relative">
+                      <select
+                        value={form.categoria}
+                        onChange={e => setField('categoria', e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900
+                                   bg-white focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent
+                                   appearance-none pr-10"
+                      >
+                        <option value="">Sem categoria</option>
+                        {CATEGORIAS.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                        ▾
+                      </span>
+                    </div>
                   </div>
-                </div>
+
+                  {/* Nota */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1.5">Nota</label>
+                    <textarea
+                      value={form.nota}
+                      onChange={e => setField('nota', e.target.value)}
+                      placeholder="Observações, contexto, qual modelo…"
+                      rows={2}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-gray-900 resize-none
+                                 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
+                    />
+                  </div>
+
+                  {/* Link */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1.5">Link de referência</label>
+                    <input
+                      type="text"
+                      value={form.link_ref}
+                      onChange={e => setField('link_ref', e.target.value)}
+                      placeholder="https://..."
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900
+                                 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
+                    />
+                  </div>
+
+                  {/* Criador */}
+                  {usuariosConhecidos.length > 0 && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1.5">Adicionado por</label>
+                      <div className="flex gap-2">
+                        {usuariosConhecidos.map(email => {
+                          const isAtivo = form.criado_por === email
+                          const cor = corUsuario(email)
+                          return (
+                            <button
+                              key={email}
+                              type="button"
+                              onClick={() => setField('criado_por', email)}
+                              className={`flex-1 flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all
+                                          ${isAtivo
+                                            ? `${cor} ring-2 ring-inset ring-current`
+                                            : 'bg-gray-50 text-gray-600'}`}
+                            >
+                              <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-none
+                                               ${isAtivo ? 'bg-white/40' : cor}`}>
+                                {isAtivo
+                                  ? <Check className="w-4 h-4" strokeWidth={3} />
+                                  : nomeCurto(email)[0]
+                                }
+                              </span>
+                              <span className="text-sm font-semibold truncate">{nomeCurto(email)}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
               {erro && (
@@ -410,61 +444,54 @@ function WishlistCard({
 
   return (
     <SwipeableItem onDelete={() => onExcluir(item.id)}>
-      <button
-        type="button"
-        onClick={() => onEditar(item)}
-        className="w-full text-left bg-white rounded-2xl p-4 shadow-sm border border-gray-100
-                   active:bg-gray-50 transition-colors duration-150 focus-visible:outline-none
-                   focus-visible:ring-2 focus-visible:ring-primary-400"
+      <div
+        className="rounded-2xl shadow-sm border border-gray-100 overflow-hidden bg-white border-l-4"
+        style={{ borderLeftColor: cfg.borderColor }}
       >
-        {/* Emoji + nome + favorito */}
-        <div className="flex items-start gap-2.5 mb-2.5">
-          {item.emoji && (
-            <span className="text-2xl flex-none leading-tight mt-0.5" aria-hidden="true">{item.emoji}</span>
-          )}
-          <p className="flex-1 text-sm font-semibold text-gray-900 leading-snug min-w-0 line-clamp-2">
-            {item.nome}
-          </p>
-          <button
-            type="button"
-            onClick={e => { e.stopPropagation(); onFavoritar(item.id) }}
-            className="flex-none w-10 h-10 -mt-1 -mr-1 flex items-center justify-center rounded-xl
-                       hover:bg-amber-50 transition-colors active:scale-90"
-            aria-label={item.favoritado ? 'Remover favorito' : 'Favoritar'}
-          >
-            <Star
-              className={`w-5 h-5 transition-colors ${item.favoritado ? 'text-amber-400' : 'text-gray-300'}`}
-              fill={item.favoritado ? 'currentColor' : 'none'}
-              strokeWidth={1.8}
-            />
-          </button>
-        </div>
+        {/* Clickable card body */}
+        <button
+          type="button"
+          onClick={() => onEditar(item)}
+          className="w-full text-left px-4 pt-4 pb-3 active:bg-gray-50 transition-colors duration-150
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-inset"
+        >
+          {/* Emoji + nome */}
+          <div className="flex items-start gap-2.5 mb-2.5">
+            {item.emoji && (
+              <span className="text-2xl flex-none leading-tight mt-0.5" aria-hidden="true">{item.emoji}</span>
+            )}
+            <p className="flex-1 text-[15px] font-semibold text-gray-900 leading-snug min-w-0 line-clamp-2">
+              {item.nome}
+            </p>
+          </div>
 
-        {/* Badges: prioridade + categoria */}
-        <div className="flex items-center gap-1.5 flex-wrap mb-2.5">
-          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${cfg.bg} ${cfg.text}`}>
-            <span className={`w-1.5 h-1.5 rounded-full flex-none ${cfg.dot}`} />
-            {cfg.label}
-          </span>
-          {item.categoria && (
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600">
-              {item.categoria}
+          {/* Badges: prioridade + categoria */}
+          <div className="flex items-center gap-1.5 flex-wrap mb-2.5">
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${cfg.bg} ${cfg.text}`}>
+              <span className={`w-1.5 h-1.5 rounded-full flex-none ${cfg.dot}`} />
+              {cfg.label}
             </span>
+            {item.categoria && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600">
+                {item.categoria}
+              </span>
+            )}
+          </div>
+
+          {/* Nota preview */}
+          {item.nota && (
+            <p className="text-xs text-gray-500 line-clamp-1 italic">
+              &ldquo;{item.nota}&rdquo;
+            </p>
           )}
-        </div>
+        </button>
 
-        {/* Nota preview */}
-        {item.nota && (
-          <p className="text-xs text-gray-500 mb-2.5 line-clamp-1 italic">
-            &ldquo;{item.nota}&rdquo;
-          </p>
-        )}
-
-        {/* Rodapé: valor + link + autor + realizar */}
-        <div className="flex items-center justify-between gap-2">
+        {/* Footer — separate from click button */}
+        <div className="border-t border-gray-50 px-4 py-2.5 flex items-center justify-between">
+          {/* Left: valor + link */}
           <div className="flex items-center gap-2 min-w-0">
             {item.valor_estimado != null && (
-              <span className="text-xs font-semibold text-gray-700 tabular-nums">
+              <span className="text-xs font-bold text-gray-700 tabular-nums">
                 {formatBRL(item.valor_estimado)}
               </span>
             )}
@@ -473,7 +500,6 @@ function WishlistCard({
                 href={item.link_ref}
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={e => e.stopPropagation()}
                 className="flex items-center gap-1 text-[11px] text-primary-600 hover:underline"
               >
                 <ExternalLink className="w-3 h-3" />
@@ -481,16 +507,33 @@ function WishlistCard({
               </a>
             )}
           </div>
+
+          {/* Right: avatar + star + realizar */}
           <div className="flex items-center gap-2 flex-none">
             {item.criado_por && (
-              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold flex-none ${corUsuario(item.criado_por)}`}
-                title={nomeCurto(item.criado_por)}>
+              <span
+                className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold flex-none ${corUsuario(item.criado_por)}`}
+                title={nomeCurto(item.criado_por)}
+              >
                 {nomeCurto(item.criado_por)[0]}
               </span>
             )}
             <button
               type="button"
-              onClick={e => { e.stopPropagation(); onRealizar(item.id) }}
+              onClick={() => onFavoritar(item.id)}
+              className="flex-none w-8 h-8 flex items-center justify-center rounded-xl
+                         hover:bg-amber-50 transition-colors active:scale-90"
+              aria-label={item.favoritado ? 'Remover favorito' : 'Favoritar'}
+            >
+              <Star
+                className={`w-4.5 h-4.5 transition-colors ${item.favoritado ? 'text-amber-400' : 'text-gray-300'}`}
+                fill={item.favoritado ? 'currentColor' : 'none'}
+                strokeWidth={1.8}
+              />
+            </button>
+            <button
+              type="button"
+              onClick={() => onRealizar(item.id)}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-50 text-green-600
                          text-xs font-semibold hover:bg-green-100 transition-colors active:scale-95"
               aria-label="Marcar como realizado"
@@ -503,11 +546,11 @@ function WishlistCard({
 
         {/* Swipe hint — aparece uma vez no primeiro card */}
         {mostraHint && (
-          <div className="mt-2.5 pt-2 border-t border-gray-50 flex items-center justify-end">
+          <div className="px-4 pb-2 flex items-center justify-end border-t border-gray-50">
             <span className="text-[10px] text-gray-300 italic">← deslize para excluir</span>
           </div>
         )}
-      </button>
+      </div>
     </SwipeableItem>
   )
 }
@@ -681,6 +724,11 @@ function WishlistContent() {
       if (busca && !item.nome.toLowerCase().includes(busca.toLowerCase())) return false
       return true
     })
+    .sort((a, b) => {
+      if (a.favoritado !== b.favoritado) return a.favoritado ? -1 : 1
+      const pOrder = { alta: 0, media: 1, baixa: 2 } as const
+      return pOrder[a.prioridade] - pOrder[b.prioridade]
+    })
 
   const historicoDis = historico
     .filter(i => i.id !== pendingExcluirId)
@@ -791,6 +839,9 @@ function WishlistContent() {
             <h1 className="text-lg font-bold text-gray-900 leading-none">Wishlist Familiar</h1>
             <p className="text-xs text-gray-400 mt-0.5">
               {ativos.length} {ativos.length === 1 ? 'desejo' : 'desejos'}
+              {historico.length > 0 && (
+                <span className="text-green-600 font-medium"> · {historico.length} realizados</span>
+              )}
               {totalAtivos > 0 && (
                 <span className="text-gray-500 font-medium"> · {formatBRL(totalAtivos)}</span>
               )}
@@ -922,11 +973,11 @@ function WishlistContent() {
                 ? (busca || filtroCategoria || filtroUsuario ? 'Nenhum resultado' : 'Nenhum desejo ainda')
                 : 'Nenhum desejo realizado'}
             </p>
-            <p className="text-xs text-gray-400 max-w-[200px]">
+            <p className="text-xs text-gray-400 max-w-[220px]">
               {aba === 'ativos'
                 ? (busca || filtroCategoria || filtroUsuario
                     ? 'Tente outros termos ou filtros'
-                    : 'Adicione coisas que vocês querem no futuro')
+                    : 'Adicione sonhos, eletrônicos, viagens — tudo que vocês querem conquistar')
                 : 'Seus desejos realizados aparecem aqui'}
             </p>
             {aba === 'ativos' && !busca && !filtroCategoria && !filtroUsuario && (
