@@ -165,6 +165,138 @@ function BottomSheetPreco({
   )
 }
 
+// ── Bottom sheet de confirmar compra ─────────────────────────────────────────
+
+function BottomSheetConfirmarCompra({
+  item,
+  onClose,
+  onConfirmar,
+}: {
+  item: ItemMercado
+  onClose: () => void
+  onConfirmar: (qtd: number, preco: number | null) => void
+}) {
+  const precoInputRef = useRef<HTMLInputElement>(null)
+  const [qtd, setQtd] = useState(item.quantidade)
+  const [preco, setPreco] = useState(item.preco_unit != null ? String(item.preco_unit) : '')
+  const [keyboardOffset, setKeyboardOffset] = useState(0)
+
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const viewport = vv
+    function update() {
+      setKeyboardOffset(Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop))
+    }
+    viewport.addEventListener('resize', update)
+    viewport.addEventListener('scroll', update)
+    return () => {
+      viewport.removeEventListener('resize', update)
+      viewport.removeEventListener('scroll', update)
+    }
+  }, [])
+
+  const precoNum = preco.trim() ? parseFloat(preco.replace(',', '.')) : null
+  const subtotal = precoNum != null && !isNaN(precoNum) ? qtd * precoNum : null
+
+  return (
+    <ModalPortal>
+      <div
+        className="fixed inset-0 z-[200] flex items-end modal-overlay"
+        style={{ background: 'rgba(0,0,0,0.45)', paddingBottom: keyboardOffset }}
+        onClick={e => e.target === e.currentTarget && onClose()}
+      >
+        <div className="w-full bg-white rounded-t-3xl shadow-2xl px-5 pt-2 pb-6 modal-sheet">
+          <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5" />
+
+          {/* Título */}
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center flex-none">
+              <Check className="w-4.5 h-4.5 text-green-500" strokeWidth={2.5} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide">Conferir antes de marcar</p>
+              <p className="text-base font-semibold text-gray-900 truncate">{item.nome}</p>
+            </div>
+          </div>
+
+          {/* Quantidade */}
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-gray-500 mb-2">Quantidade</label>
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={() => setQtd(q => Math.max(1, q - 1))}
+                disabled={qtd <= 1}
+                className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-600
+                           hover:bg-gray-200 disabled:opacity-30 transition-colors active:scale-90"
+              >
+                <Minus className="w-5 h-5" strokeWidth={2.5} />
+              </button>
+              <span className="flex-1 text-center text-3xl font-bold text-gray-900 tabular-nums">{qtd}</span>
+              <button
+                type="button"
+                onClick={() => setQtd(q => q + 1)}
+                className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-600
+                           hover:bg-gray-200 transition-colors active:scale-90"
+              >
+                <Plus className="w-5 h-5" strokeWidth={2.5} />
+              </button>
+            </div>
+          </div>
+
+          {/* Preço unitário */}
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-gray-500 mb-2">Preço unitário</label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium">R$</span>
+              <input
+                ref={precoInputRef}
+                type="text"
+                inputMode="decimal"
+                value={preco}
+                onChange={e => setPreco(e.target.value)}
+                onKeyDown={e => e.key === 'Escape' && onClose()}
+                placeholder="0,00"
+                className="w-full pl-10 pr-4 py-3.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-900
+                           placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          {/* Subtotal */}
+          {subtotal != null && (
+            <div className="mb-4 px-4 py-3 rounded-2xl bg-green-50 flex items-center justify-between">
+              <span className="text-sm text-green-700 font-medium">Total do item</span>
+              <span className="text-lg font-bold text-green-700 tabular-nums">{formatBRL(subtotal)}</span>
+            </div>
+          )}
+
+          {/* Ações */}
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-3.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={() => { onConfirmar(qtd, precoNum); onClose() }}
+              className="flex-1 py-3.5 rounded-xl bg-green-500 text-white text-sm font-semibold
+                         hover:bg-green-600 transition-colors active:scale-95 flex items-center justify-center gap-2"
+            >
+              <Check className="w-4 h-4" strokeWidth={2.5} />
+              Comprado
+            </button>
+          </div>
+        </div>
+      </div>
+    </ModalPortal>
+  )
+}
+
 // ── Diálogo de confirmação ────────────────────────────────────────────────────
 
 function ConfirmLimpar({
@@ -215,6 +347,7 @@ function ItemRow({
   onEditarNome,
   onExcluir,
   onAbrirPreco,
+  onAbrirConfirmarCompra,
 }: {
   item: ItemMercado
   mostraHint: boolean
@@ -223,6 +356,7 @@ function ItemRow({
   onEditarNome: (id: string, nome: string) => void
   onExcluir: (id: string) => void
   onAbrirPreco: (item: ItemMercado) => void
+  onAbrirConfirmarCompra: (item: ItemMercado) => void
 }) {
   const [editandoNome, setEditandoNome] = useState(false)
   const [nomeLocal, setNomeLocal] = useState(item.nome)
@@ -256,7 +390,7 @@ function ItemRow({
         {/* Checkbox — 44px touch target */}
         <button
           type="button"
-          onClick={() => onToggle(item.id)}
+          onClick={() => item.comprado ? onToggle(item.id) : onAbrirConfirmarCompra(item)}
           aria-label={item.comprado ? 'Desmarcar' : 'Marcar como comprado'}
           className={`flex-none w-6 h-6 rounded-full border-2 flex items-center justify-center
                       transition-all duration-150 active:scale-90
@@ -526,6 +660,7 @@ export default function ListaMercadoPage() {
   } = useListaMercado()
 
   const [itemPreco, setItemPreco] = useState<ItemMercado | null>(null)
+  const [itemConfirmando, setItemConfirmando] = useState<ItemMercado | null>(null)
   const [confirmandoLimpar, setConfirmandoLimpar] = useState(false)
   const [hintVisto, setHintVisto] = useState(true)
   const [deleteToast, setDeleteToast] = useState<{ id: string; nome: string } | null>(null)
@@ -602,6 +737,16 @@ export default function ListaMercadoPage() {
     await handleLimpar()
   }
 
+  function handleConfirmarCompra(qtd: number, preco: number | null) {
+    if (!itemConfirmando) return
+    const id = itemConfirmando.id
+    if (qtd !== itemConfirmando.quantidade) {
+      alterarQuantidade(id, qtd - itemConfirmando.quantidade, itens)
+    }
+    definirPreco(id, preco)
+    toggleComprado(id, itens)
+  }
+
   const totalItens = pendentes.length + comprados.length
 
   return (
@@ -669,6 +814,7 @@ export default function ListaMercadoPage() {
               onEditarNome={editarNome}
               onExcluir={handleExcluir}
               onAbrirPreco={setItemPreco}
+              onAbrirConfirmarCompra={setItemConfirmando}
             />
           ))}
 
@@ -700,11 +846,21 @@ export default function ListaMercadoPage() {
                   onEditarNome={editarNome}
                   onExcluir={handleExcluir}
                   onAbrirPreco={setItemPreco}
+                  onAbrirConfirmarCompra={setItemConfirmando}
                 />
               ))}
             </>
           )}
         </div>
+      )}
+
+      {/* Bottom sheet de confirmar compra */}
+      {itemConfirmando && (
+        <BottomSheetConfirmarCompra
+          item={itemConfirmando}
+          onClose={() => setItemConfirmando(null)}
+          onConfirmar={handleConfirmarCompra}
+        />
       )}
 
       {/* Bottom sheet de preço */}
