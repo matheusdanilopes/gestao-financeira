@@ -68,10 +68,26 @@ function BottomSheetPreco({
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [valor, setValor] = useState(item.preco_unit != null ? String(item.preco_unit) : '')
+  const [keyboardOffset, setKeyboardOffset] = useState(0)
 
   useEffect(() => {
     const t = setTimeout(() => inputRef.current?.focus(), 150)
     return () => clearTimeout(t)
+  }, [])
+
+  // Sobe o sheet conforme o teclado virtual cresce
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    function update() {
+      setKeyboardOffset(Math.max(0, window.innerHeight - vv.height - vv.offsetTop))
+    }
+    vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update)
+    return () => {
+      vv.removeEventListener('resize', update)
+      vv.removeEventListener('scroll', update)
+    }
   }, [])
 
   function handleConfirmar() {
@@ -80,58 +96,56 @@ function BottomSheetPreco({
     onClose()
   }
 
-  function handleKeyDown(e: ReactKeyboardEvent) {
-    if (e.key === 'Enter') handleConfirmar()
-    if (e.key === 'Escape') onClose()
-  }
-
   return (
     <ModalPortal>
       <div
         className="fixed inset-0 z-[200] flex items-end modal-overlay"
-        style={{ background: 'rgba(0,0,0,0.45)' }}
+        style={{ background: 'rgba(0,0,0,0.45)', paddingBottom: keyboardOffset }}
         onClick={e => e.target === e.currentTarget && onClose()}
       >
-        <div className="w-full bg-white rounded-t-3xl shadow-2xl px-5 pt-2 pb-8 modal-sheet">
+        <div className="w-full bg-white rounded-t-3xl shadow-2xl px-5 pt-2 pb-6 modal-sheet">
           <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5" />
           <p className="text-xs text-gray-500 mb-1 font-medium">Preço unitário de</p>
           <p className="text-base font-semibold text-gray-900 mb-4 truncate">{item.nome}</p>
 
-          <div className="relative mb-4">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium">R$</span>
-            <input
-              ref={inputRef}
-              type="text"
-              inputMode="decimal"
-              value={valor}
-              onChange={e => setValor(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="0,00"
-              className="w-full pl-10 pr-4 py-3.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-900
-                         placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
-            />
-          </div>
+          {/* form: botão "Ir" do teclado numérico confirma direto */}
+          <form onSubmit={e => { e.preventDefault(); handleConfirmar() }}>
+            <div className="relative mb-4">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium">R$</span>
+              <input
+                ref={inputRef}
+                type="text"
+                inputMode="decimal"
+                value={valor}
+                onChange={e => setValor(e.target.value)}
+                onKeyDown={e => e.key === 'Escape' && onClose()}
+                placeholder="0,00"
+                className="w-full pl-10 pr-4 py-3.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-900
+                           placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
+              />
+            </div>
 
-          <div className="flex gap-3">
-            {item.preco_unit != null && (
-              <button
-                type="button"
-                onClick={() => { onConfirmar(null); onClose() }}
-                className="px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-500
-                           hover:bg-gray-50 transition-colors"
-              >
-                Remover
+            <div className="flex gap-3">
+              {item.preco_unit != null && (
+                <button
+                  type="button"
+                  onClick={() => { onConfirmar(null); onClose() }}
+                  className="px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-500
+                             hover:bg-gray-50 transition-colors"
+                >
+                  Remover
+                </button>
+              )}
+              <button type="button" onClick={onClose}
+                className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+                Cancelar
               </button>
-            )}
-            <button type="button" onClick={onClose}
-              className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
-              Cancelar
-            </button>
-            <button type="button" onClick={handleConfirmar}
-              className="flex-1 py-3 rounded-xl bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 transition-colors">
-              Confirmar
-            </button>
-          </div>
+              <button type="submit"
+                className="flex-1 py-3 rounded-xl bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 transition-colors">
+                Confirmar
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </ModalPortal>
