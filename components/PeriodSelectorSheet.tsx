@@ -34,12 +34,15 @@ function ScrollPicker({ items, selectedIndex, onSelect, ariaLabel }: ScrollPicke
   const listRef = useRef<HTMLUListElement>(null)
   const scrolling = useRef(false)
   const raf = useRef<number>(0)
+  const mounted = useRef(false)
 
-  // Scroll to selected on mount and when selectedIndex changes externally
+  // First render: jump instantly to avoid sliding from top; subsequent: smooth
   useEffect(() => {
     const el = listRef.current
     if (!el) return
-    el.scrollTo({ top: selectedIndex * ITEM_H, behavior: 'smooth' })
+    const behavior = mounted.current ? 'smooth' : 'instant'
+    mounted.current = true
+    el.scrollTo({ top: selectedIndex * ITEM_H, behavior })
   }, [selectedIndex])
 
   const handleScroll = useCallback(() => {
