@@ -967,6 +967,7 @@ export default function ListaMercadoPage() {
     setSalvandoHistorico(true)
     try {
       await salvarHistorico(itens, valorTotal)
+      await limparComprados(itens)
       setFinalizandoCompra(false)
       setSuccessToast(true)
       setTimeout(() => setSuccessToast(false), 3500)
