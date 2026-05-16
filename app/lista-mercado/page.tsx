@@ -382,7 +382,7 @@ function ItemRow({
   const subtotal = item.quantidade * (item.preco_unit ?? 0)
 
   return (
-    <SwipeableItem onDelete={() => onExcluir(item.id)} disabled={editandoNome}>
+    <SwipeableItem onDelete={() => onExcluir(item.id)} disabled={editandoNome} requireConfirmation>
       <div
         className={`flex items-center gap-3 px-4 bg-white border-b border-gray-50
                     transition-opacity duration-200 ${item.comprado ? 'opacity-50 py-2' : 'py-3.5'}`}
@@ -423,11 +423,11 @@ function ItemRow({
             <button
               type="button"
               onClick={ativarEdicao}
-              className={`text-left text-sm font-medium leading-snug truncate flex items-center gap-1.5 w-full
+              className={`text-left text-sm font-medium leading-snug flex items-start gap-1.5 w-full
                           ${item.comprado ? 'line-through text-gray-400' : 'text-gray-900'}`}
             >
-              <span className="truncate">{item.nome}</span>
-              <Pencil className="w-3 h-3 text-gray-300 flex-none" strokeWidth={2} />
+              <span className="break-words line-clamp-2 flex-1 min-w-0">{item.nome}</span>
+              <Pencil className="w-3 h-3 text-gray-300 flex-none mt-0.5" strokeWidth={2} />
             </button>
           )}
           {item.criado_por && !editandoNome && !item.comprado && (
