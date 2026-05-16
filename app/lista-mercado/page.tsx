@@ -1,10 +1,16 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback, type FormEvent, type ChangeEvent } from 'react'
-import { ShoppingBasket, Plus, Minus, Check, Trash2, X, Pencil, ChevronDown, ChevronUp, WifiOff, RefreshCw, AlertCircle } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import {
+  ShoppingBasket, Plus, Minus, Check, Trash2, X, Pencil, ChevronDown, ChevronUp,
+  WifiOff, RefreshCw, AlertCircle, History, Camera,
+} from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
 import { SwipeableItem } from '@/components/SwipeableItem'
+import { CameraOCR } from '@/components/CameraOCR'
 import { useListaMercado, type ItemMercado } from '@/lib/useListaMercado'
+import { useHistoricoCompras } from '@/lib/useHistoricoCompras'
 import { formatBRL } from '@/lib/logger'
 
 // ── Constantes ────────────────────────────────────────────────────────────────
@@ -81,8 +87,9 @@ function BottomSheetPreco({
   onConfirmar: (preco: number | null) => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const [valor, setValor] = useState(item.preco_unit != null ? String(item.preco_unit) : '')
+  const [valor, setValor] = useState(item.preco_unit != null ? String(item.preco_unit).replace('.', ',') : '')
   const [keyboardOffset, setKeyboardOffset] = useState(0)
+  const [cameraAberta, setCameraAberta] = useState(false)
 
   useEffect(() => {
     const t = setTimeout(() => inputRef.current?.focus(), 150)
@@ -110,58 +117,82 @@ function BottomSheetPreco({
     onClose()
   }
 
+  function handlePrecoCamera(preco: number) {
+    setValor(preco.toFixed(2).replace('.', ','))
+    setCameraAberta(false)
+    setTimeout(() => inputRef.current?.focus(), 100)
+  }
+
   return (
-    <ModalPortal>
-      <div
-        className="fixed inset-0 z-[200] flex items-end modal-overlay"
-        style={{ background: 'rgba(0,0,0,0.45)', paddingBottom: keyboardOffset }}
-        onClick={e => e.target === e.currentTarget && onClose()}
-      >
-        <div className="w-full bg-white rounded-t-3xl shadow-2xl px-5 pt-2 pb-6 modal-sheet">
-          <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5" />
-          <p className="text-xs text-gray-500 mb-1 font-medium">Preço unitário de</p>
-          <p className="text-base font-semibold text-gray-900 mb-4 truncate">{item.nome}</p>
+    <>
+      <ModalPortal>
+        <div
+          className="fixed inset-0 z-[200] flex items-end modal-overlay"
+          style={{ background: 'rgba(0,0,0,0.45)', paddingBottom: keyboardOffset }}
+          onClick={e => e.target === e.currentTarget && onClose()}
+        >
+          <div className="w-full bg-white rounded-t-3xl shadow-2xl px-5 pt-2 pb-6 modal-sheet">
+            <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5" />
+            <p className="text-xs text-gray-500 mb-1 font-medium">Preço unitário de</p>
+            <p className="text-base font-semibold text-gray-900 mb-4 truncate">{item.nome}</p>
 
-          <form onSubmit={e => { e.preventDefault(); handleConfirmar() }}>
-            <div className="relative mb-4">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium">R$</span>
-              <input
-                ref={inputRef}
-                type="text"
-                inputMode="decimal"
-                value={valor}
-                onChange={e => setValor(e.target.value)}
-                onKeyDown={e => e.key === 'Escape' && onClose()}
-                placeholder="0,00"
-                className="w-full pl-10 pr-4 py-3.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-900
-                           placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
-              />
-            </div>
-
-            <div className="flex gap-3">
-              {item.preco_unit != null && (
+            <form onSubmit={e => { e.preventDefault(); handleConfirmar() }}>
+              <div className="relative mb-4">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium">R$</span>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  inputMode="decimal"
+                  value={valor}
+                  onChange={e => setValor(e.target.value)}
+                  onKeyDown={e => e.key === 'Escape' && onClose()}
+                  placeholder="0,00"
+                  className="w-full pl-10 pr-12 py-3.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-900
+                             placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
+                />
                 <button
                   type="button"
-                  onClick={() => { onConfirmar(null); onClose() }}
-                  className="px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-500
-                             hover:bg-gray-50 transition-colors"
+                  onClick={() => setCameraAberta(true)}
+                  aria-label="Ler preço com câmera"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center
+                             rounded-lg bg-primary-50 text-primary-600 hover:bg-primary-100 transition-colors"
                 >
-                  Remover
+                  <Camera className="w-3.5 h-3.5" strokeWidth={2} />
                 </button>
-              )}
-              <button type="button" onClick={onClose}
-                className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
-                Cancelar
-              </button>
-              <button type="submit"
-                className="flex-1 py-3 rounded-xl bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 transition-colors">
-                Confirmar
-              </button>
-            </div>
-          </form>
+              </div>
+
+              <div className="flex gap-3">
+                {item.preco_unit != null && (
+                  <button
+                    type="button"
+                    onClick={() => { onConfirmar(null); onClose() }}
+                    className="px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-500
+                               hover:bg-gray-50 transition-colors"
+                  >
+                    Remover
+                  </button>
+                )}
+                <button type="button" onClick={onClose}
+                  className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+                  Cancelar
+                </button>
+                <button type="submit"
+                  className="flex-1 py-3 rounded-xl bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 transition-colors">
+                  Confirmar
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-      </div>
-    </ModalPortal>
+      </ModalPortal>
+
+      {cameraAberta && (
+        <CameraOCR
+          onPrecoDetectado={handlePrecoCamera}
+          onClose={() => setCameraAberta(false)}
+        />
+      )}
+    </>
   )
 }
 
@@ -178,8 +209,9 @@ function BottomSheetConfirmarCompra({
 }) {
   const precoInputRef = useRef<HTMLInputElement>(null)
   const [qtd, setQtd] = useState(item.quantidade)
-  const [preco, setPreco] = useState(item.preco_unit != null ? String(item.preco_unit) : '')
+  const [preco, setPreco] = useState(item.preco_unit != null ? String(item.preco_unit).replace('.', ',') : '')
   const [keyboardOffset, setKeyboardOffset] = useState(0)
+  const [cameraAberta, setCameraAberta] = useState(false)
 
   useEffect(() => {
     const vv = window.visualViewport
@@ -199,6 +231,171 @@ function BottomSheetConfirmarCompra({
   const precoNum = preco.trim() ? parseFloat(preco.replace(',', '.')) : null
   const subtotal = precoNum != null && !isNaN(precoNum) ? qtd * precoNum : null
 
+  function handlePrecoCamera(valor: number) {
+    setPreco(valor.toFixed(2).replace('.', ','))
+    setCameraAberta(false)
+    setTimeout(() => precoInputRef.current?.focus(), 100)
+  }
+
+  return (
+    <>
+      <ModalPortal>
+        <div
+          className="fixed inset-0 z-[200] flex items-end modal-overlay"
+          style={{ background: 'rgba(0,0,0,0.45)', paddingBottom: keyboardOffset }}
+          onClick={e => e.target === e.currentTarget && onClose()}
+        >
+          <div className="w-full bg-white rounded-t-3xl shadow-2xl px-5 pt-2 pb-6 modal-sheet">
+            <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5" />
+
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center flex-none">
+                <Check className="w-4.5 h-4.5 text-green-500" strokeWidth={2.5} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide">Conferir antes de marcar</p>
+                <p className="text-base font-semibold text-gray-900 truncate">{item.nome}</p>
+              </div>
+            </div>
+
+            {/* Quantidade */}
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-gray-500 mb-2">Quantidade</label>
+              <div className="flex items-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => setQtd(q => Math.max(1, q - 1))}
+                  disabled={qtd <= 1}
+                  className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-600
+                             hover:bg-gray-200 disabled:opacity-30 transition-colors active:scale-90"
+                >
+                  <Minus className="w-5 h-5" strokeWidth={2.5} />
+                </button>
+                <span className="flex-1 text-center text-3xl font-bold text-gray-900 tabular-nums">{qtd}</span>
+                <button
+                  type="button"
+                  onClick={() => setQtd(q => q + 1)}
+                  className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-600
+                             hover:bg-gray-200 transition-colors active:scale-90"
+                >
+                  <Plus className="w-5 h-5" strokeWidth={2.5} />
+                </button>
+              </div>
+            </div>
+
+            {/* Preço unitário */}
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-gray-500 mb-2">Preço unitário</label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium">R$</span>
+                <input
+                  ref={precoInputRef}
+                  type="text"
+                  inputMode="decimal"
+                  value={preco}
+                  onChange={e => setPreco(e.target.value)}
+                  onKeyDown={e => e.key === 'Escape' && onClose()}
+                  placeholder="0,00"
+                  className="w-full pl-10 pr-12 py-3.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-900
+                             placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent"
+                />
+                <button
+                  type="button"
+                  onClick={() => setCameraAberta(true)}
+                  aria-label="Ler preço com câmera"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center
+                             rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
+                >
+                  <Camera className="w-3.5 h-3.5" strokeWidth={2} />
+                </button>
+              </div>
+            </div>
+
+            {/* Subtotal */}
+            {subtotal != null && (
+              <div className="mb-4 px-4 py-3 rounded-2xl bg-green-50 flex items-center justify-between">
+                <span className="text-sm text-green-700 font-medium">Total do item</span>
+                <span className="text-lg font-bold text-green-700 tabular-nums">{formatBRL(subtotal)}</span>
+              </div>
+            )}
+
+            {/* Ações */}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 py-3.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => { onConfirmar(qtd, precoNum); onClose() }}
+                className="flex-1 py-3.5 rounded-xl bg-green-500 text-white text-sm font-semibold
+                           hover:bg-green-600 transition-colors active:scale-95 flex items-center justify-center gap-2"
+              >
+                <Check className="w-4 h-4" strokeWidth={2.5} />
+                Comprado
+              </button>
+            </div>
+          </div>
+        </div>
+      </ModalPortal>
+
+      {cameraAberta && (
+        <CameraOCR
+          onPrecoDetectado={handlePrecoCamera}
+          onClose={() => setCameraAberta(false)}
+        />
+      )}
+    </>
+  )
+}
+
+// ── Bottom sheet de finalizar compra ─────────────────────────────────────────
+
+function BottomSheetFinalizarCompra({
+  comprados,
+  totalCalculado,
+  salvando,
+  onClose,
+  onFinalizar,
+}: {
+  comprados: ItemMercado[]
+  totalCalculado: number
+  salvando: boolean
+  onClose: () => void
+  onFinalizar: (valorTotal: number) => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [valor, setValor] = useState(
+    totalCalculado > 0 ? totalCalculado.toFixed(2).replace('.', ',') : ''
+  )
+  const [keyboardOffset, setKeyboardOffset] = useState(0)
+
+  useEffect(() => {
+    const t = setTimeout(() => inputRef.current?.focus(), 150)
+    return () => clearTimeout(t)
+  }, [])
+
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const viewport = vv
+    function update() {
+      setKeyboardOffset(Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop))
+    }
+    viewport.addEventListener('resize', update)
+    viewport.addEventListener('scroll', update)
+    return () => {
+      viewport.removeEventListener('resize', update)
+      viewport.removeEventListener('scroll', update)
+    }
+  }, [])
+
+  const valorNum = parseFloat(valor.replace(',', '.'))
+  const valido = !isNaN(valorNum) && valorNum >= 0
+
   return (
     <ModalPortal>
       <div
@@ -209,70 +406,61 @@ function BottomSheetConfirmarCompra({
         <div className="w-full bg-white rounded-t-3xl shadow-2xl px-5 pt-2 pb-6 modal-sheet">
           <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5" />
 
-          {/* Título */}
           <div className="flex items-center gap-3 mb-5">
-            <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center flex-none">
-              <Check className="w-4.5 h-4.5 text-green-500" strokeWidth={2.5} />
+            <div className="w-10 h-10 rounded-2xl bg-green-50 flex items-center justify-center flex-none">
+              <ShoppingBasket className="w-5 h-5 text-green-600" strokeWidth={1.8} />
             </div>
-            <div className="min-w-0">
-              <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide">Conferir antes de marcar</p>
-              <p className="text-base font-semibold text-gray-900 truncate">{item.nome}</p>
-            </div>
-          </div>
-
-          {/* Quantidade */}
-          <div className="mb-4">
-            <label className="block text-xs font-medium text-gray-500 mb-2">Quantidade</label>
-            <div className="flex items-center gap-4">
-              <button
-                type="button"
-                onClick={() => setQtd(q => Math.max(1, q - 1))}
-                disabled={qtd <= 1}
-                className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-600
-                           hover:bg-gray-200 disabled:opacity-30 transition-colors active:scale-90"
-              >
-                <Minus className="w-5 h-5" strokeWidth={2.5} />
-              </button>
-              <span className="flex-1 text-center text-3xl font-bold text-gray-900 tabular-nums">{qtd}</span>
-              <button
-                type="button"
-                onClick={() => setQtd(q => q + 1)}
-                className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-600
-                           hover:bg-gray-200 transition-colors active:scale-90"
-              >
-                <Plus className="w-5 h-5" strokeWidth={2.5} />
-              </button>
+            <div>
+              <p className="text-base font-bold text-gray-900">Finalizar Compra</p>
+              <p className="text-xs text-gray-400">
+                {comprados.length} {comprados.length === 1 ? 'item comprado' : 'itens comprados'}
+              </p>
             </div>
           </div>
 
-          {/* Preço unitário */}
+          {/* Resumo de itens */}
+          {comprados.length > 0 && (
+            <div className="mb-4 max-h-36 overflow-y-auto rounded-xl border border-gray-100 divide-y divide-gray-50">
+              {comprados.slice(0, 8).map(item => (
+                <div key={item.id} className="flex items-center justify-between px-3 py-2">
+                  <span className="text-sm text-gray-700 truncate flex-1 mr-2">{item.nome}</span>
+                  <span className="text-xs text-gray-400 flex-none tabular-nums">
+                    {item.quantidade}× {item.preco_unit != null ? formatBRL(item.preco_unit) : '—'}
+                  </span>
+                </div>
+              ))}
+              {comprados.length > 8 && (
+                <div className="px-3 py-2 text-xs text-gray-400 text-center">
+                  +{comprados.length - 8} itens
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Valor total pago */}
           <div className="mb-4">
-            <label className="block text-xs font-medium text-gray-500 mb-2">Preço unitário</label>
+            <label className="block text-xs font-medium text-gray-500 mb-2">Valor total pago</label>
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium">R$</span>
               <input
-                ref={precoInputRef}
+                ref={inputRef}
                 type="text"
                 inputMode="decimal"
-                value={preco}
-                onChange={e => setPreco(e.target.value)}
+                value={valor}
+                onChange={e => setValor(e.target.value)}
                 onKeyDown={e => e.key === 'Escape' && onClose()}
                 placeholder="0,00"
                 className="w-full pl-10 pr-4 py-3.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-900
                            placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent"
               />
             </div>
+            {totalCalculado > 0 && (
+              <p className="text-[11px] text-gray-400 mt-1.5">
+                Estimado pela lista: {formatBRL(totalCalculado)}
+              </p>
+            )}
           </div>
 
-          {/* Subtotal */}
-          {subtotal != null && (
-            <div className="mb-4 px-4 py-3 rounded-2xl bg-green-50 flex items-center justify-between">
-              <span className="text-sm text-green-700 font-medium">Total do item</span>
-              <span className="text-lg font-bold text-green-700 tabular-nums">{formatBRL(subtotal)}</span>
-            </div>
-          )}
-
-          {/* Ações */}
           <div className="flex gap-3">
             <button
               type="button"
@@ -283,52 +471,18 @@ function BottomSheetConfirmarCompra({
             </button>
             <button
               type="button"
-              onClick={() => { onConfirmar(qtd, precoNum); onClose() }}
+              disabled={!valido || salvando}
+              onClick={() => valido && onFinalizar(valorNum)}
               className="flex-1 py-3.5 rounded-xl bg-green-500 text-white text-sm font-semibold
-                         hover:bg-green-600 transition-colors active:scale-95 flex items-center justify-center gap-2"
+                         hover:bg-green-600 disabled:opacity-50 transition-colors active:scale-95
+                         flex items-center justify-center gap-2"
             >
-              <Check className="w-4 h-4" strokeWidth={2.5} />
-              Comprado
-            </button>
-          </div>
-        </div>
-      </div>
-    </ModalPortal>
-  )
-}
-
-// ── Diálogo de confirmação ────────────────────────────────────────────────────
-
-function ConfirmLimpar({
-  count,
-  onConfirmar,
-  onCancelar,
-}: {
-  count: number
-  onConfirmar: () => void
-  onCancelar: () => void
-}) {
-  return (
-    <ModalPortal>
-      <div
-        className="fixed inset-0 z-[200] flex items-end modal-overlay"
-        style={{ background: 'rgba(0,0,0,0.45)' }}
-        onClick={e => e.target === e.currentTarget && onCancelar()}
-      >
-        <div className="w-full bg-white rounded-t-3xl shadow-2xl px-5 pt-2 pb-8 modal-sheet">
-          <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5" />
-          <p className="text-base font-semibold text-gray-900 mb-1">Limpar comprados?</p>
-          <p className="text-sm text-gray-500 mb-6">
-            {count} {count === 1 ? 'item comprado será removido' : 'itens comprados serão removidos'} da lista permanentemente.
-          </p>
-          <div className="flex gap-3">
-            <button type="button" onClick={onCancelar}
-              className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
-              Cancelar
-            </button>
-            <button type="button" onClick={onConfirmar}
-              className="flex-1 py-3 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors">
-              Remover
+              {salvando ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <Check className="w-4 h-4" strokeWidth={2.5} />
+              )}
+              Salvar no Histórico
             </button>
           </div>
         </div>
@@ -498,12 +652,14 @@ function TotalRodape({
   total,
   semPreco,
   compradosCount,
-  onLimpar,
+  totalComprados,
+  onFinalizar,
 }: {
   total: number
   semPreco: number
   compradosCount: number
-  onLimpar: () => void
+  totalComprados: number
+  onFinalizar: () => void
 }) {
   return (
     <div className="fixed bottom-16 left-0 right-0 z-40 px-4 pb-2 pointer-events-none">
@@ -513,12 +669,12 @@ function TotalRodape({
             {compradosCount > 0 && (
               <button
                 type="button"
-                onClick={onLimpar}
-                className="flex items-center gap-1.5 text-xs font-semibold text-red-500
-                           hover:text-red-600 transition-colors py-1"
+                onClick={onFinalizar}
+                className="flex items-center gap-1.5 text-xs font-semibold text-green-600
+                           hover:text-green-700 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-xl transition-colors"
               >
-                <Trash2 className="w-3.5 h-3.5" strokeWidth={2} />
-                Limpar ({compradosCount})
+                <Check className="w-3.5 h-3.5" strokeWidth={2.5} />
+                Finalizar ({compradosCount})
               </button>
             )}
             <div className="flex-1 flex items-end justify-end gap-3">
@@ -653,20 +809,24 @@ function InputAdicionar({
 // ── Página principal ──────────────────────────────────────────────────────────
 
 export default function ListaMercadoPage() {
+  const router = useRouter()
   const {
     itens,
     adicionar, alterarQuantidade, definirPreco, editarNome,
     toggleComprado, excluir, limparComprados,
     isOnline, pendingCount, syncStatus,
   } = useListaMercado()
+  const { salvar: salvarHistorico } = useHistoricoCompras()
 
   const [itemPreco, setItemPreco] = useState<ItemMercado | null>(null)
   const [itemConfirmando, setItemConfirmando] = useState<ItemMercado | null>(null)
-  const [confirmandoLimpar, setConfirmandoLimpar] = useState(false)
+  const [finalizandoCompra, setFinalizandoCompra] = useState(false)
+  const [salvandoHistorico, setSalvandoHistorico] = useState(false)
   const [hintVisto, setHintVisto] = useState(true)
   const [deleteToast, setDeleteToast] = useState<{ id: string; nome: string } | null>(null)
   const [pendingExcluirId, setPendingExcluirId] = useState<string | null>(null)
   const [compradosAbertos, setCompradosAbertos] = useState(true)
+  const [successToast, setSuccessToast] = useState(false)
   const deleteTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingExcluirRef = useRef<string | null>(null)
 
@@ -701,11 +861,10 @@ export default function ListaMercadoPage() {
   const todosVisiveis = [...pendentes, ...comprados]
   const total    = todosVisiveis.reduce((s, i) => s + i.quantidade * (i.preco_unit ?? 0), 0)
   const semPreco = todosVisiveis.filter(i => i.preco_unit == null).length
+  const totalComprados = comprados.reduce((s, i) => s + i.quantidade * (i.preco_unit ?? 0), 0)
 
   const handleToggle = useCallback((id: string) => toggleComprado(id, itens), [toggleComprado, itens])
   const handleQtd    = useCallback((id: string, d: number) => alterarQuantidade(id, d, itens), [alterarQuantidade, itens])
-  const handleLimpar = useCallback(() => limparComprados(itens), [limparComprados, itens])
-
   function handleExcluir(id: string) {
     commitDelete()
     clearDeleteTimer()
@@ -733,11 +892,6 @@ export default function ListaMercadoPage() {
     setDeleteToast(null)
   }
 
-  async function confirmarLimpar() {
-    setConfirmandoLimpar(false)
-    await handleLimpar()
-  }
-
   function handleConfirmarCompra(qtd: number, preco: number | null) {
     if (!itemConfirmando) return
     const id = itemConfirmando.id
@@ -746,6 +900,21 @@ export default function ListaMercadoPage() {
     }
     definirPreco(id, preco)
     toggleComprado(id, itens)
+  }
+
+  async function handleFinalizar(valorTotal: number) {
+    setSalvandoHistorico(true)
+    try {
+      await salvarHistorico(itens, valorTotal)
+      await limparComprados(itens)
+      setFinalizandoCompra(false)
+      setSuccessToast(true)
+      setTimeout(() => setSuccessToast(false), 3500)
+    } catch {
+      // silently fail — user can retry
+    } finally {
+      setSalvandoHistorico(false)
+    }
   }
 
   const totalItens = pendentes.length + comprados.length
@@ -798,18 +967,16 @@ export default function ListaMercadoPage() {
               )}
             </div>
           </div>
-          {comprados.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setConfirmandoLimpar(true)}
-              className="flex items-center gap-1 text-xs font-semibold text-red-500
-                         hover:text-red-600 transition-colors py-1 px-2 rounded-lg hover:bg-red-50 flex-none"
-              aria-label="Limpar comprados"
-            >
-              <Trash2 className="w-3.5 h-3.5" strokeWidth={2} />
-              <span>Limpar</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => router.push('/lista-mercado/historico')}
+            aria-label="Histórico de compras"
+            className="flex items-center gap-1.5 flex-none px-3 py-1.5 rounded-xl
+                       bg-gray-100 hover:bg-gray-200 transition-colors"
+          >
+            <History className="w-3.5 h-3.5 text-gray-500" strokeWidth={2} />
+            <span className="text-xs font-semibold text-gray-600">Histórico</span>
+          </button>
         </div>
 
         <InputAdicionar onAdicionar={adicionar} />
@@ -897,12 +1064,14 @@ export default function ListaMercadoPage() {
         />
       )}
 
-      {/* Confirmação de limpeza */}
-      {confirmandoLimpar && (
-        <ConfirmLimpar
-          count={comprados.length}
-          onConfirmar={confirmarLimpar}
-          onCancelar={() => setConfirmandoLimpar(false)}
+      {/* Finalizar compra */}
+      {finalizandoCompra && (
+        <BottomSheetFinalizarCompra
+          comprados={comprados}
+          totalCalculado={totalComprados}
+          salvando={salvandoHistorico}
+          onClose={() => setFinalizandoCompra(false)}
+          onFinalizar={handleFinalizar}
         />
       )}
 
@@ -933,12 +1102,30 @@ export default function ListaMercadoPage() {
         </div>
       )}
 
+      {/* Toast de sucesso ao salvar histórico */}
+      {successToast && (
+        <div className="fixed bottom-24 left-4 right-4 z-[300] max-w-md mx-auto toast-enter">
+          <div className="flex items-center gap-3 bg-green-600 text-white rounded-2xl px-4 py-3.5 shadow-float">
+            <Check className="w-4 h-4 flex-none" strokeWidth={2.5} />
+            <p className="flex-1 text-sm font-semibold">Compra salva no histórico!</p>
+            <button
+              type="button"
+              onClick={() => router.push('/lista-mercado/historico')}
+              className="text-xs font-semibold text-green-200 hover:text-white py-1 px-2 rounded-lg transition-colors"
+            >
+              Ver
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Rodapé */}
       <TotalRodape
         total={total}
         semPreco={semPreco}
         compradosCount={comprados.length}
-        onLimpar={() => setConfirmandoLimpar(true)}
+        totalComprados={totalComprados}
+        onFinalizar={() => setFinalizandoCompra(true)}
       />
     </div>
   )
