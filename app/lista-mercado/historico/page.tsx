@@ -6,6 +6,7 @@ import {
   ArrowLeft, ShoppingBasket, History, ChevronDown, ChevronUp,
   Calendar, Package, RefreshCw, Inbox, Filter,
 } from 'lucide-react'
+import { SwipeableItem } from '@/components/SwipeableItem'
 import { useHistoricoCompras, type RegistroCompra } from '@/lib/useHistoricoCompras'
 import { formatBRL } from '@/lib/logger'
 import { format, subDays, startOfMonth, startOfYear, isAfter, parseISO } from 'date-fns'
@@ -36,14 +37,16 @@ function filtrarPorPeriodo(historico: RegistroCompra[], periodo: Periodo): Regis
 
 // ── Card de registro ──────────────────────────────────────────────────────────
 
-function CardRegistro({ registro }: { registro: RegistroCompra }) {
+function CardRegistro({ registro, onExcluir }: { registro: RegistroCompra; onExcluir: (id: string) => void }) {
   const [expandido, setExpandido] = useState(false)
 
   const dataFormatada = format(parseISO(registro.data_hora), "dd 'de' MMMM", { locale: ptBR })
   const horaFormatada = format(parseISO(registro.data_hora), 'HH:mm', { locale: ptBR })
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div className="rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <SwipeableItem onDelete={() => onExcluir(registro.id)} requireConfirmation>
+      <div className="bg-white">
       {/* Cabeçalho do card */}
       <button
         type="button"
@@ -112,6 +115,8 @@ function CardRegistro({ registro }: { registro: RegistroCompra }) {
           </div>
         </div>
       )}
+      </div>
+      </SwipeableItem>
     </div>
   )
 }
@@ -132,7 +137,7 @@ function agruparPorMes(registros: RegistroCompra[]): Map<string, RegistroCompra[
 
 export default function HistoricoComprasPage() {
   const router = useRouter()
-  const { historico, loading, error, buscar } = useHistoricoCompras()
+  const { historico, loading, error, buscar, excluir } = useHistoricoCompras()
   const [periodo, setPeriodo] = useState<Periodo>('30d')
   const [filtroAberto, setFiltroAberto] = useState(false)
 
@@ -284,7 +289,7 @@ export default function HistoricoComprasPage() {
             {/* Cards do mês */}
             <div className="flex flex-col gap-3">
               {registros.map(r => (
-                <CardRegistro key={r.id} registro={r} />
+                <CardRegistro key={r.id} registro={r} onExcluir={excluir} />
               ))}
             </div>
           </div>

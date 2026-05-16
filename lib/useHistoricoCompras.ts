@@ -53,6 +53,11 @@ export function useHistoricoCompras() {
     }
   }, [])
 
+  const excluir = useCallback(async (id: string) => {
+    setHistorico(prev => prev.filter(r => r.id !== id))
+    await supabase.from('historico_compras').delete().eq('id', id)
+  }, [])
+
   const salvar = useCallback(async (
     itens: ItemMercado[],
     valorTotal: number,
@@ -79,5 +84,5 @@ export function useHistoricoCompras() {
     return data as RegistroCompra
   }, [])
 
-  return { historico, loading, error, buscar, salvar }
+  return { historico, loading, error, buscar, salvar, excluir }
 }
