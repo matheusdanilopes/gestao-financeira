@@ -491,46 +491,6 @@ function BottomSheetFinalizarCompra({
   )
 }
 
-// ── Diálogo de confirmação ────────────────────────────────────────────────────
-
-function ConfirmLimpar({
-  count,
-  onConfirmar,
-  onCancelar,
-}: {
-  count: number
-  onConfirmar: () => void
-  onCancelar: () => void
-}) {
-  return (
-    <ModalPortal>
-      <div
-        className="fixed inset-0 z-[200] flex items-end modal-overlay"
-        style={{ background: 'rgba(0,0,0,0.45)' }}
-        onClick={e => e.target === e.currentTarget && onCancelar()}
-      >
-        <div className="w-full bg-white rounded-t-3xl shadow-2xl px-5 pt-2 pb-8 modal-sheet">
-          <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5" />
-          <p className="text-base font-semibold text-gray-900 mb-1">Limpar comprados?</p>
-          <p className="text-sm text-gray-500 mb-6">
-            {count} {count === 1 ? 'item comprado será removido' : 'itens comprados serão removidos'} da lista permanentemente.
-          </p>
-          <div className="flex gap-3">
-            <button type="button" onClick={onCancelar}
-              className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
-              Cancelar
-            </button>
-            <button type="button" onClick={onConfirmar}
-              className="flex-1 py-3 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors">
-              Remover
-            </button>
-          </div>
-        </div>
-      </div>
-    </ModalPortal>
-  )
-}
-
 // ── Linha de item ─────────────────────────────────────────────────────────────
 
 function ItemRow({
@@ -693,14 +653,12 @@ function TotalRodape({
   semPreco,
   compradosCount,
   totalComprados,
-  onLimpar,
   onFinalizar,
 }: {
   total: number
   semPreco: number
   compradosCount: number
   totalComprados: number
-  onLimpar: () => void
   onFinalizar: () => void
 }) {
   return (
@@ -709,26 +667,15 @@ function TotalRodape({
         <div className="bg-white rounded-2xl shadow-float border border-gray-100 px-4 py-3 pointer-events-auto">
           <div className="flex items-center gap-4">
             {compradosCount > 0 && (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={onLimpar}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-red-500
-                             hover:text-red-600 transition-colors py-1"
-                >
-                  <Trash2 className="w-3.5 h-3.5" strokeWidth={2} />
-                  Limpar ({compradosCount})
-                </button>
-                <button
-                  type="button"
-                  onClick={onFinalizar}
-                  className="flex items-center gap-1 text-xs font-semibold text-green-600
-                             hover:text-green-700 bg-green-50 hover:bg-green-100 px-2.5 py-1 rounded-lg transition-colors"
-                >
-                  <Check className="w-3 h-3" strokeWidth={2.5} />
-                  Finalizar
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={onFinalizar}
+                className="flex items-center gap-1.5 text-xs font-semibold text-green-600
+                           hover:text-green-700 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-xl transition-colors"
+              >
+                <Check className="w-3.5 h-3.5" strokeWidth={2.5} />
+                Finalizar ({compradosCount})
+              </button>
             )}
             <div className="flex-1 flex items-end justify-end gap-3">
               {semPreco > 0 && (
@@ -873,7 +820,6 @@ export default function ListaMercadoPage() {
 
   const [itemPreco, setItemPreco] = useState<ItemMercado | null>(null)
   const [itemConfirmando, setItemConfirmando] = useState<ItemMercado | null>(null)
-  const [confirmandoLimpar, setConfirmandoLimpar] = useState(false)
   const [finalizandoCompra, setFinalizandoCompra] = useState(false)
   const [salvandoHistorico, setSalvandoHistorico] = useState(false)
   const [hintVisto, setHintVisto] = useState(true)
@@ -919,8 +865,6 @@ export default function ListaMercadoPage() {
 
   const handleToggle = useCallback((id: string) => toggleComprado(id, itens), [toggleComprado, itens])
   const handleQtd    = useCallback((id: string, d: number) => alterarQuantidade(id, d, itens), [alterarQuantidade, itens])
-  const handleLimpar = useCallback(() => limparComprados(itens), [limparComprados, itens])
-
   function handleExcluir(id: string) {
     commitDelete()
     clearDeleteTimer()
@@ -946,11 +890,6 @@ export default function ListaMercadoPage() {
     clearDeleteTimer()
     commitDelete()
     setDeleteToast(null)
-  }
-
-  async function confirmarLimpar() {
-    setConfirmandoLimpar(false)
-    await handleLimpar()
   }
 
   function handleConfirmarCompra(qtd: number, preco: number | null) {
@@ -1125,15 +1064,6 @@ export default function ListaMercadoPage() {
         />
       )}
 
-      {/* Confirmação de limpeza */}
-      {confirmandoLimpar && (
-        <ConfirmLimpar
-          count={comprados.length}
-          onConfirmar={confirmarLimpar}
-          onCancelar={() => setConfirmandoLimpar(false)}
-        />
-      )}
-
       {/* Finalizar compra */}
       {finalizandoCompra && (
         <BottomSheetFinalizarCompra
@@ -1195,7 +1125,6 @@ export default function ListaMercadoPage() {
         semPreco={semPreco}
         compradosCount={comprados.length}
         totalComprados={totalComprados}
-        onLimpar={() => setConfirmandoLimpar(true)}
         onFinalizar={() => setFinalizandoCompra(true)}
       />
     </div>
