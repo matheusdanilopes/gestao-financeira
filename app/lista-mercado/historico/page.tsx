@@ -44,9 +44,9 @@ function CardRegistro({ registro, onExcluir }: { registro: RegistroCompra; onExc
   const horaFormatada = format(parseISO(registro.data_hora), 'HH:mm', { locale: ptBR })
 
   return (
-    <div className="rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       <SwipeableItem onDelete={() => onExcluir(registro.id)} requireConfirmation>
-      <div className="bg-white">
+      <div>
       {/* Cabeçalho do card */}
       <button
         type="button"
