@@ -1027,28 +1027,16 @@ export default function ListaMercadoPage() {
               )}
             </div>
           </div>
-          <div className="flex items-center gap-1 flex-none">
-            <button
-              type="button"
-              onClick={() => router.push('/lista-mercado/historico')}
-              aria-label="Histórico de compras"
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-            >
-              <History className="w-4 h-4" strokeWidth={1.8} />
-            </button>
-            {comprados.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setConfirmandoLimpar(true)}
-                className="flex items-center gap-1 text-xs font-semibold text-red-500
-                           hover:text-red-600 transition-colors py-1 px-2 rounded-lg hover:bg-red-50"
-                aria-label="Limpar comprados"
-              >
-                <Trash2 className="w-3.5 h-3.5" strokeWidth={2} />
-                <span>Limpar</span>
-              </button>
-            )}
-          </div>
+          <button
+            type="button"
+            onClick={() => router.push('/lista-mercado/historico')}
+            aria-label="Histórico de compras"
+            className="flex items-center gap-1.5 flex-none px-3 py-1.5 rounded-xl
+                       bg-gray-100 hover:bg-gray-200 transition-colors"
+          >
+            <History className="w-3.5 h-3.5 text-gray-500" strokeWidth={2} />
+            <span className="text-xs font-semibold text-gray-600">Histórico</span>
+          </button>
         </div>
 
         <InputAdicionar onAdicionar={adicionar} />
