@@ -18,7 +18,7 @@ import FabQuickLaunchSheet from '@/components/FabQuickLaunchSheet'
 const ROTAS_COM_MENU = [
   '/dashboard', '/contas', '/receitas', '/investimentos', '/assinaturas',
   '/compras', '/chat', '/configuracoes', '/importar', '/financas', '/extras',
-  '/wishlist', '/lista-mercado',
+  '/wishlist', '/lista-mercado', '/lista-mercado/historico',
 ]
 
 const ROTAS_FINANCAS = ['/financas', '/contas', '/receitas', '/investimentos']
