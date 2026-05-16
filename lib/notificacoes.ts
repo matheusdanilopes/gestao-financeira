@@ -26,13 +26,14 @@ export function notificar(
   const nome = nomeDoUsuario(deUsuario)
 
   void (async () => {
-    await supabase.from('notificacoes').insert([{
+    const { data: rows } = await supabase.from('notificacoes').insert([{
       de_usuario: deUsuario,
       nome_usuario: nome,
       acao,
       descricao,
       valor: valor ?? null,
-    }])
+    }]).select('id')
+    const notifId: string | undefined = rows?.[0]?.id
 
     try {
       await fetch('/api/push/send', {
@@ -44,6 +45,7 @@ export function notificar(
             title: `${nome} registrou ${labelAcao(acao).toLowerCase()}`,
             body: descricao,
             url: '/dashboard',
+            tag: notifId,
           },
         }),
       })

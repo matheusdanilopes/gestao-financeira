@@ -117,6 +117,7 @@ self.addEventListener('push', function (event) {
     body: data.body || '',
     icon: '/icon-192.png',
     badge: '/icon-192.png',
+    tag: data.tag || 'gestao-push',
     data: { url: data.url || '/dashboard' },
     vibrate: [200, 100, 200],
     requireInteraction: false,
@@ -134,6 +135,19 @@ self.addEventListener('push', function (event) {
           })
         }),
     ])
+  )
+})
+
+self.addEventListener('message', function (event) {
+  if (event.data?.type !== 'CLOSE_NOTIFICATIONS') return
+  const tags = Array.isArray(event.data.tags) ? event.data.tags : []
+  if (!tags.length) return
+  event.waitUntil(
+    Promise.all(tags.map(function (tag) {
+      return self.registration.getNotifications({ tag: tag }).then(function (list) {
+        list.forEach(function (n) { n.close() })
+      })
+    }))
   )
 })
 
