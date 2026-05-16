@@ -26,14 +26,16 @@ export function notificar(
   const nome = nomeDoUsuario(deUsuario)
 
   void (async () => {
-    const { data: rows } = await supabase.from('notificacoes').insert([{
+    const { data: rows, error } = await supabase.from('notificacoes').insert([{
       de_usuario: deUsuario,
       nome_usuario: nome,
       acao,
       descricao,
       valor: valor ?? null,
     }]).select('id')
-    const notifId: string | undefined = rows?.[0]?.id
+
+    if (error || !rows?.[0]?.id) return
+    const notifId = rows[0].id
 
     try {
       await fetch('/api/push/send', {
