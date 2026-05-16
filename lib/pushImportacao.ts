@@ -42,7 +42,7 @@ export async function notificarImportacao(
     body = 'Algo deu errado na importação. Acesse o app para verificar o que aconteceu.'
   }
 
-  const payload = { title, body, url: '/importar' }
+  const payload = { title, body, url: '/importar', tag: 'importacao' }
 
   try {
     const { data: subs } = await supabase.from('push_subscriptions').select('*')

@@ -239,9 +239,17 @@ export default memo(function NotificacoesBell() {
     }
   }
 
+  function fecharPushNotificacoes(tags: string[]) {
+    if (!('serviceWorker' in navigator) || !tags.length) return
+    navigator.serviceWorker.ready
+      .then(reg => reg.active?.postMessage({ type: 'CLOSE_NOTIFICATIONS', tags }))
+      .catch(() => {})
+  }
+
   async function marcarComoLida(id: string) {
     await supabase.from('notificacoes').update({ lida: true }).eq('id', id)
     setNotificacoes(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n))
+    fecharPushNotificacoes([id])
   }
 
   async function marcarTodasLidas() {
@@ -249,6 +257,7 @@ export default memo(function NotificacoesBell() {
     if (!ids.length) return
     await supabase.from('notificacoes').update({ lida: true }).in('id', ids)
     setNotificacoes(prev => prev.map(n => ({ ...n, lida: true })))
+    fecharPushNotificacoes(ids)
   }
 
   async function resolverConflito(notificacao_id: string, acao: 'aprovar' | 'recusar') {
@@ -261,6 +270,7 @@ export default memo(function NotificacoesBell() {
       })
       if (res.ok) {
         setNotificacoes(prev => prev.map(n => n.id === notificacao_id ? { ...n, lida: true } : n))
+        fecharPushNotificacoes([notificacao_id])
       }
     } finally {
       setResolvendo(prev => ({ ...prev, [notificacao_id]: false }))
@@ -272,7 +282,11 @@ export default memo(function NotificacoesBell() {
   return (
     <div ref={dropdownRef} className="relative">
       <button
-        onClick={() => setAberto(v => !v)}
+        onClick={() => {
+          const abrindo = !aberto
+          setAberto(abrindo)
+          if (abrindo) fecharPushNotificacoes(['importacao'])
+        }}
         className="relative p-2 rounded-full hover:bg-white/20 transition-colors"
         aria-label="Notificações"
       >
