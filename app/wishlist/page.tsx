@@ -443,7 +443,7 @@ function WishlistCard({
   const cfg = PRIORIDADE[item.prioridade]
 
   return (
-    <SwipeableItem onDelete={() => onExcluir(item.id)}>
+    <SwipeableItem onDelete={() => onExcluir(item.id)} requireConfirmation>
       <div
         className="rounded-2xl shadow-sm border border-gray-100 overflow-hidden bg-white border-l-4"
         style={{ borderLeftColor: cfg.borderColor }}
@@ -567,7 +567,7 @@ function CardRealizado({
   onRestaurar: (id: string) => unknown
 }) {
   return (
-    <SwipeableItem onDelete={() => onExcluir(item.id)}>
+    <SwipeableItem onDelete={() => onExcluir(item.id)} requireConfirmation>
       <div className="w-full bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
         {/* Nome + restaurar */}
         <div className="flex items-start gap-2.5 mb-2">
