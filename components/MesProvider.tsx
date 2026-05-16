@@ -1,8 +1,21 @@
 'use client'
 
 import { createContext, startTransition, useCallback, useContext, useEffect, useState } from 'react'
-import { startOfMonth, addMonths, format } from 'date-fns'
+import { startOfMonth, addMonths, format, parseISO } from 'date-fns'
 import { supabase } from '@/lib/supabaseClient'
+
+const STORAGE_KEY = 'gestao:periodo'
+
+function readPersistedPeriod(): Date | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (!saved) return null
+    return startOfMonth(parseISO(saved + '-01'))
+  } catch {
+    return null
+  }
+}
 
 interface MesContextType {
   mesAtual: Date
@@ -19,9 +32,12 @@ export function useMes() {
 }
 
 export function MesProvider({ children }: { children: React.ReactNode }) {
-  const [mesAtual, setMes] = useState(() => startOfMonth(new Date()))
+  const [mesAtual, setMes] = useState(() => readPersistedPeriod() ?? startOfMonth(new Date()))
 
   useEffect(() => {
+    // Skip auto-advance if user already selected a period manually
+    if (readPersistedPeriod() !== null) return
+
     async function calcularMesInicial() {
       const mesRef = format(startOfMonth(new Date()), 'yyyy-MM-dd')
       const { data: planejamento } = await supabase
@@ -52,7 +68,9 @@ export function MesProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const setMesAtual = useCallback((mes: Date) => {
-    startTransition(() => setMes(mes))
+    const normalized = startOfMonth(mes)
+    try { localStorage.setItem(STORAGE_KEY, format(normalized, 'yyyy-MM')) } catch {}
+    startTransition(() => setMes(normalized))
   }, [])
 
   return (

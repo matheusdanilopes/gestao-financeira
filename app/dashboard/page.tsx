@@ -40,6 +40,7 @@ const GraficoEvolucaoInvestimentos = dynamic(
   }
 )
 import DrawerDetalhes from '@/components/DrawerDetalhes'
+import PeriodSelectorSheet from '@/components/PeriodSelectorSheet'
 import { InfoPopover } from '@/components/InfoPopover'
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { formatBRL as fmt } from '@/lib/logger'
@@ -342,6 +343,7 @@ export default function Dashboard() {
   })
   const [investimentos, setInvestimentos] = useState<{ id: string; descricao: string; percentual: number; aportado: number }[]>([])
   const [assinaturasNaopagas, setAssinaturasNaopagas] = useState({ matheus: 0, jeniffer: 0 })
+  const [seletorAberto, setSeletorAberto] = useState(false)
   const [drawerAberto, setDrawerAberto] = useState(false)
   const [detalhesPonto, setDetalhesPonto] = useState<{ serie: string; mes: string; valor: number; itens: Record<string, unknown>[] } | null>(null) // itens typed loosely; DrawerDetalhes accepts DrawerItem[] which is compatible
   const [dataFechamentoNubank, setDataFechamentoNubank] = useState<string | null>(null)
@@ -422,12 +424,23 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50 page-bottom-safe page-enter">
 
+      <PeriodSelectorSheet
+        isOpen={seletorAberto}
+        currentPeriod={mesAtual}
+        onConfirm={setMesAtual}
+        onClose={() => setSeletorAberto(false)}
+      />
+
       {/* Header + seletor de mês */}
       <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 px-4 md:px-6 lg:px-8 z-[10]">
         <div className="flex items-center justify-between mb-3">
           <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
         </div>
-        <MonthSelector value={mesAtual} onChange={setMesAtual} />
+        <MonthSelector
+          value={mesAtual}
+          onChange={setMesAtual}
+          onOpenSelector={() => setSeletorAberto(true)}
+        />
       </div>
 
       <div className="page-content space-y-4 lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0 lg:items-start">
