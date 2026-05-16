@@ -263,12 +263,12 @@ export default function PeriodSelectorSheet({
         />
 
         {isDesktop ? (
-          /* ── Desktop: centered popover ── */
-          <div className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
+          /* ── Desktop: top-center popover ── */
+          <div className={`absolute left-1/2 top-6 -translate-x-1/2
                            w-80 bg-white dark:bg-gray-900 rounded-3xl shadow-float
                            border border-gray-100 dark:border-gray-800
                            transition-all duration-300 ${
-            visible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
+            visible ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'
           }`}>
             <div className="px-4 pt-4 pb-2">
               <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 text-center">
@@ -279,25 +279,25 @@ export default function PeriodSelectorSheet({
             {actions}
           </div>
         ) : (
-          /* ── Mobile: bottom sheet ── */
-          <div className={`absolute bottom-0 left-0 right-0
-                           bg-white dark:bg-gray-900 rounded-t-[28px] shadow-2xl
+          /* ── Mobile: top sheet ── */
+          <div className={`absolute top-0 left-0 right-0
+                           bg-white dark:bg-gray-900 rounded-b-[28px] shadow-2xl
                            transition-transform duration-300 ease-out ${
-            visible ? 'translate-y-0' : 'translate-y-full'
+            visible ? 'translate-y-0' : '-translate-y-full'
           }`}
-               style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+               style={{ paddingTop: 'env(safe-area-inset-top)' }}
           >
-            {/* drag handle */}
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="w-9 h-1 rounded-full bg-gray-200 dark:bg-gray-700" />
-            </div>
-            <div className="px-4 pt-1 pb-2">
+            <div className="px-4 pt-4 pb-2">
               <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 text-center">
                 Selecionar período
               </h2>
             </div>
             {pickerContent}
             {actions}
+            {/* drag handle at the bottom */}
+            <div className="flex justify-center pb-3 pt-1">
+              <div className="w-9 h-1 rounded-full bg-gray-200 dark:bg-gray-700" />
+            </div>
           </div>
         )}
       </div>
