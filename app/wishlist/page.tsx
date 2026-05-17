@@ -428,6 +428,7 @@ function ModalWishlist({
 function WishlistCard({
   item,
   mostraHint,
+  highlighted,
   onEditar,
   onRealizar,
   onExcluir,
@@ -435,6 +436,7 @@ function WishlistCard({
 }: {
   item: WishlistItem
   mostraHint: boolean
+  highlighted?: boolean
   onEditar: (item: WishlistItem) => void
   onRealizar: (id: string) => unknown
   onExcluir: (id: string) => unknown
@@ -445,7 +447,8 @@ function WishlistCard({
   return (
     <SwipeableItem onDelete={() => onExcluir(item.id)} requireConfirmation>
       <div
-        className="rounded-2xl shadow-sm border border-gray-100 overflow-hidden bg-white border-l-4"
+        id={`wishlist-item-${item.id}`}
+        className={`rounded-2xl shadow-sm border border-gray-100 overflow-hidden bg-white border-l-4${highlighted ? ' animate-wishlist-highlight' : ''}`}
         style={{ borderLeftColor: cfg.borderColor }}
       >
         {/* Clickable card body */}
@@ -628,10 +631,22 @@ function WishlistContent() {
 
   const [usuarioAtual, setUsuarioAtual] = useState<string | null>(null)
   const [extraUsuarios, setExtraUsuarios] = useState<string[]>([])
+  const [highlightId, setHighlightId] = useState<string | null>(searchParams.get('highlight'))
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setUsuarioAtual(user?.email ?? null))
   }, [])
+
+  useEffect(() => {
+    if (!highlightId) return
+    const timer = setTimeout(() => {
+      document.getElementById(`wishlist-item-${highlightId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      router.replace('/wishlist', { scroll: false })
+    }, 350)
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightId])
 
   // Busca criadores conhecidos de lista_mercado_itens (parceiro pode nunca ter adicionado wishlist)
   useEffect(() => {
@@ -1000,6 +1015,7 @@ function WishlistContent() {
                     key={item.id}
                     item={item}
                     mostraHint={idx === 0 && !hintVisto}
+                    highlighted={highlightId === item.id}
                     onEditar={abrirEditar}
                     onRealizar={handleRealizar}
                     onExcluir={handleExcluir}
