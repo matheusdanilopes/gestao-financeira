@@ -65,6 +65,7 @@ function formatarTempoRelativo(iso: string): string {
 
 function nomeCurto(email: string | null): string {
   if (!email) return ''
+  if (email === 'conjunto') return 'Conjunto'
   const parte = email.split('@')[0].split('.')[0].split('_')[0]
   return parte.charAt(0).toUpperCase() + parte.slice(1)
 }
@@ -77,6 +78,7 @@ function emailHash(s: string): number {
 
 function corUsuario(email: string | null): string {
   if (!email) return 'bg-gray-100 text-gray-500'
+  if (email === 'conjunto') return 'bg-purple-100 text-purple-700'
   const e = email.toLowerCase()
   if (e.includes('matheus')) return 'bg-matheus-light text-matheus'
   if (e.includes('jeniffer') || e.includes('jennifer')) return 'bg-jeniffer-light text-jeniffer'
@@ -383,7 +385,7 @@ function ModalWishlist({
                   {usuariosConhecidos.length > 0 && (
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1.5">Adicionado por</label>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 mb-2">
                         {usuariosConhecidos.map(email => {
                           const isAtivo = form.criado_por === email
                           const cor = corUsuario(email)
@@ -409,6 +411,29 @@ function ModalWishlist({
                           )
                         })}
                       </div>
+                      {/* Desejo mútuo */}
+                      {(() => {
+                        const isConjunto = form.criado_por === 'conjunto'
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => setField('criado_por', isConjunto ? (criadorPadrao ?? null) : 'conjunto')}
+                            className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all
+                                        ${isConjunto
+                                          ? 'bg-purple-100 text-purple-700 ring-2 ring-inset ring-current'
+                                          : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}
+                          >
+                            <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-none
+                                             ${isConjunto ? 'bg-white/40' : 'bg-purple-100 text-purple-700'}`}>
+                              {isConjunto
+                                ? <Check className="w-4 h-4" strokeWidth={3} />
+                                : <Heart className="w-4 h-4" fill="currentColor" strokeWidth={0} />
+                              }
+                            </span>
+                            <span className="text-sm font-semibold">Desejo mútuo (conjunto)</span>
+                          </button>
+                        )
+                      })()}
                     </div>
                   )}
                 </>
@@ -531,12 +556,16 @@ function WishlistCard({
           {/* Right: avatar + star + realizar */}
           <div className="flex items-center gap-2 flex-none">
             {item.criado_por && (
-              <span
-                className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold flex-none ${corUsuario(item.criado_por)}`}
-                title={nomeCurto(item.criado_por)}
-              >
-                {nomeCurto(item.criado_por)[0]}
-              </span>
+              item.criado_por === 'conjunto'
+                ? <span className="w-6 h-6 rounded-full flex items-center justify-center bg-purple-100 text-purple-600 flex-none" title="Desejo conjunto">
+                    <Heart className="w-3 h-3" fill="currentColor" strokeWidth={0} />
+                  </span>
+                : <span
+                    className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold flex-none ${corUsuario(item.criado_por)}`}
+                    title={nomeCurto(item.criado_por)}
+                  >
+                    {nomeCurto(item.criado_por)[0]}
+                  </span>
             )}
             <button
               type="button"
@@ -616,10 +645,14 @@ function CardRealizado({
             {item.realizado_em ? formatarData(item.realizado_em) : 'Realizado'}
           </span>
           {item.criado_por && (
-            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-none ${corUsuario(item.criado_por)}`}
-              title={nomeCurto(item.criado_por)}>
-              {nomeCurto(item.criado_por)[0]}
-            </span>
+            item.criado_por === 'conjunto'
+              ? <span className="w-5 h-5 rounded-full flex items-center justify-center bg-purple-100 text-purple-600 flex-none" title="Desejo conjunto">
+                  <Heart className="w-2.5 h-2.5" fill="currentColor" strokeWidth={0} />
+                </span>
+              : <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-none ${corUsuario(item.criado_por)}`}
+                  title={nomeCurto(item.criado_por)}>
+                  {nomeCurto(item.criado_por)[0]}
+                </span>
           )}
           {item.valor_estimado != null && (
             <span className="text-[10px] text-gray-400 tabular-nums">
@@ -722,11 +755,37 @@ function WishlistContent() {
   const [usuarioAtual, setUsuarioAtual] = useState<string | null>(null)
   const [extraUsuarios, setExtraUsuarios] = useState<string[]>([])
   const [highlightId, setHighlightId] = useState<string | null>(searchParams.get('highlight'))
-  const [ordemAtivos, setOrdemAtivos] = useState<OrdemAtivos>('padrao')
+  const ordemParam = searchParams.get('ordem')
+  const notifParam = searchParams.get('notif')
+  const notifProcessadoRef = useRef<string | null>(null)
+  const [ordemAtivos, setOrdemAtivos] = useState<OrdemAtivos>(
+    ordemParam === 'mais-novo' || ordemParam === 'mais-antigo' ? ordemParam : 'padrao'
+  )
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setUsuarioAtual(user?.email ?? null))
   }, [])
+
+  // Aplica filtro "Recentes" quando a página é aberta (ou recebe foco) via notificação
+  useEffect(() => {
+    if (ordemParam === 'mais-novo' || ordemParam === 'mais-antigo' || ordemParam === 'padrao') {
+      setOrdemAtivos(ordemParam)
+    }
+  }, [ordemParam])
+
+  // Marca notificação como lida e remove a notificação do dispositivo ao abrir via push
+  useEffect(() => {
+    if (!notifParam || notifProcessadoRef.current === notifParam) return
+    notifProcessadoRef.current = notifParam
+    void supabase.from('notificacoes').update({ lida: true }).eq('id', notifParam)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready
+        .then(reg => reg.active?.postMessage({ type: 'CLOSE_NOTIFICATIONS', tags: [notifParam] }))
+        .catch(() => {})
+    }
+    router.replace('/wishlist', { scroll: false })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notifParam])
 
   useEffect(() => {
     if (!highlightId) return
@@ -811,7 +870,7 @@ function WishlistContent() {
   const usuariosConhecidos = (() => {
     const base = [...new Set([
       ...(usuarioAtual ? [usuarioAtual] : []),
-      ...[...ativos, ...historico].map(i => i.criado_por).filter(Boolean) as string[],
+      ...[...ativos, ...historico].map(i => i.criado_por).filter(c => c && c !== 'conjunto') as string[],
       ...extraUsuarios,
     ])]
     // Se só um usuário é conhecido, adiciona o parceiro inferido pelo nome do email
@@ -819,13 +878,20 @@ function WishlistContent() {
       const parceiro = inferirParceiro(usuarioAtual)
       if (parceiro) base.push(parceiro)
     }
-    return base
+    // Dedup por nome de exibição para evitar duplicatas quando o mesmo usuário tem emails ligeiramente diferentes
+    const seenNames = new Set<string>()
+    return base.filter(email => {
+      const name = nomeCurto(email).toLowerCase()
+      if (seenNames.has(name)) return false
+      seenNames.add(name)
+      return true
+    })
   })()
 
   const ativosFiltrados = ativos
     .filter(i => i.id !== pendingExcluirId)
     .filter(item => {
-      if (filtroUsuario && item.criado_por !== filtroUsuario) return false
+      if (filtroUsuario && item.criado_por !== filtroUsuario && item.criado_por !== 'conjunto') return false
       if (filtroCategoria && item.categoria !== filtroCategoria) return false
       if (busca && !item.nome.toLowerCase().includes(busca.toLowerCase())) return false
       return true
@@ -840,7 +906,7 @@ function WishlistContent() {
 
   const historicoDis = historico
     .filter(i => i.id !== pendingExcluirId)
-    .filter(i => !filtroUsuario || i.criado_por === filtroUsuario)
+    .filter(i => !filtroUsuario || i.criado_por === filtroUsuario || i.criado_por === 'conjunto')
 
   // Per-user stats: baseia nos usuários conhecidos para sempre mostrar ambos os cards,
   // mesmo que um deles ainda não tenha itens na aba atual
@@ -855,10 +921,13 @@ function WishlistContent() {
 
   const ativosBase = ativos.filter(i => i.id !== pendingExcluirId)
   const historicoBase = historico.filter(i => i.id !== pendingExcluirId)
-  const statsAtuais = calcStats(
-    aba === 'ativos' ? ativosBase : historicoBase,
-    usuariosConhecidos,
-  )
+  const listaAtual = aba === 'ativos' ? ativosBase : historicoBase
+  const statsAtuais = calcStats(listaAtual, usuariosConhecidos)
+  const conjuntoAtual = listaAtual.filter(i => i.criado_por === 'conjunto')
+  const conjuntoStats = {
+    count: conjuntoAtual.length,
+    total: conjuntoAtual.reduce((s, i) => s + (i.valor_estimado ?? 0), 0),
+  }
 
   function abrirEditar(item: WishlistItem) {
     setItemEditando(item)
@@ -1077,6 +1146,30 @@ function WishlistContent() {
                 </button>
               )
             })}
+            {conjuntoStats.count > 0 && (() => {
+              const isActive = filtroUsuario === 'conjunto'
+              return (
+                <button
+                  type="button"
+                  onClick={() => setFiltroUsuario(isActive ? null : 'conjunto')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all text-left
+                              ${isActive
+                                ? 'bg-purple-100 text-purple-700 border-current'
+                                : 'bg-gray-50 border-transparent hover:bg-gray-100 text-gray-700'}`}
+                >
+                  <span className="w-6 h-6 rounded-full flex items-center justify-center bg-purple-100 text-purple-600 flex-none">
+                    <Heart className="w-3 h-3" fill="currentColor" strokeWidth={0} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold leading-none truncate mb-0.5">Conjunto</p>
+                    <p className={`text-[10px] leading-none ${isActive ? 'opacity-70' : 'text-gray-400'}`}>
+                      {conjuntoStats.count} {conjuntoStats.count === 1 ? 'item' : 'itens'}
+                      {conjuntoStats.total > 0 && <> · {formatBRL(conjuntoStats.total)}</>}
+                    </p>
+                  </div>
+                </button>
+              )
+            })()}
           </div>
         )}
       </div>

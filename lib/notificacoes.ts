@@ -86,7 +86,7 @@ export function notificarWishlist(
           payload: {
             title: `${nome} adicionou na Wishlist`,
             body: nomeItem,
-            url: '/wishlist',
+            url: `/wishlist?notif=${notifId}&ordem=mais-novo`,
             tag: notifId,
           },
         }),
