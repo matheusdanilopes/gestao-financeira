@@ -1,7 +1,8 @@
 'use client'
 
 import { memo, useEffect, useRef, useState } from 'react'
-import { Bell, X, Check, CheckCheck, PiggyBank, CreditCard, TrendingUp, AlertTriangle, ThumbsUp, ThumbsDown } from 'lucide-react'
+import { Bell, X, Check, CheckCheck, PiggyBank, CreditCard, TrendingUp, AlertTriangle, ThumbsUp, ThumbsDown, Heart } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -17,6 +18,11 @@ interface ConflictMetadata {
   data_compra: string
 }
 
+interface WishlistMetadata {
+  wishlist_item_id: string
+  nome_item?: string
+}
+
 interface Notificacao {
   id: string
   de_usuario: string
@@ -26,7 +32,7 @@ interface Notificacao {
   valor: number | null
   lida: boolean
   created_at: string
-  metadata?: ConflictMetadata | null
+  metadata?: ConflictMetadata | WishlistMetadata | null
 }
 
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
@@ -48,6 +54,7 @@ function iconeAcao(acao: string) {
   if (acao === 'pagar') return <CreditCard className="w-4 h-4 text-blue-500" />
   if (acao === 'receber') return <TrendingUp className="w-4 h-4 text-purple-500" />
   if (acao === 'conciliacao_conflito') return <AlertTriangle className="w-4 h-4 text-amber-500" />
+  if (acao === 'wishlist_novo_item') return <Heart className="w-4 h-4 text-pink-500" />
   return <Bell className="w-4 h-4 text-gray-400" />
 }
 
@@ -56,6 +63,7 @@ function corAcao(acao: string) {
   if (acao === 'pagar') return 'border-l-blue-400'
   if (acao === 'receber') return 'border-l-purple-400'
   if (acao === 'conciliacao_conflito') return 'border-l-amber-400'
+  if (acao === 'wishlist_novo_item') return 'border-l-pink-400'
   return 'border-l-gray-300'
 }
 
@@ -107,6 +115,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
 }
 
 export default memo(function NotificacoesBell() {
+  const router = useRouter()
   const [aberto, setAberto] = useState(false)
   const [notificacoes, setNotificacoes] = useState<Notificacao[]>([])
   const [usuarioEmail, setUsuarioEmail] = useState<string | null>(null)
@@ -277,6 +286,12 @@ export default memo(function NotificacoesBell() {
     }
   }
 
+  async function abrirWishlist(n: Notificacao) {
+    if (!n.lida) await marcarComoLida(n.id)
+    setAberto(false)
+    router.push('/wishlist')
+  }
+
   if (!usuarioEmail) return null
 
   return (
@@ -376,16 +391,22 @@ export default memo(function NotificacoesBell() {
             ) : (
               notificacoes.map(n => {
                 const isConflito = n.acao === 'conciliacao_conflito'
+                const isWishlist = n.acao === 'wishlist_novo_item'
                 const emResolucao = resolvendo[n.id] ?? false
                 return (
                   <div
                     key={n.id}
+                    onClick={isWishlist ? () => abrirWishlist(n) : undefined}
                     className={`flex items-start gap-3 px-4 py-3 border-l-4 transition-colors ${corAcao(n.acao)} ${
+                      isWishlist ? 'cursor-pointer hover:bg-pink-50/60 dark:hover:bg-pink-900/10' : ''
+                    } ${
                       n.lida
                         ? 'bg-white dark:bg-gray-900 opacity-60'
                         : isConflito
                           ? 'bg-amber-50/60 dark:bg-amber-900/10'
-                          : 'bg-blue-50/40 dark:bg-blue-900/10'
+                          : isWishlist
+                            ? 'bg-pink-50/40 dark:bg-pink-900/10'
+                            : 'bg-blue-50/40 dark:bg-blue-900/10'
                     }`}
                   >
                     <div className="mt-0.5 flex-shrink-0">{iconeAcao(n.acao)}</div>
@@ -423,7 +444,7 @@ export default memo(function NotificacoesBell() {
                         </span>
                       </div>
                     </div>
-                    {!n.lida && !isConflito && (
+                    {!n.lida && !isConflito && !isWishlist && (
                       <button
                         onClick={() => marcarComoLida(n.id)}
                         className="flex-shrink-0 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors mt-0.5"

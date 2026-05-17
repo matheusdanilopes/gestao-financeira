@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
+import { notificarWishlist } from '@/lib/notificacoes'
 
 type View = 'menu' | 'wishlist' | 'mercado'
 
@@ -54,7 +55,7 @@ function QuickAddWishlist({
     setErro('')
     try {
       const criado_por = await getUsuario()
-      const { error } = await supabase.from('wishlist_items').insert([{
+      const { data, error } = await supabase.from('wishlist_items').insert([{
         nome:       nome.trim(),
         emoji:      emoji || null,
         prioridade,
@@ -62,8 +63,9 @@ function QuickAddWishlist({
         favoritado: false,
         realizado:  false,
         criado_por,
-      }])
+      }]).select('id').single()
       if (error) throw error
+      if (data && criado_por) notificarWishlist(data.id, nome.trim(), criado_por)
       window.dispatchEvent(new CustomEvent('wishlist:refresh'))
       onClose()
     } catch {

@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react'
 import { supabase } from './supabaseClient'
 import { useGlobalSync } from './useGlobalSync'
+import { notificarWishlist } from './notificacoes'
 
 export type WishlistItem = {
   id: string
@@ -98,6 +99,7 @@ export function useWishlist() {
       throw error
     }
     setItens(prev => prev.map(i => i.id === tempId ? (data as WishlistItem) : i))
+    if (criado_por) notificarWishlist((data as WishlistItem).id, campos.nome.trim(), criado_por)
   }, [])
 
   const editar = useCallback(async (
