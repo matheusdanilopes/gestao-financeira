@@ -16,16 +16,16 @@ export async function POST(req: NextRequest) {
 
   const { imageBase64, mimeType = 'image/jpeg' } = body
 
-  const prompt = `Você é um sistema de OCR especializado em detectar preços em etiquetas de produtos de supermercado.
+  const prompt = `Você é um OCR especializado em etiquetas de supermercado. Analise a imagem e retorne o preço de venda do produto.
 
-Analise a imagem e encontre o preço principal do produto. Retorne APENAS o valor numérico do preço usando ponto como separador decimal, sem símbolo de moeda, sem texto adicional.
+Regras:
+- Retorne APENAS o valor numérico com ponto como separador decimal, sem símbolo de moeda
+- Em etiquetas promocionais "DE R$X POR R$Y", retorne o preço atual de venda (menor valor)
+- Se não conseguir identificar um preço claro, retorne: null
 
-Exemplos:
-- Se vir "R$ 12,99" retorne: 12.99
-- Se vir "R$ 3,50" retorne: 3.50
-- Se não conseguir identificar um preço claro retorne: null
+Exemplos: "R$ 12,99" → 12.99 | "R$ 3,50" → 3.50 | "DE R$15,00 POR R$9,90" → 9.90
 
-Responda APENAS com o número (ex: 12.99) ou a palavra null.`
+Responda APENAS com o número ou null.`
 
   const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
     method: 'POST',
