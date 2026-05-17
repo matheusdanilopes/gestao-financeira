@@ -56,6 +56,10 @@ export function clearOpsForItem(itemId: string): void {
   saveQueue(loadQueue().filter(op => op.itemId !== itemId))
 }
 
+export function clearQueue(): void {
+  saveQueue([])
+}
+
 export function incrementOpRetries(opId: string): void {
   const ops = loadQueue()
   const op = ops.find(o => o.opId === opId)

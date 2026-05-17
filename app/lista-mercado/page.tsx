@@ -10,6 +10,7 @@ import ModalPortal from '@/components/ModalPortal'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { CameraOCR } from '@/components/CameraOCR'
 import { useListaMercado, type ItemMercado } from '@/lib/useListaMercado'
+import { type PendingOp } from '@/lib/offlineQueue'
 import { useHistoricoCompras } from '@/lib/useHistoricoCompras'
 import { formatBRL } from '@/lib/logger'
 
@@ -495,6 +496,103 @@ function BottomSheetFinalizarCompra({
   )
 }
 
+// ── Bottom sheet de operações pendentes ──────────────────────────────────────
+
+const OP_LABEL: Record<string, string> = {
+  create: 'Adicionar',
+  update: 'Atualizar',
+  delete: 'Excluir',
+}
+
+function BottomSheetPendingOps({
+  ops,
+  itens,
+  onClose,
+  onSync,
+  onClear,
+}: {
+  ops: PendingOp[]
+  itens: ItemMercado[]
+  onClose: () => void
+  onSync: () => void
+  onClear: () => void
+}) {
+  function resolveNome(op: PendingOp): string {
+    if (op.type === 'create' && op.payload) {
+      return (op.payload as ItemMercado).nome ?? op.itemId
+    }
+    const item = itens.find(i => i.id === op.itemId)
+    return item?.nome ?? op.itemId
+  }
+
+  return (
+    <ModalPortal>
+      <div
+        className="fixed inset-0 z-[200] flex items-end modal-overlay"
+        style={{ background: 'rgba(0,0,0,0.45)' }}
+        onClick={e => e.target === e.currentTarget && onClose()}
+      >
+        <div className="w-full bg-white rounded-t-3xl shadow-2xl px-5 pt-2 pb-8 modal-sheet">
+          <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5" />
+
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center flex-none">
+              <RefreshCw className="w-4.5 h-4.5 text-orange-500" strokeWidth={2} />
+            </div>
+            <div>
+              <p className="text-base font-bold text-gray-900">Operações pendentes</p>
+              <p className="text-xs text-gray-400">
+                {ops.length} {ops.length === 1 ? 'ação aguardando sync' : 'ações aguardando sync'}
+              </p>
+            </div>
+          </div>
+
+          <div className="mb-4 rounded-xl border border-gray-100 divide-y divide-gray-50 overflow-hidden">
+            {ops.map(op => (
+              <div key={op.opId} className="flex items-center gap-3 px-3 py-2.5">
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-none
+                  ${op.type === 'create' ? 'bg-green-50 text-green-600' :
+                    op.type === 'delete' ? 'bg-red-50 text-red-500' :
+                    'bg-blue-50 text-blue-600'}`}>
+                  {OP_LABEL[op.type]}
+                </span>
+                <span className="text-sm text-gray-700 truncate flex-1">{resolveNome(op)}</span>
+                {op.retries > 0 && (
+                  <span className="text-[10px] text-gray-400 flex-none">{op.retries} tentativa{op.retries > 1 ? 's' : ''}</span>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <p className="text-xs text-gray-400 mb-4 text-center">
+            Essas ações ainda não foram salvas no servidor. Tente sincronizar ou descarte-as.
+          </p>
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => { onClear(); onClose() }}
+              className="flex-1 py-3.5 rounded-xl border border-red-200 text-sm font-semibold text-red-500
+                         hover:bg-red-50 transition-colors"
+            >
+              Descartar
+            </button>
+            <button
+              type="button"
+              onClick={() => { onSync(); onClose() }}
+              className="flex-1 py-3.5 rounded-xl bg-orange-500 text-white text-sm font-semibold
+                         hover:bg-orange-600 transition-colors flex items-center justify-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" strokeWidth={2.5} />
+              Sincronizar agora
+            </button>
+          </div>
+        </div>
+      </div>
+    </ModalPortal>
+  )
+}
+
 // ── Linha de item ─────────────────────────────────────────────────────────────
 
 function ItemRow({
@@ -820,10 +918,11 @@ export default function ListaMercadoPage() {
     itens,
     adicionar, alterarQuantidade, definirPreco, editarNome,
     toggleComprado, excluir, limparComprados,
-    isOnline, pendingCount, syncStatus,
+    isOnline, pendingCount, pendingOps, syncStatus, flushQueue, clearPendingQueue,
   } = useListaMercado()
   const { salvar: salvarHistorico } = useHistoricoCompras()
 
+  const [pendingOpsAberto, setPendingOpsAberto] = useState(false)
   const [itemPreco, setItemPreco] = useState<ItemMercado | null>(null)
   const [itemConfirmando, setItemConfirmando] = useState<ItemMercado | null>(null)
   const [finalizandoCompra, setFinalizandoCompra] = useState(false)
@@ -966,10 +1065,14 @@ export default function ListaMercadoPage() {
                 </span>
               )}
               {isOnline && syncStatus === 'pending' && (
-                <span className="flex items-center gap-1 text-[10px] font-semibold text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded-full">
+                <button
+                  type="button"
+                  onClick={() => setPendingOpsAberto(true)}
+                  className="flex items-center gap-1 text-[10px] font-semibold text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded-full active:bg-orange-100 transition-colors"
+                >
                   <RefreshCw className="w-2.5 h-2.5" strokeWidth={2.5} />
                   {pendingCount} pendente{pendingCount > 1 ? 's' : ''}
-                </span>
+                </button>
               )}
             </div>
           </div>
@@ -1050,6 +1153,17 @@ export default function ListaMercadoPage() {
             </>
           )}
         </div>
+      )}
+
+      {/* Bottom sheet de operações pendentes */}
+      {pendingOpsAberto && (
+        <BottomSheetPendingOps
+          ops={pendingOps}
+          itens={itens}
+          onClose={() => setPendingOpsAberto(false)}
+          onSync={flushQueue}
+          onClear={clearPendingQueue}
+        />
       )}
 
       {/* Bottom sheet de confirmar compra */}
