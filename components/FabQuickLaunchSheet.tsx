@@ -17,10 +17,7 @@ const PRIORIDADES = [
   { value: 'baixa' as const, label: 'Baixa', active: 'bg-slate-100 text-slate-600 ring-slate-300'  },
 ]
 
-const QUICK_EMOJIS = [
-  '💻','📱','🎮','👗','🏠','✈️',
-  '🏋️','📚','🎁','🌟','💎','🍷',
-]
+const CATEGORIAS = ['Eletrônicos', 'Casa', 'Moda', 'Viagem', 'Lazer', 'Esporte', 'Saúde', 'Educação', 'Outros']
 
 async function getUsuario(): Promise<string | null> {
   const { data: { user } } = await supabase.auth.getUser()
@@ -38,8 +35,9 @@ function QuickAddWishlist({
 }) {
   const nomeRef = useRef<HTMLInputElement>(null)
   const [nome, setNome] = useState('')
+  const [valor, setValor] = useState('')
+  const [categoria, setCategoria] = useState('')
   const [prioridade, setPrioridade] = useState<'alta' | 'media' | 'baixa'>('media')
-  const [emoji, setEmoji] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
 
@@ -56,12 +54,12 @@ function QuickAddWishlist({
     try {
       const criado_por = await getUsuario()
       const { data, error } = await supabase.from('wishlist_items').insert([{
-        nome:       nome.trim(),
-        emoji:      emoji || null,
+        nome:           nome.trim(),
+        valor_estimado: valor ? parseFloat(valor.replace(',', '.')) : null,
+        categoria:      categoria || null,
         prioridade,
-        categoria:  null,
-        favoritado: false,
-        realizado:  false,
+        favoritado:     false,
+        realizado:      false,
         criado_por,
       }]).select('id').single()
       if (error) throw error
@@ -85,34 +83,43 @@ function QuickAddWishlist({
         >
           <ChevronLeft className="w-5 h-5 text-gray-500" />
         </button>
-        <h3 className="text-base font-bold text-gray-900">💖 Novo Desejo</h3>
+        <h3 className="text-base font-bold text-gray-900">Novo Desejo</h3>
       </div>
 
       <input
         ref={nomeRef}
         value={nome}
         onChange={e => setNome(e.target.value)}
-        placeholder="O que você deseja?"
+        placeholder="Descrição do item"
         className="input-base"
         maxLength={80}
         required
       />
 
-      <div className="flex gap-1.5 flex-wrap">
-        {QUICK_EMOJIS.map(e => (
-          <button
-            key={e}
-            type="button"
-            onClick={() => setEmoji(prev => prev === e ? '' : e)}
-            className={`text-xl p-1.5 rounded-xl transition-all active:scale-90
-                        ${emoji === e
-                          ? 'bg-primary-100 ring-2 ring-primary-400 scale-110'
-                          : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}
-          >
-            {e}
-          </button>
-        ))}
+      <div className="input-base flex items-center gap-1.5">
+        <span className="text-sm text-gray-400 shrink-0">R$</span>
+        <input
+          type="number"
+          inputMode="decimal"
+          value={valor}
+          onChange={e => setValor(e.target.value)}
+          placeholder="0,00"
+          className="flex-1 bg-transparent outline-none min-w-0"
+          min="0"
+          step="0.01"
+        />
       </div>
+
+      <select
+        value={categoria}
+        onChange={e => setCategoria(e.target.value)}
+        className="input-base"
+      >
+        <option value="">Sem categoria</option>
+        {CATEGORIAS.map(cat => (
+          <option key={cat} value={cat}>{cat}</option>
+        ))}
+      </select>
 
       <div className="flex gap-2">
         {PRIORIDADES.map(p => (
