@@ -1010,6 +1010,24 @@ function WishlistContent() {
                 { value: 'mais-antigo', label: 'Mais antigo'  },
               ]}
             />
+            {(filtroCategoria || filtroUsuario || busca || ordemAtivos !== 'padrao') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFiltroCategoria(null)
+                  setFiltroUsuario(null)
+                  setBusca('')
+                  setBuscaAberta(false)
+                  setOrdemAtivos('padrao')
+                }}
+                className="flex-none flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs font-semibold
+                           bg-red-50 text-red-500 hover:bg-red-100 transition-colors duration-150"
+                title="Limpar filtros"
+              >
+                <X className="w-3.5 h-3.5" strokeWidth={2.5} />
+                Limpar
+              </button>
+            )}
           </div>
         )}
 
