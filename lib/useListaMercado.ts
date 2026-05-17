@@ -9,9 +9,11 @@ import {
   getAllOps,
   pendingOpsCount,
   clearOpsForItem,
+  clearQueue,
   incrementOpRetries,
   registerTempId,
   resolveItemId,
+  type PendingOp,
 } from './offlineQueue'
 
 export type ItemMercado = {
@@ -35,6 +37,7 @@ async function getUsuario(): Promise<string | null> {
 export function useListaMercado() {
   const [itens, setItens] = useState<ItemMercado[]>([])
   const [pendingCount, setPendingCount] = useState(0)
+  const [pendingOps, setPendingOps] = useState<PendingOp[]>([])
   const [syncStatus, setSyncStatus] = useState<OfflineSyncStatus>('synced')
 
   const timersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
@@ -44,8 +47,10 @@ export function useListaMercado() {
   const isSyncingRef = useRef(false)
 
   const refreshCount = useCallback(() => {
-    const count = pendingOpsCount()
+    const ops = getAllOps()
+    const count = ops.length
     setPendingCount(count)
+    setPendingOps(ops)
     if (!isSyncingRef.current) {
       setSyncStatus(count > 0 ? 'pending' : 'synced')
     }
@@ -107,8 +112,10 @@ export function useListaMercado() {
     }
 
     isSyncingRef.current = false
-    const remaining = pendingOpsCount()
+    const remainingOps = getAllOps()
+    const remaining = remainingOps.length
     setPendingCount(remaining)
+    setPendingOps(remainingOps)
     setSyncStatus(anyError ? 'error' : remaining > 0 ? 'pending' : 'synced')
   }, [])
 
@@ -319,6 +326,13 @@ export function useListaMercado() {
     }
   }, [refreshCount])
 
+  const clearPendingQueue = useCallback(() => {
+    clearQueue()
+    setPendingCount(0)
+    setPendingOps([])
+    setSyncStatus('synced')
+  }, [])
+
   return {
     itens,
     total,
@@ -332,6 +346,9 @@ export function useListaMercado() {
     limparComprados,
     isOnline,
     pendingCount,
+    pendingOps,
     syncStatus,
+    flushQueue,
+    clearPendingQueue,
   }
 }
