@@ -54,3 +54,43 @@ export function notificar(
     } catch (_) {}
   })()
 }
+
+export function notificarWishlist(
+  itemId: string,
+  nomeItem: string,
+  deUsuario: string
+) {
+  if (!deUsuario) return
+  const nome = nomeDoUsuario(deUsuario)
+  const descricao = `${nome} adicionou um novo desejo na Wishlist`
+
+  void (async () => {
+    const { data: rows, error } = await supabase.from('notificacoes').insert([{
+      de_usuario: deUsuario,
+      nome_usuario: nome,
+      acao: 'wishlist_novo_item',
+      descricao,
+      valor: null,
+      metadata: { wishlist_item_id: itemId, nome_item: nomeItem },
+    }]).select('id')
+
+    if (error || !rows?.[0]?.id) return
+    const notifId = rows[0].id
+
+    try {
+      await fetch('/api/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deUsuario,
+          payload: {
+            title: `${nome} adicionou na Wishlist`,
+            body: nomeItem,
+            url: '/wishlist',
+            tag: notifId,
+          },
+        }),
+      })
+    } catch (_) {}
+  })()
+}

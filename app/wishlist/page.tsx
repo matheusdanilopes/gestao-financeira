@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense, useCallback, type FormEvent, type ReactNode } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { Heart, Plus, Check, ExternalLink, X, Star, Search, RotateCcw, Trash2 } from 'lucide-react'
+import { Heart, Plus, Check, ExternalLink, X, Star, Search, RotateCcw, Trash2, ChevronDown } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { useWishlist, type WishlistItem } from '@/lib/useWishlist'
@@ -47,6 +47,20 @@ const USER_PALETTE = [
 
 function formatarData(iso: string) {
   try { return format(parseISO(iso), "dd MMM", { locale: ptBR }) } catch { return '' }
+}
+
+function formatarTempoRelativo(iso: string): string {
+  try {
+    const diff = Date.now() - new Date(iso).getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 1) return 'agora'
+    if (mins < 60) return `há ${mins}min`
+    const horas = Math.floor(mins / 60)
+    if (horas < 24) return `há ${horas}h`
+    const dias = Math.floor(horas / 24)
+    if (dias < 30) return `há ${dias} dia${dias > 1 ? 's' : ''}`
+    return format(parseISO(iso), "dd MMM", { locale: ptBR })
+  } catch { return '' }
 }
 
 function nomeCurto(email: string | null): string {
@@ -428,6 +442,7 @@ function ModalWishlist({
 function WishlistCard({
   item,
   mostraHint,
+  highlighted,
   onEditar,
   onRealizar,
   onExcluir,
@@ -435,6 +450,7 @@ function WishlistCard({
 }: {
   item: WishlistItem
   mostraHint: boolean
+  highlighted?: boolean
   onEditar: (item: WishlistItem) => void
   onRealizar: (id: string) => unknown
   onExcluir: (id: string) => unknown
@@ -445,7 +461,8 @@ function WishlistCard({
   return (
     <SwipeableItem onDelete={() => onExcluir(item.id)} requireConfirmation>
       <div
-        className="rounded-2xl shadow-sm border border-gray-100 overflow-hidden bg-white border-l-4"
+        id={`wishlist-item-${item.id}`}
+        className={`rounded-2xl shadow-sm border border-gray-100 overflow-hidden bg-white border-l-4${highlighted ? ' animate-wishlist-highlight' : ''}`}
         style={{ borderLeftColor: cfg.borderColor }}
       >
         {/* Clickable card body */}
@@ -488,7 +505,7 @@ function WishlistCard({
 
         {/* Footer — separate from click button */}
         <div className="border-t border-gray-50 px-4 py-2.5 flex items-center justify-between">
-          {/* Left: valor + link */}
+          {/* Left: valor + link + data */}
           <div className="flex items-center gap-2 min-w-0">
             {item.valor_estimado != null && (
               <span className="text-xs font-bold text-gray-700 tabular-nums">
@@ -506,6 +523,9 @@ function WishlistCard({
                 Ver
               </a>
             )}
+            <span className="text-[10px] text-gray-400 whitespace-nowrap">
+              {formatarTempoRelativo(item.created_at)}
+            </span>
           </div>
 
           {/* Right: avatar + star + realizar */}
@@ -612,6 +632,77 @@ function CardRealizado({
   )
 }
 
+// ── FilterSelect ─────────────────────────────────────────────────────────────
+
+function FilterSelect({
+  value,
+  onChange,
+  options,
+}: {
+  value: string
+  onChange: (v: string) => void
+  options: { value: string; label: string }[]
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const isActive = value !== options[0]?.value
+  const activeLabel = options.find(o => o.value === value)?.label ?? options[0]?.label
+
+  useEffect(() => {
+    if (!open) return
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative flex-1 min-w-0">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className={`w-full flex items-center justify-between gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold
+                    transition-all duration-150 border
+                    ${isActive
+                      ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
+                      : 'bg-gray-100 text-gray-600 border-transparent hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'}`}
+      >
+        <span className="truncate">{activeLabel}</span>
+        <ChevronDown
+          className={`w-3.5 h-3.5 flex-none transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          strokeWidth={2.5}
+        />
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 right-0 mt-1.5 bg-white dark:bg-gray-900
+                        rounded-xl shadow-lg border border-gray-100 dark:border-gray-700
+                        z-50 overflow-hidden py-1">
+          {options.map(opt => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => { onChange(opt.value); setOpen(false) }}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs text-left transition-colors
+                          ${opt.value === value
+                            ? 'text-primary-700 font-semibold bg-primary-50 dark:bg-primary-900/20 dark:text-primary-300'
+                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
+            >
+              <span className="w-3.5 h-3.5 flex-none flex items-center justify-center">
+                {opt.value === value && (
+                  <Check className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" strokeWidth={2.5} />
+                )}
+              </span>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Conteúdo principal ────────────────────────────────────────────────────────
 
 function WishlistContent() {
@@ -626,12 +717,27 @@ function WishlistContent() {
     | { kind: 'realizou'; id: string; nome: string }
     | { kind: 'excluiu';  id: string; nome: string }
 
+  type OrdemAtivos = 'padrao' | 'mais-novo' | 'mais-antigo'
+
   const [usuarioAtual, setUsuarioAtual] = useState<string | null>(null)
   const [extraUsuarios, setExtraUsuarios] = useState<string[]>([])
+  const [highlightId, setHighlightId] = useState<string | null>(searchParams.get('highlight'))
+  const [ordemAtivos, setOrdemAtivos] = useState<OrdemAtivos>('padrao')
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setUsuarioAtual(user?.email ?? null))
   }, [])
+
+  useEffect(() => {
+    if (!highlightId) return
+    const timer = setTimeout(() => {
+      document.getElementById(`wishlist-item-${highlightId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      router.replace('/wishlist', { scroll: false })
+    }, 350)
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightId])
 
   // Busca criadores conhecidos de lista_mercado_itens (parceiro pode nunca ter adicionado wishlist)
   useEffect(() => {
@@ -725,6 +831,8 @@ function WishlistContent() {
       return true
     })
     .sort((a, b) => {
+      if (ordemAtivos === 'mais-novo') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      if (ordemAtivos === 'mais-antigo') return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       if (a.favoritado !== b.favoritado) return a.favoritado ? -1 : 1
       const pOrder = { alta: 0, media: 1, baixa: 2 } as const
       return pOrder[a.prioridade] - pOrder[b.prioridade]
@@ -882,32 +990,26 @@ function WishlistContent() {
           </div>
         )}
 
-        {/* Filtros de categoria */}
-        {categoriasUsadas.length > 0 && aba === 'ativos' && (
-          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4 mb-3">
-            <button
-              type="button"
-              onClick={() => setFiltroCategoria(null)}
-              className={`flex-none px-3 py-1.5 rounded-full text-xs font-semibold border transition-all whitespace-nowrap
-                          ${filtroCategoria === null
-                            ? 'bg-gray-900 text-white border-gray-900'
-                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}
-            >
-              Todas
-            </button>
-            {categoriasUsadas.map(cat => (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => setFiltroCategoria(filtroCategoria === cat ? null : cat)}
-                className={`flex-none px-3 py-1.5 rounded-full text-xs font-semibold border transition-all whitespace-nowrap
-                            ${filtroCategoria === cat
-                              ? 'bg-primary-600 text-white border-primary-600'
-                              : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}
-              >
-                {cat}
-              </button>
-            ))}
+        {/* Filtros: categoria + ordenação numa linha só */}
+        {aba === 'ativos' && (
+          <div className="flex gap-2 mb-3">
+            <FilterSelect
+              value={filtroCategoria ?? ''}
+              onChange={v => setFiltroCategoria(v || null)}
+              options={[
+                { value: '', label: 'Categoria' },
+                ...categoriasUsadas.map(c => ({ value: c, label: c })),
+              ]}
+            />
+            <FilterSelect
+              value={ordemAtivos}
+              onChange={v => setOrdemAtivos(v as OrdemAtivos)}
+              options={[
+                { value: 'padrao',      label: 'Padrão'       },
+                { value: 'mais-novo',   label: 'Mais recente' },
+                { value: 'mais-antigo', label: 'Mais antigo'  },
+              ]}
+            />
           </div>
         )}
 
@@ -1000,6 +1102,7 @@ function WishlistContent() {
                     key={item.id}
                     item={item}
                     mostraHint={idx === 0 && !hintVisto}
+                    highlighted={highlightId === item.id}
                     onEditar={abrirEditar}
                     onRealizar={handleRealizar}
                     onExcluir={handleExcluir}
