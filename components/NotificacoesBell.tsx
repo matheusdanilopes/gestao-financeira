@@ -289,13 +289,7 @@ export default memo(function NotificacoesBell() {
   async function abrirWishlist(n: Notificacao) {
     if (!n.lida) await marcarComoLida(n.id)
     setAberto(false)
-    const wishlistMeta = n.acao === 'wishlist_novo_item' && n.metadata
-      ? (n.metadata as WishlistMetadata)
-      : null
-    const url = wishlistMeta?.wishlist_item_id
-      ? `/wishlist?highlight=${wishlistMeta.wishlist_item_id}`
-      : '/wishlist'
-    router.push(url)
+    router.push('/wishlist?ordem=mais-novo')
   }
 
   if (!usuarioEmail) return null

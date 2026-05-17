@@ -755,11 +755,37 @@ function WishlistContent() {
   const [usuarioAtual, setUsuarioAtual] = useState<string | null>(null)
   const [extraUsuarios, setExtraUsuarios] = useState<string[]>([])
   const [highlightId, setHighlightId] = useState<string | null>(searchParams.get('highlight'))
-  const [ordemAtivos, setOrdemAtivos] = useState<OrdemAtivos>('padrao')
+  const ordemParam = searchParams.get('ordem')
+  const notifParam = searchParams.get('notif')
+  const notifProcessadoRef = useRef<string | null>(null)
+  const [ordemAtivos, setOrdemAtivos] = useState<OrdemAtivos>(
+    ordemParam === 'mais-novo' || ordemParam === 'mais-antigo' ? ordemParam : 'padrao'
+  )
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setUsuarioAtual(user?.email ?? null))
   }, [])
+
+  // Aplica filtro "Recentes" quando a página é aberta (ou recebe foco) via notificação
+  useEffect(() => {
+    if (ordemParam === 'mais-novo' || ordemParam === 'mais-antigo' || ordemParam === 'padrao') {
+      setOrdemAtivos(ordemParam)
+    }
+  }, [ordemParam])
+
+  // Marca notificação como lida e remove a notificação do dispositivo ao abrir via push
+  useEffect(() => {
+    if (!notifParam || notifProcessadoRef.current === notifParam) return
+    notifProcessadoRef.current = notifParam
+    void supabase.from('notificacoes').update({ lida: true }).eq('id', notifParam)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready
+        .then(reg => reg.active?.postMessage({ type: 'CLOSE_NOTIFICATIONS', tags: [notifParam] }))
+        .catch(() => {})
+    }
+    router.replace('/wishlist', { scroll: false })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notifParam])
 
   useEffect(() => {
     if (!highlightId) return
