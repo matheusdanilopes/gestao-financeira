@@ -198,6 +198,7 @@ function BottomSheetPreco({
   )
 }
 
+
 // ── Bottom sheet de confirmar compra ─────────────────────────────────────────
 
 function BottomSheetConfirmarCompra({
@@ -1060,7 +1061,7 @@ export default function ListaMercadoPage() {
         />
       )}
 
-      {/* Bottom sheet de preço */}
+      {/* Bottom sheet de preço (para itens já comprados) */}
       {itemPreco && (
         <BottomSheetPreco
           item={itemPreco}
