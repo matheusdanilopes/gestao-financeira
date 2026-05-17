@@ -3,13 +3,13 @@
 import { useState, useCallback, useMemo } from 'react'
 import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
-import { format, startOfMonth, addMonths } from 'date-fns'
+import { format, startOfMonth, addMonths, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import {
   Repeat, Plus, X, WifiOff,
   CheckCircle2, AlertTriangle, XCircle, MinusCircle,
-  CreditCard, Search, SlidersHorizontal,
+  CreditCard, Search, SlidersHorizontal, History,
 } from 'lucide-react'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { log, numericOnly, formatBRL } from '@/lib/logger'
@@ -25,6 +25,14 @@ interface Assinatura {
   ativa: boolean
   observacao: string | null
   created_at: string
+}
+
+interface HistoricoValor {
+  id: string
+  assinatura_id: string
+  valor: number
+  vigente_desde: string
+  criado_em: string
 }
 
 interface TransacaoSimples {
@@ -60,6 +68,7 @@ type StatusTx = 'detectada' | 'valor_divergente' | 'nao_encontrada' | 'inativa'
 export default function AssinaturasMensal({ mesSelecionado }: Props) {
   const [itens, setItens] = useState<Assinatura[]>([])
   const [transacoes, setTransacoes] = useState<TransacaoSimples[]>([])
+  const [historico, setHistorico] = useState<HistoricoValor[]>([])
   const [cartaoLabels, setCartaoLabels] = useState<CartaoLabels>(CARTAO_LABELS_DEFAULT)
   const [verificando, setVerificando] = useState(false)
 
@@ -82,34 +91,45 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
   const mesFmt = format(mesSelecionado, 'MMMM', { locale: ptBR })
 
   const fetcher = useCallback(async () => {
-    const [{ data: assinaturasData }, { data: transacoesData }, { data: planejamentoData }] = await Promise.all([
+    const [{ data: assinaturasData }, { data: transacoesData }, { data: planejamentoData }, { data: historicoData }] = await Promise.all([
       supabase.from('assinaturas').select('*').order('nome', { ascending: true }),
       supabase
         .from('transacoes_nubank')
         .select('descricao, valor, cartao, projeto_fatura')
         .eq('projeto_fatura', nextMesRefStr),
       supabase.from('planejamento').select('item').eq('mes_referencia', mesRefStr),
+      supabase.from('assinaturas_historico').select('*').order('vigente_desde', { ascending: true }),
     ])
     const c1 = (planejamentoData || []).find(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO1]'))?.item?.replace('[CARTAO1]', '').trim()
     const c2 = (planejamentoData || []).find(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]'))?.item?.replace('[CARTAO2]', '').trim()
     return {
       assinaturas: assinaturasData || [],
       transacoes: transacoesData || [],
+      historico: historicoData || [],
       cartaoLabels: { nubank: 'NuBank', cartao1: c1 || 'Cartão 1', cartao2: c2 || 'Cartão 2' },
     }
   }, [mesRefStr, nextMesRefStr])
 
   const { isOnline, refetch } = useGlobalSync({
     cacheKey: `assinaturas:${mesRefStr}`,
-    tables: ['assinaturas', 'transacoes_nubank', 'planejamento'],
+    tables: ['assinaturas', 'transacoes_nubank', 'planejamento', 'assinaturas_historico'],
     fetcher,
     onData: (raw) => {
-      const d = raw as { assinaturas: Assinatura[]; transacoes: TransacaoSimples[]; cartaoLabels: CartaoLabels }
+      const d = raw as { assinaturas: Assinatura[]; transacoes: TransacaoSimples[]; historico: HistoricoValor[]; cartaoLabels: CartaoLabels }
       setItens(d.assinaturas)
       setTransacoes(d.transacoes)
+      setHistorico(d.historico || [])
       setCartaoLabels(d.cartaoLabels)
     },
   })
+
+  function valorParaMes(assinatura: Assinatura, mes: Date, hist: HistoricoValor[]): number {
+    const cutoff = format(endOfMonth(mes), 'yyyy-MM-dd')
+    const entry = hist
+      .filter(h => h.assinatura_id === assinatura.id && h.vigente_desde <= cutoff)
+      .sort((a, b) => b.vigente_desde.localeCompare(a.vigente_desde))[0]
+    return entry?.valor ?? assinatura.valor
+  }
 
   function showToast(msg: string, tipo: 'ok' | 'erro' = 'ok') {
     setToast({ msg, tipo })
@@ -139,7 +159,8 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       tx => tx.cartao === assinatura.cartao && tx.descricao.toLowerCase().includes(nome)
     )
     if (matches.length === 0) return 'nao_encontrada'
-    const valorOk = matches.some(tx => Math.abs(tx.valor - assinatura.valor) <= 0.05)
+    const valorEsperado = valorParaMes(assinatura, mesSelecionado, historico)
+    const valorOk = matches.some(tx => Math.abs(tx.valor - valorEsperado) <= 0.05)
     return valorOk ? 'detectada' : 'valor_divergente'
   }
 
@@ -161,17 +182,20 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
   const itensAtivos = useMemo(() => itens.filter(i => i.ativa), [itens])
 
   const totalAtivo = useMemo(
-    () => itensAtivos.reduce((acc, i) => acc + i.valor, 0),
-    [itensAtivos]
+    () => itensAtivos.reduce((acc, i) => acc + valorParaMes(i, mesSelecionado, historico), 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [itensAtivos, mesSelecionado, historico]
   )
 
   const totalMatheus = useMemo(
-    () => itensAtivos.filter(i => i.responsavel === 'Matheus').reduce((acc, i) => acc + i.valor, 0),
-    [itensAtivos]
+    () => itensAtivos.filter(i => i.responsavel === 'Matheus').reduce((acc, i) => acc + valorParaMes(i, mesSelecionado, historico), 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [itensAtivos, mesSelecionado, historico]
   )
   const totalJeniffer = useMemo(
-    () => itensAtivos.filter(i => i.responsavel === 'Jeniffer').reduce((acc, i) => acc + i.valor, 0),
-    [itensAtivos]
+    () => itensAtivos.filter(i => i.responsavel === 'Jeniffer').reduce((acc, i) => acc + valorParaMes(i, mesSelecionado, historico), 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [itensAtivos, mesSelecionado, historico]
   )
 
   const countPorResponsavel = useMemo(() => ({
@@ -183,13 +207,13 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
   const detectadasCount = useMemo(
     () => itensAtivos.filter(i => statusTransacao(i) === 'detectada').length,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [itensAtivos, transacoes]
+    [itensAtivos, transacoes, mesSelecionado, historico]
   )
 
   const detectadasValor = useMemo(
-    () => itensAtivos.filter(i => statusTransacao(i) === 'detectada').reduce((acc, i) => acc + i.valor, 0),
+    () => itensAtivos.filter(i => statusTransacao(i) === 'detectada').reduce((acc, i) => acc + valorParaMes(i, mesSelecionado, historico), 0),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [itensAtivos, transacoes]
+    [itensAtivos, transacoes, mesSelecionado, historico]
   )
 
   const itensPorCartao = useMemo(() => {
@@ -206,6 +230,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     const valor = parseFloat(formData.valor.replace(',', '.'))
     if (!nome || isNaN(valor) || valor <= 0) return
 
+    const vigenteDe = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
     const payload = {
       nome,
       valor,
@@ -217,11 +242,16 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     }
 
     if (modalAberto === 'adicionar') {
-      const { error } = await supabase.from('assinaturas').insert([payload])
-      if (error) { showToast('Erro ao adicionar', 'erro'); return }
+      const { data: newItem, error } = await supabase.from('assinaturas').insert([payload]).select().single()
+      if (error || !newItem) { showToast('Erro ao adicionar', 'erro'); return }
+      await supabase.from('assinaturas_historico').insert([{ assinatura_id: newItem.id, valor, vigente_desde: vigenteDe }])
       log('inserir', 'assinaturas', `Nova assinatura: ${nome} — ${formatBRL(valor)}`, valor)
       showToast('Assinatura adicionada!')
     } else if (itemSelecionado) {
+      const valorMudou = valor !== itemSelecionado.valor
+      if (valorMudou) {
+        await supabase.from('assinaturas_historico').insert([{ assinatura_id: itemSelecionado.id, valor, vigente_desde: vigenteDe }])
+      }
       const { error } = await supabase.from('assinaturas').update(payload).eq('id', itemSelecionado.id)
       if (error) { showToast('Erro ao salvar', 'erro'); return }
       log('editar', 'assinaturas', `Editada: ${nome} — ${formatBRL(valor)}`, valor)
@@ -441,7 +471,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       {CARTOES_KEYS.map(key => {
         const grupo = itensPorCartao[key] || []
         if (grupo.length === 0) return null
-        const totalGrupoAtivo = grupo.filter(i => i.ativa).reduce((acc, i) => acc + i.valor, 0)
+        const totalGrupoAtivo = grupo.filter(i => i.ativa).reduce((acc, i) => acc + valorParaMes(i, mesSelecionado, historico), 0)
 
         return (
           <div key={key} className="bg-white rounded-2xl shadow overflow-hidden">
@@ -493,7 +523,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                       </div>
                       <div className="text-right shrink-0">
                         <p className={`text-sm font-bold ${item.ativa ? 'text-indigo-700' : 'text-gray-400'}`}>
-                          R$ {item.valor.toFixed(2)}
+                          R$ {valorParaMes(item, mesSelecionado, historico).toFixed(2)}
                         </p>
                       </div>
                       {isOnline && (
@@ -560,6 +590,12 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {modalAberto === 'editar' && (
+              <div className="mb-4 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+                Novo valor será aplicado apenas para cobranças futuras. Registros históricos permanecem inalterados.
+              </div>
+            )}
 
             <div className="space-y-4">
               <div>
@@ -650,6 +686,32 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                 />
               </div>
             </div>
+
+            {modalAberto === 'editar' && itemSelecionado && (() => {
+              const entradasHistorico = historico
+                .filter(h => h.assinatura_id === itemSelecionado.id)
+                .sort((a, b) => b.vigente_desde.localeCompare(a.vigente_desde))
+              if (entradasHistorico.length <= 1) return null
+              return (
+                <details className="mt-4">
+                  <summary className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none">
+                    <History className="w-3.5 h-3.5" />
+                    Histórico de valores ({entradasHistorico.length})
+                  </summary>
+                  <ul className="mt-2 space-y-1 pl-1">
+                    {entradasHistorico.map((h, idx) => (
+                      <li key={h.id} className="flex justify-between text-xs text-gray-500">
+                        <span>{format(new Date(h.vigente_desde + 'T12:00:00'), "dd/MM/yyyy")}</span>
+                        <span className={`font-medium ${idx === 0 ? 'text-indigo-600' : 'text-gray-400'}`}>
+                          {idx === 0 && <span className="mr-1 text-[10px] text-indigo-400">atual</span>}
+                          R$ {Number(h.valor).toFixed(2)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )
+            })()}
 
             <div className="flex gap-3 mt-6">
               <button onClick={fecharModal} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600">

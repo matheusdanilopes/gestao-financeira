@@ -312,3 +312,28 @@ CREATE INDEX IF NOT EXISTS idx_planejamento_vencimento
 INSERT INTO configuracoes (chave, valor)
   VALUES ('notificacoes_vencimento_ativas', 'true')
   ON CONFLICT (chave) DO NOTHING;
+
+-- 21. Histórico de valores de assinaturas (versionamento de preço)
+-- Registra cada versão de valor com a data de vigência, preservando histórico financeiro.
+-- assinaturas.valor continua sendo o valor corrente (compatibilidade com dashboard e outras queries).
+CREATE TABLE IF NOT EXISTS assinaturas_historico (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  assinatura_id UUID NOT NULL REFERENCES assinaturas(id) ON DELETE CASCADE,
+  valor         NUMERIC(12,2) NOT NULL,
+  vigente_desde DATE NOT NULL,
+  criado_em     TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE assinaturas_historico ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "allow_all_assinaturas_historico" ON assinaturas_historico;
+CREATE POLICY "allow_all_assinaturas_historico" ON assinaturas_historico
+  FOR ALL USING (true) WITH CHECK (true);
+
+CREATE INDEX IF NOT EXISTS idx_assinaturas_hist_lookup
+  ON assinaturas_historico(assinatura_id, vigente_desde DESC);
+
+-- Backfill: registra o valor atual de cada assinatura como versão inicial
+INSERT INTO assinaturas_historico (assinatura_id, valor, vigente_desde, criado_em)
+SELECT id, valor, COALESCE(created_at::date, '2000-01-01'), COALESCE(created_at, NOW())
+FROM assinaturas
+ON CONFLICT DO NOTHING;
