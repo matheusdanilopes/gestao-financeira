@@ -65,6 +65,7 @@ function formatarTempoRelativo(iso: string): string {
 
 function nomeCurto(email: string | null): string {
   if (!email) return ''
+  if (email === 'conjunto') return 'Conjunto'
   const parte = email.split('@')[0].split('.')[0].split('_')[0]
   return parte.charAt(0).toUpperCase() + parte.slice(1)
 }
@@ -77,6 +78,7 @@ function emailHash(s: string): number {
 
 function corUsuario(email: string | null): string {
   if (!email) return 'bg-gray-100 text-gray-500'
+  if (email === 'conjunto') return 'bg-purple-100 text-purple-700'
   const e = email.toLowerCase()
   if (e.includes('matheus')) return 'bg-matheus-light text-matheus'
   if (e.includes('jeniffer') || e.includes('jennifer')) return 'bg-jeniffer-light text-jeniffer'
@@ -383,7 +385,7 @@ function ModalWishlist({
                   {usuariosConhecidos.length > 0 && (
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1.5">Adicionado por</label>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 mb-2">
                         {usuariosConhecidos.map(email => {
                           const isAtivo = form.criado_por === email
                           const cor = corUsuario(email)
@@ -409,6 +411,29 @@ function ModalWishlist({
                           )
                         })}
                       </div>
+                      {/* Desejo mútuo */}
+                      {(() => {
+                        const isConjunto = form.criado_por === 'conjunto'
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => setField('criado_por', isConjunto ? (criadorPadrao ?? null) : 'conjunto')}
+                            className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all
+                                        ${isConjunto
+                                          ? 'bg-purple-100 text-purple-700 ring-2 ring-inset ring-current'
+                                          : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}
+                          >
+                            <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-none
+                                             ${isConjunto ? 'bg-white/40' : 'bg-purple-100 text-purple-700'}`}>
+                              {isConjunto
+                                ? <Check className="w-4 h-4" strokeWidth={3} />
+                                : <Heart className="w-4 h-4" fill="currentColor" strokeWidth={0} />
+                              }
+                            </span>
+                            <span className="text-sm font-semibold">Desejo mútuo (conjunto)</span>
+                          </button>
+                        )
+                      })()}
                     </div>
                   )}
                 </>
@@ -531,12 +556,16 @@ function WishlistCard({
           {/* Right: avatar + star + realizar */}
           <div className="flex items-center gap-2 flex-none">
             {item.criado_por && (
-              <span
-                className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold flex-none ${corUsuario(item.criado_por)}`}
-                title={nomeCurto(item.criado_por)}
-              >
-                {nomeCurto(item.criado_por)[0]}
-              </span>
+              item.criado_por === 'conjunto'
+                ? <span className="w-6 h-6 rounded-full flex items-center justify-center bg-purple-100 text-purple-600 flex-none" title="Desejo conjunto">
+                    <Heart className="w-3 h-3" fill="currentColor" strokeWidth={0} />
+                  </span>
+                : <span
+                    className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold flex-none ${corUsuario(item.criado_por)}`}
+                    title={nomeCurto(item.criado_por)}
+                  >
+                    {nomeCurto(item.criado_por)[0]}
+                  </span>
             )}
             <button
               type="button"
@@ -616,10 +645,14 @@ function CardRealizado({
             {item.realizado_em ? formatarData(item.realizado_em) : 'Realizado'}
           </span>
           {item.criado_por && (
-            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-none ${corUsuario(item.criado_por)}`}
-              title={nomeCurto(item.criado_por)}>
-              {nomeCurto(item.criado_por)[0]}
-            </span>
+            item.criado_por === 'conjunto'
+              ? <span className="w-5 h-5 rounded-full flex items-center justify-center bg-purple-100 text-purple-600 flex-none" title="Desejo conjunto">
+                  <Heart className="w-2.5 h-2.5" fill="currentColor" strokeWidth={0} />
+                </span>
+              : <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-none ${corUsuario(item.criado_por)}`}
+                  title={nomeCurto(item.criado_por)}>
+                  {nomeCurto(item.criado_por)[0]}
+                </span>
           )}
           {item.valor_estimado != null && (
             <span className="text-[10px] text-gray-400 tabular-nums">
@@ -811,7 +844,7 @@ function WishlistContent() {
   const usuariosConhecidos = (() => {
     const base = [...new Set([
       ...(usuarioAtual ? [usuarioAtual] : []),
-      ...[...ativos, ...historico].map(i => i.criado_por).filter(Boolean) as string[],
+      ...[...ativos, ...historico].map(i => i.criado_por).filter(c => c && c !== 'conjunto') as string[],
       ...extraUsuarios,
     ])]
     // Se só um usuário é conhecido, adiciona o parceiro inferido pelo nome do email
@@ -819,13 +852,20 @@ function WishlistContent() {
       const parceiro = inferirParceiro(usuarioAtual)
       if (parceiro) base.push(parceiro)
     }
-    return base
+    // Dedup por nome de exibição para evitar duplicatas quando o mesmo usuário tem emails ligeiramente diferentes
+    const seenNames = new Set<string>()
+    return base.filter(email => {
+      const name = nomeCurto(email).toLowerCase()
+      if (seenNames.has(name)) return false
+      seenNames.add(name)
+      return true
+    })
   })()
 
   const ativosFiltrados = ativos
     .filter(i => i.id !== pendingExcluirId)
     .filter(item => {
-      if (filtroUsuario && item.criado_por !== filtroUsuario) return false
+      if (filtroUsuario && item.criado_por !== filtroUsuario && item.criado_por !== 'conjunto') return false
       if (filtroCategoria && item.categoria !== filtroCategoria) return false
       if (busca && !item.nome.toLowerCase().includes(busca.toLowerCase())) return false
       return true
@@ -840,7 +880,7 @@ function WishlistContent() {
 
   const historicoDis = historico
     .filter(i => i.id !== pendingExcluirId)
-    .filter(i => !filtroUsuario || i.criado_por === filtroUsuario)
+    .filter(i => !filtroUsuario || i.criado_por === filtroUsuario || i.criado_por === 'conjunto')
 
   // Per-user stats: baseia nos usuários conhecidos para sempre mostrar ambos os cards,
   // mesmo que um deles ainda não tenha itens na aba atual
