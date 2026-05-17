@@ -895,10 +895,13 @@ function WishlistContent() {
 
   const ativosBase = ativos.filter(i => i.id !== pendingExcluirId)
   const historicoBase = historico.filter(i => i.id !== pendingExcluirId)
-  const statsAtuais = calcStats(
-    aba === 'ativos' ? ativosBase : historicoBase,
-    usuariosConhecidos,
-  )
+  const listaAtual = aba === 'ativos' ? ativosBase : historicoBase
+  const statsAtuais = calcStats(listaAtual, usuariosConhecidos)
+  const conjuntoAtual = listaAtual.filter(i => i.criado_por === 'conjunto')
+  const conjuntoStats = {
+    count: conjuntoAtual.length,
+    total: conjuntoAtual.reduce((s, i) => s + (i.valor_estimado ?? 0), 0),
+  }
 
   function abrirEditar(item: WishlistItem) {
     setItemEditando(item)
@@ -1117,6 +1120,30 @@ function WishlistContent() {
                 </button>
               )
             })}
+            {conjuntoStats.count > 0 && (() => {
+              const isActive = filtroUsuario === 'conjunto'
+              return (
+                <button
+                  type="button"
+                  onClick={() => setFiltroUsuario(isActive ? null : 'conjunto')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all text-left
+                              ${isActive
+                                ? 'bg-purple-100 text-purple-700 border-current'
+                                : 'bg-gray-50 border-transparent hover:bg-gray-100 text-gray-700'}`}
+                >
+                  <span className="w-6 h-6 rounded-full flex items-center justify-center bg-purple-100 text-purple-600 flex-none">
+                    <Heart className="w-3 h-3" fill="currentColor" strokeWidth={0} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold leading-none truncate mb-0.5">Conjunto</p>
+                    <p className={`text-[10px] leading-none ${isActive ? 'opacity-70' : 'text-gray-400'}`}>
+                      {conjuntoStats.count} {conjuntoStats.count === 1 ? 'item' : 'itens'}
+                      {conjuntoStats.total > 0 && <> · {formatBRL(conjuntoStats.total)}</>}
+                    </p>
+                  </div>
+                </button>
+              )
+            })()}
           </div>
         )}
       </div>
