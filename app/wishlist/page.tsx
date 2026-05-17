@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { formatBRL } from '@/lib/logger'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { ArrowDownUp } from 'lucide-react'
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
@@ -47,6 +48,20 @@ const USER_PALETTE = [
 
 function formatarData(iso: string) {
   try { return format(parseISO(iso), "dd MMM", { locale: ptBR }) } catch { return '' }
+}
+
+function formatarTempoRelativo(iso: string): string {
+  try {
+    const diff = Date.now() - new Date(iso).getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 1) return 'agora'
+    if (mins < 60) return `há ${mins}min`
+    const horas = Math.floor(mins / 60)
+    if (horas < 24) return `há ${horas}h`
+    const dias = Math.floor(horas / 24)
+    if (dias < 30) return `há ${dias} dia${dias > 1 ? 's' : ''}`
+    return format(parseISO(iso), "dd MMM", { locale: ptBR })
+  } catch { return '' }
 }
 
 function nomeCurto(email: string | null): string {
@@ -491,7 +506,7 @@ function WishlistCard({
 
         {/* Footer — separate from click button */}
         <div className="border-t border-gray-50 px-4 py-2.5 flex items-center justify-between">
-          {/* Left: valor + link */}
+          {/* Left: valor + link + data */}
           <div className="flex items-center gap-2 min-w-0">
             {item.valor_estimado != null && (
               <span className="text-xs font-bold text-gray-700 tabular-nums">
@@ -509,6 +524,9 @@ function WishlistCard({
                 Ver
               </a>
             )}
+            <span className="text-[10px] text-gray-400 whitespace-nowrap">
+              {formatarTempoRelativo(item.created_at)}
+            </span>
           </div>
 
           {/* Right: avatar + star + realizar */}
@@ -629,9 +647,12 @@ function WishlistContent() {
     | { kind: 'realizou'; id: string; nome: string }
     | { kind: 'excluiu';  id: string; nome: string }
 
+  type OrdemAtivos = 'padrao' | 'mais-novo' | 'mais-antigo'
+
   const [usuarioAtual, setUsuarioAtual] = useState<string | null>(null)
   const [extraUsuarios, setExtraUsuarios] = useState<string[]>([])
   const [highlightId, setHighlightId] = useState<string | null>(searchParams.get('highlight'))
+  const [ordemAtivos, setOrdemAtivos] = useState<OrdemAtivos>('padrao')
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setUsuarioAtual(user?.email ?? null))
@@ -740,6 +761,8 @@ function WishlistContent() {
       return true
     })
     .sort((a, b) => {
+      if (ordemAtivos === 'mais-novo') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      if (ordemAtivos === 'mais-antigo') return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       if (a.favoritado !== b.favoritado) return a.favoritado ? -1 : 1
       const pOrder = { alta: 0, media: 1, baixa: 2 } as const
       return pOrder[a.prioridade] - pOrder[b.prioridade]
@@ -921,6 +944,30 @@ function WishlistContent() {
                               : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}
               >
                 {cat}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Ordenação — visível só na aba de desejos ativos */}
+        {aba === 'ativos' && (
+          <div className="flex items-center gap-2 mb-3">
+            <ArrowDownUp className="w-3.5 h-3.5 text-gray-400 flex-none" />
+            {([
+              { value: 'padrao',      label: 'Padrão'   },
+              { value: 'mais-novo',   label: 'Recente'  },
+              { value: 'mais-antigo', label: 'Antigo'   },
+            ] as const).map(op => (
+              <button
+                key={op.value}
+                type="button"
+                onClick={() => setOrdemAtivos(op.value)}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all
+                            ${ordemAtivos === op.value
+                              ? 'bg-gray-900 text-white border-gray-900'
+                              : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'}`}
+              >
+                {op.label}
               </button>
             ))}
           </div>
