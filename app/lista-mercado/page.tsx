@@ -621,26 +621,28 @@ function ItemRow({
           </button>
         </div>
 
-        {/* Preço / subtotal */}
-        <button
-          type="button"
-          onClick={() => onAbrirPreco(item)}
-          className="flex-none text-right min-w-[64px]"
-          aria-label="Definir preço"
-        >
-          {item.preco_unit != null ? (
-            <div>
-              <p className="text-[11px] text-gray-400 leading-none tabular-nums">
-                {formatBRL(item.preco_unit)}/un
-              </p>
-              <p className="text-sm font-semibold text-gray-900 tabular-nums mt-0.5">
-                {formatBRL(subtotal)}
-              </p>
-            </div>
-          ) : (
-            <span className="text-xs text-primary-500 font-medium">+ preço</span>
-          )}
-        </button>
+        {/* Preço / subtotal — só exibe após o item ser tickado */}
+        {item.comprado && (
+          <button
+            type="button"
+            onClick={() => onAbrirPreco(item)}
+            className="flex-none text-right min-w-[64px]"
+            aria-label="Definir preço"
+          >
+            {item.preco_unit != null ? (
+              <div>
+                <p className="text-[11px] text-gray-400 leading-none tabular-nums">
+                  {formatBRL(item.preco_unit)}/un
+                </p>
+                <p className="text-sm font-semibold text-gray-900 tabular-nums mt-0.5">
+                  {formatBRL(subtotal)}
+                </p>
+              </div>
+            ) : (
+              <span className="text-xs text-primary-500 font-medium">+ preço</span>
+            )}
+          </button>
+        )}
       </div>
     </SwipeableItem>
   )
