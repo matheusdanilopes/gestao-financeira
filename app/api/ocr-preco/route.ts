@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   try {
     body = await req.json()
   } catch {
-    return NextResponse.json({ error: 'Body inválido ou muito grande' }, { status: 413 })
+    return NextResponse.json({ error: 'Corpo da requisição inválido' }, { status: 400 })
   }
 
   if (!body?.imageBase64) {
@@ -38,9 +38,9 @@ Responda APENAS com o número ou null.`
 
   let geminiRes: Response
   try {
-    geminiRes = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+    geminiRes = await fetch(GEMINI_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       body: JSON.stringify({
         contents: [{
           parts: [
