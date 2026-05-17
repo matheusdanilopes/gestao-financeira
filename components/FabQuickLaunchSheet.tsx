@@ -96,15 +96,15 @@ function QuickAddWishlist({
         required
       />
 
-      <div className="relative">
-        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-gray-400 pointer-events-none">R$</span>
+      <div className="input-base flex items-center gap-1.5">
+        <span className="text-sm text-gray-400 shrink-0">R$</span>
         <input
           type="number"
           inputMode="decimal"
           value={valor}
           onChange={e => setValor(e.target.value)}
           placeholder="0,00"
-          className="input-base pl-10"
+          className="flex-1 bg-transparent outline-none min-w-0"
           min="0"
           step="0.01"
         />
