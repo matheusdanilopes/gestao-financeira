@@ -230,7 +230,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     const valor = parseFloat(formData.valor.replace(',', '.'))
     if (!nome || isNaN(valor) || valor <= 0) return
 
-    const hoje = format(new Date(), 'yyyy-MM-dd')
+    const vigenteDe = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
     const payload = {
       nome,
       valor,
@@ -244,13 +244,13 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     if (modalAberto === 'adicionar') {
       const { data: newItem, error } = await supabase.from('assinaturas').insert([payload]).select().single()
       if (error || !newItem) { showToast('Erro ao adicionar', 'erro'); return }
-      await supabase.from('assinaturas_historico').insert([{ assinatura_id: newItem.id, valor, vigente_desde: hoje }])
+      await supabase.from('assinaturas_historico').insert([{ assinatura_id: newItem.id, valor, vigente_desde: vigenteDe }])
       log('inserir', 'assinaturas', `Nova assinatura: ${nome} — ${formatBRL(valor)}`, valor)
       showToast('Assinatura adicionada!')
     } else if (itemSelecionado) {
       const valorMudou = valor !== itemSelecionado.valor
       if (valorMudou) {
-        await supabase.from('assinaturas_historico').insert([{ assinatura_id: itemSelecionado.id, valor, vigente_desde: hoje }])
+        await supabase.from('assinaturas_historico').insert([{ assinatura_id: itemSelecionado.id, valor, vigente_desde: vigenteDe }])
       }
       const { error } = await supabase.from('assinaturas').update(payload).eq('id', itemSelecionado.id)
       if (error) { showToast('Erro ao salvar', 'erro'); return }
