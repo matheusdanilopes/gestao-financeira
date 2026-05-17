@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const GEMINI_MODEL = 'gemini-2.0-flash'
+export const maxDuration = 30
+
+// gemini-1.5-flash: vision confirmado via inline_data
+const GEMINI_MODEL = 'gemini-1.5-flash'
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
 export async function POST(req: NextRequest) {
@@ -9,7 +12,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'GEMINI_API_KEY não configurada' }, { status: 500 })
   }
 
-  const body = await req.json().catch(() => null)
+  let body: { imageBase64?: string; mimeType?: string } | null = null
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Body inválido ou muito grande' }, { status: 413 })
+  }
+
   if (!body?.imageBase64) {
     return NextResponse.json({ error: 'Imagem não fornecida' }, { status: 400 })
   }
@@ -27,26 +36,31 @@ Exemplos: "R$ 12,99" → 12.99 | "R$ 3,50" → 3.50 | "DE R$15,00 POR R$9,90" �
 
 Responda APENAS com o número ou null.`
 
-  const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{
-        parts: [
-          { text: prompt },
-          { inline_data: { mime_type: mimeType, data: imageBase64 } },
-        ],
-      }],
-      generationConfig: { temperature: 0, maxOutputTokens: 16 },
-    }),
-  })
-
-  if (!res.ok) {
-    const err = await res.text()
-    return NextResponse.json({ error: err }, { status: res.status })
+  let geminiRes: Response
+  try {
+    geminiRes = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inline_data: { mime_type: mimeType, data: imageBase64 } },
+          ],
+        }],
+        generationConfig: { temperature: 0, maxOutputTokens: 16 },
+      }),
+    })
+  } catch (err) {
+    return NextResponse.json({ error: `Gemini unreachable: ${String(err)}` }, { status: 502 })
   }
 
-  const json = await res.json()
+  if (!geminiRes.ok) {
+    const err = await geminiRes.text()
+    return NextResponse.json({ error: err }, { status: geminiRes.status })
+  }
+
+  const json = await geminiRes.json()
   const text = (json?.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim()
 
   if (!text || text.toLowerCase() === 'null') {
