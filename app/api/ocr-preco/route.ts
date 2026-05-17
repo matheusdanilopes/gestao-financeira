@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export const maxDuration = 30
 
-// gemini-1.5-flash: vision confirmado via inline_data
-const GEMINI_MODEL = 'gemini-1.5-flash'
+const GEMINI_MODEL = 'gemini-3-flash-preview'
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
 export async function POST(req: NextRequest) {
