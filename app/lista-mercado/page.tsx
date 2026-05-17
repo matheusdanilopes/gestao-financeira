@@ -117,10 +117,10 @@ function BottomSheetPreco({
     onClose()
   }
 
-  function handlePrecoCamera(preco: number) {
-    setValor(preco.toFixed(2).replace('.', ','))
-    setCameraAberta(false)
-    setTimeout(() => inputRef.current?.focus(), 100)
+  // Confirma direto a partir da câmera — sem segunda confirmação no sheet
+  function handleCameraConfirmar(preco: number) {
+    onConfirmar(preco)
+    onClose()
   }
 
   return (
@@ -137,7 +137,7 @@ function BottomSheetPreco({
             <p className="text-base font-semibold text-gray-900 mb-4 truncate">{item.nome}</p>
 
             <form onSubmit={e => { e.preventDefault(); handleConfirmar() }}>
-              <div className="relative mb-4">
+              <div className="relative mb-3">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium">R$</span>
                 <input
                   ref={inputRef}
@@ -147,19 +147,21 @@ function BottomSheetPreco({
                   onChange={e => setValor(e.target.value)}
                   onKeyDown={e => e.key === 'Escape' && onClose()}
                   placeholder="0,00"
-                  className="w-full pl-10 pr-12 py-3.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-900
+                  className="w-full pl-10 pr-4 py-3.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-900
                              placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
                 />
-                <button
-                  type="button"
-                  onClick={() => setCameraAberta(true)}
-                  aria-label="Ler preço com câmera"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center
-                             rounded-lg bg-primary-50 text-primary-600 hover:bg-primary-100 transition-colors"
-                >
-                  <Camera className="w-3.5 h-3.5" strokeWidth={2} />
-                </button>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setCameraAberta(true)}
+                className="w-full flex items-center justify-center gap-2 py-3 mb-4 rounded-xl
+                           border border-dashed border-primary-300 bg-primary-50 text-primary-600
+                           active:bg-primary-100 transition-colors"
+              >
+                <Camera className="w-4 h-4" />
+                <span className="text-sm font-semibold">Ler preço com câmera</span>
+              </button>
 
               <div className="flex gap-3">
                 {item.preco_unit != null && (
@@ -188,7 +190,7 @@ function BottomSheetPreco({
 
       {cameraAberta && (
         <CameraOCR
-          onPrecoDetectado={handlePrecoCamera}
+          onConfirmar={handleCameraConfirmar}
           onClose={() => setCameraAberta(false)}
         />
       )}
@@ -286,7 +288,7 @@ function BottomSheetConfirmarCompra({
             {/* Preço unitário */}
             <div className="mb-4">
               <label className="block text-xs font-medium text-gray-500 mb-2">Preço unitário</label>
-              <div className="relative">
+              <div className="relative mb-2">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium">R$</span>
                 <input
                   ref={precoInputRef}
@@ -296,19 +298,20 @@ function BottomSheetConfirmarCompra({
                   onChange={e => setPreco(e.target.value)}
                   onKeyDown={e => e.key === 'Escape' && onClose()}
                   placeholder="0,00"
-                  className="w-full pl-10 pr-12 py-3.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-900
+                  className="w-full pl-10 pr-4 py-3.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-900
                              placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent"
                 />
-                <button
-                  type="button"
-                  onClick={() => setCameraAberta(true)}
-                  aria-label="Ler preço com câmera"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center
-                             rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
-                >
-                  <Camera className="w-3.5 h-3.5" strokeWidth={2} />
-                </button>
               </div>
+              <button
+                type="button"
+                onClick={() => setCameraAberta(true)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl
+                           border border-dashed border-green-300 bg-green-50 text-green-700
+                           active:bg-green-100 transition-colors"
+              >
+                <Camera className="w-4 h-4" />
+                <span className="text-sm font-semibold">Ler preço com câmera</span>
+              </button>
             </div>
 
             {/* Subtotal */}
@@ -344,7 +347,7 @@ function BottomSheetConfirmarCompra({
 
       {cameraAberta && (
         <CameraOCR
-          onPrecoDetectado={handlePrecoCamera}
+          onConfirmar={handlePrecoCamera}
           onClose={() => setCameraAberta(false)}
         />
       )}
@@ -621,26 +624,28 @@ function ItemRow({
           </button>
         </div>
 
-        {/* Preço / subtotal */}
-        <button
-          type="button"
-          onClick={() => onAbrirPreco(item)}
-          className="flex-none text-right min-w-[64px]"
-          aria-label="Definir preço"
-        >
-          {item.preco_unit != null ? (
-            <div>
-              <p className="text-[11px] text-gray-400 leading-none tabular-nums">
-                {formatBRL(item.preco_unit)}/un
-              </p>
-              <p className="text-sm font-semibold text-gray-900 tabular-nums mt-0.5">
-                {formatBRL(subtotal)}
-              </p>
-            </div>
-          ) : (
-            <span className="text-xs text-primary-500 font-medium">+ preço</span>
-          )}
-        </button>
+        {/* Preço / subtotal — só exibe após o item ser tickado */}
+        {item.comprado && (
+          <button
+            type="button"
+            onClick={() => onAbrirPreco(item)}
+            className="flex-none text-right min-w-[64px]"
+            aria-label="Definir preço"
+          >
+            {item.preco_unit != null ? (
+              <div>
+                <p className="text-[11px] text-gray-400 leading-none tabular-nums">
+                  {formatBRL(item.preco_unit)}/un
+                </p>
+                <p className="text-sm font-semibold text-gray-900 tabular-nums mt-0.5">
+                  {formatBRL(subtotal)}
+                </p>
+              </div>
+            ) : (
+              <span className="text-xs text-primary-500 font-medium">+ preço</span>
+            )}
+          </button>
+        )}
       </div>
     </SwipeableItem>
   )

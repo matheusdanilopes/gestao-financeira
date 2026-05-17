@@ -360,6 +360,16 @@ body {
   box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.18);
 }
 
+/* ─── Camera OCR scan line ───────────────────────────────────────────────── */
+@keyframes scan-line {
+  0%   { top: 2px; }
+  100% { top: calc(100% - 4px); }
+}
+.animate-scan-line {
+  position: absolute;
+  animation: scan-line 1.8s ease-in-out infinite alternate;
+}
+
 @keyframes wishlist-highlight {
   0%   { box-shadow: 0 0 0 0 rgba(236, 72, 153, 0.55); }
   60%  { box-shadow: 0 0 0 8px rgba(236, 72, 153, 0.12); }
