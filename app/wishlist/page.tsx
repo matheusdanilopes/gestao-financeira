@@ -10,7 +10,6 @@ import { supabase } from '@/lib/supabaseClient'
 import { formatBRL } from '@/lib/logger'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { ArrowDownUp } from 'lucide-react'
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
@@ -920,56 +919,32 @@ function WishlistContent() {
           </div>
         )}
 
-        {/* Filtros de categoria */}
-        {categoriasUsadas.length > 0 && aba === 'ativos' && (
-          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4 mb-3">
-            <button
-              type="button"
-              onClick={() => setFiltroCategoria(null)}
-              className={`flex-none px-3 py-1.5 rounded-full text-xs font-semibold border transition-all whitespace-nowrap
-                          ${filtroCategoria === null
-                            ? 'bg-gray-900 text-white border-gray-900'
-                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}
-            >
-              Todas
-            </button>
-            {categoriasUsadas.map(cat => (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => setFiltroCategoria(filtroCategoria === cat ? null : cat)}
-                className={`flex-none px-3 py-1.5 rounded-full text-xs font-semibold border transition-all whitespace-nowrap
-                            ${filtroCategoria === cat
-                              ? 'bg-primary-600 text-white border-primary-600'
-                              : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Ordenação — visível só na aba de desejos ativos */}
+        {/* Filtros: categoria + ordenação numa linha só */}
         {aba === 'ativos' && (
-          <div className="flex items-center gap-2 mb-3">
-            <ArrowDownUp className="w-3.5 h-3.5 text-gray-400 flex-none" />
-            {([
-              { value: 'padrao',      label: 'Padrão'   },
-              { value: 'mais-novo',   label: 'Recente'  },
-              { value: 'mais-antigo', label: 'Antigo'   },
-            ] as const).map(op => (
-              <button
-                key={op.value}
-                type="button"
-                onClick={() => setOrdemAtivos(op.value)}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all
-                            ${ordemAtivos === op.value
-                              ? 'bg-gray-900 text-white border-gray-900'
-                              : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'}`}
-              >
-                {op.label}
-              </button>
-            ))}
+          <div className="flex gap-2 mb-3">
+            <select
+              value={filtroCategoria ?? ''}
+              onChange={e => setFiltroCategoria(e.target.value || null)}
+              className="flex-1 min-w-0 px-2.5 py-1.5 rounded-xl border border-gray-200 bg-white text-xs font-medium text-gray-700
+                         focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent
+                         dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300"
+            >
+              <option value="">Categoria</option>
+              {categoriasUsadas.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+            <select
+              value={ordemAtivos}
+              onChange={e => setOrdemAtivos(e.target.value as OrdemAtivos)}
+              className="flex-1 min-w-0 px-2.5 py-1.5 rounded-xl border border-gray-200 bg-white text-xs font-medium text-gray-700
+                         focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent
+                         dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300"
+            >
+              <option value="padrao">Ordenar: Padrão</option>
+              <option value="mais-novo">Ordenar: Recente</option>
+              <option value="mais-antigo">Ordenar: Antigo</option>
+            </select>
           </div>
         )}
 
