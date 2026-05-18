@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, Suspense, useCallback, type FormEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Heart, Plus, Check, ExternalLink, X, Star, Search, RotateCcw, Trash2, ChevronDown, Camera, Loader2 } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
@@ -548,29 +549,36 @@ function RetryIAButton({ itemId, imagemUrl }: { itemId: string; imagemUrl: strin
         }
       </button>
 
-      {showLog && log.length > 0 && (
+      {showLog && log.length > 0 && typeof document !== 'undefined' && createPortal(
         <div
           className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/40"
-          onClick={() => setShowLog(false)}
+          onPointerDown={() => setShowLog(false)}
         >
           <div
-            className="w-full max-w-lg bg-white rounded-t-2xl p-4 pb-8 shadow-2xl max-h-[70vh] flex flex-col"
-            onClick={e => e.stopPropagation()}
+            className="w-full max-w-lg bg-white rounded-t-2xl shadow-2xl flex flex-col"
+            style={{ maxHeight: '70dvh' }}
+            onPointerDown={e => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-3">
+            {/* handle de arrasto visual + botão fechar */}
+            <div className="flex-none flex items-center justify-between px-4 pt-4 pb-2">
               <span className="font-semibold text-gray-700 text-sm">Debug log</span>
               <button
-                onClick={() => setShowLog(false)}
-                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 text-lg"
+                onPointerDown={e => { e.stopPropagation(); setShowLog(false) }}
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-gray-100 active:bg-gray-200 text-gray-500 text-xl leading-none"
               >×</button>
             </div>
-            <div className="overflow-y-auto flex-1 space-y-1.5 font-mono text-xs">
+            {/* área scrollável */}
+            <div
+              className="flex-1 overflow-y-auto px-4 pb-8 space-y-1.5 font-mono text-xs"
+              style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+            >
               {log.map((l, i) => (
                 <div key={i} className="text-gray-700 break-all leading-snug">{l}</div>
               ))}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   )
