@@ -5,7 +5,8 @@ import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths } from 'date-fns'
 import { useGlobalSync } from '@/lib/useGlobalSync'
-import { Plus, TrendingUp, CirclePlus, History, Trash2, X, Download, WifiOff } from 'lucide-react'
+import { TrendingUp, CirclePlus, History, Trash2, X, WifiOff } from 'lucide-react'
+import PageActionButtons from '@/components/PageActionButtons'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { log, numericOnly, formatBRL } from '@/lib/logger'
 
@@ -322,6 +323,24 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
         </div>
       </div>
 
+      {/* Banner offline */}
+      {!isOnline && (
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 flex items-center gap-2">
+          <WifiOff className="w-4 h-4 text-blue-600 shrink-0" />
+          <p className="text-sm text-blue-700 font-medium">Você está offline — edição desabilitada</p>
+        </div>
+      )}
+
+      {/* Botões de ação */}
+      {isOnline && (
+        <PageActionButtons
+          onAdd={() => setModalAberto('adicionar')}
+          onImport={importarMesAnterior}
+          isImporting={importando}
+          importColorClass="bg-primary-600 text-white hover:bg-primary-700"
+        />
+      )}
+
       {/* Lista */}
       <div className="bg-white rounded-2xl shadow overflow-hidden divide-y divide-gray-100">
         {itens.length === 0 ? (
@@ -422,35 +441,6 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
           })
         )}
       </div>
-
-      {/* Banner offline */}
-      {!isOnline && (
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 flex items-center gap-2">
-          <WifiOff className="w-4 h-4 text-blue-600 shrink-0" />
-          <p className="text-sm text-blue-700 font-medium">Você está offline — edição desabilitada</p>
-        </div>
-      )}
-
-      {/* Botões de ação */}
-      {isOnline && (
-        <div className="flex gap-3">
-          <button
-            onClick={() => setModalAberto('adicionar')}
-            className="flex-1 bg-green-600 text-white py-3 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-green-700 transition-all active:scale-[0.97] shadow-sm"
-          >
-            <Plus className="w-5 h-5" />
-            Adicionar
-          </button>
-          <button
-            onClick={importarMesAnterior}
-            disabled={importando}
-            className="flex-1 bg-primary-600 text-white py-3 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm disabled:opacity-50"
-          >
-            <Download className="w-5 h-5" />
-            {importando ? 'Importando…' : 'Mês anterior'}
-          </button>
-        </div>
-      )}
 
       {/* Toast */}
       {toast && (

@@ -6,7 +6,8 @@ import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths, addMonths, parseISO } from 'date-fns'
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { ptBR } from 'date-fns/locale'
-import { CheckCircle2, AlertCircle, Plus, CreditCard, Download, RotateCcw, WifiOff, Bell, Calendar } from 'lucide-react'
+import { CheckCircle2, AlertCircle, CreditCard, RotateCcw, WifiOff, Bell, Calendar } from 'lucide-react'
+import PageActionButtons from '@/components/PageActionButtons'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { calcularStatusVencimento, verificarVencimentos, type StatusVencimento } from '@/lib/notificacoesVencimento'
 import { log, numericOnly, formatBRL } from '@/lib/logger'
@@ -538,23 +539,14 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
 
       {/* Ações */}
       {isOnline && (
-        <div className="flex gap-2">
-          <button
-            onClick={() => {
-              setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', tipo_cartao: '', valor_previsto: '', data_vencimento: '' })
-              setModalAberto('adicionar')
-            }}
-            className="flex-1 bg-green-600 text-white py-2.5 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-green-700 transition shadow-sm active:scale-[0.97]"
-          >
-            <Plus className="w-4 h-4" /> Adicionar
-          </button>
-          <button
-            onClick={abrirModalImportar}
-            className="flex-1 bg-orange-500 text-white py-2.5 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-orange-600 transition shadow-sm active:scale-[0.97]"
-          >
-            <Download className="w-4 h-4" /> Mês anterior
-          </button>
-        </div>
+        <PageActionButtons
+          onAdd={() => {
+            setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', tipo_cartao: '', valor_previsto: '', data_vencimento: '' })
+            setModalAberto('adicionar')
+          }}
+          onImport={abrirModalImportar}
+          importColorClass="bg-orange-500 text-white hover:bg-orange-600"
+        />
       )}
 
       {/* Lista agrupada por categoria */}
