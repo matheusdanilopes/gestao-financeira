@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef, Suspense, useCallback, type FormEvent, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Heart, Plus, Check, ExternalLink, X, Star, Search, RotateCcw, Trash2, ChevronDown, Camera, Loader2 } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
@@ -463,124 +462,145 @@ function ModalWishlist({
   )
 }
 
-// ── Botão de re-análise IA ────────────────────────────────────────────────────
+// ── Utilitário: converte File/ArrayBuffer para base64 com chunk seguro ────────
 
-function RetryIAButton({ itemId, imagemUrl, usuarioAtual }: { itemId: string; imagemUrl: string | null; usuarioAtual: string | null }) {
+async function fileToBase64(source: File | ArrayBuffer): Promise<{ base64: string; mimeType: string }> {
+  const buf = source instanceof File ? await source.arrayBuffer() : source
+  const mimeType = source instanceof File ? (source.type || 'image/jpeg') : 'image/jpeg'
+  const uint8 = new Uint8Array(buf)
+  let binary = ''
+  for (let i = 0; i < uint8.length; i += 8192) {
+    binary += String.fromCharCode(...uint8.subarray(i, i + 8192))
+  }
+  return { base64: btoa(binary), mimeType }
+}
+
+async function callAnalyze(id: string, imageBase64: string, imageMimeType: string, criado_por: string | null) {
+  const res = await fetch('/api/share-receiver/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, imageBase64, imageMimeType, ...(criado_por ? { criado_por } : {}) }),
+  })
+  return res.json() as Promise<{ status: string; nome?: string; debug?: string }>
+}
+
+// ── Botão de re-análise IA (retry silencioso) ─────────────────────────────────
+
+function RetryIAButton({ itemId, imagemUrl, usuarioAtual }: {
+  itemId: string
+  imagemUrl: string | null
+  usuarioAtual: string | null
+}) {
   const [loading, setLoading] = useState(false)
-  const [done, setDone] = useState(false)
-  const [log, setLog] = useState<string[]>([])
-  const [showLog, setShowLog] = useState(false)
 
   async function retry() {
     if (loading) return
-    setDone(false)
     setLoading(true)
-    const lines: string[] = [`[${new Date().toLocaleTimeString()}] Iniciando retry — id: ${itemId} — user: ${usuarioAtual ?? 'null'}`]
-    setLog(lines)
-    setShowLog(true)
-
     try {
-      let body: Record<string, string> = { id: itemId }
+      let imageBase64 = ''
+      let imageMimeType = 'image/jpeg'
 
       if (imagemUrl) {
-        lines.push(`Buscando imagem: ${imagemUrl.slice(-40)}`)
-        setLog([...lines])
         const imgRes = await fetch(imagemUrl)
-        lines.push(`Fetch imagem → HTTP ${imgRes.status}`)
-        setLog([...lines])
         if (imgRes.ok) {
-          const buf = await imgRes.arrayBuffer()
-          const uint8 = new Uint8Array(buf)
-          lines.push(`Imagem baixada: ${(uint8.length / 1024).toFixed(1)} KB`)
-          setLog([...lines])
-          let binary = ''
-          for (let i = 0; i < uint8.length; i += 8192) {
-            binary += String.fromCharCode(...uint8.subarray(i, i + 8192))
-          }
-          const base64 = btoa(binary)
-          const mimeType = imgRes.headers.get('content-type') ?? 'image/jpeg'
-          body = { ...body, imageBase64: base64, imageMimeType: mimeType }
-          lines.push(`base64 gerado (${mimeType})`)
-          setLog([...lines])
+          const result = await fileToBase64(await imgRes.arrayBuffer())
+          imageBase64 = result.base64
+          imageMimeType = imgRes.headers.get('content-type') ?? 'image/jpeg'
         }
-      } else {
-        lines.push('imagem_url é null — enviando só o id')
-        setLog([...lines])
       }
 
-      if (usuarioAtual) body = { ...body, criado_por: usuarioAtual }
-      const bodySize = JSON.stringify(body).length
-      lines.push(`Chamando POST /api/share-receiver/analyze (${(bodySize / 1024).toFixed(1)} KB)`)
-      setLog([...lines])
-      const resReal = await fetch('/api/share-receiver/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      lines.push(`Resposta HTTP: ${resReal.status}`)
-      setLog([...lines])
-      const data = await resReal.json()
-      lines.push(`Body: ${JSON.stringify(data)}`)
-      setLog([...lines])
-      if (data.status === 'identificado' || data.status === 'nao_identificado') {
-        setDone(true)
+      if (imageBase64) {
+        await callAnalyze(itemId, imageBase64, imageMimeType, usuarioAtual)
       }
-    } catch (e) {
-      lines.push(`ERRO JS: ${e instanceof Error ? e.message : String(e)}`)
-      setLog([...lines])
+    } catch {
+      // falha silenciosa — item permanece nao_identificado e usuario pode tentar de novo
     } finally {
       setLoading(false)
     }
   }
 
   return (
+    <button
+      type="button"
+      onClick={retry}
+      disabled={loading}
+      title="Re-analisar com IA"
+      className="flex-none w-8 h-8 flex items-center justify-center rounded-xl
+                 hover:bg-violet-50 transition-colors active:scale-90 disabled:opacity-50"
+    >
+      {loading
+        ? <Loader2 className="w-4 h-4 text-violet-400 animate-spin" />
+        : <RotateCcw className="w-4 h-4 text-violet-400" />
+      }
+    </button>
+  )
+}
+
+// ── Botão de captura de imagem (upload + analise automatica) ──────────────────
+
+type UploadState = 'idle' | 'uploading' | 'analyzing'
+
+function ImageCaptureButton({ itemId, usuarioAtual }: {
+  itemId: string
+  usuarioAtual: string | null
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [state, setState] = useState<UploadState>('idle')
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+
+    setState('uploading')
+    try {
+      const { base64, mimeType } = await fileToBase64(file)
+
+      const uploadRes = await fetch('/api/wishlist-items/upload-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: itemId, imageBase64: base64, imageMimeType: mimeType }),
+      })
+      if (!uploadRes.ok) { setState('idle'); return }
+
+      setState('analyzing')
+      await callAnalyze(itemId, base64, mimeType, usuarioAtual)
+    } catch {
+      // falha silenciosa — Realtime reflete o estado real do item
+    } finally {
+      setState('idle')
+    }
+  }
+
+  const label: Record<UploadState, string> = {
+    idle: 'Adicionar imagem',
+    uploading: 'Enviando...',
+    analyzing: 'Analisando...',
+  }
+
+  return (
     <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="sr-only"
+        onChange={handleFile}
+      />
       <button
         type="button"
-        onClick={retry}
-        disabled={loading}
-        title={done ? 'Concluído — toque para ver log' : 'Re-analisar com IA'}
-        className={`flex-none w-8 h-8 flex items-center justify-center rounded-xl
-                   transition-colors active:scale-90 disabled:opacity-50
-                   ${done ? 'hover:bg-green-50' : 'hover:bg-violet-50'}`}
+        disabled={state !== 'idle'}
+        onClick={() => inputRef.current?.click()}
+        title={label[state]}
+        className="flex-none w-8 h-8 flex items-center justify-center rounded-xl
+                   hover:bg-indigo-50 transition-colors active:scale-90 disabled:opacity-60"
       >
-        {loading
-          ? <Loader2 className="w-4 h-4 text-violet-400 animate-spin" />
-          : <RotateCcw className={`w-4 h-4 ${done ? 'text-green-500' : 'text-violet-400'}`} />
+        {state === 'idle'
+          ? <Camera className="w-4 h-4 text-indigo-400" />
+          : <Loader2 className="w-4 h-4 text-indigo-400 animate-spin" />
         }
       </button>
-
-      {showLog && log.length > 0 && typeof document !== 'undefined' && createPortal(
-        <div
-          className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/40"
-          onPointerDown={() => setShowLog(false)}
-        >
-          <div
-            className="w-full max-w-lg bg-white rounded-t-2xl shadow-2xl flex flex-col"
-            style={{ maxHeight: '70dvh' }}
-            onPointerDown={e => e.stopPropagation()}
-          >
-            {/* handle de arrasto visual + botão fechar */}
-            <div className="flex-none flex items-center justify-between px-4 pt-4 pb-2">
-              <span className="font-semibold text-gray-700 text-sm">Debug log</span>
-              <button
-                onPointerDown={e => { e.stopPropagation(); setShowLog(false) }}
-                className="w-9 h-9 flex items-center justify-center rounded-full bg-gray-100 active:bg-gray-200 text-gray-500 text-xl leading-none"
-              >×</button>
-            </div>
-            {/* área scrollável */}
-            <div
-              className="flex-1 overflow-y-auto px-4 pb-8 space-y-1.5 font-mono text-xs"
-              style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
-            >
-              {log.map((l, i) => (
-                <div key={i} className="text-gray-700 break-all leading-snug">{l}</div>
-              ))}
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
     </>
   )
 }
@@ -690,10 +710,13 @@ function WishlistCard({
             </span>
           </div>
 
-          {/* Right: avatar + retry-ia + star + realizar */}
+          {/* Right: camera + retry + avatar + star + realizar */}
           <div className="flex items-center gap-2 flex-none">
-            {item.fonte === 'compartilhamento' && (item.ai_status === 'nao_identificado' || item.ai_status === 'pendente') && (
-              <RetryIAButton itemId={item.id} imagemUrl={item.imagem_url ?? null} usuarioAtual={usuarioAtual} />
+            {item.ai_status === 'nao_identificado' && item.imagem_url && (
+              <RetryIAButton itemId={item.id} imagemUrl={item.imagem_url} usuarioAtual={usuarioAtual} />
+            )}
+            {!item.imagem_url && (
+              <ImageCaptureButton itemId={item.id} usuarioAtual={usuarioAtual} />
             )}
             {item.criado_por && (
               item.criado_por === 'conjunto'
@@ -905,6 +928,29 @@ function WishlistContent() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setUsuarioAtual(user?.email ?? null))
   }, [])
+
+  // Auto-analisa itens pendentes que aparecem na lista (ex: share-receiver criou o item
+  // mas o analyze ainda nao rodou ou falhou silenciosamente)
+  const autoAnalyzingRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const todos = [...ativos, ...historico]
+    const pendentes = todos.filter(
+      i => i.ai_status === 'pendente' && i.imagem_url && !autoAnalyzingRef.current.has(i.id)
+    )
+    if (!pendentes.length) return
+
+    pendentes.forEach(item => {
+      autoAnalyzingRef.current.add(item.id)
+      fetch(item.imagem_url!)
+        .then(r => r.ok ? r.arrayBuffer() : Promise.reject('fetch falhou'))
+        .then(buf => fileToBase64(buf))
+        .then(({ base64, mimeType }) =>
+          callAnalyze(item.id, base64, mimeType, usuarioAtual)
+        )
+        .catch(() => {})
+        .finally(() => autoAnalyzingRef.current.delete(item.id))
+    })
+  }, [ativos, historico, usuarioAtual])
 
   // Aplica filtro "Recentes" quando a página é aberta (ou recebe foco) via notificação
   useEffect(() => {
