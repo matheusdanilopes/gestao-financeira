@@ -37,7 +37,7 @@ Se nao houver produto claro, use nome "Produto compartilhado".`
             { inline_data: { mime_type: mimeType, data: base64 } },
           ],
         }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 200 },
+        generationConfig: { temperature: 0.1, maxOutputTokens: 1024 },
       }),
       signal: AbortSignal.timeout(20000),
     })
@@ -64,9 +64,14 @@ Se nao houver produto claro, use nome "Produto compartilhado".`
 
   if (!fullText) return { erro: `Gemini texto vazio. Raw: ${JSON.stringify(json).slice(0, 300)}` }
 
-  // Extrai o primeiro {…} — ignora qualquer prefixo ou sufixo textual
-  const match = fullText.match(/\{[\s\S]*?\}/)
-  if (!match) return { erro: `Sem JSON na resposta: ${fullText.slice(0, 300)}` }
+  // Normaliza aspas tipograficas antes de extrair o JSON
+  const normalised = fullText
+    .replace(/[“”„‟«»]/g, '"')
+    .replace(/[‘’‚‛]/g, "'")
+
+  // Greedy: pega do primeiro { ate o ultimo } (objeto JSON completo)
+  const match = normalised.match(/\{[\s\S]*\}/)
+  if (!match) return { erro: `Sem JSON na resposta (${fullText.length} chars): ${fullText.slice(0, 300)}` }
 
   try {
     const parsed = JSON.parse(match[0]) as { nome?: string; descricao?: string }
