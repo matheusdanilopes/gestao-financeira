@@ -70,7 +70,10 @@ Responda SOMENTE com o JSON.`
 
   if (!text) return { erro: `Gemini retornou texto vazio. JSON: ${JSON.stringify(json).slice(0, 300)}` }
 
-  const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/```$/, '').trim()
+  const clean = text
+    .replace(/^```(?:json)?\s*/i, '').replace(/```$/, '').trim()
+    .replace(/[“”„‟«»]/g, '"')  // aspas tipográficas duplas → "
+    .replace(/[‘’‚‛]/g, "'")               // aspas tipográficas simples → '
   try {
     const parsed = JSON.parse(clean) as { nome?: string; descricao?: string | null }
     if (!parsed?.nome) return { erro: `JSON sem campo nome: ${clean.slice(0, 200)}` }
