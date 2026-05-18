@@ -17,13 +17,13 @@ function getSupabase() {
 async function identificarProduto(
   base64: string,
   mimeType: string
-): Promise<{ nome: string; descricao: string | null } | { erro: string }> {
+): Promise<{ nome: string; descricao: string | null; preco: number | null } | { erro: string }> {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) return { erro: 'GEMINI_API_KEY não configurada' }
 
   const prompt = `Analise a imagem e identifique o produto principal. Responda SOMENTE com um objeto JSON, sem nenhum texto antes ou depois:
-{"nome":"Nome do produto, max 60 chars","descricao":"descricao curta ou null"}
-Se nao houver produto claro, use nome "Produto compartilhado".`
+{"nome":"Nome do produto, max 60 chars","descricao":"descricao curta ou null","preco":0.00}
+Regras: nome max 60 chars. descricao max 100 chars ou null. preco em reais como numero (ex: 49.90) se visivel na imagem, senão null. Se nao houver produto claro, use nome "Produto compartilhado".`
 
   let res: Response
   try {
@@ -74,11 +74,13 @@ Se nao houver produto claro, use nome "Produto compartilhado".`
   if (!match) return { erro: `Sem JSON na resposta (${fullText.length} chars): ${fullText.slice(0, 300)}` }
 
   try {
-    const parsed = JSON.parse(match[0]) as { nome?: string; descricao?: string }
+    const parsed = JSON.parse(match[0]) as { nome?: string; descricao?: string; preco?: number | string | null }
     if (!parsed?.nome) return { erro: `Campo nome ausente: ${match[0].slice(0, 200)}` }
+    const precoRaw = parsed.preco != null ? Number(String(parsed.preco).replace(',', '.')) : null
     return {
       nome: String(parsed.nome).slice(0, 60),
       descricao: parsed.descricao ? String(parsed.descricao).slice(0, 100) : null,
+      preco: precoRaw && isFinite(precoRaw) && precoRaw > 0 ? precoRaw : null,
     }
   } catch (e) {
     return { erro: `Parse falhou (${e instanceof Error ? e.message : String(e)}): ${match[0].slice(0, 200)}` }
@@ -160,8 +162,9 @@ export async function POST(req: NextRequest) {
   await supabase.from('wishlist_items').update({
     nome: resultado.nome,
     descricao_ia: resultado.descricao,
+    ...(resultado.preco != null ? { valor_estimado: resultado.preco } : {}),
     ai_status: 'identificado',
     updated_at: new Date().toISOString(),
   }).eq('id', id)
-  return NextResponse.json({ status: 'identificado', nome: resultado.nome, descricao: resultado.descricao })
+  return NextResponse.json({ status: 'identificado', nome: resultado.nome, descricao: resultado.descricao, preco: resultado.preco })
 }
