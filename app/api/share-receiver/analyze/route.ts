@@ -21,11 +21,9 @@ async function identificarProduto(
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) return { erro: 'GEMINI_API_KEY não configurada' }
 
-  const prompt = `Você é um assistente de lista de desejos. Analise a imagem e identifique o produto principal.
-
-Regras:
-- nome: nome claro e objetivo do produto, máximo 60 caracteres. Se não houver produto claro, use "Produto compartilhado".
-- descricao: descrição curta (modelo, cor, marca), máximo 100 caracteres. Deixe vazio se não souber.`
+  const prompt = `Analise a imagem e identifique o produto principal. Responda SOMENTE com um objeto JSON, sem nenhum texto antes ou depois:
+{"nome":"Nome do produto, max 60 chars","descricao":"descricao curta ou null"}
+Se nao houver produto claro, use nome "Produto compartilhado".`
 
   let res: Response
   try {
@@ -39,19 +37,7 @@ Regras:
             { inline_data: { mime_type: mimeType, data: base64 } },
           ],
         }],
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 200,
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: 'object',
-            properties: {
-              nome:     { type: 'string' },
-              descricao: { type: 'string' },
-            },
-            required: ['nome'],
-          },
-        },
+        generationConfig: { temperature: 0.1, maxOutputTokens: 200 },
       }),
       signal: AbortSignal.timeout(20000),
     })
@@ -68,17 +54,19 @@ Regras:
   try {
     json = await res.json()
   } catch (e) {
-    return { erro: `Resposta Gemini não é JSON: ${e instanceof Error ? e.message : String(e)}` }
+    return { erro: `Resposta Gemini nao e JSON: ${e instanceof Error ? e.message : String(e)}` }
   }
 
-  const text = ((json as { candidates?: { content?: { parts?: { text?: string }[] } }[] })
-    ?.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim()
+  // Concatena todos os parts de texto (modelo as vezes divide a resposta em multiplos parts)
+  type GeminiResp = { candidates?: { content?: { parts?: { text?: string }[] } }[] }
+  const parts = (json as GeminiResp)?.candidates?.[0]?.content?.parts ?? []
+  const fullText = parts.map(p => p.text ?? '').join('').trim()
 
-  if (!text) return { erro: `Gemini texto vazio. Resposta: ${JSON.stringify(json).slice(0, 300)}` }
+  if (!fullText) return { erro: `Gemini texto vazio. Raw: ${JSON.stringify(json).slice(0, 300)}` }
 
-  // Extrai o primeiro {…} da resposta — ignora qualquer prefixo textual do modelo
-  const match = text.match(/\{[\s\S]*\}/)
-  if (!match) return { erro: `Nenhum JSON encontrado: ${text.slice(0, 200)}` }
+  // Extrai o primeiro {…} — ignora qualquer prefixo ou sufixo textual
+  const match = fullText.match(/\{[\s\S]*?\}/)
+  if (!match) return { erro: `Sem JSON na resposta: ${fullText.slice(0, 300)}` }
 
   try {
     const parsed = JSON.parse(match[0]) as { nome?: string; descricao?: string }
