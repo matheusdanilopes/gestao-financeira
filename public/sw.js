@@ -1,21 +1,31 @@
-const CACHE_NAME = 'gestao-financeira-v3'
+const CACHE_NAME = 'gestao-financeira-v4'
 
 // Rotas críticas pré-cacheadas no install para garantir abertura offline
-// independente do histórico de navegação do usuário.
-const PRECACHE_ROUTES = ['/', '/dashboard', '/lista-mercado']
+const PRECACHE_ROUTES = ['/', '/dashboard', '/lista-mercado', '/financas', '/compras']
+
+// Timeout para requisições de navegação — evita tela branca em conexões lentas
+const NAVIGATION_TIMEOUT_MS = 4000
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function fetchWithTimeout(request, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout')), timeoutMs)
+    fetch(request).then(res => { clearTimeout(timer); resolve(res) }, err => { clearTimeout(timer); reject(err) })
+  })
+}
 
 // ── Lifecycle ──────────────────────────────────────────────────────────────
 
 self.addEventListener('install', (event) => {
   self.skipWaiting()
-  // Pré-cacheia rotas críticas enquanto o servidor ainda está acessível
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache =>
       Promise.allSettled(
         PRECACHE_ROUTES.map(url =>
           fetch(url, { redirect: 'follow' })
             .then(res => { if (res.ok) return cache.put(url, res) })
-            .catch(() => { /* sem rede durante install — será cacheado na 1ª visita */ })
+            .catch(() => {})
         )
       )
     )
@@ -23,7 +33,6 @@ self.addEventListener('install', (event) => {
 })
 
 self.addEventListener('activate', (event) => {
-  // Remove caches de versões anteriores e assume controle imediatamente
   event.waitUntil(
     caches.keys()
       .then(keys => Promise.all(
@@ -43,18 +52,19 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return
   if (!url.href.startsWith(self.location.origin)) return
 
-  // API calls: não intercepta — useDataSync já trata offline via cache localStorage
+  // API calls: não intercepta — useDataSync trata offline via localStorage
   if (url.pathname.startsWith('/api/')) return
 
   // Assets estáticos do Next.js (chunks JS/CSS com hash — imutáveis):
-  // cache-first → serve do cache instantaneamente quando disponível
+  // cache-first → serve do cache instantaneamente; network só na 1ª visita.
   if (url.pathname.startsWith('/_next/static/')) {
     event.respondWith(
       caches.match(request).then(cached => {
         if (cached) return cached
         return fetch(request).then(response => {
           if (response.ok) {
-            caches.open(CACHE_NAME).then(cache => cache.put(request, response.clone()))
+            const clone = response.clone()
+            caches.open(CACHE_NAME).then(cache => cache.put(request, clone))
           }
           return response
         })
@@ -63,25 +73,45 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Navegações de página (HTML): network-first com fallback para cache.
-  // Quando offline, serve a versão em cache da página ou qualquer página
-  // em cache como shell — o React lê a URL atual e renderiza a rota correta.
+  // Assets públicos imutáveis (imagens, ícones, splash screens):
+  // cache-first com revalidação em background (stale-while-revalidate)
+  if (
+    url.pathname.startsWith('/icon') ||
+    url.pathname.startsWith('/splash') ||
+    url.pathname.startsWith('/apple') ||
+    url.pathname.match(/\.(png|jpg|jpeg|webp|svg|ico|woff2|woff)$/)
+  ) {
+    event.respondWith(
+      caches.open(CACHE_NAME).then(async cache => {
+        const cached = await cache.match(request)
+        const fetchPromise = fetch(request).then(response => {
+          if (response.ok) cache.put(request, response.clone())
+          return response
+        }).catch(() => cached)
+
+        return cached ?? fetchPromise
+      })
+    )
+    return
+  }
+
+  // Navegações de página (HTML): network-first com timeout e fallback para cache.
+  // Timeout de 4s evita tela branca em conexões 3G lentas.
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
+      fetchWithTimeout(request, NAVIGATION_TIMEOUT_MS)
         .then(response => {
           if (response.ok) {
-            caches.open(CACHE_NAME).then(cache => cache.put(request, response.clone()))
+            const clone = response.clone()
+            caches.open(CACHE_NAME).then(cache => cache.put(request, clone))
           }
           return response
         })
         .catch(() =>
           caches.match(request).then(cached => {
             if (cached) return cached
-            // Fallback para /lista-mercado (rota com suporte offline completo)
             return caches.match('/lista-mercado').then(shell => {
               if (shell) return shell
-              // Fallback para /dashboard ou qualquer página em cache
               return caches.match('/dashboard').then(dash => {
                 if (dash) return dash
                 return caches.open(CACHE_NAME).then(cache =>
@@ -125,9 +155,7 @@ self.addEventListener('push', function (event) {
 
   event.waitUntil(
     Promise.all([
-      // Exibe a notificação do sistema — funciona mesmo com o app fechado
       self.registration.showNotification(title, options).catch(() => {}),
-      // Avisa clientes abertos para recarregar notificações sem depender só do Realtime
       self.clients.matchAll({ type: 'window', includeUncontrolled: true })
         .then(function (clientList) {
           clientList.forEach(function (client) {

@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { Bell, X, Check, CheckCheck, PiggyBank, CreditCard, TrendingUp, AlertTriangle, ThumbsUp, ThumbsDown, Heart } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
@@ -140,7 +140,7 @@ export default memo(function NotificacoesBell() {
       registrarServiceWorker(user.email)
     }
     init()
-  }, [])
+  }, [carregarNotificacoes])
 
   useEffect(() => {
     if (!usuarioEmail) return
@@ -182,7 +182,7 @@ export default memo(function NotificacoesBell() {
     }
     navigator.serviceWorker.addEventListener('message', handleSWMessage)
     return () => navigator.serviceWorker.removeEventListener('message', handleSWMessage)
-  }, [usuarioEmail])
+  }, [usuarioEmail, carregarNotificacoes])
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -194,15 +194,15 @@ export default memo(function NotificacoesBell() {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [aberto])
 
-  async function carregarNotificacoes(email: string) {
+  const carregarNotificacoes = useCallback(async (email: string) => {
     const { data } = await supabase
       .from('notificacoes')
-      .select('*')
+      .select('id, de_usuario, nome_usuario, acao, descricao, valor, lida, created_at, metadata')
       .neq('de_usuario', email)
       .order('created_at', { ascending: false })
-      .limit(50)
+      .limit(30)
     setNotificacoes(data ?? [])
-  }
+  }, [])
 
   async function registrarServiceWorker(email: string) {
     if (!('serviceWorker' in navigator)) return

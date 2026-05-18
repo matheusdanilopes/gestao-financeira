@@ -2,11 +2,37 @@
 
 import { Suspense, useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import MonthSelector from '@/components/MonthSelector'
-import ChecklistMensal from '@/components/ChecklistMensal'
-import ReceitasMensal from '@/components/ReceitasMensal'
-import InvestimentosMensal from '@/components/InvestimentosMensal'
 import { useMes } from '@/components/MesProvider'
+
+// Lazy-loaded — cada tab só carrega quando ativada pela primeira vez
+const ChecklistMensal = dynamic(() => import('@/components/ChecklistMensal'), {
+  ssr: false,
+  loading: () => <TabSkeleton />,
+})
+const ReceitasMensal = dynamic(() => import('@/components/ReceitasMensal'), {
+  ssr: false,
+  loading: () => <TabSkeleton />,
+})
+const InvestimentosMensal = dynamic(() => import('@/components/InvestimentosMensal'), {
+  ssr: false,
+  loading: () => <TabSkeleton />,
+})
+
+function TabSkeleton() {
+  return (
+    <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-6 animate-pulse space-y-3">
+      <div className="h-5 bg-gray-100 rounded-xl w-1/2" />
+      <div className="h-5 bg-gray-100 rounded-xl w-3/4" />
+      <div className="h-2 bg-gray-100 rounded-full mt-4" />
+      <div className="grid grid-cols-2 gap-3">
+        <div className="h-20 bg-gray-100 rounded-2xl" />
+        <div className="h-20 bg-gray-100 rounded-2xl" />
+      </div>
+    </div>
+  )
+}
 import { useDataSync } from '@/lib/useDataSync'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths } from 'date-fns'

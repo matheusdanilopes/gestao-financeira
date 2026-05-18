@@ -44,11 +44,14 @@ function buildMsg(job: JobStatus): string | null {
 const POLL_INTERVAL_MS = 3_000
 const MAX_POLL_MS = 10 * 60 * 1_000
 const RECENT_RESULT_MS = 2 * 60 * 1_000
+// Atraso antes de verificar status no mount — evita bloquear render inicial
+const MOUNT_CHECK_DELAY_MS = 2_000
 
 export function CategorizacaoProvider({ children }: { children: React.ReactNode }) {
   const [categorizando, setCategorizando] = useState(false)
   const [categorizadoMsg, setCategorizadoMsg] = useState<string | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const mountCheckRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pollStartRef = useRef(0)
 
   const stopPolling = useCallback(() => {
@@ -84,9 +87,10 @@ export function CategorizacaoProvider({ children }: { children: React.ReactNode 
     }, POLL_INTERVAL_MS)
   }, [stopPolling])
 
-  // Ao montar (ou reabrir o app): verifica se há job em andamento ou recém-concluído
+  // Ao montar: verifica se há job em andamento ou recém-concluído.
+  // O check é diferido para não competir com o fetch inicial das páginas.
   useEffect(() => {
-    async function checkOnMount() {
+    mountCheckRef.current = setTimeout(async () => {
       try {
         const res = await fetch('/api/categorizar/status')
         if (!res.ok) return
@@ -101,9 +105,12 @@ export function CategorizacaoProvider({ children }: { children: React.ReactNode 
           }
         }
       } catch { /* silencioso */ }
+    }, MOUNT_CHECK_DELAY_MS)
+
+    return () => {
+      if (mountCheckRef.current !== null) clearTimeout(mountCheckRef.current)
+      stopPolling()
     }
-    checkOnMount()
-    return stopPolling
   }, [startPolling, stopPolling])
 
   const categorizar = useCallback(() => {

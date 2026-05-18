@@ -47,6 +47,15 @@
 body {
   background-color: var(--color-bg);
   color: var(--color-text);
+  /* overscroll-contain elimina o bounce lag no iOS/Android e evita scroll-chaining */
+  overscroll-behavior: contain;
+  /* Evita reflows por seleção de texto durante scroll */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Transição de tema aplicada apenas quando a classe .theme-transition está ativa,
+   evitando paint desnecessário em cada navegação de rota. */
+body.theme-transition {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
@@ -196,6 +205,16 @@ body {
 .modal-center { animation: modal-fade-in  0.22s ease; }
 .modal-overlay { animation: overlay-in   0.2s ease; }
 
+/* ─── Scroll performático em containers ─────────────────────────────────── */
+/* Promove scroll para GPU — reduz jank em listas longas no mobile */
+.overflow-y-auto,
+.overflow-x-auto,
+.overflow-auto,
+[class*="overflow-y-"],
+[class*="overflow-x-"] {
+  -webkit-overflow-scrolling: touch;
+}
+
 /* ─── Scrollbar ───────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar       { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -239,9 +258,20 @@ body {
   padding-top: calc(0.75rem + var(--safe-top)) !important;
 }
 
-/* ─── Touch: remove sticky hover state on mobile ────────────────────────── */
-@media (hover: none) {
-  button:hover, a:hover { background-color: transparent !important; }
+/* ─── Touch: tap delay elimination e feedback tátil ─────────────────────── */
+/* touch-action: manipulation elimina o atraso de 300ms em tap em browsers legados */
+button, a, [role="button"] {
+  touch-action: manipulation;
+}
+
+/* Previne zoom automático do iOS em inputs com font-size < 16px */
+@media screen and (-webkit-min-device-pixel-ratio: 0) {
+  select, textarea, input {
+    font-size: 16px !important;
+  }
+  select:focus, textarea:focus, input:focus {
+    font-size: 16px !important;
+  }
 }
 
 /* ─── Fade-in page transition ────────────────────────────────────────────── */
@@ -321,6 +351,23 @@ body {
 .fab-sheet         { animation: fab-sheet-in          0.34s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .fab-sheet-overlay { animation: fab-sheet-overlay-in  0.22s ease; }
 .fab-form-enter    { animation: fab-form-enter         0.20s ease; }
+
+/* ─── Redução de motion para acessibilidade e bateria ───────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .animate-pulse,
+  .animate-spin,
+  .animate-scan-line,
+  .animate-wishlist-highlight {
+    animation: none !important;
+  }
+}
 
 /* ─── Responsive page utilities ─────────────────────────────────────────── */
 .page-content {

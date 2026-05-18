@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 
 export type Theme = 'light' | 'dark' | 'system'
 
@@ -18,10 +18,13 @@ export function useTheme() {
   return useContext(ThemeContext)
 }
 
+const TRANSITION_MS = 320
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>('system')
+  const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Load from localStorage on mount
+  // Carrega preferência do localStorage no mount
   useEffect(() => {
     try {
       const stored = localStorage.getItem('theme') as Theme | null
@@ -30,11 +33,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         setThemeState(stored)
       }
     } catch {
-      // localStorage unavailable (private/restricted browsers)
+      // localStorage indisponível
     }
   }, [])
 
-  // Apply dark class and listen to system changes
+  // Aplica dark class e escuta mudanças do sistema
   useEffect(() => {
     const root = document.documentElement
 
@@ -55,11 +58,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [theme])
 
   function setTheme(t: Theme) {
+    // Ativa a transição de cores apenas durante a troca de tema
+    const body = document.body
+    body.classList.add('theme-transition')
+    if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current)
+    transitionTimerRef.current = setTimeout(() => {
+      body.classList.remove('theme-transition')
+    }, TRANSITION_MS)
+
     setThemeState(t)
     try {
       localStorage.setItem('theme', t)
     } catch {
-      // Ignore localStorage errors
+      // localStorage indisponível
     }
   }
 
