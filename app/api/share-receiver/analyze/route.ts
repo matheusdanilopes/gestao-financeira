@@ -24,14 +24,14 @@ async function identificarProduto(
   const prompt = `Você é um assistente de lista de desejos. Analise a imagem e identifique o produto principal.
 
 Regras:
-- nome: nome claro e objetivo do produto, máximo 60 caracteres. Se não houver produto claro, use “Produto compartilhado”.
+- nome: nome claro e objetivo do produto, máximo 60 caracteres. Se não houver produto claro, use "Produto compartilhado".
 - descricao: descrição curta (modelo, cor, marca), máximo 100 caracteres. Deixe vazio se não souber.`
 
   let res: Response
   try {
     res = await fetch(GEMINI_URL, {
-      method: ‘POST’,
-      headers: { ‘Content-Type’: ‘application/json’, ‘x-goog-api-key’: apiKey },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       body: JSON.stringify({
         contents: [{
           parts: [
@@ -42,14 +42,14 @@ Regras:
         generationConfig: {
           temperature: 0.1,
           maxOutputTokens: 200,
-          responseMimeType: ‘application/json’,
+          responseMimeType: 'application/json',
           responseSchema: {
-            type: ‘object’,
+            type: 'object',
             properties: {
-              nome:     { type: ‘string’ },
-              descricao: { type: ‘string’ },
+              nome:     { type: 'string' },
+              descricao: { type: 'string' },
             },
-            required: [‘nome’],
+            required: ['nome'],
           },
         },
       }),
@@ -60,7 +60,7 @@ Regras:
   }
 
   if (!res.ok) {
-    const body = await res.text().catch(() => ‘’)
+    const body = await res.text().catch(() => '')
     return { erro: `Gemini HTTP ${res.status}: ${body.slice(0, 200)}` }
   }
 
@@ -72,7 +72,7 @@ Regras:
   }
 
   const text = ((json as { candidates?: { content?: { parts?: { text?: string }[] } }[] })
-    ?.candidates?.[0]?.content?.parts?.[0]?.text ?? ‘’).trim()
+    ?.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim()
 
   if (!text) return { erro: `Gemini retornou texto vazio. JSON: ${JSON.stringify(json).slice(0, 300)}` }
 
