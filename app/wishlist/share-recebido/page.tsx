@@ -10,6 +10,7 @@ function ShareRecebidoContent() {
 
   const id = searchParams.get('id')
   const statusParam = searchParams.get('status')
+  const stepParam = searchParams.get('step')
   const isErro = statusParam === 'erro' || !id
   const closingRef = useRef(false)
 
@@ -51,6 +52,9 @@ function ShareRecebidoContent() {
             <p className="text-sm text-violet-300 max-w-xs leading-relaxed">
               Verifique sua conexão e tente novamente.
             </p>
+            {stepParam && (
+              <p className="text-xs text-red-400 font-mono">erro: {stepParam}</p>
+            )}
           </div>
           <p className="text-xs text-violet-500">Fechando automaticamente...</p>
         </div>

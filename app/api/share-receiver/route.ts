@@ -21,12 +21,12 @@ export async function POST(req: NextRequest) {
   try {
     formData = await req.formData()
   } catch {
-    return NextResponse.redirect(`${origin}/wishlist/share-recebido?status=erro`, { status: 303 })
+    return NextResponse.redirect(`${origin}/wishlist/share-recebido?status=erro&step=formdata`, { status: 303 })
   }
 
   const imageFile = formData.get('image') as File | null
   if (!imageFile || !imageFile.size) {
-    return NextResponse.redirect(`${origin}/wishlist/share-recebido?status=erro`, { status: 303 })
+    return NextResponse.redirect(`${origin}/wishlist/share-recebido?status=erro&step=noimage`, { status: 303 })
   }
 
   const arrayBuffer = await imageFile.arrayBuffer()
@@ -35,40 +35,65 @@ export async function POST(req: NextRequest) {
   const ext = ['jpg', 'png', 'webp'].includes(rawExt) ? rawExt : 'jpg'
   const fileName = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`
 
-  // 1. Upload da imagem
+  // 1. Tenta upload — se o bucket não existir, continua sem imagem
+  let publicUrl: string | null = null
   const { data: uploadData, error: uploadError } = await supabase.storage
     .from(BUCKET)
     .upload(fileName, buffer, { contentType: imageFile.type || 'image/jpeg', upsert: false })
 
-  if (uploadError) {
-    return NextResponse.redirect(`${origin}/wishlist/share-recebido?status=erro`, { status: 303 })
+  if (!uploadError && uploadData) {
+    publicUrl = supabase.storage.from(BUCKET).getPublicUrl(uploadData.path).data.publicUrl
   }
 
-  const { data: { publicUrl } } = supabase.storage.from(BUCKET).getPublicUrl(uploadData.path)
+  // 2. Tenta INSERT com colunas novas; se falhar (migration não rodada), usa só as base
+  const payloadCompleto = {
+    nome: 'Produto compartilhado',
+    prioridade: 'media',
+    favoritado: false,
+    realizado: false,
+    criado_por: 'conjunto',
+    // colunas da migration v3 (podem não existir ainda)
+    ...(publicUrl ? { imagem_url: publicUrl } : {}),
+    ai_status: 'pendente',
+    fonte: 'compartilhamento',
+  }
 
-  // 2. Cria o item imediatamente com status pendente
-  const { data: item, error: insertError } = await supabase
+  let itemId: string | null = null
+
+  const { data: itemCompleto, error: errCompleto } = await supabase
     .from('wishlist_items')
-    .insert([{
+    .insert([payloadCompleto])
+    .select('id')
+    .single()
+
+  if (!errCompleto && itemCompleto) {
+    itemId = itemCompleto.id
+  } else {
+    // Fallback: insert só com colunas que existem desde a v1/v2
+    const payloadBase = {
       nome: 'Produto compartilhado',
       prioridade: 'media',
       favoritado: false,
       realizado: false,
-      ai_status: 'pendente',
-      imagem_url: publicUrl,
-      fonte: 'compartilhamento',
       criado_por: 'conjunto',
-    }])
-    .select('id')
-    .single()
+    }
+    const { data: itemBase, error: errBase } = await supabase
+      .from('wishlist_items')
+      .insert([payloadBase])
+      .select('id')
+      .single()
 
-  if (insertError || !item) {
-    return NextResponse.redirect(`${origin}/wishlist/share-recebido?status=erro`, { status: 303 })
+    if (!errBase && itemBase) {
+      itemId = itemBase.id
+    }
   }
 
-  // 3. Redireciona imediatamente — análise IA é disparada pelo cliente
+  if (!itemId) {
+    return NextResponse.redirect(`${origin}/wishlist/share-recebido?status=erro&step=insert`, { status: 303 })
+  }
+
   return NextResponse.redirect(
-    `${origin}/wishlist/share-recebido?id=${item.id}`,
+    `${origin}/wishlist/share-recebido?id=${itemId}`,
     { status: 303 }
   )
 }
