@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense, useCallback, type FormEvent, type ReactNode } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { Heart, Plus, Check, ExternalLink, X, Star, Search, RotateCcw, Trash2, ChevronDown } from 'lucide-react'
+import { Heart, Plus, Check, ExternalLink, X, Star, Search, RotateCcw, Trash2, ChevronDown, Camera, Loader2 } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { useWishlist, type WishlistItem } from '@/lib/useWishlist'
@@ -507,7 +507,7 @@ function WishlistCard({
             </p>
           </div>
 
-          {/* Badges: prioridade + categoria */}
+          {/* Badges: prioridade + categoria + IA status */}
           <div className="flex items-center gap-1.5 flex-wrap mb-2.5">
             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${cfg.bg} ${cfg.text}`}>
               <span className={`w-1.5 h-1.5 rounded-full flex-none ${cfg.dot}`} />
@@ -518,12 +518,24 @@ function WishlistCard({
                 {item.categoria}
               </span>
             )}
+            {item.fonte === 'compartilhamento' && item.ai_status === 'pendente' && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-violet-50 text-violet-500">
+                <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                Identificando...
+              </span>
+            )}
+            {item.fonte === 'compartilhamento' && item.ai_status !== 'pendente' && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-violet-50 text-violet-500">
+                <Camera className="w-2.5 h-2.5" />
+                Compartilhado
+              </span>
+            )}
           </div>
 
-          {/* Nota preview */}
-          {item.nota && (
+          {/* Descrição da IA ou nota */}
+          {(item.descricao_ia || item.nota) && (
             <p className="text-xs text-gray-500 line-clamp-1 italic">
-              &ldquo;{item.nota}&rdquo;
+              &ldquo;{item.descricao_ia ?? item.nota}&rdquo;
             </p>
           )}
         </button>
