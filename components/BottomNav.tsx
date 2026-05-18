@@ -39,6 +39,11 @@ const desktopItems = [
   { href: '/analytics',     label: 'Analytics',     icon: BarChart3,         desktopOnly: true  },
 ]
 
+// Cache de sessão em nível de módulo — persiste entre navegações de rota
+// e evita que cada mount do BottomNav faça um round-trip ao Supabase.
+let _cachedSession: Session | null = null
+let _sessionResolved = false
+
 // ── Sub-menus ─────────────────────────────────────────────────────────────────
 
 function FinancasMenuPopover({ onClose, router }: { onClose: () => void; router: ReturnType<typeof useRouter> }) {
@@ -210,18 +215,34 @@ function MobileNavItem({
 export default memo(function BottomNav() {
   const pathname = usePathname()
   const router   = useRouter()
-  const [session, setSession] = useState<Session | null>(null)
-  const [isCheckingSession, setIsCheckingSession] = useState(true)
+
+  // Inicializa com a sessão em cache para evitar flash de "não logado"
+  const [session, setSession] = useState<Session | null>(_cachedSession)
+  const [isCheckingSession, setIsCheckingSession] = useState(!_sessionResolved)
   const [openMenu, setOpenMenu] = useState<'financas' | 'cartao' | 'extras' | null>(null)
   const [fabSheetOpen, setFabSheetOpen] = useState(false)
   const { categorizando } = useCategorizacao()
 
   useEffect(() => {
+    // Se AUTH_DISABLED ou sessão já resolvida, não faz round-trip ao Supabase
+    if (AUTH_DISABLED) {
+      setIsCheckingSession(false)
+      return
+    }
+
+    if (_sessionResolved) {
+      setSession(_cachedSession)
+      setIsCheckingSession(false)
+      return
+    }
+
     let isMounted = true
 
     async function carregarSessao() {
       const { data } = await supabase.auth.getSession()
       if (isMounted) {
+        _cachedSession = data.session
+        _sessionResolved = true
         setSession(data.session)
         setIsCheckingSession(false)
       }
@@ -230,6 +251,8 @@ export default memo(function BottomNav() {
     carregarSessao()
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      _cachedSession = currentSession
+      _sessionResolved = true
       setSession(currentSession)
       setIsCheckingSession(false)
     })

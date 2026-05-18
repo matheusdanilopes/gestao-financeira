@@ -79,8 +79,18 @@ export function useDataSync({
   const isOnlineRef = useRef(
     typeof navigator !== 'undefined' ? navigator.onLine : true
   )
+
+  // Usa refs para callbacks e tables — evita que mudanças de referência
+  // disparem reconexões desnecessárias do Realtime ou re-adição de listeners.
+  const fetcherRef = useRef(fetcher)
+  const onDataRef = useRef(onData)
   const onReconnectRef = useRef(onReconnect)
-  useEffect(() => { onReconnectRef.current = onReconnect }, [onReconnect])
+  const tablesRef = useRef(tables)
+
+  useEffect(() => { fetcherRef.current = fetcher })
+  useEffect(() => { onDataRef.current = onData })
+  useEffect(() => { onReconnectRef.current = onReconnect })
+  useEffect(() => { tablesRef.current = tables })
 
   // ── Cache helpers ──────────────────────────────────────────────
   const readCache = useCallback((): unknown | null => {
@@ -116,17 +126,19 @@ export function useDataSync({
   }, [cacheKey])
 
   // ── Fetch principal ────────────────────────────────────────────
+  // Depende apenas de writeCache (estável por cacheKey) — fetcher e onData
+  // são acessados via refs para não causar recriações desnecessárias.
   const doFetch = useCallback(async () => {
     if (!isMountedRef.current || !isOnlineRef.current) return
     if (isFetchingRef.current) return
     isFetchingRef.current = true
     try {
-      const data = await fetcher()
+      const data = await fetcherRef.current()
       if (!isMountedRef.current) return
       if (data !== undefined && data !== null) {
         const changed = writeCache(data)
         // Só repropaga para a UI se os dados mudaram
-        if (changed) onData?.(data)
+        if (changed) onDataRef.current?.(data)
       }
       setStatus('fresh')
       setLastUpdated(new Date())
@@ -137,19 +149,20 @@ export function useDataSync({
     } finally {
       isFetchingRef.current = false
     }
-  }, [fetcher, onData, writeCache])
+  }, [writeCache])
 
   // ── Realtime ───────────────────────────────────────────────────
+  // tablesRef evita que mudanças de referência do array disparem reconexões
   const setupRealtime = useCallback(() => {
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current)
       channelRef.current = null
     }
-    if (tables.length === 0) return
+    if (tablesRef.current.length === 0) return
 
     const channel = supabase.channel(`datasync:${cacheKey}`)
 
-    tables.forEach((table) => {
+    tablesRef.current.forEach((table) => {
       channel.on(
         'postgres_changes' as Parameters<typeof channel.on>[0],
         { event: '*', schema: 'public', table },
@@ -162,7 +175,7 @@ export function useDataSync({
 
     channel.subscribe()
     channelRef.current = channel
-  }, [cacheKey, tables, doFetch])
+  }, [cacheKey, doFetch])
 
   // ── Polling fallback ───────────────────────────────────────────
   const startPolling = useCallback(() => {
@@ -180,6 +193,8 @@ export function useDataSync({
   }, [])
 
   // ── Online / Offline ───────────────────────────────────────────
+  // setupRealtime e doFetch são estáveis (cacheKey-scoped) — este efeito
+  // só re-roda quando cacheKey muda, não a cada render do pai.
   useEffect(() => {
     async function handleOnline() {
       isOnlineRef.current = true
@@ -222,7 +237,7 @@ export function useDataSync({
     // 1. Serve cache imediatamente (stale-while-revalidate)
     const cached = readCache()
     if (cached !== null) {
-      onData?.(cached)
+      onDataRef.current?.(cached)
       setStatus('stale')
     }
 

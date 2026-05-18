@@ -54,6 +54,13 @@ export default function RootLayout({
             `,
           }}
         />
+        {/* Resource hints — pré-conecta ao Supabase para reduzir latência do 1º fetch */}
+        {process.env.NEXT_PUBLIC_SUPABASE_URL && (
+          <>
+            <link rel="preconnect" href={process.env.NEXT_PUBLIC_SUPABASE_URL} />
+            <link rel="dns-prefetch" href={process.env.NEXT_PUBLIC_SUPABASE_URL} />
+          </>
+        )}
         {/* Manifests adaptativos — Android escolhe pelo prefers-color-scheme */}
         <link rel="manifest" href="/manifest.json" />
         <meta name="apple-mobile-web-app-capable" content="yes" />

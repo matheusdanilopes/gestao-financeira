@@ -39,9 +39,10 @@ const GraficoEvolucaoInvestimentos = dynamic(
     ),
   }
 )
-import DrawerDetalhes from '@/components/DrawerDetalhes'
-import PeriodSelectorSheet from '@/components/PeriodSelectorSheet'
 import { InfoPopover } from '@/components/InfoPopover'
+
+const DrawerDetalhes = dynamic(() => import('@/components/DrawerDetalhes'), { ssr: false })
+const PeriodSelectorSheet = dynamic(() => import('@/components/PeriodSelectorSheet'), { ssr: false })
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { formatBRL as fmt } from '@/lib/logger'
 
@@ -328,34 +329,42 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   }
 }
 
+const FATURA_INICIAL: FaturaState = {
+  totalRealizado: 0, matheusAtual: 0, matheusPrevisto: 0, matheusProjecaoParcelas: 0,
+  jenifferAtual: 0, jenifferPrevisto: 0, jenifferProjecaoParcelas: 0,
+  sobraMatheus: 0, sobraJeniffer: 0, cartao1Items: [], cartao2Items: [],
+  cartao1AtualMatheus: 0, cartao1AtualJeniffer: 0, cartao2AtualMatheus: 0, cartao2AtualJeniffer: 0,
+  cartao1Previsto: 0, cartao2Previsto: 0, cartao1Nome: 'Cartão 1', cartao2Nome: 'Cartão 2',
+}
+
+const RESUMO_INICIAL: ResumoCaixaState = {
+  receitaTotal: 0, contasFixas: 0, fatura: 0, faturaEhPrevisto: false, extras: 0,
+  totalGastos: 0, sobraLiquida: 0, saldoPrevisto: 0, percentualComprometimento: 0,
+}
+
 export default function Dashboard() {
   const { mesAtual, setMesAtual } = useMes()
-  const [fatura, setFatura] = useState<FaturaState>({
-    totalRealizado: 0, matheusAtual: 0, matheusPrevisto: 0, matheusProjecaoParcelas: 0,
-    jenifferAtual: 0, jenifferPrevisto: 0, jenifferProjecaoParcelas: 0,
-    sobraMatheus: 0, sobraJeniffer: 0, cartao1Items: [], cartao2Items: [],
-    cartao1AtualMatheus: 0, cartao1AtualJeniffer: 0, cartao2AtualMatheus: 0, cartao2AtualJeniffer: 0,
-    cartao1Previsto: 0, cartao2Previsto: 0, cartao1Nome: 'Cartão 1', cartao2Nome: 'Cartão 2',
+
+  // Estado consolidado — um único setState em vez de 5 individuais
+  // elimina múltiplos re-renders encadeados no applyData.
+  const [dados, setDados] = useState<DashboardData>({
+    fatura: FATURA_INICIAL,
+    resumoCaixa: RESUMO_INICIAL,
+    investimentos: [],
+    assinaturasNaopagas: { matheus: 0, jeniffer: 0 },
+    dataFechamentoNubank: null,
   })
-  const [resumoCaixa, setResumoCaixa] = useState<ResumoCaixaState>({
-    receitaTotal: 0, contasFixas: 0, fatura: 0, faturaEhPrevisto: false, extras: 0,
-    totalGastos: 0, sobraLiquida: 0, saldoPrevisto: 0, percentualComprometimento: 0,
-  })
-  const [investimentos, setInvestimentos] = useState<{ id: string; descricao: string; percentual: number; aportado: number }[]>([])
-  const [assinaturasNaopagas, setAssinaturasNaopagas] = useState({ matheus: 0, jeniffer: 0 })
+
   const [seletorAberto, setSeletorAberto] = useState(false)
   const [drawerAberto, setDrawerAberto] = useState(false)
   const [detalhesPonto, setDetalhesPonto] = useState<{ serie: string; mes: string; valor: number; itens: Record<string, unknown>[] } | null>(null) // itens typed loosely; DrawerDetalhes accepts DrawerItem[] which is compatible
-  const [dataFechamentoNubank, setDataFechamentoNubank] = useState<string | null>(null)
+
+  // Extrai os campos do estado consolidado — sem custo de performance
+  const { fatura, resumoCaixa, investimentos, assinaturasNaopagas, dataFechamentoNubank } = dados
 
   // Aplica dados vindos do cache (stale) ou do fetch fresco — sem mostrar skeleton
   const applyData = useCallback((data: unknown) => {
-    const d = data as DashboardData
-    setFatura(d.fatura)
-    setResumoCaixa(d.resumoCaixa)
-    setInvestimentos(d.investimentos)
-    setAssinaturasNaopagas(d.assinaturasNaopagas)
-    setDataFechamentoNubank(d.dataFechamentoNubank)
+    setDados(data as DashboardData)
   }, [])
 
   const fetcher = useCallback(
