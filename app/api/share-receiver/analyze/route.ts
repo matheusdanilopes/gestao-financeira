@@ -17,9 +17,9 @@ function getSupabase() {
 async function identificarProduto(
   base64: string,
   mimeType: string
-): Promise<{ nome: string; descricao: string | null } | null> {
+): Promise<{ nome: string; descricao: string | null } | { erro: string }> {
   const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey) return null
+  if (!apiKey) return { erro: 'GEMINI_API_KEY não configurada' }
 
   const prompt = `Você é um assistente de lista de desejos. Analise a imagem e identifique o produto principal.
 
@@ -33,8 +33,9 @@ Regras:
 
 Responda SOMENTE com o JSON.`
 
+  let res: Response
   try {
-    const res = await fetch(GEMINI_URL, {
+    res = await fetch(GEMINI_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       body: JSON.stringify({
@@ -48,20 +49,37 @@ Responda SOMENTE com o JSON.`
       }),
       signal: AbortSignal.timeout(20000),
     })
+  } catch (e) {
+    return { erro: `fetch Gemini falhou: ${e instanceof Error ? e.message : String(e)}` }
+  }
 
-    if (!res.ok) return null
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    return { erro: `Gemini HTTP ${res.status}: ${body.slice(0, 200)}` }
+  }
 
-    const json = await res.json()
-    const text = (json?.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim()
-    const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/```$/, '').trim()
-    const parsed = JSON.parse(clean)
-    if (!parsed?.nome) return null
+  let json: unknown
+  try {
+    json = await res.json()
+  } catch (e) {
+    return { erro: `JSON inválido da resposta Gemini: ${e instanceof Error ? e.message : String(e)}` }
+  }
+
+  const text = ((json as { candidates?: { content?: { parts?: { text?: string }[] } }[] })
+    ?.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim()
+
+  if (!text) return { erro: `Gemini retornou texto vazio. JSON: ${JSON.stringify(json).slice(0, 300)}` }
+
+  const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/```$/, '').trim()
+  try {
+    const parsed = JSON.parse(clean) as { nome?: string; descricao?: string | null }
+    if (!parsed?.nome) return { erro: `JSON sem campo nome: ${clean.slice(0, 200)}` }
     return {
       nome: String(parsed.nome).slice(0, 60),
       descricao: parsed.descricao ? String(parsed.descricao).slice(0, 100) : null,
     }
-  } catch {
-    return null
+  } catch (e) {
+    return { erro: `Parse JSON falhou (${e instanceof Error ? e.message : String(e)}): ${clean.slice(0, 200)}` }
   }
 }
 
@@ -129,20 +147,19 @@ export async function POST(req: NextRequest) {
 
   const resultado = await identificarProduto(base64, mimeType)
 
-  if (resultado) {
+  if ('erro' in resultado) {
     await supabase.from('wishlist_items').update({
-      nome: resultado.nome,
-      descricao_ia: resultado.descricao,
-      ai_status: 'identificado',
+      ai_status: 'nao_identificado',
       updated_at: new Date().toISOString(),
     }).eq('id', id)
-    return NextResponse.json({ status: 'identificado', nome: resultado.nome, descricao: resultado.descricao })
+    return NextResponse.json({ status: 'nao_identificado', debug: resultado.erro })
   }
 
   await supabase.from('wishlist_items').update({
-    nome: 'Produto compartilhado',
-    ai_status: 'nao_identificado',
+    nome: resultado.nome,
+    descricao_ia: resultado.descricao,
+    ai_status: 'identificado',
     updated_at: new Date().toISOString(),
   }).eq('id', id)
-  return NextResponse.json({ status: 'nao_identificado' })
+  return NextResponse.json({ status: 'identificado', nome: resultado.nome, descricao: resultado.descricao })
 }
