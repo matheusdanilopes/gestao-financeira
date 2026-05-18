@@ -532,16 +532,15 @@ function RetryIAButton({ itemId, imagemUrl }: { itemId: string; imagemUrl: strin
   }
 
   return (
-    <div className="relative">
+    <>
       <button
         type="button"
         onClick={retry}
         disabled={loading}
-        title={done ? 'Concluído — ver log' : 'Re-analisar com IA'}
+        title={done ? 'Concluído — toque para ver log' : 'Re-analisar com IA'}
         className={`flex-none w-8 h-8 flex items-center justify-center rounded-xl
                    transition-colors active:scale-90 disabled:opacity-50
                    ${done ? 'hover:bg-green-50' : 'hover:bg-violet-50'}`}
-        onContextMenu={e => { e.preventDefault(); setShowLog(v => !v) }}
       >
         {loading
           ? <Loader2 className="w-4 h-4 text-violet-400 animate-spin" />
@@ -551,20 +550,29 @@ function RetryIAButton({ itemId, imagemUrl }: { itemId: string; imagemUrl: strin
 
       {showLog && log.length > 0 && (
         <div
-          className="absolute right-0 top-10 z-50 w-80 rounded-xl border border-gray-200
-                     bg-white shadow-xl p-3 text-xs font-mono space-y-1"
-          onClick={e => e.stopPropagation()}
+          className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/40"
+          onClick={() => setShowLog(false)}
         >
-          <div className="flex items-center justify-between mb-1">
-            <span className="font-semibold text-gray-600">Debug log</span>
-            <button onClick={() => setShowLog(false)} className="text-gray-400 hover:text-gray-600 text-base leading-none">×</button>
+          <div
+            className="w-full max-w-lg bg-white rounded-t-2xl p-4 pb-8 shadow-2xl max-h-[70vh] flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="font-semibold text-gray-700 text-sm">Debug log</span>
+              <button
+                onClick={() => setShowLog(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 text-lg"
+              >×</button>
+            </div>
+            <div className="overflow-y-auto flex-1 space-y-1.5 font-mono text-xs">
+              {log.map((l, i) => (
+                <div key={i} className="text-gray-700 break-all leading-snug">{l}</div>
+              ))}
+            </div>
           </div>
-          {log.map((l, i) => (
-            <div key={i} className="text-gray-700 break-all leading-tight">{l}</div>
-          ))}
         </div>
       )}
-    </div>
+    </>
   )
 }
 
