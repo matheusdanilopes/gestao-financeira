@@ -88,8 +88,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Item não encontrado' }, { status: 404 })
   }
 
-  if (item.ai_status !== 'pendente') {
-    return NextResponse.json({ status: item.ai_status })
+  // Só pula se já foi identificado com sucesso
+  if (item.ai_status === 'identificado') {
+    return NextResponse.json({ status: 'identificado' })
   }
 
   // Extrai o caminho do arquivo a partir da URL pública
