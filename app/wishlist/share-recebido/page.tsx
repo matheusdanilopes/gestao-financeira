@@ -2,9 +2,14 @@
 
 import { useEffect, useRef, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabaseClient'
 import { CheckCircle2, AlertCircle, Loader2, ShoppingBag } from 'lucide-react'
 
 type AiStatus = 'loading' | 'identificado' | 'nao_identificado' | 'pendente' | 'erro'
+
+// Intervalo e limite do polling
+const POLL_INTERVAL_MS = 2000
+const MAX_POLL_MS = 22000
 
 function ShareRecebidoContent() {
   const searchParams = useSearchParams()
@@ -15,43 +20,52 @@ function ShareRecebidoContent() {
   const [status, setStatus] = useState<AiStatus>(statusParam === 'erro' ? 'erro' : 'loading')
   const [nomeProduto, setNomeProduto] = useState<string | null>(null)
   const closingRef = useRef(false)
-  const analyzedRef = useRef(false)
 
   const fechar = (delay = 3000) => {
     if (closingRef.current) return
     closingRef.current = true
-    setTimeout(() => {
-      router.replace('/wishlist')
-    }, delay)
+    setTimeout(() => router.replace('/wishlist'), delay)
   }
 
-  // Trigger AI analysis immediately on mount, then wait for result
   useEffect(() => {
-    if (!id || statusParam === 'erro' || analyzedRef.current) {
-      if (statusParam === 'erro') fechar(4000)
+    if (!id || statusParam === 'erro') {
+      fechar(statusParam === 'erro' ? 4000 : 0)
       return
     }
-    analyzedRef.current = true
 
-    const analisar = async () => {
+    const deadline = Date.now() + MAX_POLL_MS
+    let timer: ReturnType<typeof setTimeout>
+
+    const poll = async () => {
       try {
-        const res = await fetch('/api/share-receiver/analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id }),
-        })
-        if (!res.ok) throw new Error('analyze failed')
-        const data = await res.json()
-        setStatus(data.status as AiStatus)
-        if (data.nome) setNomeProduto(data.nome)
+        const { data } = await supabase
+          .from('wishlist_items')
+          .select('ai_status, nome')
+          .eq('id', id)
+          .single()
+
+        if (data && data.ai_status !== 'pendente') {
+          setStatus(data.ai_status as AiStatus)
+          if (data.nome && data.nome !== 'Produto compartilhado') setNomeProduto(data.nome)
+          fechar()
+          return
+        }
       } catch {
-        setStatus('nao_identificado')
-      } finally {
-        fechar()
+        // ignora erros transitórios de rede
       }
+
+      if (Date.now() >= deadline) {
+        setStatus('nao_identificado')
+        fechar(4000)
+        return
+      }
+
+      timer = setTimeout(poll, POLL_INTERVAL_MS)
     }
 
-    analisar()
+    // Aguarda 1s antes do primeiro poll para dar tempo ao after() iniciar
+    timer = setTimeout(poll, 1000)
+    return () => clearTimeout(timer)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, statusParam])
 
@@ -124,9 +138,7 @@ function ShareRecebidoContent() {
           </p>
           <p className="text-xs text-amber-400">O produto foi salvo na sua Wishlist.</p>
         </div>
-        <p className="text-xs text-violet-500">
-          Fechando automaticamente...
-        </p>
+        <p className="text-xs text-violet-500">Fechando automaticamente...</p>
       </div>
     </div>
   )
