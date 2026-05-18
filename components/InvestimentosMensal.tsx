@@ -363,7 +363,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
           onImport={abrirModalImportar}
           addDisabled={totalPercentual >= 100}
           addColorClass="bg-violet-600 text-white hover:bg-violet-700"
-          importColorClass="bg-orange-500 text-white hover:bg-orange-600"
+          importColorClass="bg-gray-100 text-gray-600 hover:bg-gray-200"
         />
       )}
 
