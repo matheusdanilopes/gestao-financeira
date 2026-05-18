@@ -467,21 +467,31 @@ function ModalWishlist({
 function RetryIAButton({ itemId, imagemUrl }: { itemId: string; imagemUrl: string | null }) {
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
-  const [erro, setErro] = useState(false)
+  const [log, setLog] = useState<string[]>([])
+  const [showLog, setShowLog] = useState(false)
 
   async function retry() {
-    if (loading || done) return
+    if (loading) return
+    setDone(false)
     setLoading(true)
-    setErro(false)
+    const lines: string[] = [`[${new Date().toLocaleTimeString()}] Iniciando retry — id: ${itemId}`]
+    setLog(lines)
+    setShowLog(true)
+
     try {
       let body: Record<string, string> = { id: itemId }
 
       if (imagemUrl) {
+        lines.push(`Buscando imagem: ${imagemUrl.slice(-40)}`)
+        setLog([...lines])
         const imgRes = await fetch(imagemUrl)
+        lines.push(`Fetch imagem → HTTP ${imgRes.status}`)
+        setLog([...lines])
         if (imgRes.ok) {
           const buf = await imgRes.arrayBuffer()
-          // btoa com chunk de 8 KB evita estouro de call stack em imagens grandes
           const uint8 = new Uint8Array(buf)
+          lines.push(`Imagem baixada: ${(uint8.length / 1024).toFixed(1)} KB`)
+          setLog([...lines])
           let binary = ''
           for (let i = 0; i < uint8.length; i += 8192) {
             binary += String.fromCharCode(...uint8.subarray(i, i + 8192))
@@ -489,44 +499,72 @@ function RetryIAButton({ itemId, imagemUrl }: { itemId: string; imagemUrl: strin
           const base64 = btoa(binary)
           const mimeType = imgRes.headers.get('content-type') ?? 'image/jpeg'
           body = { ...body, imageBase64: base64, imageMimeType: mimeType }
+          lines.push(`base64 gerado (${mimeType})`)
+          setLog([...lines])
         }
+      } else {
+        lines.push('imagem_url é null — enviando só o id')
+        setLog([...lines])
       }
 
-      const res = await fetch('/api/share-receiver/analyze', {
+      const bodySize = JSON.stringify(body).length
+      lines.push(`Chamando POST /api/share-receiver/analyze (${(bodySize / 1024).toFixed(1)} KB)`)
+      setLog([...lines])
+      const resReal = await fetch('/api/share-receiver/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      const data = await res.json()
+      lines.push(`Resposta HTTP: ${resReal.status}`)
+      setLog([...lines])
+      const data = await resReal.json()
+      lines.push(`Body: ${JSON.stringify(data)}`)
+      setLog([...lines])
       if (data.status === 'identificado' || data.status === 'nao_identificado') {
         setDone(true)
-      } else {
-        setErro(true)
       }
-    } catch {
-      setErro(true)
+    } catch (e) {
+      lines.push(`ERRO JS: ${e instanceof Error ? e.message : String(e)}`)
+      setLog([...lines])
     } finally {
       setLoading(false)
     }
   }
 
-  if (done) return null
-
   return (
-    <button
-      type="button"
-      onClick={retry}
-      disabled={loading}
-      title={erro ? 'Falhou — tentar novamente' : 'Re-analisar com IA'}
-      className={`flex-none w-8 h-8 flex items-center justify-center rounded-xl
-                 transition-colors active:scale-90 disabled:opacity-50
-                 ${erro ? 'hover:bg-red-50' : 'hover:bg-violet-50'}`}
-    >
-      {loading
-        ? <Loader2 className="w-4 h-4 text-violet-400 animate-spin" />
-        : <RotateCcw className={`w-4 h-4 ${erro ? 'text-red-400' : 'text-violet-400'}`} />
-      }
-    </button>
+    <div className="relative">
+      <button
+        type="button"
+        onClick={retry}
+        disabled={loading}
+        title={done ? 'Concluído — ver log' : 'Re-analisar com IA'}
+        className={`flex-none w-8 h-8 flex items-center justify-center rounded-xl
+                   transition-colors active:scale-90 disabled:opacity-50
+                   ${done ? 'hover:bg-green-50' : 'hover:bg-violet-50'}`}
+        onContextMenu={e => { e.preventDefault(); setShowLog(v => !v) }}
+      >
+        {loading
+          ? <Loader2 className="w-4 h-4 text-violet-400 animate-spin" />
+          : <RotateCcw className={`w-4 h-4 ${done ? 'text-green-500' : 'text-violet-400'}`} />
+        }
+      </button>
+
+      {showLog && log.length > 0 && (
+        <div
+          className="absolute right-0 top-10 z-50 w-80 rounded-xl border border-gray-200
+                     bg-white shadow-xl p-3 text-xs font-mono space-y-1"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="font-semibold text-gray-600">Debug log</span>
+            <button onClick={() => setShowLog(false)} className="text-gray-400 hover:text-gray-600 text-base leading-none">×</button>
+          </div>
+          {log.map((l, i) => (
+            <div key={i} className="text-gray-700 break-all leading-tight">{l}</div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
