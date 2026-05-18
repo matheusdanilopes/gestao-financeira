@@ -103,6 +103,7 @@ export async function POST(req: NextRequest) {
       ai_status: 'pendente',
       imagem_url: publicUrl,
       fonte: 'compartilhamento',
+      criado_por: 'conjunto',
     }])
     .select('id')
     .single()

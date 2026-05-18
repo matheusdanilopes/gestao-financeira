@@ -24,7 +24,10 @@ function ShareRecebidoContent() {
   const fechar = (delay = 3000) => {
     if (closingRef.current) return
     closingRef.current = true
-    setTimeout(() => router.replace('/wishlist'), delay)
+    const destino = id
+      ? `/wishlist?highlight=${id}&ordem=mais-novo`
+      : '/wishlist'
+    setTimeout(() => router.replace(destino), delay)
   }
 
   useEffect(() => {
