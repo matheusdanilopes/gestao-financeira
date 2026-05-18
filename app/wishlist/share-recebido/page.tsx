@@ -3,6 +3,7 @@
 import { useEffect, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
+import { supabase } from '@/lib/supabaseClient'
 
 function ShareRecebidoContent() {
   const searchParams = useSearchParams()
@@ -20,14 +21,14 @@ function ShareRecebidoContent() {
       return
     }
 
-    // Dispara análise IA em segundo plano — fetch intencional sem await.
-    // O browser mantém a requisição ativa mesmo após o componente desmontar,
-    // então o item se atualiza via Realtime na wishlist enquanto o usuário navega.
-    fetch('/api/share-receiver/analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    }).catch(() => {})
+    // Dispara análise IA com o email do usuário logado para associar o item corretamente
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      fetch('/api/share-receiver/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, criado_por: user?.email ?? null }),
+      }).catch(() => {})
+    })
 
     // Fecha para wishlist após 3s, sem esperar o resultado da IA
     const timer = setTimeout(() => {

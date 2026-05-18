@@ -465,7 +465,7 @@ function ModalWishlist({
 
 // ── Botão de re-análise IA ────────────────────────────────────────────────────
 
-function RetryIAButton({ itemId, imagemUrl }: { itemId: string; imagemUrl: string | null }) {
+function RetryIAButton({ itemId, imagemUrl, usuarioAtual }: { itemId: string; imagemUrl: string | null; usuarioAtual: string | null }) {
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
   const [log, setLog] = useState<string[]>([])
@@ -475,7 +475,7 @@ function RetryIAButton({ itemId, imagemUrl }: { itemId: string; imagemUrl: strin
     if (loading) return
     setDone(false)
     setLoading(true)
-    const lines: string[] = [`[${new Date().toLocaleTimeString()}] Iniciando retry — id: ${itemId}`]
+    const lines: string[] = [`[${new Date().toLocaleTimeString()}] Iniciando retry — id: ${itemId} — user: ${usuarioAtual ?? 'null'}`]
     setLog(lines)
     setShowLog(true)
 
@@ -508,6 +508,7 @@ function RetryIAButton({ itemId, imagemUrl }: { itemId: string; imagemUrl: strin
         setLog([...lines])
       }
 
+      if (usuarioAtual) body = { ...body, criado_por: usuarioAtual }
       const bodySize = JSON.stringify(body).length
       lines.push(`Chamando POST /api/share-receiver/analyze (${(bodySize / 1024).toFixed(1)} KB)`)
       setLog([...lines])
@@ -590,6 +591,7 @@ function WishlistCard({
   item,
   mostraHint,
   highlighted,
+  usuarioAtual,
   onEditar,
   onRealizar,
   onExcluir,
@@ -598,6 +600,7 @@ function WishlistCard({
   item: WishlistItem
   mostraHint: boolean
   highlighted?: boolean
+  usuarioAtual: string | null
   onEditar: (item: WishlistItem) => void
   onRealizar: (id: string) => unknown
   onExcluir: (id: string) => unknown
@@ -690,7 +693,7 @@ function WishlistCard({
           {/* Right: avatar + retry-ia + star + realizar */}
           <div className="flex items-center gap-2 flex-none">
             {item.fonte === 'compartilhamento' && (item.ai_status === 'nao_identificado' || item.ai_status === 'pendente') && (
-              <RetryIAButton itemId={item.id} imagemUrl={item.imagem_url ?? null} />
+              <RetryIAButton itemId={item.id} imagemUrl={item.imagem_url ?? null} usuarioAtual={usuarioAtual} />
             )}
             {item.criado_por && (
               item.criado_por === 'conjunto'
@@ -1351,6 +1354,7 @@ function WishlistContent() {
                     item={item}
                     mostraHint={idx === 0 && !hintVisto}
                     highlighted={highlightId === item.id}
+                    usuarioAtual={usuarioAtual}
                     onEditar={abrirEditar}
                     onRealizar={handleRealizar}
                     onExcluir={handleExcluir}

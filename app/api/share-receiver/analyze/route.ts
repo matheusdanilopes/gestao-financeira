@@ -88,14 +88,14 @@ Regras: nome max 60 chars. descricao max 100 chars ou null. preco em reais como 
 }
 
 export async function POST(req: NextRequest) {
-  let body: { id?: string; imageBase64?: string; imageMimeType?: string } | null = null
+  let body: { id?: string; imageBase64?: string; imageMimeType?: string; criado_por?: string | null } | null = null
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'Corpo inválido' }, { status: 400 })
   }
 
-  const { id, imageBase64, imageMimeType } = body ?? {}
+  const { id, imageBase64, imageMimeType, criado_por } = body ?? {}
   if (!id) return NextResponse.json({ error: 'id obrigatório' }, { status: 400 })
 
   const supabase = getSupabase()
@@ -163,6 +163,7 @@ export async function POST(req: NextRequest) {
     nome: resultado.nome,
     descricao_ia: resultado.descricao,
     ...(resultado.preco != null ? { valor_estimado: resultado.preco } : {}),
+    ...(criado_por ? { criado_por } : {}),
     ai_status: 'identificado',
     updated_at: new Date().toISOString(),
   }).eq('id', id)
