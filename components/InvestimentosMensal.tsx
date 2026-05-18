@@ -6,7 +6,8 @@ import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths } from 'date-fns'
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { ptBR } from 'date-fns/locale'
-import { PiggyBank, Plus, Download, CirclePlus, History, Trash2, X, WifiOff } from 'lucide-react'
+import { PiggyBank, CirclePlus, History, Trash2, X, WifiOff } from 'lucide-react'
+import PageActionButtons from '@/components/PageActionButtons'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { log, numericOnly, formatBRL } from '@/lib/logger'
 
@@ -347,6 +348,25 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
         </div>
       </div>
 
+      {/* Banner offline */}
+      {!isOnline && (
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 flex items-center gap-2">
+          <WifiOff className="w-4 h-4 text-blue-600 shrink-0" />
+          <p className="text-sm text-blue-700 font-medium">Você está offline — edição desabilitada</p>
+        </div>
+      )}
+
+      {/* Botões */}
+      {isOnline && (
+        <PageActionButtons
+          onAdd={() => { setUltimoCampo('percentual'); setModalAberto('adicionar') }}
+          onImport={abrirModalImportar}
+          addDisabled={totalPercentual >= 100}
+          addColorClass="bg-violet-600 text-white hover:bg-violet-700"
+          importColorClass="bg-gray-100 text-gray-600 hover:bg-gray-200"
+        />
+      )}
+
       {/* Lista */}
       <div className="bg-white rounded-2xl shadow overflow-hidden divide-y divide-gray-100">
         {itens.length === 0 ? (
@@ -446,35 +466,6 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
           })
         )}
       </div>
-
-      {/* Banner offline */}
-      {!isOnline && (
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 flex items-center gap-2">
-          <WifiOff className="w-4 h-4 text-blue-600 shrink-0" />
-          <p className="text-sm text-blue-700 font-medium">Você está offline — edição desabilitada</p>
-        </div>
-      )}
-
-      {/* Botões */}
-      {isOnline && (
-        <div className="flex gap-3">
-          <button
-            onClick={() => { setUltimoCampo('percentual'); setModalAberto('adicionar') }}
-            disabled={totalPercentual >= 100}
-            className="flex-1 bg-violet-600 text-white py-3 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-violet-700 transition-all active:scale-[0.97] shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Plus className="w-5 h-5" />
-            Adicionar
-          </button>
-          <button
-            onClick={abrirModalImportar}
-            className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors active:scale-[0.97]"
-          >
-            <Download className="w-5 h-5" />
-            Mês anterior
-          </button>
-        </div>
-      )}
 
       {/* ── Modal: registrar aporte ── */}
       {modalAporte && (
