@@ -23,21 +23,15 @@ async function identificarProduto(
 
   const prompt = `Você é um assistente de lista de desejos. Analise a imagem e identifique o produto principal.
 
-Retorne APENAS um JSON válido neste formato (sem markdown, sem código):
-{"nome":"Nome do Produto","descricao":"Descrição breve ou null"}
-
 Regras:
-- nome: nome claro e objetivo do produto, máximo 60 caracteres
-- descricao: descrição curta (modelo, cor, marca), máximo 100 caracteres, null se não souber
-- Se a imagem não mostrar produto claro: {"nome":"Produto compartilhado","descricao":null}
-
-Responda SOMENTE com o JSON.`
+- nome: nome claro e objetivo do produto, máximo 60 caracteres. Se não houver produto claro, use “Produto compartilhado”.
+- descricao: descrição curta (modelo, cor, marca), máximo 100 caracteres. Deixe vazio se não souber.`
 
   let res: Response
   try {
     res = await fetch(GEMINI_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+      method: ‘POST’,
+      headers: { ‘Content-Type’: ‘application/json’, ‘x-goog-api-key’: apiKey },
       body: JSON.stringify({
         contents: [{
           parts: [
@@ -45,7 +39,19 @@ Responda SOMENTE com o JSON.`
             { inline_data: { mime_type: mimeType, data: base64 } },
           ],
         }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 150 },
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 200,
+          responseMimeType: ‘application/json’,
+          responseSchema: {
+            type: ‘object’,
+            properties: {
+              nome:     { type: ‘string’ },
+              descricao: { type: ‘string’ },
+            },
+            required: [‘nome’],
+          },
+        },
       }),
       signal: AbortSignal.timeout(20000),
     })
@@ -54,7 +60,7 @@ Responda SOMENTE com o JSON.`
   }
 
   if (!res.ok) {
-    const body = await res.text().catch(() => '')
+    const body = await res.text().catch(() => ‘’)
     return { erro: `Gemini HTTP ${res.status}: ${body.slice(0, 200)}` }
   }
 
@@ -62,27 +68,23 @@ Responda SOMENTE com o JSON.`
   try {
     json = await res.json()
   } catch (e) {
-    return { erro: `JSON inválido da resposta Gemini: ${e instanceof Error ? e.message : String(e)}` }
+    return { erro: `Resposta Gemini não é JSON: ${e instanceof Error ? e.message : String(e)}` }
   }
 
   const text = ((json as { candidates?: { content?: { parts?: { text?: string }[] } }[] })
-    ?.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim()
+    ?.candidates?.[0]?.content?.parts?.[0]?.text ?? ‘’).trim()
 
   if (!text) return { erro: `Gemini retornou texto vazio. JSON: ${JSON.stringify(json).slice(0, 300)}` }
 
-  const clean = text
-    .replace(/^```(?:json)?\s*/i, '').replace(/```$/, '').trim()
-    .replace(/[“”„‟«»]/g, '"')  // aspas tipográficas duplas → "
-    .replace(/[‘’‚‛]/g, "'")               // aspas tipográficas simples → '
   try {
-    const parsed = JSON.parse(clean) as { nome?: string; descricao?: string | null }
-    if (!parsed?.nome) return { erro: `JSON sem campo nome: ${clean.slice(0, 200)}` }
+    const parsed = JSON.parse(text) as { nome?: string; descricao?: string }
+    if (!parsed?.nome) return { erro: `Campo nome ausente: ${text.slice(0, 200)}` }
     return {
       nome: String(parsed.nome).slice(0, 60),
       descricao: parsed.descricao ? String(parsed.descricao).slice(0, 100) : null,
     }
   } catch (e) {
-    return { erro: `Parse JSON falhou (${e instanceof Error ? e.message : String(e)}): ${clean.slice(0, 200)}` }
+    return { erro: `Parse falhou (${e instanceof Error ? e.message : String(e)}): ${text.slice(0, 200)}` }
   }
 }
 
