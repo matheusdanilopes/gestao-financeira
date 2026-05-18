@@ -464,7 +464,7 @@ function ModalWishlist({
 
 // ── Botão de re-análise IA ────────────────────────────────────────────────────
 
-function RetryIAButton({ itemId }: { itemId: string }) {
+function RetryIAButton({ itemId, imagemUrl }: { itemId: string; imagemUrl: string | null }) {
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
 
@@ -472,14 +472,27 @@ function RetryIAButton({ itemId }: { itemId: string }) {
     if (loading || done) return
     setLoading(true)
     try {
+      let body: Record<string, string> = { id: itemId }
+
+      // Faz download da imagem no browser (acessa URL pública sem problemas de policy)
+      if (imagemUrl) {
+        const imgRes = await fetch(imagemUrl)
+        if (imgRes.ok) {
+          const buf = await imgRes.arrayBuffer()
+          const base64 = btoa(String.fromCharCode(...new Uint8Array(buf)))
+          const mimeType = imgRes.headers.get('content-type') ?? 'image/jpeg'
+          body = { ...body, imageBase64: base64, imageMimeType: mimeType }
+        }
+      }
+
       await fetch('/api/share-receiver/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: itemId }),
+        body: JSON.stringify(body),
       })
       setDone(true)
     } catch {
-      // silencioso — Realtime atualiza o card quando concluir
+      setDone(true)
     } finally {
       setLoading(false)
     }
@@ -610,7 +623,7 @@ function WishlistCard({
           {/* Right: avatar + retry-ia + star + realizar */}
           <div className="flex items-center gap-2 flex-none">
             {item.fonte === 'compartilhamento' && (item.ai_status === 'nao_identificado' || item.ai_status === 'pendente') && (
-              <RetryIAButton itemId={item.id} />
+              <RetryIAButton itemId={item.id} imagemUrl={item.imagem_url ?? null} />
             )}
             {item.criado_por && (
               item.criado_por === 'conjunto'

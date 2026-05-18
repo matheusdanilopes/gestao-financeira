@@ -66,14 +66,14 @@ Responda SOMENTE com o JSON.`
 }
 
 export async function POST(req: NextRequest) {
-  let body: { id?: string } | null = null
+  let body: { id?: string; imageBase64?: string; imageMimeType?: string } | null = null
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'Corpo inválido' }, { status: 400 })
   }
 
-  const { id } = body ?? {}
+  const { id, imageBase64, imageMimeType } = body ?? {}
   if (!id) return NextResponse.json({ error: 'id obrigatório' }, { status: 400 })
 
   const supabase = getSupabase()
@@ -88,40 +88,43 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Item não encontrado' }, { status: 404 })
   }
 
-  // Só pula se já foi identificado com sucesso
   if (item.ai_status === 'identificado') {
     return NextResponse.json({ status: 'identificado' })
   }
 
-  // Extrai o caminho do arquivo a partir da URL pública
-  // Formato: https://<project>.supabase.co/storage/v1/object/public/wishlist-images/<filename>
-  const filePath = item.imagem_url.split('/wishlist-images/')[1]
-
-  if (!filePath) {
-    await supabase.from('wishlist_items').update({
-      ai_status: 'nao_identificado',
-      updated_at: new Date().toISOString(),
-    }).eq('id', id)
-    return NextResponse.json({ status: 'nao_identificado' })
-  }
-
-  // Download via SDK Supabase — não depende de acesso HTTP público ao bucket
   let base64: string
   let mimeType: string
-  try {
-    const { data: blob, error: dlError } = await supabase.storage
-      .from('wishlist-images')
-      .download(filePath)
-    if (dlError || !blob) throw dlError ?? new Error('empty blob')
-    const imgBuffer = await blob.arrayBuffer()
-    base64 = Buffer.from(imgBuffer).toString('base64')
-    mimeType = blob.type || 'image/jpeg'
-  } catch {
-    await supabase.from('wishlist_items').update({
-      ai_status: 'nao_identificado',
-      updated_at: new Date().toISOString(),
-    }).eq('id', id)
-    return NextResponse.json({ status: 'nao_identificado' })
+
+  if (imageBase64) {
+    // Base64 enviado pelo cliente — não precisa baixar do storage
+    base64 = imageBase64
+    mimeType = imageMimeType ?? 'image/jpeg'
+  } else {
+    // Fallback: tenta baixar via SDK (requer policy SELECT no bucket)
+    const filePath = item.imagem_url?.split('/wishlist-images/')[1]
+    if (!filePath) {
+      await supabase.from('wishlist_items').update({
+        ai_status: 'nao_identificado',
+        updated_at: new Date().toISOString(),
+      }).eq('id', id)
+      return NextResponse.json({ status: 'nao_identificado' })
+    }
+
+    try {
+      const { data: blob, error: dlError } = await supabase.storage
+        .from('wishlist-images')
+        .download(filePath)
+      if (dlError || !blob) throw dlError ?? new Error('empty blob')
+      const imgBuffer = await blob.arrayBuffer()
+      base64 = Buffer.from(imgBuffer).toString('base64')
+      mimeType = blob.type || 'image/jpeg'
+    } catch {
+      await supabase.from('wishlist_items').update({
+        ai_status: 'nao_identificado',
+        updated_at: new Date().toISOString(),
+      }).eq('id', id)
+      return NextResponse.json({ status: 'nao_identificado' })
+    }
   }
 
   const resultado = await identificarProduto(base64, mimeType)
