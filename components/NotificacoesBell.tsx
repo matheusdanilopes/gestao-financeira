@@ -127,6 +127,17 @@ export default memo(function NotificacoesBell() {
 
   const naoLidas = notificacoes.filter(n => !n.lida).length
 
+  // Declarado antes dos useEffect que o referenciam
+  const carregarNotificacoes = useCallback(async (email: string) => {
+    const { data } = await supabase
+      .from('notificacoes')
+      .select('id, de_usuario, nome_usuario, acao, descricao, valor, lida, created_at, metadata')
+      .neq('de_usuario', email)
+      .order('created_at', { ascending: false })
+      .limit(30)
+    setNotificacoes(data ?? [])
+  }, [])
+
   useEffect(() => {
     async function init() {
       if (AUTH_DISABLED) {
@@ -193,16 +204,6 @@ export default memo(function NotificacoesBell() {
     if (aberto) document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [aberto])
-
-  const carregarNotificacoes = useCallback(async (email: string) => {
-    const { data } = await supabase
-      .from('notificacoes')
-      .select('id, de_usuario, nome_usuario, acao, descricao, valor, lida, created_at, metadata')
-      .neq('de_usuario', email)
-      .order('created_at', { ascending: false })
-      .limit(30)
-    setNotificacoes(data ?? [])
-  }, [])
 
   async function registrarServiceWorker(email: string) {
     if (!('serviceWorker' in navigator)) return
