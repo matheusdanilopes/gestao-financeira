@@ -74,17 +74,21 @@ Regras:
   const text = ((json as { candidates?: { content?: { parts?: { text?: string }[] } }[] })
     ?.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim()
 
-  if (!text) return { erro: `Gemini retornou texto vazio. JSON: ${JSON.stringify(json).slice(0, 300)}` }
+  if (!text) return { erro: `Gemini texto vazio. Resposta: ${JSON.stringify(json).slice(0, 300)}` }
+
+  // Extrai o primeiro {…} da resposta — ignora qualquer prefixo textual do modelo
+  const match = text.match(/\{[\s\S]*\}/)
+  if (!match) return { erro: `Nenhum JSON encontrado: ${text.slice(0, 200)}` }
 
   try {
-    const parsed = JSON.parse(text) as { nome?: string; descricao?: string }
-    if (!parsed?.nome) return { erro: `Campo nome ausente: ${text.slice(0, 200)}` }
+    const parsed = JSON.parse(match[0]) as { nome?: string; descricao?: string }
+    if (!parsed?.nome) return { erro: `Campo nome ausente: ${match[0].slice(0, 200)}` }
     return {
       nome: String(parsed.nome).slice(0, 60),
       descricao: parsed.descricao ? String(parsed.descricao).slice(0, 100) : null,
     }
   } catch (e) {
-    return { erro: `Parse falhou (${e instanceof Error ? e.message : String(e)}): ${text.slice(0, 200)}` }
+    return { erro: `Parse falhou (${e instanceof Error ? e.message : String(e)}): ${match[0].slice(0, 200)}` }
   }
 }
 
