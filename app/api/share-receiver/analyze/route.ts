@@ -92,27 +92,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: item.ai_status })
   }
 
-  if (!item.imagem_url) {
+  // Extrai o caminho do arquivo a partir da URL pública
+  // Formato: https://<project>.supabase.co/storage/v1/object/public/wishlist-images/<filename>
+  const filePath = item.imagem_url.split('/wishlist-images/')[1]
+
+  if (!filePath) {
     await supabase.from('wishlist_items').update({
-      nome: 'Produto compartilhado',
       ai_status: 'nao_identificado',
       updated_at: new Date().toISOString(),
     }).eq('id', id)
     return NextResponse.json({ status: 'nao_identificado' })
   }
 
-  // Download image from Storage and convert to base64
+  // Download via SDK Supabase — não depende de acesso HTTP público ao bucket
   let base64: string
   let mimeType: string
   try {
-    const imgRes = await fetch(item.imagem_url, { signal: AbortSignal.timeout(8000) })
-    if (!imgRes.ok) throw new Error('download failed')
-    const imgBuffer = await imgRes.arrayBuffer()
+    const { data: blob, error: dlError } = await supabase.storage
+      .from('wishlist-images')
+      .download(filePath)
+    if (dlError || !blob) throw dlError ?? new Error('empty blob')
+    const imgBuffer = await blob.arrayBuffer()
     base64 = Buffer.from(imgBuffer).toString('base64')
-    mimeType = imgRes.headers.get('content-type') ?? 'image/jpeg'
+    mimeType = blob.type || 'image/jpeg'
   } catch {
     await supabase.from('wishlist_items').update({
-      nome: 'Produto compartilhado',
       ai_status: 'nao_identificado',
       updated_at: new Date().toISOString(),
     }).eq('id', id)

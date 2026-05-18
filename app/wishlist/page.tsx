@@ -462,6 +462,48 @@ function ModalWishlist({
   )
 }
 
+// ── Botão de re-análise IA ────────────────────────────────────────────────────
+
+function RetryIAButton({ itemId }: { itemId: string }) {
+  const [loading, setLoading] = useState(false)
+  const [done, setDone] = useState(false)
+
+  async function retry() {
+    if (loading || done) return
+    setLoading(true)
+    try {
+      await fetch('/api/share-receiver/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: itemId }),
+      })
+      setDone(true)
+    } catch {
+      // silencioso — Realtime atualiza o card quando concluir
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (done) return null
+
+  return (
+    <button
+      type="button"
+      onClick={retry}
+      disabled={loading}
+      title="Re-analisar com IA"
+      className="flex-none w-8 h-8 flex items-center justify-center rounded-xl
+                 hover:bg-violet-50 transition-colors active:scale-90 disabled:opacity-50"
+    >
+      {loading
+        ? <Loader2 className="w-4 h-4 text-violet-400 animate-spin" />
+        : <RotateCcw className="w-4 h-4 text-violet-400" />
+      }
+    </button>
+  )
+}
+
 // ── Card de desejo ────────────────────────────────────────────────────────────
 
 function WishlistCard({
@@ -565,8 +607,11 @@ function WishlistCard({
             </span>
           </div>
 
-          {/* Right: avatar + star + realizar */}
+          {/* Right: avatar + retry-ia + star + realizar */}
           <div className="flex items-center gap-2 flex-none">
+            {item.fonte === 'compartilhamento' && (item.ai_status === 'nao_identificado' || item.ai_status === 'pendente') && (
+              <RetryIAButton itemId={item.id} />
+            )}
             {item.criado_por && (
               item.criado_por === 'conjunto'
                 ? <span className="w-6 h-6 rounded-full flex items-center justify-center bg-purple-100 text-purple-600 flex-none" title="Desejo conjunto">
