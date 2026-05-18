@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { after } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-export const maxDuration = 25
+export const maxDuration = 30
 
 const BUCKET = 'wishlist-images'
 const GEMINI_MODEL = 'gemini-3-flash-preview'
@@ -43,7 +42,7 @@ Responda SOMENTE com o JSON.`
         contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: mimeType, data: base64 } }] }],
         generationConfig: { temperature: 0.1, maxOutputTokens: 150 },
       }),
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(18000),
     })
 
     if (!res.ok) return null
@@ -83,6 +82,7 @@ export async function POST(req: NextRequest) {
   const ext = ['jpg', 'png', 'webp'].includes(rawExt) ? rawExt : 'jpg'
   const fileName = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`
 
+  // 1. Upload da imagem
   const { data: uploadData, error: uploadError } = await supabase.storage
     .from(BUCKET)
     .upload(fileName, buffer, { contentType: imageFile.type || 'image/jpeg', upsert: false })
@@ -93,17 +93,28 @@ export async function POST(req: NextRequest) {
 
   const { data: { publicUrl } } = supabase.storage.from(BUCKET).getPublicUrl(uploadData.path)
 
+  // 2. Análise IA (síncrona — resultado em ~5-15s, dentro do maxDuration)
+  const imageBase64 = buffer.toString('base64')
+  const mimeType = imageFile.type || 'image/jpeg'
+  const resultado = await identificarProduto(imageBase64, mimeType)
+
+  const aiStatus = resultado ? 'identificado' : 'nao_identificado'
+  const nome = resultado?.nome ?? 'Produto compartilhado'
+  const descricao = resultado?.descricao ?? null
+
+  // 3. Cria o item já com o resultado final
   const { data: item, error: insertError } = await supabase
     .from('wishlist_items')
     .insert([{
-      nome: 'Produto compartilhado',
+      nome,
       prioridade: 'media',
       favoritado: false,
       realizado: false,
-      ai_status: 'pendente',
+      ai_status: aiStatus,
       imagem_url: publicUrl,
       fonte: 'compartilhamento',
       criado_por: 'conjunto',
+      nota: descricao,
     }])
     .select('id')
     .single()
@@ -112,22 +123,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.redirect(`${origin}/wishlist/share-recebido?status=erro`, { status: 303 })
   }
 
-  // Processa IA após a resposta ser enviada ao browser (after é estável no Next.js 15+/16)
-  const itemId = item.id
-  const imageBase64 = buffer.toString('base64')
-  const mimeType = imageFile.type || 'image/jpeg'
-
-  after(async () => {
-    const resultado = await identificarProduto(imageBase64, mimeType)
-    const update = resultado
-      ? { nome: resultado.nome, descricao_ia: resultado.descricao, ai_status: 'identificado' }
-      : { nome: 'Produto compartilhado', ai_status: 'nao_identificado' }
-
-    await supabase
-      .from('wishlist_items')
-      .update({ ...update, updated_at: new Date().toISOString() })
-      .eq('id', itemId)
-  })
-
-  return NextResponse.redirect(`${origin}/wishlist/share-recebido?id=${itemId}`, { status: 303 })
+  return NextResponse.redirect(
+    `${origin}/wishlist/share-recebido?id=${item.id}&status=${aiStatus}`,
+    { status: 303 }
+  )
 }
