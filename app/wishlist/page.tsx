@@ -467,32 +467,44 @@ function ModalWishlist({
 function RetryIAButton({ itemId, imagemUrl }: { itemId: string; imagemUrl: string | null }) {
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
+  const [erro, setErro] = useState(false)
 
   async function retry() {
     if (loading || done) return
     setLoading(true)
+    setErro(false)
     try {
       let body: Record<string, string> = { id: itemId }
 
-      // Faz download da imagem no browser (acessa URL pública sem problemas de policy)
       if (imagemUrl) {
         const imgRes = await fetch(imagemUrl)
         if (imgRes.ok) {
           const buf = await imgRes.arrayBuffer()
-          const base64 = btoa(String.fromCharCode(...new Uint8Array(buf)))
+          // btoa com chunk de 8 KB evita estouro de call stack em imagens grandes
+          const uint8 = new Uint8Array(buf)
+          let binary = ''
+          for (let i = 0; i < uint8.length; i += 8192) {
+            binary += String.fromCharCode(...uint8.subarray(i, i + 8192))
+          }
+          const base64 = btoa(binary)
           const mimeType = imgRes.headers.get('content-type') ?? 'image/jpeg'
           body = { ...body, imageBase64: base64, imageMimeType: mimeType }
         }
       }
 
-      await fetch('/api/share-receiver/analyze', {
+      const res = await fetch('/api/share-receiver/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      setDone(true)
+      const data = await res.json()
+      if (data.status === 'identificado' || data.status === 'nao_identificado') {
+        setDone(true)
+      } else {
+        setErro(true)
+      }
     } catch {
-      setDone(true)
+      setErro(true)
     } finally {
       setLoading(false)
     }
@@ -505,13 +517,14 @@ function RetryIAButton({ itemId, imagemUrl }: { itemId: string; imagemUrl: strin
       type="button"
       onClick={retry}
       disabled={loading}
-      title="Re-analisar com IA"
-      className="flex-none w-8 h-8 flex items-center justify-center rounded-xl
-                 hover:bg-violet-50 transition-colors active:scale-90 disabled:opacity-50"
+      title={erro ? 'Falhou — tentar novamente' : 'Re-analisar com IA'}
+      className={`flex-none w-8 h-8 flex items-center justify-center rounded-xl
+                 transition-colors active:scale-90 disabled:opacity-50
+                 ${erro ? 'hover:bg-red-50' : 'hover:bg-violet-50'}`}
     >
       {loading
         ? <Loader2 className="w-4 h-4 text-violet-400 animate-spin" />
-        : <RotateCcw className="w-4 h-4 text-violet-400" />
+        : <RotateCcw className={`w-4 h-4 ${erro ? 'text-red-400' : 'text-violet-400'}`} />
       }
     </button>
   )
