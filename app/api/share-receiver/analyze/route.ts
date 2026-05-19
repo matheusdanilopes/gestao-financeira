@@ -14,6 +14,25 @@ function getSupabase() {
   )
 }
 
+// Retry com backoff exponencial — resolve race condition do CDN do Storage
+async function fetchImageWithRetry(url: string): Promise<{ base64: string; mimeType: string }> {
+  const delays = [0, 600, 1500]
+  let lastErr: unknown
+  for (const delay of delays) {
+    if (delay > 0) await new Promise(r => setTimeout(r, delay))
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(10000), cache: 'no-store' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const buf = await res.arrayBuffer()
+      const mimeType = res.headers.get('content-type')?.split(';')[0].trim() || 'image/jpeg'
+      return { base64: Buffer.from(buf).toString('base64'), mimeType }
+    } catch (e) {
+      lastErr = e
+    }
+  }
+  throw lastErr
+}
+
 async function identificarProduto(
   base64: string,
   mimeType: string
@@ -122,7 +141,7 @@ export async function POST(req: NextRequest) {
     base64 = imageBase64
     mimeType = imageMimeType ?? 'image/jpeg'
   } else {
-    // Fallback: baixa via URL pública (não requer autenticação no storage)
+    // Fallback: baixa via URL pública com retry (resolve race condition do CDN)
     if (!item.imagem_url) {
       await supabase.from('wishlist_items').update({
         ai_status: 'nao_identificado',
@@ -132,14 +151,9 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      const imgRes = await fetch(item.imagem_url, {
-        signal: AbortSignal.timeout(10000),
-        cache: 'no-store',
-      })
-      if (!imgRes.ok) throw new Error(`HTTP ${imgRes.status}`)
-      const imgBuffer = await imgRes.arrayBuffer()
-      base64 = Buffer.from(imgBuffer).toString('base64')
-      mimeType = imgRes.headers.get('content-type')?.split(';')[0].trim() || 'image/jpeg'
+      const img = await fetchImageWithRetry(item.imagem_url)
+      base64 = img.base64
+      mimeType = img.mimeType
     } catch {
       await supabase.from('wishlist_items').update({
         ai_status: 'nao_identificado',
@@ -159,7 +173,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: 'nao_identificado', debug: resultado.erro })
   }
 
-  await supabase.from('wishlist_items').update({
+  const { error: updateError } = await supabase.from('wishlist_items').update({
     nome: resultado.nome,
     descricao_ia: resultado.descricao,
     ...(resultado.preco != null ? { valor_estimado: resultado.preco } : {}),
@@ -167,5 +181,10 @@ export async function POST(req: NextRequest) {
     ai_status: 'identificado',
     updated_at: new Date().toISOString(),
   }).eq('id', id)
+
+  if (updateError) {
+    return NextResponse.json({ status: 'nao_identificado', debug: `db_update: ${updateError.message}` })
+  }
+
   return NextResponse.json({ status: 'identificado', nome: resultado.nome, descricao: resultado.descricao, preco: resultado.preco })
 }

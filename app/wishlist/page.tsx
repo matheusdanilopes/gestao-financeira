@@ -876,24 +876,31 @@ function WishlistContent() {
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [])
 
-  // Auto-analisa itens pendentes (fallback do share-recebido) e retenta nao_identificado uma vez por sessão
+  // Auto-analisa itens pendentes e retenta nao_identificado até 3x por sessão
   const autoAnalyzingRef = useRef<Set<string>>(new Set())
-  const autoRetriedRef = useRef<Set<string>>(new Set())
+  const autoAttemptRef = useRef<Map<string, number>>(new Map())
   useEffect(() => {
     const todos = [...ativos, ...historico]
 
-    const candidatos = todos.filter(i => i.imagem_url && !autoAnalyzingRef.current.has(i.id) && (
-      i.ai_status === 'pendente' ||
-      (i.ai_status === 'nao_identificado' && !autoRetriedRef.current.has(i.id))
-    ))
+    const candidatos = todos.filter(i => {
+      if (!i.imagem_url || autoAnalyzingRef.current.has(i.id)) return false
+      if (i.ai_status === 'pendente') return true
+      if (i.ai_status === 'nao_identificado') return (autoAttemptRef.current.get(i.id) ?? 0) < 3
+      return false
+    })
     if (!candidatos.length) return
 
     candidatos.forEach(item => {
       autoAnalyzingRef.current.add(item.id)
-      if (item.ai_status === 'nao_identificado') autoRetriedRef.current.add(item.id)
+      autoAttemptRef.current.set(item.id, (autoAttemptRef.current.get(item.id) ?? 0) + 1)
+
+      // Feedback visual imediato durante retry de nao_identificado
+      if (item.ai_status === 'nao_identificado') {
+        patchItem(item.id, { ai_status: 'pendente' })
+      }
 
       let capturedMime = 'image/jpeg'
-      fetch(item.imagem_url!)
+      fetch(item.imagem_url!, { signal: AbortSignal.timeout(15000) })
         .then(r => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`)
           capturedMime = r.headers.get('content-type')?.split(';')[0].trim() || 'image/jpeg'
@@ -911,11 +918,13 @@ function WishlistContent() {
               descricao_ia: result.descricao ?? null,
               ...(result.preco != null ? { valor_estimado: result.preco } : {}),
             })
-          } else if (result.status === 'nao_identificado') {
+          } else {
             patchItem(item.id, { ai_status: 'nao_identificado' })
           }
         })
-        .catch(() => {})
+        .catch(() => {
+          patchItem(item.id, { ai_status: 'nao_identificado' })
+        })
         .finally(() => autoAnalyzingRef.current.delete(item.id))
     })
   }, [ativos, historico, patchItem, visibilityTick])
