@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef, Suspense, useCallback, type FormEvent, type ReactNode } from 'react'
+import { useState, useEffect, useRef, Suspense, useCallback, type FormEvent, type ReactNode, type ChangeEvent } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { Heart, Plus, Check, ExternalLink, X, Star, Search, RotateCcw, Trash2, ChevronDown, Camera, Loader2 } from 'lucide-react'
+import { Heart, Plus, Check, ExternalLink, X, Search, RotateCcw, ChevronDown, Camera, Loader2 } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { useWishlist, type WishlistItem } from '@/lib/useWishlist'
@@ -179,6 +179,9 @@ function ModalWishlist({
   onSalvar: (form: ModalForm) => Promise<void>
 }) {
   const nomeRef = useRef<HTMLInputElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
+  const [imagemPreview, setImagemPreview] = useState<string | null>(null)
+  const [identificando, setIdentificando] = useState(false)
   const [form, setForm] = useState<ModalForm>({
     nome:           item?.nome           ?? '',
     emoji:          item?.emoji          ?? '',
@@ -203,6 +206,32 @@ function ModalWishlist({
 
   function setField<K extends keyof ModalForm>(k: K, v: ModalForm[K]) {
     setForm(prev => ({ ...prev, [k]: v }))
+  }
+
+  async function handleImagemSelecionada(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setIdentificando(true)
+    // Preview via FileReader (sem blob URL para compatibilidade iOS)
+    const reader = new FileReader()
+    reader.onload = ev => setImagemPreview(ev.target?.result as string)
+    reader.readAsDataURL(file)
+    try {
+      const { base64, mimeType } = await compressImage(file)
+      const res = await fetch('/api/wishlist-items/identify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64, imageMimeType: mimeType }),
+        signal: abortTimeout(28000),
+      })
+      if (res.ok) {
+        const data = await res.json() as { nome?: string; descricao?: string | null; preco?: number | null }
+        if (data.nome && !form.nome) setField('nome', data.nome)
+        if (data.preco != null && !form.valor_estimado) setField('valor_estimado', String(data.preco))
+      }
+    } catch { /* identificação opcional */ }
+    finally { setIdentificando(false) }
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -243,6 +272,48 @@ function ModalWishlist({
           {/* Scrollable body */}
           <div className="flex-1 overflow-y-auto">
             <form onSubmit={handleSubmit} className="px-5 py-5 space-y-4">
+
+              {/* Identificação por IA — fluxo alternativo para iOS (sem Web Share Target) */}
+              <div>
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={handleImagemSelecionada}
+                />
+                {imagemPreview ? (
+                  <div className="relative h-24 rounded-xl overflow-hidden border border-gray-200">
+                    <img src={imagemPreview} alt="" className="w-full h-full object-cover" />
+                    {identificando && (
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center gap-1.5">
+                        <Loader2 className="w-4 h-4 text-white animate-spin" />
+                        <span className="text-xs text-white font-medium">Identificando…</span>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setImagemPreview(null)}
+                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 flex items-center justify-center"
+                    >
+                      <X className="w-3 h-3 text-white" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => imageInputRef.current?.click()}
+                    disabled={identificando}
+                    className="w-full py-2.5 rounded-xl border-2 border-dashed border-gray-200
+                               flex items-center justify-center gap-2 text-sm font-medium text-gray-400
+                               hover:border-primary-300 hover:text-primary-500 transition-colors
+                               active:scale-[0.99] disabled:opacity-50"
+                  >
+                    <Camera className="w-4 h-4" />
+                    Identificar com IA
+                  </button>
+                )}
+              </div>
 
               {/* Emoji + Nome */}
               <div>
@@ -475,21 +546,60 @@ async function fileToBase64(source: File | ArrayBuffer): Promise<{ base64: strin
   return { base64: btoa(binary), mimeType }
 }
 
+// iOS < 15.4 não suporta AbortSignal.timeout — fallback silencioso
+function abortTimeout(ms: number): AbortSignal | undefined {
+  if (typeof AbortSignal === 'undefined' || typeof (AbortSignal as { timeout?: unknown }).timeout !== 'function') return undefined
+  return AbortSignal.timeout(ms)
+}
+
+// Redimensiona imagens grandes antes de enviar (iOS câmera = 8-12 MP)
+async function compressImage(file: File, maxDim = 1920): Promise<{ base64: string; mimeType: string }> {
+  if (typeof window === 'undefined') return fileToBase64(file)
+  return new Promise(resolve => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      if (img.width <= maxDim && img.height <= maxDim) { fileToBase64(file).then(resolve); return }
+      const scale = Math.min(maxDim / img.width, maxDim / img.height)
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { fileToBase64(file).then(resolve); return }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob(blob => {
+        if (!blob) { fileToBase64(file).then(resolve); return }
+        blob.arrayBuffer().then(buf => {
+          const u8 = new Uint8Array(buf)
+          let bin = ''
+          for (let i = 0; i < u8.length; i += 8192) bin += String.fromCharCode(...u8.subarray(i, i + 8192))
+          resolve({ base64: btoa(bin), mimeType: 'image/jpeg' })
+        })
+      }, 'image/jpeg', 0.85)
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); fileToBase64(file).then(resolve) }
+    img.src = url
+  })
+}
+
 async function callAnalyze(id: string, imageBase64: string, imageMimeType: string, criado_por: string | null) {
   const res = await fetch('/api/share-receiver/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id, imageBase64, imageMimeType, ...(criado_por ? { criado_por } : {}) }),
+    signal: abortTimeout(28000),
   })
-  return res.json() as Promise<{ status: string; nome?: string; debug?: string }>
+  return res.json() as Promise<{ status: string; nome?: string; descricao?: string | null; preco?: number | null; debug?: string }>
 }
 
 // ── Botão de re-análise IA (retry silencioso) ─────────────────────────────────
 
-function RetryIAButton({ itemId, imagemUrl, usuarioAtual }: {
+function RetryIAButton({ itemId, imagemUrl, usuarioAtual, onPatch }: {
   itemId: string
   imagemUrl: string | null
   usuarioAtual: string | null
+  onPatch?: (campos: Partial<WishlistItem>) => void
 }) {
   const [loading, setLoading] = useState(false)
 
@@ -501,16 +611,26 @@ function RetryIAButton({ itemId, imagemUrl, usuarioAtual }: {
       let imageMimeType = 'image/jpeg'
 
       if (imagemUrl) {
-        const imgRes = await fetch(imagemUrl)
+        const imgRes = await fetch(imagemUrl, { signal: abortTimeout(10000) })
         if (imgRes.ok) {
           const result = await fileToBase64(await imgRes.arrayBuffer())
           imageBase64 = result.base64
-          imageMimeType = imgRes.headers.get('content-type') ?? 'image/jpeg'
+          imageMimeType = imgRes.headers.get('content-type')?.split(';')[0].trim() ?? 'image/jpeg'
         }
       }
 
-      if (imageBase64) {
-        await callAnalyze(itemId, imageBase64, imageMimeType, usuarioAtual)
+      if (!imageBase64) return
+
+      const result = await callAnalyze(itemId, imageBase64, imageMimeType, usuarioAtual)
+      if (result.status === 'identificado' && result.nome) {
+        onPatch?.({
+          nome: result.nome,
+          ai_status: 'identificado',
+          descricao_ia: result.descricao ?? null,
+          ...(result.preco != null ? { valor_estimado: result.preco } : {}),
+        })
+      } else if (result.status === 'nao_identificado') {
+        onPatch?.({ ai_status: 'nao_identificado' })
       }
     } catch {
       // falha silenciosa — item permanece nao_identificado e usuario pode tentar de novo
@@ -536,8 +656,6 @@ function RetryIAButton({ itemId, imagemUrl, usuarioAtual }: {
   )
 }
 
-// ── Botão de captura de imagem (upload + analise automatica) ──────────────────
-
 // ── Card de desejo ────────────────────────────────────────────────────────────
 
 function WishlistCard({
@@ -549,6 +667,7 @@ function WishlistCard({
   onRealizar,
   onExcluir,
   onFavoritar,
+  onPatch,
 }: {
   item: WishlistItem
   mostraHint: boolean
@@ -558,6 +677,7 @@ function WishlistCard({
   onRealizar: (id: string) => unknown
   onExcluir: (id: string) => unknown
   onFavoritar: (id: string) => unknown
+  onPatch: (id: string, campos: Partial<WishlistItem>) => void
 }) {
   const cfg = PRIORIDADE[item.prioridade]
 
@@ -646,7 +766,12 @@ function WishlistCard({
           {/* Right: camera + retry + avatar + star + realizar */}
           <div className="flex items-center gap-2 flex-none">
             {item.ai_status === 'nao_identificado' && item.imagem_url && (
-              <RetryIAButton itemId={item.id} imagemUrl={item.imagem_url} usuarioAtual={usuarioAtual} />
+              <RetryIAButton
+                itemId={item.id}
+                imagemUrl={item.imagem_url}
+                usuarioAtual={usuarioAtual}
+                onPatch={campos => onPatch(item.id, campos)}
+              />
             )}
             {item.criado_por && (
               item.criado_por === 'conjunto'
@@ -823,16 +948,15 @@ function WishlistContent() {
   const searchParams = useSearchParams()
   const {
     ativos, historico,
-    adicionar, editar, marcarRealizado, desfazerRealizado, toggleFavorito, excluir,
+    adicionar, editar, patchItem, marcarRealizado, desfazerRealizado, toggleFavorito, excluir,
   } = useWishlist()
 
-  type ToastAtivo =
-    | { kind: 'realizou'; id: string; nome: string }
-    | { kind: 'excluiu';  id: string; nome: string }
+  type ToastAtivo = { kind: 'realizou'; id: string; nome: string }
 
   type OrdemAtivos = 'padrao' | 'mais-novo' | 'mais-antigo'
 
   const [usuarioAtual, setUsuarioAtual] = useState<string | null>(null)
+  const usuarioAtualRef = useRef<string | null>(null)
   const [extraUsuarios, setExtraUsuarios] = useState<string[]>([])
   const [highlightId, setHighlightId] = useState<string | null>(searchParams.get('highlight'))
   const ordemParam = searchParams.get('ordem')
@@ -843,31 +967,75 @@ function WishlistContent() {
   )
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setUsuarioAtual(user?.email ?? null))
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      const email = user?.email ?? null
+      setUsuarioAtual(email)
+      usuarioAtualRef.current = email
+    })
   }, [])
 
-  // Auto-analisa itens pendentes que aparecem na lista (ex: share-receiver criou o item
-  // mas o analyze ainda nao rodou ou falhou silenciosamente)
+  // Re-trigger auto-analyze quando app volta ao foreground (visibilidade)
+  const [visibilityTick, setVisibilityTick] = useState(0)
+  useEffect(() => {
+    function handleVisibility() {
+      if (document.visibilityState === 'visible') setVisibilityTick(t => t + 1)
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [])
+
+  // Auto-analisa itens pendentes e retenta nao_identificado até 3x por sessão
   const autoAnalyzingRef = useRef<Set<string>>(new Set())
+  const autoAttemptRef = useRef<Map<string, number>>(new Map())
   useEffect(() => {
     const todos = [...ativos, ...historico]
-    const pendentes = todos.filter(
-      i => i.ai_status === 'pendente' && i.imagem_url && !autoAnalyzingRef.current.has(i.id)
-    )
-    if (!pendentes.length) return
 
-    pendentes.forEach(item => {
+    const candidatos = todos.filter(i => {
+      if (!i.imagem_url || autoAnalyzingRef.current.has(i.id)) return false
+      if (i.ai_status === 'pendente') return true
+      if (i.ai_status === 'nao_identificado') return (autoAttemptRef.current.get(i.id) ?? 0) < 3
+      return false
+    })
+    if (!candidatos.length) return
+
+    candidatos.forEach(item => {
       autoAnalyzingRef.current.add(item.id)
-      fetch(item.imagem_url!)
-        .then(r => r.ok ? r.arrayBuffer() : Promise.reject('fetch falhou'))
+      autoAttemptRef.current.set(item.id, (autoAttemptRef.current.get(item.id) ?? 0) + 1)
+
+      // Feedback visual imediato durante retry de nao_identificado
+      if (item.ai_status === 'nao_identificado') {
+        patchItem(item.id, { ai_status: 'pendente' })
+      }
+
+      let capturedMime = 'image/jpeg'
+      fetch(item.imagem_url!, { signal: abortTimeout(15000) })
+        .then(r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`)
+          capturedMime = r.headers.get('content-type')?.split(';')[0].trim() || 'image/jpeg'
+          return r.arrayBuffer()
+        })
         .then(buf => fileToBase64(buf))
-        .then(({ base64, mimeType }) =>
-          callAnalyze(item.id, base64, mimeType, usuarioAtual)
+        .then(({ base64 }) =>
+          callAnalyze(item.id, base64, capturedMime, usuarioAtualRef.current)
         )
-        .catch(() => {})
+        .then(result => {
+          if (result.status === 'identificado' && result.nome) {
+            patchItem(item.id, {
+              nome: result.nome,
+              ai_status: 'identificado',
+              descricao_ia: result.descricao ?? null,
+              ...(result.preco != null ? { valor_estimado: result.preco } : {}),
+            })
+          } else {
+            patchItem(item.id, { ai_status: 'nao_identificado' })
+          }
+        })
+        .catch(() => {
+          patchItem(item.id, { ai_status: 'nao_identificado' })
+        })
         .finally(() => autoAnalyzingRef.current.delete(item.id))
     })
-  }, [ativos, historico, usuarioAtual])
+  }, [ativos, historico, patchItem, visibilityTick])
 
   // Aplica filtro "Recentes" quando a página é aberta (ou recebe foco) via notificação
   useEffect(() => {
@@ -924,21 +1092,11 @@ function WishlistContent() {
   const [filtroCategoria, setFiltroCategoria] = useState<string | null>(null)
   const [filtroUsuario, setFiltroUsuario] = useState<string | null>(null)
   const [activeToast, setActiveToast] = useState<ToastAtivo | null>(null)
-  const [pendingExcluirId, setPendingExcluirId] = useState<string | null>(null)
   const [hintVisto, setHintVisto] = useState(true)
-  const toastTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pendingExcluirRef = useRef<string | null>(null)
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function clearToastTimer() {
     if (toastTimerRef.current) { clearTimeout(toastTimerRef.current); toastTimerRef.current = null }
-  }
-
-  function commitPendingExcluir() {
-    if (pendingExcluirRef.current) {
-      excluir(pendingExcluirRef.current)
-      pendingExcluirRef.current = null
-      setPendingExcluirId(null)
-    }
   }
 
   useEffect(() => {
@@ -992,7 +1150,6 @@ function WishlistContent() {
   })()
 
   const ativosFiltrados = ativos
-    .filter(i => i.id !== pendingExcluirId)
     .filter(item => {
       if (filtroUsuario && item.criado_por !== filtroUsuario && item.criado_por !== 'conjunto') return false
       if (filtroCategoria && item.categoria !== filtroCategoria) return false
@@ -1008,7 +1165,6 @@ function WishlistContent() {
     })
 
   const historicoDis = historico
-    .filter(i => i.id !== pendingExcluirId)
     .filter(i => !filtroUsuario || i.criado_por === filtroUsuario || i.criado_por === 'conjunto')
 
   // Per-user stats: baseia nos usuários conhecidos para sempre mostrar ambos os cards,
@@ -1022,9 +1178,7 @@ function WishlistContent() {
     }))
   }
 
-  const ativosBase = ativos.filter(i => i.id !== pendingExcluirId)
-  const historicoBase = historico.filter(i => i.id !== pendingExcluirId)
-  const listaAtual = aba === 'ativos' ? ativosBase : historicoBase
+  const listaAtual = aba === 'ativos' ? ativos : historico
   const statsAtuais = calcStats(listaAtual, usuariosConhecidos)
   const conjuntoAtual = listaAtual.filter(i => i.criado_por === 'conjunto')
   const conjuntoStats = {
@@ -1059,7 +1213,6 @@ function WishlistContent() {
   }
 
   async function handleRealizar(id: string) {
-    commitPendingExcluir()
     clearToastTimer()
     const item = ativos.find(i => i.id === id)
     await marcarRealizado(id)
@@ -1070,42 +1223,29 @@ function WishlistContent() {
   }
 
   function handleExcluir(id: string) {
-    commitPendingExcluir()
-    clearToastTimer()
-    const item = [...ativos, ...historico].find(i => i.id === id)
-    if (!item) { excluir(id); return }
-    pendingExcluirRef.current = id
-    setPendingExcluirId(id)
-    setActiveToast({ kind: 'excluiu', id, nome: item.nome })
-    toastTimerRef.current = setTimeout(() => {
-      commitPendingExcluir()
-      setActiveToast(null)
-    }, 4000)
+    excluir(id)
   }
 
   const handleDesfazer = useCallback(async () => {
     clearToastTimer()
     if (!activeToast) return
-    if (activeToast.kind === 'realizou') {
-      setActiveToast(null)
-      await desfazerRealizado(activeToast.id)
-    } else {
-      pendingExcluirRef.current = null
-      setPendingExcluirId(null)
-      setActiveToast(null)
-    }
+    setActiveToast(null)
+    await desfazerRealizado(activeToast.id)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeToast, desfazerRealizado])
 
   function handleFecharToast() {
     clearToastTimer()
-    commitPendingExcluir()
     setActiveToast(null)
   }
 
   const handleFavoritar = useCallback((id: string) => {
     toggleFavorito(id, ativos)
   }, [toggleFavorito, ativos])
+
+  const handlePatchItem = useCallback((id: string, campos: Partial<WishlistItem>) => {
+    patchItem(id, campos)
+  }, [patchItem])
 
   return (
     <div className="min-h-screen pb-32 page-enter">
@@ -1322,6 +1462,7 @@ function WishlistContent() {
                     onRealizar={handleRealizar}
                     onExcluir={handleExcluir}
                     onFavoritar={handleFavoritar}
+                    onPatch={handlePatchItem}
                   />
                 ))
               : historicoDis.map(item => (
@@ -1348,19 +1489,11 @@ function WishlistContent() {
         />
       )}
 
-      {/* Toast unificado (realizou / excluiu) */}
+      {/* Toast de realizou com desfazer */}
       {activeToast && (
         <Toast
-          mensagem={
-            activeToast.kind === 'realizou'
-              ? <><span className="text-gray-300">&ldquo;{activeToast.nome}&rdquo;</span> realizado!</>
-              : <><span className="text-gray-300">&ldquo;{activeToast.nome}&rdquo;</span> removido</>
-          }
-          icone={
-            activeToast.kind === 'realizou'
-              ? <Check className="w-4 h-4 text-green-400" strokeWidth={2.5} />
-              : <Trash2 className="w-4 h-4 text-red-400" strokeWidth={2} />
-          }
+          mensagem={<><span className="text-gray-300">&ldquo;{activeToast.nome}&rdquo;</span> realizado!</>}
+          icone={<Check className="w-4 h-4 text-green-400" strokeWidth={2.5} />}
           onDesfazer={handleDesfazer}
           onClose={handleFecharToast}
         />

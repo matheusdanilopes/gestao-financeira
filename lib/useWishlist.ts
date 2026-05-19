@@ -155,5 +155,10 @@ export function useWishlist() {
     await supabase.from('wishlist_items').delete().eq('id', id)
   }, [])
 
-  return { ativos, historico, adicionar, editar, marcarRealizado, desfazerRealizado, toggleFavorito, excluir }
+  // Atualiza apenas o estado local (sem escrita no DB) — usado por auto-analyze para feedback imediato
+  const patchItem = useCallback((id: string, campos: Partial<WishlistItem>) => {
+    setItens(prev => prev.map(i => i.id === id ? { ...i, ...campos } : i))
+  }, [])
+
+  return { ativos, historico, adicionar, editar, patchItem, marcarRealizado, desfazerRealizado, toggleFavorito, excluir }
 }
