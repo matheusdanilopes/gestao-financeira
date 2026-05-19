@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gestao-financeira-v5'
+const CACHE_NAME = 'gestao-financeira-v6'
 
 // Rotas críticas pré-cacheadas no install para garantir abertura offline
 const PRECACHE_ROUTES = ['/', '/dashboard', '/lista-mercado', '/financas', '/compras']
@@ -57,6 +57,32 @@ self.addEventListener('fetch', (event) => {
 
   // API calls: não intercepta — useDataSync trata offline via localStorage
   if (url.pathname.startsWith('/api/')) return
+
+  // Requisições RSC do Next.js App Router (navegação client-side via <Link>).
+  // Identificadas pelo header "RSC: 1". Usam stale-while-revalidate para que
+  // a navegação funcione offline sem forçar um hard reload que reinicia o estado React.
+  if (request.headers.get('RSC') === '1') {
+    const RSC_OFFLINE = ['/dashboard', '/lista-mercado']
+    const isOfflineRoute = RSC_OFFLINE.some(r => url.pathname === r || url.pathname.startsWith(r + '/'))
+    if (isOfflineRoute) {
+      const rscKey = new Request(url.pathname + '?__rsc__', { method: 'GET' })
+      event.respondWith(
+        caches.open(CACHE_NAME).then(async cache => {
+          const cached = await cache.match(rscKey)
+          const networkFetch = fetch(request).then(res => {
+            if (res.ok) cache.put(rscKey, res.clone())
+            return res
+          }).catch(() => cached ?? new Response(null, { status: 503 }))
+          if (cached) {
+            networkFetch.catch(() => {}) // atualiza em background sem bloquear
+            return cached
+          }
+          return networkFetch
+        })
+      )
+      return
+    }
+  }
 
   // Assets estáticos do Next.js (chunks JS/CSS com hash — imutáveis):
   // cache-first → serve do cache instantaneamente; network só na 1ª visita.
