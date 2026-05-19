@@ -538,73 +538,6 @@ function RetryIAButton({ itemId, imagemUrl, usuarioAtual }: {
 
 // ── Botão de captura de imagem (upload + analise automatica) ──────────────────
 
-type UploadState = 'idle' | 'uploading' | 'analyzing'
-
-function ImageCaptureButton({ itemId, usuarioAtual }: {
-  itemId: string
-  usuarioAtual: string | null
-}) {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [state, setState] = useState<UploadState>('idle')
-
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    e.target.value = ''
-
-    setState('uploading')
-    try {
-      const { base64, mimeType } = await fileToBase64(file)
-
-      const uploadRes = await fetch('/api/wishlist-items/upload-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: itemId, imageBase64: base64, imageMimeType: mimeType }),
-      })
-      if (!uploadRes.ok) { setState('idle'); return }
-
-      setState('analyzing')
-      await callAnalyze(itemId, base64, mimeType, usuarioAtual)
-    } catch {
-      // falha silenciosa — Realtime reflete o estado real do item
-    } finally {
-      setState('idle')
-    }
-  }
-
-  const label: Record<UploadState, string> = {
-    idle: 'Adicionar imagem',
-    uploading: 'Enviando...',
-    analyzing: 'Analisando...',
-  }
-
-  return (
-    <>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="sr-only"
-        onChange={handleFile}
-      />
-      <button
-        type="button"
-        disabled={state !== 'idle'}
-        onClick={() => inputRef.current?.click()}
-        title={label[state]}
-        className="flex-none w-8 h-8 flex items-center justify-center rounded-xl
-                   hover:bg-indigo-50 transition-colors active:scale-90 disabled:opacity-60"
-      >
-        {state === 'idle'
-          ? <Camera className="w-4 h-4 text-indigo-400" />
-          : <Loader2 className="w-4 h-4 text-indigo-400 animate-spin" />
-        }
-      </button>
-    </>
-  )
-}
-
 // ── Card de desejo ────────────────────────────────────────────────────────────
 
 function WishlistCard({
@@ -714,9 +647,6 @@ function WishlistCard({
           <div className="flex items-center gap-2 flex-none">
             {item.ai_status === 'nao_identificado' && item.imagem_url && (
               <RetryIAButton itemId={item.id} imagemUrl={item.imagem_url} usuarioAtual={usuarioAtual} />
-            )}
-            {!item.imagem_url && (
-              <ImageCaptureButton itemId={item.id} usuarioAtual={usuarioAtual} />
             )}
             {item.criado_por && (
               item.criado_por === 'conjunto'
