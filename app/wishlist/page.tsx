@@ -610,7 +610,6 @@ function ImageCaptureButton({ itemId, usuarioAtualRef, onPatch }: {
         ref={inputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         className="sr-only"
         onChange={handleFile}
       />
