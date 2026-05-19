@@ -33,12 +33,12 @@ function ShareRecebidoContent() {
     supabase.auth.getUser()
       .then(({ data: { user } }) => {
         if (!user?.email || !id) return
-        supabase.from('wishlist_items')
-          .update({ criado_por: user.email, updated_at: new Date().toISOString() })
-          .eq('id', id)
-          .eq('criado_por', 'conjunto')
-          .then(() => {})
-          .catch(() => {})
+        Promise.resolve(
+          supabase.from('wishlist_items')
+            .update({ criado_por: user.email, updated_at: new Date().toISOString() })
+            .eq('id', id)
+            .eq('criado_por', 'conjunto')
+        ).catch(() => {})
       })
       .catch(() => {})
 
