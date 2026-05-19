@@ -9,9 +9,10 @@ import {
 import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 import { notificarWishlist } from '@/lib/notificacoes'
+import { compressImage, abortTimeout, callAnalyze } from '@/lib/imageUtils'
 
 type View = 'menu' | 'wishlist-method' | 'wishlist' | 'wishlist-ai' | 'mercado'
-type AIStatus = 'idle' | 'compressing' | 'processing' | 'creating' | 'done' | 'error' | 'nao_identificado'
+type AIStatus = 'idle' | 'uploading' | 'done' | 'error'
 
 const PRIORIDADES = [
   { value: 'alta'  as const, label: 'Alta',  active: 'bg-red-100 text-red-600 ring-red-300'     },
@@ -24,31 +25,6 @@ const CATEGORIAS = ['Eletrônicos', 'Casa', 'Moda', 'Viagem', 'Lazer', 'Esporte'
 async function getUsuario(): Promise<string | null> {
   const { data: { user } } = await supabase.auth.getUser()
   return user?.email ?? null
-}
-
-async function compressImage(file: File, maxPx = 1920, quality = 0.85): Promise<{ base64: string; mimeType: string }> {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    const objectUrl = URL.createObjectURL(file)
-    img.onload = () => {
-      URL.revokeObjectURL(objectUrl)
-      let { width, height } = img
-      if (width > maxPx || height > maxPx) {
-        const scale = maxPx / Math.max(width, height)
-        width = Math.round(width * scale)
-        height = Math.round(height * scale)
-      }
-      const canvas = document.createElement('canvas')
-      canvas.width = width
-      canvas.height = height
-      const ctx = canvas.getContext('2d')
-      if (!ctx) { reject(new Error('canvas')); return }
-      ctx.drawImage(img, 0, 0, width, height)
-      resolve({ base64: canvas.toDataURL('image/jpeg', quality).split(',')[1], mimeType: 'image/jpeg' })
-    }
-    img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('load')) }
-    img.src = objectUrl
-  })
 }
 
 // ── Quick Add Wishlist ────────────────────────────────────────────────────────
@@ -361,6 +337,9 @@ function WishlistMethodSelector({
 }
 
 // ── Wishlist AI Capture ───────────────────────────────────────────────────────
+// Mirrors the share-receiver flow: create pending item → upload image →
+// fire /api/share-receiver/analyze (same service used by auto-analyze loop) →
+// dispatch wishlist:refresh → close. The wishlist page handles realtime updates.
 
 function WishlistAICapture({
   onClose,
@@ -376,7 +355,6 @@ function WishlistAICapture({
 
   const [status, setStatus] = useState<AIStatus>('idle')
   const [errorMsg, setErrorMsg] = useState('')
-  const [identifiedName, setIdentifiedName] = useState('')
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
   useEffect(() => {
@@ -386,118 +364,59 @@ function WishlistAICapture({
 
   useEffect(() => {
     if (status !== 'done') return
-    const t = setTimeout(() => onClose(), 2200)
+    const t = setTimeout(() => onClose(), 1800)
     return () => clearTimeout(t)
   }, [status, onClose])
-
-  const uploadImageInBackground = useCallback(async (
-    itemId: string,
-    base64: string,
-    mimeType: string,
-  ) => {
-    try {
-      const ext = mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg'
-      const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-      const binaryStr = atob(base64)
-      const bytes = new Uint8Array(binaryStr.length)
-      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i)
-
-      const { data: uploadData } = await supabase.storage
-        .from('wishlist-images')
-        .upload(fileName, bytes, { contentType: mimeType, upsert: false })
-
-      if (uploadData) {
-        const publicUrl = supabase.storage
-          .from('wishlist-images')
-          .getPublicUrl(uploadData.path).data.publicUrl
-        await supabase.from('wishlist_items')
-          .update({ imagem_url: publicUrl })
-          .eq('id', itemId)
-        window.dispatchEvent(new CustomEvent('wishlist:refresh'))
-      }
-    } catch { /* non-critical — item already exists */ }
-  }, [])
 
   const processFile = useCallback(async (file: File) => {
     const objectUrl = URL.createObjectURL(file)
     setPreviewUrl(prev => { if (prev) URL.revokeObjectURL(prev); return objectUrl })
+    setStatus('uploading')
     setErrorMsg('')
 
-    setStatus('compressing')
-    let compressed: { base64: string; mimeType: string }
     try {
-      compressed = await compressImage(file)
-    } catch {
-      setStatus('error')
-      setErrorMsg('Erro ao processar imagem.')
-      return
-    }
-
-    setStatus('processing')
-    let identified: { nome: string; descricao: string | null; preco: number | null; categoria: string | null }
-    try {
-      const res = await fetch('/api/wishlist-items/identify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: compressed.base64, imageMimeType: compressed.mimeType }),
-        signal: AbortSignal.timeout(28000),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json() as {
-        nome?: string
-        descricao?: string | null
-        preco?: number | null
-        categoria?: string | null
-        error?: string
-      }
-      if (!data?.nome) throw new Error('sem nome')
-      identified = {
-        nome: data.nome,
-        descricao: data.descricao ?? null,
-        preco: data.preco ?? null,
-        categoria: data.categoria ?? null,
-      }
-    } catch (e) {
-      const isTimeout = e instanceof DOMException && e.name === 'AbortError'
-      if (isTimeout) {
-        setStatus('error')
-        setErrorMsg('Tempo esgotado. Tente com uma foto diferente.')
-      } else {
-        setStatus('nao_identificado')
-      }
-      return
-    }
-
-    setStatus('creating')
-    try {
+      const { base64, mimeType } = await compressImage(file)
       const criado_por = await getUsuario()
-      const { data: newItem, error } = await supabase.from('wishlist_items').insert([{
-        nome:           identified.nome,
-        descricao_ia:   identified.descricao,
-        valor_estimado: identified.preco,
-        categoria:      identified.categoria,
-        prioridade:     'media',
-        ai_status:      'identificado',
-        fonte:          'manual',
-        favoritado:     false,
-        realizado:      false,
+
+      // 1. Create item with ai_status 'pendente' — identical to share-receiver/route.ts
+      const { data: newItem, error: insertError } = await supabase.from('wishlist_items').insert([{
+        nome:       'Identificando…',
+        prioridade: 'media',
+        ai_status:  'pendente',
+        fonte:      'compartilhamento',
+        favoritado: false,
+        realizado:  false,
         criado_por,
       }]).select('id').single()
 
-      if (error || !newItem) throw error ?? new Error('insert failed')
+      if (insertError || !newItem) throw insertError ?? new Error('insert')
 
-      if (newItem.id && criado_por) notificarWishlist(newItem.id, identified.nome, criado_por)
+      // 2. Upload image — same endpoint used by share-receiver (sets imagem_url)
+      await fetch('/api/wishlist-items/upload-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: newItem.id, imageBase64: base64, imageMimeType: mimeType }),
+        signal: abortTimeout(20000),
+      })
+
+      // 3. Fire analyze in background — same service as share-recebido/page.tsx and auto-analyze loop.
+      //    imageBase64 provided directly so the server skips CDN download (faster path).
+      callAnalyze(newItem.id, base64, mimeType, criado_por).catch(() => {})
+
+      // 4. Notify + trigger realtime — wishlist page auto-analyze and realtime handle the rest
+      if (criado_por) notificarWishlist(newItem.id, 'Identificando…', criado_por)
       window.dispatchEvent(new CustomEvent('wishlist:refresh'))
 
-      setIdentifiedName(identified.nome)
       setStatus('done')
-
-      uploadImageInBackground(newItem.id, compressed.base64, compressed.mimeType)
-    } catch {
+    } catch (e) {
       setStatus('error')
-      setErrorMsg('Erro ao salvar item. Tente novamente.')
+      setErrorMsg(
+        e instanceof DOMException && e.name === 'AbortError'
+          ? 'Tempo esgotado. Tente novamente.'
+          : 'Erro ao enviar. Tente novamente.',
+      )
     }
-  }, [uploadImageInBackground])
+  }, [])
 
   function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -579,18 +498,13 @@ function WishlistAICapture({
     )
   }
 
-  // ── processing states ──
-  if (status === 'compressing' || status === 'processing' || status === 'creating') {
-    const labels: Record<string, string> = {
-      compressing: 'Preparando imagem…',
-      processing:  'Identificando produto…',
-      creating:    'Criando item…',
-    }
+  // ── uploading ──
+  if (status === 'uploading') {
     return (
       <div className="flex flex-col gap-4 fab-form-enter">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 flex-none" />
-          <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">Identificando…</h3>
+          <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">Enviando…</h3>
         </div>
 
         {previewUrl ? (
@@ -599,13 +513,13 @@ function WishlistAICapture({
             <img src={previewUrl} alt="" className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-black/45 flex flex-col items-center justify-center gap-2">
               <Loader2 className="w-6 h-6 text-white animate-spin" />
-              <span className="text-white text-xs font-medium">{labels[status]}</span>
+              <span className="text-white text-xs font-medium">Enviando…</span>
             </div>
           </div>
         ) : (
           <div className="flex flex-col items-center py-8 gap-3">
             <Loader2 className="w-8 h-8 text-violet-500 animate-spin" />
-            <p className="text-sm text-gray-500 dark:text-gray-400">{labels[status]}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Enviando…</p>
           </div>
         )}
       </div>
@@ -620,10 +534,8 @@ function WishlistAICapture({
           <Check className="w-7 h-7 text-green-500" strokeWidth={2.5} />
         </div>
         <div className="text-center">
-          <p className="text-base font-bold text-gray-800 dark:text-gray-100">Item adicionado!</p>
-          {identifiedName && (
-            <p className="text-xs text-gray-400 mt-1 px-4 line-clamp-2">{identifiedName}</p>
-          )}
+          <p className="text-base font-bold text-gray-800 dark:text-gray-100">Enviado!</p>
+          <p className="text-xs text-gray-400 mt-1">Identificando produto em segundo plano…</p>
         </div>
         <button
           type="button"
@@ -632,60 +544,8 @@ function WishlistAICapture({
                      bg-primary-600 text-white font-semibold text-sm
                      active:scale-[0.98] transition-all duration-150"
         >
-          Fechar
+          Ver na Wishlist
         </button>
-      </div>
-    )
-  }
-
-  // ── not identified ──
-  if (status === 'nao_identificado') {
-    return (
-      <div className="flex flex-col gap-4 fab-form-enter">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onBack}
-            className="p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-          >
-            <ChevronLeft className="w-5 h-5 text-gray-500" />
-          </button>
-          <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">Não identificado</h3>
-        </div>
-
-        {previewUrl && (
-          <div className="w-full h-28 rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-800">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={previewUrl} alt="" className="w-full h-full object-cover opacity-60" />
-          </div>
-        )}
-
-        <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
-          Não foi possível identificar o produto. Tente uma foto mais clara ou adicione manualmente.
-        </p>
-
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={resetToIdle}
-            className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl
-                       bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200
-                       font-semibold text-sm active:scale-[0.98] transition-all duration-150"
-          >
-            <RotateCcw className="w-4 h-4" />
-            Tentar novamente
-          </button>
-          <button
-            type="button"
-            onClick={onFallback}
-            className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl
-                       bg-primary-600 text-white font-semibold text-sm
-                       active:scale-[0.98] transition-all duration-150"
-          >
-            <PenLine className="w-4 h-4" />
-            Manual
-          </button>
-        </div>
       </div>
     )
   }
