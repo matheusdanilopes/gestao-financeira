@@ -766,10 +766,7 @@ function TotalRodape({
   onFinalizar: () => void
 }) {
   return (
-    <div
-      className="fixed left-0 right-0 z-40 px-4 pb-2 pointer-events-none"
-      style={{ bottom: 'calc(4rem + var(--safe-bottom))' }}
-    >
+    <div className="fixed bottom-16 left-0 right-0 z-40 px-4 pb-2 pointer-events-none">
       <div className="max-w-md md:max-w-2xl lg:max-w-5xl xl:max-w-7xl mx-auto">
         <div className="bg-white rounded-2xl shadow-float border border-gray-100 px-4 py-3 pointer-events-auto">
           <div className="flex items-center gap-4">
@@ -989,8 +986,8 @@ export default function ListaMercadoPage() {
   const totalItens = pendentes.length + comprados.length
 
   return (
-    <>
-    <div className="min-h-screen page-enter" style={{ paddingBottom: 'calc(10rem + var(--safe-bottom))' }}>
+    <div className="min-h-screen pb-56">
+      <div className="page-enter">
       {/* Header */}
       <div className="sticky top-0 z-10 sticky-header border-b border-gray-100 px-4 pt-4 pb-3">
         <div className="flex items-center gap-3 mb-3">
@@ -1177,7 +1174,7 @@ export default function ListaMercadoPage() {
         </div>
       )}
 
-    </div>
+      </div>
       <TotalRodape
         total={total}
         semPreco={semPreco}
@@ -1185,6 +1182,6 @@ export default function ListaMercadoPage() {
         totalComprados={totalComprados}
         onFinalizar={() => setFinalizandoCompra(true)}
       />
-    </>
+    </div>
   )
 }
