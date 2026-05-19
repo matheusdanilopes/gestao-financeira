@@ -1092,7 +1092,7 @@ function WishlistContent() {
 
   const ativosFiltrados = ativos
     .filter(item => {
-      if (filtroUsuario && item.criado_por !== filtroUsuario && item.criado_por !== 'conjunto') return false
+      if (filtroUsuario && item.criado_por !== filtroUsuario) return false
       if (filtroCategoria && item.categoria !== filtroCategoria) return false
       if (busca && !item.nome.toLowerCase().includes(busca.toLowerCase())) return false
       return true
@@ -1106,7 +1106,7 @@ function WishlistContent() {
     })
 
   const historicoDis = historico
-    .filter(i => !filtroUsuario || i.criado_por === filtroUsuario || i.criado_por === 'conjunto')
+    .filter(i => !filtroUsuario || i.criado_por === filtroUsuario)
 
   // Per-user stats: baseia nos usuários conhecidos para sempre mostrar ambos os cards,
   // mesmo que um deles ainda não tenha itens na aba atual
