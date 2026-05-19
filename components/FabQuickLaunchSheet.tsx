@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, type FormEvent, type ChangeEvent } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Heart, ShoppingBasket, X, ChevronLeft,
   Plus, Minus, Check, Loader2, Camera,
@@ -350,6 +351,7 @@ function WishlistAICapture({
   onBack: () => void
   onFallback: () => void
 }) {
+  const router = useRouter()
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
 
@@ -361,12 +363,6 @@ function WishlistAICapture({
     return () => { if (previewUrl) URL.revokeObjectURL(previewUrl) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  useEffect(() => {
-    if (status !== 'done') return
-    const t = setTimeout(() => onClose(), 1800)
-    return () => clearTimeout(t)
-  }, [status, onClose])
 
   const processFile = useCallback(async (file: File) => {
     const objectUrl = URL.createObjectURL(file)
@@ -539,7 +535,7 @@ function WishlistAICapture({
         </div>
         <button
           type="button"
-          onClick={onClose}
+          onClick={() => { onClose(); router.push('/wishlist?ordem=mais-novo') }}
           className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl
                      bg-primary-600 text-white font-semibold text-sm
                      active:scale-[0.98] transition-all duration-150"
