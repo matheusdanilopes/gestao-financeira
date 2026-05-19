@@ -5,13 +5,14 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Receipt, TrendingUp, ShoppingCart, MessageCircle,
   SlidersHorizontal, PiggyBank, Sparkles, BarChart3, Plus, MoreHorizontal, Wallet, CreditCard, RepeatIcon,
-  Heart, ShoppingBasket,
+  Heart, ShoppingBasket, WifiOff,
 } from 'lucide-react'
 import { memo, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabaseClient'
 import { AUTH_DISABLED } from '@/lib/authConfig'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
+import { useOnline } from '@/lib/useOnline'
 import ModalPortal from '@/components/ModalPortal'
 import FabQuickLaunchSheet from '@/components/FabQuickLaunchSheet'
 
@@ -20,6 +21,9 @@ const ROTAS_COM_MENU = [
   '/compras', '/chat', '/configuracoes', '/importar', '/financas', '/extras',
   '/wishlist', '/lista-mercado', '/lista-mercado/historico',
 ]
+
+// Rotas acessíveis sem conexão (têm cache/operações locais)
+const ROTAS_OFFLINE = ['/dashboard', '/lista-mercado']
 
 const ROTAS_FINANCAS = ['/financas', '/contas', '/receitas', '/investimentos']
 const ROTAS_CARTAO   = ['/compras', '/assinaturas']
@@ -140,6 +144,40 @@ function ExtrasMenuPopover({ onClose, router }: { onClose: () => void; router: R
   )
 }
 
+// ── Nav item offline (ícone maior, label visível, centralizado) ───────────────
+
+function OfflineNavItem({
+  href, label, icon: Icon, isActive,
+}: {
+  href: string
+  label: string
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>
+  isActive: boolean
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex flex-col items-center justify-center gap-1 flex-1 py-2
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
+                 focus-visible:ring-offset-1 rounded-xl transition-all duration-200"
+      aria-current={isActive ? 'page' : undefined}
+    >
+      <span className={`flex items-center justify-center w-14 h-9 rounded-2xl transition-all duration-200
+                        ${isActive ? 'bg-primary-100' : ''}`}>
+        <Icon
+          className={`transition-all duration-200 w-[24px] h-[24px]
+                      ${isActive ? 'text-primary-600' : 'text-gray-400'}`}
+          strokeWidth={isActive ? 2.5 : 1.8}
+        />
+      </span>
+      <span className={`text-[11px] font-semibold transition-colors duration-200 leading-none
+                        ${isActive ? 'text-primary-600' : 'text-gray-500'}`}>
+        {label}
+      </span>
+    </Link>
+  )
+}
+
 // ── Nav item button (Finanças / Extras) ───────────────────────────────────────
 
 function MobileMenuButton({
@@ -222,6 +260,7 @@ export default memo(function BottomNav() {
   const [openMenu, setOpenMenu] = useState<'financas' | 'cartao' | 'extras' | null>(null)
   const [fabSheetOpen, setFabSheetOpen] = useState(false)
   const { categorizando } = useCategorizacao()
+  const isOnline = useOnline()
 
   useEffect(() => {
     // Se AUTH_DISABLED ou sessão já resolvida, não faz round-trip ao Supabase
@@ -271,6 +310,17 @@ export default memo(function BottomNav() {
     setFabSheetOpen(false)
   }, [pathname])
 
+  // Ao ficar offline: fecha menus abertos e redireciona para dashboard
+  // se a rota atual não estiver disponível offline
+  useEffect(() => {
+    if (isOnline) return
+    setOpenMenu(null)
+    setFabSheetOpen(false)
+    if (pathname && !ROTAS_OFFLINE.some(r => pathname === r || pathname.startsWith(r + '/'))) {
+      router.replace('/dashboard')
+    }
+  }, [isOnline, pathname, router])
+
   const deveExibirMenu = pathname ? ROTAS_COM_MENU.some(r => pathname === r || pathname.startsWith(r + '/')) : false
 
   if (!deveExibirMenu) return null
@@ -286,73 +336,99 @@ export default memo(function BottomNav() {
       className="fixed bottom-0 left-0 right-0 z-[50]
                  lg:bottom-auto lg:top-0 lg:border-b lg:border-t-0"
     >
-      {categorizando && (
+      {categorizando && isOnline && (
         <div className="flex items-center justify-center gap-1.5 bg-violet-50 border-b border-violet-100 py-1.5 text-xs text-violet-600 font-medium">
           <Sparkles className="w-3 h-3 animate-pulse" />
           Categorizando com IA…
         </div>
       )}
 
-      <nav aria-label="Navegação principal">
-        {/* ── Mobile: 5 itens com FAB central ──────────────────────────────── */}
-        <div className="flex lg:hidden justify-around items-center h-16 px-1">
-          <MobileNavItem
-            href="/dashboard"
-            label="Dashboard"
-            icon={LayoutDashboard}
-            isActive={pathname === '/dashboard'}
-          />
-
-          <MobileMenuButton
-            label="Finanças"
-            icon={Wallet}
-            isActive={isFinancasActive || openMenu === 'financas'}
-            ariaExpanded={openMenu === 'financas'}
-            onClick={() => setOpenMenu(p => p === 'financas' ? null : 'financas')}
-          />
-
-          {/* FAB — central de lançamento rápido */}
-          <button
-            type="button"
-            aria-label={fabSheetOpen ? 'Fechar menu' : 'Lançamento rápido'}
-            aria-expanded={fabSheetOpen}
-            onClick={() => {
-              setOpenMenu(null)
-              setFabSheetOpen(p => !p)
-            }}
-            className="flex flex-col items-center justify-center flex-none -mt-5 group"
-          >
-            <span className={`w-14 h-14 rounded-full flex items-center justify-center
-                              fab-premium
-                              ${fabSheetOpen ? 'fab-premium-active' : ''}
-                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2`}>
-              <Plus
-                className={`w-6 h-6 text-white transition-transform duration-300
-                            ${fabSheetOpen ? 'rotate-45' : ''}`}
-                strokeWidth={2.5}
-              />
-            </span>
-            <span className="text-[10px] font-medium text-gray-400 mt-0.5 leading-none">
-              Adicionar
-            </span>
-          </button>
-
-          <MobileMenuButton
-            label="Cartão"
-            icon={CreditCard}
-            isActive={isCartaoActive || openMenu === 'cartao'}
-            ariaExpanded={openMenu === 'cartao'}
-            onClick={() => setOpenMenu(p => p === 'cartao' ? null : 'cartao')}
-          />
-
-          <MobileMenuButton
-            label="Extras"
-            icon={MoreHorizontal}
-            isActive={isExtrasActive || openMenu === 'extras'}
-            ariaExpanded={openMenu === 'extras'}
-            onClick={() => setOpenMenu(p => p === 'extras' ? null : 'extras')}
-          />
+      {/* Indicador discreto de modo offline */}
+      {!isOnline && (
+        <div className="flex items-center justify-center gap-1.5 bg-amber-50 border-b border-amber-100 py-1 text-xs text-amber-700 font-medium transition-all duration-300">
+          <WifiOff className="w-3 h-3" />
+          Modo Offline
         </div>
+      )}
+
+      <nav aria-label="Navegação principal">
+        {/* ── Mobile: offline — 2 itens centralizados ──────────────────────── */}
+        {!isOnline ? (
+          <div className="flex lg:hidden justify-around items-center h-16 px-8 transition-all duration-300">
+            <OfflineNavItem
+              href="/dashboard"
+              label="Dashboard"
+              icon={LayoutDashboard}
+              isActive={pathname === '/dashboard'}
+            />
+            <OfflineNavItem
+              href="/lista-mercado"
+              label="Lista Mercado"
+              icon={ShoppingBasket}
+              isActive={pathname ? pathname === '/lista-mercado' || pathname.startsWith('/lista-mercado/') : false}
+            />
+          </div>
+        ) : (
+          /* ── Mobile: online — 5 itens com FAB central ──────────────────── */
+          <div className="flex lg:hidden justify-around items-center h-16 px-1 transition-all duration-300">
+            <MobileNavItem
+              href="/dashboard"
+              label="Dashboard"
+              icon={LayoutDashboard}
+              isActive={pathname === '/dashboard'}
+            />
+
+            <MobileMenuButton
+              label="Finanças"
+              icon={Wallet}
+              isActive={isFinancasActive || openMenu === 'financas'}
+              ariaExpanded={openMenu === 'financas'}
+              onClick={() => setOpenMenu(p => p === 'financas' ? null : 'financas')}
+            />
+
+            {/* FAB — central de lançamento rápido */}
+            <button
+              type="button"
+              aria-label={fabSheetOpen ? 'Fechar menu' : 'Lançamento rápido'}
+              aria-expanded={fabSheetOpen}
+              onClick={() => {
+                setOpenMenu(null)
+                setFabSheetOpen(p => !p)
+              }}
+              className="flex flex-col items-center justify-center flex-none -mt-5 group"
+            >
+              <span className={`w-14 h-14 rounded-full flex items-center justify-center
+                                fab-premium
+                                ${fabSheetOpen ? 'fab-premium-active' : ''}
+                                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2`}>
+                <Plus
+                  className={`w-6 h-6 text-white transition-transform duration-300
+                              ${fabSheetOpen ? 'rotate-45' : ''}`}
+                  strokeWidth={2.5}
+                />
+              </span>
+              <span className="text-[10px] font-medium text-gray-400 mt-0.5 leading-none">
+                Adicionar
+              </span>
+            </button>
+
+            <MobileMenuButton
+              label="Cartão"
+              icon={CreditCard}
+              isActive={isCartaoActive || openMenu === 'cartao'}
+              ariaExpanded={openMenu === 'cartao'}
+              onClick={() => setOpenMenu(p => p === 'cartao' ? null : 'cartao')}
+            />
+
+            <MobileMenuButton
+              label="Extras"
+              icon={MoreHorizontal}
+              isActive={isExtrasActive || openMenu === 'extras'}
+              ariaExpanded={openMenu === 'extras'}
+              onClick={() => setOpenMenu(p => p === 'extras' ? null : 'extras')}
+            />
+          </div>
+        )}
 
         {/* ── Desktop: barra superior com todos os itens ────────────────────── */}
         <div className="hidden lg:flex justify-start items-center h-14 px-4 gap-1">
@@ -383,8 +459,8 @@ export default memo(function BottomNav() {
           })}
         </div>
 
-        {/* ── Menus flutuantes via portal ────────────────────────────────────── */}
-        {openMenu && (
+        {/* ── Menus flutuantes via portal (apenas online) ───────────────────── */}
+        {isOnline && openMenu && (
           <ModalPortal>
             <div
               className="fixed inset-0 z-[49] modal-overlay"
@@ -404,8 +480,8 @@ export default memo(function BottomNav() {
           </ModalPortal>
         )}
 
-        {/* ── FAB Quick Launch Sheet ─────────────────────────────────────────── */}
-        {fabSheetOpen && (
+        {/* ── FAB Quick Launch Sheet (apenas online) ────────────────────────── */}
+        {isOnline && fabSheetOpen && (
           <FabQuickLaunchSheet onClose={() => setFabSheetOpen(false)} />
         )}
       </nav>
