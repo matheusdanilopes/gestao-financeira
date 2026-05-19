@@ -750,50 +750,118 @@ function ItemRow({
   )
 }
 
-// ── Rodapé com total ──────────────────────────────────────────────────────────
+// ── Barra de subtotal flutuante ───────────────────────────────────────────────
 
-function TotalRodape({
+function SubtotalBar({
   total,
   semPreco,
   compradosCount,
-  totalComprados,
+  totalItens,
   onFinalizar,
 }: {
   total: number
   semPreco: number
   compradosCount: number
-  totalComprados: number
+  totalItens: number
   onFinalizar: () => void
 }) {
+  const [visible, setVisible] = useState(true)
+  const lastYRef = useRef(0)
+  const tickingRef = useRef(false)
+
+  useEffect(() => {
+    function handleScroll() {
+      if (tickingRef.current) return
+      tickingRef.current = true
+      requestAnimationFrame(() => {
+        const y = window.scrollY
+        const delta = y - lastYRef.current
+        if (delta > 12) setVisible(false)
+        else if (delta < -8) setVisible(true)
+        lastYRef.current = y
+        tickingRef.current = false
+      })
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  if (totalItens === 0) return null
+
+  const progress = compradosCount / totalItens
+
   return (
-    <div className="fixed bottom-16 left-0 right-0 z-40 px-4 pb-2 pointer-events-none">
+    <div
+      className="fixed bottom-16 left-0 right-0 z-40 px-3 pb-2 pointer-events-none"
+      style={{
+        transform: visible ? 'translateY(0)' : 'translateY(96px)',
+        transition: visible
+          ? 'transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1)'
+          : 'transform 0.20s ease-in',
+        willChange: 'transform',
+      }}
+    >
       <div className="max-w-md md:max-w-2xl lg:max-w-5xl xl:max-w-7xl mx-auto">
-        <div className="bg-white rounded-2xl shadow-float border border-gray-100 px-4 py-3 pointer-events-auto">
-          <div className="flex items-center gap-4">
+        <div className="subtotal-bar rounded-2xl overflow-hidden pointer-events-auto">
+
+          {/* Barra de progresso */}
+          <div className="h-[3px] bg-gray-100">
+            <div
+              className="h-full bg-green-500 transition-[width] duration-500 ease-out"
+              style={{ width: `${progress * 100}%` }}
+            />
+          </div>
+
+          {/* Conteúdo */}
+          <div className="flex items-center gap-3 px-4 py-2.5">
+
+            {/* Contagem de itens */}
+            <div className="flex flex-col flex-none min-w-0">
+              {compradosCount > 0 ? (
+                <span className="text-xs font-medium text-gray-500 tabular-nums leading-tight">
+                  <span className="font-bold text-green-600">{compradosCount}</span>
+                  <span className="text-gray-400">/{totalItens}</span>
+                </span>
+              ) : (
+                <span className="text-xs font-medium text-gray-500 tabular-nums leading-tight">
+                  {totalItens} {totalItens === 1 ? 'item' : 'itens'}
+                </span>
+              )}
+              {semPreco > 0 && (
+                <span className="text-[9px] text-gray-400 font-medium tabular-nums leading-tight">
+                  +{semPreco} s/preço
+                </span>
+              )}
+            </div>
+
+            {/* Divisor */}
+            <div className="w-px h-5 bg-gray-200 flex-none" />
+
+            {/* Valor total */}
+            <div className="flex-1 min-w-0">
+              {semPreco > 0 && (
+                <p className="text-[9px] text-gray-400 leading-none mb-0.5 uppercase tracking-wide font-medium">
+                  parcial
+                </p>
+              )}
+              <span className="text-sm font-bold text-gray-900 tabular-nums">
+                {formatBRL(total)}
+              </span>
+            </div>
+
+            {/* CTA Finalizar */}
             {compradosCount > 0 && (
               <button
                 type="button"
                 onClick={onFinalizar}
-                className="flex items-center gap-1.5 text-xs font-semibold text-green-600
-                           hover:text-green-700 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-xl transition-colors"
+                className="flex items-center gap-1.5 text-[11px] font-semibold text-white
+                           bg-green-500 hover:bg-green-600 active:bg-green-700
+                           px-3 py-2 rounded-xl transition-colors active:scale-95 flex-none"
               >
-                <Check className="w-3.5 h-3.5" strokeWidth={2.5} />
+                <Check className="w-3 h-3" strokeWidth={2.5} />
                 Finalizar ({compradosCount})
               </button>
             )}
-            <div className="flex-1 flex items-end justify-end gap-3">
-              {semPreco > 0 && (
-                <span className="text-[11px] text-gray-400 font-medium tabular-nums">
-                  +{semPreco} s/ preço
-                </span>
-              )}
-              <div className="text-right">
-                {semPreco > 0 && (
-                  <p className="text-[10px] text-gray-400 leading-none mb-0.5">parcial</p>
-                )}
-                <span className="text-lg font-bold text-gray-900 tabular-nums">{formatBRL(total)}</span>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -1173,12 +1241,12 @@ export default function ListaMercadoPage() {
         </div>
       )}
 
-      {/* Rodapé */}
-      <TotalRodape
+      {/* Barra de subtotal */}
+      <SubtotalBar
         total={total}
         semPreco={semPreco}
         compradosCount={comprados.length}
-        totalComprados={totalComprados}
+        totalItens={totalItens}
         onFinalizar={() => setFinalizandoCompra(true)}
       />
     </div>
