@@ -732,19 +732,6 @@ function WishlistCard({
             )}
             <button
               type="button"
-              onClick={() => onFavoritar(item.id)}
-              className="flex-none w-8 h-8 flex items-center justify-center rounded-xl
-                         hover:bg-amber-50 transition-colors active:scale-90"
-              aria-label={item.favoritado ? 'Remover favorito' : 'Favoritar'}
-            >
-              <Star
-                className={`w-4.5 h-4.5 transition-colors ${item.favoritado ? 'text-amber-400' : 'text-gray-300'}`}
-                fill={item.favoritado ? 'currentColor' : 'none'}
-                strokeWidth={1.8}
-              />
-            </button>
-            <button
-              type="button"
               onClick={() => onRealizar(item.id)}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-50 text-green-600
                          text-xs font-semibold hover:bg-green-100 transition-colors active:scale-95"
