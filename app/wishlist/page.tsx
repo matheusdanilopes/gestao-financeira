@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense, useCallback, type FormEvent, type ReactNode } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { Heart, Plus, Check, ExternalLink, X, Star, Search, RotateCcw, Trash2, ChevronDown } from 'lucide-react'
+import { Heart, Plus, Check, ExternalLink, X, Star, Search, RotateCcw, Trash2, ChevronDown, Camera, Loader2 } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { useWishlist, type WishlistItem } from '@/lib/useWishlist'
@@ -462,12 +462,89 @@ function ModalWishlist({
   )
 }
 
+// ── Utilitário: converte File/ArrayBuffer para base64 com chunk seguro ────────
+
+async function fileToBase64(source: File | ArrayBuffer): Promise<{ base64: string; mimeType: string }> {
+  const buf = source instanceof File ? await source.arrayBuffer() : source
+  const mimeType = source instanceof File ? (source.type || 'image/jpeg') : 'image/jpeg'
+  const uint8 = new Uint8Array(buf)
+  let binary = ''
+  for (let i = 0; i < uint8.length; i += 8192) {
+    binary += String.fromCharCode(...uint8.subarray(i, i + 8192))
+  }
+  return { base64: btoa(binary), mimeType }
+}
+
+async function callAnalyze(id: string, imageBase64: string, imageMimeType: string, criado_por: string | null) {
+  const res = await fetch('/api/share-receiver/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, imageBase64, imageMimeType, ...(criado_por ? { criado_por } : {}) }),
+  })
+  return res.json() as Promise<{ status: string; nome?: string; debug?: string }>
+}
+
+// ── Botão de re-análise IA (retry silencioso) ─────────────────────────────────
+
+function RetryIAButton({ itemId, imagemUrl, usuarioAtual }: {
+  itemId: string
+  imagemUrl: string | null
+  usuarioAtual: string | null
+}) {
+  const [loading, setLoading] = useState(false)
+
+  async function retry() {
+    if (loading) return
+    setLoading(true)
+    try {
+      let imageBase64 = ''
+      let imageMimeType = 'image/jpeg'
+
+      if (imagemUrl) {
+        const imgRes = await fetch(imagemUrl)
+        if (imgRes.ok) {
+          const result = await fileToBase64(await imgRes.arrayBuffer())
+          imageBase64 = result.base64
+          imageMimeType = imgRes.headers.get('content-type') ?? 'image/jpeg'
+        }
+      }
+
+      if (imageBase64) {
+        await callAnalyze(itemId, imageBase64, imageMimeType, usuarioAtual)
+      }
+    } catch {
+      // falha silenciosa — item permanece nao_identificado e usuario pode tentar de novo
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={retry}
+      disabled={loading}
+      title="Re-analisar com IA"
+      className="flex-none w-8 h-8 flex items-center justify-center rounded-xl
+                 hover:bg-violet-50 transition-colors active:scale-90 disabled:opacity-50"
+    >
+      {loading
+        ? <Loader2 className="w-4 h-4 text-violet-400 animate-spin" />
+        : <RotateCcw className="w-4 h-4 text-violet-400" />
+      }
+    </button>
+  )
+}
+
+// ── Botão de captura de imagem (upload + analise automatica) ──────────────────
+
 // ── Card de desejo ────────────────────────────────────────────────────────────
 
 function WishlistCard({
   item,
   mostraHint,
   highlighted,
+  usuarioAtual,
   onEditar,
   onRealizar,
   onExcluir,
@@ -476,6 +553,7 @@ function WishlistCard({
   item: WishlistItem
   mostraHint: boolean
   highlighted?: boolean
+  usuarioAtual: string | null
   onEditar: (item: WishlistItem) => void
   onRealizar: (id: string) => unknown
   onExcluir: (id: string) => unknown
@@ -507,7 +585,7 @@ function WishlistCard({
             </p>
           </div>
 
-          {/* Badges: prioridade + categoria */}
+          {/* Badges: prioridade + categoria + IA status */}
           <div className="flex items-center gap-1.5 flex-wrap mb-2.5">
             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${cfg.bg} ${cfg.text}`}>
               <span className={`w-1.5 h-1.5 rounded-full flex-none ${cfg.dot}`} />
@@ -518,12 +596,24 @@ function WishlistCard({
                 {item.categoria}
               </span>
             )}
+            {item.fonte === 'compartilhamento' && item.ai_status === 'pendente' && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-violet-50 text-violet-500">
+                <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                Identificando...
+              </span>
+            )}
+            {item.fonte === 'compartilhamento' && item.ai_status !== 'pendente' && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-violet-50 text-violet-500">
+                <Camera className="w-2.5 h-2.5" />
+                Compartilhado
+              </span>
+            )}
           </div>
 
-          {/* Nota preview */}
-          {item.nota && (
+          {/* Descrição da IA ou nota */}
+          {(item.descricao_ia || item.nota) && (
             <p className="text-xs text-gray-500 line-clamp-1 italic">
-              &ldquo;{item.nota}&rdquo;
+              &ldquo;{item.descricao_ia ?? item.nota}&rdquo;
             </p>
           )}
         </button>
@@ -553,8 +643,11 @@ function WishlistCard({
             </span>
           </div>
 
-          {/* Right: avatar + star + realizar */}
+          {/* Right: camera + retry + avatar + star + realizar */}
           <div className="flex items-center gap-2 flex-none">
+            {item.ai_status === 'nao_identificado' && item.imagem_url && (
+              <RetryIAButton itemId={item.id} imagemUrl={item.imagem_url} usuarioAtual={usuarioAtual} />
+            )}
             {item.criado_por && (
               item.criado_por === 'conjunto'
                 ? <span className="w-6 h-6 rounded-full flex items-center justify-center bg-purple-100 text-purple-600 flex-none" title="Desejo conjunto">
@@ -567,19 +660,6 @@ function WishlistCard({
                     {nomeCurto(item.criado_por)[0]}
                   </span>
             )}
-            <button
-              type="button"
-              onClick={() => onFavoritar(item.id)}
-              className="flex-none w-8 h-8 flex items-center justify-center rounded-xl
-                         hover:bg-amber-50 transition-colors active:scale-90"
-              aria-label={item.favoritado ? 'Remover favorito' : 'Favoritar'}
-            >
-              <Star
-                className={`w-4.5 h-4.5 transition-colors ${item.favoritado ? 'text-amber-400' : 'text-gray-300'}`}
-                fill={item.favoritado ? 'currentColor' : 'none'}
-                strokeWidth={1.8}
-              />
-            </button>
             <button
               type="button"
               onClick={() => onRealizar(item.id)}
@@ -765,6 +845,29 @@ function WishlistContent() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setUsuarioAtual(user?.email ?? null))
   }, [])
+
+  // Auto-analisa itens pendentes que aparecem na lista (ex: share-receiver criou o item
+  // mas o analyze ainda nao rodou ou falhou silenciosamente)
+  const autoAnalyzingRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const todos = [...ativos, ...historico]
+    const pendentes = todos.filter(
+      i => i.ai_status === 'pendente' && i.imagem_url && !autoAnalyzingRef.current.has(i.id)
+    )
+    if (!pendentes.length) return
+
+    pendentes.forEach(item => {
+      autoAnalyzingRef.current.add(item.id)
+      fetch(item.imagem_url!)
+        .then(r => r.ok ? r.arrayBuffer() : Promise.reject('fetch falhou'))
+        .then(buf => fileToBase64(buf))
+        .then(({ base64, mimeType }) =>
+          callAnalyze(item.id, base64, mimeType, usuarioAtual)
+        )
+        .catch(() => {})
+        .finally(() => autoAnalyzingRef.current.delete(item.id))
+    })
+  }, [ativos, historico, usuarioAtual])
 
   // Aplica filtro "Recentes" quando a página é aberta (ou recebe foco) via notificação
   useEffect(() => {
@@ -1214,6 +1317,7 @@ function WishlistContent() {
                     item={item}
                     mostraHint={idx === 0 && !hintVisto}
                     highlighted={highlightId === item.id}
+                    usuarioAtual={usuarioAtual}
                     onEditar={abrirEditar}
                     onRealizar={handleRealizar}
                     onExcluir={handleExcluir}

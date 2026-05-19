@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gestao-financeira-v4'
+const CACHE_NAME = 'gestao-financeira-v5'
 
 // Rotas críticas pré-cacheadas no install para garantir abertura offline
 const PRECACHE_ROUTES = ['/', '/dashboard', '/lista-mercado', '/financas', '/compras']
@@ -47,6 +47,9 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event
   const url = new URL(request.url)
+
+  // Share Target: deixa o browser enviar diretamente ao servidor via rede
+  if (request.method === 'POST' && url.pathname === '/api/share-receiver') return
 
   // Só intercepta GET da mesma origem
   if (request.method !== 'GET') return

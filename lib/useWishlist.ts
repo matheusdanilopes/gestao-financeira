@@ -20,6 +20,10 @@ export type WishlistItem = {
   criado_por: string | null
   created_at: string
   updated_at: string
+  imagem_url: string | null
+  ai_status: 'identificado' | 'pendente' | 'nao_identificado' | 'manual'
+  descricao_ia: string | null
+  fonte: 'manual' | 'compartilhamento'
 }
 
 const PRIORIDADE_ORDEM: Record<string, number> = { alta: 0, media: 1, baixa: 2 }
@@ -85,7 +89,7 @@ export function useWishlist() {
     }
     const tempId = crypto.randomUUID()
     const now = new Date().toISOString()
-    const tempItem: WishlistItem = { ...payload, id: tempId, created_at: now, updated_at: now, realizado_em: null }
+    const tempItem: WishlistItem = { ...payload, id: tempId, created_at: now, updated_at: now, realizado_em: null, imagem_url: null, ai_status: 'manual', descricao_ia: null, fonte: 'manual' }
     setItens(prev => [tempItem, ...prev])
 
     const { data, error } = await supabase
