@@ -80,10 +80,12 @@ function parsearInput(text: string): { nome: string; quantidade: number } {
 
 function BottomSheetPreco({
   item,
+  isOnline,
   onClose,
   onConfirmar,
 }: {
   item: ItemMercado
+  isOnline: boolean
   onClose: () => void
   onConfirmar: (preco: number | null) => void
 }) {
@@ -153,16 +155,18 @@ function BottomSheetPreco({
                 />
               </div>
 
-              <button
-                type="button"
-                onClick={() => setCameraAberta(true)}
-                className="w-full flex items-center justify-center gap-2 py-3 mb-4 rounded-xl
-                           border border-dashed border-primary-300 bg-primary-50 text-primary-600
-                           active:bg-primary-100 transition-colors"
-              >
-                <Camera className="w-4 h-4" />
-                <span className="text-sm font-semibold">Ler preço com câmera</span>
-              </button>
+              {isOnline && (
+                <button
+                  type="button"
+                  onClick={() => setCameraAberta(true)}
+                  className="w-full flex items-center justify-center gap-2 py-3 mb-4 rounded-xl
+                             border border-dashed border-primary-300 bg-primary-50 text-primary-600
+                             active:bg-primary-100 transition-colors"
+                >
+                  <Camera className="w-4 h-4" />
+                  <span className="text-sm font-semibold">Ler preço com câmera</span>
+                </button>
+              )}
 
               <div className="flex gap-3">
                 {item.preco_unit != null && (
@@ -204,10 +208,12 @@ function BottomSheetPreco({
 
 function BottomSheetConfirmarCompra({
   item,
+  isOnline,
   onClose,
   onConfirmar,
 }: {
   item: ItemMercado
+  isOnline: boolean
   onClose: () => void
   onConfirmar: (qtd: number, preco: number | null) => void
 }) {
@@ -304,16 +310,18 @@ function BottomSheetConfirmarCompra({
                              placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent"
                 />
               </div>
-              <button
-                type="button"
-                onClick={() => setCameraAberta(true)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl
-                           border border-dashed border-green-300 bg-green-50 text-green-700
-                           active:bg-green-100 transition-colors"
-              >
-                <Camera className="w-4 h-4" />
-                <span className="text-sm font-semibold">Ler preço com câmera</span>
-              </button>
+              {isOnline && (
+                <button
+                  type="button"
+                  onClick={() => setCameraAberta(true)}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl
+                             border border-dashed border-green-300 bg-green-50 text-green-700
+                             active:bg-green-100 transition-colors"
+                >
+                  <Camera className="w-4 h-4" />
+                  <span className="text-sm font-semibold">Ler preço com câmera</span>
+                </button>
+              )}
             </div>
 
             {/* Subtotal */}
@@ -1199,6 +1207,7 @@ export default function ListaMercadoPage() {
       {itemConfirmando && (
         <BottomSheetConfirmarCompra
           item={itemConfirmando}
+          isOnline={isOnline}
           onClose={() => setItemConfirmando(null)}
           onConfirmar={handleConfirmarCompra}
         />
@@ -1208,6 +1217,7 @@ export default function ListaMercadoPage() {
       {itemPreco && (
         <BottomSheetPreco
           item={itemPreco}
+          isOnline={isOnline}
           onClose={() => setItemPreco(null)}
           onConfirmar={preco => definirPreco(itemPreco.id, preco)}
         />

@@ -11,6 +11,7 @@ import { formatBRL } from '@/lib/logger'
 import { fileToBase64, abortTimeout, compressImage, callAnalyze } from '@/lib/imageUtils'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { useOnline } from '@/lib/useOnline'
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
@@ -170,12 +171,14 @@ function ModalWishlist({
   item,
   criadorPadrao,
   usuariosConhecidos,
+  isOnline,
   onClose,
   onSalvar,
 }: {
   item: WishlistItem | null
   criadorPadrao: string | null
   usuariosConhecidos: string[]
+  isOnline: boolean
   onClose: () => void
   onSalvar: (form: ModalForm) => Promise<void>
 }) {
@@ -275,46 +278,48 @@ function ModalWishlist({
             <form onSubmit={handleSubmit} className="px-5 py-5 space-y-4">
 
               {/* Identificação por IA — fluxo alternativo para iOS (sem Web Share Target) */}
-              <div>
-                <input
-                  ref={imageInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="sr-only"
-                  onChange={handleImagemSelecionada}
-                />
-                {imagemPreview ? (
-                  <div className="relative h-24 rounded-xl overflow-hidden border border-gray-200">
-                    <img src={imagemPreview} alt="" className="w-full h-full object-cover" />
-                    {identificando && (
-                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center gap-1.5">
-                        <Loader2 className="w-4 h-4 text-white animate-spin" />
-                        <span className="text-xs text-white font-medium">Identificando…</span>
-                      </div>
-                    )}
+              {isOnline && (
+                <div>
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={handleImagemSelecionada}
+                  />
+                  {imagemPreview ? (
+                    <div className="relative h-24 rounded-xl overflow-hidden border border-gray-200">
+                      <img src={imagemPreview} alt="" className="w-full h-full object-cover" />
+                      {identificando && (
+                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center gap-1.5">
+                          <Loader2 className="w-4 h-4 text-white animate-spin" />
+                          <span className="text-xs text-white font-medium">Identificando…</span>
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setImagemPreview(null)}
+                        className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 flex items-center justify-center"
+                      >
+                        <X className="w-3 h-3 text-white" />
+                      </button>
+                    </div>
+                  ) : (
                     <button
                       type="button"
-                      onClick={() => setImagemPreview(null)}
-                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 flex items-center justify-center"
+                      onClick={() => imageInputRef.current?.click()}
+                      disabled={identificando}
+                      className="w-full py-2.5 rounded-xl border-2 border-dashed border-gray-200
+                                 flex items-center justify-center gap-2 text-sm font-medium text-gray-400
+                                 hover:border-primary-300 hover:text-primary-500 transition-colors
+                                 active:scale-[0.99] disabled:opacity-50"
                     >
-                      <X className="w-3 h-3 text-white" />
+                      <Camera className="w-4 h-4" />
+                      Identificar com IA
                     </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => imageInputRef.current?.click()}
-                    disabled={identificando}
-                    className="w-full py-2.5 rounded-xl border-2 border-dashed border-gray-200
-                               flex items-center justify-center gap-2 text-sm font-medium text-gray-400
-                               hover:border-primary-300 hover:text-primary-500 transition-colors
-                               active:scale-[0.99] disabled:opacity-50"
-                  >
-                    <Camera className="w-4 h-4" />
-                    Identificar com IA
-                  </button>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
 
               {/* Emoji + Nome */}
               <div>
@@ -542,7 +547,10 @@ function RetryIAButton({ itemId, imagemUrl, usuarioAtual, onPatch }: {
   usuarioAtual: string | null
   onPatch?: (campos: Partial<WishlistItem>) => void
 }) {
+  const isOnline = useOnline()
   const [loading, setLoading] = useState(false)
+
+  if (!isOnline) return null
 
   async function retry() {
     if (loading) return
@@ -891,6 +899,7 @@ function WishlistContent() {
     ativos, historico,
     adicionar, editar, patchItem, marcarRealizado, desfazerRealizado, toggleFavorito, excluir,
   } = useWishlist()
+  const isOnline = useOnline()
 
   type ToastAtivo = { kind: 'realizou'; id: string; nome: string }
 
@@ -929,6 +938,7 @@ function WishlistContent() {
   const autoAnalyzingRef = useRef<Set<string>>(new Set())
   const autoAttemptRef = useRef<Map<string, number>>(new Map())
   useEffect(() => {
+    if (!isOnline) return
     const todos = [...ativos, ...historico]
 
     const candidatos = todos.filter(i => {
@@ -976,7 +986,7 @@ function WishlistContent() {
         })
         .finally(() => autoAnalyzingRef.current.delete(item.id))
     })
-  }, [ativos, historico, patchItem, visibilityTick])
+  }, [ativos, historico, patchItem, visibilityTick, isOnline])
 
   // Aplica filtro "Recentes" quando a página é aberta (ou recebe foco) via notificação
   useEffect(() => {
@@ -1425,6 +1435,7 @@ function WishlistContent() {
           item={itemEditando}
           criadorPadrao={usuarioAtual}
           usuariosConhecidos={usuariosConhecidos}
+          isOnline={isOnline}
           onClose={fecharModal}
           onSalvar={handleSalvar}
         />
