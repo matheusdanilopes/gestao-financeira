@@ -1,15 +1,17 @@
 'use client'
 
-import { useState, useEffect, useRef, type FormEvent } from 'react'
+import { useState, useEffect, useRef, useCallback, type FormEvent, type ChangeEvent } from 'react'
 import {
   Heart, ShoppingBasket, X, ChevronLeft,
-  Plus, Minus, Check, Loader2,
+  Plus, Minus, Check, Loader2, Camera,
+  Image as ImageIcon, Sparkles, PenLine, AlertCircle, RotateCcw,
 } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 import { notificarWishlist } from '@/lib/notificacoes'
 
-type View = 'menu' | 'wishlist' | 'mercado'
+type View = 'menu' | 'wishlist-method' | 'wishlist' | 'wishlist-ai' | 'mercado'
+type AIStatus = 'idle' | 'compressing' | 'processing' | 'creating' | 'done' | 'error' | 'nao_identificado'
 
 const PRIORIDADES = [
   { value: 'alta'  as const, label: 'Alta',  active: 'bg-red-100 text-red-600 ring-red-300'     },
@@ -24,7 +26,32 @@ async function getUsuario(): Promise<string | null> {
   return user?.email ?? null
 }
 
-// ── Quick Add Wishlist / Pedido ───────────────────────────────────────────────
+async function compressImage(file: File, maxPx = 1920, quality = 0.85): Promise<{ base64: string; mimeType: string }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const objectUrl = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+      let { width, height } = img
+      if (width > maxPx || height > maxPx) {
+        const scale = maxPx / Math.max(width, height)
+        width = Math.round(width * scale)
+        height = Math.round(height * scale)
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { reject(new Error('canvas')); return }
+      ctx.drawImage(img, 0, 0, width, height)
+      resolve({ base64: canvas.toDataURL('image/jpeg', quality).split(',')[1], mimeType: 'image/jpeg' })
+    }
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('load')) }
+    img.src = objectUrl
+  })
+}
+
+// ── Quick Add Wishlist ────────────────────────────────────────────────────────
 
 function QuickAddWishlist({
   onClose,
@@ -83,7 +110,7 @@ function QuickAddWishlist({
         >
           <ChevronLeft className="w-5 h-5 text-gray-500" />
         </button>
-        <h3 className="text-base font-bold text-gray-900">Novo Desejo</h3>
+        <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">Novo Desejo</h3>
       </div>
 
       <input
@@ -210,7 +237,7 @@ function QuickAddMercado({
         >
           <ChevronLeft className="w-5 h-5 text-gray-500" />
         </button>
-        <h3 className="text-base font-bold text-gray-900">🛒 Lista de Mercado</h3>
+        <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">🛒 Lista de Mercado</h3>
       </div>
 
       <input
@@ -224,7 +251,7 @@ function QuickAddMercado({
       />
 
       <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 rounded-2xl px-4 py-3">
-        <span className="text-sm font-medium text-gray-700">Quantidade</span>
+        <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Quantidade</span>
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -234,7 +261,7 @@ function QuickAddMercado({
           >
             <Minus className="w-3.5 h-3.5 text-gray-600" />
           </button>
-          <span className="w-8 text-center font-bold text-gray-900 text-base num">
+          <span className="w-8 text-center font-bold text-gray-900 dark:text-gray-100 text-base num">
             {quantidade}
           </span>
           <button
@@ -267,26 +294,473 @@ function QuickAddMercado({
   )
 }
 
+// ── Wishlist Method Selector ──────────────────────────────────────────────────
+
+function WishlistMethodSelector({
+  onManual,
+  onAI,
+  onBack,
+}: {
+  onManual: () => void
+  onAI: () => void
+  onBack: () => void
+}) {
+  return (
+    <div className="flex flex-col gap-4 fab-form-enter">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onBack}
+          className="p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+          aria-label="Voltar"
+        >
+          <ChevronLeft className="w-5 h-5 text-gray-500" />
+        </button>
+        <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">Novo Desejo</h3>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <button
+          type="button"
+          onClick={onManual}
+          className="flex items-center gap-4 p-4 rounded-2xl bg-gray-50 dark:bg-gray-800
+                     ring-1 ring-gray-100 dark:ring-gray-700
+                     active:scale-[0.98] transition-all duration-150
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+        >
+          <div className="w-10 h-10 rounded-xl bg-white dark:bg-gray-700 shadow-sm
+                          flex items-center justify-center flex-none">
+            <PenLine className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+          </div>
+          <div className="text-left">
+            <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">Adicionar Manualmente</p>
+            <p className="text-xs text-gray-400 mt-0.5">Preencha os dados do item</p>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={onAI}
+          className="flex items-center gap-4 p-4 rounded-2xl bg-violet-50 dark:bg-violet-950/40
+                     ring-1 ring-violet-100 dark:ring-violet-900/50
+                     active:scale-[0.98] transition-all duration-150
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+        >
+          <div className="w-10 h-10 rounded-xl bg-violet-100 dark:bg-violet-900/60 shadow-sm
+                          flex items-center justify-center flex-none">
+            <Sparkles className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+          </div>
+          <div className="text-left">
+            <p className="text-sm font-semibold text-violet-700 dark:text-violet-300">Identificar com IA</p>
+            <p className="text-xs text-violet-400 dark:text-violet-500 mt-0.5">Tire uma foto ou escolha da galeria</p>
+          </div>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Wishlist AI Capture ───────────────────────────────────────────────────────
+
+function WishlistAICapture({
+  onClose,
+  onBack,
+  onFallback,
+}: {
+  onClose: () => void
+  onBack: () => void
+  onFallback: () => void
+}) {
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const galleryInputRef = useRef<HTMLInputElement>(null)
+
+  const [status, setStatus] = useState<AIStatus>('idle')
+  const [errorMsg, setErrorMsg] = useState('')
+  const [identifiedName, setIdentifiedName] = useState('')
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    return () => { if (previewUrl) URL.revokeObjectURL(previewUrl) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    if (status !== 'done') return
+    const t = setTimeout(() => onClose(), 2200)
+    return () => clearTimeout(t)
+  }, [status, onClose])
+
+  const uploadImageInBackground = useCallback(async (
+    itemId: string,
+    base64: string,
+    mimeType: string,
+  ) => {
+    try {
+      const ext = mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg'
+      const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+      const binaryStr = atob(base64)
+      const bytes = new Uint8Array(binaryStr.length)
+      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i)
+
+      const { data: uploadData } = await supabase.storage
+        .from('wishlist-images')
+        .upload(fileName, bytes, { contentType: mimeType, upsert: false })
+
+      if (uploadData) {
+        const publicUrl = supabase.storage
+          .from('wishlist-images')
+          .getPublicUrl(uploadData.path).data.publicUrl
+        await supabase.from('wishlist_items')
+          .update({ imagem_url: publicUrl })
+          .eq('id', itemId)
+        window.dispatchEvent(new CustomEvent('wishlist:refresh'))
+      }
+    } catch { /* non-critical — item already exists */ }
+  }, [])
+
+  const processFile = useCallback(async (file: File) => {
+    const objectUrl = URL.createObjectURL(file)
+    setPreviewUrl(prev => { if (prev) URL.revokeObjectURL(prev); return objectUrl })
+    setErrorMsg('')
+
+    setStatus('compressing')
+    let compressed: { base64: string; mimeType: string }
+    try {
+      compressed = await compressImage(file)
+    } catch {
+      setStatus('error')
+      setErrorMsg('Erro ao processar imagem.')
+      return
+    }
+
+    setStatus('processing')
+    let identified: { nome: string; descricao: string | null; preco: number | null; categoria: string | null }
+    try {
+      const res = await fetch('/api/wishlist-items/identify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: compressed.base64, imageMimeType: compressed.mimeType }),
+        signal: AbortSignal.timeout(28000),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json() as {
+        nome?: string
+        descricao?: string | null
+        preco?: number | null
+        categoria?: string | null
+        error?: string
+      }
+      if (!data?.nome) throw new Error('sem nome')
+      identified = {
+        nome: data.nome,
+        descricao: data.descricao ?? null,
+        preco: data.preco ?? null,
+        categoria: data.categoria ?? null,
+      }
+    } catch (e) {
+      const isTimeout = e instanceof DOMException && e.name === 'AbortError'
+      if (isTimeout) {
+        setStatus('error')
+        setErrorMsg('Tempo esgotado. Tente com uma foto diferente.')
+      } else {
+        setStatus('nao_identificado')
+      }
+      return
+    }
+
+    setStatus('creating')
+    try {
+      const criado_por = await getUsuario()
+      const { data: newItem, error } = await supabase.from('wishlist_items').insert([{
+        nome:           identified.nome,
+        descricao_ia:   identified.descricao,
+        valor_estimado: identified.preco,
+        categoria:      identified.categoria,
+        prioridade:     'media',
+        ai_status:      'identificado',
+        fonte:          'manual',
+        favoritado:     false,
+        realizado:      false,
+        criado_por,
+      }]).select('id').single()
+
+      if (error || !newItem) throw error ?? new Error('insert failed')
+
+      if (newItem.id && criado_por) notificarWishlist(newItem.id, identified.nome, criado_por)
+      window.dispatchEvent(new CustomEvent('wishlist:refresh'))
+
+      setIdentifiedName(identified.nome)
+      setStatus('done')
+
+      uploadImageInBackground(newItem.id, compressed.base64, compressed.mimeType)
+    } catch {
+      setStatus('error')
+      setErrorMsg('Erro ao salvar item. Tente novamente.')
+    }
+  }, [uploadImageInBackground])
+
+  function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) processFile(file)
+    e.target.value = ''
+  }
+
+  function resetToIdle() {
+    setPreviewUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null })
+    setStatus('idle')
+    setErrorMsg('')
+  }
+
+  // ── idle: pick source ──
+  if (status === 'idle') {
+    return (
+      <div className="flex flex-col gap-4 fab-form-enter">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onBack}
+            className="p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            aria-label="Voltar"
+          >
+            <ChevronLeft className="w-5 h-5 text-gray-500" />
+          </button>
+          <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">Identificar com IA</h3>
+        </div>
+
+        <div className="flex flex-col items-center py-2 gap-2">
+          <div className="w-14 h-14 rounded-2xl bg-violet-50 dark:bg-violet-950/40 flex items-center justify-center">
+            <Sparkles className="w-7 h-7 text-violet-500" />
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 text-center leading-relaxed">
+            Selecione uma foto do produto para identificação automática
+          </p>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => cameraInputRef.current?.click()}
+            className="flex-1 flex flex-col items-center gap-2.5 py-5 rounded-2xl
+                       bg-gray-50 dark:bg-gray-800 ring-1 ring-gray-100 dark:ring-gray-700
+                       active:scale-[0.98] transition-all duration-150"
+          >
+            <Camera className="w-6 h-6 text-gray-600 dark:text-gray-300" />
+            <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">Câmera</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => galleryInputRef.current?.click()}
+            className="flex-1 flex flex-col items-center gap-2.5 py-5 rounded-2xl
+                       bg-gray-50 dark:bg-gray-800 ring-1 ring-gray-100 dark:ring-gray-700
+                       active:scale-[0.98] transition-all duration-150"
+          >
+            <ImageIcon className="w-6 h-6 text-gray-600 dark:text-gray-300" />
+            <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">Galeria</span>
+          </button>
+        </div>
+
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+        <input
+          ref={galleryInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+      </div>
+    )
+  }
+
+  // ── processing states ──
+  if (status === 'compressing' || status === 'processing' || status === 'creating') {
+    const labels: Record<string, string> = {
+      compressing: 'Preparando imagem…',
+      processing:  'Identificando produto…',
+      creating:    'Criando item…',
+    }
+    return (
+      <div className="flex flex-col gap-4 fab-form-enter">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 flex-none" />
+          <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">Identificando…</h3>
+        </div>
+
+        {previewUrl ? (
+          <div className="relative w-full h-36 rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-800">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={previewUrl} alt="" className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-black/45 flex flex-col items-center justify-center gap-2">
+              <Loader2 className="w-6 h-6 text-white animate-spin" />
+              <span className="text-white text-xs font-medium">{labels[status]}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center py-8 gap-3">
+            <Loader2 className="w-8 h-8 text-violet-500 animate-spin" />
+            <p className="text-sm text-gray-500 dark:text-gray-400">{labels[status]}</p>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ── done ──
+  if (status === 'done') {
+    return (
+      <div className="flex flex-col items-center gap-4 py-2 fab-form-enter">
+        <div className="w-14 h-14 rounded-full bg-green-50 dark:bg-green-950/40 flex items-center justify-center">
+          <Check className="w-7 h-7 text-green-500" strokeWidth={2.5} />
+        </div>
+        <div className="text-center">
+          <p className="text-base font-bold text-gray-800 dark:text-gray-100">Item adicionado!</p>
+          {identifiedName && (
+            <p className="text-xs text-gray-400 mt-1 px-4 line-clamp-2">{identifiedName}</p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl
+                     bg-primary-600 text-white font-semibold text-sm
+                     active:scale-[0.98] transition-all duration-150"
+        >
+          Fechar
+        </button>
+      </div>
+    )
+  }
+
+  // ── not identified ──
+  if (status === 'nao_identificado') {
+    return (
+      <div className="flex flex-col gap-4 fab-form-enter">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onBack}
+            className="p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+          >
+            <ChevronLeft className="w-5 h-5 text-gray-500" />
+          </button>
+          <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">Não identificado</h3>
+        </div>
+
+        {previewUrl && (
+          <div className="w-full h-28 rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-800">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={previewUrl} alt="" className="w-full h-full object-cover opacity-60" />
+          </div>
+        )}
+
+        <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
+          Não foi possível identificar o produto. Tente uma foto mais clara ou adicione manualmente.
+        </p>
+
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={resetToIdle}
+            className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl
+                       bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200
+                       font-semibold text-sm active:scale-[0.98] transition-all duration-150"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Tentar novamente
+          </button>
+          <button
+            type="button"
+            onClick={onFallback}
+            className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl
+                       bg-primary-600 text-white font-semibold text-sm
+                       active:scale-[0.98] transition-all duration-150"
+          >
+            <PenLine className="w-4 h-4" />
+            Manual
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── error ──
+  return (
+    <div className="flex flex-col gap-4 fab-form-enter">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onBack}
+          className="p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+        >
+          <ChevronLeft className="w-5 h-5 text-gray-500" />
+        </button>
+        <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">Erro</h3>
+      </div>
+
+      <div className="flex flex-col items-center py-3 gap-3">
+        <div className="w-12 h-12 rounded-full bg-red-50 dark:bg-red-950/40 flex items-center justify-center">
+          <AlertCircle className="w-6 h-6 text-red-400" />
+        </div>
+        <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
+          {errorMsg || 'Algo deu errado. Tente novamente.'}
+        </p>
+      </div>
+
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={resetToIdle}
+          className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl
+                     bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200
+                     font-semibold text-sm active:scale-[0.98] transition-all duration-150"
+        >
+          <RotateCcw className="w-4 h-4" />
+          Tentar novamente
+        </button>
+        <button
+          type="button"
+          onClick={onFallback}
+          className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl
+                     bg-primary-600 text-white font-semibold text-sm
+                     active:scale-[0.98] transition-all duration-150"
+        >
+          <PenLine className="w-4 h-4" />
+          Manual
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Menu grid ─────────────────────────────────────────────────────────────────
 
 const OPCOES = [
   {
-    id:    'wishlist' as const,
-    label: 'Wishlist',
-    emoji: '💖',
-    bg:    'bg-pink-50  dark:bg-pink-950/40',
-    cor:   'text-pink-700 dark:text-pink-400',
-    ring:  'ring-pink-100 dark:ring-pink-900/50',
-    Icon:  Heart,
+    id:         'wishlist' as const,
+    targetView: 'wishlist-method' as View,
+    label:      'Wishlist',
+    emoji:      '💖',
+    bg:         'bg-pink-50  dark:bg-pink-950/40',
+    cor:        'text-pink-700 dark:text-pink-400',
+    ring:       'ring-pink-100 dark:ring-pink-900/50',
+    Icon:       Heart,
   },
   {
-    id:    'mercado'  as const,
-    label: 'Lista de Mercado',
-    emoji: '🛒',
-    bg:    'bg-green-50   dark:bg-green-950/40',
-    cor:   'text-green-700  dark:text-green-400',
-    ring:  'ring-green-100  dark:ring-green-900/50',
-    Icon:  ShoppingBasket,
+    id:         'mercado' as const,
+    targetView: 'mercado' as View,
+    label:      'Lista de Mercado',
+    emoji:      '🛒',
+    bg:         'bg-green-50   dark:bg-green-950/40',
+    cor:        'text-green-700  dark:text-green-400',
+    ring:       'ring-green-100  dark:ring-green-900/50',
+    Icon:       ShoppingBasket,
   },
 ]
 
@@ -297,10 +771,10 @@ export default function FabQuickLaunchSheet({ onClose }: { onClose: () => void }
 
   useEffect(() => {
     function handleEsc(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        if (view !== 'menu') setView('menu')
-        else onClose()
-      }
+      if (e.key !== 'Escape') return
+      if (view === 'menu') onClose()
+      else if (view === 'wishlist' || view === 'wishlist-ai') setView('wishlist-method')
+      else setView('menu')
     }
     window.addEventListener('keydown', handleEsc)
     return () => window.removeEventListener('keydown', handleEsc)
@@ -335,7 +809,7 @@ export default function FabQuickLaunchSheet({ onClose }: { onClose: () => void }
               <div className="fab-form-enter">
                 <div className="flex items-center justify-between mb-5">
                   <div>
-                    <h2 className="text-base font-bold text-gray-900">
+                    <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">
                       Lançamento Rápido
                     </h2>
                     <p className="text-xs text-gray-400 mt-0.5">O que deseja registrar?</p>
@@ -352,11 +826,11 @@ export default function FabQuickLaunchSheet({ onClose }: { onClose: () => void }
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  {OPCOES.map(({ id, label, emoji, bg, cor, ring }) => (
+                  {OPCOES.map(({ id, targetView, label, emoji, bg, cor, ring }) => (
                     <button
                       key={id}
                       type="button"
-                      onClick={() => setView(id)}
+                      onClick={() => setView(targetView)}
                       className={`flex flex-col items-center gap-2.5 p-4 rounded-2xl
                                   ${bg} ring-1 ${ring}
                                   active:scale-95 transition-all duration-150
@@ -372,8 +846,24 @@ export default function FabQuickLaunchSheet({ onClose }: { onClose: () => void }
               </div>
             )}
 
+            {view === 'wishlist-method' && (
+              <WishlistMethodSelector
+                onManual={() => setView('wishlist')}
+                onAI={() => setView('wishlist-ai')}
+                onBack={() => setView('menu')}
+              />
+            )}
+
             {view === 'wishlist' && (
-              <QuickAddWishlist onClose={onClose} onBack={() => setView('menu')} />
+              <QuickAddWishlist onClose={onClose} onBack={() => setView('wishlist-method')} />
+            )}
+
+            {view === 'wishlist-ai' && (
+              <WishlistAICapture
+                onClose={onClose}
+                onBack={() => setView('wishlist-method')}
+                onFallback={() => setView('wishlist')}
+              />
             )}
 
             {view === 'mercado' && (

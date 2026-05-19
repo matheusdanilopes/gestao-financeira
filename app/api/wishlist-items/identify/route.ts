@@ -5,6 +5,8 @@ export const maxDuration = 30
 const GEMINI_MODEL = 'gemini-3-flash-preview'
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
+const VALID_CATEGORIAS = ['Eletrônicos', 'Casa', 'Moda', 'Viagem', 'Lazer', 'Esporte', 'Saúde', 'Educação', 'Outros']
+
 export async function POST(req: NextRequest) {
   let body: { imageBase64?: string; imageMimeType?: string } | null = null
   try {
@@ -23,9 +25,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'GEMINI_API_KEY não configurada' }, { status: 503 })
   }
 
-  const prompt = `Analise a imagem e identifique o produto principal. Responda SOMENTE com um objeto JSON:
-{"nome":"Nome do produto, max 60 chars","descricao":"descricao curta ou null","preco":0.00}
-Regras: nome max 60 chars. descricao max 100 chars ou null. preco em reais como numero (ex: 49.90) se visível, senão null. Se nao houver produto claro, use nome "Produto compartilhado".`
+  const prompt = `Analise a imagem e identifique o produto principal. Responda SOMENTE com um objeto JSON válido:
+{"nome":"Nome do produto","descricao":"descricao breve ou null","preco":0.00,"categoria":"categoria ou null"}
+Regras: nome max 60 chars obrigatório. descricao max 100 chars ou null. preco em reais como numero (ex: 49.90) se visível, senão null. categoria deve ser uma de [Eletrônicos, Casa, Moda, Viagem, Lazer, Esporte, Saúde, Educação, Outros] ou null. Se nao houver produto claro, use nome "Produto identificado".`
 
   let geminiRes: Response
   try {
@@ -65,13 +67,15 @@ Regras: nome max 60 chars. descricao max 100 chars ou null. preco em reais como 
   if (!match) return NextResponse.json({ error: 'Sem JSON na resposta' }, { status: 502 })
 
   try {
-    const parsed = JSON.parse(match[0]) as { nome?: string; descricao?: string | null; preco?: number | string | null }
+    const parsed = JSON.parse(match[0]) as { nome?: string; descricao?: string | null; preco?: number | string | null; categoria?: string | null }
     if (!parsed?.nome) return NextResponse.json({ error: 'Campo nome ausente' }, { status: 502 })
     const precoRaw = parsed.preco != null ? Number(String(parsed.preco).replace(',', '.')) : null
+    const categoriaRaw = typeof parsed.categoria === 'string' ? parsed.categoria : null
     return NextResponse.json({
       nome: String(parsed.nome).slice(0, 60),
       descricao: parsed.descricao ? String(parsed.descricao).slice(0, 100) : null,
       preco: precoRaw && isFinite(precoRaw) && precoRaw > 0 ? precoRaw : null,
+      categoria: categoriaRaw && VALID_CATEGORIAS.includes(categoriaRaw) ? categoriaRaw : null,
     })
   } catch {
     return NextResponse.json({ error: 'Parse do JSON falhou' }, { status: 502 })
