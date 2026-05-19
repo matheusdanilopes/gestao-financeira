@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, Suspense, useCallback, type FormEvent, type ReactNode } from 'react'
+import { useState, useEffect, useRef, Suspense, useCallback, type FormEvent, type ReactNode, type RefObject, type ChangeEvent } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Heart, Plus, Check, ExternalLink, X, Star, Search, RotateCcw, Trash2, ChevronDown, Camera, Loader2 } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
@@ -481,7 +481,7 @@ async function callAnalyze(id: string, imageBase64: string, imageMimeType: strin
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id, imageBase64, imageMimeType, ...(criado_por ? { criado_por } : {}) }),
   })
-  return res.json() as Promise<{ status: string; nome?: string; debug?: string }>
+  return res.json() as Promise<{ status: string; nome?: string; descricao?: string | null; preco?: number | null; debug?: string }>
 }
 
 // ── Botão de re-análise IA (retry silencioso) ─────────────────────────────────
@@ -538,6 +538,73 @@ function RetryIAButton({ itemId, imagemUrl, usuarioAtual }: {
 
 // ── Botão de captura de imagem (upload + analise automatica) ──────────────────
 
+type UploadState = 'idle' | 'uploading' | 'analyzing'
+
+function ImageCaptureButton({ itemId, usuarioAtualRef }: {
+  itemId: string
+  usuarioAtualRef: RefObject<string | null>
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [state, setState] = useState<UploadState>('idle')
+
+  async function handleFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+
+    setState('uploading')
+    try {
+      const { base64, mimeType } = await fileToBase64(file)
+
+      const uploadRes = await fetch('/api/wishlist-items/upload-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: itemId, imageBase64: base64, imageMimeType: mimeType }),
+      })
+      if (!uploadRes.ok) { setState('idle'); return }
+
+      setState('analyzing')
+      await callAnalyze(itemId, base64, mimeType, usuarioAtualRef.current)
+    } catch {
+      // falha silenciosa — Realtime reflete o estado real do item
+    } finally {
+      setState('idle')
+    }
+  }
+
+  const label: Record<UploadState, string> = {
+    idle: 'Adicionar imagem',
+    uploading: 'Enviando...',
+    analyzing: 'Analisando...',
+  }
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="sr-only"
+        onChange={handleFile}
+      />
+      <button
+        type="button"
+        disabled={state !== 'idle'}
+        onClick={() => inputRef.current?.click()}
+        title={label[state]}
+        className="flex-none w-8 h-8 flex items-center justify-center rounded-xl
+                   hover:bg-indigo-50 transition-colors active:scale-90 disabled:opacity-60"
+      >
+        {state === 'idle'
+          ? <Camera className="w-4 h-4 text-indigo-400" />
+          : <Loader2 className="w-4 h-4 text-indigo-400 animate-spin" />
+        }
+      </button>
+    </>
+  )
+}
+
 // ── Card de desejo ────────────────────────────────────────────────────────────
 
 function WishlistCard({
@@ -545,6 +612,7 @@ function WishlistCard({
   mostraHint,
   highlighted,
   usuarioAtual,
+  usuarioAtualRef,
   onEditar,
   onRealizar,
   onExcluir,
@@ -554,6 +622,7 @@ function WishlistCard({
   mostraHint: boolean
   highlighted?: boolean
   usuarioAtual: string | null
+  usuarioAtualRef: RefObject<string | null>
   onEditar: (item: WishlistItem) => void
   onRealizar: (id: string) => unknown
   onExcluir: (id: string) => unknown
@@ -647,6 +716,9 @@ function WishlistCard({
           <div className="flex items-center gap-2 flex-none">
             {item.ai_status === 'nao_identificado' && item.imagem_url && (
               <RetryIAButton itemId={item.id} imagemUrl={item.imagem_url} usuarioAtual={usuarioAtual} />
+            )}
+            {!item.imagem_url && (
+              <ImageCaptureButton itemId={item.id} usuarioAtualRef={usuarioAtualRef} />
             )}
             {item.criado_por && (
               item.criado_por === 'conjunto'
@@ -823,7 +895,7 @@ function WishlistContent() {
   const searchParams = useSearchParams()
   const {
     ativos, historico,
-    adicionar, editar, marcarRealizado, desfazerRealizado, toggleFavorito, excluir,
+    adicionar, editar, patchItem, marcarRealizado, desfazerRealizado, toggleFavorito, excluir,
   } = useWishlist()
 
   type ToastAtivo =
@@ -833,6 +905,7 @@ function WishlistContent() {
   type OrdemAtivos = 'padrao' | 'mais-novo' | 'mais-antigo'
 
   const [usuarioAtual, setUsuarioAtual] = useState<string | null>(null)
+  const usuarioAtualRef = useRef<string | null>(null)
   const [extraUsuarios, setExtraUsuarios] = useState<string[]>([])
   const [highlightId, setHighlightId] = useState<string | null>(searchParams.get('highlight'))
   const ordemParam = searchParams.get('ordem')
@@ -843,11 +916,14 @@ function WishlistContent() {
   )
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setUsuarioAtual(user?.email ?? null))
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      const email = user?.email ?? null
+      setUsuarioAtual(email)
+      usuarioAtualRef.current = email
+    })
   }, [])
 
-  // Auto-analisa itens pendentes que aparecem na lista (ex: share-receiver criou o item
-  // mas o analyze ainda nao rodou ou falhou silenciosamente)
+  // Auto-analisa itens pendentes que aparecem na lista (fallback para o analyze do share-recebido)
   const autoAnalyzingRef = useRef<Set<string>>(new Set())
   useEffect(() => {
     const todos = [...ativos, ...historico]
@@ -858,16 +934,33 @@ function WishlistContent() {
 
     pendentes.forEach(item => {
       autoAnalyzingRef.current.add(item.id)
+      let capturedMime = 'image/jpeg'
       fetch(item.imagem_url!)
-        .then(r => r.ok ? r.arrayBuffer() : Promise.reject('fetch falhou'))
+        .then(r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`)
+          capturedMime = r.headers.get('content-type')?.split(';')[0].trim() || 'image/jpeg'
+          return r.arrayBuffer()
+        })
         .then(buf => fileToBase64(buf))
-        .then(({ base64, mimeType }) =>
-          callAnalyze(item.id, base64, mimeType, usuarioAtual)
+        .then(({ base64 }) =>
+          callAnalyze(item.id, base64, capturedMime, usuarioAtualRef.current)
         )
+        .then(result => {
+          if (result.status === 'identificado' && result.nome) {
+            patchItem(item.id, {
+              nome: result.nome,
+              ai_status: 'identificado',
+              descricao_ia: result.descricao ?? null,
+              ...(result.preco != null ? { valor_estimado: result.preco } : {}),
+            })
+          } else if (result.status === 'nao_identificado') {
+            patchItem(item.id, { ai_status: 'nao_identificado' })
+          }
+        })
         .catch(() => {})
         .finally(() => autoAnalyzingRef.current.delete(item.id))
     })
-  }, [ativos, historico, usuarioAtual])
+  }, [ativos, historico, patchItem])
 
   // Aplica filtro "Recentes" quando a página é aberta (ou recebe foco) via notificação
   useEffect(() => {
@@ -1318,6 +1411,7 @@ function WishlistContent() {
                     mostraHint={idx === 0 && !hintVisto}
                     highlighted={highlightId === item.id}
                     usuarioAtual={usuarioAtual}
+                    usuarioAtualRef={usuarioAtualRef}
                     onEditar={abrirEditar}
                     onRealizar={handleRealizar}
                     onExcluir={handleExcluir}

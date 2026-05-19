@@ -122,9 +122,8 @@ export async function POST(req: NextRequest) {
     base64 = imageBase64
     mimeType = imageMimeType ?? 'image/jpeg'
   } else {
-    // Fallback: tenta baixar via SDK (requer policy SELECT no bucket)
-    const filePath = item.imagem_url?.split('/wishlist-images/')[1]
-    if (!filePath) {
+    // Fallback: baixa via URL pública (não requer autenticação no storage)
+    if (!item.imagem_url) {
       await supabase.from('wishlist_items').update({
         ai_status: 'nao_identificado',
         updated_at: new Date().toISOString(),
@@ -133,13 +132,14 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      const { data: blob, error: dlError } = await supabase.storage
-        .from('wishlist-images')
-        .download(filePath)
-      if (dlError || !blob) throw dlError ?? new Error('empty blob')
-      const imgBuffer = await blob.arrayBuffer()
+      const imgRes = await fetch(item.imagem_url, {
+        signal: AbortSignal.timeout(10000),
+        cache: 'no-store',
+      })
+      if (!imgRes.ok) throw new Error(`HTTP ${imgRes.status}`)
+      const imgBuffer = await imgRes.arrayBuffer()
       base64 = Buffer.from(imgBuffer).toString('base64')
-      mimeType = blob.type || 'image/jpeg'
+      mimeType = imgRes.headers.get('content-type')?.split(';')[0].trim() || 'image/jpeg'
     } catch {
       await supabase.from('wishlist_items').update({
         ai_status: 'nao_identificado',
