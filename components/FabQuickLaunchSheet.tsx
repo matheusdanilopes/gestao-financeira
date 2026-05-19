@@ -11,6 +11,7 @@ import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 import { notificarWishlist } from '@/lib/notificacoes'
 import { compressImage, abortTimeout, callAnalyze } from '@/lib/imageUtils'
+import { useOnline } from '@/lib/useOnline'
 
 type View = 'menu' | 'wishlist-method' | 'wishlist' | 'wishlist-ai' | 'mercado'
 type AIStatus = 'idle' | 'uploading' | 'done' | 'error'
@@ -623,7 +624,15 @@ const OPCOES = [
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function FabQuickLaunchSheet({ onClose }: { onClose: () => void }) {
+  const isOnline = useOnline()
   const [view, setView] = useState<View>('menu')
+
+  // When offline: redirect away from wishlist-related views
+  useEffect(() => {
+    if (!isOnline && (view === 'wishlist' || view === 'wishlist-method' || view === 'wishlist-ai')) {
+      setView('menu')
+    }
+  }, [isOnline, view])
 
   useEffect(() => {
     function handleEsc(e: KeyboardEvent) {
@@ -635,6 +644,9 @@ export default function FabQuickLaunchSheet({ onClose }: { onClose: () => void }
     window.addEventListener('keydown', handleEsc)
     return () => window.removeEventListener('keydown', handleEsc)
   }, [view, onClose])
+
+  // Offline: filter to only mercado option
+  const opcoesVisiveis = isOnline ? OPCOES : OPCOES.filter(o => o.id === 'mercado')
 
   return (
     <ModalPortal>
@@ -668,7 +680,9 @@ export default function FabQuickLaunchSheet({ onClose }: { onClose: () => void }
                     <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">
                       Lançamento Rápido
                     </h2>
-                    <p className="text-xs text-gray-400 mt-0.5">O que deseja registrar?</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {isOnline ? 'O que deseja registrar?' : 'Disponível offline'}
+                    </p>
                   </div>
                   <button
                     type="button"
@@ -681,8 +695,8 @@ export default function FabQuickLaunchSheet({ onClose }: { onClose: () => void }
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  {OPCOES.map(({ id, targetView, label, emoji, bg, cor, ring }) => (
+                <div className={`grid gap-3 ${opcoesVisiveis.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                  {opcoesVisiveis.map(({ id, targetView, label, emoji, bg, cor, ring }) => (
                     <button
                       key={id}
                       type="button"
@@ -723,7 +737,10 @@ export default function FabQuickLaunchSheet({ onClose }: { onClose: () => void }
             )}
 
             {view === 'mercado' && (
-              <QuickAddMercado onClose={onClose} onBack={() => setView('menu')} />
+              <QuickAddMercado
+                onClose={onClose}
+                onBack={isOnline ? () => setView('menu') : onClose}
+              />
             )}
           </div>
         </div>

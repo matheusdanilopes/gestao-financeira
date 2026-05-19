@@ -354,15 +354,39 @@ export default memo(function BottomNav() {
       )}
 
       <nav aria-label="Navegação principal">
-        {/* ── Mobile: offline — 2 itens centralizados ──────────────────────── */}
+        {/* ── Mobile: offline — Dashboard + FAB simplificado + Lista Mercado ── */}
         {!isOnline ? (
-          <div className="flex lg:hidden justify-around items-center h-16 px-8 transition-all duration-300">
+          <div className="flex lg:hidden justify-around items-center h-16 px-1 transition-all duration-300">
             <OfflineNavItem
               href="/dashboard"
               label="Dashboard"
               icon={LayoutDashboard}
               isActive={pathname === '/dashboard'}
             />
+
+            {/* FAB offline: abre diretamente a lista de mercado */}
+            <button
+              type="button"
+              aria-label={fabSheetOpen ? 'Fechar menu' : 'Adicionar à lista'}
+              aria-expanded={fabSheetOpen}
+              onClick={() => setFabSheetOpen(p => !p)}
+              className="flex flex-col items-center justify-center flex-none -mt-5 group"
+            >
+              <span className={`w-14 h-14 rounded-full flex items-center justify-center
+                                fab-premium
+                                ${fabSheetOpen ? 'fab-premium-active' : ''}
+                                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2`}>
+                <Plus
+                  className={`w-6 h-6 text-white transition-transform duration-300
+                              ${fabSheetOpen ? 'rotate-45' : ''}`}
+                  strokeWidth={2.5}
+                />
+              </span>
+              <span className="text-[10px] font-medium text-gray-400 mt-0.5 leading-none">
+                Adicionar
+              </span>
+            </button>
+
             <OfflineNavItem
               href="/lista-mercado"
               label="Lista Mercado"
@@ -482,8 +506,8 @@ export default memo(function BottomNav() {
           </ModalPortal>
         )}
 
-        {/* ── FAB Quick Launch Sheet (apenas online) ────────────────────────── */}
-        {isOnline && fabSheetOpen && (
+        {/* ── FAB Quick Launch Sheet (online: completo, offline: só mercado) ── */}
+        {fabSheetOpen && (
           <FabQuickLaunchSheet onClose={() => setFabSheetOpen(false)} />
         )}
       </nav>
