@@ -381,6 +381,26 @@ button, a, [role="button"] {
 .page-bottom-safe { padding-bottom: 7rem; }
 @media (min-width: 1024px) { .page-bottom-safe { padding-bottom: 1.5rem; } }
 
+/* ─── SubtotalBar (Lista de Mercado) ─────────────────────────────────────── */
+.subtotal-bar {
+  background: rgba(255, 255, 255, 0.90);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  box-shadow:
+    0 -1px 0 rgba(0, 0, 0, 0.04),
+    0 4px 20px rgba(0, 0, 0, 0.10),
+    0 1px 4px rgba(0, 0, 0, 0.06);
+}
+.dark .subtotal-bar {
+  background: rgba(30, 41, 59, 0.93);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow:
+    0 -1px 0 rgba(0, 0, 0, 0.20),
+    0 4px 20px rgba(0, 0, 0, 0.45),
+    0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
 /* ─── Input focus ring consistente ──────────────────────────────────────── */
 .input-base {
   background: var(--color-surface-2);
