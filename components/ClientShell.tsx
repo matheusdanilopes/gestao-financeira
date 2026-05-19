@@ -5,6 +5,8 @@ import { useEffect } from 'react'
 import NotificacoesBell from './NotificacoesBell'
 import DataStatusIndicator from './DataStatusIndicator'
 import { useRefreshContext } from './RefreshProvider'
+import { useOnline } from '@/lib/useOnline'
+import BottomNav from './BottomNav'
 
 // Rotas que mostram sino de notificações
 const ROTAS_COM_BELL = [
@@ -20,6 +22,7 @@ const ROTAS_COM_REFRESH = [
 export default function ClientShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { syncState } = useRefreshContext()
+  const isOnline = useOnline()
 
   // Registra o SW globalmente em todas as rotas para garantir cache offline
   useEffect(() => {
@@ -30,6 +33,9 @@ export default function ClientShell({ children }: { children: React.ReactNode })
 
   const mostrarBell = pathname ? ROTAS_COM_BELL.includes(pathname) : false
   const mostrarRefresh = pathname ? ROTAS_COM_REFRESH.includes(pathname) : false
+
+  // pb-16 = nav bar (64px); pb-24 = nav bar + offline banner (~88px)
+  const mainPb = isOnline ? 'pb-16' : 'pb-24'
 
   return (
     <>
@@ -45,7 +51,10 @@ export default function ClientShell({ children }: { children: React.ReactNode })
           {mostrarBell && <NotificacoesBell />}
         </div>
       )}
-      {children}
+      <main className={`w-full max-w-md md:max-w-2xl lg:max-w-5xl xl:max-w-7xl mx-auto relative lg:pt-14 lg:pb-0 ${mainPb}`}>
+        {children}
+      </main>
+      <BottomNav />
     </>
   )
 }
