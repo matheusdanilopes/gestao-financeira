@@ -155,7 +155,9 @@ function OfflineNavItem({
   isActive: boolean
 }) {
   return (
-    <Link
+    // <a> nativo (não <Link>) força navegação completa (request.mode==='navigate')
+    // para que o service worker sirva a página do cache pré-cacheado offline.
+    <a
       href={href}
       className="flex flex-col items-center justify-center gap-1 flex-1 py-2
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
@@ -174,7 +176,7 @@ function OfflineNavItem({
                         ${isActive ? 'text-primary-600' : 'text-gray-500'}`}>
         {label}
       </span>
-    </Link>
+    </a>
   )
 }
 
