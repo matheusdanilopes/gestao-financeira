@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, type FormEvent, type ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  ShoppingBasket, Plus, Minus, Check, Trash2, X, Pencil, ChevronDown, ChevronUp,
+  ShoppingBasket, Plus, Minus, Check, X, Pencil, ChevronDown, ChevronUp,
   WifiOff, RefreshCw, AlertCircle, History, Camera,
 } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
@@ -928,24 +928,8 @@ export default function ListaMercadoPage() {
   const [finalizandoCompra, setFinalizandoCompra] = useState(false)
   const [salvandoHistorico, setSalvandoHistorico] = useState(false)
   const [hintVisto, setHintVisto] = useState(true)
-  const [deleteToast, setDeleteToast] = useState<{ id: string; nome: string } | null>(null)
-  const [pendingExcluirId, setPendingExcluirId] = useState<string | null>(null)
   const [compradosAbertos, setCompradosAbertos] = useState(true)
   const [successToast, setSuccessToast] = useState(false)
-  const deleteTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pendingExcluirRef = useRef<string | null>(null)
-
-  function clearDeleteTimer() {
-    if (deleteTimerRef.current) { clearTimeout(deleteTimerRef.current); deleteTimerRef.current = null }
-  }
-
-  function commitDelete() {
-    if (pendingExcluirRef.current) {
-      excluir(pendingExcluirRef.current)
-      pendingExcluirRef.current = null
-      setPendingExcluirId(null)
-    }
-  }
 
   useEffect(() => {
     if (!localStorage.getItem(HINT_KEY)) setHintVisto(false)
@@ -961,8 +945,8 @@ export default function ListaMercadoPage() {
     }
   }, [hintVisto, itens.length])
 
-  const comprados = itens.filter(i => i.comprado && i.id !== pendingExcluirId)
-  const pendentes = itens.filter(i => !i.comprado && i.id !== pendingExcluirId)
+  const comprados = itens.filter(i => i.comprado)
+  const pendentes = itens.filter(i => !i.comprado)
   const todosVisiveis = [...pendentes, ...comprados]
   const total    = todosVisiveis.reduce((s, i) => s + i.quantidade * (i.preco_unit ?? 0), 0)
   const semPreco = todosVisiveis.filter(i => i.preco_unit == null).length
@@ -971,30 +955,7 @@ export default function ListaMercadoPage() {
   const handleToggle = useCallback((id: string) => toggleComprado(id, itens), [toggleComprado, itens])
   const handleQtd    = useCallback((id: string, d: number) => alterarQuantidade(id, d, itens), [alterarQuantidade, itens])
   function handleExcluir(id: string) {
-    commitDelete()
-    clearDeleteTimer()
-    const item = itens.find(i => i.id === id)
-    if (!item) { excluir(id); return }
-    pendingExcluirRef.current = id
-    setPendingExcluirId(id)
-    setDeleteToast({ id, nome: item.nome })
-    deleteTimerRef.current = setTimeout(() => {
-      commitDelete()
-      setDeleteToast(null)
-    }, 4000)
-  }
-
-  function handleDesfazerExclusao() {
-    clearDeleteTimer()
-    pendingExcluirRef.current = null
-    setPendingExcluirId(null)
-    setDeleteToast(null)
-  }
-
-  function handleFecharDeleteToast() {
-    clearDeleteTimer()
-    commitDelete()
-    setDeleteToast(null)
+    excluir(id)
   }
 
   function handleConfirmarCompra(qtd: number, preco: number | null) {
@@ -1193,33 +1154,6 @@ export default function ListaMercadoPage() {
           onClose={() => setFinalizandoCompra(false)}
           onFinalizar={handleFinalizar}
         />
-      )}
-
-      {/* Toast de exclusão com undo */}
-      {deleteToast && (
-        <div className="fixed bottom-24 left-4 right-4 z-[300] max-w-md mx-auto toast-enter">
-          <div className="flex items-center gap-3 bg-gray-900 text-white rounded-2xl px-4 py-3.5 shadow-float">
-            <Trash2 className="w-4 h-4 text-red-400 flex-none" strokeWidth={2} />
-            <p className="flex-1 text-sm font-medium truncate">
-              <span className="text-gray-300">&ldquo;{deleteToast.nome}&rdquo;</span> removido
-            </p>
-            <button
-              type="button"
-              onClick={handleDesfazerExclusao}
-              className="text-xs font-semibold text-primary-300 hover:text-primary-200 py-1 px-2 rounded-lg transition-colors"
-            >
-              Desfazer
-            </button>
-            <button
-              type="button"
-              onClick={handleFecharDeleteToast}
-              className="text-gray-500 hover:text-gray-300 transition-colors"
-              aria-label="Fechar"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
       )}
 
       {/* Toast de sucesso ao salvar histórico */}

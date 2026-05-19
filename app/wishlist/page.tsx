@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense, useCallback, type FormEvent, type ReactNode, type RefObject, type ChangeEvent } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { Heart, Plus, Check, ExternalLink, X, Star, Search, RotateCcw, Trash2, ChevronDown, Camera, Loader2 } from 'lucide-react'
+import { Heart, Plus, Check, ExternalLink, X, Search, RotateCcw, ChevronDown, Camera, Loader2 } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { useWishlist, type WishlistItem } from '@/lib/useWishlist'
@@ -935,9 +935,7 @@ function WishlistContent() {
     adicionar, editar, patchItem, marcarRealizado, desfazerRealizado, toggleFavorito, excluir,
   } = useWishlist()
 
-  type ToastAtivo =
-    | { kind: 'realizou'; id: string; nome: string }
-    | { kind: 'excluiu';  id: string; nome: string }
+  type ToastAtivo = { kind: 'realizou'; id: string; nome: string }
 
   type OrdemAtivos = 'padrao' | 'mais-novo' | 'mais-antigo'
 
@@ -1069,21 +1067,11 @@ function WishlistContent() {
   const [filtroCategoria, setFiltroCategoria] = useState<string | null>(null)
   const [filtroUsuario, setFiltroUsuario] = useState<string | null>(null)
   const [activeToast, setActiveToast] = useState<ToastAtivo | null>(null)
-  const [pendingExcluirId, setPendingExcluirId] = useState<string | null>(null)
   const [hintVisto, setHintVisto] = useState(true)
-  const toastTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pendingExcluirRef = useRef<string | null>(null)
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function clearToastTimer() {
     if (toastTimerRef.current) { clearTimeout(toastTimerRef.current); toastTimerRef.current = null }
-  }
-
-  function commitPendingExcluir() {
-    if (pendingExcluirRef.current) {
-      excluir(pendingExcluirRef.current)
-      pendingExcluirRef.current = null
-      setPendingExcluirId(null)
-    }
   }
 
   useEffect(() => {
@@ -1137,7 +1125,6 @@ function WishlistContent() {
   })()
 
   const ativosFiltrados = ativos
-    .filter(i => i.id !== pendingExcluirId)
     .filter(item => {
       if (filtroUsuario && item.criado_por !== filtroUsuario && item.criado_por !== 'conjunto') return false
       if (filtroCategoria && item.categoria !== filtroCategoria) return false
@@ -1153,7 +1140,6 @@ function WishlistContent() {
     })
 
   const historicoDis = historico
-    .filter(i => i.id !== pendingExcluirId)
     .filter(i => !filtroUsuario || i.criado_por === filtroUsuario || i.criado_por === 'conjunto')
 
   // Per-user stats: baseia nos usuários conhecidos para sempre mostrar ambos os cards,
@@ -1167,9 +1153,7 @@ function WishlistContent() {
     }))
   }
 
-  const ativosBase = ativos.filter(i => i.id !== pendingExcluirId)
-  const historicoBase = historico.filter(i => i.id !== pendingExcluirId)
-  const listaAtual = aba === 'ativos' ? ativosBase : historicoBase
+  const listaAtual = aba === 'ativos' ? ativos : historico
   const statsAtuais = calcStats(listaAtual, usuariosConhecidos)
   const conjuntoAtual = listaAtual.filter(i => i.criado_por === 'conjunto')
   const conjuntoStats = {
@@ -1204,7 +1188,6 @@ function WishlistContent() {
   }
 
   async function handleRealizar(id: string) {
-    commitPendingExcluir()
     clearToastTimer()
     const item = ativos.find(i => i.id === id)
     await marcarRealizado(id)
@@ -1215,36 +1198,19 @@ function WishlistContent() {
   }
 
   function handleExcluir(id: string) {
-    commitPendingExcluir()
-    clearToastTimer()
-    const item = [...ativos, ...historico].find(i => i.id === id)
-    if (!item) { excluir(id); return }
-    pendingExcluirRef.current = id
-    setPendingExcluirId(id)
-    setActiveToast({ kind: 'excluiu', id, nome: item.nome })
-    toastTimerRef.current = setTimeout(() => {
-      commitPendingExcluir()
-      setActiveToast(null)
-    }, 4000)
+    excluir(id)
   }
 
   const handleDesfazer = useCallback(async () => {
     clearToastTimer()
     if (!activeToast) return
-    if (activeToast.kind === 'realizou') {
-      setActiveToast(null)
-      await desfazerRealizado(activeToast.id)
-    } else {
-      pendingExcluirRef.current = null
-      setPendingExcluirId(null)
-      setActiveToast(null)
-    }
+    setActiveToast(null)
+    await desfazerRealizado(activeToast.id)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeToast, desfazerRealizado])
 
   function handleFecharToast() {
     clearToastTimer()
-    commitPendingExcluir()
     setActiveToast(null)
   }
 
@@ -1499,19 +1465,11 @@ function WishlistContent() {
         />
       )}
 
-      {/* Toast unificado (realizou / excluiu) */}
+      {/* Toast de realizou com desfazer */}
       {activeToast && (
         <Toast
-          mensagem={
-            activeToast.kind === 'realizou'
-              ? <><span className="text-gray-300">&ldquo;{activeToast.nome}&rdquo;</span> realizado!</>
-              : <><span className="text-gray-300">&ldquo;{activeToast.nome}&rdquo;</span> removido</>
-          }
-          icone={
-            activeToast.kind === 'realizou'
-              ? <Check className="w-4 h-4 text-green-400" strokeWidth={2.5} />
-              : <Trash2 className="w-4 h-4 text-red-400" strokeWidth={2} />
-          }
+          mensagem={<><span className="text-gray-300">&ldquo;{activeToast.nome}&rdquo;</span> realizado!</>}
+          icone={<Check className="w-4 h-4 text-green-400" strokeWidth={2.5} />}
           onDesfazer={handleDesfazer}
           onClose={handleFecharToast}
         />
