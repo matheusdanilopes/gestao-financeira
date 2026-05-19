@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, Suspense, useCallback, type FormEvent, type ReactNode, type RefObject, type ChangeEvent } from 'react'
+import { useState, useEffect, useRef, Suspense, useCallback, type FormEvent, type ReactNode } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Heart, Plus, Check, ExternalLink, X, Search, RotateCcw, ChevronDown, Camera, Loader2 } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
@@ -548,88 +548,6 @@ function RetryIAButton({ itemId, imagemUrl, usuarioAtual, onPatch }: {
   )
 }
 
-// ── Botão de captura de imagem (upload + analise automatica) ──────────────────
-
-type UploadState = 'idle' | 'uploading' | 'analyzing'
-
-function ImageCaptureButton({ itemId, usuarioAtualRef, onPatch }: {
-  itemId: string
-  usuarioAtualRef: RefObject<string | null>
-  onPatch?: (campos: Partial<WishlistItem>) => void
-}) {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [state, setState] = useState<UploadState>('idle')
-
-  async function handleFile(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    e.target.value = ''
-
-    setState('uploading')
-    try {
-      const { base64, mimeType } = await fileToBase64(file)
-
-      const uploadRes = await fetch('/api/wishlist-items/upload-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: itemId, imageBase64: base64, imageMimeType: mimeType }),
-      })
-      if (!uploadRes.ok) { setState('idle'); return }
-      const { publicUrl } = await uploadRes.json() as { publicUrl?: string }
-
-      setState('analyzing')
-      const result = await callAnalyze(itemId, base64, mimeType, usuarioAtualRef.current)
-
-      const patch: Partial<WishlistItem> = {
-        ...(publicUrl ? { imagem_url: publicUrl } : {}),
-        fonte: 'compartilhamento',
-        ai_status: result.status === 'identificado' ? 'identificado' : 'nao_identificado',
-      }
-      if (result.status === 'identificado' && result.nome) {
-        patch.nome = result.nome
-        patch.descricao_ia = result.descricao ?? null
-        if (result.preco != null) patch.valor_estimado = result.preco
-      }
-      onPatch?.(patch)
-    } catch {
-      // falha silenciosa — Realtime reflete o estado real do item
-    } finally {
-      setState('idle')
-    }
-  }
-
-  const label: Record<UploadState, string> = {
-    idle: 'Adicionar imagem',
-    uploading: 'Enviando...',
-    analyzing: 'Analisando...',
-  }
-
-  return (
-    <>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        className="sr-only"
-        onChange={handleFile}
-      />
-      <button
-        type="button"
-        disabled={state !== 'idle'}
-        onClick={() => inputRef.current?.click()}
-        title={label[state]}
-        className="flex-none w-8 h-8 flex items-center justify-center rounded-xl
-                   hover:bg-indigo-50 transition-colors active:scale-90 disabled:opacity-60"
-      >
-        {state === 'idle'
-          ? <Camera className="w-4 h-4 text-indigo-400" />
-          : <Loader2 className="w-4 h-4 text-indigo-400 animate-spin" />
-        }
-      </button>
-    </>
-  )
-}
-
 // ── Card de desejo ────────────────────────────────────────────────────────────
 
 function WishlistCard({
@@ -637,7 +555,6 @@ function WishlistCard({
   mostraHint,
   highlighted,
   usuarioAtual,
-  usuarioAtualRef,
   onEditar,
   onRealizar,
   onExcluir,
@@ -648,7 +565,6 @@ function WishlistCard({
   mostraHint: boolean
   highlighted?: boolean
   usuarioAtual: string | null
-  usuarioAtualRef: RefObject<string | null>
   onEditar: (item: WishlistItem) => void
   onRealizar: (id: string) => unknown
   onExcluir: (id: string) => unknown
@@ -746,13 +662,6 @@ function WishlistCard({
                 itemId={item.id}
                 imagemUrl={item.imagem_url}
                 usuarioAtual={usuarioAtual}
-                onPatch={campos => onPatch(item.id, campos)}
-              />
-            )}
-            {!item.imagem_url && (
-              <ImageCaptureButton
-                itemId={item.id}
-                usuarioAtualRef={usuarioAtualRef}
                 onPatch={campos => onPatch(item.id, campos)}
               />
             )}
@@ -1432,7 +1341,6 @@ function WishlistContent() {
                     mostraHint={idx === 0 && !hintVisto}
                     highlighted={highlightId === item.id}
                     usuarioAtual={usuarioAtual}
-                    usuarioAtualRef={usuarioAtualRef}
                     onEditar={abrirEditar}
                     onRealizar={handleRealizar}
                     onExcluir={handleExcluir}
