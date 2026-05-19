@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, Suspense, useCallback, type FormEvent, type ReactNode } from 'react'
+import { useState, useEffect, useRef, Suspense, useCallback, type FormEvent, type ReactNode, type ChangeEvent } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Heart, Plus, Check, ExternalLink, X, Search, RotateCcw, ChevronDown, Camera, Loader2 } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
@@ -179,6 +179,9 @@ function ModalWishlist({
   onSalvar: (form: ModalForm) => Promise<void>
 }) {
   const nomeRef = useRef<HTMLInputElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
+  const [imagemPreview, setImagemPreview] = useState<string | null>(null)
+  const [identificando, setIdentificando] = useState(false)
   const [form, setForm] = useState<ModalForm>({
     nome:           item?.nome           ?? '',
     emoji:          item?.emoji          ?? '',
@@ -203,6 +206,32 @@ function ModalWishlist({
 
   function setField<K extends keyof ModalForm>(k: K, v: ModalForm[K]) {
     setForm(prev => ({ ...prev, [k]: v }))
+  }
+
+  async function handleImagemSelecionada(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setIdentificando(true)
+    // Preview via FileReader (sem blob URL para compatibilidade iOS)
+    const reader = new FileReader()
+    reader.onload = ev => setImagemPreview(ev.target?.result as string)
+    reader.readAsDataURL(file)
+    try {
+      const { base64, mimeType } = await compressImage(file)
+      const res = await fetch('/api/wishlist-items/identify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64, imageMimeType: mimeType }),
+        signal: abortTimeout(28000),
+      })
+      if (res.ok) {
+        const data = await res.json() as { nome?: string; descricao?: string | null; preco?: number | null }
+        if (data.nome && !form.nome) setField('nome', data.nome)
+        if (data.preco != null && !form.valor_estimado) setField('valor_estimado', String(data.preco))
+      }
+    } catch { /* identificação opcional */ }
+    finally { setIdentificando(false) }
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -243,6 +272,48 @@ function ModalWishlist({
           {/* Scrollable body */}
           <div className="flex-1 overflow-y-auto">
             <form onSubmit={handleSubmit} className="px-5 py-5 space-y-4">
+
+              {/* Identificação por IA — fluxo alternativo para iOS (sem Web Share Target) */}
+              <div>
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={handleImagemSelecionada}
+                />
+                {imagemPreview ? (
+                  <div className="relative h-24 rounded-xl overflow-hidden border border-gray-200">
+                    <img src={imagemPreview} alt="" className="w-full h-full object-cover" />
+                    {identificando && (
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center gap-1.5">
+                        <Loader2 className="w-4 h-4 text-white animate-spin" />
+                        <span className="text-xs text-white font-medium">Identificando…</span>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setImagemPreview(null)}
+                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 flex items-center justify-center"
+                    >
+                      <X className="w-3 h-3 text-white" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => imageInputRef.current?.click()}
+                    disabled={identificando}
+                    className="w-full py-2.5 rounded-xl border-2 border-dashed border-gray-200
+                               flex items-center justify-center gap-2 text-sm font-medium text-gray-400
+                               hover:border-primary-300 hover:text-primary-500 transition-colors
+                               active:scale-[0.99] disabled:opacity-50"
+                  >
+                    <Camera className="w-4 h-4" />
+                    Identificar com IA
+                  </button>
+                )}
+              </div>
 
               {/* Emoji + Nome */}
               <div>
@@ -475,12 +546,49 @@ async function fileToBase64(source: File | ArrayBuffer): Promise<{ base64: strin
   return { base64: btoa(binary), mimeType }
 }
 
+// iOS < 15.4 não suporta AbortSignal.timeout — fallback silencioso
+function abortTimeout(ms: number): AbortSignal | undefined {
+  if (typeof AbortSignal === 'undefined' || typeof (AbortSignal as { timeout?: unknown }).timeout !== 'function') return undefined
+  return AbortSignal.timeout(ms)
+}
+
+// Redimensiona imagens grandes antes de enviar (iOS câmera = 8-12 MP)
+async function compressImage(file: File, maxDim = 1920): Promise<{ base64: string; mimeType: string }> {
+  if (typeof window === 'undefined') return fileToBase64(file)
+  return new Promise(resolve => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      if (img.width <= maxDim && img.height <= maxDim) { fileToBase64(file).then(resolve); return }
+      const scale = Math.min(maxDim / img.width, maxDim / img.height)
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { fileToBase64(file).then(resolve); return }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob(blob => {
+        if (!blob) { fileToBase64(file).then(resolve); return }
+        blob.arrayBuffer().then(buf => {
+          const u8 = new Uint8Array(buf)
+          let bin = ''
+          for (let i = 0; i < u8.length; i += 8192) bin += String.fromCharCode(...u8.subarray(i, i + 8192))
+          resolve({ base64: btoa(bin), mimeType: 'image/jpeg' })
+        })
+      }, 'image/jpeg', 0.85)
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); fileToBase64(file).then(resolve) }
+    img.src = url
+  })
+}
+
 async function callAnalyze(id: string, imageBase64: string, imageMimeType: string, criado_por: string | null) {
   const res = await fetch('/api/share-receiver/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id, imageBase64, imageMimeType, ...(criado_por ? { criado_por } : {}) }),
-    signal: AbortSignal.timeout(28000),
+    signal: abortTimeout(28000),
   })
   return res.json() as Promise<{ status: string; nome?: string; descricao?: string | null; preco?: number | null; debug?: string }>
 }
@@ -503,11 +611,11 @@ function RetryIAButton({ itemId, imagemUrl, usuarioAtual, onPatch }: {
       let imageMimeType = 'image/jpeg'
 
       if (imagemUrl) {
-        const imgRes = await fetch(imagemUrl)
+        const imgRes = await fetch(imagemUrl, { signal: abortTimeout(10000) })
         if (imgRes.ok) {
           const result = await fileToBase64(await imgRes.arrayBuffer())
           imageBase64 = result.base64
-          imageMimeType = imgRes.headers.get('content-type') ?? 'image/jpeg'
+          imageMimeType = imgRes.headers.get('content-type')?.split(';')[0].trim() ?? 'image/jpeg'
         }
       }
 
@@ -900,7 +1008,7 @@ function WishlistContent() {
       }
 
       let capturedMime = 'image/jpeg'
-      fetch(item.imagem_url!, { signal: AbortSignal.timeout(15000) })
+      fetch(item.imagem_url!, { signal: abortTimeout(15000) })
         .then(r => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`)
           capturedMime = r.headers.get('content-type')?.split(';')[0].trim() || 'image/jpeg'
