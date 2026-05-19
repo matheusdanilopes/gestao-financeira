@@ -21,16 +21,28 @@ function ShareRecebidoContent() {
       return
     }
 
-    // Dispara análise IA com o email do usuário logado para associar o item corretamente
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      fetch('/api/share-receiver/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, criado_por: user?.email ?? null }),
-      }).catch(() => {})
-    })
+    // Dispara analyze IMEDIATAMENTE — sem esperar auth para não bloquear o gatilho
+    fetch('/api/share-receiver/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+      signal: AbortSignal.timeout(28000),
+    }).catch(() => {})
 
-    // Fecha para wishlist após 3s, sem esperar o resultado da IA
+    // Atualiza criado_por em paralelo (melhor esforço, não bloqueia o analyze)
+    supabase.auth.getUser()
+      .then(({ data: { user } }) => {
+        if (!user?.email || !id) return
+        supabase.from('wishlist_items')
+          .update({ criado_por: user.email, updated_at: new Date().toISOString() })
+          .eq('id', id)
+          .eq('criado_por', 'conjunto')
+          .then(() => {})
+          .catch(() => {})
+      })
+      .catch(() => {})
+
+    // Redireciona para wishlist após 3s, sem aguardar resultado da IA
     const timer = setTimeout(() => {
       if (closingRef.current) return
       closingRef.current = true

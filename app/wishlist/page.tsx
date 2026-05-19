@@ -480,16 +480,18 @@ async function callAnalyze(id: string, imageBase64: string, imageMimeType: strin
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id, imageBase64, imageMimeType, ...(criado_por ? { criado_por } : {}) }),
+    signal: AbortSignal.timeout(28000),
   })
   return res.json() as Promise<{ status: string; nome?: string; descricao?: string | null; preco?: number | null; debug?: string }>
 }
 
 // ── Botão de re-análise IA (retry silencioso) ─────────────────────────────────
 
-function RetryIAButton({ itemId, imagemUrl, usuarioAtual }: {
+function RetryIAButton({ itemId, imagemUrl, usuarioAtual, onPatch }: {
   itemId: string
   imagemUrl: string | null
   usuarioAtual: string | null
+  onPatch?: (campos: Partial<WishlistItem>) => void
 }) {
   const [loading, setLoading] = useState(false)
 
@@ -509,8 +511,18 @@ function RetryIAButton({ itemId, imagemUrl, usuarioAtual }: {
         }
       }
 
-      if (imageBase64) {
-        await callAnalyze(itemId, imageBase64, imageMimeType, usuarioAtual)
+      if (!imageBase64) return
+
+      const result = await callAnalyze(itemId, imageBase64, imageMimeType, usuarioAtual)
+      if (result.status === 'identificado' && result.nome) {
+        onPatch?.({
+          nome: result.nome,
+          ai_status: 'identificado',
+          descricao_ia: result.descricao ?? null,
+          ...(result.preco != null ? { valor_estimado: result.preco } : {}),
+        })
+      } else if (result.status === 'nao_identificado') {
+        onPatch?.({ ai_status: 'nao_identificado' })
       }
     } catch {
       // falha silenciosa — item permanece nao_identificado e usuario pode tentar de novo
@@ -540,9 +552,10 @@ function RetryIAButton({ itemId, imagemUrl, usuarioAtual }: {
 
 type UploadState = 'idle' | 'uploading' | 'analyzing'
 
-function ImageCaptureButton({ itemId, usuarioAtualRef }: {
+function ImageCaptureButton({ itemId, usuarioAtualRef, onPatch }: {
   itemId: string
   usuarioAtualRef: RefObject<string | null>
+  onPatch?: (campos: Partial<WishlistItem>) => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [state, setState] = useState<UploadState>('idle')
@@ -562,9 +575,22 @@ function ImageCaptureButton({ itemId, usuarioAtualRef }: {
         body: JSON.stringify({ id: itemId, imageBase64: base64, imageMimeType: mimeType }),
       })
       if (!uploadRes.ok) { setState('idle'); return }
+      const { publicUrl } = await uploadRes.json() as { publicUrl?: string }
 
       setState('analyzing')
-      await callAnalyze(itemId, base64, mimeType, usuarioAtualRef.current)
+      const result = await callAnalyze(itemId, base64, mimeType, usuarioAtualRef.current)
+
+      const patch: Partial<WishlistItem> = {
+        ...(publicUrl ? { imagem_url: publicUrl } : {}),
+        fonte: 'compartilhamento',
+        ai_status: result.status === 'identificado' ? 'identificado' : 'nao_identificado',
+      }
+      if (result.status === 'identificado' && result.nome) {
+        patch.nome = result.nome
+        patch.descricao_ia = result.descricao ?? null
+        if (result.preco != null) patch.valor_estimado = result.preco
+      }
+      onPatch?.(patch)
     } catch {
       // falha silenciosa — Realtime reflete o estado real do item
     } finally {
@@ -617,6 +643,7 @@ function WishlistCard({
   onRealizar,
   onExcluir,
   onFavoritar,
+  onPatch,
 }: {
   item: WishlistItem
   mostraHint: boolean
@@ -627,6 +654,7 @@ function WishlistCard({
   onRealizar: (id: string) => unknown
   onExcluir: (id: string) => unknown
   onFavoritar: (id: string) => unknown
+  onPatch: (id: string, campos: Partial<WishlistItem>) => void
 }) {
   const cfg = PRIORIDADE[item.prioridade]
 
@@ -715,10 +743,19 @@ function WishlistCard({
           {/* Right: camera + retry + avatar + star + realizar */}
           <div className="flex items-center gap-2 flex-none">
             {item.ai_status === 'nao_identificado' && item.imagem_url && (
-              <RetryIAButton itemId={item.id} imagemUrl={item.imagem_url} usuarioAtual={usuarioAtual} />
+              <RetryIAButton
+                itemId={item.id}
+                imagemUrl={item.imagem_url}
+                usuarioAtual={usuarioAtual}
+                onPatch={campos => onPatch(item.id, campos)}
+              />
             )}
             {!item.imagem_url && (
-              <ImageCaptureButton itemId={item.id} usuarioAtualRef={usuarioAtualRef} />
+              <ImageCaptureButton
+                itemId={item.id}
+                usuarioAtualRef={usuarioAtualRef}
+                onPatch={campos => onPatch(item.id, campos)}
+              />
             )}
             {item.criado_por && (
               item.criado_por === 'conjunto'
@@ -923,17 +960,32 @@ function WishlistContent() {
     })
   }, [])
 
-  // Auto-analisa itens pendentes que aparecem na lista (fallback para o analyze do share-recebido)
+  // Re-trigger auto-analyze quando app volta ao foreground (visibilidade)
+  const [visibilityTick, setVisibilityTick] = useState(0)
+  useEffect(() => {
+    function handleVisibility() {
+      if (document.visibilityState === 'visible') setVisibilityTick(t => t + 1)
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [])
+
+  // Auto-analisa itens pendentes (fallback do share-recebido) e retenta nao_identificado uma vez por sessão
   const autoAnalyzingRef = useRef<Set<string>>(new Set())
+  const autoRetriedRef = useRef<Set<string>>(new Set())
   useEffect(() => {
     const todos = [...ativos, ...historico]
-    const pendentes = todos.filter(
-      i => i.ai_status === 'pendente' && i.imagem_url && !autoAnalyzingRef.current.has(i.id)
-    )
-    if (!pendentes.length) return
 
-    pendentes.forEach(item => {
+    const candidatos = todos.filter(i => i.imagem_url && !autoAnalyzingRef.current.has(i.id) && (
+      i.ai_status === 'pendente' ||
+      (i.ai_status === 'nao_identificado' && !autoRetriedRef.current.has(i.id))
+    ))
+    if (!candidatos.length) return
+
+    candidatos.forEach(item => {
       autoAnalyzingRef.current.add(item.id)
+      if (item.ai_status === 'nao_identificado') autoRetriedRef.current.add(item.id)
+
       let capturedMime = 'image/jpeg'
       fetch(item.imagem_url!)
         .then(r => {
@@ -960,7 +1012,7 @@ function WishlistContent() {
         .catch(() => {})
         .finally(() => autoAnalyzingRef.current.delete(item.id))
     })
-  }, [ativos, historico, patchItem])
+  }, [ativos, historico, patchItem, visibilityTick])
 
   // Aplica filtro "Recentes" quando a página é aberta (ou recebe foco) via notificação
   useEffect(() => {
@@ -1200,6 +1252,10 @@ function WishlistContent() {
     toggleFavorito(id, ativos)
   }, [toggleFavorito, ativos])
 
+  const handlePatchItem = useCallback((id: string, campos: Partial<WishlistItem>) => {
+    patchItem(id, campos)
+  }, [patchItem])
+
   return (
     <div className="min-h-screen pb-32 page-enter">
       {/* Header */}
@@ -1416,6 +1472,7 @@ function WishlistContent() {
                     onRealizar={handleRealizar}
                     onExcluir={handleExcluir}
                     onFavoritar={handleFavoritar}
+                    onPatch={handlePatchItem}
                   />
                 ))
               : historicoDis.map(item => (
