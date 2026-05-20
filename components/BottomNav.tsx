@@ -154,11 +154,20 @@ function OfflineNavItem({
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>
   isActive: boolean
 }) {
+  function handleClick(e: React.MouseEvent<HTMLAnchorElement>) {
+    // O App Router do Next.js intercepta cliques em <a> da mesma origem via
+    // listener global no document, convertendo-os em navegação RSC (client-side).
+    // Em modo offline o RSC fetch falha silenciosamente. Usar window.location
+    // escapa do interceptor e força request.mode==='navigate', permitindo que
+    // o service worker sirva a página do cache HTML pré-cacheado.
+    e.preventDefault()
+    window.location.href = href
+  }
+
   return (
-    // <a> nativo (não <Link>) força navegação completa (request.mode==='navigate')
-    // para que o service worker sirva a página do cache pré-cacheado offline.
     <a
       href={href}
+      onClick={handleClick}
       className="flex flex-col items-center justify-center gap-1 flex-1 py-2
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
                  focus-visible:ring-offset-1 rounded-xl transition-all duration-200"
