@@ -285,6 +285,12 @@ export function useDataSync({
     if (cached !== null) {
       onDataRef.current?.(cached)
       setStatus('stale')
+    } else {
+      // Sem cache para este cacheKey: reseta para 'loading' para que a UI
+      // exiba o skeleton enquanto aguarda o primeiro fetch (ex: troca de mês
+      // sem cache — sem isso o status do mês anterior permanece 'fresh' e
+      // dados do mês errado ficam visíveis até o fetch completar).
+      setStatus('loading')
     }
 
     // 2. Busca dados frescos (ou sinaliza offline imediatamente)
