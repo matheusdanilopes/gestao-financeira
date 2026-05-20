@@ -1131,12 +1131,19 @@ export default function ListaMercadoPage() {
       {/* Lista */}
       {itens.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center px-8">
-          <div className="w-16 h-16 rounded-2xl bg-green-50 flex items-center justify-center mb-4">
-            <ShoppingBasket className="w-8 h-8 text-green-300" strokeWidth={1.5} />
+          <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${!isOnline ? 'bg-amber-50' : 'bg-green-50'}`}>
+            {!isOnline
+              ? <WifiOff className="w-8 h-8 text-amber-300" strokeWidth={1.5} />
+              : <ShoppingBasket className="w-8 h-8 text-green-300" strokeWidth={1.5} />
+            }
           </div>
-          <p className="text-sm font-semibold text-gray-700 mb-1">Lista vazia</p>
+          <p className="text-sm font-semibold text-gray-700 mb-1">
+            {!isOnline ? 'Sem dados salvos offline' : 'Lista vazia'}
+          </p>
           <p className="text-xs text-gray-400">
-            Adicione os itens que precisam ser comprados
+            {!isOnline
+              ? 'Abra o app online ao menos uma vez para carregar sua lista'
+              : 'Adicione os itens que precisam ser comprados'}
           </p>
         </div>
       ) : (

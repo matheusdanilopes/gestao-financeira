@@ -55,6 +55,9 @@ export interface UseDataSyncOptions {
 }
 
 const POLL_INTERVAL_DEFAULT = 45_000
+// iOS com WiFi sem internet pode manter fetch travado por minutos (TCP timeout).
+// Após esse prazo tratamos como falha de rede e marcamos offline.
+const NETWORK_TIMEOUT_MS = 10_000
 
 export function useDataSync({
   cacheKey,
@@ -133,7 +136,10 @@ export function useDataSync({
     if (isFetchingRef.current) return
     isFetchingRef.current = true
     try {
-      const data = await fetcherRef.current()
+      const networkTimeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('network_timeout')), NETWORK_TIMEOUT_MS)
+      )
+      const data = await Promise.race([fetcherRef.current(), networkTimeout])
       if (!isMountedRef.current) return
       if (data !== undefined && data !== null) {
         const changed = writeCache(data)
@@ -143,9 +149,25 @@ export function useDataSync({
       setStatus('fresh')
       setLastUpdated(new Date())
     } catch (err) {
-      console.error('[useDataSync] fetch error:', err)
-      // Mantém status atual se já havia dados; sinaliza stale caso contrário
-      setStatus(prev => prev === 'loading' ? 'stale' : prev)
+      if (!isMountedRef.current) return
+      const msg = String(err instanceof Error ? err.message : err).toLowerCase()
+      // Falha de rede: timeout local ou "failed to fetch" do fetch API.
+      // Ocorre no iOS com WiFi sem internet, onde navigator.onLine = true
+      // mas o TCP trava sem retornar erro rapidamente.
+      const isNetworkFailure =
+        msg.includes('network_timeout') ||
+        msg.includes('failed to fetch') ||
+        msg.includes('network error') ||
+        msg.includes('networkerror')
+      if (isNetworkFailure) {
+        isOnlineRef.current = false
+        setIsOnline(false)
+        setStatus('offline')
+      } else {
+        console.error('[useDataSync] fetch error:', err)
+        // Mantém status atual se já havia dados; sinaliza stale caso contrário
+        setStatus(prev => prev === 'loading' ? 'stale' : prev)
+      }
     } finally {
       isFetchingRef.current = false
     }
