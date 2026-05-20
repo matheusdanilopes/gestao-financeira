@@ -173,9 +173,6 @@ export function useDataSync({
         isOnlineRef.current = false
         setIsOnline(false)
         setStatus('offline')
-        // Notifica todos os consumidores de useOnline() para sincronizar o estado global.
-        // Resolve a divergência entre useOnline (evento OS) e useDataSync (timeout de rede).
-        if (typeof window !== 'undefined') window.dispatchEvent(new Event('offline'))
       } else {
         console.error('[useDataSync] fetch error:', err)
         // Mantém status atual se já havia dados; sinaliza stale caso contrário
