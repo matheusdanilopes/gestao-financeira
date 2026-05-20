@@ -50,7 +50,7 @@ let _sessionResolved = false
 
 // ── Sub-menus ─────────────────────────────────────────────────────────────────
 
-function FinancasMenuPopover({ onClose, router }: { onClose: () => void; router: ReturnType<typeof useRouter> }) {
+function FinancasMenuPopover({ onClose }: { onClose: () => void }) {
   const opcoes = [
     { tab: 'despesas',      label: 'Despesas',      Icon: Receipt,    cor: 'text-red-500',   bg: 'bg-red-50'   },
     { tab: 'receitas',      label: 'Receitas',      Icon: TrendingUp, cor: 'text-green-600', bg: 'bg-green-50' },
@@ -61,11 +61,12 @@ function FinancasMenuPopover({ onClose, router }: { onClose: () => void; router:
     <div className="fixed bottom-[72px] left-3 z-[51] modal-center">
       <div className="bg-white rounded-3xl shadow-float border border-gray-100 overflow-hidden w-56">
         {opcoes.map(({ tab, label, Icon, cor, bg }, i) => (
-          <button
+          <Link
             key={tab}
-            type="button"
-            onClick={() => { router.push(`/financas?tab=${tab}`); onClose() }}
-            className={`w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50
+            href={`/financas?tab=${tab}`}
+            onClick={onClose}
+            prefetch={true}
+            className={`flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50
                         active:bg-gray-100 transition-colors duration-150
                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
                         ${i < opcoes.length - 1 ? 'border-b border-gray-100' : ''}`}
@@ -74,14 +75,14 @@ function FinancasMenuPopover({ onClose, router }: { onClose: () => void; router:
               <Icon className={`w-4 h-4 ${cor}`} strokeWidth={1.8} />
             </div>
             <span className="text-sm font-semibold text-gray-700">{label}</span>
-          </button>
+          </Link>
         ))}
       </div>
     </div>
   )
 }
 
-function CartaoMenuPopover({ onClose, router }: { onClose: () => void; router: ReturnType<typeof useRouter> }) {
+function CartaoMenuPopover({ onClose }: { onClose: () => void }) {
   const opcoes = [
     { href: '/compras',      label: 'Compras',      Icon: ShoppingCart, cor: 'text-orange-500', bg: 'bg-orange-50' },
     { href: '/assinaturas',  label: 'Assinaturas',  Icon: RepeatIcon,   cor: 'text-indigo-600', bg: 'bg-indigo-50' },
@@ -91,11 +92,12 @@ function CartaoMenuPopover({ onClose, router }: { onClose: () => void; router: R
     <div className="fixed bottom-[72px] right-14 z-[51] modal-center">
       <div className="bg-white rounded-3xl shadow-float border border-gray-100 overflow-hidden w-56">
         {opcoes.map(({ href, label, Icon, cor, bg }, i) => (
-          <button
+          <Link
             key={href}
-            type="button"
-            onClick={() => { router.push(href); onClose() }}
-            className={`w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50
+            href={href}
+            onClick={onClose}
+            prefetch={true}
+            className={`flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50
                         active:bg-gray-100 transition-colors duration-150
                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
                         ${i < opcoes.length - 1 ? 'border-b border-gray-100' : ''}`}
@@ -104,7 +106,7 @@ function CartaoMenuPopover({ onClose, router }: { onClose: () => void; router: R
               <Icon className={`w-4 h-4 ${cor}`} strokeWidth={1.8} />
             </div>
             <span className="text-sm font-semibold text-gray-700">{label}</span>
-          </button>
+          </Link>
         ))}
       </div>
     </div>
@@ -112,7 +114,7 @@ function CartaoMenuPopover({ onClose, router }: { onClose: () => void; router: R
 }
 
 
-function ExtrasMenuPopover({ onClose, router }: { onClose: () => void; router: ReturnType<typeof useRouter> }) {
+function ExtrasMenuPopover({ onClose }: { onClose: () => void }) {
   const opcoes = [
     { href: '/wishlist',      label: 'Wishlist',      Icon: Heart,             cor: 'text-pink-500',    bg: 'bg-pink-50'    },
     { href: '/lista-mercado', label: 'Lista Mercado', Icon: ShoppingBasket,    cor: 'text-green-600',   bg: 'bg-green-50'   },
@@ -124,11 +126,12 @@ function ExtrasMenuPopover({ onClose, router }: { onClose: () => void; router: R
     <div className="fixed bottom-[72px] right-3 z-[51] modal-center">
       <div className="bg-white rounded-3xl shadow-float border border-gray-100 overflow-hidden w-56">
         {opcoes.map(({ href, label, Icon, cor, bg }, i) => (
-          <button
+          <Link
             key={href}
-            type="button"
-            onClick={() => { router.push(href); onClose() }}
-            className={`w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50
+            href={href}
+            onClick={onClose}
+            prefetch={true}
+            className={`flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50
                         active:bg-gray-100 transition-colors duration-150
                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
                         ${i < opcoes.length - 1 ? 'border-b border-gray-100' : ''}`}
@@ -137,7 +140,7 @@ function ExtrasMenuPopover({ onClose, router }: { onClose: () => void; router: R
               <Icon className={`w-4 h-4 ${cor}`} strokeWidth={1.8} />
             </div>
             <span className="text-sm font-semibold text-gray-700">{label}</span>
-          </button>
+          </Link>
         ))}
       </div>
     </div>
@@ -273,6 +276,23 @@ export default memo(function BottomNav() {
   const { categorizando } = useCategorizacao()
   const isOnline = useOnline()
 
+  // Prefetch rotas dos sub-menus assim que o usuário os abre —
+  // antecipa o RSC fetch antes do tap no item, tornando a navegação mais rápida.
+  useEffect(() => {
+    if (!isOnline || !openMenu) return
+    if (openMenu === 'financas') {
+      router.prefetch('/financas')
+    } else if (openMenu === 'cartao') {
+      router.prefetch('/compras')
+      router.prefetch('/assinaturas')
+    } else if (openMenu === 'extras') {
+      router.prefetch('/wishlist')
+      router.prefetch('/lista-mercado')
+      router.prefetch('/chat')
+      router.prefetch('/configuracoes')
+    }
+  }, [openMenu, isOnline, router])
+
   useEffect(() => {
     // Se AUTH_DISABLED ou sessão já resolvida, não faz round-trip ao Supabase
     if (AUTH_DISABLED) {
@@ -346,7 +366,11 @@ export default memo(function BottomNav() {
   const deveExibirMenu = pathname ? ROTAS_COM_MENU.some(r => pathname === r || pathname.startsWith(r + '/')) : false
 
   if (!deveExibirMenu) return null
-  if (!AUTH_DISABLED && (isCheckingSession || !session)) return null
+  // Aguarda resolução da sessão para evitar flash de nav sem autenticação.
+  // Offline: não exige sessão — o getSession() falha em rede, mas páginas
+  // cacheadas funcionam normalmente e o usuário precisa do nav para navegar.
+  if (!AUTH_DISABLED && isCheckingSession) return null
+  if (!AUTH_DISABLED && isOnline && !session) return null
 
   const isFinancasActive = ROTAS_FINANCAS.some(r => pathname === r || pathname.startsWith(r + '/'))
   const isCartaoActive   = ROTAS_CARTAO.some(r => pathname === r || pathname.startsWith(r + '/'))
@@ -515,13 +539,13 @@ export default memo(function BottomNav() {
               aria-hidden="true"
             />
             {openMenu === 'financas' && (
-              <FinancasMenuPopover onClose={() => setOpenMenu(null)} router={router} />
+              <FinancasMenuPopover onClose={() => setOpenMenu(null)} />
             )}
             {openMenu === 'cartao' && (
-              <CartaoMenuPopover onClose={() => setOpenMenu(null)} router={router} />
+              <CartaoMenuPopover onClose={() => setOpenMenu(null)} />
             )}
             {openMenu === 'extras' && (
-              <ExtrasMenuPopover onClose={() => setOpenMenu(null)} router={router} />
+              <ExtrasMenuPopover onClose={() => setOpenMenu(null)} />
             )}
           </ModalPortal>
         )}

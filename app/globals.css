@@ -369,6 +369,13 @@ button, a, [role="button"] {
   }
 }
 
+/* ─── Main padding transition (online ↔ offline banner) ─────────────────── */
+/* Suaviza a mudança de pb-16 → pb-24 quando o banner offline aparece,
+   evitando o layout shift brusco no conteúdo principal. */
+.main-pb-transition {
+  transition: padding-bottom 0.25s ease;
+}
+
 /* ─── Responsive page utilities ─────────────────────────────────────────── */
 .page-content {
   padding-left: 1rem;
