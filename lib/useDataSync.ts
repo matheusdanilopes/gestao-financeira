@@ -58,8 +58,6 @@ const POLL_INTERVAL_DEFAULT = 45_000
 // iOS com WiFi sem internet pode manter fetch travado por minutos (TCP timeout).
 // Após esse prazo tratamos como falha de rede e marcamos offline.
 const NETWORK_TIMEOUT_MS = 10_000
-// Cache stale com mais de 24h é ignorado (força fetch ao reconectar).
-const CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1_000
 
 export function useDataSync({
   cacheKey,
@@ -106,10 +104,7 @@ export function useDataSync({
     try {
       const raw = localStorage.getItem(`datasync:${cacheKey}`)
       if (!raw) return null
-      const parsed = JSON.parse(raw)
-      // Descarta cache com mais de 24h para evitar dados estruturalmente stale
-      if (parsed.ts && Date.now() - parsed.ts > CACHE_MAX_AGE_MS) return null
-      return parsed.data ?? null
+      return JSON.parse(raw).data ?? null
     } catch {
       return null
     }
