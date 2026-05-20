@@ -289,12 +289,21 @@ export default memo(function BottomNav() {
     let isMounted = true
 
     async function carregarSessao() {
-      const { data } = await supabase.auth.getSession()
-      if (isMounted) {
-        _cachedSession = data.session
-        _sessionResolved = true
-        setSession(data.session)
-        setIsCheckingSession(false)
+      try {
+        const { data } = await supabase.auth.getSession()
+        if (isMounted) {
+          _cachedSession = data.session
+          _sessionResolved = true
+          setSession(data.session)
+          setIsCheckingSession(false)
+        }
+      } catch {
+        // Falha de rede (ex: offline no wakeup do iOS): resolve com sessão em cache.
+        // BottomNav renderiza; o client-side lida com sessão expirada se necessário.
+        if (isMounted) {
+          _sessionResolved = true
+          setIsCheckingSession(false)
+        }
       }
     }
 
@@ -322,15 +331,17 @@ export default memo(function BottomNav() {
   }, [pathname])
 
   // Ao ficar offline: fecha menus abertos e redireciona para dashboard
-  // se a rota atual não estiver disponível offline
+  // se a rota atual não estiver disponível offline.
+  // Usa window.location.href (não router.replace) para forçar navegação via SW cache —
+  // router.replace faz fetch RSC que falha silenciosamente em modo offline.
   useEffect(() => {
     if (isOnline) return
     setOpenMenu(null)
     setFabSheetOpen(false)
     if (pathname && !ROTAS_OFFLINE.some(r => pathname === r || pathname.startsWith(r + '/'))) {
-      router.replace('/dashboard')
+      window.location.href = '/dashboard'
     }
-  }, [isOnline, pathname, router])
+  }, [isOnline, pathname])
 
   const deveExibirMenu = pathname ? ROTAS_COM_MENU.some(r => pathname === r || pathname.startsWith(r + '/')) : false
 

@@ -58,6 +58,8 @@ const POLL_INTERVAL_DEFAULT = 45_000
 // iOS com WiFi sem internet pode manter fetch travado por minutos (TCP timeout).
 // Após esse prazo tratamos como falha de rede e marcamos offline.
 const NETWORK_TIMEOUT_MS = 10_000
+// Cache stale com mais de 24h é ignorado (força fetch ao reconectar).
+const CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1_000
 
 export function useDataSync({
   cacheKey,
@@ -82,6 +84,9 @@ export function useDataSync({
   const isOnlineRef = useRef(
     typeof navigator !== 'undefined' ? navigator.onLine : true
   )
+  // Geração do fetch: descarta resultados de fetches anteriores quando um novo começa.
+  // Evita que fetches "zumbi" (pendentes após timeout) atualizem o estado.
+  const fetchGenRef = useRef(0)
 
   // Usa refs para callbacks e tables — evita que mudanças de referência
   // disparem reconexões desnecessárias do Realtime ou re-adição de listeners.
@@ -101,7 +106,10 @@ export function useDataSync({
     try {
       const raw = localStorage.getItem(`datasync:${cacheKey}`)
       if (!raw) return null
-      return JSON.parse(raw).data ?? null
+      const parsed = JSON.parse(raw)
+      // Descarta cache com mais de 24h para evitar dados estruturalmente stale
+      if (parsed.ts && Date.now() - parsed.ts > CACHE_MAX_AGE_MS) return null
+      return parsed.data ?? null
     } catch {
       return null
     }
@@ -135,12 +143,14 @@ export function useDataSync({
     if (!isMountedRef.current || !isOnlineRef.current) return
     if (isFetchingRef.current) return
     isFetchingRef.current = true
+    const gen = ++fetchGenRef.current
     try {
       const networkTimeout = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('network_timeout')), NETWORK_TIMEOUT_MS)
       )
       const data = await Promise.race([fetcherRef.current(), networkTimeout])
-      if (!isMountedRef.current) return
+      // Descarta resultado se o componente desmontou OU se um fetch mais recente já começou
+      if (!isMountedRef.current || gen !== fetchGenRef.current) return
       if (data !== undefined && data !== null) {
         const changed = writeCache(data)
         // Só repropaga para a UI se os dados mudaram
@@ -149,7 +159,7 @@ export function useDataSync({
       setStatus('fresh')
       setLastUpdated(new Date())
     } catch (err) {
-      if (!isMountedRef.current) return
+      if (!isMountedRef.current || gen !== fetchGenRef.current) return
       const msg = String(err instanceof Error ? err.message : err).toLowerCase()
       // Falha de rede: timeout local ou "failed to fetch" do fetch API.
       // Ocorre no iOS com WiFi sem internet, onde navigator.onLine = true
@@ -163,6 +173,9 @@ export function useDataSync({
         isOnlineRef.current = false
         setIsOnline(false)
         setStatus('offline')
+        // Notifica todos os consumidores de useOnline() para sincronizar o estado global.
+        // Resolve a divergência entre useOnline (evento OS) e useDataSync (timeout de rede).
+        if (typeof window !== 'undefined') window.dispatchEvent(new Event('offline'))
       } else {
         console.error('[useDataSync] fetch error:', err)
         // Mantém status atual se já havia dados; sinaliza stale caso contrário
@@ -203,7 +216,9 @@ export function useDataSync({
   const startPolling = useCallback(() => {
     if (pollTimerRef.current) clearInterval(pollTimerRef.current)
     pollTimerRef.current = setInterval(() => {
-      if (isMountedRef.current) doFetch()
+      // Pausa polling quando o app está em background (document.hidden).
+      // Evita requests desnecessários que drenam bateria no iOS/Android.
+      if (isMountedRef.current && !document.hidden) doFetch()
     }, pollInterval)
   }, [doFetch, pollInterval])
 

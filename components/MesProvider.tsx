@@ -39,28 +39,34 @@ export function MesProvider({ children }: { children: React.ReactNode }) {
     if (readPersistedPeriod() !== null) return
 
     async function calcularMesInicial() {
-      const mesRef = format(startOfMonth(new Date()), 'yyyy-MM-dd')
-      const { data: planejamento } = await supabase
-        .from('planejamento')
-        .select('valor_previsto, pago, valor_real, item')
-        .eq('mes_referencia', mesRef)
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return
 
-      if (!planejamento || planejamento.length === 0) return
+      try {
+        const mesRef = format(startOfMonth(new Date()), 'yyyy-MM-dd')
+        const { data: planejamento } = await supabase
+          .from('planejamento')
+          .select('valor_previsto, pago, valor_real, item')
+          .eq('mes_referencia', mesRef)
 
-      const despesas = planejamento.filter(p => {
-        const item = typeof p.item === 'string' ? p.item : ''
-        return !item.startsWith('[RECEITA]') && item !== 'Receita Total'
-      })
+        if (!planejamento || planejamento.length === 0) return
 
-      const totalDespesas = despesas.reduce((acc, p) => acc + (p.valor_previsto || 0), 0)
-      if (totalDespesas === 0) return
+        const despesas = planejamento.filter(p => {
+          const item = typeof p.item === 'string' ? p.item : ''
+          return !item.startsWith('[RECEITA]') && item !== 'Receita Total'
+        })
 
-      const totalPago = despesas
-        .filter(p => p.pago)
-        .reduce((acc, p) => acc + (p.valor_real ?? p.valor_previsto ?? 0), 0)
+        const totalDespesas = despesas.reduce((acc, p) => acc + (p.valor_previsto || 0), 0)
+        if (totalDespesas === 0) return
 
-      if (totalPago / totalDespesas >= 0.95) {
-        setMes(startOfMonth(addMonths(new Date(), 1)))
+        const totalPago = despesas
+          .filter(p => p.pago)
+          .reduce((acc, p) => acc + (p.valor_real ?? p.valor_previsto ?? 0), 0)
+
+        if (totalPago / totalDespesas >= 0.95) {
+          setMes(startOfMonth(addMonths(new Date(), 1)))
+        }
+      } catch {
+        // silencioso: período permanece no mês atual
       }
     }
 

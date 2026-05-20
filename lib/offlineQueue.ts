@@ -60,16 +60,21 @@ export function clearQueue(): void {
   saveQueue([])
 }
 
-export function incrementOpRetries(opId: string): void {
+/**
+ * Incrementa retries de uma operação. Retorna true se a operação foi descartada
+ * (atingiu MAX_RETRIES), permitindo que o chamador notifique o usuário.
+ */
+export function incrementOpRetries(opId: string): boolean {
   const ops = loadQueue()
   const op = ops.find(o => o.opId === opId)
-  if (!op) return
+  if (!op) return false
   op.retries++
   if (op.retries >= MAX_RETRIES) {
     saveQueue(ops.filter(o => o.opId !== opId))
-  } else {
-    saveQueue(ops)
+    return true
   }
+  saveQueue(ops)
+  return false
 }
 
 // ── Mapa de IDs temporários: tempId → realId ───────────────────────────────────
@@ -106,4 +111,52 @@ export function resolveItemId(id: string): string {
 
 export function getTempIdMap(): Record<string, string> {
   return loadTempMap()
+}
+
+// ── Compressão de fila ──────────────────────────────────────────────────────────
+//
+// Colapsa múltiplos ops `update` para o mesmo itemId em um único op,
+// evitando N requests desnecessários ao sincronizar após longa sessão offline.
+
+export function compressQueue(): void {
+  const ops = loadQueue()
+  if (ops.length <= 1) return
+
+  const creates: PendingOp[] = []
+  const updateMap = new Map<string, PendingOp>()
+  const deletes: PendingOp[] = []
+
+  for (const op of ops) {
+    if (op.type === 'create') {
+      creates.push(op)
+    } else if (op.type === 'update') {
+      const existing = updateMap.get(op.itemId)
+      if (existing) {
+        // Merge: op mais recente prevalece campo a campo
+        updateMap.set(op.itemId, {
+          ...existing,
+          payload: { ...(existing.payload ?? {}), ...(op.payload ?? {}) },
+          timestamp: Math.max(existing.timestamp, op.timestamp),
+        })
+      } else {
+        updateMap.set(op.itemId, op)
+      }
+    } else if (op.type === 'delete') {
+      deletes.push(op)
+    }
+  }
+
+  const compressed = [...creates, ...Array.from(updateMap.values()), ...deletes]
+  if (compressed.length < ops.length) saveQueue(compressed)
+}
+
+// ── Cleanup do mapa de IDs temporários ────────────────────────────────────────
+//
+// Remove todas as entradas do mapa quando ele cresce demais.
+// Entradas são apenas necessárias durante o flush da fila offline;
+// após sincronização bem-sucedida, não têm utilidade.
+
+export function cleanupTempMap(): void {
+  const map = loadTempMap()
+  if (Object.keys(map).length > 300) saveTempMap({})
 }
