@@ -79,6 +79,14 @@ export default function ImportarPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { categorizando, categorizadoMsg, categorizar } = useCategorizacao()
 
+  // Usuário acessou a tela de importação → limpa notificações de importação concluída
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return
+    navigator.serviceWorker.ready
+      .then(reg => reg.active?.postMessage({ type: 'CLOSE_IMPORT_NOTIFICATIONS' }))
+      .catch(() => {})
+  }, [])
+
   async function executarDiagnostico() {
     setDiagnosticando(true)
     setDiagnostico(null)
