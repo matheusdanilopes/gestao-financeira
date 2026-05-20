@@ -42,7 +42,16 @@ export async function notificarImportacao(
     body = 'Algo deu errado na importação. Acesse o app para verificar o que aconteceu.'
   }
 
-  const payload = { title, body, url: '/importar', tag: 'importacao' }
+  // Sucesso → tag auto-fechável ao abrir o app (processo já concluído).
+  // Erro → tag diferente + requireInteraction: exige ação do usuário.
+  const tag = tipo === 'sucesso' ? 'importacao-sucesso' : 'importacao-erro'
+  const payload = {
+    title,
+    body,
+    url: '/importar',
+    tag,
+    requireInteraction: tipo === 'erro',
+  }
 
   try {
     const { data: subs } = await supabase.from('push_subscriptions').select('*')

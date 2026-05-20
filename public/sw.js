@@ -1,5 +1,22 @@
 const CACHE_NAME = 'gestao-financeira-v7'
 
+// Tags de notificações de importação que podem ser fechadas automaticamente
+// ao abrir o app — processo já concluído, notificação é apenas informativa.
+// Nunca inclui 'importacao-erro': falhas exigem ação do usuário.
+const IMPORT_AUTO_CLOSE_TAGS = ['importacao', 'importacao-sucesso']
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function closeNotificationsByTags(tags) {
+  return Promise.all(
+    tags.map(function (tag) {
+      return self.registration.getNotifications({ tag: tag }).then(function (list) {
+        list.forEach(function (n) { n.close() })
+      })
+    })
+  )
+}
+
 // Rotas críticas pré-cacheadas no install para garantir abertura offline.
 // HTML shells são leves — dados reais vêm do localStorage via useDataSync.
 const PRECACHE_ROUTES = [
@@ -20,8 +37,6 @@ const PRECACHE_ROUTES = [
 // Timeout para requisições de navegação — evita tela branca em conexões lentas
 const NAVIGATION_TIMEOUT_MS = 4000
 
-// ── Helpers ────────────────────────────────────────────────────────────────
-
 function fetchWithTimeout(request, timeoutMs) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('timeout')), timeoutMs)
@@ -30,6 +45,7 @@ function fetchWithTimeout(request, timeoutMs) {
 }
 
 // ── Lifecycle ──────────────────────────────────────────────────────────────
+
 
 self.addEventListener('install', (event) => {
   self.skipWaiting()
@@ -173,9 +189,11 @@ self.addEventListener('push', function (event) {
     icon: '/icon-192.png',
     badge: '/icon-192.png',
     tag: data.tag || 'gestao-push',
-    data: { url: data.url || '/dashboard' },
+    // Preserva tag no data para uso no notificationclick e no close handler
+    data: { url: data.url || '/dashboard', tag: data.tag || 'gestao-push' },
     vibrate: [200, 100, 200],
-    requireInteraction: false,
+    // Erros de importação ficam visíveis até o usuário interagir
+    requireInteraction: data.requireInteraction === true,
   }
 
   event.waitUntil(
@@ -192,23 +210,35 @@ self.addEventListener('push', function (event) {
 })
 
 self.addEventListener('message', function (event) {
-  if (event.data?.type !== 'CLOSE_NOTIFICATIONS') return
-  const tags = Array.isArray(event.data.tags) ? event.data.tags : []
-  if (!tags.length) return
-  event.waitUntil(
-    Promise.all(tags.map(function (tag) {
-      return self.registration.getNotifications({ tag: tag }).then(function (list) {
-        list.forEach(function (n) { n.close() })
-      })
-    }))
-  )
+  const type = event.data?.type
+
+  // Fecha notificações de importação concluída ao abrir/retornar ao app.
+  // Erros ('importacao-erro') não estão na lista — exigem ação do usuário.
+  if (type === 'APP_OPENED' || type === 'CLOSE_IMPORT_NOTIFICATIONS') {
+    event.waitUntil(closeNotificationsByTags(IMPORT_AUTO_CLOSE_TAGS))
+    return
+  }
+
+  // Protocolo legado: fecha notificações por array de tags arbitrárias
+  if (type === 'CLOSE_NOTIFICATIONS') {
+    const tags = Array.isArray(event.data.tags) ? event.data.tags : []
+    if (!tags.length) return
+    event.waitUntil(closeNotificationsByTags(tags))
+  }
 })
 
 self.addEventListener('notificationclick', function (event) {
   event.notification.close()
   const targetUrl = event.notification.data?.url || '/dashboard'
+  const clickedTag = event.notification.data?.tag || event.notification.tag
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
+      // Se era uma notificação de importação concluída, fecha as demais do mesmo grupo
+      if (IMPORT_AUTO_CLOSE_TAGS.includes(clickedTag)) {
+        closeNotificationsByTags(IMPORT_AUTO_CLOSE_TAGS).catch(() => {})
+      }
+
       for (const client of clientList) {
         if ('focus' in client) {
           return client.navigate(targetUrl).then(function (c) {

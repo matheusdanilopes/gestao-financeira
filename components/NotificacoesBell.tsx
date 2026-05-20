@@ -301,7 +301,7 @@ export default memo(function NotificacoesBell() {
         onClick={() => {
           const abrindo = !aberto
           setAberto(abrindo)
-          if (abrindo) fecharPushNotificacoes(['importacao'])
+          if (abrindo) fecharPushNotificacoes(['importacao', 'importacao-sucesso'])
         }}
         className="relative p-2 rounded-full hover:bg-white/20 transition-colors"
         aria-label="Notificações"

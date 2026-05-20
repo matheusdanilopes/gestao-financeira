@@ -26,9 +26,29 @@ export default function ClientShell({ children }: { children: React.ReactNode })
 
   // Registra o SW globalmente em todas as rotas para garantir cache offline
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {})
+    if (!('serviceWorker' in navigator)) return
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {})
+  }, [])
+
+  // Fecha notificações de importação concluída ao abrir o app (cold start)
+  // e ao retornar do background. Nunca fecha notificações de erro.
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return
+
+    function notifyAppOpened() {
+      navigator.serviceWorker.ready
+        .then(reg => reg.active?.postMessage({ type: 'APP_OPENED' }))
+        .catch(() => {})
     }
+
+    notifyAppOpened()
+
+    function handleVisibility() {
+      if (document.visibilityState === 'visible') notifyAppOpened()
+    }
+
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [])
 
   const mostrarBell = pathname ? ROTAS_COM_BELL.includes(pathname) : false
