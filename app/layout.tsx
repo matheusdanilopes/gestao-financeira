@@ -12,7 +12,6 @@ import { MesProvider } from '@/components/MesProvider'
 import { CategorizacaoProvider } from '@/components/CategorizacaoProvider'
 import { RefreshProvider } from '@/components/RefreshProvider'
 import ClientShell from '@/components/ClientShell'
-import BottomNav from '@/components/BottomNav'
 
 export const metadata: Metadata = {
   title: 'Gestão Financeira Familiar',
@@ -106,10 +105,7 @@ export default function RootLayout({
             <MesProvider>
               <CategorizacaoProvider>
                 <ClientShell>
-                  <main className="w-full max-w-md md:max-w-2xl lg:max-w-5xl xl:max-w-7xl mx-auto relative lg:pt-14">
-                    {children}
-                  </main>
-                  <BottomNav />
+                  {children}
                 </ClientShell>
               </CategorizacaoProvider>
             </MesProvider>

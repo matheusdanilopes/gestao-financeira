@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gestao-financeira-v5'
+const CACHE_NAME = 'gestao-financeira-v6'
 
 // Rotas críticas pré-cacheadas no install para garantir abertura offline
 const PRECACHE_ROUTES = ['/', '/dashboard', '/lista-mercado', '/financas', '/compras']
@@ -111,11 +111,13 @@ self.addEventListener('fetch', (event) => {
           return response
         })
         .catch(() =>
-          caches.match(request).then(cached => {
+          // ignoreVary evita que Vary headers do Next.js (RSC, Next-Router-State-Tree)
+          // impeçam o match de respostas cacheadas em navegações subsequentes.
+          caches.match(request, { ignoreVary: true }).then(cached => {
             if (cached) return cached
-            return caches.match('/lista-mercado').then(shell => {
+            return caches.match('/lista-mercado', { ignoreVary: true }).then(shell => {
               if (shell) return shell
-              return caches.match('/dashboard').then(dash => {
+              return caches.match('/dashboard', { ignoreVary: true }).then(dash => {
                 if (dash) return dash
                 return caches.open(CACHE_NAME).then(cache =>
                   cache.keys().then(keys => {
@@ -125,7 +127,7 @@ self.addEventListener('fetch', (event) => {
                         !u.pathname.startsWith('/_next/') &&
                         !u.pathname.startsWith('/api/')
                     })
-                    return nav ? cache.match(nav) : undefined
+                    return nav ? cache.match(nav, { ignoreVary: true }) : undefined
                   })
                 )
               })
