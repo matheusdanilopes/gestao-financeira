@@ -34,7 +34,8 @@ export default function ClientShell({ children }: { children: React.ReactNode })
   const mostrarBell = pathname ? ROTAS_COM_BELL.includes(pathname) : false
   const mostrarRefresh = pathname ? ROTAS_COM_REFRESH.includes(pathname) : false
 
-  // pb-16 = nav bar (64px); pb-24 = nav bar + offline banner (~88px)
+  // pb-16 = nav bar (64px); pb-24 = nav bar + offline banner (~88px).
+  // Transição CSS suaviza a mudança de padding para evitar layout shift brusco.
   const mainPb = isOnline ? 'pb-16' : 'pb-24'
 
   return (
@@ -51,7 +52,7 @@ export default function ClientShell({ children }: { children: React.ReactNode })
           {mostrarBell && <NotificacoesBell />}
         </div>
       )}
-      <main className={`w-full max-w-md md:max-w-2xl lg:max-w-5xl xl:max-w-7xl mx-auto relative lg:pt-14 lg:pb-0 ${mainPb}`}>
+      <main className={`w-full max-w-md md:max-w-2xl lg:max-w-5xl xl:max-w-7xl mx-auto relative lg:pt-14 lg:pb-0 main-pb-transition ${mainPb}`}>
         {children}
       </main>
       <BottomNav />

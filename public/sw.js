@@ -1,7 +1,21 @@
-const CACHE_NAME = 'gestao-financeira-v6'
+const CACHE_NAME = 'gestao-financeira-v7'
 
-// Rotas críticas pré-cacheadas no install para garantir abertura offline
-const PRECACHE_ROUTES = ['/', '/dashboard', '/lista-mercado', '/financas', '/compras']
+// Rotas críticas pré-cacheadas no install para garantir abertura offline.
+// HTML shells são leves — dados reais vêm do localStorage via useDataSync.
+const PRECACHE_ROUTES = [
+  '/',
+  '/dashboard',
+  '/lista-mercado',
+  '/financas',
+  '/compras',
+  '/contas',
+  '/receitas',
+  '/investimentos',
+  '/assinaturas',
+  '/wishlist',
+  '/chat',
+  '/configuracoes',
+]
 
 // Timeout para requisições de navegação — evita tela branca em conexões lentas
 const NAVIGATION_TIMEOUT_MS = 4000
