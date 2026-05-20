@@ -53,6 +53,7 @@ export function CategorizacaoProvider({ children }: { children: React.ReactNode 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const mountCheckRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pollStartRef = useRef(0)
+  const categorizandoRef = useRef(false)
 
   const stopPolling = useCallback(() => {
     if (timerRef.current !== null) {
@@ -87,6 +88,23 @@ export function CategorizacaoProvider({ children }: { children: React.ReactNode 
     }, POLL_INTERVAL_MS)
   }, [stopPolling])
 
+  // Mantém ref sincronizada com o estado para uso em event listeners estáveis
+  useEffect(() => { categorizandoRef.current = categorizando }, [categorizando])
+
+  // Para o polling quando offline; retoma quando voltar online (se havia job em andamento)
+  useEffect(() => {
+    function handleOffline() { stopPolling() }
+    function handleOnline() {
+      if (categorizandoRef.current) startPolling()
+    }
+    window.addEventListener('offline', handleOffline)
+    window.addEventListener('online', handleOnline)
+    return () => {
+      window.removeEventListener('offline', handleOffline)
+      window.removeEventListener('online', handleOnline)
+    }
+  }, [stopPolling, startPolling])
+
   // Ao montar: verifica se há job em andamento ou recém-concluído.
   // O check é diferido para não competir com o fetch inicial das páginas.
   useEffect(() => {
@@ -115,6 +133,8 @@ export function CategorizacaoProvider({ children }: { children: React.ReactNode 
 
   const categorizar = useCallback(() => {
     if (categorizando) return
+    // Sem internet: ignora silenciosamente — evita estado falso "Categorizando…" por 10min
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
     setCategorizando(true)
     setCategorizadoMsg(null)
     // Fire-and-forget: servidor continua mesmo se o app for fechado

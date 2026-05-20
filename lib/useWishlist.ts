@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import { useGlobalSync } from './useGlobalSync'
 import { notificarWishlist } from './notificacoes'
@@ -29,12 +29,20 @@ export type WishlistItem = {
 const PRIORIDADE_ORDEM: Record<string, number> = { alta: 0, media: 1, baixa: 2 }
 
 async function getUsuario(): Promise<string | null> {
-  const { data: { user } } = await supabase.auth.getUser()
-  return user?.email ?? null
+  try {
+    // getSession() lê do armazenamento local sem chamada de rede
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.user?.email ?? null
+  } catch {
+    return null
+  }
 }
 
 export function useWishlist() {
   const [itens, setItens] = useState<WishlistItem[]>([])
+  // Ref de snapshot para rollback de mutações que falham offline
+  const itensRef = useRef<WishlistItem[]>([])
+  useEffect(() => { itensRef.current = itens }, [itens])
 
   useGlobalSync({
     cacheKey: 'wishlist',
@@ -110,25 +118,34 @@ export function useWishlist() {
     id: string,
     campos: Partial<Omit<WishlistItem, 'id' | 'created_at'>>
   ) => {
+    const snapshot = itensRef.current
     setItens(prev => prev.map(i => i.id === id ? { ...i, ...campos } : i))
     const { error } = await supabase
       .from('wishlist_items')
       .update({ ...campos, updated_at: new Date().toISOString() })
       .eq('id', id)
-    if (error) throw error
+    if (error) {
+      setItens(snapshot)
+      throw error
+    }
   }, [])
 
   const marcarRealizado = useCallback(async (id: string) => {
     const now = new Date().toISOString()
+    const snapshot = itensRef.current
     setItens(prev => prev.map(i => i.id === id ? { ...i, realizado: true, realizado_em: now } : i))
     const { error } = await supabase
       .from('wishlist_items')
       .update({ realizado: true, realizado_em: now, updated_at: now })
       .eq('id', id)
-    if (error) throw error
+    if (error) {
+      setItens(snapshot)
+      throw error
+    }
   }, [])
 
   const desfazerRealizado = useCallback(async (id: string) => {
+    const snapshot = itensRef.current
     setItens(prev => prev.map(i =>
       i.id === id ? { ...i, realizado: false, realizado_em: null } : i
     ))
@@ -136,23 +153,38 @@ export function useWishlist() {
       .from('wishlist_items')
       .update({ realizado: false, realizado_em: null, updated_at: new Date().toISOString() })
       .eq('id', id)
-    if (error) throw error
+    if (error) {
+      setItens(snapshot)
+      throw error
+    }
   }, [])
 
   const toggleFavorito = useCallback(async (id: string, itensAtual: WishlistItem[]) => {
     const item = itensAtual.find(i => i.id === id)
     if (!item) return
     const novoFav = !item.favoritado
+    const snapshot = itensRef.current
     setItens(prev => prev.map(i => i.id === id ? { ...i, favoritado: novoFav } : i))
-    await supabase
+    const { error } = await supabase
       .from('wishlist_items')
       .update({ favoritado: novoFav, updated_at: new Date().toISOString() })
       .eq('id', id)
+    if (error) {
+      // Rollback silencioso: favoritar é ação de baixo risco; não lança erro para a UI
+      setItens(snapshot)
+    }
   }, [])
 
   const excluir = useCallback(async (id: string) => {
+    const snapshot = itensRef.current
     setItens(prev => prev.filter(i => i.id !== id))
-    await supabase.from('wishlist_items').delete().eq('id', id)
+    const { error } = await supabase.from('wishlist_items').delete().eq('id', id)
+    if (error) {
+      // Rollback: restaura o item — evita o "ghost delete" onde o item some
+      // da UI mas permanece no servidor e reaparece no próximo sync.
+      setItens(snapshot)
+      throw error
+    }
   }, [])
 
   // Atualiza apenas o estado local (sem escrita no DB) — usado por auto-analyze para feedback imediato

@@ -13,6 +13,8 @@ import {
   incrementOpRetries,
   registerTempId,
   resolveItemId,
+  compressQueue,
+  cleanupTempMap,
   type PendingOp,
 } from './offlineQueue'
 
@@ -30,8 +32,14 @@ export type ItemMercado = {
 export type OfflineSyncStatus = 'synced' | 'pending' | 'syncing' | 'error'
 
 async function getUsuario(): Promise<string | null> {
-  const { data: { user } } = await supabase.auth.getUser()
-  return user?.email ?? null
+  try {
+    // getSession() lê do armazenamento local (sem chamada de rede),
+    // ao contrário de getUser() que valida o JWT no servidor.
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.user?.email ?? null
+  } catch {
+    return null
+  }
 }
 
 export function useListaMercado() {
@@ -59,6 +67,8 @@ export function useListaMercado() {
   // ── Flush da fila offline ──────────────────────────────────────────────────
   const flushQueue = useCallback(async () => {
     if (isSyncingRef.current) return
+    // Colapsa múltiplos updates para o mesmo item antes de enviar
+    compressQueue()
     const ops = getAllOps()
     if (!ops.length) return
 
@@ -170,7 +180,11 @@ export function useListaMercado() {
     onReconnect: flushQueue,
   })
 
-  useEffect(() => { refreshCount() }, [refreshCount])
+  useEffect(() => {
+    refreshCount()
+    // Limpa o mapa de IDs temporários se cresceu demais (entradas de sessões antigas)
+    cleanupTempMap()
+  }, [refreshCount])
 
   // ── Cálculos derivados ─────────────────────────────────────────────────────
   const total = itens.reduce((s, i) => s + i.quantidade * (i.preco_unit ?? 0), 0)
@@ -183,7 +197,10 @@ export function useListaMercado() {
     if (timersRef.current[id]) clearTimeout(timersRef.current[id])
     timersRef.current[id] = setTimeout(async () => {
       const accumulated = { ...(pendingUpdatesRef.current[id] ?? {}) }
-      delete pendingUpdatesRef.current[id]
+      const accKeys = Object.keys(accumulated) as (keyof ItemMercado)[]
+      // NÃO limpa pendingUpdatesRef aqui — o overlay permanece ativo durante o request.
+      // Isso evita a race condition onde um evento Realtime de outro dispositivo sobrescreve
+      // a edição local enquanto o request ainda está em voo (~50-500ms).
       try {
         const realId = resolveItemId(id)
         const { error } = await supabase
@@ -200,6 +217,18 @@ export function useListaMercado() {
           timestamp: Date.now(),
         })
         refreshCount()
+      } finally {
+        // Remove apenas os campos que foram salvos/enfileirados neste request.
+        // Se novos valores chegaram durante o request (user continuou digitando),
+        // eles têm valores diferentes em pendingUpdatesRef e são preservados.
+        if (pendingUpdatesRef.current[id]) {
+          const current = pendingUpdatesRef.current[id] as Record<string, unknown>
+          const acc = accumulated as Record<string, unknown>
+          for (const key of accKeys) {
+            if (current[key] === acc[key]) delete current[key]
+          }
+          if (Object.keys(current).length === 0) delete pendingUpdatesRef.current[id]
+        }
       }
     }, 400)
   }, [refreshCount])

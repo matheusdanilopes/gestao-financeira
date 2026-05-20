@@ -8,7 +8,9 @@ const supabaseAnonKey =
   process.env.NEXT_PUBLIC_SUPABASE_anon_key ??
   'placeholder-key'
 
-const AUTH_CHECK_TIMEOUT_MS = 3000
+// 3 s era curto demais para iOS PWA ao acordar do background e redes 3G lentas,
+// causando redirect para /login mesmo com sessão válida.
+const AUTH_CHECK_TIMEOUT_MS = 8000
 
 export async function proxy(req: NextRequest) {
   let res = NextResponse.next({ request: { headers: req.headers } })
@@ -50,8 +52,11 @@ export async function proxy(req: NextRequest) {
       return NextResponse.redirect(new URL('/login', req.url))
     }
   } catch {
-    // Em caso de timeout/falha de rede, não bloquear navegação.
-    if (!isLoginPage) {
+    // Em timeout ou falha de rede: se houver cookie de sessão Supabase, deixa passar.
+    // O client-side detectará sessão expirada e redirecionará se necessário.
+    // Sem cookie de sessão = usuário nunca autenticou = redireciona para login.
+    const hasAuthCookie = req.cookies.getAll().some(c => c.name.startsWith('sb-'))
+    if (!isLoginPage && !hasAuthCookie) {
       return NextResponse.redirect(new URL('/login', req.url))
     }
   }

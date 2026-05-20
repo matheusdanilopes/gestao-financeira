@@ -24,7 +24,11 @@ self.addEventListener('install', (event) => {
       Promise.allSettled(
         PRECACHE_ROUTES.map(url =>
           fetch(url, { redirect: 'follow' })
-            .then(res => { if (res.ok) return cache.put(url, res) })
+            .then(res => {
+              // Não cacheia redirect (ex: /login quando não autenticado).
+              // response.redirected é true quando o fetch seguiu um redirect.
+              if (res.ok && !res.redirected) return cache.put(url, res)
+            })
             .catch(() => {})
         )
       )
@@ -104,7 +108,9 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetchWithTimeout(request, NAVIGATION_TIMEOUT_MS)
         .then(response => {
-          if (response.ok) {
+          // Não cacheia redirect: evita guardar a página de login para rotas protegidas.
+          // response.redirected é true quando o fetch seguiu um redirect HTTP.
+          if (response.ok && !response.redirected) {
             const clone = response.clone()
             caches.open(CACHE_NAME).then(cache => cache.put(request, clone))
           }
