@@ -58,8 +58,6 @@ const POLL_INTERVAL_DEFAULT = 45_000
 // iOS com WiFi sem internet pode manter fetch travado por minutos (TCP timeout).
 // Após esse prazo tratamos como falha de rede e marcamos offline.
 const NETWORK_TIMEOUT_MS = 10_000
-// Cache stale com mais de 24h é ignorado (força fetch ao reconectar).
-const CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1_000
 
 export function useDataSync({
   cacheKey,
@@ -106,10 +104,7 @@ export function useDataSync({
     try {
       const raw = localStorage.getItem(`datasync:${cacheKey}`)
       if (!raw) return null
-      const parsed = JSON.parse(raw)
-      // Descarta cache com mais de 24h para evitar dados estruturalmente stale
-      if (parsed.ts && Date.now() - parsed.ts > CACHE_MAX_AGE_MS) return null
-      return parsed.data ?? null
+      return JSON.parse(raw).data ?? null
     } catch {
       return null
     }
@@ -173,9 +168,6 @@ export function useDataSync({
         isOnlineRef.current = false
         setIsOnline(false)
         setStatus('offline')
-        // Notifica todos os consumidores de useOnline() para sincronizar o estado global.
-        // Resolve a divergência entre useOnline (evento OS) e useDataSync (timeout de rede).
-        if (typeof window !== 'undefined') window.dispatchEvent(new Event('offline'))
       } else {
         console.error('[useDataSync] fetch error:', err)
         // Mantém status atual se já havia dados; sinaliza stale caso contrário
@@ -237,8 +229,11 @@ export function useDataSync({
       isOnlineRef.current = true
       setIsOnline(true)
       setStatus('loading')
-      if (onReconnectRef.current) await onReconnectRef.current()
+      // Realtime antes do flush: evita perder eventos durante a sincronização da fila
       setupRealtime()
+      if (onReconnectRef.current) {
+        try { await onReconnectRef.current() } catch { /* flushQueue não lança; defensive */ }
+      }
       doFetch()
     }
     function handleOffline() {
@@ -257,9 +252,17 @@ export function useDataSync({
   // ── Revalida ao voltar ao foco ─────────────────────────────────
   useEffect(() => {
     function handleVisibility() {
-      if (document.visibilityState === 'visible' && isOnlineRef.current) {
-        doFetch()
+      if (document.visibilityState !== 'visible') return
+      // Ressincroniza isOnlineRef com navigator.onLine ao voltar ao foco.
+      // Trata o caso iOS onde a rede retorna silenciosamente sem disparar
+      // window.online (porque navigator.onLine permaneceu true durante a
+      // falha de fetch que marcou isOnlineRef = false).
+      const browserOnline = typeof navigator !== 'undefined' ? navigator.onLine : true
+      if (browserOnline && !isOnlineRef.current) {
+        isOnlineRef.current = true
+        setIsOnline(true)
       }
+      if (isOnlineRef.current) doFetch()
     }
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
@@ -270,12 +273,24 @@ export function useDataSync({
     if (!enabled) return
 
     isMountedRef.current = true
+    // Invalida qualquer fetch anterior ao trocar cacheKey (ex: troca de mês).
+    // Sem isso: (a) fetch antigo bloquearia o novo via isFetchingRef=true;
+    // (b) fetch antigo poderia sobrescrever dados do novo cacheKey se completasse
+    //     após isMountedRef ser resetado/re-setado pelo cleanup + nova inicialização.
+    fetchGenRef.current++
+    isFetchingRef.current = false
 
     // 1. Serve cache imediatamente (stale-while-revalidate)
     const cached = readCache()
     if (cached !== null) {
       onDataRef.current?.(cached)
       setStatus('stale')
+    } else {
+      // Sem cache para este cacheKey: reseta para 'loading' para que a UI
+      // exiba o skeleton enquanto aguarda o primeiro fetch (ex: troca de mês
+      // sem cache — sem isso o status do mês anterior permanece 'fresh' e
+      // dados do mês errado ficam visíveis até o fetch completar).
+      setStatus('loading')
     }
 
     // 2. Busca dados frescos (ou sinaliza offline imediatamente)
