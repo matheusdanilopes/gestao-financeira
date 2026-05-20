@@ -229,8 +229,11 @@ export function useDataSync({
       isOnlineRef.current = true
       setIsOnline(true)
       setStatus('loading')
-      if (onReconnectRef.current) await onReconnectRef.current()
+      // Realtime antes do flush: evita perder eventos durante a sincronização da fila
       setupRealtime()
+      if (onReconnectRef.current) {
+        try { await onReconnectRef.current() } catch { /* flushQueue não lança; defensive */ }
+      }
       doFetch()
     }
     function handleOffline() {
@@ -249,9 +252,17 @@ export function useDataSync({
   // ── Revalida ao voltar ao foco ─────────────────────────────────
   useEffect(() => {
     function handleVisibility() {
-      if (document.visibilityState === 'visible' && isOnlineRef.current) {
-        doFetch()
+      if (document.visibilityState !== 'visible') return
+      // Ressincroniza isOnlineRef com navigator.onLine ao voltar ao foco.
+      // Trata o caso iOS onde a rede retorna silenciosamente sem disparar
+      // window.online (porque navigator.onLine permaneceu true durante a
+      // falha de fetch que marcou isOnlineRef = false).
+      const browserOnline = typeof navigator !== 'undefined' ? navigator.onLine : true
+      if (browserOnline && !isOnlineRef.current) {
+        isOnlineRef.current = true
+        setIsOnline(true)
       }
+      if (isOnlineRef.current) doFetch()
     }
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
@@ -262,6 +273,12 @@ export function useDataSync({
     if (!enabled) return
 
     isMountedRef.current = true
+    // Invalida qualquer fetch anterior ao trocar cacheKey (ex: troca de mês).
+    // Sem isso: (a) fetch antigo bloquearia o novo via isFetchingRef=true;
+    // (b) fetch antigo poderia sobrescrever dados do novo cacheKey se completasse
+    //     após isMountedRef ser resetado/re-setado pelo cleanup + nova inicialização.
+    fetchGenRef.current++
+    isFetchingRef.current = false
 
     // 1. Serve cache imediatamente (stale-while-revalidate)
     const cached = readCache()
