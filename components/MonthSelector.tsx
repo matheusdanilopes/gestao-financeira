@@ -24,7 +24,7 @@ export default function MonthSelector({ value, onChange, onOpenSelector, classNa
         <ChevronLeft className="w-5 h-5 text-gray-500 dark:text-gray-400" />
       </button>
 
-      <div className="text-center flex-1 min-w-0 px-2">
+      <div className="text-center flex-1 min-w-[140px] px-2">
         {onOpenSelector ? (
           <button
             onClick={onOpenSelector}

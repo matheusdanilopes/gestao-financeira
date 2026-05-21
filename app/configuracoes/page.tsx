@@ -532,7 +532,7 @@ export default function ConfiguracoesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 page-content page-bottom-safe">
+    <div className="min-h-screen bg-[var(--color-bg)] page-content page-bottom-safe">
       <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 z-10">
         <h1 className="text-xl font-bold text-gray-900">Configurações</h1>
       </div>

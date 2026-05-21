@@ -265,7 +265,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 pb-16">
+    <div className="flex flex-col h-screen bg-[var(--color-bg)] pb-16">
       {/* Drawer overlay */}
       {drawerAberto && (
         <ModalPortal>

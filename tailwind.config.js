@@ -37,7 +37,8 @@ module.exports = {
         'card':       '0 2px 8px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
         'card-md':    '0 4px 16px rgba(0,0,0,0.10), 0 2px 4px rgba(0,0,0,0.06)',
         'card-hover': '0 8px 24px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06)',
-        'float':      '0 20px 40px rgba(0,0,0,0.15), 0 4px 8px rgba(0,0,0,0.08)',
+        'float':      '0 20px 40px rgba(0,0,0,0.14), 0 4px 8px rgba(0,0,0,0.07)',
+        'inner-sm':   'inset 0 1px 2px rgba(0,0,0,0.05)',
       },
       borderRadius: {
         '3xl': '1.5rem',

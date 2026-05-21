@@ -50,101 +50,76 @@ let _sessionResolved = false
 
 // ── Sub-menus ─────────────────────────────────────────────────────────────────
 
-function FinancasMenuPopover({ onClose }: { onClose: () => void }) {
-  const opcoes = [
-    { tab: 'despesas',      label: 'Despesas',      Icon: Receipt,    cor: 'text-red-500',   bg: 'bg-red-50'   },
-    { tab: 'receitas',      label: 'Receitas',      Icon: TrendingUp, cor: 'text-green-600', bg: 'bg-green-50' },
-    { tab: 'investimentos', label: 'Investimentos', Icon: PiggyBank,  cor: 'text-blue-600',  bg: 'bg-blue-50'  },
-  ]
+type PopoverItem = {
+  href?: string
+  tab?: string
+  label: string
+  Icon: React.ComponentType<{ className?: string; strokeWidth?: number }>
+  cor: string
+  bg: string
+}
 
+const PopoverList = memo(function PopoverList({
+  items, position, onClose,
+}: {
+  items: PopoverItem[]
+  position: string
+  onClose: () => void
+}) {
   return (
-    <div className="fixed bottom-[72px] left-3 z-[51] modal-center">
-      <div className="bg-white rounded-3xl shadow-float border border-gray-100 overflow-hidden w-56">
-        {opcoes.map(({ tab, label, Icon, cor, bg }, i) => (
-          <Link
-            key={tab}
-            href={`/financas?tab=${tab}`}
-            onClick={onClose}
-            prefetch={true}
-            className={`flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50
-                        active:bg-gray-100 transition-colors duration-150
-                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
-                        ${i < opcoes.length - 1 ? 'border-b border-gray-100' : ''}`}
-          >
-            <div className={`w-8 h-8 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
-              <Icon className={`w-4 h-4 ${cor}`} strokeWidth={1.8} />
-            </div>
-            <span className="text-sm font-semibold text-gray-700">{label}</span>
-          </Link>
-        ))}
+    <div className={`fixed z-[51] modal-center ${position}`}>
+      <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-float border border-gray-100 dark:border-gray-800 overflow-hidden w-56">
+        {items.map(({ href, tab, label, Icon, cor, bg }, i) => {
+          const linkHref = href ?? `/financas?tab=${tab}`
+          return (
+            <Link
+              key={linkHref}
+              href={linkHref}
+              onClick={onClose}
+              prefetch={true}
+              className={`flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800
+                          active:bg-gray-100 dark:active:bg-gray-700 transition-colors duration-150
+                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
+                          ${i < items.length - 1 ? 'border-b border-gray-100 dark:border-gray-800' : ''}`}
+            >
+              <div className={`w-8 h-8 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
+                <Icon className={`w-4 h-4 ${cor}`} strokeWidth={1.8} />
+              </div>
+              <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{label}</span>
+            </Link>
+          )
+        })}
       </div>
     </div>
   )
+})
+
+const FINANCAS_ITEMS: PopoverItem[] = [
+  { tab: 'despesas',      label: 'Despesas',      Icon: Receipt,    cor: 'text-red-500',   bg: 'bg-red-50'   },
+  { tab: 'receitas',      label: 'Receitas',      Icon: TrendingUp, cor: 'text-green-600', bg: 'bg-green-50' },
+  { tab: 'investimentos', label: 'Investimentos', Icon: PiggyBank,  cor: 'text-blue-600',  bg: 'bg-blue-50'  },
+]
+const CARTAO_ITEMS: PopoverItem[] = [
+  { href: '/compras',     label: 'Compras',      Icon: ShoppingCart, cor: 'text-orange-500', bg: 'bg-orange-50' },
+  { href: '/assinaturas', label: 'Assinaturas',  Icon: RepeatIcon,   cor: 'text-indigo-600', bg: 'bg-indigo-50' },
+]
+const EXTRAS_ITEMS: PopoverItem[] = [
+  { href: '/wishlist',      label: 'Wishlist',      Icon: Heart,             cor: 'text-pink-500',    bg: 'bg-pink-50'    },
+  { href: '/lista-mercado', label: 'Lista Mercado', Icon: ShoppingBasket,    cor: 'text-green-600',   bg: 'bg-green-50'   },
+  { href: '/chat',          label: 'IA Assistant',  Icon: MessageCircle,     cor: 'text-primary-600', bg: 'bg-primary-50' },
+  { href: '/configuracoes', label: 'Configurações', Icon: SlidersHorizontal, cor: 'text-gray-600',    bg: 'bg-gray-100'   },
+]
+
+function FinancasMenuPopover({ onClose }: { onClose: () => void }) {
+  return <PopoverList items={FINANCAS_ITEMS} position="bottom-[72px] left-3" onClose={onClose} />
 }
 
 function CartaoMenuPopover({ onClose }: { onClose: () => void }) {
-  const opcoes = [
-    { href: '/compras',      label: 'Compras',      Icon: ShoppingCart, cor: 'text-orange-500', bg: 'bg-orange-50' },
-    { href: '/assinaturas',  label: 'Assinaturas',  Icon: RepeatIcon,   cor: 'text-indigo-600', bg: 'bg-indigo-50' },
-  ]
-
-  return (
-    <div className="fixed bottom-[72px] right-14 z-[51] modal-center">
-      <div className="bg-white rounded-3xl shadow-float border border-gray-100 overflow-hidden w-56">
-        {opcoes.map(({ href, label, Icon, cor, bg }, i) => (
-          <Link
-            key={href}
-            href={href}
-            onClick={onClose}
-            prefetch={true}
-            className={`flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50
-                        active:bg-gray-100 transition-colors duration-150
-                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
-                        ${i < opcoes.length - 1 ? 'border-b border-gray-100' : ''}`}
-          >
-            <div className={`w-8 h-8 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
-              <Icon className={`w-4 h-4 ${cor}`} strokeWidth={1.8} />
-            </div>
-            <span className="text-sm font-semibold text-gray-700">{label}</span>
-          </Link>
-        ))}
-      </div>
-    </div>
-  )
+  return <PopoverList items={CARTAO_ITEMS} position="bottom-[72px] right-14" onClose={onClose} />
 }
 
-
 function ExtrasMenuPopover({ onClose }: { onClose: () => void }) {
-  const opcoes = [
-    { href: '/wishlist',      label: 'Wishlist',      Icon: Heart,             cor: 'text-pink-500',    bg: 'bg-pink-50'    },
-    { href: '/lista-mercado', label: 'Lista Mercado', Icon: ShoppingBasket,    cor: 'text-green-600',   bg: 'bg-green-50'   },
-    { href: '/chat',          label: 'IA Assistant',  Icon: MessageCircle,     cor: 'text-primary-600', bg: 'bg-primary-50' },
-    { href: '/configuracoes', label: 'Configurações', Icon: SlidersHorizontal, cor: 'text-gray-600',    bg: 'bg-gray-100'   },
-  ]
-
-  return (
-    <div className="fixed bottom-[72px] right-3 z-[51] modal-center">
-      <div className="bg-white rounded-3xl shadow-float border border-gray-100 overflow-hidden w-56">
-        {opcoes.map(({ href, label, Icon, cor, bg }, i) => (
-          <Link
-            key={href}
-            href={href}
-            onClick={onClose}
-            prefetch={true}
-            className={`flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50
-                        active:bg-gray-100 transition-colors duration-150
-                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
-                        ${i < opcoes.length - 1 ? 'border-b border-gray-100' : ''}`}
-          >
-            <div className={`w-8 h-8 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
-              <Icon className={`w-4 h-4 ${cor}`} strokeWidth={1.8} />
-            </div>
-            <span className="text-sm font-semibold text-gray-700">{label}</span>
-          </Link>
-        ))}
-      </div>
-    </div>
-  )
+  return <PopoverList items={EXTRAS_ITEMS} position="bottom-[72px] right-3" onClose={onClose} />
 }
 
 // ── Nav item offline (ícone maior, label visível, centralizado) ───────────────
@@ -427,7 +402,7 @@ export default memo(function BottomNav() {
                 />
               </span>
               <span className="text-[10px] font-medium text-gray-400 mt-0.5 leading-none">
-                Adicionar
+                {fabSheetOpen ? 'Fechar' : 'Adicionar'}
               </span>
             </button>
 
@@ -478,7 +453,7 @@ export default memo(function BottomNav() {
                 />
               </span>
               <span className="text-[10px] font-medium text-gray-400 mt-0.5 leading-none">
-                Adicionar
+                {fabSheetOpen ? 'Fechar' : 'Adicionar'}
               </span>
             </button>
 
@@ -501,7 +476,7 @@ export default memo(function BottomNav() {
         )}
 
         {/* ── Desktop: barra superior com todos os itens ────────────────────── */}
-        <div className="hidden lg:flex justify-start items-center h-14 px-4 gap-1">
+        <div className="hidden lg:flex justify-start items-center h-14 px-4 gap-0.5">
           {desktopItems.map(({ href, label, icon: Icon, desktopOnly }) => {
             const isActive = pathname === href
             return (
@@ -513,6 +488,7 @@ export default memo(function BottomNav() {
                   flex-row items-center gap-1.5 px-3 py-1.5 rounded-xl flex-none
                   transition-all duration-200
                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-1
+                  ${isActive ? 'nav-item-active' : 'hover:bg-gray-50 dark:hover:bg-gray-800/60'}
                 `}
                 aria-current={isActive ? 'page' : undefined}
               >
@@ -533,8 +509,7 @@ export default memo(function BottomNav() {
         {isOnline && openMenu && (
           <ModalPortal>
             <div
-              className="fixed inset-0 z-[49] modal-overlay"
-              style={{ background: 'rgba(0,0,0,0.25)' }}
+              className="fixed inset-0 z-[49] submenu-overlay modal-overlay"
               onClick={() => setOpenMenu(null)}
               aria-hidden="true"
             />

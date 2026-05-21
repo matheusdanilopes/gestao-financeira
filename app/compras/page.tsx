@@ -315,7 +315,7 @@ export default function ComprasPage() {
   useEffect(() => { carregarCategorias(); carregarLabelsCartao(); verificarFaturaFechada() }, []) // eslint-disable-line react-hooks/set-state-in-effect
 
   return (
-    <div className="min-h-screen bg-gray-50 page-content page-bottom-safe">
+    <div className="min-h-screen bg-[var(--color-bg)] page-content page-bottom-safe">
 
       {toast && (
         <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-medium shadow-float ${

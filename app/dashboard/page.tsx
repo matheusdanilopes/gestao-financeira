@@ -393,45 +393,36 @@ export default function Dashboard() {
     [mesAtual]
   )
 
-  const comprometimentoColor = useMemo(() =>
-    resumoCaixa.percentualComprometimento > 90 ? 'text-red-600' :
-    resumoCaixa.percentualComprometimento > 70 ? 'text-amber-600' :
-    'text-emerald-600',
-    [resumoCaixa.percentualComprometimento]
-  )
+  const pct = resumoCaixa.percentualComprometimento
+  const comprometimentoColor =
+    pct > 90 ? 'text-red-600' :
+    pct > 70 ? 'text-amber-600' :
+    'text-emerald-600'
 
-  const matheusSobraWarning = useMemo(() =>
-    fatura.sobraMatheus >= 0 && fatura.matheusPrevisto > 0 && (fatura.sobraMatheus / fatura.matheusPrevisto) * 100 <= 10,
-    [fatura.sobraMatheus, fatura.matheusPrevisto]
-  )
-  const jenifferSobraWarning = useMemo(() =>
-    fatura.sobraJeniffer >= 0 && fatura.jenifferPrevisto > 0 && (fatura.sobraJeniffer / fatura.jenifferPrevisto) * 100 <= 10,
-    [fatura.sobraJeniffer, fatura.jenifferPrevisto]
-  )
-  const saldoAtualWarning = useMemo(() =>
-    resumoCaixa.sobraLiquida >= 0 && resumoCaixa.receitaTotal > 0 && (resumoCaixa.sobraLiquida / resumoCaixa.receitaTotal) * 100 <= 10,
-    [resumoCaixa.sobraLiquida, resumoCaixa.receitaTotal]
-  )
-  const saldoPrevistoWarning = useMemo(() =>
-    resumoCaixa.saldoPrevisto >= 0 && resumoCaixa.receitaTotal > 0 && (resumoCaixa.saldoPrevisto / resumoCaixa.receitaTotal) * 100 <= 10,
-    [resumoCaixa.saldoPrevisto, resumoCaixa.receitaTotal]
-  )
+  const matheusSobraWarning =
+    fatura.sobraMatheus >= 0 && fatura.matheusPrevisto > 0 &&
+    (fatura.sobraMatheus / fatura.matheusPrevisto) * 100 <= 10
+  const jenifferSobraWarning =
+    fatura.sobraJeniffer >= 0 && fatura.jenifferPrevisto > 0 &&
+    (fatura.sobraJeniffer / fatura.jenifferPrevisto) * 100 <= 10
+  const saldoAtualWarning =
+    resumoCaixa.sobraLiquida >= 0 && resumoCaixa.receitaTotal > 0 &&
+    (resumoCaixa.sobraLiquida / resumoCaixa.receitaTotal) * 100 <= 10
+  const saldoPrevistoWarning =
+    resumoCaixa.saldoPrevisto >= 0 && resumoCaixa.receitaTotal > 0 &&
+    (resumoCaixa.saldoPrevisto / resumoCaixa.receitaTotal) * 100 <= 10
 
-  const comprometimentoBarColor = useMemo(() =>
-    resumoCaixa.percentualComprometimento > 90
-      ? 'bg-gradient-to-r from-red-500 to-red-600' :
-    resumoCaixa.percentualComprometimento > 70
-      ? 'bg-gradient-to-r from-amber-400 to-amber-500' :
-    'bg-gradient-to-r from-emerald-500 to-green-500',
-    [resumoCaixa.percentualComprometimento]
-  )
+  const comprometimentoBarColor =
+    pct > 90 ? 'bg-gradient-to-r from-red-500 to-red-600' :
+    pct > 70 ? 'bg-gradient-to-r from-amber-400 to-amber-500' :
+    'bg-gradient-to-r from-emerald-500 to-green-500'
 
   const heroSaldo = resumoCaixa.sobraLiquida
   const heroColor = heroSaldo < 0 ? 'text-red-600' : saldoAtualWarning ? 'text-amber-600' : 'text-emerald-600'
   const HeroIcon = heroSaldo < 0 ? TrendingDown : heroSaldo === 0 ? Minus : TrendingUp
 
   return (
-    <div className="min-h-screen bg-gray-50 page-bottom-safe page-enter">
+    <div className="min-h-screen bg-[var(--color-bg)] page-bottom-safe page-enter">
 
       <PeriodSelectorSheet
         isOpen={seletorAberto}
@@ -457,13 +448,14 @@ export default function Dashboard() {
         {/* ── Hero: Saldo do mês ── */}
         <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-5">
           {carregando ? (
-            <div className="animate-pulse space-y-3">
-              <div className="h-4 bg-gray-100 rounded-xl w-1/3" />
-              <div className="h-9 bg-gray-100 rounded-xl w-2/3" />
+            <div className="space-y-3">
+              <div className="skeleton h-4 w-1/3" />
+              <div className="skeleton h-9 w-2/3" />
               <div className="grid grid-cols-2 gap-3 pt-1">
-                <div className="h-14 bg-gray-100 rounded-2xl" />
-                <div className="h-14 bg-gray-100 rounded-2xl" />
+                <div className="skeleton h-14" />
+                <div className="skeleton h-14" />
               </div>
+              <div className="skeleton h-2 w-full mt-1" />
             </div>
           ) : (
             <>
@@ -518,19 +510,20 @@ export default function Dashboard() {
                 <div className="flex justify-between items-center mb-1.5">
                   <span className="text-xs text-gray-500">Comprometimento da renda</span>
                   <span className={`text-xs font-bold num ${comprometimentoColor}`}>
-                    {resumoCaixa.percentualComprometimento.toFixed(1)}%
+                    {pct.toFixed(1)}%
                   </span>
                 </div>
-                <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                <div className="relative w-full bg-gray-100 rounded-full h-2 overflow-hidden">
                   <div
                     className={`h-2 rounded-full transition-all duration-700 ${comprometimentoBarColor}`}
-                    style={{ width: `${Math.min(resumoCaixa.percentualComprometimento, 100)}%` }}
+                    style={{ width: `${Math.min(pct, 100)}%` }}
                   />
+                  {/* marcadores visuais de 70% e 90% sem labels de texto */}
+                  <div className="absolute top-0 bottom-0 w-px bg-amber-300/60" style={{ left: '70%' }} />
+                  <div className="absolute top-0 bottom-0 w-px bg-red-400/60" style={{ left: '90%' }} />
                 </div>
                 <div className="flex justify-between mt-1">
                   <span className="text-[10px] text-gray-300">0%</span>
-                  <span className="text-[10px] text-amber-400">70%</span>
-                  <span className="text-[10px] text-red-400">90%</span>
                   <span className="text-[10px] text-gray-300">100%</span>
                 </div>
               </div>
@@ -567,11 +560,11 @@ export default function Dashboard() {
           </div>
 
           {carregando ? (
-            <div className="animate-pulse space-y-3">
-              <div className="h-8 bg-gray-100 rounded-xl w-2/5" />
+            <div className="space-y-3">
+              <div className="skeleton h-8 w-2/5" />
               <div className="grid grid-cols-2 gap-3">
-                <div className="h-28 bg-gray-100 rounded-2xl" />
-                <div className="h-28 bg-gray-100 rounded-2xl" />
+                <div className="skeleton h-28" />
+                <div className="skeleton h-28" />
               </div>
             </div>
           ) : (
@@ -584,8 +577,11 @@ export default function Dashboard() {
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">NuBank</p>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {/* Matheus NuBank */}
-                <div className="bg-blue-50 border border-blue-100 border-t-4 border-t-blue-500 p-3 rounded-2xl">
-                  <p className="font-bold text-blue-800 text-sm uppercase tracking-wide mb-1.5">Matheus</p>
+                <div className="bg-blue-50 border border-blue-100 p-3 rounded-2xl">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                    <p className="font-semibold text-blue-800 text-sm">Matheus</p>
+                  </div>
                   <div className="flex justify-between text-xs gap-1 text-gray-500">
                     <span>Atual</span>
                     <span className="font-medium text-gray-800 num">{fmt(fatura.matheusAtual)}</span>
@@ -619,8 +615,11 @@ export default function Dashboard() {
                 </div>
 
                 {/* Jeniffer NuBank */}
-                <div className="bg-pink-50 border border-pink-100 border-t-4 border-t-pink-500 p-3 rounded-2xl">
-                  <p className="font-bold text-pink-800 text-sm uppercase tracking-wide mb-1.5">Jeniffer</p>
+                <div className="bg-pink-50 border border-pink-100 p-3 rounded-2xl">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <div className="w-2 h-2 rounded-full bg-pink-500 shrink-0" />
+                    <p className="font-semibold text-pink-800 text-sm">Jeniffer</p>
+                  </div>
                   <div className="flex justify-between text-xs gap-1 text-gray-500">
                     <span>Atual</span>
                     <span className="font-medium text-gray-800 num">{fmt(fatura.jenifferAtual)}</span>
@@ -684,20 +683,23 @@ export default function Dashboard() {
                 const jenifferResumoWarning = jenifferRestante >= 0 && jenifferTotalPrevisto > 0 && (jenifferRestante / jenifferTotalPrevisto) * 100 <= 10
 
                 return (
-                  <div className="mt-4 opacity-70">
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Outros cartões</p>
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <p className="text-xs font-semibold text-gray-500 mb-2">Outros cartões</p>
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                       {outrosCards.map((card, i) => {
                         const sobra = Math.round((card.previsto - card.atual) * 100) / 100
-                        const pct = card.previsto > 0 ? Math.min(100, (card.atual / card.previsto) * 100) : 0
+                        const cardPct = card.previsto > 0 ? Math.min(100, (card.atual / card.previsto) * 100) : 0
                         const pctRestante = card.previsto > 0 ? (sobra / card.previsto) * 100 : 100
                         const isWarning = sobra >= 0 && pctRestante <= 10
                         const isMatheus = card.responsavel === 'Matheus'
                         return (
-                          <div key={i} className={`p-2 rounded-2xl border border-t-2 ${
-                            isMatheus ? 'bg-blue-50 border-blue-100 border-t-blue-400' : 'bg-pink-50 border-pink-100 border-t-pink-400'
+                          <div key={i} className={`p-2.5 rounded-2xl border ${
+                            isMatheus ? 'bg-blue-50 border-blue-100' : 'bg-pink-50 border-pink-100'
                           }`}>
-                            <p className={`font-semibold text-xs mb-1 ${isMatheus ? 'text-blue-800' : 'text-pink-800'}`}>{card.label}</p>
+                            <div className="flex items-center gap-1 mb-1.5">
+                              <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isMatheus ? 'bg-blue-400' : 'bg-pink-400'}`} />
+                              <p className={`font-semibold text-xs ${isMatheus ? 'text-blue-800' : 'text-pink-800'}`}>{card.label}</p>
+                            </div>
                             <div className="flex justify-between text-xs gap-1 text-gray-500">
                               <span>Atual</span>
                               <span className="font-medium text-gray-800 num">{fmt(card.atual)}</span>
@@ -706,8 +708,8 @@ export default function Dashboard() {
                               <span>Previsto</span>
                               <span className="font-medium text-gray-800 num">{fmt(card.previsto)}</span>
                             </div>
-                            <div className={`mt-1.5 h-2 rounded-full overflow-hidden ${isMatheus ? 'bg-blue-100' : 'bg-pink-100'}`}>
-                              <div className={`h-full rounded-full transition-all duration-500 ${isMatheus ? 'bg-blue-400' : 'bg-pink-400'}`} style={{ width: `${pct}%` }} />
+                            <div className={`mt-1.5 h-1.5 rounded-full overflow-hidden ${isMatheus ? 'bg-blue-100' : 'bg-pink-100'}`}>
+                              <div className={`h-full rounded-full transition-all duration-500 ${isMatheus ? 'bg-blue-400' : 'bg-pink-400'}`} style={{ width: `${cardPct}%` }} />
                             </div>
                             <div className={`flex items-center justify-between text-xs font-bold mt-1 gap-1 ${
                               sobra < 0 ? 'text-red-600' : isWarning ? 'text-amber-600' : 'text-emerald-600'
@@ -722,13 +724,16 @@ export default function Dashboard() {
                       })}
                     </div>
 
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-3 mb-2">Resumo por pessoa</p>
+                    <p className="text-xs font-semibold text-gray-500 mt-3 mb-2">Resumo por pessoa</p>
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="bg-blue-50 border border-blue-100 border-t-4 border-t-blue-500 p-2 rounded-2xl">
-                        <p className="font-bold text-xs text-blue-700 uppercase tracking-wide mb-1.5">Matheus</p>
+                      <div className="bg-blue-50 border border-blue-100 p-2.5 rounded-2xl">
+                        <div className="flex items-center gap-1 mb-1.5">
+                          <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                          <p className="font-semibold text-xs text-blue-700">Matheus</p>
+                        </div>
                         <div className="flex justify-between text-xs gap-1 text-gray-500"><span>Atual</span><span className="font-medium text-gray-800 num">{fmt(matheusTotalAtual)}</span></div>
                         <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-500"><span>Previsto</span><span className="font-medium text-gray-800 num">{fmt(matheusTotalPrevisto)}</span></div>
-                        <div className="mt-1.5 h-2 bg-blue-100 rounded-full overflow-hidden">
+                        <div className="mt-1.5 h-1.5 bg-blue-100 rounded-full overflow-hidden">
                           <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${matheusPct}%` }} />
                         </div>
                         <div className={`flex justify-between text-xs font-bold mt-1 gap-1 ${matheusRestante < 0 ? 'text-red-600' : matheusResumoWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
@@ -736,11 +741,14 @@ export default function Dashboard() {
                           <span className="num shrink-0">{fmt(Math.abs(matheusRestante))}</span>
                         </div>
                       </div>
-                      <div className="bg-pink-50 border border-pink-100 border-t-4 border-t-pink-500 p-2 rounded-2xl">
-                        <p className="font-bold text-xs text-pink-700 uppercase tracking-wide mb-1.5">Jeniffer</p>
+                      <div className="bg-pink-50 border border-pink-100 p-2.5 rounded-2xl">
+                        <div className="flex items-center gap-1 mb-1.5">
+                          <div className="w-2 h-2 rounded-full bg-pink-500 shrink-0" />
+                          <p className="font-semibold text-xs text-pink-700">Jeniffer</p>
+                        </div>
                         <div className="flex justify-between text-xs gap-1 text-gray-500"><span>Atual</span><span className="font-medium text-gray-800 num">{fmt(jenifferTotalAtual)}</span></div>
                         <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-500"><span>Previsto</span><span className="font-medium text-gray-800 num">{fmt(jenifferTotalPrevisto)}</span></div>
-                        <div className="mt-1.5 h-2 bg-pink-100 rounded-full overflow-hidden">
+                        <div className="mt-1.5 h-1.5 bg-pink-100 rounded-full overflow-hidden">
                           <div className="h-full bg-pink-500 rounded-full transition-all duration-500" style={{ width: `${jenifferPct}%` }} />
                         </div>
                         <div className={`flex justify-between text-xs font-bold mt-1 gap-1 ${jenifferRestante < 0 ? 'text-red-600' : jenifferResumoWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
@@ -768,35 +776,19 @@ export default function Dashboard() {
             </h2>
           </div>
           {carregando ? (
-            <div className="animate-pulse space-y-2.5">
-              <div className="h-5 bg-gray-100 rounded-xl w-full" />
-              <div className="h-5 bg-gray-100 rounded-xl w-full" />
-              <div className="h-5 bg-gray-100 rounded-xl w-full" />
-              <div className="h-3 bg-gray-100 rounded-full w-full mt-2" />
+            <div className="space-y-2.5">
+              <div className="skeleton h-5 w-full" />
+              <div className="skeleton h-5 w-full" />
+              <div className="skeleton h-5 w-3/4" />
+              <div className="skeleton h-16 w-full mt-2" />
             </div>
           ) : (
-            <div className="space-y-2">
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-500">Receita prevista</span>
-                <span className="text-emerald-700 font-semibold num">{fmt(resumoCaixa.receitaTotal)}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-500">Despesas planejadas</span>
-                <span className="text-gray-700 font-medium num">− {fmt(resumoCaixa.contasFixas)}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-500 flex items-center gap-1.5">
-                  Faturas
-                  {resumoCaixa.faturaEhPrevisto && (
-                    <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">estimado</span>
-                  )}
-                </span>
-                <span className="text-gray-700 font-medium num">− {fmt(resumoCaixa.fatura)}</span>
-              </div>
-              <div className="border-t border-gray-100 pt-3 grid grid-cols-2 gap-2">
-                <div className="flex flex-col items-center py-2.5 px-3 rounded-2xl bg-gray-50 border border-gray-100">
+            <div className="space-y-3">
+              {/* Saldo em destaque — hierarquia correta: info principal primeiro */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col items-center py-3 px-3 rounded-2xl bg-gray-50 border border-gray-100">
                   <span className="text-xs text-gray-500 mb-1">Saldo Previsto</span>
-                  <span className={`text-base font-bold num ${resumoCaixa.saldoPrevisto < 0 ? 'text-red-600' : saldoPrevistoWarning ? 'text-amber-600' : 'text-primary-600'}`}>
+                  <span className={`text-lg font-bold num ${resumoCaixa.saldoPrevisto < 0 ? 'text-red-600' : saldoPrevistoWarning ? 'text-amber-600' : 'text-primary-600'}`}>
                     {fmt(resumoCaixa.saldoPrevisto)}
                   </span>
                   {saldoPrevistoWarning && resumoCaixa.saldoPrevisto >= 0
@@ -804,15 +796,35 @@ export default function Dashboard() {
                     : <span className="text-[10px] text-gray-400 mt-0.5">só previsões</span>
                   }
                 </div>
-                <div className="flex flex-col items-center py-2.5 px-3 rounded-2xl bg-primary-50 border border-primary-100">
+                <div className="flex flex-col items-center py-3 px-3 rounded-2xl bg-primary-50 border border-primary-100">
                   <span className="text-xs text-primary-600 mb-1">Saldo Atual</span>
-                  <span className={`text-base font-bold num ${resumoCaixa.sobraLiquida < 0 ? 'text-red-600' : saldoAtualWarning ? 'text-amber-600' : 'text-primary-700'}`}>
+                  <span className={`text-lg font-bold num ${resumoCaixa.sobraLiquida < 0 ? 'text-red-600' : saldoAtualWarning ? 'text-amber-600' : 'text-primary-700'}`}>
                     {fmt(resumoCaixa.sobraLiquida)}
                   </span>
                   {saldoAtualWarning && resumoCaixa.sobraLiquida >= 0
                     ? <span className="text-[10px] text-amber-600 font-semibold mt-0.5 flex items-center gap-0.5"><AlertTriangle className="w-2.5 h-2.5" /> Atenção!</span>
                     : <span className="text-[10px] text-primary-400 mt-0.5">{resumoCaixa.faturaEhPrevisto ? 'fatura estimada' : 'fatura real'}</span>
                   }
+                </div>
+              </div>
+              {/* Composição do caixa */}
+              <div className="border-t border-gray-100 pt-3 space-y-2">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500">Receita prevista</span>
+                  <span className="text-emerald-700 font-semibold num">{fmt(resumoCaixa.receitaTotal)}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500">Despesas planejadas</span>
+                  <span className="text-gray-700 font-medium num">− {fmt(resumoCaixa.contasFixas)}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500 flex items-center gap-1.5">
+                    Faturas
+                    {resumoCaixa.faturaEhPrevisto && (
+                      <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">estimado</span>
+                    )}
+                  </span>
+                  <span className="text-gray-700 font-medium num">− {fmt(resumoCaixa.fatura)}</span>
                 </div>
               </div>
             </div>
@@ -837,9 +849,10 @@ export default function Dashboard() {
               </a>
             </div>
             {carregando ? (
-              <div className="animate-pulse space-y-3">
-                <div className="h-5 bg-gray-100 rounded-xl w-3/4" />
-                <div className="h-5 bg-gray-100 rounded-xl w-1/2" />
+              <div className="space-y-3">
+                <div className="skeleton h-5 w-3/4" />
+                <div className="skeleton h-5 w-1/2" />
+                <div className="skeleton h-2 w-full" />
               </div>
             ) : (
               <div className="space-y-3">
