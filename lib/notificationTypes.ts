@@ -411,11 +411,10 @@ export const ROTA_PARA_ACOES: Record<string, string[]> = {
 }
 
 // Tags do SW que devem fechar automaticamente quando o app é aberto/retomado.
-// Mantido em sincronia com o campo autoFechar acima.
-// Referenciado também em public/sw.js (plain JS — manter os dois alinhados).
+// Mantido em sincronia com AUTO_CLOSE_TAGS em public/sw.js.
+// Importações de sucesso são fechadas por prefixo (closeImportSuccessNotifications),
+// portanto 'importacao' e 'importacao-sucesso' não constam aqui (PR #142).
 export const SW_AUTO_CLOSE_TAGS = [
-  'importacao',
-  'importacao-sucesso',
   'categorizacao',
   'wishlist-concluido',
   'lista-mercado',

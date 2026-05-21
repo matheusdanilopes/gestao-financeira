@@ -2,10 +2,9 @@ const CACHE_NAME = 'gestao-financeira-v8'
 
 // Tags auto-fecháveis ao abrir o app — processo concluído, notificação apenas informativa.
 // Mantido em sincronia com SW_AUTO_CLOSE_TAGS em lib/notificationTypes.ts.
-// NUNCA inclui tags de erro ou ação obrigatória (importacao-erro, conta-atrasada, ia-falha, etc.)
+// Importações de sucesso são gerenciadas por closeImportSuccessNotifications() (prefixo-based).
+// NUNCA inclui tags de erro ou ação obrigatória.
 const AUTO_CLOSE_TAGS = [
-  'importacao',
-  'importacao-sucesso',
   'categorizacao',
   'wishlist-concluido',
   'lista-mercado',
@@ -16,7 +15,9 @@ const AUTO_CLOSE_TAGS = [
   'ia-analise',
 ]
 
-// Tags que persistem até o usuário interagir — exigem ação
+// Tags que persistem até o usuário interagir — exigem ação.
+// Notificações de erro de importação por cartão (importacao-erro-*) recebem
+// requireInteraction: true direto no payload, não precisam estar nesta lista.
 const PERSISTENT_TAGS = [
   'importacao-erro',
   'conta-vencendo',
@@ -26,10 +27,9 @@ const PERSISTENT_TAGS = [
   'ia-falha',
 ]
 
-// Mapa de tags de grupo → outras tags do mesmo grupo que devem fechar junto
-// ao clicar qualquer uma do grupo
+// Mapa de tags de grupo → outras tags do mesmo grupo que fecham junto ao clicar qualquer uma.
+// Importações são gerenciadas por closeImportSuccessNotifications() (prefixo-based).
 const GRUPO_TAGS = {
-  importacao: ['importacao', 'importacao-sucesso'],
   wishlist:   ['wishlist', 'wishlist-ia', 'wishlist-concluido'],
   mercado:    ['lista-mercado', 'lista-sincronizacao', 'lista-compartilhado'],
   pedidos:    ['pedido', 'pedido-concluido'],
@@ -38,6 +38,21 @@ const GRUPO_TAGS = {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+// Fecha notificações de importação bem-sucedida de qualquer cartão.
+// Nunca fecha 'importacao-erro-*': falhas exigem ação do usuário.
+// Suporta tanto a tag legada 'importacao-sucesso' quanto as tags únicas
+// por cartão 'importacao-sucesso-nubank', 'importacao-sucesso-cartao1', etc.
+function closeImportSuccessNotifications() {
+  return self.registration.getNotifications().then(function (all) {
+    all.forEach(function (n) {
+      if (n.tag && (n.tag === 'importacao' || n.tag === 'importacao-sucesso' || n.tag.startsWith('importacao-sucesso-'))) {
+        n.close()
+      }
+    })
+  })
+}
+
+// Fecha notificações por array de tags exatas (usado para notificações regulares).
 function closeNotificationsByTags(tags) {
   return Promise.all(
     tags.map(function (tag) {
@@ -229,9 +244,15 @@ self.addEventListener('push', function (event) {
 self.addEventListener('message', function (event) {
   const type = event.data?.type
 
-  // Fecha notificações informativas ao abrir/retornar ao app
+  // Fecha notificações informativas ao abrir/retornar ao app:
+  // 1. importações de sucesso por cartão (prefixo-based, PR #142)
+  // 2. demais tags auto-fecháveis (categorizacao, wishlist-concluido, etc.)
+  // Erros ('importacao-erro-*') não são fechados — exigem ação do usuário.
   if (type === 'APP_OPENED' || type === 'CLOSE_IMPORT_NOTIFICATIONS') {
-    event.waitUntil(closeNotificationsByTags(AUTO_CLOSE_TAGS))
+    event.waitUntil(Promise.all([
+      closeImportSuccessNotifications(),
+      closeNotificationsByTags(AUTO_CLOSE_TAGS),
+    ]))
     return
   }
 
@@ -250,13 +271,16 @@ self.addEventListener('notificationclick', function (event) {
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
-      // Fecha outras notificações do mesmo grupo ao clicar
-      const grupoTags = getGrupoTags(clickedTag)
-      if (grupoTags.length > 0) {
-        closeNotificationsByTags(grupoTags).catch(() => {})
-      } else if (AUTO_CLOSE_TAGS.includes(clickedTag)) {
-        // tag individual auto-fechável
-        closeNotificationsByTags([clickedTag]).catch(() => {})
+      // Fecha notificações irmãs ao clicar: importações por prefixo, outros por grupo
+      if (clickedTag === 'importacao' || clickedTag === 'importacao-sucesso' || clickedTag.startsWith('importacao-sucesso-')) {
+        closeImportSuccessNotifications().catch(() => {})
+      } else {
+        const grupoTags = getGrupoTags(clickedTag)
+        if (grupoTags.length > 0) {
+          closeNotificationsByTags(grupoTags).catch(() => {})
+        } else if (AUTO_CLOSE_TAGS.includes(clickedTag)) {
+          closeNotificationsByTags([clickedTag]).catch(() => {})
+        }
       }
 
       // Foca janela existente e navega, ou abre nova

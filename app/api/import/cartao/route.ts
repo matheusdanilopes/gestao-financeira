@@ -61,11 +61,13 @@ async function inserirTransacao(
 
 export async function POST(req: NextRequest) {
   const supabase = criarSupabaseServer(req)
+  let cartao = 'cartao1'
+  let nomeCartao: string | undefined
 
   try {
     const formData = await req.formData()
     const file = formData.get('file') as File
-    const cartao = formData.get('cartao') as string
+    cartao = (formData.get('cartao') as string) || 'cartao1'
 
     if (!file) return NextResponse.json({ error: 'Nenhum arquivo' }, { status: 400 })
     if (!CARTOES_VALIDOS.includes(cartao as CartaoValido)) {
@@ -93,17 +95,21 @@ export async function POST(req: NextRequest) {
     const prefixoPlanejamento = cartao === 'cartao1' ? '[CARTAO1]' : '[CARTAO2]'
     const { data: planos } = await supabase
       .from('planejamento')
-      .select('responsavel')
+      .select('item, responsavel')
       .ilike('item', `${prefixoPlanejamento}%`)
 
     const responsaveisUnicos = [
-      ...new Set((planos ?? []).map((p: { responsavel: string | null }) => p.responsavel).filter(Boolean))
+      ...new Set((planos ?? []).map((p: { item: string; responsavel: string | null }) => p.responsavel).filter(Boolean))
     ]
     const responsavelPadrao: 'Matheus' | 'Jeniffer' | undefined =
       responsaveisUnicos.length === 1 &&
       (responsaveisUnicos[0] === 'Matheus' || responsaveisUnicos[0] === 'Jeniffer')
         ? (responsaveisUnicos[0] as 'Matheus' | 'Jeniffer')
         : undefined
+
+    nomeCartao = (planos ?? [])
+      .map((p: { item: string; responsavel: string | null }) => p.item?.replace(prefixoPlanejamento, '').trim())
+      .find(Boolean) || undefined
 
     const csvText = await file.text()
     const transacoes = processarCSV(csvText, diaVencimento, ajusteFechamento, cartao, responsavelPadrao)
@@ -169,7 +175,7 @@ export async function POST(req: NextRequest) {
       faturaStats[fatura].totalNoBanco = count ?? 0
     }
 
-    await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas)
+    await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, undefined, cartao, nomeCartao)
 
     return NextResponse.json({
       success: true,
@@ -185,7 +191,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('[import/cartao] Exceção:', error)
     const msg = error instanceof Error ? error.message : String(error)
-    await notificarImportacao(supabase, 'erro')
+    await notificarImportacao(supabase, 'erro', undefined, undefined, cartao, nomeCartao)
     return NextResponse.json({ error: 'Erro interno: ' + msg }, { status: 500 })
   }
 }
