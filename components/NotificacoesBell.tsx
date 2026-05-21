@@ -1,13 +1,21 @@
 'use client'
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { Bell, X, Check, CheckCheck, PiggyBank, CreditCard, TrendingUp, AlertTriangle, ThumbsUp, ThumbsDown, Heart } from 'lucide-react'
+import {
+  Bell, X, Check, CheckCheck,
+  PiggyBank, CreditCard, TrendingUp, AlertTriangle, ThumbsUp, ThumbsDown, Heart,
+  CheckCircle2, XCircle, Sparkles, Clock, ShoppingBag, ShoppingBasket,
+  RefreshCw, AlertCircle, Calendar, BarChart2,
+} from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { AUTH_DISABLED } from '@/lib/authConfig'
 import { formatBRL } from '@/lib/logger'
+import { getNotificacaoMeta } from '@/lib/notificationTypes'
+import { buildNotifUrl, fecharPushPorIds } from '@/lib/notificationRouter'
+import type { ComponentType } from 'react'
 
 interface ConflictMetadata {
   original_id: string
@@ -32,7 +40,7 @@ interface Notificacao {
   valor: number | null
   lida: boolean
   created_at: string
-  metadata?: ConflictMetadata | WishlistMetadata | null
+  metadata?: ConflictMetadata | WishlistMetadata | Record<string, unknown> | null
 }
 
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
@@ -49,22 +57,40 @@ function isStandalone(): boolean {
     (window.navigator as { standalone?: boolean }).standalone === true
 }
 
-function iconeAcao(acao: string) {
-  if (acao === 'aporte') return <PiggyBank className="w-4 h-4 text-green-500" />
-  if (acao === 'pagar') return <CreditCard className="w-4 h-4 text-blue-500" />
-  if (acao === 'receber') return <TrendingUp className="w-4 h-4 text-purple-500" />
-  if (acao === 'conciliacao_conflito') return <AlertTriangle className="w-4 h-4 text-amber-500" />
-  if (acao === 'wishlist_novo_item') return <Heart className="w-4 h-4 text-pink-500" />
-  return <Bell className="w-4 h-4 text-gray-400" />
+// Mapa de ícones por tipo de notificação
+const ICONES_ACAO: Record<string, ComponentType<{ className?: string }>> = {
+  importacao_iniciada:          Clock,
+  importacao_processando:       Clock,
+  importacao_concluida:         CheckCircle2,
+  importacao_erro:              XCircle,
+  categorizacao_concluida:      Sparkles,
+  wishlist_novo_item:           Heart,
+  wishlist_item_ia:             Sparkles,
+  wishlist_item_concluido:      Heart,
+  lista_compra_finalizada:      ShoppingBasket,
+  lista_sincronizacao:          RefreshCw,
+  lista_item_compartilhado:     ShoppingBasket,
+  pedido_criado:                ShoppingBag,
+  pedido_pendente:              AlertCircle,
+  pedido_cancelado:             XCircle,
+  pedido_concluido:             CheckCircle2,
+  conta_vencendo:               AlertTriangle,
+  conta_atrasada:               AlertTriangle,
+  pagamento_registrado:         CreditCard,
+  assinatura_alterada:          Calendar,
+  aporte:                       PiggyBank,
+  pagar:                        CreditCard,
+  receber:                      TrendingUp,
+  conciliacao_conflito:         AlertTriangle,
+  ia_processamento_concluido:   Sparkles,
+  ia_falha:                     XCircle,
+  ia_analise_pronta:            BarChart2,
 }
 
-function corAcao(acao: string) {
-  if (acao === 'aporte') return 'border-l-green-400'
-  if (acao === 'pagar') return 'border-l-blue-400'
-  if (acao === 'receber') return 'border-l-purple-400'
-  if (acao === 'conciliacao_conflito') return 'border-l-amber-400'
-  if (acao === 'wishlist_novo_item') return 'border-l-pink-400'
-  return 'border-l-gray-300'
+function renderIcone(acao: string) {
+  const meta = getNotificacaoMeta(acao)
+  const Icon = ICONES_ACAO[acao] ?? Bell
+  return <Icon className={`w-4 h-4 ${meta.corIcone}`} />
 }
 
 function formatarValor(valor: number | null): string {
@@ -72,7 +98,7 @@ function formatarValor(valor: number | null): string {
   return ` — ${formatBRL(valor)}`
 }
 
-// Converte valores no formato legado "R$ 1551.42" (ponto decimal) para "R$ 1.551,42"
+// Converte formato legado "R$ 1551.42" para "R$ 1.551,42"
 function normalizarDescricao(descricao: string): string {
   return descricao.replace(/R\$ (\d+)\.(\d{2})(?!\d)/g, (_, intPart, decPart) =>
     formatBRL(parseFloat(`${intPart}.${decPart}`))
@@ -127,7 +153,6 @@ export default memo(function NotificacoesBell() {
 
   const naoLidas = notificacoes.filter(n => !n.lida).length
 
-  // Declarado antes dos useEffect que o referenciam
   const carregarNotificacoes = useCallback(async (email: string) => {
     const { data } = await supabase
       .from('notificacoes')
@@ -182,8 +207,7 @@ export default memo(function NotificacoesBell() {
     return () => { void supabase.removeChannel(channel) }
   }, [usuarioEmail])
 
-  // Escuta mensagens do service worker (enviadas pelo push handler) para atualizar
-  // o sino mesmo quando o Supabase Realtime ainda não reconectou.
+  // Escuta pushes do SW para atualizar o sino mesmo sem Realtime reconectado
   useEffect(() => {
     if (!usuarioEmail || !('serviceWorker' in navigator)) return
     function handleSWMessage(event: MessageEvent) {
@@ -208,17 +232,14 @@ export default memo(function NotificacoesBell() {
   async function registrarServiceWorker(email: string) {
     if (!('serviceWorker' in navigator)) return
 
-    // iOS fora do modo standalone não suporta push — mostra instrução de instalação
     if (isIOS() && !isStandalone()) {
       setIosNaoInstalado(true)
       return
     }
 
     try {
-      // SW já foi registrado globalmente pelo ClientShell; aguarda ficar pronto
       const reg = await navigator.serviceWorker.ready
 
-      // Detecta atualização do SW e força nova assinatura de push
       reg.addEventListener('updatefound', () => {
         const novoSW = reg.installing
         if (!novoSW) return
@@ -249,24 +270,10 @@ export default memo(function NotificacoesBell() {
     }
   }
 
-  function fecharPushNotificacoes(tags: string[]) {
-    if (!('serviceWorker' in navigator) || !tags.length) return
-    navigator.serviceWorker.ready
-      .then(reg => reg.active?.postMessage({ type: 'CLOSE_NOTIFICATIONS', tags }))
-      .catch(() => {})
-  }
-
-  function fecharNotificacoesImportacao() {
-    if (!('serviceWorker' in navigator)) return
-    navigator.serviceWorker.ready
-      .then(reg => reg.active?.postMessage({ type: 'CLOSE_IMPORT_NOTIFICATIONS' }))
-      .catch(() => {})
-  }
-
   async function marcarComoLida(id: string) {
     await supabase.from('notificacoes').update({ lida: true }).eq('id', id)
     setNotificacoes(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n))
-    fecharPushNotificacoes([id])
+    fecharPushPorIds([id])
   }
 
   async function marcarTodasLidas() {
@@ -274,7 +281,7 @@ export default memo(function NotificacoesBell() {
     if (!ids.length) return
     await supabase.from('notificacoes').update({ lida: true }).in('id', ids)
     setNotificacoes(prev => prev.map(n => ({ ...n, lida: true })))
-    fecharPushNotificacoes(ids)
+    fecharPushPorIds(ids)
   }
 
   async function resolverConflito(notificacao_id: string, acao: 'aprovar' | 'recusar') {
@@ -287,17 +294,33 @@ export default memo(function NotificacoesBell() {
       })
       if (res.ok) {
         setNotificacoes(prev => prev.map(n => n.id === notificacao_id ? { ...n, lida: true } : n))
-        fecharPushNotificacoes([notificacao_id])
+        fecharPushPorIds([notificacao_id])
       }
     } finally {
       setResolvendo(prev => ({ ...prev, [notificacao_id]: false }))
     }
   }
 
-  async function abrirWishlist(n: Notificacao) {
+  // Handler unificado de clique: navega para rota correta, marca como lida, fecha push
+  async function handleNotificacaoClick(n: Notificacao) {
+    if (n.acao === 'conciliacao_conflito') return // ação inline — não navega
+
     if (!n.lida) await marcarComoLida(n.id)
     setAberto(false)
-    router.push('/wishlist?ordem=mais-novo')
+
+    const url = buildNotifUrl({ id: n.id, acao: n.acao, metadata: n.metadata as Record<string, unknown> | null })
+    router.push(url)
+  }
+
+  // Ao abrir o bell, fecha pushes de importação pendentes no tray
+  function handleToggleBell() {
+    const abrindo = !aberto
+    setAberto(abrindo)
+    if (abrindo && ('serviceWorker' in navigator)) {
+      navigator.serviceWorker.ready
+        .then(reg => reg.active?.postMessage({ type: 'CLOSE_IMPORT_NOTIFICATIONS' }))
+        .catch(() => {})
+    }
   }
 
   if (!usuarioEmail) return null
@@ -305,11 +328,7 @@ export default memo(function NotificacoesBell() {
   return (
     <div ref={dropdownRef} className="relative">
       <button
-        onClick={() => {
-          const abrindo = !aberto
-          setAberto(abrindo)
-          if (abrindo) fecharNotificacoesImportacao()
-        }}
+        onClick={handleToggleBell}
         className="relative p-2 rounded-full hover:bg-white/20 transition-colors"
         aria-label="Notificações"
       >
@@ -389,7 +408,7 @@ export default memo(function NotificacoesBell() {
             </div>
           )}
 
-          {/* List */}
+          {/* Lista */}
           <div className="max-h-[360px] lg:max-h-[520px] overflow-y-auto divide-y divide-gray-50 dark:divide-gray-800">
             {notificacoes.length === 0 ? (
               <div className="py-10 text-center">
@@ -399,33 +418,43 @@ export default memo(function NotificacoesBell() {
             ) : (
               notificacoes.map(n => {
                 const isConflito = n.acao === 'conciliacao_conflito'
-                const isWishlist = n.acao === 'wishlist_novo_item'
                 const emResolucao = resolvendo[n.id] ?? false
+                const meta = getNotificacaoMeta(n.acao)
+                const isClickavel = !isConflito
+
                 return (
                   <div
                     key={n.id}
-                    onClick={isWishlist ? () => abrirWishlist(n) : undefined}
-                    className={`flex items-start gap-3 px-4 py-3 border-l-4 transition-colors ${corAcao(n.acao)} ${
-                      isWishlist ? 'cursor-pointer hover:bg-pink-50/60 dark:hover:bg-pink-900/10' : ''
+                    onClick={isClickavel ? () => handleNotificacaoClick(n) : undefined}
+                    className={`flex items-start gap-3 px-4 py-3 border-l-4 transition-colors ${meta.corBorda} ${
+                      isClickavel ? 'cursor-pointer hover:brightness-95' : ''
                     } ${
                       n.lida
                         ? 'bg-white dark:bg-gray-900 opacity-60'
-                        : isConflito
-                          ? 'bg-amber-50/60 dark:bg-amber-900/10'
-                          : isWishlist
-                            ? 'bg-pink-50/40 dark:bg-pink-900/10'
-                            : 'bg-blue-50/40 dark:bg-blue-900/10'
+                        : meta.corFundo
                     }`}
                   >
-                    <div className="mt-0.5 flex-shrink-0">{iconeAcao(n.acao)}</div>
+                    <div className="mt-0.5 flex-shrink-0">{renderIcone(n.acao)}</div>
                     <div className="flex-1 min-w-0">
+                      {/* Rótulo do módulo */}
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                          {meta.rotulo}
+                        </span>
+                      </div>
                       <p className="text-sm font-medium text-gray-800 dark:text-gray-100 leading-snug">
                         {normalizarDescricao(n.descricao)}
+                        {n.valor != null && (
+                          <span className="text-gray-500 dark:text-gray-400 font-normal">
+                            {formatarValor(n.valor)}
+                          </span>
+                        )}
                       </p>
+                      {/* Ações inline de conciliação */}
                       {isConflito && n.metadata && !n.lida && (
                         <div className="flex gap-2 mt-2">
                           <button
-                            onClick={() => resolverConflito(n.id, 'aprovar')}
+                            onClick={(e) => { e.stopPropagation(); resolverConflito(n.id, 'aprovar') }}
                             disabled={emResolucao}
                             className="flex items-center gap-1 px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
                           >
@@ -433,7 +462,7 @@ export default memo(function NotificacoesBell() {
                             Aprovar
                           </button>
                           <button
-                            onClick={() => resolverConflito(n.id, 'recusar')}
+                            onClick={(e) => { e.stopPropagation(); resolverConflito(n.id, 'recusar') }}
                             disabled={emResolucao}
                             className="flex items-center gap-1 px-3 py-1 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
                           >
@@ -452,9 +481,10 @@ export default memo(function NotificacoesBell() {
                         </span>
                       </div>
                     </div>
-                    {!n.lida && !isConflito && !isWishlist && (
+                    {/* Botão de marcar como lida (apenas para não-clicáveis sem botões inline) */}
+                    {!n.lida && isConflito && (
                       <button
-                        onClick={() => marcarComoLida(n.id)}
+                        onClick={(e) => { e.stopPropagation(); marcarComoLida(n.id) }}
                         className="flex-shrink-0 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors mt-0.5"
                         title="Marcar como lida"
                       >
