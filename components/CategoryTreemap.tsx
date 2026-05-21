@@ -357,7 +357,7 @@ export default function CategoryTreemap({ compras: comprasProp, mesAtual, loadin
                       className="text-[9px] font-semibold text-white/80 leading-tight truncate num mt-0.5"
                       style={{ textShadow: '0 1px 2px rgba(0,0,0,0.25)' }}
                     >
-                      {formatBRL(block.valor)}
+                      {mode === 'value' ? formatBRL(block.valor) : `${block.contagem}×`}
                     </p>
                   )}
                 </div>
