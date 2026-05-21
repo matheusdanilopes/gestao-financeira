@@ -7,6 +7,7 @@ import DataStatusIndicator from './DataStatusIndicator'
 import { useRefreshContext } from './RefreshProvider'
 import { useOnline } from '@/lib/useOnline'
 import BottomNav from './BottomNav'
+import { useNotificationAutoClear } from '@/lib/notificationRouter'
 
 // Rotas que mostram sino de notificações
 const ROTAS_COM_BELL = [
@@ -50,6 +51,9 @@ export default function ClientShell({ children }: { children: React.ReactNode })
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [])
+
+  // Auto-clear: marca notificações do contexto atual como lidas ao navegar
+  useNotificationAutoClear(pathname ?? '')
 
   const mostrarBell = pathname ? ROTAS_COM_BELL.includes(pathname) : false
   const mostrarRefresh = pathname ? ROTAS_COM_REFRESH.includes(pathname) : false
