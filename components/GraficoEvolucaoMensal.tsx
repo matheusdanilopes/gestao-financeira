@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Line } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
@@ -76,6 +76,7 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const { isDark, isDarkRef } = useIsDark()
+  const dataCache = useRef(new Map<string, EvolucaoMensal>())
 
   // Plugin criado uma única vez — lê isDarkRef.current no draw, sem recriar objeto
   const plugins = useMemo(
@@ -84,6 +85,13 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
   )
 
   const carregar = useCallback(async () => {
+    const mesKey = format(mesAtual, 'yyyy-MM')
+    const cached = dataCache.current.get(mesKey)
+    if (cached) {
+      setDados(cached)
+    } else {
+      setCarregando(true)
+    }
     setErro(null)
     try {
       const mesesRef: string[] = []
@@ -119,12 +127,14 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
           des.set(mes, (des.get(mes) || 0) + valor)
       }
 
-      setDados({
+      const novosDados = {
         labels:            mesesRef.map(m => format(new Date(m + 'T12:00:00'), 'MMM/yy', { locale: ptBR })),
         receitas:          mesesRef.map(m => rec.get(m) || 0),
         despesas:          mesesRef.map(m => des.get(m) || 0),
         currentMonthIndex: mesesRef.findIndex(m => m === hojeRef),
-      })
+      }
+      dataCache.current.set(mesKey, novosDados)
+      setDados(novosDados)
     } catch {
       setErro('Não foi possível carregar a evolução financeira.')
     } finally {
@@ -133,7 +143,6 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
   }, [mesAtual])
 
   useEffect(() => {
-    setCarregando(true)
     carregar()
     let intervalId: ReturnType<typeof setInterval>
     const timeoutId = setTimeout(() => {

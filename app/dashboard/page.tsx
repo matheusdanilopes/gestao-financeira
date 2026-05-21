@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
-import { AlertTriangle, CreditCard, Wallet, BarChart3, PiggyBank, TrendingUp, TrendingDown, Minus, LineChart } from 'lucide-react'
+import { AlertTriangle, CreditCard, Wallet, BarChart3, PiggyBank, TrendingUp, TrendingDown, Minus, LineChart, Activity } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
 import MonthSelector from '@/components/MonthSelector'
@@ -39,6 +39,15 @@ const GraficoEvolucaoInvestimentos = dynamic(
     ),
   }
 )
+
+const GraficoGastosDiarios = dynamic(() => import('@/components/GraficoGastosDiarios'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-48 flex items-center justify-center">
+      <div className="w-7 h-7 border-2 border-gray-200 border-t-violet-500 rounded-full animate-spin" />
+    </div>
+  ),
+})
 import { InfoPopover } from '@/components/InfoPopover'
 
 const DrawerDetalhes = dynamic(() => import('@/components/DrawerDetalhes'), { ssr: false })
@@ -112,6 +121,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     { data: nubankConfigs },
     { data: faturaRegistradaData },
     { data: assinaturasData },
+    { data: maxFaturaRowData },
   ] = await Promise.all([
     supabase.from('transacoes_nubank').select('valor, responsavel, descricao').eq('projeto_fatura', mesRefFatura).eq('cartao', 'nubank'),
     supabase.from('planejamento').select('item, responsavel, valor_previsto, pago, valor_real').eq('mes_referencia', mesRef),
@@ -121,6 +131,8 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     supabase.from('configuracoes').select('chave, valor').in('chave', ['dia_vencimento', 'ajuste_fechamento']),
     supabase.from('faturas').select('data_fechamento').eq('cartao', 'nubank').eq('mes_referencia', mesRefFatura).limit(1),
     supabase.from('assinaturas').select('nome, valor, responsavel, ativa').eq('cartao', 'nubank'),
+    supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'nubank')
+      .lte('projeto_fatura', mesRefFatura).order('projeto_fatura', { ascending: false }).limit(1),
   ])
 
   const diaVencNubank = parseInt(nubankConfigs?.find((c: { chave: string; valor: string }) => c.chave === 'dia_vencimento')?.valor || '10')
@@ -178,17 +190,13 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   let jenifferProjecaoParcelas = 0
   if (faturaEhPrevisto) {
     const mesProjecao = startOfMonth(addMonths(mes, 1))
-    const mesProjecaoRef = format(mesProjecao, 'yyyy-MM-dd')
+    // maxFaturaRowData fetched ahead-of-time in the parallel Promise.all above
 
-    const { data: maxFaturaRow } = await supabase
-      .from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'nubank')
-      .lte('projeto_fatura', mesProjecaoRef).order('projeto_fatura', { ascending: false }).limit(1)
-
-    if (maxFaturaRow?.[0]?.projeto_fatura) {
+    if (maxFaturaRowData?.[0]?.projeto_fatura) {
       const { data: transacoesBase } = await supabase
         .from('transacoes_nubank')
         .select('projeto_fatura, descricao, valor, responsavel, parcela_atual, total_parcelas')
-        .eq('cartao', 'nubank').eq('projeto_fatura', maxFaturaRow[0].projeto_fatura)
+        .eq('cartao', 'nubank').eq('projeto_fatura', maxFaturaRowData[0].projeto_fatura)
 
       const contratos = new Map<string, { fatura: Date; atual: number; total: number; valor: number; responsavel: string }>()
 
@@ -358,6 +366,14 @@ export default function Dashboard() {
   const [seletorAberto, setSeletorAberto] = useState(false)
   const [drawerAberto, setDrawerAberto] = useState(false)
   const [detalhesPonto, setDetalhesPonto] = useState<{ serie: string; mes: string; valor: number; itens: Record<string, unknown>[] } | null>(null) // itens typed loosely; DrawerDetalhes accepts DrawerItem[] which is compatible
+  const [aba, setAba] = useState<'resumo' | 'graficos'>('resumo')
+  // Lazy mount: charts only render after the first visit to the Gráficos tab
+  const [graficosAbertos, setGraficosAbertos] = useState(false)
+
+  const handleSetAba = useCallback((novaAba: 'resumo' | 'graficos') => {
+    setAba(novaAba)
+    if (novaAba === 'graficos') setGraficosAbertos(true)
+  }, [])
 
   // Extrai os campos do estado consolidado — sem custo de performance
   const { fatura, resumoCaixa, investimentos, assinaturasNaopagas, dataFechamentoNubank } = dados
@@ -450,9 +466,28 @@ export default function Dashboard() {
           onChange={setMesAtual}
           onOpenSelector={() => setSeletorAberto(true)}
         />
+        {/* Segmented control */}
+        <div className="mt-3 flex bg-gray-100 rounded-2xl p-1 gap-0.5">
+          {(['resumo', 'graficos'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => handleSetAba(t)}
+              className={`flex-1 py-1.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+                aba === t
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {t === 'resumo' ? 'Resumo' : 'Gráficos'}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="page-content space-y-4 lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0 lg:items-start">
+      <div className="page-content">
+
+        {/* ── Resumo tab ── */}
+        <div className={`space-y-4 lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0 lg:items-start${aba !== 'resumo' ? ' hidden' : ''}`}>
 
         {/* ── Hero: Saldo do mês ── */}
         <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-5">
@@ -899,6 +934,30 @@ export default function Dashboard() {
           </div>
         )}
 
+        </div>{/* /resumo */}
+
+        {graficosAbertos && (
+          <div className={`space-y-4 lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0 lg:items-start${aba !== 'graficos' ? ' hidden' : ''}`}>
+
+        {/* ── Gastos Diários ── */}
+        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center">
+              <Activity className="w-4 h-4 text-violet-600" />
+            </div>
+            <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
+              Gastos Diários
+              <InfoPopover texto="Evolução dos gastos ao longo dos dias do mês selecionado. Considera todas as compras com data de compra registrada no período. Use os filtros para visualizar por pessoa ou por cartão." />
+            </h2>
+          </div>
+          <p className="text-xs text-gray-400 mb-4 ml-10">Dia a dia · Toque para detalhes</p>
+          <GraficoGastosDiarios
+            mesAtual={mesAtual}
+            cartao1Nome={fatura.cartao1Nome}
+            cartao2Nome={fatura.cartao2Nome}
+          />
+        </div>
+
         {/* ── Evolução de Investimentos ── */}
         <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
           <div className="flex items-center gap-2 mb-1">
@@ -950,7 +1009,10 @@ export default function Dashboard() {
           <GraficoEvolucaoMensal mesAtual={mesAtual} />
         </div>
 
-      </div>{/* /px-4 */}
+          </div>
+        )}{/* /graficos */}
+
+      </div>
 
       <DrawerDetalhes
         aberto={drawerAberto}

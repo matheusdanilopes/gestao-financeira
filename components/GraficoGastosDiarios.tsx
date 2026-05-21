@@ -1,0 +1,393 @@
+'use client'
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Line } from 'react-chartjs-2'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Tooltip,
+  Filler,
+} from 'chart.js'
+import { format, startOfMonth, addMonths, eachDayOfInterval } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+import { Activity, AlertCircle, ChevronDown } from 'lucide-react'
+import { formatBRL } from '@/lib/logger'
+import { supabase } from '@/lib/supabaseClient'
+import type { TooltipItem, Plugin } from 'chart.js'
+import { useIsDark } from '@/lib/useIsDark'
+import { makeCrosshairPlugin } from '@/lib/chartPlugins'
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler)
+
+const COLOR = { r: 124, g: 58, b: 237 } // violet-600
+
+function rgb(a = 1) {
+  return `rgba(${COLOR.r},${COLOR.g},${COLOR.b},${a})`
+}
+
+interface GradientChart {
+  ctx: CanvasRenderingContext2D
+  chartArea?: { top: number; bottom: number }
+  data: { datasets: Array<{ backgroundColor?: string | CanvasGradient | null }> }
+}
+
+const gradientPlugin: Plugin<'line'> = {
+  id: 'gastosDiariosGradient',
+  beforeDatasetsDraw(chart: unknown) {
+    const c = chart as GradientChart
+    if (!c.chartArea) return
+    const g = c.ctx.createLinearGradient(0, c.chartArea.top, 0, c.chartArea.bottom)
+    g.addColorStop(0,   rgb(0.28))
+    g.addColorStop(0.5, rgb(0.08))
+    g.addColorStop(1,   rgb(0))
+    if (c.data.datasets[0]) c.data.datasets[0].backgroundColor = g
+  },
+}
+
+// Module-level constant — not recreated on every render
+const SELECT_CLS =
+  'w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 pr-8 text-xs text-gray-700 ' +
+  'font-medium appearance-none cursor-pointer focus:outline-none focus:ring-1 ' +
+  'focus:ring-violet-400 focus:border-violet-400 hover:border-gray-300 transition-colors'
+
+type FiltroResponsavel = 'todos' | 'Matheus' | 'Jeniffer'
+type FiltroCartao      = 'todos' | 'nubank'  | 'cartao1' | 'cartao2'
+
+interface TransacaoRaw {
+  valor: number
+  data_compra: string | null
+  responsavel: string
+  cartao: string
+}
+
+interface DatePoint {
+  isoDate: string
+  label: string     // "28/abr"
+  fullLabel: string // "28 de abril de 2026"
+  total: number
+  count: number
+}
+
+interface Props {
+  mesAtual: Date
+  cartao1Nome?: string
+  cartao2Nome?: string
+}
+
+export default function GraficoGastosDiarios({
+  mesAtual,
+  cartao1Nome = 'Cartão 1',
+  cartao2Nome = 'Cartão 2',
+}: Props) {
+  const [rawData, setRawData]           = useState<TransacaoRaw[]>([])
+  const [loading, setLoading]           = useState(true)
+  const [error, setError]               = useState<string | null>(null)
+  const [filtroResp, setFiltroResp]     = useState<FiltroResponsavel>('todos')
+  const [filtroCartao, setFiltroCartao] = useState<FiltroCartao>('todos')
+  const { isDark, isDarkRef }           = useIsDark()
+
+  // Kept in a ref so tooltip callbacks always read current series without
+  // adding series to the options dependency array (which would re-animate
+  // the chart on every filter change).
+  const seriesRef = useRef<DatePoint[]>([])
+
+  const plugins = useMemo(
+    () => [gradientPlugin, makeCrosshairPlugin('gastosDiariosCrosshair', isDarkRef, 0.12, 0.08)] as Plugin<'line'>[],
+    [isDarkRef],
+  )
+
+  const mesRefFatura = useMemo(
+    () => format(startOfMonth(addMonths(mesAtual, 1)), 'yyyy-MM-dd'),
+    [mesAtual],
+  )
+
+  const carregar = useCallback(async () => {
+    setError(null)
+    try {
+      const { data, error: err } = await supabase
+        .from('transacoes_nubank')
+        .select('valor, data_compra, responsavel, cartao')
+        .eq('projeto_fatura', mesRefFatura)
+
+      if (err) {
+        if (err.message?.includes('data_compra')) {
+          // Legacy schema: column named 'data' instead of 'data_compra'
+          const { data: legacyData, error: legacyErr } = await supabase
+            .from('transacoes_nubank')
+            .select('valor, data, responsavel, cartao')
+            .eq('projeto_fatura', mesRefFatura)
+          if (legacyErr) throw legacyErr
+          setRawData(
+            (legacyData ?? []).map(
+              (r: { valor: number; data: string | null; responsavel: string; cartao: string }) => ({
+                valor: r.valor,
+                data_compra: r.data,
+                responsavel: r.responsavel,
+                cartao: r.cartao,
+              }),
+            ),
+          )
+        } else {
+          throw err
+        }
+      } else {
+        setRawData(data ?? [])
+      }
+    } catch {
+      setError('Não foi possível carregar os gastos diários.')
+    } finally {
+      setLoading(false)
+    }
+  }, [mesRefFatura])
+
+  useEffect(() => {
+    setLoading(true)
+    setRawData([])
+    carregar()
+  }, [carregar])
+
+  const series = useMemo((): DatePoint[] => {
+    const byDate = new Map<string, { total: number; count: number }>()
+    for (const tx of rawData) {
+      if (!tx.data_compra) continue
+      if (filtroResp !== 'todos' && tx.responsavel !== filtroResp) continue
+      if (filtroCartao !== 'todos' && tx.cartao !== filtroCartao) continue
+      const entry = byDate.get(tx.data_compra) ?? { total: 0, count: 0 }
+      entry.total += tx.valor
+      entry.count++
+      byDate.set(tx.data_compra, entry)
+    }
+
+    if (byDate.size === 0) return []
+
+    const sorted = Array.from(byDate.keys()).sort()
+    const start  = new Date(sorted[0] + 'T12:00:00')
+    const end    = new Date(sorted[sorted.length - 1] + 'T12:00:00')
+
+    return eachDayOfInterval({ start, end }).map(d => {
+      const iso  = format(d, 'yyyy-MM-dd')
+      const data = byDate.get(iso) ?? { total: 0, count: 0 }
+      return {
+        isoDate:   iso,
+        label:     format(d, 'd/MMM',                         { locale: ptBR }),
+        fullLabel: format(d, "d 'de' MMMM 'de' yyyy",         { locale: ptBR }),
+        total: data.total,
+        count: data.count,
+      }
+    })
+  }, [rawData, filtroResp, filtroCartao])
+
+  // Keep ref in sync so options callbacks can read it without deps
+  useEffect(() => { seriesRef.current = series }, [series])
+
+  const hasData  = series.some(p => p.total > 0)
+  const totalFat = series.reduce((s, p) => s + p.total, 0)
+  const peakDay  = series.reduce(
+    (m, p) => (p.total > m.total ? p : m),
+    series[0] ?? { total: 0, label: '', fullLabel: '', isoDate: '', count: 0 },
+  )
+
+  const chartData = useMemo(() => {
+    if (!hasData) return null
+    const pBorder = isDark ? '#0f172a' : '#ffffff'
+    return {
+      labels: series.map(p => p.label),
+      datasets: [{
+        label: 'Gastos do dia',
+        data: series.map(p => p.total),
+        borderColor: rgb(1),
+        backgroundColor: 'transparent',
+        borderWidth: 2.5,
+        tension: 0.42,
+        fill: true,
+        pointRadius: series.map(p => (p.total > 0 ? 3.5 : 0)),
+        pointHoverRadius: 9,
+        pointHitRadius: 24,
+        pointBackgroundColor: rgb(1),
+        pointBorderColor: pBorder,
+        pointBorderWidth: 2.5,
+        pointHoverBorderWidth: 2.5,
+      }],
+    }
+    // hasData is derived from series — not a separate dependency
+  }, [series, isDark])
+
+  // options depends only on isDark — series data is read via seriesRef in
+  // callbacks, so filter changes don't rebuild options or trigger re-animation.
+  const options = useMemo(() => {
+    const txt  = isDark ? '#9ca3af' : '#6b7280'
+    const grid = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'
+    const tbg  = isDark ? 'rgba(15,23,42,0.97)'   : 'rgba(15,23,42,0.93)'
+
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index' as const, intersect: false },
+      animation: { duration: 700, easing: 'easeInOutCubic' as const },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: tbg,
+          titleColor: '#f1f5f9',
+          bodyColor: '#94a3b8',
+          padding: { top: 10, right: 16, bottom: 10, left: 16 },
+          cornerRadius: 12,
+          borderColor: 'rgba(255,255,255,0.08)',
+          borderWidth: 1,
+          callbacks: {
+            title: (items: TooltipItem<'line'>[]) =>
+              seriesRef.current[items[0]?.dataIndex ?? 0]?.fullLabel ?? '',
+            label: (ctx: TooltipItem<'line'>) => `  ${formatBRL(ctx.parsed.y ?? 0)}`,
+            afterLabel: (ctx: TooltipItem<'line'>) => {
+              const cnt = seriesRef.current[ctx.dataIndex]?.count ?? 0
+              return cnt > 0 ? `  ${cnt} lançamento${cnt !== 1 ? 's' : ''}` : ''
+            },
+            labelColor: () => ({
+              borderColor: rgb(0.9),
+              backgroundColor: rgb(0.85),
+              borderWidth: 2,
+              borderRadius: 3,
+            }),
+          },
+        },
+      },
+      scales: {
+        y: {
+          ticks: {
+            callback: (v: number | string) => {
+              const n = Number(v)
+              if (n === 0) return 'R$0'
+              if (n >= 1000) return `R$${(n / 1000).toFixed(0)}k`
+              return `R$${n.toFixed(0)}`
+            },
+            font: { size: 10 },
+            maxTicksLimit: 4,
+            color: txt,
+          },
+          grid: { color: grid, lineWidth: 1 },
+          border: { display: false },
+        },
+        x: {
+          ticks: {
+            font: { size: 10 },
+            color: txt,
+            padding: 4,
+            maxRotation: 0,
+            callback: (_v: number | string, index: number) => {
+              const len = seriesRef.current.length
+              if (index === 0 || index === len - 1 || index % 5 === 0) {
+                return seriesRef.current[index]?.label ?? ''
+              }
+              return ''
+            },
+          },
+          grid: { display: false },
+          border: { display: false },
+        },
+      },
+    }
+  }, [isDark])
+
+  if (loading) {
+    return (
+      <div className="h-48 flex items-center justify-center">
+        <div className="w-7 h-7 border-2 border-gray-200 border-t-violet-500 rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="h-48 flex flex-col items-center justify-center gap-3 text-red-400">
+        <AlertCircle className="w-7 h-7" />
+        <span className="text-sm">{error}</span>
+        <button
+          onClick={() => { setLoading(true); carregar() }}
+          className="text-xs text-violet-500 underline"
+        >
+          Tentar novamente
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      {/* Filters — two selects side by side with chevron indicator */}
+      <div className="flex gap-2 mb-5">
+        <div className="relative flex-1">
+          <select
+            value={filtroResp}
+            onChange={e => setFiltroResp(e.target.value as FiltroResponsavel)}
+            className={SELECT_CLS}
+          >
+            <option value="todos">Todos</option>
+            <option value="Matheus">Matheus</option>
+            <option value="Jeniffer">Jeniffer</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+        </div>
+
+        <div className="relative flex-1">
+          <select
+            value={filtroCartao}
+            onChange={e => setFiltroCartao(e.target.value as FiltroCartao)}
+            className={SELECT_CLS}
+          >
+            <option value="todos">Todos os cartões</option>
+            <option value="nubank">NuBank</option>
+            <option value="cartao1">{cartao1Nome}</option>
+            <option value="cartao2">{cartao2Nome}</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+        </div>
+      </div>
+
+      {!hasData ? (
+        <div className="h-40 flex flex-col items-center justify-center gap-2 text-gray-400">
+          <Activity className="w-9 h-9 opacity-30" />
+          <p className="text-sm font-medium text-gray-500">Sem lançamentos no período</p>
+          <p className="text-xs text-gray-400">
+            {filtroResp !== 'todos' || filtroCartao !== 'todos'
+              ? 'Nenhum gasto encontrado com os filtros selecionados'
+              : 'Os gastos por dia aparecerão aqui conforme forem registrados'}
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Summary row */}
+          <div className="flex items-end justify-between mb-4">
+            <div>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                Total da fatura
+              </p>
+              <p className="text-lg font-bold text-violet-700 num">{formatBRL(totalFat)}</p>
+            </div>
+            {peakDay.total > 0 && (
+              <div className="text-right">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                  Maior gasto
+                </p>
+                <div className="flex items-center justify-end gap-1.5">
+                  <span className="text-sm font-semibold text-gray-700 num">
+                    {formatBRL(peakDay.total)}
+                  </span>
+                  <span className="text-[10px] text-gray-500 bg-gray-100 rounded-full px-2 py-0.5">
+                    {peakDay.label}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="h-44 md:h-52 lg:h-56">
+            {chartData && <Line data={chartData} options={options} plugins={plugins} />}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}

@@ -37,6 +37,8 @@ import { useDataSync } from '@/lib/useDataSync'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths } from 'date-fns'
 
+const NUBANK_ITEMS = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto'])
+
 type Tab = 'despesas' | 'receitas' | 'investimentos'
 
 interface SaldoData { saldo: number; saldoPrevisto: number }
@@ -61,24 +63,16 @@ async function calcularSaldo(mes: Date): Promise<SaldoData> {
     .reduce((acc, p) => acc + p.valor_previsto, 0)
   const receitaTotal = receitaBase + receitasExtras
 
-  const NUBANK_ITEMS = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto'])
-  const contasFixas = (planejamento || [])
-    .filter(p => {
-      const item = typeof p.item === 'string' ? p.item : ''
-      return !item.startsWith('[RECEITA]') && item !== 'Receita Total'
-        && !NUBANK_ITEMS.has(item)
-        && !item.startsWith('[CARTAO1]') && !item.startsWith('[CARTAO2]')
-    })
-    .reduce((acc, p) => acc + (p.pago ? (p.valor_real ?? p.valor_previsto) : p.valor_previsto), 0)
-
-  const contasFixasPrevisto = (planejamento || [])
-    .filter(p => {
-      const item = typeof p.item === 'string' ? p.item : ''
-      return !item.startsWith('[RECEITA]') && item !== 'Receita Total'
-        && !NUBANK_ITEMS.has(item)
-        && !item.startsWith('[CARTAO1]') && !item.startsWith('[CARTAO2]')
-    })
-    .reduce((acc, p) => acc + (p.valor_previsto || 0), 0)
+  let contasFixas = 0
+  let contasFixasPrevisto = 0
+  for (const p of (planejamento || [])) {
+    const item = typeof p.item === 'string' ? p.item : ''
+    if (item.startsWith('[RECEITA]') || item === 'Receita Total' ||
+        NUBANK_ITEMS.has(item) || item.startsWith('[CARTAO1]') || item.startsWith('[CARTAO2]')) continue
+    const prev = p.valor_previsto || 0
+    contasFixas += p.pago ? (p.valor_real ?? prev) : prev
+    contasFixasPrevisto += prev
+  }
 
   const matheusPrevisto = planejamento?.find(p => p.item === 'NuBank Matheus')?.valor_previsto || 0
   const jenifferPrevisto =

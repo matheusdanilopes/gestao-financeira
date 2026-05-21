@@ -78,6 +78,7 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const { isDark, isDarkRef } = useIsDark()
+  const dataCache = useRef(new Map<string, DadosProjecao>())
 
   // Refs so the onClick closure never goes stale
   const dadosRef = useRef<DadosProjecao | null>(null)
@@ -92,7 +93,14 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
   )
 
   const carregar = useCallback(async () => {
-    setCarregando(true)
+    const mesKey = format(mesInicio ? startOfMonth(mesInicio) : new Date(), 'yyyy-MM')
+    const cached = dataCache.current.get(mesKey)
+    if (cached) {
+      setDados(cached)
+      dadosRef.current = cached
+    } else {
+      setCarregando(true)
+    }
     setErro(null)
     try {
       const base  = mesInicio ? startOfMonth(mesInicio) : new Date()
@@ -115,6 +123,7 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
       const { total, matheus, jeniffer, extra } = await res.json()
 
       const d: DadosProjecao = { labels, datas, total, matheus, jeniffer, extra }
+      dataCache.current.set(mesKey, d)
       setDados(d)
       dadosRef.current = d
     } catch {
