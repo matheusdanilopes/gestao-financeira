@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
-import { AlertTriangle, CreditCard, Wallet, BarChart3, PiggyBank, TrendingUp, TrendingDown, Minus, LineChart } from 'lucide-react'
+import { AlertTriangle, CreditCard, Wallet, BarChart3, PiggyBank, TrendingUp, TrendingDown, Minus, LineChart, Activity } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
 import MonthSelector from '@/components/MonthSelector'
@@ -39,6 +39,15 @@ const GraficoEvolucaoInvestimentos = dynamic(
     ),
   }
 )
+
+const GraficoGastosDiarios = dynamic(() => import('@/components/GraficoGastosDiarios'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-48 flex items-center justify-center">
+      <div className="w-7 h-7 border-2 border-gray-200 border-t-violet-500 rounded-full animate-spin" />
+    </div>
+  ),
+})
 import { InfoPopover } from '@/components/InfoPopover'
 
 const DrawerDetalhes = dynamic(() => import('@/components/DrawerDetalhes'), { ssr: false })
@@ -898,6 +907,21 @@ export default function Dashboard() {
             )}
           </div>
         )}
+
+        {/* ── Gastos Diários ── */}
+        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center">
+              <Activity className="w-4 h-4 text-violet-600" />
+            </div>
+            <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
+              Gastos Diários
+              <InfoPopover texto="Evolução dos gastos ao longo dos dias do mês selecionado. Considera todas as compras com data de compra registrada no período. Use os filtros para visualizar por pessoa ou por cartão." />
+            </h2>
+          </div>
+          <p className="text-xs text-gray-400 mb-4 ml-10">Dia a dia · Toque para detalhes</p>
+          <GraficoGastosDiarios mesAtual={mesAtual} />
+        </div>
 
         {/* ── Evolução de Investimentos ── */}
         <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
