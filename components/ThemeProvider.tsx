@@ -21,7 +21,7 @@ export function useTheme() {
 const TRANSITION_MS = 320
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('system')
+  const [theme, setThemeState] = useState<Theme>('dark')
   const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Carrega preferência do localStorage no mount
@@ -31,6 +31,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       if (stored === 'light' || stored === 'dark' || stored === 'system') {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setThemeState(stored)
+      } else {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setThemeState('dark')
       }
     } catch {
       // localStorage indisponível

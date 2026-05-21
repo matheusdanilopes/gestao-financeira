@@ -28,19 +28,19 @@
   --safe-top:    env(safe-area-inset-top, 0px);
 }
 
-/* ─── Design tokens (dark) ───────────────────────────────────────────────── */
+/* ─── Design tokens (dark / cosmic) ─────────────────────────────────────── */
 .dark {
   color-scheme: dark;
-  --color-bg:          #0f172a;
-  --color-surface:     #1e293b;
-  --color-surface-2:   #334155;
-  --color-border:      rgba(255, 255, 255, 0.08);
-  --color-text:        #f1f5f9;
-  --color-muted:       #94a3b8;
-  --color-primary:     #818cf8;
-  --color-primary-50:  #1e1b4b;
-  --shadow-sm: 0 2px 8px rgba(0,0,0,0.30), 0 1px 2px rgba(0,0,0,0.20);
-  --shadow-md: 0 4px 16px rgba(0,0,0,0.40), 0 2px 4px rgba(0,0,0,0.20);
+  --color-bg:          #07091A;
+  --color-surface:     #0D1230;
+  --color-surface-2:   #141A3A;
+  --color-border:      rgba(255, 255, 255, 0.10);
+  --color-text:        #E8EEFF;
+  --color-muted:       #7A85A8;
+  --color-primary:     #8B7AF5;
+  --color-primary-50:  #150F3A;
+  --shadow-sm: 0 2px 12px rgba(0,0,0,0.55), 0 1px 2px rgba(0,0,0,0.35);
+  --shadow-md: 0 4px 24px rgba(0,0,0,0.65), 0 2px 6px rgba(0,0,0,0.45);
 }
 
 /* ─── Base ───────────────────────────────────────────────────────────────── */
@@ -67,28 +67,28 @@ body.theme-transition {
 .dark .bg-white           { background-color: var(--color-surface) !important; }
 .dark .bg-gray-50         { background-color: var(--color-bg) !important; }
 .dark .bg-gray-100        { background-color: var(--color-surface-2) !important; }
-.dark .bg-gray-200        { background-color: #475569 !important; }
+.dark .bg-gray-200        { background-color: #2A3060 !important; }
 
 /* Backgrounds coloridos (cards) */
-.dark .bg-blue-50         { background-color: #172554 !important; }
-.dark .bg-blue-100        { background-color: #1e3a8a !important; }
-.dark .bg-pink-50         { background-color: #3b0764 !important; }
-.dark .bg-pink-100        { background-color: #500724 !important; }
-.dark .bg-red-50          { background-color: #450a0a !important; }
-.dark .bg-red-100         { background-color: #7f1d1d !important; }
-.dark .bg-green-50        { background-color: #052e16 !important; }
-.dark .bg-green-100       { background-color: #14532d !important; }
-.dark .bg-emerald-50      { background-color: #022c22 !important; }
-.dark .bg-emerald-100     { background-color: #064e3b !important; }
-.dark .bg-teal-50         { background-color: #042f2e !important; }
-.dark .bg-teal-100        { background-color: #134e4a !important; }
-.dark .bg-amber-50        { background-color: #451a03 !important; }
-.dark .bg-amber-100       { background-color: #78350f !important; }
-.dark .bg-yellow-50       { background-color: #422006 !important; }
-.dark .bg-violet-50       { background-color: #2e1065 !important; }
-.dark .bg-violet-100      { background-color: #3b0764 !important; }
+.dark .bg-blue-50         { background-color: #0A1540 !important; }
+.dark .bg-blue-100        { background-color: #0D1E5C !important; }
+.dark .bg-pink-50         { background-color: #250838 !important; }
+.dark .bg-pink-100        { background-color: #3A0A30 !important; }
+.dark .bg-red-50          { background-color: #2A0808 !important; }
+.dark .bg-red-100         { background-color: #4A1010 !important; }
+.dark .bg-green-50        { background-color: #041C10 !important; }
+.dark .bg-green-100       { background-color: #082E1A !important; }
+.dark .bg-emerald-50      { background-color: #031A14 !important; }
+.dark .bg-emerald-100     { background-color: #053024 !important; }
+.dark .bg-teal-50         { background-color: #031C1C !important; }
+.dark .bg-teal-100        { background-color: #082E2E !important; }
+.dark .bg-amber-50        { background-color: #2A1002 !important; }
+.dark .bg-amber-100       { background-color: #452008 !important; }
+.dark .bg-yellow-50       { background-color: #281404 !important; }
+.dark .bg-violet-50       { background-color: #150F3A !important; }
+.dark .bg-violet-100      { background-color: #1E1550 !important; }
 .dark .bg-primary-50      { background-color: var(--color-primary-50) !important; }
-.dark .bg-primary-100     { background-color: #312e81 !important; }
+.dark .bg-primary-100     { background-color: #1A1450 !important; }
 
 /* Texto neutro */
 .dark .text-gray-900 { color: #f1f5f9 !important; }
@@ -155,9 +155,11 @@ body.theme-transition {
   padding-bottom: var(--safe-bottom);
 }
 .dark [data-bottom-nav='true'] {
-  background: rgba(15, 23, 42, 0.92);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.50);
+  background: rgba(7, 9, 26, 0.94);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border-top: 1px solid rgba(139, 122, 245, 0.18);
+  box-shadow: 0 -4px 32px rgba(0, 0, 0, 0.70), 0 -1px 0 rgba(139, 122, 245, 0.12);
 }
 /* Desktop: top bar variant — flip border/shadow direction */
 @media (min-width: 1024px) {
@@ -169,8 +171,8 @@ body.theme-transition {
   }
   .dark [data-bottom-nav='true'] {
     border-top: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.30);
+    border-bottom: 1px solid rgba(139, 122, 245, 0.15);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.50);
   }
 }
 
@@ -235,7 +237,7 @@ body.theme-transition {
   border-radius: 0.75rem;
 }
 .dark .skeleton {
-  background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+  background: linear-gradient(90deg, #0D1230 25%, #141A3A 50%, #0D1230 75%);
   background-size: 200% 100%;
 }
 @keyframes skeleton-wave {
@@ -250,7 +252,33 @@ body.theme-transition {
   -webkit-backdrop-filter: blur(12px) saturate(160%);
 }
 .dark .sticky-header {
-  background-color: rgba(15, 23, 42, 0.96);
+  background-color: rgba(7, 9, 26, 0.96);
+  border-color: rgba(139, 122, 245, 0.12) !important;
+}
+
+/* ─── Cosmic glassmorphism card ─────────────────────────────────────────── */
+.glass-card {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 1rem;
+}
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(139, 122, 245, 0.30);
+}
+.glass-card:active {
+  background: rgba(139, 122, 245, 0.14);
+}
+
+/* ─── Cosmic orb glow ────────────────────────────────────────────────────── */
+@keyframes orb-pulse {
+  0%, 100% { filter: drop-shadow(0 0 32px rgba(123, 95, 245, 0.7)) drop-shadow(0 0 64px rgba(100, 70, 240, 0.4)); }
+  50%       { filter: drop-shadow(0 0 48px rgba(150, 120, 255, 0.9)) drop-shadow(0 0 96px rgba(120, 90, 255, 0.5)); }
+}
+.orb-glow {
+  animation: orb-pulse 3.5s ease-in-out infinite;
 }
 /* top-0 + sticky-header → absorve o notch do iOS (black-translucent).
    Seletores sem top-0 (ex: barra inferior do chat) não recebem esse padding. */
@@ -323,12 +351,12 @@ button, a, [role="button"] {
     inset 0 -1px 0 rgba(0, 0, 0, 0.15);
 }
 .dark .fab-premium {
-  background: linear-gradient(145deg, #818cf8 0%, #6366f1 55%, #4f46e5 100%);
+  background: linear-gradient(145deg, #A897FF 0%, #8B7AF5 45%, #6355D8 100%);
   box-shadow:
-    0 6px 24px rgba(99, 102, 241, 0.55),
-    0 3px 10px rgba(99, 102, 241, 0.35),
-    0 1px 3px rgba(0, 0, 0, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 6px 28px rgba(139, 122, 245, 0.65),
+    0 3px 12px rgba(120, 100, 240, 0.40),
+    0 1px 3px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
     inset 0 -1px 0 rgba(0, 0, 0, 0.20);
 }
 .dark .fab-premium-active {
@@ -400,12 +428,12 @@ button, a, [role="button"] {
     0 1px 4px rgba(0, 0, 0, 0.06);
 }
 .dark .subtotal-bar {
-  background: rgba(30, 41, 59, 0.93);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(13, 18, 48, 0.95);
+  border: 1px solid rgba(139, 122, 245, 0.15);
   box-shadow:
-    0 -1px 0 rgba(0, 0, 0, 0.20),
-    0 4px 20px rgba(0, 0, 0, 0.45),
-    0 1px 4px rgba(0, 0, 0, 0.25);
+    0 -1px 0 rgba(139, 122, 245, 0.10),
+    0 4px 24px rgba(0, 0, 0, 0.65),
+    0 1px 4px rgba(0, 0, 0, 0.35);
 }
 
 /* ─── Input focus ring consistente ──────────────────────────────────────── */
