@@ -48,6 +48,8 @@ const GraficoGastosDiarios = dynamic(() => import('@/components/GraficoGastosDia
     </div>
   ),
 })
+
+const CategoryTreemap = dynamic(() => import('@/components/CategoryTreemap'), { ssr: false })
 import { InfoPopover } from '@/components/InfoPopover'
 
 const DrawerDetalhes = dynamic(() => import('@/components/DrawerDetalhes'), { ssr: false })
@@ -958,21 +960,6 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* ── Evolução de Investimentos ── */}
-        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center">
-              <PiggyBank className="w-4 h-4 text-violet-600" />
-            </div>
-            <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
-              Evolução de Investimentos
-              <InfoPopover texto="Evolução dos aportes mês a mês nos últimos 6 meses. A linha sólida mostra o valor efetivamente investido; a linha tracejada indica a meta calculada (percentual do saldo). Meses futuros exibem apenas a projeção da meta." />
-            </h2>
-          </div>
-          <p className="text-xs text-gray-400 mb-4 ml-10">Últimos 6 meses · Realizado vs. Meta</p>
-          <GraficoEvolucaoInvestimentos mesAtual={mesAtual} />
-        </div>
-
         {/* ── Projeção de Parcelamentos ── */}
         <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
           <div className="flex items-center gap-2 mb-1">
@@ -994,6 +981,11 @@ export default function Dashboard() {
           />
         </div>
 
+        {/* ── Categorias da Fatura ── */}
+        <div className="lg:col-span-2">
+          <CategoryTreemap mesAtual={mesAtual} />
+        </div>
+
         {/* ── Evolução Financeira Mensal ── */}
         <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
           <div className="flex items-center gap-2 mb-1">
@@ -1007,6 +999,21 @@ export default function Dashboard() {
           </div>
           <p className="text-xs text-gray-400 mb-4 ml-10">Últimos 6 meses · Passe o cursor para detalhes</p>
           <GraficoEvolucaoMensal mesAtual={mesAtual} />
+        </div>
+
+        {/* ── Evolução de Investimentos ── */}
+        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center">
+              <PiggyBank className="w-4 h-4 text-violet-600" />
+            </div>
+            <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
+              Evolução de Investimentos
+              <InfoPopover texto="Evolução dos aportes mês a mês nos últimos 6 meses. A linha sólida mostra o valor efetivamente investido; a linha tracejada indica a meta calculada (percentual do saldo). Meses futuros exibem apenas a projeção da meta." />
+            </h2>
+          </div>
+          <p className="text-xs text-gray-400 mb-4 ml-10">Últimos 6 meses · Realizado vs. Meta</p>
+          <GraficoEvolucaoInvestimentos mesAtual={mesAtual} />
         </div>
 
           </div>
