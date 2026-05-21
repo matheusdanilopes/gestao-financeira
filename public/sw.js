@@ -1,12 +1,22 @@
-const CACHE_NAME = 'gestao-financeira-v7'
-
-// Tags de notificações de importação que podem ser fechadas automaticamente
-// ao abrir o app — processo já concluído, notificação é apenas informativa.
-// Nunca inclui 'importacao-erro': falhas exigem ação do usuário.
-const IMPORT_AUTO_CLOSE_TAGS = ['importacao', 'importacao-sucesso']
+const CACHE_NAME = 'gestao-financeira-v8'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+// Fecha notificações de importação bem-sucedida de qualquer cartão.
+// Nunca fecha 'importacao-erro-*': falhas exigem ação do usuário.
+// Suporta tanto a tag legada 'importacao-sucesso' quanto as tags únicas
+// por cartão 'importacao-sucesso-nubank', 'importacao-sucesso-cartao1', etc.
+function closeImportSuccessNotifications() {
+  return self.registration.getNotifications().then(function (all) {
+    all.forEach(function (n) {
+      if (n.tag && (n.tag === 'importacao' || n.tag === 'importacao-sucesso' || n.tag.startsWith('importacao-sucesso-'))) {
+        n.close()
+      }
+    })
+  })
+}
+
+// Fecha notificações por array de tags exatas (usado para notificações regulares).
 function closeNotificationsByTags(tags) {
   return Promise.all(
     tags.map(function (tag) {
@@ -213,9 +223,9 @@ self.addEventListener('message', function (event) {
   const type = event.data?.type
 
   // Fecha notificações de importação concluída ao abrir/retornar ao app.
-  // Erros ('importacao-erro') não estão na lista — exigem ação do usuário.
+  // Erros ('importacao-erro-*') não são fechados — exigem ação do usuário.
   if (type === 'APP_OPENED' || type === 'CLOSE_IMPORT_NOTIFICATIONS') {
-    event.waitUntil(closeNotificationsByTags(IMPORT_AUTO_CLOSE_TAGS))
+    event.waitUntil(closeImportSuccessNotifications())
     return
   }
 
@@ -235,8 +245,8 @@ self.addEventListener('notificationclick', function (event) {
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
       // Se era uma notificação de importação concluída, fecha as demais do mesmo grupo
-      if (IMPORT_AUTO_CLOSE_TAGS.includes(clickedTag)) {
-        closeNotificationsByTags(IMPORT_AUTO_CLOSE_TAGS).catch(() => {})
+      if (clickedTag === 'importacao' || clickedTag === 'importacao-sucesso' || clickedTag.startsWith('importacao-sucesso-')) {
+        closeImportSuccessNotifications().catch(() => {})
       }
 
       for (const client of clientList) {

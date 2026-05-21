@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
       faturaStats[fatura].totalNoBanco = count ?? 0
     }
 
-    await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, conflitos)
+    await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, conflitos, 'nubank')
 
     return NextResponse.json({
       success: true,
@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('[import] Excecao:', error)
     const msg = error instanceof Error ? error.message : String(error)
-    await notificarImportacao(supabase, 'erro')
+    await notificarImportacao(supabase, 'erro', undefined, undefined, 'nubank')
     return NextResponse.json({ error: 'Erro interno: ' + msg }, { status: 500 })
   }
 }
