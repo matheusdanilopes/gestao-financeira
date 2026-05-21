@@ -256,6 +256,13 @@ export default memo(function NotificacoesBell() {
       .catch(() => {})
   }
 
+  function fecharNotificacoesImportacao() {
+    if (!('serviceWorker' in navigator)) return
+    navigator.serviceWorker.ready
+      .then(reg => reg.active?.postMessage({ type: 'CLOSE_IMPORT_NOTIFICATIONS' }))
+      .catch(() => {})
+  }
+
   async function marcarComoLida(id: string) {
     await supabase.from('notificacoes').update({ lida: true }).eq('id', id)
     setNotificacoes(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n))
@@ -301,7 +308,7 @@ export default memo(function NotificacoesBell() {
         onClick={() => {
           const abrindo = !aberto
           setAberto(abrindo)
-          if (abrindo) fecharPushNotificacoes(['importacao', 'importacao-sucesso'])
+          if (abrindo) fecharNotificacoesImportacao()
         }}
         className="relative p-2 rounded-full hover:bg-white/20 transition-colors"
         aria-label="Notificações"

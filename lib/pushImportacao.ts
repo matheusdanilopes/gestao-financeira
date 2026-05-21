@@ -9,14 +9,27 @@ if (VAPID_PUBLIC && VAPID_PRIVATE) {
   webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC, VAPID_PRIVATE)
 }
 
+const LABELS_PADRAO: Record<string, string> = {
+  nubank: 'NuBank',
+  cartao1: 'Cartão 1',
+  cartao2: 'Cartão 2',
+}
+
+function labelCartao(cartao: string, nomeCartao?: string): string {
+  return nomeCartao || LABELS_PADRAO[cartao] || cartao
+}
+
 export async function notificarImportacao(
   supabase: SupabaseClient,
   tipo: 'sucesso' | 'erro',
   novas?: number,
-  conflitos?: number
+  conflitos?: number,
+  cartao: string = 'nubank',
+  nomeCartao?: string
 ) {
   if (!VAPID_PUBLIC || !VAPID_PRIVATE) return
 
+  const nome = labelCartao(cartao, nomeCartao)
   let title: string
   let body: string
 
@@ -26,10 +39,10 @@ export async function notificarImportacao(
 
     if (temNovas) {
       const n = novas!
-      title = 'Novas compras importadas'
+      title = `${nome} — novas compras`
       body = `${n} nova${n !== 1 ? 's compras foram' : ' compra foi'} importada${n !== 1 ? 's' : ''} com sucesso.`
     } else {
-      title = 'Importação concluída'
+      title = `${nome} — importação concluída`
       body = 'Nenhuma compra nova foi encontrada.'
     }
 
@@ -38,13 +51,17 @@ export async function notificarImportacao(
       body += ` ${c} conflito${c !== 1 ? 's' : ''} de valor ${c !== 1 ? 'precisam' : 'precisa'} de revisão.`
     }
   } else {
-    title = 'Importação não concluída'
+    title = `${nome} — importação não concluída`
     body = 'Algo deu errado na importação. Acesse o app para verificar o que aconteceu.'
   }
 
-  // Sucesso → tag auto-fechável ao abrir o app (processo já concluído).
-  // Erro → tag diferente + requireInteraction: exige ação do usuário.
-  const tag = tipo === 'sucesso' ? 'importacao-sucesso' : 'importacao-erro'
+  // Tag única por cartão: cada cartão tem sua própria notificação independente.
+  // Prefixo 'importacao-sucesso-' / 'importacao-erro-' permite ao SW fechar
+  // todas as notificações de importação concluída via busca por prefixo.
+  const tag = tipo === 'sucesso'
+    ? `importacao-sucesso-${cartao}`
+    : `importacao-erro-${cartao}`
+
   const payload = {
     title,
     body,
