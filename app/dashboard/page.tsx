@@ -367,6 +367,14 @@ export default function Dashboard() {
   const [seletorAberto, setSeletorAberto] = useState(false)
   const [drawerAberto, setDrawerAberto] = useState(false)
   const [detalhesPonto, setDetalhesPonto] = useState<{ serie: string; mes: string; valor: number; itens: Record<string, unknown>[] } | null>(null) // itens typed loosely; DrawerDetalhes accepts DrawerItem[] which is compatible
+  const [aba, setAba] = useState<'resumo' | 'graficos'>('resumo')
+  // Lazy mount: charts only render after the first visit to the Gráficos tab
+  const [graficosAbertos, setGraficosAbertos] = useState(false)
+
+  const handleSetAba = useCallback((novaAba: 'resumo' | 'graficos') => {
+    setAba(novaAba)
+    if (novaAba === 'graficos') setGraficosAbertos(true)
+  }, [])
 
   // Extrai os campos do estado consolidado — sem custo de performance
   const { fatura, resumoCaixa, investimentos, assinaturasNaopagas, dataFechamentoNubank } = dados
@@ -459,9 +467,28 @@ export default function Dashboard() {
           onChange={setMesAtual}
           onOpenSelector={() => setSeletorAberto(true)}
         />
+        {/* Segmented control */}
+        <div className="mt-3 flex bg-gray-100 rounded-2xl p-1 gap-0.5">
+          {(['resumo', 'graficos'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => handleSetAba(t)}
+              className={`flex-1 py-1.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+                aba === t
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {t === 'resumo' ? 'Resumo' : 'Gráficos'}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="page-content space-y-4 lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0 lg:items-start">
+      <div className="page-content">
+
+        {/* ── Resumo tab ── */}
+        <div className={`space-y-4 lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0 lg:items-start${aba !== 'resumo' ? ' hidden' : ''}`}>
 
         {/* ── Hero: Saldo do mês ── */}
         <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-5">
@@ -908,6 +935,11 @@ export default function Dashboard() {
           </div>
         )}
 
+        </div>{/* /resumo */}
+
+        {graficosAbertos && (
+          <div className={`space-y-4 lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0 lg:items-start${aba !== 'graficos' ? ' hidden' : ''}`}>
+
         {/* ── Gastos Diários ── */}
         <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
           <div className="flex items-center gap-2 mb-1">
@@ -978,7 +1010,10 @@ export default function Dashboard() {
           <GraficoEvolucaoMensal mesAtual={mesAtual} />
         </div>
 
-      </div>{/* /px-4 */}
+          </div>
+        )}{/* /graficos */}
+
+      </div>
 
       <DrawerDetalhes
         aberto={drawerAberto}
