@@ -145,17 +145,19 @@ export function useAnalyticsData(filters: AnalyticsFilters) {
 
   const personBarData = useMemo<ChartData<'bar'>>(() => {
     const meses = [...new Set(rows.map((r) => r.mes))].sort()
-    const mathDat = meses.map((m) =>
-      rows.filter((r) => r.mes === m && r.responsavel === 'Matheus').reduce((s, r) => s + r.total_gasto, 0)
-    )
-    const jeniDat = meses.map((m) =>
-      rows.filter((r) => r.mes === m && r.responsavel === 'Jeniffer').reduce((s, r) => s + r.total_gasto, 0)
-    )
+    // Pre-group in a single O(n) pass instead of O(n × months) nested filter
+    const byMesResp = new Map<string, { Matheus: number; Jeniffer: number }>()
+    for (const r of rows) {
+      const entry = byMesResp.get(r.mes) ?? { Matheus: 0, Jeniffer: 0 }
+      if (r.responsavel === 'Matheus') entry.Matheus += r.total_gasto
+      else if (r.responsavel === 'Jeniffer') entry.Jeniffer += r.total_gasto
+      byMesResp.set(r.mes, entry)
+    }
     return {
       labels: meses.map((m) => format(parseISO(m), 'MMM/yy', { locale: ptBR })),
       datasets: [
-        { label: 'Matheus', data: mathDat, backgroundColor: '#1d4ed8', borderRadius: 4, borderSkipped: false },
-        { label: 'Jeniffer', data: jeniDat, backgroundColor: '#be185d', borderRadius: 4, borderSkipped: false },
+        { label: 'Matheus', data: meses.map((m) => byMesResp.get(m)?.Matheus ?? 0), backgroundColor: '#1d4ed8', borderRadius: 4, borderSkipped: false },
+        { label: 'Jeniffer', data: meses.map((m) => byMesResp.get(m)?.Jeniffer ?? 0), backgroundColor: '#be185d', borderRadius: 4, borderSkipped: false },
       ],
     }
   }, [rows])
