@@ -67,16 +67,11 @@ interface DatePoint {
 
 interface Props {
   mesAtual: Date
+  cartao1Nome?: string
+  cartao2Nome?: string
 }
 
-const CARTAO_LABELS: Record<FiltroCartao, string> = {
-  todos: 'Todos',
-  nubank: 'NuBank',
-  cartao1: 'Cartão 1',
-  cartao2: 'Cartão 2',
-}
-
-export default function GraficoGastosDiarios({ mesAtual }: Props) {
+export default function GraficoGastosDiarios({ mesAtual, cartao1Nome = 'Cartão 1', cartao2Nome = 'Cartão 2' }: Props) {
   const [rawData, setRawData]           = useState<TransacaoRaw[]>([])
   const [loading, setLoading]           = useState(true)
   const [error, setError]               = useState<string | null>(null)
@@ -304,37 +299,32 @@ export default function GraficoGastosDiarios({ mesAtual }: Props) {
     )
   }
 
+  const selectCls = 'flex-1 min-w-0 bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-xs text-gray-700 font-medium appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-violet-400 focus:border-violet-400 hover:border-gray-300 transition-colors'
+
   return (
     <div>
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-1.5 mb-4">
-        {(['todos', 'Matheus', 'Jeniffer'] as FiltroResponsavel[]).map(r => (
-          <button
-            key={r}
-            onClick={() => setFiltroResp(r)}
-            className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
-              filtroResp === r
-                ? 'bg-violet-100 text-violet-700 border border-violet-200'
-                : 'bg-gray-100 text-gray-500 border border-transparent hover:bg-gray-200'
-            }`}
-          >
-            {r === 'todos' ? 'Todos' : r}
-          </button>
-        ))}
-        <span className="w-px h-4 bg-gray-200 self-center mx-0.5" />
-        {(['todos', 'nubank', 'cartao1', 'cartao2'] as FiltroCartao[]).map(c => (
-          <button
-            key={c}
-            onClick={() => setFiltroCartao(c)}
-            className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
-              filtroCartao === c
-                ? 'bg-violet-100 text-violet-700 border border-violet-200'
-                : 'bg-gray-100 text-gray-500 border border-transparent hover:bg-gray-200'
-            }`}
-          >
-            {CARTAO_LABELS[c]}
-          </button>
-        ))}
+      <div className="flex gap-2 mb-4">
+        <select
+          value={filtroResp}
+          onChange={e => setFiltroResp(e.target.value as FiltroResponsavel)}
+          className={selectCls}
+        >
+          <option value="todos">Todos</option>
+          <option value="Matheus">Matheus</option>
+          <option value="Jeniffer">Jeniffer</option>
+        </select>
+
+        <select
+          value={filtroCartao}
+          onChange={e => setFiltroCartao(e.target.value as FiltroCartao)}
+          className={selectCls}
+        >
+          <option value="todos">Todos os cartões</option>
+          <option value="nubank">NuBank</option>
+          <option value="cartao1">{cartao1Nome}</option>
+          <option value="cartao2">{cartao2Nome}</option>
+        </select>
       </div>
 
       {!hasData ? (

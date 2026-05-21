@@ -920,7 +920,11 @@ export default function Dashboard() {
             </h2>
           </div>
           <p className="text-xs text-gray-400 mb-4 ml-10">Dia a dia · Toque para detalhes</p>
-          <GraficoGastosDiarios mesAtual={mesAtual} />
+          <GraficoGastosDiarios
+            mesAtual={mesAtual}
+            cartao1Nome={fatura.cartao1Nome}
+            cartao2Nome={fatura.cartao2Nome}
+          />
         </div>
 
         {/* ── Evolução de Investimentos ── */}
