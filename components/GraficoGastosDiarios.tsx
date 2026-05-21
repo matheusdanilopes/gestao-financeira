@@ -92,15 +92,37 @@ export default function GraficoGastosDiarios({ mesAtual }: Props) {
       const mesInicio = format(startOfMonth(mesAtual), 'yyyy-MM-dd')
       const mesFim    = format(endOfMonth(mesAtual),   'yyyy-MM-dd')
 
+      // Try current schema (data_compra); fall back to legacy column name (data)
       const { data, error: err } = await supabase
         .from('transacoes_nubank')
         .select('valor, data_compra, responsavel, cartao')
         .gte('data_compra', mesInicio)
         .lte('data_compra', mesFim)
-        .not('data_compra', 'is', null)
 
-      if (err) throw err
-      setRawData(data ?? [])
+      if (err) {
+        if (err.message?.includes('data_compra')) {
+          // Legacy schema: column is named 'data'
+          const { data: legacyData, error: legacyErr } = await supabase
+            .from('transacoes_nubank')
+            .select('valor, data, responsavel, cartao')
+            .gte('data', mesInicio)
+            .lte('data', mesFim)
+          if (legacyErr) throw legacyErr
+          const normalized: TransacaoRaw[] = (legacyData ?? []).map(
+            (r: { valor: number; data: string | null; responsavel: string; cartao: string }) => ({
+              valor: r.valor,
+              data_compra: r.data,
+              responsavel: r.responsavel,
+              cartao: r.cartao,
+            }),
+          )
+          setRawData(normalized)
+        } else {
+          throw err
+        }
+      } else {
+        setRawData(data ?? [])
+      }
     } catch {
       setError('Não foi possível carregar os gastos diários.')
     } finally {
