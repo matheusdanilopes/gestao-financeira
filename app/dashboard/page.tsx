@@ -121,6 +121,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     { data: nubankConfigs },
     { data: faturaRegistradaData },
     { data: assinaturasData },
+    { data: maxFaturaRowData },
   ] = await Promise.all([
     supabase.from('transacoes_nubank').select('valor, responsavel, descricao').eq('projeto_fatura', mesRefFatura).eq('cartao', 'nubank'),
     supabase.from('planejamento').select('item, responsavel, valor_previsto, pago, valor_real').eq('mes_referencia', mesRef),
@@ -130,6 +131,8 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     supabase.from('configuracoes').select('chave, valor').in('chave', ['dia_vencimento', 'ajuste_fechamento']),
     supabase.from('faturas').select('data_fechamento').eq('cartao', 'nubank').eq('mes_referencia', mesRefFatura).limit(1),
     supabase.from('assinaturas').select('nome, valor, responsavel, ativa').eq('cartao', 'nubank'),
+    supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'nubank')
+      .lte('projeto_fatura', mesRefFatura).order('projeto_fatura', { ascending: false }).limit(1),
   ])
 
   const diaVencNubank = parseInt(nubankConfigs?.find((c: { chave: string; valor: string }) => c.chave === 'dia_vencimento')?.valor || '10')
@@ -187,17 +190,13 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   let jenifferProjecaoParcelas = 0
   if (faturaEhPrevisto) {
     const mesProjecao = startOfMonth(addMonths(mes, 1))
-    const mesProjecaoRef = format(mesProjecao, 'yyyy-MM-dd')
+    // maxFaturaRowData fetched ahead-of-time in the parallel Promise.all above
 
-    const { data: maxFaturaRow } = await supabase
-      .from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'nubank')
-      .lte('projeto_fatura', mesProjecaoRef).order('projeto_fatura', { ascending: false }).limit(1)
-
-    if (maxFaturaRow?.[0]?.projeto_fatura) {
+    if (maxFaturaRowData?.[0]?.projeto_fatura) {
       const { data: transacoesBase } = await supabase
         .from('transacoes_nubank')
         .select('projeto_fatura, descricao, valor, responsavel, parcela_atual, total_parcelas')
-        .eq('cartao', 'nubank').eq('projeto_fatura', maxFaturaRow[0].projeto_fatura)
+        .eq('cartao', 'nubank').eq('projeto_fatura', maxFaturaRowData[0].projeto_fatura)
 
       const contratos = new Map<string, { fatura: Date; atual: number; total: number; valor: number; responsavel: string }>()
 
