@@ -392,26 +392,26 @@ export default function CategoryTreemap({ compras: comprasProp, mesAtual, loadin
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <div className="grid grid-cols-4 gap-1.5">
-                <div className="bg-white/60 rounded-xl p-1.5">
+              <div className="grid grid-cols-2 gap-1.5">
+                <div className="bg-white/60 rounded-xl p-2">
                   <p className="text-[9px] text-gray-400 font-medium leading-tight">Total</p>
-                  <p className="text-[11px] font-bold text-gray-900 num mt-0.5 truncate">
+                  <p className="text-xs font-bold text-gray-900 num mt-0.5 whitespace-nowrap">
                     {formatBRL(selected.valor)}
                   </p>
                 </div>
-                <div className="bg-white/60 rounded-xl p-1.5">
+                <div className="bg-white/60 rounded-xl p-2">
                   <p className="text-[9px] text-gray-400 font-medium leading-tight">Compras</p>
-                  <p className="text-[11px] font-bold text-gray-900 mt-0.5">{selected.contagem}×</p>
+                  <p className="text-xs font-bold text-gray-900 mt-0.5">{selected.contagem}×</p>
                 </div>
-                <div className="bg-white/60 rounded-xl p-1.5">
-                  <p className="text-[9px] text-gray-400 font-medium leading-tight">Médio</p>
-                  <p className="text-[11px] font-bold text-gray-900 num mt-0.5 truncate">
+                <div className="bg-white/60 rounded-xl p-2">
+                  <p className="text-[9px] text-gray-400 font-medium leading-tight">Ticket médio</p>
+                  <p className="text-xs font-bold text-gray-900 num mt-0.5 whitespace-nowrap">
                     {formatBRL(selected.valor / selected.contagem)}
                   </p>
                 </div>
-                <div className="bg-white/60 rounded-xl p-1.5">
+                <div className="bg-white/60 rounded-xl p-2">
                   <p className="text-[9px] text-gray-400 font-medium leading-tight">% fatura</p>
-                  <p className="text-[11px] font-bold text-gray-900 mt-0.5">
+                  <p className="text-xs font-bold text-gray-900 mt-0.5">
                     {selected.pct.toFixed(1)}%
                   </p>
                 </div>
