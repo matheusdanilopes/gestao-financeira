@@ -11,7 +11,7 @@ import {
   Tooltip,
   Filler,
 } from 'chart.js'
-import { format, startOfMonth, endOfMonth, getDaysInMonth } from 'date-fns'
+import { format, startOfMonth, addMonths, eachDayOfInterval } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Activity, AlertCircle } from 'lucide-react'
 import { formatBRL } from '@/lib/logger'
@@ -57,7 +57,10 @@ interface TransacaoRaw {
   cartao: string
 }
 
-interface DayData {
+interface DatePoint {
+  isoDate: string   // YYYY-MM-DD
+  label: string     // "28/abr"
+  fullLabel: string // "28 de abril de 2026"
   total: number
   count: number
 }
@@ -74,39 +77,42 @@ const CARTAO_LABELS: Record<FiltroCartao, string> = {
 }
 
 export default function GraficoGastosDiarios({ mesAtual }: Props) {
-  const [rawData, setRawData]               = useState<TransacaoRaw[]>([])
-  const [loading, setLoading]               = useState(true)
-  const [error, setError]                   = useState<string | null>(null)
-  const [filtroResp, setFiltroResp]         = useState<FiltroResponsavel>('todos')
-  const [filtroCartao, setFiltroCartao]     = useState<FiltroCartao>('todos')
-  const { isDark, isDarkRef }               = useIsDark()
+  const [rawData, setRawData]           = useState<TransacaoRaw[]>([])
+  const [loading, setLoading]           = useState(true)
+  const [error, setError]               = useState<string | null>(null)
+  const [filtroResp, setFiltroResp]     = useState<FiltroResponsavel>('todos')
+  const [filtroCartao, setFiltroCartao] = useState<FiltroCartao>('todos')
+  const { isDark, isDarkRef }           = useIsDark()
 
   const plugins = useMemo(
     () => [gradientPlugin, makeCrosshairPlugin('gastosDiariosCrosshair', isDarkRef, 0.12, 0.08)] as Plugin<'line'>[],
     [isDarkRef],
   )
 
+  // projeto_fatura for the selected month: first day of next month (same as dashboard)
+  const mesRefFatura = useMemo(
+    () => format(startOfMonth(addMonths(mesAtual, 1)), 'yyyy-MM-dd'),
+    [mesAtual],
+  )
+
   const carregar = useCallback(async () => {
     setError(null)
     try {
-      const mesInicio = format(startOfMonth(mesAtual), 'yyyy-MM-dd')
-      const mesFim    = format(endOfMonth(mesAtual),   'yyyy-MM-dd')
-
-      // Try current schema (data_compra); fall back to legacy column name (data)
+      // Query by billing period (projeto_fatura), consistent with the rest of the dashboard.
+      // This returns all transactions that appear on the bill for the selected month,
+      // regardless of which calendar day the purchase was made.
       const { data, error: err } = await supabase
         .from('transacoes_nubank')
         .select('valor, data_compra, responsavel, cartao')
-        .gte('data_compra', mesInicio)
-        .lte('data_compra', mesFim)
+        .eq('projeto_fatura', mesRefFatura)
 
       if (err) {
         if (err.message?.includes('data_compra')) {
-          // Legacy schema: column is named 'data'
+          // Legacy schema: date column is named 'data'
           const { data: legacyData, error: legacyErr } = await supabase
             .from('transacoes_nubank')
             .select('valor, data, responsavel, cartao')
-            .gte('data', mesInicio)
-            .lte('data', mesFim)
+            .eq('projeto_fatura', mesRefFatura)
           if (legacyErr) throw legacyErr
           const normalized: TransacaoRaw[] = (legacyData ?? []).map(
             (r: { valor: number; data: string | null; responsavel: string; cartao: string }) => ({
@@ -128,7 +134,7 @@ export default function GraficoGastosDiarios({ mesAtual }: Props) {
     } finally {
       setLoading(false)
     }
-  }, [mesAtual])
+  }, [mesRefFatura])
 
   useEffect(() => {
     setLoading(true)
@@ -136,42 +142,59 @@ export default function GraficoGastosDiarios({ mesAtual }: Props) {
     carregar()
   }, [carregar])
 
-  const daysInMonth = useMemo(() => getDaysInMonth(mesAtual), [mesAtual])
-
-  const dailyData = useMemo((): DayData[] => {
-    const result: DayData[] = Array.from({ length: daysInMonth }, () => ({ total: 0, count: 0 }))
+  // Build date-indexed series from the billing-period transactions.
+  // The date range is determined dynamically from the actual data_compra values,
+  // so it naturally covers the real billing cycle (e.g., 28/abr → 3/mai).
+  const series = useMemo((): DatePoint[] => {
+    // Aggregate by date after applying filters
+    const byDate = new Map<string, { total: number; count: number }>()
     for (const tx of rawData) {
       if (!tx.data_compra) continue
       if (filtroResp !== 'todos' && tx.responsavel !== filtroResp) continue
       if (filtroCartao !== 'todos' && tx.cartao !== filtroCartao) continue
-      const day = parseInt(tx.data_compra.substring(8, 10), 10) - 1
-      if (day >= 0 && day < daysInMonth) {
-        result[day].total += tx.valor
-        result[day].count++
-      }
+      const entry = byDate.get(tx.data_compra) ?? { total: 0, count: 0 }
+      entry.total += tx.valor
+      entry.count++
+      byDate.set(tx.data_compra, entry)
     }
-    return result
-  }, [rawData, filtroResp, filtroCartao, daysInMonth])
 
-  const hasData   = useMemo(() => dailyData.some(d => d.total > 0), [dailyData])
-  const totalMes  = useMemo(() => dailyData.reduce((s, d) => s + d.total, 0), [dailyData])
-  const maxDay    = useMemo(() => dailyData.reduce((m, d) => (d.total > m.total ? d : m), { total: 0, count: 0 }), [dailyData])
+    if (byDate.size === 0) return []
+
+    const sortedDates = Array.from(byDate.keys()).sort()
+    const start = new Date(sortedDates[0] + 'T12:00:00')
+    const end   = new Date(sortedDates[sortedDates.length - 1] + 'T12:00:00')
+
+    return eachDayOfInterval({ start, end }).map(d => {
+      const iso  = format(d, 'yyyy-MM-dd')
+      const data = byDate.get(iso) ?? { total: 0, count: 0 }
+      return {
+        isoDate:   iso,
+        label:     format(d, "d/MMM",                       { locale: ptBR }),
+        fullLabel: format(d, "d 'de' MMMM 'de' yyyy",       { locale: ptBR }),
+        total: data.total,
+        count: data.count,
+      }
+    })
+  }, [rawData, filtroResp, filtroCartao])
+
+  const hasData  = series.some(p => p.total > 0)
+  const totalFat = series.reduce((s, p) => s + p.total, 0)
+  const peakDay  = series.reduce((m, p) => (p.total > m.total ? p : m), series[0] ?? { total: 0, label: '', fullLabel: '', isoDate: '', count: 0 })
 
   const chartData = useMemo(() => {
     if (!hasData) return null
     const pBorder = isDark ? '#0f172a' : '#ffffff'
-    const labels  = Array.from({ length: daysInMonth }, (_, i) => String(i + 1))
     return {
-      labels,
+      labels: series.map(p => p.label),
       datasets: [{
         label: 'Gastos do dia',
-        data: dailyData.map(d => d.total),
+        data: series.map(p => p.total),
         borderColor: rgb(1),
         backgroundColor: 'transparent',
         borderWidth: 2,
         tension: 0.42,
         fill: true,
-        pointRadius: dailyData.map(d => (d.total > 0 ? 3 : 0)),
+        pointRadius: series.map(p => (p.total > 0 ? 3 : 0)),
         pointHoverRadius: 8,
         pointHitRadius: 22,
         pointBackgroundColor: rgb(1),
@@ -180,12 +203,13 @@ export default function GraficoGastosDiarios({ mesAtual }: Props) {
         pointHoverBorderWidth: 2,
       }],
     }
-  }, [dailyData, daysInMonth, hasData, isDark])
+  }, [series, hasData, isDark])
 
   const options = useMemo(() => {
     const txt  = isDark ? '#9ca3af' : '#6b7280'
     const grid = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'
     const tbg  = isDark ? 'rgba(15,23,42,0.97)'   : 'rgba(15,23,42,0.93)'
+    const n    = series.length
 
     return {
       responsive: true,
@@ -204,20 +228,12 @@ export default function GraficoGastosDiarios({ mesAtual }: Props) {
           borderWidth: 1,
           callbacks: {
             title: (items: TooltipItem<'line'>[]) => {
-              const idx = items[0]?.dataIndex ?? 0
-              return format(
-                new Date(mesAtual.getFullYear(), mesAtual.getMonth(), idx + 1),
-                "d 'de' MMMM 'de' yyyy",
-                { locale: ptBR },
-              )
+              return series[items[0]?.dataIndex ?? 0]?.fullLabel ?? ''
             },
-            label: (ctx: TooltipItem<'line'>) => {
-              return `  ${formatBRL(ctx.parsed.y ?? 0)}`
-            },
+            label: (ctx: TooltipItem<'line'>) => `  ${formatBRL(ctx.parsed.y ?? 0)}`,
             afterLabel: (ctx: TooltipItem<'line'>) => {
-              const d = dailyData[ctx.dataIndex]
-              const n = d?.count ?? 0
-              return n > 0 ? `  ${n} lançamento${n !== 1 ? 's' : ''}` : ''
+              const cnt = series[ctx.dataIndex]?.count ?? 0
+              return cnt > 0 ? `  ${cnt} lançamento${cnt !== 1 ? 's' : ''}` : ''
             },
             labelColor: () => ({
               borderColor: rgb(0.9),
@@ -232,10 +248,10 @@ export default function GraficoGastosDiarios({ mesAtual }: Props) {
         y: {
           ticks: {
             callback: (v: number | string) => {
-              const n = Number(v)
-              if (n === 0) return 'R$0'
-              if (n >= 1000) return `R$${(n / 1000).toFixed(0)}k`
-              return `R$${n.toFixed(0)}`
+              const num = Number(v)
+              if (num === 0) return 'R$0'
+              if (num >= 1000) return `R$${(num / 1000).toFixed(0)}k`
+              return `R$${num.toFixed(0)}`
             },
             font: { size: 10 },
             maxTicksLimit: 4,
@@ -250,9 +266,11 @@ export default function GraficoGastosDiarios({ mesAtual }: Props) {
             color: txt,
             padding: 4,
             maxRotation: 0,
+            // Show first, last, and every ~5th label to avoid crowding
             callback: (_v: number | string, index: number) => {
-              const day = index + 1
-              if (day === 1 || day % 5 === 0 || day === daysInMonth) return String(day)
+              if (index === 0 || index === n - 1 || index % 5 === 0) {
+                return series[index]?.label ?? ''
+              }
               return ''
             },
           },
@@ -261,7 +279,7 @@ export default function GraficoGastosDiarios({ mesAtual }: Props) {
         },
       },
     }
-  }, [isDark, dailyData, daysInMonth, mesAtual])
+  }, [isDark, series])
 
   if (loading) {
     return (
@@ -333,13 +351,14 @@ export default function GraficoGastosDiarios({ mesAtual }: Props) {
         <>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
-              <span className="text-xs text-gray-400">Total no mês</span>
-              <span className="text-sm font-bold text-violet-700 num">{formatBRL(totalMes)}</span>
+              <span className="text-xs text-gray-400">Total da fatura</span>
+              <span className="text-sm font-bold text-violet-700 num">{formatBRL(totalFat)}</span>
             </div>
-            {maxDay.total > 0 && (
+            {peakDay.total > 0 && (
               <div className="flex items-center gap-1.5 text-xs text-gray-400">
                 <span>Pico</span>
-                <span className="font-semibold text-gray-600 num">{formatBRL(maxDay.total)}</span>
+                <span className="font-semibold text-gray-600 num">{formatBRL(peakDay.total)}</span>
+                <span className="text-gray-400">{peakDay.label}</span>
               </div>
             )}
           </div>
