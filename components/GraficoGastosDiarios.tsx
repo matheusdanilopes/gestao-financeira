@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Line } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
@@ -13,7 +13,7 @@ import {
 } from 'chart.js'
 import { format, startOfMonth, addMonths, eachDayOfInterval } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Activity, AlertCircle } from 'lucide-react'
+import { Activity, AlertCircle, ChevronDown } from 'lucide-react'
 import { formatBRL } from '@/lib/logger'
 import { supabase } from '@/lib/supabaseClient'
 import type { TooltipItem, Plugin } from 'chart.js'
@@ -40,12 +40,18 @@ const gradientPlugin: Plugin<'line'> = {
     const c = chart as GradientChart
     if (!c.chartArea) return
     const g = c.ctx.createLinearGradient(0, c.chartArea.top, 0, c.chartArea.bottom)
-    g.addColorStop(0,    rgb(0.22))
-    g.addColorStop(0.55, rgb(0.07))
-    g.addColorStop(1,    rgb(0))
+    g.addColorStop(0,   rgb(0.28))
+    g.addColorStop(0.5, rgb(0.08))
+    g.addColorStop(1,   rgb(0))
     if (c.data.datasets[0]) c.data.datasets[0].backgroundColor = g
   },
 }
+
+// Module-level constant — not recreated on every render
+const SELECT_CLS =
+  'w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 pr-8 text-xs text-gray-700 ' +
+  'font-medium appearance-none cursor-pointer focus:outline-none focus:ring-1 ' +
+  'focus:ring-violet-400 focus:border-violet-400 hover:border-gray-300 transition-colors'
 
 type FiltroResponsavel = 'todos' | 'Matheus' | 'Jeniffer'
 type FiltroCartao      = 'todos' | 'nubank'  | 'cartao1' | 'cartao2'
@@ -58,7 +64,7 @@ interface TransacaoRaw {
 }
 
 interface DatePoint {
-  isoDate: string   // YYYY-MM-DD
+  isoDate: string
   label: string     // "28/abr"
   fullLabel: string // "28 de abril de 2026"
   total: number
@@ -71,7 +77,11 @@ interface Props {
   cartao2Nome?: string
 }
 
-export default function GraficoGastosDiarios({ mesAtual, cartao1Nome = 'Cartão 1', cartao2Nome = 'Cartão 2' }: Props) {
+export default function GraficoGastosDiarios({
+  mesAtual,
+  cartao1Nome = 'Cartão 1',
+  cartao2Nome = 'Cartão 2',
+}: Props) {
   const [rawData, setRawData]           = useState<TransacaoRaw[]>([])
   const [loading, setLoading]           = useState(true)
   const [error, setError]               = useState<string | null>(null)
@@ -79,12 +89,16 @@ export default function GraficoGastosDiarios({ mesAtual, cartao1Nome = 'Cartão 
   const [filtroCartao, setFiltroCartao] = useState<FiltroCartao>('todos')
   const { isDark, isDarkRef }           = useIsDark()
 
+  // Kept in a ref so tooltip callbacks always read current series without
+  // adding series to the options dependency array (which would re-animate
+  // the chart on every filter change).
+  const seriesRef = useRef<DatePoint[]>([])
+
   const plugins = useMemo(
     () => [gradientPlugin, makeCrosshairPlugin('gastosDiariosCrosshair', isDarkRef, 0.12, 0.08)] as Plugin<'line'>[],
     [isDarkRef],
   )
 
-  // projeto_fatura for the selected month: first day of next month (same as dashboard)
   const mesRefFatura = useMemo(
     () => format(startOfMonth(addMonths(mesAtual, 1)), 'yyyy-MM-dd'),
     [mesAtual],
@@ -93,9 +107,6 @@ export default function GraficoGastosDiarios({ mesAtual, cartao1Nome = 'Cartão 
   const carregar = useCallback(async () => {
     setError(null)
     try {
-      // Query by billing period (projeto_fatura), consistent with the rest of the dashboard.
-      // This returns all transactions that appear on the bill for the selected month,
-      // regardless of which calendar day the purchase was made.
       const { data, error: err } = await supabase
         .from('transacoes_nubank')
         .select('valor, data_compra, responsavel, cartao')
@@ -103,21 +114,22 @@ export default function GraficoGastosDiarios({ mesAtual, cartao1Nome = 'Cartão 
 
       if (err) {
         if (err.message?.includes('data_compra')) {
-          // Legacy schema: date column is named 'data'
+          // Legacy schema: column named 'data' instead of 'data_compra'
           const { data: legacyData, error: legacyErr } = await supabase
             .from('transacoes_nubank')
             .select('valor, data, responsavel, cartao')
             .eq('projeto_fatura', mesRefFatura)
           if (legacyErr) throw legacyErr
-          const normalized: TransacaoRaw[] = (legacyData ?? []).map(
-            (r: { valor: number; data: string | null; responsavel: string; cartao: string }) => ({
-              valor: r.valor,
-              data_compra: r.data,
-              responsavel: r.responsavel,
-              cartao: r.cartao,
-            }),
+          setRawData(
+            (legacyData ?? []).map(
+              (r: { valor: number; data: string | null; responsavel: string; cartao: string }) => ({
+                valor: r.valor,
+                data_compra: r.data,
+                responsavel: r.responsavel,
+                cartao: r.cartao,
+              }),
+            ),
           )
-          setRawData(normalized)
         } else {
           throw err
         }
@@ -137,11 +149,7 @@ export default function GraficoGastosDiarios({ mesAtual, cartao1Nome = 'Cartão 
     carregar()
   }, [carregar])
 
-  // Build date-indexed series from the billing-period transactions.
-  // The date range is determined dynamically from the actual data_compra values,
-  // so it naturally covers the real billing cycle (e.g., 28/abr → 3/mai).
   const series = useMemo((): DatePoint[] => {
-    // Aggregate by date after applying filters
     const byDate = new Map<string, { total: number; count: number }>()
     for (const tx of rawData) {
       if (!tx.data_compra) continue
@@ -155,26 +163,32 @@ export default function GraficoGastosDiarios({ mesAtual, cartao1Nome = 'Cartão 
 
     if (byDate.size === 0) return []
 
-    const sortedDates = Array.from(byDate.keys()).sort()
-    const start = new Date(sortedDates[0] + 'T12:00:00')
-    const end   = new Date(sortedDates[sortedDates.length - 1] + 'T12:00:00')
+    const sorted = Array.from(byDate.keys()).sort()
+    const start  = new Date(sorted[0] + 'T12:00:00')
+    const end    = new Date(sorted[sorted.length - 1] + 'T12:00:00')
 
     return eachDayOfInterval({ start, end }).map(d => {
       const iso  = format(d, 'yyyy-MM-dd')
       const data = byDate.get(iso) ?? { total: 0, count: 0 }
       return {
         isoDate:   iso,
-        label:     format(d, "d/MMM",                       { locale: ptBR }),
-        fullLabel: format(d, "d 'de' MMMM 'de' yyyy",       { locale: ptBR }),
+        label:     format(d, 'd/MMM',                         { locale: ptBR }),
+        fullLabel: format(d, "d 'de' MMMM 'de' yyyy",         { locale: ptBR }),
         total: data.total,
         count: data.count,
       }
     })
   }, [rawData, filtroResp, filtroCartao])
 
+  // Keep ref in sync so options callbacks can read it without deps
+  useEffect(() => { seriesRef.current = series }, [series])
+
   const hasData  = series.some(p => p.total > 0)
   const totalFat = series.reduce((s, p) => s + p.total, 0)
-  const peakDay  = series.reduce((m, p) => (p.total > m.total ? p : m), series[0] ?? { total: 0, label: '', fullLabel: '', isoDate: '', count: 0 })
+  const peakDay  = series.reduce(
+    (m, p) => (p.total > m.total ? p : m),
+    series[0] ?? { total: 0, label: '', fullLabel: '', isoDate: '', count: 0 },
+  )
 
   const chartData = useMemo(() => {
     if (!hasData) return null
@@ -186,31 +200,33 @@ export default function GraficoGastosDiarios({ mesAtual, cartao1Nome = 'Cartão 
         data: series.map(p => p.total),
         borderColor: rgb(1),
         backgroundColor: 'transparent',
-        borderWidth: 2,
+        borderWidth: 2.5,
         tension: 0.42,
         fill: true,
-        pointRadius: series.map(p => (p.total > 0 ? 3 : 0)),
-        pointHoverRadius: 8,
-        pointHitRadius: 22,
+        pointRadius: series.map(p => (p.total > 0 ? 3.5 : 0)),
+        pointHoverRadius: 9,
+        pointHitRadius: 24,
         pointBackgroundColor: rgb(1),
         pointBorderColor: pBorder,
-        pointBorderWidth: 2,
-        pointHoverBorderWidth: 2,
+        pointBorderWidth: 2.5,
+        pointHoverBorderWidth: 2.5,
       }],
     }
-  }, [series, hasData, isDark])
+    // hasData is derived from series — not a separate dependency
+  }, [series, isDark])
 
+  // options depends only on isDark — series data is read via seriesRef in
+  // callbacks, so filter changes don't rebuild options or trigger re-animation.
   const options = useMemo(() => {
     const txt  = isDark ? '#9ca3af' : '#6b7280'
     const grid = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'
     const tbg  = isDark ? 'rgba(15,23,42,0.97)'   : 'rgba(15,23,42,0.93)'
-    const n    = series.length
 
     return {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index' as const, intersect: false },
-      animation: { duration: 600, easing: 'easeInOutCubic' as const },
+      animation: { duration: 700, easing: 'easeInOutCubic' as const },
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -222,12 +238,11 @@ export default function GraficoGastosDiarios({ mesAtual, cartao1Nome = 'Cartão 
           borderColor: 'rgba(255,255,255,0.08)',
           borderWidth: 1,
           callbacks: {
-            title: (items: TooltipItem<'line'>[]) => {
-              return series[items[0]?.dataIndex ?? 0]?.fullLabel ?? ''
-            },
+            title: (items: TooltipItem<'line'>[]) =>
+              seriesRef.current[items[0]?.dataIndex ?? 0]?.fullLabel ?? '',
             label: (ctx: TooltipItem<'line'>) => `  ${formatBRL(ctx.parsed.y ?? 0)}`,
             afterLabel: (ctx: TooltipItem<'line'>) => {
-              const cnt = series[ctx.dataIndex]?.count ?? 0
+              const cnt = seriesRef.current[ctx.dataIndex]?.count ?? 0
               return cnt > 0 ? `  ${cnt} lançamento${cnt !== 1 ? 's' : ''}` : ''
             },
             labelColor: () => ({
@@ -243,10 +258,10 @@ export default function GraficoGastosDiarios({ mesAtual, cartao1Nome = 'Cartão 
         y: {
           ticks: {
             callback: (v: number | string) => {
-              const num = Number(v)
-              if (num === 0) return 'R$0'
-              if (num >= 1000) return `R$${(num / 1000).toFixed(0)}k`
-              return `R$${num.toFixed(0)}`
+              const n = Number(v)
+              if (n === 0) return 'R$0'
+              if (n >= 1000) return `R$${(n / 1000).toFixed(0)}k`
+              return `R$${n.toFixed(0)}`
             },
             font: { size: 10 },
             maxTicksLimit: 4,
@@ -261,10 +276,10 @@ export default function GraficoGastosDiarios({ mesAtual, cartao1Nome = 'Cartão 
             color: txt,
             padding: 4,
             maxRotation: 0,
-            // Show first, last, and every ~5th label to avoid crowding
             callback: (_v: number | string, index: number) => {
-              if (index === 0 || index === n - 1 || index % 5 === 0) {
-                return series[index]?.label ?? ''
+              const len = seriesRef.current.length
+              if (index === 0 || index === len - 1 || index % 5 === 0) {
+                return seriesRef.current[index]?.label ?? ''
               }
               return ''
             },
@@ -274,7 +289,7 @@ export default function GraficoGastosDiarios({ mesAtual, cartao1Nome = 'Cartão 
         },
       },
     }
-  }, [isDark, series])
+  }, [isDark])
 
   if (loading) {
     return (
@@ -299,56 +314,71 @@ export default function GraficoGastosDiarios({ mesAtual, cartao1Nome = 'Cartão 
     )
   }
 
-  const selectCls = 'flex-1 min-w-0 bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-xs text-gray-700 font-medium appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-violet-400 focus:border-violet-400 hover:border-gray-300 transition-colors'
-
   return (
     <div>
-      {/* Filters */}
-      <div className="flex gap-2 mb-4">
-        <select
-          value={filtroResp}
-          onChange={e => setFiltroResp(e.target.value as FiltroResponsavel)}
-          className={selectCls}
-        >
-          <option value="todos">Todos</option>
-          <option value="Matheus">Matheus</option>
-          <option value="Jeniffer">Jeniffer</option>
-        </select>
+      {/* Filters — two selects side by side with chevron indicator */}
+      <div className="flex gap-2 mb-5">
+        <div className="relative flex-1">
+          <select
+            value={filtroResp}
+            onChange={e => setFiltroResp(e.target.value as FiltroResponsavel)}
+            className={SELECT_CLS}
+          >
+            <option value="todos">Todos</option>
+            <option value="Matheus">Matheus</option>
+            <option value="Jeniffer">Jeniffer</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+        </div>
 
-        <select
-          value={filtroCartao}
-          onChange={e => setFiltroCartao(e.target.value as FiltroCartao)}
-          className={selectCls}
-        >
-          <option value="todos">Todos os cartões</option>
-          <option value="nubank">NuBank</option>
-          <option value="cartao1">{cartao1Nome}</option>
-          <option value="cartao2">{cartao2Nome}</option>
-        </select>
+        <div className="relative flex-1">
+          <select
+            value={filtroCartao}
+            onChange={e => setFiltroCartao(e.target.value as FiltroCartao)}
+            className={SELECT_CLS}
+          >
+            <option value="todos">Todos os cartões</option>
+            <option value="nubank">NuBank</option>
+            <option value="cartao1">{cartao1Nome}</option>
+            <option value="cartao2">{cartao2Nome}</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+        </div>
       </div>
 
       {!hasData ? (
         <div className="h-40 flex flex-col items-center justify-center gap-2 text-gray-400">
-          <Activity className="w-8 h-8 opacity-40" />
+          <Activity className="w-9 h-9 opacity-30" />
           <p className="text-sm font-medium text-gray-500">Sem lançamentos no período</p>
-          <p className="text-xs opacity-60">
+          <p className="text-xs text-gray-400">
             {filtroResp !== 'todos' || filtroCartao !== 'todos'
-              ? 'Nenhum gasto encontrado com os filtros atuais'
+              ? 'Nenhum gasto encontrado com os filtros selecionados'
               : 'Os gastos por dia aparecerão aqui conforme forem registrados'}
           </p>
         </div>
       ) : (
         <>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-gray-400">Total da fatura</span>
-              <span className="text-sm font-bold text-violet-700 num">{formatBRL(totalFat)}</span>
+          {/* Summary row */}
+          <div className="flex items-end justify-between mb-4">
+            <div>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                Total da fatura
+              </p>
+              <p className="text-lg font-bold text-violet-700 num">{formatBRL(totalFat)}</p>
             </div>
             {peakDay.total > 0 && (
-              <div className="flex items-center gap-1.5 text-xs text-gray-400">
-                <span>Pico</span>
-                <span className="font-semibold text-gray-600 num">{formatBRL(peakDay.total)}</span>
-                <span className="text-gray-400">{peakDay.label}</span>
+              <div className="text-right">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                  Maior gasto
+                </p>
+                <div className="flex items-center justify-end gap-1.5">
+                  <span className="text-sm font-semibold text-gray-700 num">
+                    {formatBRL(peakDay.total)}
+                  </span>
+                  <span className="text-[10px] text-gray-500 bg-gray-100 rounded-full px-2 py-0.5">
+                    {peakDay.label}
+                  </span>
+                </div>
               </div>
             )}
           </div>
