@@ -14,9 +14,6 @@ import { log, numericOnly, formatBRL } from '@/lib/logger'
 import { useMes } from '@/components/MesProvider'
 import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
 import { calcularProjetoFatura } from '@/lib/fatura'
-import dynamic from 'next/dynamic'
-
-const CategoryTreemap = dynamic(() => import('@/components/CategoryTreemap'), { ssr: false })
 
 type Compra = {
   hash_linha: string
@@ -476,9 +473,6 @@ export default function ComprasPage() {
           <p className="text-sm text-amber-700 font-medium">Fatura paga — inclusão de novas compras bloqueada</p>
         </div>
       )}
-
-      {/* Treemap de categorias */}
-      <CategoryTreemap compras={comprasFiltradas} loading={loading} />
 
       {/* Lista agrupada por data */}
       {loading ? (

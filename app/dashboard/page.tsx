@@ -48,6 +48,8 @@ const GraficoGastosDiarios = dynamic(() => import('@/components/GraficoGastosDia
     </div>
   ),
 })
+
+const CategoryTreemap = dynamic(() => import('@/components/CategoryTreemap'), { ssr: false })
 import { InfoPopover } from '@/components/InfoPopover'
 
 const DrawerDetalhes = dynamic(() => import('@/components/DrawerDetalhes'), { ssr: false })
@@ -938,6 +940,11 @@ export default function Dashboard() {
 
         {graficosAbertos && (
           <div className={`space-y-4 lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0 lg:items-start${aba !== 'graficos' ? ' hidden' : ''}`}>
+
+        {/* ── Categorias da Fatura ── */}
+        <div className="lg:col-span-2">
+          <CategoryTreemap mesAtual={mesAtual} />
+        </div>
 
         {/* ── Gastos Diários ── */}
         <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">

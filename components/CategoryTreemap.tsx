@@ -1,11 +1,12 @@
 'use client'
 
-import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
+import { useMemo, useState, useRef, useCallback, useEffect } from 'react'
 import { formatBRL } from '@/lib/logger'
 import { LayoutGrid, Hash, TrendingUp, X } from 'lucide-react'
+import { addMonths, format, startOfMonth } from 'date-fns'
+import { supabase } from '@/lib/supabaseClient'
 
-interface Compra {
-  hash_linha: string
+interface CompraItem {
   valor: number
   categoria: string | null
 }
@@ -41,7 +42,7 @@ const GAP = 3
 const MAX_CATS = 8
 const MIN_PCT = 2
 
-// Squarified treemap layout — minimizes worst aspect ratio per row
+// Squarified treemap — minimises worst aspect ratio per strip
 function squarifyLayout(
   items: CategoryItem[],
   W: number,
@@ -49,7 +50,6 @@ function squarifyLayout(
   getSize: (item: CategoryItem) => number,
 ): PlacedBlock[] {
   if (!items.length || W <= 0 || H <= 0) return []
-
   const totalSize = items.reduce((s, i) => s + getSize(i), 0)
   if (!totalSize) return []
 
@@ -130,28 +130,68 @@ function squarifyLayout(
 }
 
 interface Props {
-  compras: Compra[]
+  /** Provide purchases directly (e.g. from filtered list). */
+  compras?: CompraItem[]
+  /**
+   * When provided, the component fetches its own data for the invoice of
+   * addMonths(mesAtual, 1) — use this from the dashboard.
+   */
+  mesAtual?: Date
   loading?: boolean
 }
 
-export default function CategoryTreemap({ compras, loading }: Props) {
+export default function CategoryTreemap({ compras: comprasProp, mesAtual, loading: loadingProp }: Props) {
   const [mode, setMode] = useState<'value' | 'count'>('value')
   const [selected, setSelected] = useState<PlacedBlock | null>(null)
-  const ref = useRef<HTMLDivElement>(null)
   const [cW, setCW] = useState(0)
 
+  // Self-fetching mode (used by dashboard)
+  const [fetchedCompras, setFetchedCompras] = useState<CompraItem[]>([])
+  const [fetchLoading, setFetchLoading] = useState(false)
+
+  const mesRefFatura = useMemo(
+    () => mesAtual ? format(startOfMonth(addMonths(mesAtual, 1)), 'yyyy-MM-dd') : null,
+    [mesAtual],
+  )
+
   useEffect(() => {
-    const el = ref.current
+    if (!mesRefFatura) return
+    let cancelled = false
+    setFetchLoading(true)
+    supabase
+      .from('transacoes_nubank')
+      .select('valor, categoria')
+      .eq('projeto_fatura', mesRefFatura)
+      .then(({ data }) => {
+        if (!cancelled) {
+          setFetchedCompras((data ?? []) as CompraItem[])
+          setFetchLoading(false)
+        }
+      })
+    return () => { cancelled = true }
+  }, [mesRefFatura])
+
+  // Reset selection when data source changes
+  useEffect(() => { setSelected(null) }, [comprasProp, mesRefFatura])
+
+  const compras = comprasProp ?? fetchedCompras
+  const loading = loadingProp ?? fetchLoading
+
+  // Callback ref — correctly sets up ResizeObserver whenever the div mounts
+  // (fixes the case where loading=true delays the div mount past the initial useEffect)
+  const observerRef = useRef<ResizeObserver | null>(null)
+  const containerCb = useCallback((el: HTMLDivElement | null) => {
+    if (observerRef.current) {
+      observerRef.current.disconnect()
+      observerRef.current = null
+    }
     if (!el) return
     const ro = new ResizeObserver(entries => {
       setCW(entries[0].contentRect.width)
     })
     ro.observe(el)
-    return () => ro.disconnect()
+    observerRef.current = ro
   }, [])
-
-  // Reset selection when data changes
-  useEffect(() => { setSelected(null) }, [compras])
 
   const categories = useMemo<CategoryItem[]>(() => {
     if (!compras.length) return []
@@ -166,7 +206,6 @@ export default function CategoryTreemap({ compras, loading }: Props) {
     }
 
     const totalVal = compras.reduce((s, c) => s + c.valor, 0)
-
     const sorted = [...map.entries()].sort(([, a], [, b]) => b.valor - a.valor)
 
     const main: CategoryItem[] = sorted
@@ -213,7 +252,7 @@ export default function CategoryTreemap({ compras, loading }: Props) {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-card mb-3">
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-card mb-4">
         <div className="px-4 pt-3 pb-2 flex items-center justify-between">
           <div className="h-3.5 w-20 bg-gray-200 rounded-xl animate-pulse" />
           <div className="h-6 w-28 bg-gray-100 rounded-xl animate-pulse" />
@@ -226,13 +265,13 @@ export default function CategoryTreemap({ compras, loading }: Props) {
   if (!compras.length) return null
 
   return (
-    <div className="bg-white rounded-3xl border border-gray-100 shadow-card mb-3 overflow-hidden">
+    <div className="bg-white rounded-3xl border border-gray-100 shadow-card mb-4 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-3 pb-2">
         <div className="flex items-center gap-1.5">
           <LayoutGrid className="w-3.5 h-3.5 text-gray-400" />
           <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            Categorias
+            Categorias da Fatura
           </span>
         </div>
         <div className="flex rounded-xl overflow-hidden border border-gray-200">
@@ -263,15 +302,15 @@ export default function CategoryTreemap({ compras, loading }: Props) {
 
       {/* Treemap canvas */}
       <div
-        ref={ref}
+        ref={containerCb}
         className="relative mx-3 mb-3 rounded-2xl overflow-hidden bg-gray-50"
         style={{ height: TREEMAP_H }}
       >
         {cW > 0 &&
           blocks.map(block => {
-            const area = block.w * block.h
-            const showName = area >= 2000
-            const showValue = area >= 6000
+            // Dimension-based thresholds — more reliable than area alone
+            const showName = block.w >= 36 && block.h >= 26
+            const showValue = block.w >= 52 && block.h >= 40
             const isSelected = selected?.label === block.label
 
             return (
@@ -288,7 +327,7 @@ export default function CategoryTreemap({ compras, loading }: Props) {
                   backgroundColor: block.color,
                   transform: isSelected ? 'scale(0.97)' : 'scale(1)',
                   transition: 'transform 150ms ease, filter 150ms ease',
-                  filter: isSelected ? 'brightness(1.08)' : 'brightness(1)',
+                  filter: isSelected ? 'brightness(1.1)' : 'brightness(1)',
                 }}
                 aria-label={`${block.label}: ${formatBRL(block.valor)}`}
               >
@@ -306,8 +345,8 @@ export default function CategoryTreemap({ compras, loading }: Props) {
                     <p
                       className="font-bold leading-tight text-white truncate"
                       style={{
-                        fontSize: area >= 9000 ? 13 : 10,
-                        textShadow: '0 1px 3px rgba(0,0,0,0.28)',
+                        fontSize: block.w >= 90 && block.h >= 60 ? 13 : 10,
+                        textShadow: '0 1px 3px rgba(0,0,0,0.3)',
                       }}
                     >
                       {block.label}
@@ -315,8 +354,8 @@ export default function CategoryTreemap({ compras, loading }: Props) {
                   )}
                   {showValue && (
                     <p
-                      className="text-[9px] font-semibold text-white/75 leading-tight truncate num mt-0.5"
-                      style={{ textShadow: '0 1px 2px rgba(0,0,0,0.22)' }}
+                      className="text-[9px] font-semibold text-white/80 leading-tight truncate num mt-0.5"
+                      style={{ textShadow: '0 1px 2px rgba(0,0,0,0.25)' }}
                     >
                       {formatBRL(block.valor)}
                     </p>
@@ -362,9 +401,7 @@ export default function CategoryTreemap({ compras, loading }: Props) {
                 </div>
                 <div className="bg-white/60 rounded-xl p-1.5">
                   <p className="text-[9px] text-gray-400 font-medium leading-tight">Compras</p>
-                  <p className="text-[11px] font-bold text-gray-900 mt-0.5">
-                    {selected.contagem}×
-                  </p>
+                  <p className="text-[11px] font-bold text-gray-900 mt-0.5">{selected.contagem}×</p>
                 </div>
                 <div className="bg-white/60 rounded-xl p-1.5">
                   <p className="text-[9px] text-gray-400 font-medium leading-tight">Médio</p>
