@@ -1,15 +1,21 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, memo } from 'react'
 import ModalPortal from '@/components/ModalPortal'
-import { Send, Bot, User, Sparkles, Trash2, Plus, History, X, MessageSquare, ChevronRight } from 'lucide-react'
+import {
+  Send, Sparkles, User, Trash2, Plus, History, X,
+  MessageSquare, ChevronRight, TrendingUp, BarChart2, Calendar, PieChart,
+} from 'lucide-react'
 import NotificacoesBell from '@/components/NotificacoesBell'
 import { supabase } from '@/lib/supabaseClient'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 
 interface Mensagem {
+  id: string
   role: 'user' | 'assistant'
   content: string
-  ts?: number
+  ts: number
 }
 
 interface ConversaItem {
@@ -19,29 +25,46 @@ interface ConversaItem {
   message_count: number
 }
 
-const SUGESTOES = [
-  'Como estamos no orçamento esse mês?',
-  'Quais foram os 5 maiores gastos?',
-  'Compare esse mês com o anterior',
+const SUGESTOES_PRIMARIAS = [
+  { texto: 'Como estamos no orçamento esse mês?', icon: TrendingUp },
+  { texto: 'Quais foram os maiores gastos?', icon: BarChart2 },
+  { texto: 'Compare esse mês com o anterior', icon: Calendar },
+  { texto: 'Qual categoria cresceu mais?', icon: PieChart },
+]
+
+const SUGESTOES_SECUNDARIAS = [
   'Quanto cada um gastou?',
-  'Quais categorias gastamos mais?',
+  'Quais assinaturas pesam mais?',
   'Estamos dentro do planejado?',
+  'Algum gasto fora do padrão?',
+]
+
+const FOLLOWUPS = [
+  'Aprofunde a análise',
+  'Compare com o mês passado',
+  'Quais são as maiores despesas?',
+  'Como posso economizar?',
+  'Alguma tendência preocupante?',
+  'O que devo priorizar?',
 ]
 
 function parseInline(line: string): React.ReactNode[] {
-  const parts = line.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g)
+  // \*\*[^*]+(?:\*[^*]+)*\*\* allows single * inside bold (e.g. **2*3**)
+  const parts = line.split(/(\*\*[^*]+(?:\*[^*]+)*\*\*|\*[^*]+\*|`[^`]+`|R\$\s*[\d.,]+)/g)
   return parts.map((part, idx) => {
     if (part.startsWith('**') && part.endsWith('**'))
-      return <strong key={idx}>{part.slice(2, -2)}</strong>
+      return <strong key={idx} className="font-semibold">{part.slice(2, -2)}</strong>
     if (part.startsWith('*') && part.endsWith('*'))
       return <em key={idx}>{part.slice(1, -1)}</em>
     if (part.startsWith('`') && part.endsWith('`'))
-      return <code key={idx} className="bg-gray-100 px-1 rounded text-[11px] font-mono">{part.slice(1, -1)}</code>
+      return <code key={idx} className="bg-gray-100 dark:bg-gray-700 px-1 rounded text-[11px] font-mono">{part.slice(1, -1)}</code>
+    if (/^R\$\s*[\d.,]+$/.test(part))
+      return <span key={idx} className="font-semibold tabular-nums">{part}</span>
     return part
   })
 }
 
-function MarkdownContent({ text }: { text: string }) {
+const MarkdownContent = memo(function MarkdownContent({ text }: { text: string }) {
   const lines = text.split('\n')
   const elements: React.ReactNode[] = []
   let i = 0
@@ -49,37 +72,70 @@ function MarkdownContent({ text }: { text: string }) {
   while (i < lines.length) {
     const line = lines[i]
 
-    if (line.startsWith('### ')) {
-      elements.push(<p key={i} className="font-bold text-gray-800 mt-2 mb-0.5">{parseInline(line.slice(4))}</p>)
-    } else if (line.startsWith('## ') || line.startsWith('# ')) {
-      const slice = line.startsWith('## ') ? 3 : 2
-      elements.push(<p key={i} className="font-bold text-gray-900 text-base mt-3 mb-1">{parseInline(line.slice(slice))}</p>)
+    if (line.startsWith('# ')) {
+      elements.push(
+        <h1 key={i} className="text-base font-bold text-gray-900 dark:text-gray-100 mt-3 mb-1">
+          {parseInline(line.slice(2))}
+        </h1>
+      )
+    } else if (line.startsWith('## ')) {
+      elements.push(
+        <h2 key={i} className="text-sm font-bold text-gray-800 dark:text-gray-200 mt-2.5 mb-1">
+          {parseInline(line.slice(3))}
+        </h2>
+      )
+    } else if (line.startsWith('### ')) {
+      elements.push(
+        <h3 key={i} className="text-sm font-semibold text-gray-700 dark:text-gray-300 mt-2 mb-0.5">
+          {parseInline(line.slice(4))}
+        </h3>
+      )
+    } else if (line.startsWith('> ')) {
+      elements.push(
+        <blockquote key={i} className="border-l-2 border-primary-300 dark:border-primary-600 pl-3 text-gray-600 dark:text-gray-400 italic my-1">
+          {parseInline(line.slice(2))}
+        </blockquote>
+      )
+    } else if (line.trim() === '---' || line.trim() === '***') {
+      elements.push(<hr key={i} className="border-gray-200 dark:border-gray-600 my-2" />)
     } else if (line.match(/^[-*] /)) {
       const items: React.ReactNode[] = []
       while (i < lines.length && lines[i].match(/^[-*] /)) {
-        items.push(<li key={i}>{parseInline(lines[i].slice(2))}</li>)
+        items.push(<li key={i} className="leading-relaxed">{parseInline(lines[i].slice(2))}</li>)
         i++
       }
-      elements.push(<ul key={`ul-${i}`} className="list-disc pl-4 space-y-0.5 my-1">{items}</ul>)
+      elements.push(
+        <ul key={`ul-${i}`} className="list-disc pl-4 space-y-1 my-1.5">
+          {items}
+        </ul>
+      )
       continue
     } else if (line.match(/^\d+\. /)) {
       const items: React.ReactNode[] = []
       while (i < lines.length && lines[i].match(/^\d+\. /)) {
-        items.push(<li key={i}>{parseInline(lines[i].replace(/^\d+\. /, ''))}</li>)
+        items.push(<li key={i} className="leading-relaxed">{parseInline(lines[i].replace(/^\d+\. /, ''))}</li>)
         i++
       }
-      elements.push(<ol key={`ol-${i}`} className="list-decimal pl-4 space-y-0.5 my-1">{items}</ol>)
+      elements.push(
+        <ol key={`ol-${i}`} className="list-decimal pl-4 space-y-1 my-1.5">
+          {items}
+        </ol>
+      )
       continue
     } else if (line.trim() === '') {
-      elements.push(<div key={i} className="h-1.5" />)
+      elements.push(<div key={i} className="h-2" />)
     } else {
-      elements.push(<p key={i} className="leading-relaxed">{parseInline(line)}</p>)
+      elements.push(
+        <p key={i} className="leading-relaxed text-gray-800 dark:text-gray-200">
+          {parseInline(line)}
+        </p>
+      )
     }
     i++
   }
 
-  return <div className="text-sm space-y-0.5">{elements}</div>
-}
+  return <div className="text-sm space-y-2">{elements}</div>
+})
 
 function convIdKey(userId: string) {
   return `chat_conv_id_${userId}`
@@ -88,13 +144,15 @@ function convIdKey(userId: string) {
 function formatarData(iso: string): string {
   const d = new Date(iso)
   const hoje = new Date()
-  const diff = hoje.getTime() - d.getTime()
-  const dias = Math.floor(diff / 86400000)
-
+  const dias = Math.floor((hoje.getTime() - d.getTime()) / 86400000)
   if (dias === 0) return 'Hoje'
   if (dias === 1) return 'Ontem'
   if (dias < 7) return `${dias} dias atrás`
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+}
+
+function newId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
 }
 
 export default function ChatPage() {
@@ -106,17 +164,34 @@ export default function ChatPage() {
   const [conversas, setConversas] = useState<ConversaItem[]>([])
   const [carregandoConversas, setCarregandoConversas] = useState(false)
   const fimRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const userIdRef = useRef<string>('anonymous')
   const convIdRef = useRef<string | null>(null)
+  const shouldScrollRef = useRef(true)
+
+  const mesAtual = format(new Date(), 'MMM/yyyy', { locale: ptBR }).toUpperCase()
+
+  function isNearBottom(): boolean {
+    const el = scrollRef.current
+    if (!el) return true
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 150
+  }
+
+  function autoGrow(el: HTMLTextAreaElement) {
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 128) + 'px'
+  }
 
   const carregarHistorico = useCallback(async (conversationId: string) => {
     const res = await fetch(`/api/chat/history?conversation_id=${conversationId}`)
     if (!res.ok) return []
     const json = await res.json()
     return (json.mensagens ?? []).map((m: { role: string; content: string }) => ({
+      id: newId(),
       role: m.role as 'user' | 'assistant',
       content: m.content,
+      ts: Date.now(),
     }))
   }, [])
 
@@ -127,7 +202,6 @@ export default function ChatPage() {
 
       let savedConvId: string | null = null
       try { savedConvId = localStorage.getItem(convIdKey(uid)) } catch { /* ignore */ }
-
       if (!savedConvId) return
       convIdRef.current = savedConvId
 
@@ -142,7 +216,9 @@ export default function ChatPage() {
   }, [carregarHistorico])
 
   useEffect(() => {
-    fimRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (shouldScrollRef.current) {
+      fimRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [mensagens, carregando])
 
   async function abrirDrawer() {
@@ -163,12 +239,8 @@ export default function ChatPage() {
     setMensagens([])
     setHistoricoRestaurado(false)
     setCarregando(true)
-
     convIdRef.current = conv.id
-    try {
-      localStorage.setItem(convIdKey(userIdRef.current), conv.id)
-    } catch { /* ignore */ }
-
+    try { localStorage.setItem(convIdKey(userIdRef.current), conv.id) } catch { /* ignore */ }
     try {
       const msgs = await carregarHistorico(conv.id)
       if (msgs.length > 0) {
@@ -176,7 +248,6 @@ export default function ChatPage() {
         setHistoricoRestaurado(true)
       }
     } catch { /* ignore */ }
-
     setCarregando(false)
   }
 
@@ -184,10 +255,16 @@ export default function ChatPage() {
     const conteudo = (texto ?? input).trim()
     if (!conteudo || carregando) return
 
-    const novaMensagem: Mensagem = { role: 'user', content: conteudo, ts: Date.now() }
+    // Always scroll for user's own message + loading indicator
+    shouldScrollRef.current = true
+
+    const novaMensagem: Mensagem = { id: newId(), role: 'user', content: conteudo, ts: Date.now() }
     const historicoOtimista = [...mensagens, novaMensagem]
     setMensagens(historicoOtimista)
     setInput('')
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto'
+    }
     setCarregando(true)
 
     try {
@@ -198,15 +275,14 @@ export default function ChatPage() {
           pergunta: conteudo,
           conversation_id: convIdRef.current ?? undefined,
           user_id: userIdRef.current,
+          tela: 'geral',
         }),
       })
       const data = await res.json()
 
       if (data.conversation_id && !convIdRef.current) {
         convIdRef.current = data.conversation_id
-        try {
-          localStorage.setItem(convIdKey(userIdRef.current), data.conversation_id)
-        } catch { /* ignore */ }
+        try { localStorage.setItem(convIdKey(userIdRef.current), data.conversation_id) } catch { /* ignore */ }
       }
 
       let content: string
@@ -224,9 +300,13 @@ export default function ChatPage() {
         content = 'Não consegui responder agora. Tente novamente em instantes.'
       }
 
-      setMensagens([...historicoOtimista, { role: 'assistant', content, ts: Date.now() }])
+      // Only scroll to AI response if user is still near the loading indicator
+      shouldScrollRef.current = isNearBottom()
+      setMensagens([...historicoOtimista, { id: newId(), role: 'assistant', content, ts: Date.now() }])
     } catch {
+      shouldScrollRef.current = isNearBottom()
       setMensagens([...historicoOtimista, {
+        id: newId(),
         role: 'assistant',
         content: 'Erro de conexão. Verifique sua internet e tente novamente.',
         ts: Date.now(),
@@ -264,8 +344,12 @@ export default function ChatPage() {
     }
   }
 
+  const ultimaMensagemAI = mensagens.length > 0 && mensagens[mensagens.length - 1].role === 'assistant'
+  const followupChips = FOLLOWUPS.slice(0, 4)
+
   return (
-    <div className="flex flex-col h-screen bg-gray-50 pb-16">
+    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 pb-16">
+
       {/* Drawer overlay */}
       {drawerAberto && (
         <ModalPortal>
@@ -276,96 +360,102 @@ export default function ChatPage() {
         </ModalPortal>
       )}
 
-      {/* Drawer de conversas anteriores */}
+      {/* Drawer de conversas */}
       <ModalPortal>
-      <div className={`fixed top-0 left-0 h-full w-80 lg:w-96 max-w-[85vw] bg-white z-[200] shadow-xl flex flex-col transition-transform duration-300 ${drawerAberto ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100">
-          <div className="flex items-center gap-2">
-            <History className="w-4 h-4 text-blue-500" />
-            <span className="font-semibold text-gray-800 text-sm">Conversas anteriores</span>
+        <div className={`fixed top-0 left-0 h-full w-80 lg:w-96 max-w-[85vw] bg-white dark:bg-gray-800 z-[200] shadow-xl flex flex-col transition-transform duration-300 ${drawerAberto ? 'translate-x-0' : '-translate-x-full'}`}>
+          <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100 dark:border-gray-700">
+            <div className="flex items-center gap-2">
+              <History className="w-4 h-4 text-blue-500" />
+              <span className="font-semibold text-gray-800 dark:text-gray-200 text-sm">Conversas anteriores</span>
+            </div>
+            <button
+              onClick={() => setDrawerAberto(false)}
+              className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 transition"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
+
           <button
-            onClick={() => setDrawerAberto(false)}
-            className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 transition"
+            onClick={() => { novaConversa(); setDrawerAberto(false) }}
+            className="mx-3 mt-3 mb-1 flex items-center gap-2 px-3 py-2.5 rounded-xl border border-primary-200 dark:border-primary-800 bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 text-sm font-medium hover:bg-primary-100 dark:hover:bg-primary-900/40 transition"
           >
-            <X className="w-4 h-4" />
+            <Plus className="w-4 h-4" />
+            Nova conversa
           </button>
-        </div>
 
-        {/* Nova conversa */}
-        <button
-          onClick={() => { novaConversa(); setDrawerAberto(false) }}
-          className="mx-3 mt-3 mb-1 flex items-center gap-2 px-3 py-2.5 rounded-xl border border-primary-200 bg-primary-50 text-primary-600 text-sm font-medium hover:bg-primary-100 transition"
-        >
-          <Plus className="w-4 h-4" />
-          Nova conversa
-        </button>
-
-        <div className="flex-1 overflow-y-auto py-2">
-          {carregandoConversas ? (
-            <div className="flex justify-center py-8">
-              <div className="flex gap-1">
-                <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+          <div className="flex-1 overflow-y-auto py-2">
+            {carregandoConversas ? (
+              <div className="space-y-2 px-3 pt-2">
+                {[...Array(5)].map((_, idx) => (
+                  <div key={idx} className="skeleton h-14 rounded-xl" />
+                ))}
               </div>
-            </div>
-          ) : conversas.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 gap-2 text-gray-400">
-              <MessageSquare className="w-8 h-8" />
-              <p className="text-sm">Nenhuma conversa anterior</p>
-            </div>
-          ) : (
-            <ul className="space-y-0.5 px-2">
-              {conversas.map((conv) => {
-                const ativa = conv.id === convIdRef.current
-                return (
-                  <li key={conv.id}>
-                    <button
-                      onClick={() => selecionarConversa(conv)}
-                      className={`w-full text-left px-3 py-3 rounded-xl transition flex items-start gap-2.5 group ${
-                        ativa
-                          ? 'bg-primary-50 border border-primary-100'
-                          : 'hover:bg-gray-50'
-                      }`}
-                    >
-                      <div className={`mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${ativa ? 'bg-primary-100' : 'bg-gray-100'}`}>
-                        <Bot className={`w-3.5 h-3.5 ${ativa ? 'text-primary-500' : 'text-gray-400'}`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-xs font-medium truncate ${ativa ? 'text-primary-700' : 'text-gray-700'}`}>
-                          {conv.preview}
-                        </p>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="text-[10px] text-gray-400">{formatarData(conv.created_at)}</span>
-                          <span className="text-[10px] text-gray-300">·</span>
-                          <span className="text-[10px] text-gray-400">{conv.message_count} msgs</span>
+            ) : conversas.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-2 text-gray-400 dark:text-gray-500">
+                <MessageSquare className="w-8 h-8" />
+                <p className="text-sm">Nenhuma conversa anterior</p>
+              </div>
+            ) : (
+              <ul className="space-y-0.5 px-2">
+                {conversas.map((conv) => {
+                  const ativa = conv.id === convIdRef.current
+                  return (
+                    <li key={conv.id}>
+                      <button
+                        onClick={() => selecionarConversa(conv)}
+                        className={`w-full text-left px-3 py-3 rounded-xl transition flex items-start gap-2.5 group ${
+                          ativa
+                            ? 'bg-primary-50 dark:bg-primary-900/30 border border-primary-100 dark:border-primary-800'
+                            : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                        }`}
+                      >
+                        <div className={`mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+                          ativa ? 'bg-primary-100 dark:bg-primary-900' : 'bg-gray-100 dark:bg-gray-700'
+                        }`}>
+                          <Sparkles className={`w-3.5 h-3.5 ${ativa ? 'text-primary-500' : 'text-gray-400 dark:text-gray-500'}`} />
                         </div>
-                      </div>
-                      <ChevronRight className={`w-3.5 h-3.5 shrink-0 mt-1 text-gray-300 group-hover:text-gray-400 transition ${ativa ? 'text-primary-300' : ''}`} />
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-medium truncate ${
+                            ativa ? 'text-primary-700 dark:text-primary-400' : 'text-gray-700 dark:text-gray-300'
+                          }`}>
+                            {conv.preview}
+                          </p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[10px] text-gray-400">{formatarData(conv.created_at)}</span>
+                            <span className="text-[10px] text-gray-300 dark:text-gray-600">·</span>
+                            <span className="text-[10px] text-gray-400">{conv.message_count} msgs</span>
+                          </div>
+                        </div>
+                        <ChevronRight className={`w-3.5 h-3.5 shrink-0 mt-1 transition ${
+                          ativa ? 'text-primary-300' : 'text-gray-300 group-hover:text-gray-400'
+                        }`} />
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
         </div>
-      </div>
       </ModalPortal>
 
       {/* Header */}
-      <div className="sticky top-0 z-[10] sticky-header border-b border-gray-100 px-4 py-3 flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-primary-50 flex items-center justify-center shrink-0">
-          <Sparkles className="w-5 h-5 text-primary-600" />
+      <div className="sticky top-0 z-[10] sticky-header border-b border-gray-100 dark:border-gray-700/60 px-4 py-3 flex items-center gap-3">
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-sm">
+          <Sparkles className="w-5 h-5 text-white" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-gray-900 text-sm">Assistente Financeiro</p>
-          <p className="text-xs text-gray-400">Powered by Gemini</p>
+          <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm">Assistente Financeiro</p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+            <span className="text-[11px] text-gray-400 dark:text-gray-500">Analisando · {mesAtual}</span>
+          </div>
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={abrirDrawer}
-            className="p-2 text-gray-400 hover:text-primary-500 hover:bg-primary-50 rounded-xl transition"
+            className="p-2 text-gray-400 hover:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded-xl transition"
             title="Histórico de conversas"
           >
             <History className="w-4 h-4" />
@@ -374,14 +464,14 @@ export default function ChatPage() {
             <>
               <button
                 onClick={novaConversa}
-                className="p-2 text-gray-400 hover:text-primary-500 hover:bg-primary-50 rounded-xl transition"
+                className="p-2 text-gray-400 hover:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded-xl transition"
                 title="Nova conversa"
               >
                 <Plus className="w-4 h-4" />
               </button>
               <button
                 onClick={deletarConversa}
-                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition"
+                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition"
                 title="Excluir conversa"
               >
                 <Trash2 className="w-4 h-4" />
@@ -393,22 +483,39 @@ export default function ChatPage() {
       </div>
 
       {/* Mensagens */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-4">
+      <div
+        ref={scrollRef}
+        className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-4 py-4 pb-6 space-y-5"
+      >
         {mensagens.length === 0 && !carregando ? (
-          <div className="flex flex-col items-center justify-center py-8 gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-primary-50 flex items-center justify-center">
-              <Bot className="w-8 h-8 text-primary-400" />
+          <div className="flex flex-col items-center justify-center min-h-full py-8 gap-5">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-md">
+              <Sparkles className="w-8 h-8 text-white" />
             </div>
             <div className="text-center">
-              <p className="font-semibold text-gray-700">Olá! Sou seu assistente financeiro.</p>
-              <p className="text-sm text-gray-400 mt-1">Analiso os dados do mês e respondo suas perguntas.</p>
+              <p className="font-semibold text-gray-700 dark:text-gray-200 text-base">Olá! Sou seu assistente financeiro.</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Analiso os dados do mês e respondo suas perguntas.</p>
             </div>
-            <div className="w-full grid grid-cols-2 lg:grid-cols-4 gap-2 mt-1">
-              {SUGESTOES.map((s) => (
+
+            <div className="w-full grid grid-cols-2 gap-2.5 mt-1">
+              {SUGESTOES_PRIMARIAS.map(({ texto, icon: Icon }) => (
+                <button
+                  key={texto}
+                  onClick={() => enviar(texto)}
+                  className="text-left bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-4 py-3 hover:border-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 dark:hover:border-primary-700 transition active:scale-[0.98] shadow-card"
+                >
+                  <Icon className="w-4 h-4 text-primary-500 dark:text-primary-400 mb-2" />
+                  <p className="text-xs text-gray-600 dark:text-gray-400 leading-snug font-medium">{texto}</p>
+                </button>
+              ))}
+            </div>
+
+            <div className="w-full flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+              {SUGESTOES_SECUNDARIAS.map((s) => (
                 <button
                   key={s}
                   onClick={() => enviar(s)}
-                  className="text-left text-xs bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-gray-600 hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 transition leading-snug active:scale-[0.98]"
+                  className="shrink-0 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full px-3 py-1.5 hover:bg-primary-100 hover:text-primary-700 dark:hover:bg-primary-900/40 dark:hover:text-primary-400 transition whitespace-nowrap"
                 >
                   {s}
                 </button>
@@ -419,25 +526,28 @@ export default function ChatPage() {
           <>
             {historicoRestaurado && (
               <div className="flex justify-center">
-                <span className="text-[11px] text-gray-400 bg-gray-100 px-3 py-1 rounded-full">
+                <span className="text-[11px] text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">
                   Conversa anterior restaurada
                 </span>
               </div>
             )}
-            {mensagens.map((m, i) => (
-              <div key={i} className={`flex gap-2.5 ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+
+            {mensagens.map((m) => (
+              <div key={m.id} className={`flex gap-2.5 ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                  m.role === 'user' ? 'bg-primary-600' : 'bg-gray-100'
+                  m.role === 'user'
+                    ? 'bg-primary-600'
+                    : 'bg-gradient-to-br from-violet-500 to-indigo-600'
                 }`}>
                   {m.role === 'user'
                     ? <User className="w-4 h-4 text-white" />
-                    : <Bot className="w-4 h-4 text-gray-500" />
+                    : <Sparkles className="w-3.5 h-3.5 text-white" />
                   }
                 </div>
-                <div className={`max-w-[82%] lg:max-w-[65%] rounded-2xl px-4 py-2.5 ${
+                <div className={`max-w-[85%] sm:max-w-[78%] lg:max-w-2xl rounded-2xl ${
                   m.role === 'user'
-                    ? 'bg-primary-600 text-white rounded-tr-sm text-sm leading-relaxed'
-                    : 'bg-white text-gray-800 shadow-card border border-gray-100 rounded-tl-sm'
+                    ? 'bg-primary-600 text-white rounded-tr-sm px-4 py-2.5 text-sm leading-relaxed'
+                    : 'bg-white dark:bg-gray-800 text-gray-800 shadow-card border border-gray-100 dark:border-gray-700 rounded-tl-sm px-5 py-4'
                 }`}>
                   {m.role === 'user'
                     ? m.content
@@ -446,18 +556,37 @@ export default function ChatPage() {
                 </div>
               </div>
             ))}
+
+            {/* Follow-up chips após última resposta da IA */}
+            {ultimaMensagemAI && !carregando && (
+              <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 pl-9">
+                {followupChips.map((chip) => (
+                  <button
+                    key={chip}
+                    onClick={() => enviar(chip)}
+                    className="shrink-0 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full px-3 py-1.5 hover:bg-primary-100 hover:text-primary-700 dark:hover:bg-primary-900/40 dark:hover:text-primary-400 transition whitespace-nowrap"
+                  >
+                    {chip}
+                  </button>
+                ))}
+              </div>
+            )}
           </>
         )}
 
+        {/* Indicador de carregamento */}
         {carregando && (
           <div className="flex gap-2.5">
-            <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-              <Bot className="w-4 h-4 text-gray-500" />
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0">
+              <Sparkles className="w-3.5 h-3.5 text-white" />
             </div>
-            <div className="bg-white shadow-sm rounded-2xl rounded-tl-sm px-4 py-3 flex gap-1 items-center">
-              <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-              <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-              <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            <div className="bg-white dark:bg-gray-800 shadow-card border border-gray-100 dark:border-gray-700 rounded-2xl rounded-tl-sm px-5 py-4 flex items-center gap-3">
+              <div className="flex gap-1 items-center">
+                <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-pulse" style={{ animationDelay: '0ms' }} />
+                <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-pulse" style={{ animationDelay: '200ms' }} />
+                <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-pulse" style={{ animationDelay: '400ms' }} />
+              </div>
+              <span className="text-xs text-gray-400 dark:text-gray-500">Analisando seus dados…</span>
             </div>
           </div>
         )}
@@ -466,18 +595,21 @@ export default function ChatPage() {
       </div>
 
       {/* Input */}
-      <div className="fixed bottom-16 lg:bottom-0 left-0 right-0 sticky-header border-t border-gray-100 px-4 py-3">
+      <div className="fixed bottom-16 lg:bottom-0 left-0 right-0 sticky-header border-t border-gray-100 dark:border-gray-700/60 px-4 py-3">
         <div className="max-w-md lg:max-w-3xl mx-auto flex gap-2 items-end">
           <textarea
             ref={inputRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value)
+              autoGrow(e.target)
+            }}
             onKeyDown={handleKeyDown}
             placeholder="Pergunte sobre suas finanças…"
             rows={1}
             disabled={carregando}
-            className="flex-1 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-shadow disabled:opacity-50 max-h-32"
-            style={{ lineHeight: '1.5' }}
+            className="flex-1 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-2xl px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-shadow disabled:opacity-50"
+            style={{ lineHeight: '1.5', overflow: 'hidden' }}
           />
           <button
             onClick={() => enviar()}
