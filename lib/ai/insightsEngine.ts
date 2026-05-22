@@ -37,15 +37,25 @@ function topCategories(lista: Transacao[], total: number, n = 6): CategoryMetric
     }))
 }
 
+// For a single purchase, use the actual purchase date as the effective month.
+// For installment parcels (total_parcelas > 1), use projeto_fatura so each
+// parcel lands in its correct billing month instead of all in the original month.
+function getMesEfetivo(t: Transacao): string {
+  if (t.total_parcelas && t.total_parcelas > 1) {
+    return (t.projeto_fatura ?? '').substring(0, 7)
+  }
+  return (t.data ?? t.projeto_fatura ?? '').substring(0, 7)
+}
+
 export function computeInsights(data: EnrichedData): FinancialInsightsContext {
   const hoje = new Date()
   const mesAtual = format(hoje, 'yyyy-MM')
   const mesAnterior = format(subMonths(hoje, 1), 'yyyy-MM')
 
-  // Group transactions by bill month
+  // Group by effective month: purchase date for singles, fatura month for parcels
   const byMes: Record<string, Transacao[]> = {}
   for (const t of data.transacoes) {
-    const m = (t.projeto_fatura ?? '').substring(0, 7)
+    const m = getMesEfetivo(t)
     if (!byMes[m]) byMes[m] = []
     byMes[m].push(t)
   }

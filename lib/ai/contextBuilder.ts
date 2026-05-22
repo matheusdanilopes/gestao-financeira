@@ -132,6 +132,16 @@ function topCats(lista: Transacao[], n: number): Array<[string, number]> {
   return Object.entries(acc).sort((a, b) => b[1] - a[1]).slice(0, n)
 }
 
+// ─── Effective month: purchase date for singles, fatura for installments ──────
+// Mirrors getMesEfetivo in insightsEngine.ts
+
+function getMesEfetivo(t: Transacao): string {
+  if (t.total_parcelas && t.total_parcelas > 1) {
+    return (t.projeto_fatura ?? '').substring(0, 7)
+  }
+  return (t.data ?? t.projeto_fatura ?? '').substring(0, 7)
+}
+
 // ─── Historical context (tiered detail) ──────────────────────────────────────
 
 function buildHistoricalContext(
@@ -141,9 +151,10 @@ function buildHistoricalContext(
   const hoje = new Date()
   const mesAtual = format(hoje, 'yyyy-MM')
 
+  // Use effective month: purchase date for single purchases, fatura for parcels
   const tpm: Record<string, Transacao[]> = {}
   for (const t of data.transacoes) {
-    const m = (t.projeto_fatura ?? '').substring(0, 7)
+    const m = getMesEfetivo(t)
     if (!tpm[m]) tpm[m] = []
     tpm[m].push(t)
   }
@@ -261,43 +272,94 @@ function buildHistoricalContext(
   return ctx
 }
 
-// ─── Category focus context ───────────────────────────────────────────────────
+// ─── Category / description focus context ────────────────────────────────────
 
-function buildCategoryFocus(data: EnrichedData, categorias: string[]): string {
-  if (categorias.length === 0) return ''
+function buildCategoryFocus(
+  data: EnrichedData,
+  categorias: string[],
+  descricaoFoco: string[],
+  responsavelFoco: string | null
+): string {
+  if (categorias.length === 0 && descricaoFoco.length === 0) return ''
 
-  let ctx = `\n══ ANÁLISE POR CATEGORIA ══\n`
-  for (const cat of categorias) {
-    const txCat = data.transacoes.filter(t => t.categoria === cat)
-    if (txCat.length === 0) continue
-    const totalCat = txCat.reduce((a, t) => a + t.valor, 0)
-    const porMes = Object.entries(
-      txCat.reduce((acc, t) => {
-        const m = (t.projeto_fatura ?? '').substring(0, 7)
-        acc[m] = (acc[m] ?? 0) + t.valor
-        return acc
-      }, {} as Record<string, number>)
-    ).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 12)
+  let ctx = `\n══ ANÁLISE FOCADA ══\n`
 
-    // Per-card totals in category
-    const porCartaoCat: Record<string, number> = {}
-    for (const t of txCat) {
-      const c = t.cartao ?? 'nubank'
-      porCartaoCat[c] = (porCartaoCat[c] ?? 0) + t.valor
-    }
-    const cartaoInfo = Object.keys(porCartaoCat).length > 1
-      ? ` | por cartão: ${Object.entries(porCartaoCat).map(([c, v]) => `${c} ${fmtR(v)}`).join(', ')}`
-      : ''
+  // Build combined search: by category OR by description keyword
+  const descLower = descricaoFoco.map(d => d.toLowerCase())
 
-    ctx += `\n${cat}: ${fmtR(totalCat)} total histórico${cartaoInfo}\n`
-    ctx += `  Mensal: ${porMes.map(([m, v]) => `${fmtMes(m)} ${fmtR(v)}`).join(' · ')}\n`
-    const topTx = [...txCat].sort((a, b) => b.valor - a.valor).slice(0, 5)
-    const allCatCards = new Set(txCat.map(t => t.cartao ?? 'nubank'))
-    ctx += `  Maiores: ${topTx.map(t => {
-      const label = allCatCards.size > 1 ? ` [${t.cartao ?? 'nubank'}]` : ''
-      return `${t.descricao}${label} ${fmtR(t.valor)}`
-    }).join(', ')}\n`
+  const allFocused = categorias.length > 0 || descricaoFoco.length > 0
+    ? data.transacoes.filter(t => {
+        const matchCat = categorias.length > 0 && categorias.includes(t.categoria ?? '')
+        const matchDesc = descLower.length > 0 &&
+          descLower.some(kw => (t.descricao ?? '').toLowerCase().includes(kw))
+        return matchCat || matchDesc
+      })
+    : []
+
+  if (allFocused.length === 0) {
+    ctx += `  Nenhuma transação encontrada para os critérios: ${[...categorias, ...descricaoFoco].join(', ')}\n`
+    return ctx
   }
+
+  // Apply responsavel filter if specified, but show full total too
+  const filtered = responsavelFoco
+    ? allFocused.filter(t => t.responsavel === responsavelFoco)
+    : allFocused
+
+  const totalGeral = allFocused.reduce((a, t) => a + t.valor, 0)
+  const totalFiltrado = filtered.reduce((a, t) => a + t.valor, 0)
+
+  // Responsavel breakdown
+  const porPessoa: Record<string, number> = {}
+  for (const t of allFocused) {
+    porPessoa[t.responsavel] = (porPessoa[t.responsavel] ?? 0) + t.valor
+  }
+
+  const responsavelStr = Object.entries(porPessoa)
+    .sort((a, b) => b[1] - a[1])
+    .map(([r, v]) => `${r}: ${fmtR(v)}`)
+    .join(' | ')
+
+  // Per-card totals
+  const porCartao: Record<string, number> = {}
+  for (const t of allFocused) {
+    const c = t.cartao ?? 'nubank'
+    porCartao[c] = (porCartao[c] ?? 0) + t.valor
+  }
+  const multiCard = Object.keys(porCartao).length > 1
+  const cartaoStr = multiCard
+    ? ` | cartões: ${Object.entries(porCartao).map(([c, v]) => `${c} ${fmtR(v)}`).join(', ')}`
+    : ''
+
+  const label = [...categorias, ...descricaoFoco].join(' + ')
+  ctx += `\n${label.toUpperCase()}: ${fmtR(totalGeral)} total histórico\n`
+  ctx += `  Por responsável: ${responsavelStr}${cartaoStr}\n`
+
+  if (responsavelFoco && totalFiltrado !== totalGeral) {
+    ctx += `  ► Filtrado para ${responsavelFoco}: ${fmtR(totalFiltrado)}\n`
+  }
+
+  // Monthly breakdown for focused person (or all if no filter)
+  const txForMes = responsavelFoco ? filtered : allFocused
+  const porMes = Object.entries(
+    txForMes.reduce((acc, t) => {
+      const m = getMesEfetivo(t)
+      acc[m] = (acc[m] ?? 0) + t.valor
+      return acc
+    }, {} as Record<string, number>)
+  ).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 12)
+
+  ctx += `  Mensal${responsavelFoco ? ` (${responsavelFoco})` : ''}: ${porMes.map(([m, v]) => `${fmtMes(m)} ${fmtR(v)}`).join(' · ')}\n`
+
+  // Top transactions (focused person or all)
+  const topTx = [...txForMes].sort((a, b) => b.valor - a.valor).slice(0, 10)
+  ctx += `  Transações${responsavelFoco ? ` (${responsavelFoco})` : ''}:\n`
+  for (const t of topTx) {
+    const cartaoLabel = multiCard ? ` [${t.cartao ?? 'nubank'}]` : ''
+    const mesLabel = getMesEfetivo(t)
+    ctx += `    ${t.responsavel[0]} ${t.descricao}${cartaoLabel} — ${fmtR(t.valor)} (${fmtMes(mesLabel)}) [${t.categoria ?? 'sem cat'}]\n`
+  }
+
   return ctx
 }
 
@@ -307,7 +369,32 @@ type Intent = {
   tipo: 'atual' | 'comparativo' | 'historico' | 'categoria' | 'planejamento' | 'geral'
   mesesFoco: string[]
   categoriasFoco: string[]
+  descricaoFoco: string[]   // raw description keywords (e.g. 'uber', 'ifood', 'netflix')
+  responsavelFoco: string | null  // 'Matheus' | 'Jeniffer' | null
 }
+
+// Maps raw keyword → category.  Also used to extract descricaoFoco.
+const CAT_KEYWORD_MAP: Record<string, string[]> = {
+  'Alimentação': ['alimenta', 'comida', 'restaurante', 'refeição', 'refeicao', 'ifood', 'delivery', 'padaria', 'lanche'],
+  'Mercado': ['mercado', 'supermercado', 'hortifruti', 'açougue', 'acougue'],
+  'Saúde': ['saúde', 'saude', 'médico', 'medico', 'farmácia', 'farmacia', 'remédio', 'remedio', 'consulta', 'pilates', 'academia'],
+  'Transporte': ['transporte', 'combustível', 'combustivel', 'gasolina', 'uber', 'táxi', 'taxi', 'uberrides'],
+  'Entretenimento': ['entretenimento', 'lazer', 'netflix', 'streaming', 'cinema', 'jogo', 'spotify', 'disney', 'hbo'],
+  'Educação': ['educação', 'educacao', 'escola', 'faculdade', 'curso', 'livro'],
+  'Moradia': ['aluguel', 'condomínio', 'condominio', 'energia', 'internet', 'casa', 'água', 'agua', 'luz'],
+  'Vestuário': ['roupa', 'vestuário', 'vestuario', 'calçado', 'calcado', 'moda', 'sapato'],
+  'Tecnologia': ['tecnologia', 'celular', 'computador', 'eletrônico', 'eletronico', 'apple', 'samsung'],
+  'Viagem': ['viagem', 'hotel', 'passagem', 'aéreo', 'aereo', 'turismo', 'airbnb'],
+}
+
+// Direct description keywords that should trigger a description-level search
+const DESCRICAO_KEYWORDS = [
+  'uber', 'ifood', 'rappi', 'netflix', 'spotify', 'amazon', 'mercado livre',
+  'shopee', 'shein', 'americanas', 'magazine', 'casas bahia', 'ponto frio',
+  'nubank', 'picpay', 'pagbank', 'itau', 'bradesco', 'santander',
+  'pilates', 'academia', 'gym', 'sephora', 'renner', 'riachuelo',
+  'postos', 'shell', 'petrobras', 'posto', 'gasolina',
+]
 
 function detectarIntencao(pergunta: string): Intent {
   const p = pergunta.toLowerCase()
@@ -336,32 +423,27 @@ function detectarIntencao(pergunta: string): Intent {
     if (!mesesFoco.includes(mp)) mesesFoco.push(mp)
   }
 
-  const catKeywords: Record<string, string[]> = {
-    'Alimentação': ['alimenta', 'comida', 'restaurante', 'refeição', 'ifood', 'delivery', 'padaria'],
-    'Mercado': ['mercado', 'supermercado', 'hortifruti', 'açougue'],
-    'Saúde': ['saúde', 'saude', 'médico', 'medico', 'farmácia', 'farmacia', 'remédio', 'consulta'],
-    'Transporte': ['transporte', 'combustível', 'combustivel', 'gasolina', 'uber', 'táxi', 'taxi'],
-    'Entretenimento': ['entretenimento', 'lazer', 'netflix', 'streaming', 'cinema', 'jogo', 'spotify'],
-    'Educação': ['educação', 'educacao', 'escola', 'faculdade', 'curso', 'livro'],
-    'Moradia': ['aluguel', 'condomínio', 'condominio', 'energia', 'internet', 'casa'],
-    'Vestuário': ['roupa', 'vestuário', 'vestuario', 'calçado', 'moda'],
-    'Tecnologia': ['tecnologia', 'celular', 'computador', 'eletrônico', 'eletronico'],
-    'Viagem': ['viagem', 'hotel', 'passagem', 'aéreo', 'aereo', 'turismo'],
-  }
-
   const categoriasFoco: string[] = []
-  for (const [cat, kws] of Object.entries(catKeywords)) {
+  for (const [cat, kws] of Object.entries(CAT_KEYWORD_MAP)) {
     if (kws.some(kw => p.includes(kw))) categoriasFoco.push(cat)
   }
+
+  // Extract specific description keywords mentioned in the query
+  const descricaoFoco = DESCRICAO_KEYWORDS.filter(kw => p.includes(kw))
+
+  // Detect responsavel filter (Matheus or Jeniffer)
+  let responsavelFoco: string | null = null
+  if (/\bjeniffer\b/.test(p)) responsavelFoco = 'Jeniffer'
+  else if (/\bmatheus\b/.test(p)) responsavelFoco = 'Matheus'
 
   let tipo: Intent['tipo'] = 'atual'
   if (/planejamento|orçamento|orcamento|previsto|budget/.test(p)) tipo = 'planejamento'
   else if (/compar|versus|evolução|evolu|tendência|tendencia|variação|varia/.test(p)) tipo = 'comparativo'
   else if (/histórico|historico|média\s*mensal|todos\s*os\s*meses/.test(p)) tipo = 'historico'
-  else if (categoriasFoco.length > 0 && mesesFoco.length === 0) tipo = 'categoria'
+  else if ((categoriasFoco.length > 0 || descricaoFoco.length > 0) && mesesFoco.length === 0) tipo = 'categoria'
   else if (mesesFoco.length > 0 && !mesesFoco.includes(mesAtual)) tipo = 'historico'
 
-  return { tipo, mesesFoco, categoriasFoco }
+  return { tipo, mesesFoco, categoriasFoco, descricaoFoco, responsavelFoco }
 }
 
 // ─── Main builder ─────────────────────────────────────────────────────────────
@@ -389,7 +471,12 @@ export async function buildAIContext(
   }
 
   const historico = buildHistoricalContext(data, mesesFoco)
-  const catFocus = buildCategoryFocus(data, intent.categoriasFoco)
+  const catFocus = buildCategoryFocus(
+    data,
+    intent.categoriasFoco,
+    intent.descricaoFoco,
+    intent.responsavelFoco
+  )
 
   // Subscription detail for assinaturas screen
   let assinaturasDetail = ''
