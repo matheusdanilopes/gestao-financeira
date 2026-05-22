@@ -100,6 +100,7 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
       valor: t.valor,
       categoria: t.categoria ?? 'Sem categoria',
       responsavel: t.responsavel,
+      cartao: t.cartao ?? 'nubank',
     }))
 
   // Spending by card
@@ -240,7 +241,8 @@ export function formatInsightsAsText(ins: FinancialInsightsContext): string {
 
   out += `\nMAIORES COMPRAS:\n`
   for (const g of ins.maioresGastos) {
-    out += `  ${g.responsavel[0]} ${g.descricao} — ${fmtR(g.valor)} [${g.categoria}]\n`
+    const cartaoLabel = g.cartao !== 'nubank' ? ` {${g.cartao}}` : ''
+    out += `  ${g.responsavel[0]} ${g.descricao}${cartaoLabel} — ${fmtR(g.valor)} [${g.categoria}]\n`
   }
 
   if (ins.comprasParceladas.count > 0) {

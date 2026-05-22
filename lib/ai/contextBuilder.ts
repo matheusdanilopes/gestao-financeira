@@ -165,6 +165,10 @@ function buildHistoricalContext(
 
   let ctx = ''
 
+  // Detect which cards appear across all transactions (used to decide whether to show card labels)
+  const allCards = new Set(data.transacoes.map(t => t.cartao ?? 'nubank'))
+  const multiCartao = allCards.size > 1
+
   // Full detail months
   const detailMeses = meses.filter(m => detalhe.has(m) && (tpm[m]?.length ?? 0) > 0)
   if (detailMeses.length > 0) {
@@ -178,13 +182,28 @@ function buildHistoricalContext(
       const totalPlan = plan.reduce((a, p) => a + p.valor_previsto, 0)
 
       ctx += `\n▌ ${fmtMes(m)} — ${fmtR(total)} | M: ${fmtR(mat)} | J: ${fmtR(jen)}\n`
+
+      // Per-card breakdown when multiple cards exist
+      if (multiCartao) {
+        const porCartao: Record<string, number> = {}
+        for (const t of lista) {
+          const c = t.cartao ?? 'nubank'
+          porCartao[c] = (porCartao[c] ?? 0) + t.valor
+        }
+        ctx += `  Por cartão: ${Object.entries(porCartao).map(([c, v]) => `${c} ${fmtR(v)}`).join(' | ')}\n`
+      }
+
       ctx += `  Categorias: ${topCats(lista, 5).map(([c, v]) => `${c} ${fmtR(v)}`).join(' · ')}\n`
       if (totalPlan > 0) {
         const delta = total - totalPlan
         ctx += `  Orçamento: previsto ${fmtR(totalPlan)} | realizado ${fmtR(total)} | delta ${delta >= 0 ? '+' : ''}${fmtR(delta)}\n`
       }
       const top = [...lista].sort((a, b) => b.valor - a.valor).slice(0, 10)
-      ctx += `  Maiores: ${top.map(t => `${t.descricao} ${fmtR(t.valor)}`).join(', ')}\n`
+      ctx += `  Maiores compras:\n`
+      for (const t of top) {
+        const cartaoLabel = multiCartao ? ` [${t.cartao ?? 'nubank'}]` : ''
+        ctx += `    ${t.responsavel[0]} ${t.descricao}${cartaoLabel} ${fmtR(t.valor)}${t.categoria ? ` (${t.categoria})` : ''}\n`
+      }
     }
   }
 
@@ -201,7 +220,13 @@ function buildHistoricalContext(
       if (lista.length === 0) continue
       const total = lista.reduce((a, t) => a + t.valor, 0)
       const cats = topCats(lista, 4).map(([c, v]) => `${c} ${fmtR(v)}`).join(' · ')
-      ctx += `  ${fmtMes(m)}: ${fmtR(total)} — ${cats}\n`
+      let line = `  ${fmtMes(m)}: ${fmtR(total)} — ${cats}`
+      if (multiCartao) {
+        const porCartao: Record<string, number> = {}
+        for (const t of lista) { const c = t.cartao ?? 'nubank'; porCartao[c] = (porCartao[c] ?? 0) + t.valor }
+        line += ` | cartões: ${Object.entries(porCartao).map(([c, v]) => `${c} ${fmtR(v)}`).join(', ')}`
+      }
+      ctx += line + '\n'
     }
   }
 
@@ -254,10 +279,24 @@ function buildCategoryFocus(data: EnrichedData, categorias: string[]): string {
       }, {} as Record<string, number>)
     ).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 12)
 
-    ctx += `\n${cat}: ${fmtR(totalCat)} total histórico\n`
+    // Per-card totals in category
+    const porCartaoCat: Record<string, number> = {}
+    for (const t of txCat) {
+      const c = t.cartao ?? 'nubank'
+      porCartaoCat[c] = (porCartaoCat[c] ?? 0) + t.valor
+    }
+    const cartaoInfo = Object.keys(porCartaoCat).length > 1
+      ? ` | por cartão: ${Object.entries(porCartaoCat).map(([c, v]) => `${c} ${fmtR(v)}`).join(', ')}`
+      : ''
+
+    ctx += `\n${cat}: ${fmtR(totalCat)} total histórico${cartaoInfo}\n`
     ctx += `  Mensal: ${porMes.map(([m, v]) => `${fmtMes(m)} ${fmtR(v)}`).join(' · ')}\n`
     const topTx = [...txCat].sort((a, b) => b.valor - a.valor).slice(0, 5)
-    ctx += `  Maiores: ${topTx.map(t => `${t.descricao} ${fmtR(t.valor)}`).join(', ')}\n`
+    const allCatCards = new Set(txCat.map(t => t.cartao ?? 'nubank'))
+    ctx += `  Maiores: ${topTx.map(t => {
+      const label = allCatCards.size > 1 ? ` [${t.cartao ?? 'nubank'}]` : ''
+      return `${t.descricao}${label} ${fmtR(t.valor)}`
+    }).join(', ')}\n`
   }
   return ctx
 }

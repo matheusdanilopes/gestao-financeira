@@ -82,7 +82,7 @@ export interface FinancialInsightsContext {
   gastoMatheus: number
   gastoJeniffer: number
   topCategorias: CategoryMetric[]
-  maioresGastos: Array<{ descricao: string; valor: number; categoria: string; responsavel: string }>
+  maioresGastos: Array<{ descricao: string; valor: number; categoria: string; responsavel: string; cartao: string }>
   gastoPorCartao: Record<string, number>
   comprasParceladas: { count: number; totalValor: number }
   totalAssinaturas: number
