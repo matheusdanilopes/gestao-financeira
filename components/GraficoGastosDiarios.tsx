@@ -226,7 +226,7 @@ export default function GraficoGastosDiarios({
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index' as const, intersect: false },
-      animation: { duration: 700, easing: 'easeInOutCubic' as const },
+      animation: { duration: 350, easing: 'easeOutQuart' as const },
       plugins: {
         legend: { display: false },
         tooltip: {

@@ -522,7 +522,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
           </div>
           <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
             <div
-              className="h-2 rounded-full bg-gradient-to-r from-primary-500 to-primary-600 transition-all duration-700"
+              className="h-2 rounded-full bg-gradient-to-r from-primary-500 to-primary-600 transition-[width] duration-500"
               style={{ width: `${percentualPago}%` }}
             />
           </div>

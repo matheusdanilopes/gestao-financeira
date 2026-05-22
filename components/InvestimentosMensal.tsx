@@ -337,7 +337,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
           </div>
           <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
             <div
-              className="h-2 rounded-full bg-violet-500 transition-all duration-700"
+              className="h-2 rounded-full bg-violet-500 transition-[width] duration-500"
               style={{ width: `${progressoGeralPct}%` }}
             />
           </div>
@@ -455,7 +455,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
                   <div className="pl-5">
                     <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
                       <div
-                        className={`h-1.5 rounded-full transition-all duration-500 ${concluido ? 'bg-green-500' : 'bg-violet-400'}`}
+                        className={`h-1.5 rounded-full transition-[width] duration-400 ${concluido ? 'bg-green-500' : 'bg-violet-400'}`}
                         style={{ width: `${progresso}%` }}
                       />
                     </div>

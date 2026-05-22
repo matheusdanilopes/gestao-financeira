@@ -11,6 +11,8 @@ const nextConfig = {
   experimental: {
     // Tree-shakes heavy icon/date libraries — reduz bundle inicial significativamente
     optimizePackageImports: ['lucide-react', 'date-fns', 'chart.js', 'react-chartjs-2'],
+    // Scroll restoration via Next.js App Router
+    scrollRestoration: true,
   },
 }
 
