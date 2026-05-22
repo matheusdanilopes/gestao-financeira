@@ -1,18 +1,13 @@
-import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/serverAuth'
 
 const JOB_STALE_MS = 6 * 60 * 1000
 
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://placeholder.supabase.co',
-    process.env.NEXT_PUBLIC_SUPABASE_anon_key ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? 'placeholder'
-  )
-}
+export async function GET(req: NextRequest) {
+  const { supabase, unauthorized } = await requireAuth(req)
+  if (unauthorized) return unauthorized
 
-export async function GET() {
   try {
-    const supabase = getSupabase()
     const { data: job } = await supabase
       .from('categorization_jobs')
       .select('id, status, total, categorized, cota_diaria_esgotada, erros, started_at, finished_at')
@@ -22,7 +17,6 @@ export async function GET() {
 
     if (!job) return NextResponse.json({ status: 'idle' })
 
-    // Job travado (servidor caiu ou ultrapassou maxDuration)
     if (job.status === 'running' && Date.now() - new Date(job.started_at).getTime() > JOB_STALE_MS) {
       return NextResponse.json({ status: 'idle' })
     }

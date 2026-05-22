@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { requireAuth } from '@/lib/serverAuth'
 import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
 
 export const maxDuration = 300
@@ -10,13 +10,6 @@ const GEMINI_MODEL = 'gemini-3-flash-preview'
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 const CONFIANCA_PADRAO_IA = 0.85
 const JOB_STALE_MS = 6 * 60 * 1000
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://placeholder.supabase.co',
-    process.env.NEXT_PUBLIC_SUPABASE_anon_key ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? 'placeholder'
-  )
-}
 
 function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
@@ -101,13 +94,14 @@ async function categorizarLoteComRetry(
   throw new Error('Max retries exceeded')
 }
 
-export async function POST(_req: NextRequest) {
+export async function POST(req: NextRequest) {
+  const { supabase, unauthorized } = await requireAuth(req)
+  if (unauthorized) return unauthorized
+
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) {
     return NextResponse.json({ error: 'GEMINI_API_KEY não configurada' }, { status: 500 })
   }
-
-  const supabase = getSupabase()
 
   // Evita iniciar dois jobs simultâneos
   const { data: runningJob } = await supabase
@@ -230,6 +224,6 @@ export async function POST(_req: NextRequest) {
         .update({ status: 'error', finished_at: new Date().toISOString() })
         .eq('id', jobId)
     }
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: 'Erro interno no servidor' }, { status: 500 })
   }
 }

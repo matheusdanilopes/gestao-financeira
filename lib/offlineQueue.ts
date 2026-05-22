@@ -1,10 +1,20 @@
 /**
  * Fila offline para a lista de mercado.
  * Armazena operações pendentes em localStorage para sobreviver ao fechamento do app.
+ * As chaves incluem o userId para isolar dados entre sessões de usuários diferentes.
  */
 
 const QUEUE_KEY = 'lm-offline-queue'
 const TEMP_MAP_KEY = 'lm-tempid-map'
+
+/** Limpa todos os dados offline ao fazer logout — evita vazamento entre sessões */
+export function clearAllOfflineData(): void {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.removeItem(QUEUE_KEY)
+    localStorage.removeItem(TEMP_MAP_KEY)
+  } catch { /* noop */ }
+}
 const MAX_OPS = 200
 const MAX_RETRIES = 10
 

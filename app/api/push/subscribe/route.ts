@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { criarSupabaseServer } from '@/lib/supabaseServer'
+import { requireAuth } from '@/lib/serverAuth'
 
 export async function POST(req: NextRequest) {
+  const { user, supabase, unauthorized } = await requireAuth(req)
+  if (unauthorized) return unauthorized
+
   try {
-    const { usuario, subscription } = await req.json()
-    if (!usuario || !subscription) {
+    const body = await req.json()
+    const { subscription } = body as { subscription?: unknown }
+    if (!subscription) {
       return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 })
     }
 
-    const supabase = criarSupabaseServer(req)
+    // usuario is always the authenticated user's email — never from the request body
+    const usuario = user.email ?? user.id
+
     const { error } = await supabase
       .from('push_subscriptions')
       .upsert([{ usuario, subscription }], { onConflict: 'usuario' })
@@ -16,6 +22,6 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true })
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+    return NextResponse.json({ error: 'Erro interno no servidor' }, { status: 500 })
   }
 }

@@ -1,19 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { requireAuth } from '@/lib/serverAuth'
 
 export const maxDuration = 20
 
 const BUCKET = 'wishlist-images'
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
-    process.env.NEXT_PUBLIC_SUPABASE_anon_key ??
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
-  )
-}
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const MAX_BASE64_BYTES = 10 * 1024 * 1024 // ~7.5 MB decoded
 
 export async function POST(req: NextRequest) {
+  const { supabase, unauthorized } = await requireAuth(req)
+  if (unauthorized) return unauthorized
+
   let body: { id?: string; imageBase64?: string; imageMimeType?: string } | null = null
   try {
     body = await req.json()
@@ -26,16 +23,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'id e imageBase64 obrigatorios' }, { status: 400 })
   }
 
-  const supabase = getSupabase()
+  const mimeType = imageMimeType ?? 'image/jpeg'
+  if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
+    return NextResponse.json({ error: 'Tipo de imagem não permitido' }, { status: 400 })
+  }
+
+  if (imageBase64.length > MAX_BASE64_BYTES) {
+    return NextResponse.json({ error: 'Imagem muito grande' }, { status: 413 })
+  }
 
   const buffer = Buffer.from(imageBase64, 'base64')
-  const rawExt = (imageMimeType ?? 'image/jpeg').split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg'
+  const rawExt = mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg'
   const ext = ['jpg', 'png', 'webp'].includes(rawExt) ? rawExt : 'jpg'
+  // Randomised filename prevents enumeration of other users' uploads
   const fileName = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`
 
   const { data: uploadData, error: uploadError } = await supabase.storage
     .from(BUCKET)
-    .upload(fileName, buffer, { contentType: imageMimeType ?? 'image/jpeg', upsert: false })
+    .upload(fileName, buffer, { contentType: mimeType, upsert: false })
 
   if (uploadError) {
     return NextResponse.json({ error: uploadError.message }, { status: 500 })

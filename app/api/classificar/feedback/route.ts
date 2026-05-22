@@ -1,40 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { requireAuth } from '@/lib/serverAuth'
 import { sanitizarDescricao, atualizarAprendizado } from '@/lib/ragClassificacao'
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://placeholder.supabase.co',
-    process.env.NEXT_PUBLIC_SUPABASE_anon_key ??
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
-      'placeholder'
-  )
-}
 
 interface FeedbackBody {
   hash_linha: string
   categoria_validada: string
-  user_id?: string
 }
 
-// POST /api/classificar/feedback
-//
-// Registra a confirmação ou correção de categoria pelo usuário (Active Learning).
-// Esse endpoint deve ser chamado sempre que o usuário:
-//   - Confirmar a categoria sugerida pela IA
-//   - Corrigir a categoria para outra opção
-//
-// Efeitos:
-//   1. Incrementa (ou cria) o registro em classificacoes_aprendidas para a
-//      descrição sanitizada, reforçando a memória de longo prazo.
-//   2. Atualiza a transação: categoria_validada pelo usuário + categoria_origem
-//      = 'USUARIO' + classificacao_status = 'validado'.
-//
-// Body:
-//   hash_linha        — identificador único da transação
-//   categoria_validada — categoria confirmada ou corrigida pelo usuário
-//   user_id           — identifica o usuário no histórico (default: "default")
 export async function POST(req: NextRequest) {
+  const { user, supabase, unauthorized } = await requireAuth(req)
+  if (unauthorized) return unauthorized
+
   let body: FeedbackBody
   try {
     body = await req.json()
@@ -42,7 +18,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Body JSON inválido.' }, { status: 400 })
   }
 
-  const { hash_linha, categoria_validada, user_id = 'default' } = body
+  const { hash_linha, categoria_validada } = body
+  // user_id always comes from the authenticated session
+  const user_id = user.id
 
   if (!hash_linha || !categoria_validada) {
     return NextResponse.json(
@@ -51,9 +29,6 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const supabase = getSupabase()
-
-  // Load transaction to get the original description for sanitization
   const { data: transacao, error: tErr } = await supabase
     .from('transacoes_nubank')
     .select('descricao')
@@ -66,10 +41,8 @@ export async function POST(req: NextRequest) {
 
   const descricaoLimpa = sanitizarDescricao(transacao.descricao)
 
-  // Update long-term memory: upsert with frequency increment
   await atualizarAprendizado(supabase, descricaoLimpa, categoria_validada, user_id)
 
-  // Mark the transaction as user-validated
   const { error: updErr } = await supabase
     .from('transacoes_nubank')
     .update({

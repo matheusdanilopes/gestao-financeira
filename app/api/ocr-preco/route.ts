@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/serverAuth'
 
 export const maxDuration = 30
 
 const GEMINI_MODEL = 'gemini-3-flash-preview'
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const MAX_BASE64_BYTES = 10 * 1024 * 1024 // ~7.5 MB decoded
+
 export async function POST(req: NextRequest) {
+  const { unauthorized } = await requireAuth(req)
+  if (unauthorized) return unauthorized
+
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) {
     return NextResponse.json({ error: 'GEMINI_API_KEY não configurada' }, { status: 500 })
@@ -23,6 +30,14 @@ export async function POST(req: NextRequest) {
   }
 
   const { imageBase64, mimeType = 'image/jpeg' } = body
+
+  if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
+    return NextResponse.json({ error: 'Tipo de imagem não permitido' }, { status: 400 })
+  }
+
+  if (imageBase64.length > MAX_BASE64_BYTES) {
+    return NextResponse.json({ error: 'Imagem muito grande' }, { status: 413 })
+  }
 
   const prompt = `Você é um OCR especializado em etiquetas de supermercado. Analise a imagem e retorne o preço de venda do produto.
 
@@ -51,12 +66,11 @@ Responda APENAS com o número ou null.`
       }),
     })
   } catch (err) {
-    return NextResponse.json({ error: `Gemini unreachable: ${String(err)}` }, { status: 502 })
+    return NextResponse.json({ error: 'Gemini indisponível' }, { status: 502 })
   }
 
   if (!geminiRes.ok) {
-    const err = await geminiRes.text()
-    return NextResponse.json({ error: err }, { status: geminiRes.status })
+    return NextResponse.json({ error: 'Erro no serviço de OCR' }, { status: geminiRes.status })
   }
 
   const json = await geminiRes.json()

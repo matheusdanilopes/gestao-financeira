@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://placeholder.supabase.co',
-    process.env.NEXT_PUBLIC_SUPABASE_anon_key ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? 'placeholder'
-  )
-}
+import { requireAuth } from '@/lib/serverAuth'
 
 export async function GET(req: NextRequest) {
+  const { user, supabase, unauthorized } = await requireAuth(req)
+  if (unauthorized) return unauthorized
+
   const { searchParams } = new URL(req.url)
   const conversationId = searchParams.get('conversation_id')
 
@@ -16,7 +12,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'conversation_id obrigatório' }, { status: 400 })
   }
 
-  const supabase = getSupabase()
+  // Verify the conversation belongs to this user before returning messages
+  const { data: conv } = await supabase
+    .from('conversations')
+    .select('id')
+    .eq('id', conversationId)
+    .eq('user_id', user.id)
+    .single()
+
+  if (!conv) {
+    return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
+  }
 
   const { data, error } = await supabase
     .from('messages')

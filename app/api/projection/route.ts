@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { criarSupabaseServer } from '@/lib/supabaseServer'
+import { requireAuth } from '@/lib/serverAuth'
 import { format, addMonths, startOfMonth, subMonths } from 'date-fns'
 
-// Janela máxima de busca de parcelamentos no planejamento.
-// 36 meses cobre qualquer plano de até 3 anos ainda ativo.
 const JANELA_PARCELAS_MESES = 36
-
 const PROJECAO_OFFSET_MESES = 1
 
 type TransacaoRow = {
@@ -54,11 +51,6 @@ function extrairParcelamento(t: TransacaoRow | PlanejamentoRow): { atual: number
   return null
 }
 
-/**
- * Para cada série de parcelamento, guarda apenas a linha mais recente do banco
- * (maior projeto_fatura). Isso garante que a projeção parta do estado atual
- * de cada contrato, sem reprocessar linhas antigas da mesma série.
- */
 function buildContracts(transacoes: TransacaoRow[]) {
   const map = new Map<string, { row: TransacaoRow; fatura: Date; parcela: { atual: number; total: number } }>()
 
@@ -73,7 +65,6 @@ function buildContracts(transacoes: TransacaoRow[]) {
       .replace(/\s+\d{1,2}\/\d{1,2}\s*$/i, '')
       .trim()
       .toLowerCase()
-    // Inclui cartao na chave para não deduplificar séries de cartões diferentes
     const cartao = t.cartao || 'nubank'
     const key = `${cartao}|${format(origem, 'yyyy-MM')}|${descBase}|${parcela.total}|${t.responsavel}`
 
@@ -112,9 +103,16 @@ function buildContratosExtras(planejamentos: PlanejamentoRow[]) {
 }
 
 export async function POST(req: NextRequest) {
+  const { supabase, unauthorized } = await requireAuth(req)
+  if (unauthorized) return unauthorized
+
   try {
-    const supabase = criarSupabaseServer(req)
     const { meses, inicioStr } = await req.json()
+
+    if (!Array.isArray(meses) || meses.length > 24) {
+      return NextResponse.json({ error: 'meses inválido' }, { status: 400 })
+    }
+
     const inicioProjecao = inicioStr
       ? startOfMonth(new Date(inicioStr))
       : startOfMonth(addMonths(new Date(), PROJECAO_OFFSET_MESES))
@@ -125,7 +123,6 @@ export async function POST(req: NextRequest) {
       extra: new Array(meses.length).fill(0),
     }
 
-    // Busca a última fatura de cada cartão independentemente para capturar todos os parcelamentos
     const [{ data: maxNubank }, { data: maxCartao1 }, { data: maxCartao2 }] = await Promise.all([
       supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'nubank').order('projeto_fatura', { ascending: false }).limit(1),
       supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'cartao1').order('projeto_fatura', { ascending: false }).limit(1),
@@ -154,10 +151,7 @@ export async function POST(req: NextRequest) {
       .not('item', 'ilike', '[RECEITA]%')
       .gte('mes_referencia', janelaInicio)
 
-    // Contratos: apenas parcelamentos da última fatura, deduplicados por série
     const contratos = buildContracts(transacoesUltimaFatura || [])
-
-    // Despesas parceladas do planejamento, deduplicadas por série (mais recente vence)
     const contratosExtras = buildContratosExtras(todasDespesas || [])
 
     for (let i = 0; i < meses.length; i++) {
@@ -188,8 +182,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(resultados)
-  } catch (error) {
-    console.error('[projection] Erro:', error)
+  } catch {
     return NextResponse.json({ error: 'Erro na projecao' }, { status: 500 })
   }
 }

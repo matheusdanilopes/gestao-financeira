@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { criarSupabaseServer } from '@/lib/supabaseServer'
+import { requireAuth } from '@/lib/serverAuth'
 import { format, addMonths, startOfMonth, subMonths } from 'date-fns'
 
 const PROJECAO_OFFSET_MESES = 1
@@ -111,7 +111,8 @@ function ajustarDescricaoParcelamento(descricao: string, parcelaNoMes: number, t
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = criarSupabaseServer(req)
+    const { supabase, unauthorized } = await requireAuth(req)
+    if (unauthorized) return unauthorized
     const { serie, dataIndex, mesStr } = await req.json()
 
     // Prefere mesStr (data exata enviada pelo gráfico); cai no cálculo legado se ausente

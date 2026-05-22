@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { criarSupabaseServer } from '@/lib/supabaseServer'
+import { requireAuth } from '@/lib/serverAuth'
 
 interface ResolverBody {
   notificacao_id: string
@@ -7,7 +7,8 @@ interface ResolverBody {
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = criarSupabaseServer(req)
+  const { supabase, unauthorized } = await requireAuth(req)
+  if (unauthorized) return unauthorized
 
   let body: ResolverBody
   try {

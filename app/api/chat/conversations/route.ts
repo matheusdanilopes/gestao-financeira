@@ -1,28 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://placeholder.supabase.co',
-    process.env.NEXT_PUBLIC_SUPABASE_anon_key ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? 'placeholder'
-  )
-}
+import { requireAuth } from '@/lib/serverAuth'
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url)
-  const userId = searchParams.get('user_id')
+  const { user, supabase, unauthorized } = await requireAuth(req)
+  if (unauthorized) return unauthorized
 
-  if (!userId) {
-    return NextResponse.json({ error: 'user_id obrigatório' }, { status: 400 })
-  }
+  const supabaseClient = supabase
 
-  const supabase = getSupabase()
-
-  // Fetch conversations ordered by most recent
-  const { data: convs, error } = await supabase
+  const { data: convs, error } = await supabaseClient
     .from('conversations')
     .select('id, created_at')
-    .eq('user_id', userId)
+    .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .limit(30)
 
@@ -34,11 +22,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ conversations: [] })
   }
 
-  // For each conversation, fetch the first user message as preview
-  // and the last message timestamp for ordering
   const ids = convs.map(c => c.id)
 
-  const { data: previews } = await supabase
+  const { data: previews } = await supabaseClient
     .from('messages')
     .select('conversation_id, content, role, created_at')
     .in('conversation_id', ids)
@@ -48,15 +34,13 @@ export async function GET(req: NextRequest) {
   const previewMap: Record<string, string> = {}
   for (const msg of previews ?? []) {
     if (!previewMap[msg.conversation_id]) {
-      // First user message = conversation title
       previewMap[msg.conversation_id] = msg.content.length > 80
         ? msg.content.slice(0, 80) + '…'
         : msg.content
     }
   }
 
-  // Count messages per conversation
-  const { data: counts } = await supabase
+  const { data: counts } = await supabaseClient
     .from('messages')
     .select('conversation_id')
     .in('conversation_id', ids)
@@ -68,7 +52,7 @@ export async function GET(req: NextRequest) {
   }
 
   const conversations = convs
-    .filter(c => previewMap[c.id]) // skip empty conversations
+    .filter(c => previewMap[c.id])
     .map(c => ({
       id: c.id,
       created_at: c.created_at,
@@ -80,21 +64,22 @@ export async function GET(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const { user, supabase, unauthorized } = await requireAuth(req)
+  if (unauthorized) return unauthorized
+
   const { searchParams } = new URL(req.url)
   const conversationId = searchParams.get('conversation_id')
-  const userId = searchParams.get('user_id')
 
-  if (!conversationId || !userId) {
-    return NextResponse.json({ error: 'conversation_id e user_id são obrigatórios' }, { status: 400 })
+  if (!conversationId) {
+    return NextResponse.json({ error: 'conversation_id é obrigatório' }, { status: 400 })
   }
 
-  const supabase = getSupabase()
-
+  // Verify ownership before deleting
   const { data: conv } = await supabase
     .from('conversations')
     .select('id')
     .eq('id', conversationId)
-    .eq('user_id', userId)
+    .eq('user_id', user.id)
     .single()
 
   if (!conv) {
