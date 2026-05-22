@@ -292,6 +292,13 @@ button, a, [role="button"] {
 .scrollbar-hide { scrollbar-width: none; -ms-overflow-style: none; }
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 
+/* ─── Overflow menu animation ────────────────────────────────────────────── */
+@keyframes popover-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-in { animation: popover-in 0.15s cubic-bezier(0.16, 1, 0.3, 1); }
+
 /* ─── FAB Premium ─────────────────────────────────────────────────────────── */
 .fab-premium {
   background: linear-gradient(145deg, #6366f1 0%, #4f46e5 55%, #4338ca 100%);
