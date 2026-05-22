@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { criarSupabaseServer } from '@/lib/supabaseServer'
+import { requireAuth } from '@/lib/serverAuth'
 import { processarCSV } from '@/lib/csvparser'
 import { notificarImportacao } from '@/lib/pushImportacao'
 import { conciliarTransacao } from '@/lib/conciliacao'
 
 export async function POST(req: NextRequest) {
-  const supabase = criarSupabaseServer(req)
+  const { supabase, unauthorized } = await requireAuth(req)
+  if (unauthorized) return unauthorized
 
   try {
     const formData = await req.formData()
     const file = formData.get('file') as File
     if (!file) return NextResponse.json({ error: 'Nenhum arquivo' }, { status: 400 })
+
+    // Validate file size (max 5 MB)
+    if (file.size > 5 * 1024 * 1024) {
+      return NextResponse.json({ error: 'Arquivo muito grande (máximo 5 MB)' }, { status: 413 })
+    }
 
     const { data: configs } = await supabase.from('configuracoes').select('chave, valor')
     const diaVencimento = parseInt(configs?.find((c: { chave: string; valor: string }) => c.chave === 'dia_vencimento')?.valor || '10')
@@ -101,9 +107,8 @@ export async function POST(req: NextRequest) {
       resumoPorFatura: faturaStats,
     })
   } catch (error) {
-    console.error('[import] Excecao:', error)
-    const msg = error instanceof Error ? error.message : String(error)
+    console.error('[import] Excecao:', error instanceof Error ? error.message : 'unknown')
     await notificarImportacao(supabase, 'erro', undefined, undefined, 'nubank')
-    return NextResponse.json({ error: 'Erro interno: ' + msg }, { status: 500 })
+    return NextResponse.json({ error: 'Erro interno no servidor' }, { status: 500 })
   }
 }

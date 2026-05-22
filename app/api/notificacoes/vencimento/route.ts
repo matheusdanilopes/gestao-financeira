@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import webpush from 'web-push'
+import { requireCronSecret } from '@/lib/serverAuth'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
 import { format, addDays, startOfDay } from 'date-fns'
 
@@ -22,19 +23,19 @@ function limparNomeItem(nome: string): string {
  * POST /api/notificacoes/vencimento
  *
  * Endpoint para cron job diário às 09:00.
- * Cada usuário recebe apenas notificações das suas próprias despesas (responsavel).
- * Envios em paralelo via Promise.allSettled para evitar timeout serverless.
- *
+ * Protegido por CRON_SECRET em Authorization: Bearer <secret>
  * vercel.json: { "path": "/api/notificacoes/vencimento", "schedule": "0 9 * * *" }
  */
 export async function POST(req: NextRequest) {
+  const cronUnauthorized = requireCronSecret(req)
+  if (cronUnauthorized) return cronUnauthorized
+
   if (!VAPID_PUBLIC || !VAPID_PRIVATE) {
     return NextResponse.json({ ok: true, skipped: 'VAPID não configurado' })
   }
 
   const supabase = criarSupabaseServer(req)
 
-  // CA04: verifica se notificações estão ativas
   const { data: configRow } = await supabase
     .from('configuracoes')
     .select('valor')
@@ -76,7 +77,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, enviados: 0 })
   }
 
-  // Privacidade: cada subscription recebe apenas as notificações do seu responsavel
   const notificacoes = subscriptions.flatMap(sub => {
     const desteUsuario = (i: { responsavel: string }) => i.responsavel === sub.usuario
     const msgsHoje = itensHoje.filter(desteUsuario).map(item => ({
@@ -94,7 +94,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, enviados: 0 })
   }
 
-  // Envio em paralelo para evitar timeout serverless
   const results = await Promise.allSettled(
     notificacoes.map(({ sub, msg }) =>
       webpush.sendNotification(

@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { criarSupabaseServer } from '@/lib/supabaseServer'
+import { requireAuth } from '@/lib/serverAuth'
 
 export async function GET(req: NextRequest) {
-  const supabase = criarSupabaseServer(req)
+  const { supabase, unauthorized } = await requireAuth(req)
+  if (unauthorized) return unauthorized
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '(não definido)'
   const projectId = url.includes('.supabase.co')
     ? url.replace('https://', '').split('.')[0]
-    : url
+    : '(oculto)'
 
   const tabelas = ['wishlist_items', 'lista_mercado_itens']
   const resultados: Record<string, { ok: boolean; erro?: string; linhas?: number }> = {}

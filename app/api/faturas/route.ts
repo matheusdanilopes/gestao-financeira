@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { criarSupabaseServer } from '@/lib/supabaseServer'
+import { requireAuth } from '@/lib/serverAuth'
 
 const CARTOES_VALIDOS = ['nubank', 'cartao1', 'cartao2'] as const
 
@@ -7,7 +7,8 @@ const CARTOES_VALIDOS = ['nubank', 'cartao1', 'cartao2'] as const
 // Returns all registered fatura closing dates, optionally filtered by cartao
 export async function GET(req: NextRequest) {
   try {
-    const supabase = criarSupabaseServer(req)
+    const { supabase, unauthorized } = await requireAuth(req)
+    if (unauthorized) return unauthorized
     const { searchParams } = new URL(req.url)
     const cartao = searchParams.get('cartao')
 
@@ -31,7 +32,8 @@ export async function GET(req: NextRequest) {
 // Upserts a fatura record (creates or updates closing date)
 export async function POST(req: NextRequest) {
   try {
-    const supabase = criarSupabaseServer(req)
+    const { supabase, unauthorized } = await requireAuth(req)
+    if (unauthorized) return unauthorized
     const body = await req.json()
     const { cartao, mes_referencia, data_fechamento } = body
 
@@ -61,7 +63,8 @@ export async function POST(req: NextRequest) {
 // Removes a registered fatura record (reverts to calculated date)
 export async function DELETE(req: NextRequest) {
   try {
-    const supabase = criarSupabaseServer(req)
+    const { supabase, unauthorized } = await requireAuth(req)
+    if (unauthorized) return unauthorized
     const body = await req.json()
     const { cartao, mes_referencia } = body
 

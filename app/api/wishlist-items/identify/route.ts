@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/serverAuth'
 
 export const maxDuration = 30
 
@@ -6,8 +7,13 @@ const GEMINI_MODEL = 'gemini-3-flash-preview'
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
 const VALID_CATEGORIAS = ['Eletrônicos', 'Casa', 'Moda', 'Viagem', 'Lazer', 'Esporte', 'Saúde', 'Educação', 'Outros']
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const MAX_BASE64_BYTES = 10 * 1024 * 1024
 
 export async function POST(req: NextRequest) {
+  const { unauthorized } = await requireAuth(req)
+  if (unauthorized) return unauthorized
+
   let body: { imageBase64?: string; imageMimeType?: string } | null = null
   try {
     body = await req.json()
@@ -18,6 +24,15 @@ export async function POST(req: NextRequest) {
   const { imageBase64, imageMimeType } = body ?? {}
   if (!imageBase64) {
     return NextResponse.json({ error: 'imageBase64 obrigatório' }, { status: 400 })
+  }
+
+  const mimeType = imageMimeType ?? 'image/jpeg'
+  if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
+    return NextResponse.json({ error: 'Tipo de imagem não permitido' }, { status: 400 })
+  }
+
+  if (imageBase64.length > MAX_BASE64_BYTES) {
+    return NextResponse.json({ error: 'Imagem muito grande' }, { status: 413 })
   }
 
   const apiKey = process.env.GEMINI_API_KEY
@@ -37,19 +52,18 @@ Regras: nome max 60 chars obrigatório. descricao max 100 chars ou null. preco e
       body: JSON.stringify({
         contents: [{ parts: [
           { text: prompt },
-          { inline_data: { mime_type: imageMimeType ?? 'image/jpeg', data: imageBase64 } },
+          { inline_data: { mime_type: mimeType, data: imageBase64 } },
         ]}],
         generationConfig: { temperature: 0.1, maxOutputTokens: 512 },
       }),
       signal: AbortSignal.timeout(20000),
     })
-  } catch (e) {
-    return NextResponse.json({ error: `Gemini falhou: ${e instanceof Error ? e.message : String(e)}` }, { status: 502 })
+  } catch {
+    return NextResponse.json({ error: 'Serviço de IA indisponível' }, { status: 502 })
   }
 
   if (!geminiRes.ok) {
-    const txt = await geminiRes.text().catch(() => '')
-    return NextResponse.json({ error: `Gemini HTTP ${geminiRes.status}: ${txt.slice(0, 200)}` }, { status: 502 })
+    return NextResponse.json({ error: 'Erro no serviço de IA' }, { status: 502 })
   }
 
   let json: unknown

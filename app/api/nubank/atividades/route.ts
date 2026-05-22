@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { criarSupabaseServer } from '@/lib/supabaseServer'
+import { requireAuth } from '@/lib/serverAuth'
 
 export async function GET(req: NextRequest) {
   try {
-    const supabase = criarSupabaseServer(req)
+    const { supabase, unauthorized } = await requireAuth(req)
+    if (unauthorized) return unauthorized
 
     const { data, error } = await supabase
       .from('activity_logs')

@@ -1,6 +1,10 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/serverAuth'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const { unauthorized } = await requireAuth(req)
+  if (unauthorized) return unauthorized
+
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) {
     return NextResponse.json({ error: 'GEMINI_API_KEY não configurada' }, { status: 500 })
@@ -11,8 +15,7 @@ export async function GET() {
   )
 
   if (!res.ok) {
-    const err = await res.text()
-    return NextResponse.json({ error: err }, { status: res.status })
+    return NextResponse.json({ error: 'Erro ao consultar modelos' }, { status: res.status })
   }
 
   const data = await res.json()

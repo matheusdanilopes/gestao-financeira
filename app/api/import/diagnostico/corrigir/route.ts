@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { criarSupabaseServer } from '@/lib/supabaseServer'
+import { requireAuth } from '@/lib/serverAuth'
 import { normalizarDescricaoParaHash } from '@/lib/csvparser'
 
 type Transacao = {
@@ -23,7 +23,8 @@ function idParaExcluir(a: Transacao, b: Transacao): string {
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = criarSupabaseServer(req)
+  const { supabase, unauthorized } = await requireAuth(req)
+  if (unauthorized) return unauthorized
 
   try {
     const body = await req.json().catch(() => ({}))

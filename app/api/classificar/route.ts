@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { requireAuth } from '@/lib/serverAuth'
 import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
 import {
   sanitizarDescricao,
@@ -10,15 +10,6 @@ import {
 
 export const maxDuration = 300
 
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://placeholder.supabase.co',
-    process.env.NEXT_PUBLIC_SUPABASE_anon_key ??
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
-      'placeholder'
-  )
-}
-
 function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
@@ -26,30 +17,16 @@ function sleep(ms: number) {
 interface ClassificarBody {
   hash_linhas?: string[]
   somenteSemCategoria?: boolean
-  user_id?: string
 }
 
-// POST /api/classificar
-//
-// Classifica transações usando um pipeline RAG:
-//   1. Sanitiza a descrição da transação
-//   2. Busca o histórico de classificações similares (Supabase)
-//   3. Envia um prompt enriquecido ao Gemini 1.5 Flash
-//   4. Persiste o resultado com classificacao_status:
-//        "validado"        → confiança >= 90
-//        "revisao_pendente" → confiança <  90
-//
-// Body (opcional):
-//   hash_linhas       — restringe às transações com esses hashes
-//   somenteSemCategoria — quando true, ignora transações já categorizadas por humano
-//   user_id           — identifica o usuário no histórico de aprendizado (default: "default")
 export async function POST(req: NextRequest) {
+  const { user, supabase, unauthorized } = await requireAuth(req)
+  if (unauthorized) return unauthorized
+
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) {
     return NextResponse.json({ error: 'GEMINI_API_KEY não configurada' }, { status: 500 })
   }
-
-  const supabase = getSupabase()
 
   let body: ClassificarBody = {}
   try {
@@ -58,7 +35,10 @@ export async function POST(req: NextRequest) {
     // empty body is valid — classifies all eligible transactions
   }
 
-  const { hash_linhas, somenteSemCategoria = false, user_id = 'default' } = body
+  // user_id comes from the session, not the request body
+  const user_id = user.id
+
+  const { hash_linhas, somenteSemCategoria = false } = body
 
   const { data: configRow } = await supabase
     .from('configuracoes')
@@ -72,11 +52,10 @@ export async function POST(req: NextRequest) {
   if (somenteSemCategoria) {
     query = query.is('categoria', null)
   } else {
-    // Recategorize nulls and existing AI/RAG categories (not user-validated ones)
     query = query.or('categoria.is.null,categoria_origem.eq.IA,categoria_origem.eq.RAG')
   }
 
-  if (hash_linhas && hash_linhas.length > 0) {
+  if (hash_linhas && Array.isArray(hash_linhas) && hash_linhas.length > 0) {
     query = query.in('hash_linha', hash_linhas)
   }
 
@@ -113,7 +92,6 @@ export async function POST(req: NextRequest) {
         .update({
           categoria: resultado.categoria,
           categoria_origem: 'RAG',
-          // DB stores confidence as 0.00–1.00 (NUMERIC(3,2))
           categoria_confianca: resultado.confianca / 100,
           classificacao_status: classificacaoStatus,
         })
@@ -125,12 +103,11 @@ export async function POST(req: NextRequest) {
         revisao_pendente++
       }
 
-      // Small delay between requests to respect Gemini rate limits
       if (i < transacoes.length - 1) {
         await sleep(300)
       }
     } catch (err) {
-      const msg = `[${t.hash_linha.slice(0, 8)}] ${String(err)}`
+      const msg = `[${t.hash_linha.slice(0, 8)}] ${err instanceof Error ? err.message : 'unknown'}`
       console.error('[classificar-rag]', msg)
       erros.push(msg)
     }

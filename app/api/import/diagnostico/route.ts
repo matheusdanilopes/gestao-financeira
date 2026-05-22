@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { criarSupabaseServer } from '@/lib/supabaseServer'
+import { requireAuth } from '@/lib/serverAuth'
 import { normalizarDescricaoParaHash } from '@/lib/csvparser'
 
 export async function GET(req: NextRequest) {
-  const supabase = criarSupabaseServer(req)
+  const { supabase, unauthorized } = await requireAuth(req)
+  if (unauthorized) return unauthorized
 
   try {
     // Fetch all transactions with just the fields needed for duplicate detection

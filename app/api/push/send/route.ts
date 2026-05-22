@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import webpush from 'web-push'
-import { criarSupabaseServer } from '@/lib/supabaseServer'
+import { requireAuth } from '@/lib/serverAuth'
 
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY ?? ''
@@ -11,9 +11,13 @@ if (VAPID_PUBLIC && VAPID_PRIVATE) {
 }
 
 export async function POST(req: NextRequest) {
+  const { user, supabase, unauthorized } = await requireAuth(req)
+  if (unauthorized) return unauthorized
+
   try {
-    const { deUsuario, payload } = await req.json()
-    if (!deUsuario || !payload) {
+    const body = await req.json()
+    const { payload } = body as { payload?: unknown }
+    if (!payload) {
       return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 })
     }
 
@@ -21,7 +25,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, skipped: 'VAPID não configurado' })
     }
 
-    const supabase = criarSupabaseServer(req)
+    // deUsuario is always derived from the authenticated session — never from the request body
+    const deUsuario = user.email ?? user.id
+
     const { data: subs } = await supabase
       .from('push_subscriptions')
       .select('*')
@@ -52,7 +58,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ ok: true })
-  } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+  } catch {
+    return NextResponse.json({ error: 'Erro interno no servidor' }, { status: 500 })
   }
 }

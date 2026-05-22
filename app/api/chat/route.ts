@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { requireAuth } from '@/lib/serverAuth'
+import { criarSupabaseServer } from '@/lib/supabaseServer'
 import { buildAIContext } from '@/lib/ai/contextBuilder'
 import { buildSystemPrompt } from '@/lib/ai/prompts'
 import type { TelaAtual } from '@/lib/ai/types'
@@ -9,17 +10,6 @@ const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GE
 
 const WINDOW_SIZE = 15
 const SUMMARY_TRIGGER = 20
-
-// ─── Supabase ─────────────────────────────────────────────────────────────────
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://placeholder.supabase.co',
-    process.env.NEXT_PUBLIC_SUPABASE_anon_key ??
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
-      'placeholder'
-  )
-}
 
 // ─── Gemini ───────────────────────────────────────────────────────────────────
 
@@ -67,15 +57,17 @@ async function geminiChat(
 // ─── Conversation Management ──────────────────────────────────────────────────
 
 async function garantirConversa(
-  supabase: ReturnType<typeof getSupabase>,
+  supabase: ReturnType<typeof criarSupabaseServer>,
   conversationId: string | null,
   userId: string
 ): Promise<string> {
   if (conversationId) {
+    // Verify conversation belongs to this user before loading
     const { data } = await supabase
       .from('conversations')
       .select('id')
       .eq('id', conversationId)
+      .eq('user_id', userId)
       .single()
     if (data?.id) return data.id
   }
@@ -118,10 +110,12 @@ async function gerarResumo(
 }
 
 async function carregarContextoConversa(
-  supabase: ReturnType<typeof getSupabase>,
+  supabase: ReturnType<typeof criarSupabaseServer>,
   apiKey: string,
-  conversationId: string
+  conversationId: string,
+  userId: string
 ): Promise<Array<{ role: string; content: string }>> {
+  // Always scope message loading to conversations owned by this user
   const { count } = await supabase
     .from('messages')
     .select('*', { count: 'exact', head: true })
@@ -188,27 +182,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'GEMINI_API_KEY não configurada' }, { status: 500 })
     }
 
+    const { user, supabase, unauthorized } = await requireAuth(req)
+    if (unauthorized) return unauthorized
+
     const body = await req.json()
 
-    // Legacy mode: caller sends full mensagens array (no conversation_id)
-    if (body.mensagens && !body.pergunta && !body.conversation_id) {
-      const legacyUserId = (body.user_id as string | undefined) ?? 'anonymous'
-      const contexto = await buildAIContext(legacyUserId, '')
-      const systemPrompt = buildSystemPrompt(contexto)
-      const texto = await geminiChat(apiKey, systemPrompt, body.mensagens)
-      return NextResponse.json({ resposta: texto })
-    }
+    // user_id always comes from the authenticated session — never from the request body
+    const userId = user.id
 
-    // Stateful mode
     const {
       pergunta,
       dados,
-      user_id = 'anonymous',
       tela,
     } = body as {
       pergunta?: string
       dados?: string
-      user_id?: string
       tela?: TelaAtual
       conversation_id?: string
     }
@@ -218,15 +206,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'pergunta é obrigatória' }, { status: 400 })
     }
 
-    const supabase = getSupabase()
+    // Sanitise user input length to prevent prompt injection via oversized payloads
+    const perguntaSafe = pergunta.trim().slice(0, 2000)
+    const dadosSafe = dados?.trim().slice(0, 5000)
 
-    conversation_id = await garantirConversa(supabase, conversation_id ?? null, user_id)
+    conversation_id = await garantirConversa(supabase, conversation_id ?? null, userId)
 
-    const contextoConversa = await carregarContextoConversa(supabase, apiKey, conversation_id)
+    const contextoConversa = await carregarContextoConversa(supabase, apiKey, conversation_id, userId)
 
-    const conteudoUsuario = dados?.trim()
-      ? `Pergunta: ${pergunta}\n\nDados adicionais:\n${dados.trim()}`
-      : pergunta
+    const conteudoUsuario = dadosSafe
+      ? `Pergunta: ${perguntaSafe}\n\nDados adicionais:\n${dadosSafe}`
+      : perguntaSafe
 
     await supabase.from('messages').insert({
       conversation_id,
@@ -241,8 +231,7 @@ export async function POST(req: NextRequest) {
 
     const summaryPreamble = contextoConversa.find(m => m.role === 'system')
 
-    // Build rich structured context using the new AI context system
-    const contextoFinanceiro = await buildAIContext(user_id, pergunta, tela)
+    const contextoFinanceiro = await buildAIContext(userId, perguntaSafe, tela)
     const systemPrompt = buildSystemPrompt(contextoFinanceiro, summaryPreamble?.content)
 
     const resposta = await geminiChat(apiKey, systemPrompt, mensagensParaIA)
@@ -255,7 +244,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ resposta, conversation_id })
   } catch (err) {
-    console.error('[chat]', err)
+    console.error('[chat]', err instanceof Error ? err.message : 'unknown error')
     if (err instanceof Error && err.message === 'QUOTA_429') {
       const e = err as Error & { diaria?: boolean; segundos?: number | null }
       return NextResponse.json({
@@ -264,7 +253,6 @@ export async function POST(req: NextRequest) {
         segundos: e.segundos ?? null,
       }, { status: 429 })
     }
-    const msg = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ error: msg }, { status: 500 })
+    return NextResponse.json({ error: 'Erro interno no servidor' }, { status: 500 })
   }
 }

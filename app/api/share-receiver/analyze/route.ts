@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { requireAuth } from '@/lib/serverAuth'
 
 export const maxDuration = 30
 
 const GEMINI_MODEL = 'gemini-3-flash-preview'
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
-    process.env.NEXT_PUBLIC_SUPABASE_anon_key ??
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
-  )
-}
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const MAX_BASE64_BYTES = 10 * 1024 * 1024
 
 // Retry com backoff exponencial — resolve race condition do CDN do Storage
 async function fetchImageWithRetry(url: string): Promise<{ base64: string; mimeType: string }> {
@@ -61,40 +56,36 @@ Regras: nome max 60 chars. descricao max 100 chars ou null. preco em reais como 
       signal: AbortSignal.timeout(20000),
     })
   } catch (e) {
-    return { erro: `fetch Gemini falhou: ${e instanceof Error ? e.message : String(e)}` }
+    return { erro: `fetch Gemini falhou: ${e instanceof Error ? e.message : 'unknown'}` }
   }
 
   if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    return { erro: `Gemini HTTP ${res.status}: ${body.slice(0, 200)}` }
+    return { erro: `Gemini HTTP ${res.status}` }
   }
 
   let json: unknown
   try {
     json = await res.json()
   } catch (e) {
-    return { erro: `Resposta Gemini nao e JSON: ${e instanceof Error ? e.message : String(e)}` }
+    return { erro: `Resposta Gemini não é JSON` }
   }
 
-  // Concatena todos os parts de texto (modelo as vezes divide a resposta em multiplos parts)
   type GeminiResp = { candidates?: { content?: { parts?: { text?: string }[] } }[] }
   const parts = (json as GeminiResp)?.candidates?.[0]?.content?.parts ?? []
   const fullText = parts.map(p => p.text ?? '').join('').trim()
 
-  if (!fullText) return { erro: `Gemini texto vazio. Raw: ${JSON.stringify(json).slice(0, 300)}` }
+  if (!fullText) return { erro: 'Gemini texto vazio' }
 
-  // Normaliza aspas tipograficas antes de extrair o JSON
   const normalised = fullText
-    .replace(/[“”„‟«»]/g, '"')
-    .replace(/[‘’‚‛]/g, "'")
+    .replace(/[""„‟«»]/g, '"')
+    .replace(/[''‚‛]/g, "'")
 
-  // Greedy: pega do primeiro { ate o ultimo } (objeto JSON completo)
   const match = normalised.match(/\{[\s\S]*\}/)
-  if (!match) return { erro: `Sem JSON na resposta (${fullText.length} chars): ${fullText.slice(0, 300)}` }
+  if (!match) return { erro: 'Sem JSON na resposta' }
 
   try {
     const parsed = JSON.parse(match[0]) as { nome?: string; descricao?: string; preco?: number | string | null }
-    if (!parsed?.nome) return { erro: `Campo nome ausente: ${match[0].slice(0, 200)}` }
+    if (!parsed?.nome) return { erro: 'Campo nome ausente' }
     const precoRaw = parsed.preco != null ? Number(String(parsed.preco).replace(',', '.')) : null
     return {
       nome: String(parsed.nome).slice(0, 60),
@@ -102,11 +93,14 @@ Regras: nome max 60 chars. descricao max 100 chars ou null. preco em reais como 
       preco: precoRaw && isFinite(precoRaw) && precoRaw > 0 ? precoRaw : null,
     }
   } catch (e) {
-    return { erro: `Parse falhou (${e instanceof Error ? e.message : String(e)}): ${match[0].slice(0, 200)}` }
+    return { erro: 'Parse falhou' }
   }
 }
 
 export async function POST(req: NextRequest) {
+  const { supabase, unauthorized } = await requireAuth(req)
+  if (unauthorized) return unauthorized
+
   let body: { id?: string; imageBase64?: string; imageMimeType?: string; criado_por?: string | null } | null = null
   try {
     body = await req.json()
@@ -117,7 +111,15 @@ export async function POST(req: NextRequest) {
   const { id, imageBase64, imageMimeType, criado_por } = body ?? {}
   if (!id) return NextResponse.json({ error: 'id obrigatório' }, { status: 400 })
 
-  const supabase = getSupabase()
+  if (imageBase64) {
+    const mimeType = imageMimeType ?? 'image/jpeg'
+    if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
+      return NextResponse.json({ error: 'Tipo de imagem não permitido' }, { status: 400 })
+    }
+    if (imageBase64.length > MAX_BASE64_BYTES) {
+      return NextResponse.json({ error: 'Imagem muito grande' }, { status: 413 })
+    }
+  }
 
   const { data: item, error: fetchError } = await supabase
     .from('wishlist_items')
@@ -137,11 +139,9 @@ export async function POST(req: NextRequest) {
   let mimeType: string
 
   if (imageBase64) {
-    // Base64 enviado pelo cliente — não precisa baixar do storage
     base64 = imageBase64
     mimeType = imageMimeType ?? 'image/jpeg'
   } else {
-    // Fallback: baixa via URL pública com retry (resolve race condition do CDN)
     if (!item.imagem_url) {
       await supabase.from('wishlist_items').update({
         ai_status: 'nao_identificado',
@@ -170,7 +170,7 @@ export async function POST(req: NextRequest) {
       ai_status: 'nao_identificado',
       updated_at: new Date().toISOString(),
     }).eq('id', id)
-    return NextResponse.json({ status: 'nao_identificado', debug: resultado.erro })
+    return NextResponse.json({ status: 'nao_identificado' })
   }
 
   const { error: updateError } = await supabase.from('wishlist_items').update({
@@ -183,7 +183,7 @@ export async function POST(req: NextRequest) {
   }).eq('id', id)
 
   if (updateError) {
-    return NextResponse.json({ status: 'nao_identificado', debug: `db_update: ${updateError.message}` })
+    return NextResponse.json({ status: 'nao_identificado' })
   }
 
   return NextResponse.json({ status: 'identificado', nome: resultado.nome, descricao: resultado.descricao, preco: resultado.preco })

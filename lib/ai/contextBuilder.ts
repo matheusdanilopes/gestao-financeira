@@ -9,16 +9,20 @@ import { FINANCIAL_GLOSSARY } from './glossary'
 import type { EnrichedData, TelaAtual, Transacao } from './types'
 
 // ─── Per-user cache ───────────────────────────────────────────────────────────
-// Keyed by userId to prevent data leakage between users
+// Keyed by userId to prevent data leakage between users.
+// Serverless functions are ephemeral — this cache lives for the lifetime of a
+// single function instance and is never shared across users or requests from
+// different users in the same instance, because userId is always the key.
 
 const _userCache = new Map<string, { data: EnrichedData; ts: number }>()
 const CACHE_TTL_MS = 5 * 60 * 1000
+const MAX_CACHE_ENTRIES = 10 // prevent unbounded memory growth
 
 function getSupabase() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://placeholder.supabase.co',
-    process.env.NEXT_PUBLIC_SUPABASE_anon_key ??
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+      process.env.NEXT_PUBLIC_SUPABASE_anon_key ??
       'placeholder'
   )
 }
@@ -27,6 +31,12 @@ async function fetchEnrichedData(userId: string): Promise<EnrichedData> {
   const now = Date.now()
   const cached = _userCache.get(userId)
   if (cached && now - cached.ts < CACHE_TTL_MS) return cached.data
+
+  // Evict oldest entry if cache is full, to prevent unbounded growth
+  if (_userCache.size >= MAX_CACHE_ENTRIES) {
+    const oldest = [..._userCache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0]
+    if (oldest) _userCache.delete(oldest[0])
+  }
 
   const supabase = getSupabase()
   const limite = format(startOfMonth(subMonths(new Date(), 24)), 'yyyy-MM-dd')
