@@ -23,9 +23,11 @@ const SUGESTOES = [
   'Como estamos no orçamento esse mês?',
   'Quais foram os 5 maiores gastos?',
   'Compare esse mês com o anterior',
+  'Qual categoria cresceu mais?',
   'Quanto cada um gastou?',
-  'Quais categorias gastamos mais?',
+  'Quais assinaturas pesam mais?',
   'Estamos dentro do planejado?',
+  'Algum gasto fora do padrão?',
 ]
 
 function parseInline(line: string): React.ReactNode[] {
@@ -198,6 +200,7 @@ export default function ChatPage() {
           pergunta: conteudo,
           conversation_id: convIdRef.current ?? undefined,
           user_id: userIdRef.current,
+          tela: 'geral',
         }),
       })
       const data = await res.json()
