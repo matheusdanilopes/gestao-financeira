@@ -473,7 +473,7 @@ export default function ChatPage() {
       )}
 
       {/* Header */}
-      <header className={`sticky top-0 z-[10] sticky-header border-b border-gray-100 dark:border-gray-700/60 transition-[padding] duration-200 ${compactHeader ? 'py-1.5' : 'py-2'}`}>
+      <header className={`sticky top-0 z-[160] sticky-header border-b border-gray-100 dark:border-gray-700/60 transition-[padding] duration-200 ${compactHeader ? 'py-1.5' : 'py-2'}`}>
         <div className="flex items-center gap-1 px-1">
 
           {/* Left zone: History */}
