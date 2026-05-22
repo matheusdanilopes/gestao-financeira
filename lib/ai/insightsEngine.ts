@@ -90,13 +90,15 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 7)
     .map(([categoria, valor]) => {
-      const anterior = catsAnterior[categoria] ?? 0
+      // Use raw lookup so undefined means "no data last month", 0 means "zero spend"
+      const anteriorRaw = catsAnterior[categoria]
+      const anterior = anteriorRaw ?? 0
       const variacao = anterior > 0 ? ((valor - anterior) / anterior) * 100 : undefined
       return {
         categoria,
         valor,
         percentual: totalGastos > 0 ? (valor / totalGastos) * 100 : 0,
-        anterior: anterior || undefined,
+        anterior: anteriorRaw,
         variacao,
       }
     })
@@ -160,7 +162,7 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
   // Investments
   const totalAportesHistorico = data.aportes.reduce((s, a) => s + a.valor, 0)
   const aportesRecentes = [...data.aportes]
-    .sort((a, b) => b.data_aporte.localeCompare(a.data_aporte))
+    .sort((a, b) => (b.data_aporte ?? '').localeCompare(a.data_aporte ?? ''))
     .slice(0, 5)
     .map(a => {
       const inv = data.investimentos.find(i => i.id === a.investimento_id)

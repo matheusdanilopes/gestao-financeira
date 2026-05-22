@@ -192,7 +192,8 @@ export async function POST(req: NextRequest) {
 
     // Legacy mode: caller sends full mensagens array (no conversation_id)
     if (body.mensagens && !body.pergunta && !body.conversation_id) {
-      const contexto = await buildAIContext('anonymous', '')
+      const legacyUserId = (body.user_id as string | undefined) ?? 'anonymous'
+      const contexto = await buildAIContext(legacyUserId, '')
       const systemPrompt = buildSystemPrompt(contexto)
       const texto = await geminiChat(apiKey, systemPrompt, body.mensagens)
       return NextResponse.json({ resposta: texto })

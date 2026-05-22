@@ -49,7 +49,8 @@ const FOLLOWUPS = [
 ]
 
 function parseInline(line: string): React.ReactNode[] {
-  const parts = line.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|R\$\s*[\d.,]+)/g)
+  // \*\*[^*]+(?:\*[^*]+)*\*\* allows single * inside bold (e.g. **2*3**)
+  const parts = line.split(/(\*\*[^*]+(?:\*[^*]+)*\*\*|\*[^*]+\*|`[^`]+`|R\$\s*[\d.,]+)/g)
   return parts.map((part, idx) => {
     if (part.startsWith('**') && part.endsWith('**'))
       return <strong key={idx} className="font-semibold">{part.slice(2, -2)}</strong>
@@ -254,7 +255,8 @@ export default function ChatPage() {
     const conteudo = (texto ?? input).trim()
     if (!conteudo || carregando) return
 
-    shouldScrollRef.current = isNearBottom()
+    // Always scroll for user's own message + loading indicator
+    shouldScrollRef.current = true
 
     const novaMensagem: Mensagem = { id: newId(), role: 'user', content: conteudo, ts: Date.now() }
     const historicoOtimista = [...mensagens, novaMensagem]
@@ -264,7 +266,6 @@ export default function ChatPage() {
       inputRef.current.style.height = 'auto'
     }
     setCarregando(true)
-    shouldScrollRef.current = true
 
     try {
       const res = await fetch('/api/chat', {
@@ -299,8 +300,11 @@ export default function ChatPage() {
         content = 'Não consegui responder agora. Tente novamente em instantes.'
       }
 
+      // Only scroll to AI response if user is still near the loading indicator
+      shouldScrollRef.current = isNearBottom()
       setMensagens([...historicoOtimista, { id: newId(), role: 'assistant', content, ts: Date.now() }])
     } catch {
+      shouldScrollRef.current = isNearBottom()
       setMensagens([...historicoOtimista, {
         id: newId(),
         role: 'assistant',

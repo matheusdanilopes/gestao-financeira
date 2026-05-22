@@ -213,7 +213,7 @@ function buildHistoricalContext(
       ctx += `  Maiores compras:\n`
       for (const t of top) {
         const cartaoLabel = multiCartao ? ` [${t.cartao ?? 'nubank'}]` : ''
-        ctx += `    ${t.responsavel[0]} ${t.descricao}${cartaoLabel} ${fmtR(t.valor)}${t.categoria ? ` (${t.categoria})` : ''}\n`
+        ctx += `    ${(t.responsavel ?? '?')[0]} ${t.descricao}${cartaoLabel} ${fmtR(t.valor)}${t.categoria ? ` (${t.categoria})` : ''}\n`
       }
     }
   }
@@ -357,7 +357,7 @@ function buildCategoryFocus(
   for (const t of topTx) {
     const cartaoLabel = multiCard ? ` [${t.cartao ?? 'nubank'}]` : ''
     const mesLabel = getMesEfetivo(t)
-    ctx += `    ${t.responsavel[0]} ${t.descricao}${cartaoLabel} — ${fmtR(t.valor)} (${fmtMes(mesLabel)}) [${t.categoria ?? 'sem cat'}]\n`
+    ctx += `    ${(t.responsavel ?? '?')[0]} ${t.descricao}${cartaoLabel} — ${fmtR(t.valor)} (${fmtMes(mesLabel)}) [${t.categoria ?? 'sem cat'}]\n`
   }
 
   return ctx
@@ -478,9 +478,9 @@ export async function buildAIContext(
     intent.responsavelFoco
   )
 
-  // Subscription detail for assinaturas screen
+  // Subscription detail for assinaturas/dashboard/geral screens
   let assinaturasDetail = ''
-  if (tela === 'assinaturas' || intent.tipo === 'geral') {
+  if (tela === 'assinaturas' || tela === 'geral' || tela === 'dashboard') {
     const ativas = data.assinaturas.filter(a => a.ativa)
     if (ativas.length > 0) {
       assinaturasDetail = '\n══ ASSINATURAS ATIVAS ══\n'
