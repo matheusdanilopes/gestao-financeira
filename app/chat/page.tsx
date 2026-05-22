@@ -529,14 +529,6 @@ export default function ChatPage() {
                     <Plus className="w-4 h-4 text-gray-400 shrink-0" />
                     Nova conversa
                   </button>
-                  <button
-                    role="menuitem"
-                    onClick={abrirDrawer}
-                    className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition text-left border-t border-gray-100 dark:border-gray-700/60"
-                  >
-                    <History className="w-4 h-4 text-gray-400 shrink-0" />
-                    Conversas anteriores
-                  </button>
                   {mensagens.length > 0 && (
                     <button
                       role="menuitem"
@@ -558,7 +550,7 @@ export default function ChatPage() {
       {/* Mensagens */}
       <div
         ref={scrollRef}
-        className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-4 py-4 pb-6 space-y-5"
+        className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-4 pt-4 pb-24 space-y-5"
       >
         {mensagens.length === 0 && !carregando ? (
           <div className="flex flex-col items-center justify-center min-h-full py-8 gap-5">
