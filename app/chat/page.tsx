@@ -5,6 +5,7 @@ import ModalPortal from '@/components/ModalPortal'
 import {
   Send, Sparkles, User, Trash2, Plus, History, X,
   MessageSquare, ChevronRight, TrendingUp, BarChart2, Calendar, PieChart,
+  MoreHorizontal,
 } from 'lucide-react'
 import NotificacoesBell from '@/components/NotificacoesBell'
 import { supabase } from '@/lib/supabaseClient'
@@ -163,6 +164,8 @@ export default function ChatPage() {
   const [drawerAberto, setDrawerAberto] = useState(false)
   const [conversas, setConversas] = useState<ConversaItem[]>([])
   const [carregandoConversas, setCarregandoConversas] = useState(false)
+  const [overflowOpen, setOverflowOpen] = useState(false)
+  const [compactHeader, setCompactHeader] = useState(false)
   const fimRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -221,7 +224,18 @@ export default function ChatPage() {
     }
   }, [mensagens, carregando])
 
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    function onScroll() {
+      setCompactHeader(el!.scrollTop > 24)
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [])
+
   async function abrirDrawer() {
+    setOverflowOpen(false)
     setDrawerAberto(true)
     setCarregandoConversas(true)
     try {
@@ -324,6 +338,11 @@ export default function ChatPage() {
     try { localStorage.removeItem(convIdKey(userIdRef.current)) } catch { /* ignore */ }
   }
 
+  function handleNovaConversa() {
+    setOverflowOpen(false)
+    novaConversa()
+  }
+
   async function deletarConversa() {
     const convId = convIdRef.current
     novaConversa()
@@ -335,6 +354,11 @@ export default function ChatPage() {
         { method: 'DELETE' }
       )
     } catch { /* silencioso */ }
+  }
+
+  async function handleDeletarConversa() {
+    setOverflowOpen(false)
+    await deletarConversa()
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -440,52 +464,93 @@ export default function ChatPage() {
         </div>
       </ModalPortal>
 
+      {/* Overflow menu backdrop */}
+      {overflowOpen && (
+        <div
+          className="fixed inset-0 z-[150]"
+          onClick={() => setOverflowOpen(false)}
+        />
+      )}
+
       {/* Header */}
-      <div className="sticky top-0 z-[10] sticky-header border-b border-gray-100 dark:border-gray-700/60 px-4 py-3 flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-sm">
-          <Sparkles className="w-5 h-5 text-white" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm">Assistente Financeiro</p>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-            <span className="text-[11px] text-gray-400 dark:text-gray-500">Analisando · {mesAtual}</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-1">
+      <header className={`sticky top-0 z-[160] sticky-header border-b border-gray-100 dark:border-gray-700/60 transition-[padding] duration-200 ${compactHeader ? 'py-1.5' : 'py-2'}`}>
+        <div className="flex items-center gap-1 px-1">
+
+          {/* Left zone: History */}
           <button
             onClick={abrirDrawer}
-            className="p-2 text-gray-400 hover:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded-xl transition"
-            title="Histórico de conversas"
+            aria-label="Histórico de conversas"
+            className="flex items-center justify-center w-11 h-11 rounded-xl text-gray-500 dark:text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 transition active:scale-95 shrink-0"
           >
-            <History className="w-4 h-4" />
+            <History className="w-5 h-5" />
           </button>
-          {mensagens.length > 0 && (
-            <>
+
+          {/* Center zone: Context */}
+          <div className="flex-1 min-w-0 flex items-center justify-center gap-2">
+            <div className={`w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-sm transition-all duration-200 ${compactHeader ? 'scale-90' : ''}`}>
+              <Sparkles className="w-4 h-4 text-white" />
+            </div>
+            <div className="min-w-0 text-center">
+              <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight truncate">
+                IA Financeira
+              </p>
+              <div className={`flex items-center justify-center gap-1.5 transition-all duration-200 overflow-hidden ${compactHeader ? 'max-h-0 opacity-0' : 'max-h-4 opacity-100 mt-0.5'}`}>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                <span className="text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap">Analisando · {mesAtual}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right zone: Bell + Overflow */}
+          <div className="flex items-center shrink-0">
+            <NotificacoesBell />
+            <div className="relative">
               <button
-                onClick={novaConversa}
-                className="p-2 text-gray-400 hover:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded-xl transition"
-                title="Nova conversa"
+                onClick={() => setOverflowOpen(prev => !prev)}
+                aria-label="Mais opções"
+                aria-expanded={overflowOpen}
+                aria-haspopup="menu"
+                className="flex items-center justify-center w-11 h-11 rounded-xl text-gray-500 dark:text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 transition active:scale-95"
               >
-                <Plus className="w-4 h-4" />
+                <MoreHorizontal className="w-5 h-5" />
               </button>
-              <button
-                onClick={deletarConversa}
-                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition"
-                title="Excluir conversa"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </>
-          )}
-          <NotificacoesBell />
+
+              {/* Overflow popover */}
+              {overflowOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 top-12 w-52 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden z-[151] animate-in"
+                >
+                  <button
+                    role="menuitem"
+                    onClick={handleNovaConversa}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition text-left"
+                  >
+                    <Plus className="w-4 h-4 text-gray-400 shrink-0" />
+                    Nova conversa
+                  </button>
+                  {mensagens.length > 0 && (
+                    <button
+                      role="menuitem"
+                      onClick={handleDeletarConversa}
+                      className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition text-left border-t border-gray-100 dark:border-gray-700/60"
+                    >
+                      <Trash2 className="w-4 h-4 shrink-0" />
+                      Excluir conversa
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
         </div>
-      </div>
+      </header>
 
       {/* Mensagens */}
       <div
         ref={scrollRef}
-        className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-4 py-4 pb-6 space-y-5"
+        className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-4 pt-8 pb-24 space-y-5"
       >
         {mensagens.length === 0 && !carregando ? (
           <div className="flex flex-col items-center justify-center min-h-full py-8 gap-5">
