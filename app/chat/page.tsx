@@ -550,7 +550,7 @@ export default function ChatPage() {
       {/* Mensagens */}
       <div
         ref={scrollRef}
-        className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-4 pt-4 pb-24 space-y-5"
+        className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-4 pt-8 pb-24 space-y-5"
       >
         {mensagens.length === 0 && !carregando ? (
           <div className="flex flex-col items-center justify-center min-h-full py-8 gap-5">
