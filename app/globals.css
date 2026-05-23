@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Enable smooth cross-document transitions (Chrome/Edge 126+; no-op elsewhere) */
+@view-transition {
+  navigation: auto;
+}
+
 /* ─── Design tokens (light) ──────────────────────────────────────────────── */
 :root {
   --color-bg:          #f8fafc;
@@ -279,7 +284,7 @@ button, a, [role="button"] {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.page-enter { animation: fade-up 0.22s ease; }
+.page-enter { animation: fade-up 0.12s ease; }
 
 /* ─── Toast notification ─────────────────────────────────────────────────── */
 @keyframes toast-up {

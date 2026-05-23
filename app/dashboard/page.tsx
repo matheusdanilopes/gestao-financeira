@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
@@ -397,6 +397,32 @@ export default function Dashboard() {
     onData: applyData,
     pollInterval: 45_000,
   })
+
+  // Pre-fetch adjacent months in the background so month-switching never shows a skeleton
+  useEffect(() => {
+    if (!isOnline) return
+
+    const prefetch = async (mes: Date) => {
+      const storageKey = `datasync:dashboard:${format(mes, 'yyyy-MM')}`
+      if (localStorage.getItem(storageKey)) return // already cached
+      try {
+        const data = await carregarDados(mes)
+        localStorage.setItem(storageKey, JSON.stringify({ data, ts: Date.now() }))
+      } catch { /* background-only; ignore errors */ }
+    }
+
+    const prev = subMonths(mesAtual, 1)
+    const next = addMonths(mesAtual, 1)
+
+    if ('requestIdleCallback' in window) {
+      const id1 = requestIdleCallback(() => { prefetch(prev) }, { timeout: 6000 })
+      const id2 = requestIdleCallback(() => { prefetch(next) }, { timeout: 6000 })
+      return () => { cancelIdleCallback(id1); cancelIdleCallback(id2) }
+    }
+    const t1 = setTimeout(() => prefetch(prev), 2500)
+    const t2 = setTimeout(() => prefetch(next), 3500)
+    return () => { clearTimeout(t1); clearTimeout(t2) }
+  }, [mesAtual, isOnline])
 
   // Mostra skeleton só quando não há dado algum ainda (sem cache, aguardando fetch)
   const carregando = status === 'loading'
