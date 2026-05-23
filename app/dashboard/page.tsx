@@ -55,6 +55,7 @@ import { InfoPopover } from '@/components/InfoPopover'
 const DrawerDetalhes = dynamic(() => import('@/components/DrawerDetalhes'), { ssr: false })
 const PeriodSelectorSheet = dynamic(() => import('@/components/PeriodSelectorSheet'), { ssr: false })
 import { useGlobalSync } from '@/lib/useGlobalSync'
+import { usePrefetchPages } from '@/lib/usePrefetchPages'
 import { formatBRL as fmt } from '@/lib/logger'
 
 const NUBANK_ITEMS = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto'])
@@ -423,6 +424,9 @@ export default function Dashboard() {
     const t2 = setTimeout(() => prefetch(next), 3500)
     return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [mesAtual, isOnline])
+
+  // Pre-warm cache for all main pages so navigation to them never shows a skeleton
+  usePrefetchPages(mesAtual, isOnline)
 
   // Mostra skeleton só quando não há dado algum ainda (sem cache, aguardando fetch)
   const carregando = status === 'loading'
