@@ -47,7 +47,7 @@ function QuickAddWishlist({
   const [erro, setErro] = useState('')
 
   useEffect(() => {
-    const t = setTimeout(() => nomeRef.current?.focus(), 200)
+    const t = setTimeout(() => nomeRef.current?.focus(), 120)
     return () => clearTimeout(t)
   }, [])
 
@@ -177,7 +177,7 @@ function QuickAddMercado({
   const [erro, setErro] = useState('')
 
   useEffect(() => {
-    const t = setTimeout(() => nomeRef.current?.focus(), 200)
+    const t = setTimeout(() => nomeRef.current?.focus(), 120)
     return () => clearTimeout(t)
   }, [])
 

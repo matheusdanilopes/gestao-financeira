@@ -173,13 +173,13 @@ function OfflineNavItem({
       onClick={handleClick}
       className="flex flex-col items-center justify-center gap-1 flex-1 py-2
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
-                 focus-visible:ring-offset-1 rounded-xl transition-all duration-200"
+                 focus-visible:ring-offset-1 rounded-xl"
       aria-current={isActive ? 'page' : undefined}
     >
-      <span className={`flex items-center justify-center w-14 h-9 rounded-2xl transition-all duration-200
+      <span className={`flex items-center justify-center w-14 h-9 rounded-2xl transition-colors duration-200
                         ${isActive ? 'bg-primary-100' : ''}`}>
         <Icon
-          className={`transition-all duration-200 w-[24px] h-[24px]
+          className={`transition-colors duration-200 w-[24px] h-[24px]
                       ${isActive ? 'text-primary-600' : 'text-gray-400'}`}
           strokeWidth={isActive ? 2.5 : 1.8}
         />
@@ -210,12 +210,12 @@ function MobileMenuButton({
       aria-expanded={ariaExpanded}
       className="flex flex-col items-center justify-center gap-0.5 flex-1 py-2
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
-                 focus-visible:ring-offset-1 rounded-xl transition-all duration-200"
+                 focus-visible:ring-offset-1 rounded-xl"
     >
-      <span className={`flex items-center justify-center w-10 h-6 rounded-full transition-all duration-200
+      <span className={`flex items-center justify-center w-10 h-6 rounded-full transition-colors duration-200
                         ${isActive ? 'bg-primary-100' : ''}`}>
         <Icon
-          className={`transition-all duration-200 w-[20px] h-[20px]
+          className={`transition-colors duration-200 w-[20px] h-[20px]
                       ${isActive ? 'text-primary-600' : 'text-gray-400'}`}
           strokeWidth={isActive ? 2.5 : 1.8}
         />
@@ -243,13 +243,13 @@ function MobileNavItem({
       href={href}
       className="flex flex-col items-center justify-center gap-0.5 flex-1 py-2
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
-                 focus-visible:ring-offset-1 rounded-xl transition-all duration-200"
+                 focus-visible:ring-offset-1 rounded-xl"
       aria-current={isActive ? 'page' : undefined}
     >
-      <span className={`flex items-center justify-center w-10 h-6 rounded-full transition-all duration-200
+      <span className={`flex items-center justify-center w-10 h-6 rounded-full transition-colors duration-200
                         ${isActive ? 'bg-primary-100' : ''}`}>
         <Icon
-          className={`transition-all duration-200 w-[20px] h-[20px]
+          className={`transition-colors duration-200 w-[20px] h-[20px]
                       ${isActive ? 'text-primary-600' : 'text-gray-400'}`}
           strokeWidth={isActive ? 2.5 : 1.8}
         />
@@ -391,7 +391,7 @@ export default memo(function BottomNav() {
 
       {/* Indicador discreto de modo offline */}
       {!isOnline && (
-        <div className="flex items-center justify-center gap-1.5 bg-amber-50 border-b border-amber-100 py-1 text-xs text-amber-700 font-medium transition-all duration-300">
+        <div className="flex items-center justify-center gap-1.5 bg-amber-50 border-b border-amber-100 py-1 text-xs text-amber-700 font-medium">
           <WifiOff className="w-3 h-3" />
           Modo Offline
         </div>
@@ -400,7 +400,7 @@ export default memo(function BottomNav() {
       <nav aria-label="Navegação principal">
         {/* ── Mobile: offline — Dashboard + FAB simplificado + Lista Mercado ── */}
         {!isOnline ? (
-          <div className="flex lg:hidden justify-around items-center h-16 px-1 transition-all duration-300">
+          <div className="flex lg:hidden justify-around items-center h-16 px-1">
             <OfflineNavItem
               href="/dashboard"
               label="Dashboard"
@@ -440,7 +440,7 @@ export default memo(function BottomNav() {
           </div>
         ) : (
           /* ── Mobile: online — 5 itens com FAB central ──────────────────── */
-          <div className="flex lg:hidden justify-around items-center h-16 px-1 transition-all duration-300">
+          <div className="flex lg:hidden justify-around items-center h-16 px-1">
             <MobileNavItem
               href="/dashboard"
               label="Dashboard"
@@ -511,13 +511,13 @@ export default memo(function BottomNav() {
                 className={`
                   ${desktopOnly ? 'hidden md:flex' : 'flex'}
                   flex-row items-center gap-1.5 px-3 py-1.5 rounded-xl flex-none
-                  transition-all duration-200
+                  transition-colors duration-200
                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-1
                 `}
                 aria-current={isActive ? 'page' : undefined}
               >
                 <Icon
-                  className={`w-4 h-4 transition-all duration-200 ${isActive ? 'text-primary-600' : 'text-gray-500'}`}
+                  className={`w-4 h-4 transition-colors duration-200 ${isActive ? 'text-primary-600' : 'text-gray-500'}`}
                   strokeWidth={isActive ? 2.5 : 1.8}
                 />
                 <span className={`text-[13px] font-medium leading-none transition-colors duration-200

@@ -326,8 +326,8 @@ export default function CategoryTreemap({ compras: comprasProp, mesAtual, loadin
                   borderRadius: 10,
                   backgroundColor: block.color,
                   transform: isSelected ? 'scale(0.97)' : 'scale(1)',
-                  transition: 'transform 150ms ease, filter 150ms ease',
-                  filter: isSelected ? 'brightness(1.1)' : 'brightness(1)',
+                  transition: 'transform 120ms ease',
+                  willChange: 'transform',
                 }}
                 aria-label={`${block.label}: ${formatBRL(block.valor)}`}
               >

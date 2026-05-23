@@ -316,7 +316,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
           </div>
           <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
             <div
-              className="h-2 rounded-full bg-green-500 transition-all duration-700"
+              className="h-2 rounded-full bg-green-500 transition-[width] duration-500"
               style={{ width: `${percentual}%` }}
             />
           </div>
@@ -428,7 +428,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
                   <div className="mt-2 ml-4">
                     <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
                       <div
-                        className={`h-1.5 rounded-full transition-all duration-500 ${
+                        className={`h-1.5 rounded-full transition-[width] duration-400 ${
                           concluido ? 'bg-green-500' : parcial ? 'bg-yellow-400' : 'bg-gray-200'
                         }`}
                         style={{ width: `${progresso}%` }}

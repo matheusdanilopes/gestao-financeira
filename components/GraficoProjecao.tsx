@@ -124,6 +124,10 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
 
       const d: DadosProjecao = { labels, datas, total, matheus, jeniffer, extra }
       dataCache.current.set(mesKey, d)
+      if (dataCache.current.size > 12) {
+        const oldest = dataCache.current.keys().next().value
+        if (oldest) dataCache.current.delete(oldest)
+      }
       setDados(d)
       dadosRef.current = d
     } catch {
@@ -207,7 +211,7 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index' as const, intersect: false },
-      animation: { duration: 750, easing: 'easeInOutCubic' as const },
+      animation: { duration: 350, easing: 'easeOutQuart' as const },
       plugins: {
         legend: {
           position: 'bottom' as const,

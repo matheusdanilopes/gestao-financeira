@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
@@ -55,6 +55,7 @@ import { InfoPopover } from '@/components/InfoPopover'
 const DrawerDetalhes = dynamic(() => import('@/components/DrawerDetalhes'), { ssr: false })
 const PeriodSelectorSheet = dynamic(() => import('@/components/PeriodSelectorSheet'), { ssr: false })
 import { useGlobalSync } from '@/lib/useGlobalSync'
+import { usePrefetchPages } from '@/lib/usePrefetchPages'
 import { formatBRL as fmt } from '@/lib/logger'
 
 const NUBANK_ITEMS = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto'])
@@ -398,6 +399,35 @@ export default function Dashboard() {
     pollInterval: 45_000,
   })
 
+  // Pre-fetch adjacent months in the background so month-switching never shows a skeleton
+  useEffect(() => {
+    if (!isOnline) return
+
+    const prefetch = async (mes: Date) => {
+      const storageKey = `datasync:dashboard:${format(mes, 'yyyy-MM')}`
+      if (localStorage.getItem(storageKey)) return // already cached
+      try {
+        const data = await carregarDados(mes)
+        localStorage.setItem(storageKey, JSON.stringify({ data, ts: Date.now() }))
+      } catch { /* background-only; ignore errors */ }
+    }
+
+    const prev = subMonths(mesAtual, 1)
+    const next = addMonths(mesAtual, 1)
+
+    if ('requestIdleCallback' in window) {
+      const id1 = requestIdleCallback(() => { prefetch(prev) }, { timeout: 6000 })
+      const id2 = requestIdleCallback(() => { prefetch(next) }, { timeout: 6000 })
+      return () => { cancelIdleCallback(id1); cancelIdleCallback(id2) }
+    }
+    const t1 = setTimeout(() => prefetch(prev), 2500)
+    const t2 = setTimeout(() => prefetch(next), 3500)
+    return () => { clearTimeout(t1); clearTimeout(t2) }
+  }, [mesAtual, isOnline])
+
+  // Pre-warm cache for all main pages so navigation to them never shows a skeleton
+  usePrefetchPages(mesAtual, isOnline)
+
   // Mostra skeleton só quando não há dado algum ainda (sem cache, aguardando fetch)
   const carregando = status === 'loading'
 
@@ -448,6 +478,38 @@ export default function Dashboard() {
   const heroColor = heroSaldo < 0 ? 'text-red-600' : saldoAtualWarning ? 'text-amber-600' : 'text-emerald-600'
   const HeroIcon = heroSaldo < 0 ? TrendingDown : heroSaldo === 0 ? Minus : TrendingUp
 
+  // Cartão extras: pré-computado fora do JSX para não recalcular em mudanças de UI state (aba, drawer, etc.)
+  const cartaoExtrasData = useMemo(() => {
+    if (fatura.cartao1Items.length === 0 && fatura.cartao2Items.length === 0) return null
+    const c1M = fatura.cartao1Items.filter(i => i.responsavel === 'Matheus')
+    const c1J = fatura.cartao1Items.filter(i => i.responsavel === 'Jeniffer')
+    const c2M = fatura.cartao2Items.filter(i => i.responsavel === 'Matheus')
+    const c2J = fatura.cartao2Items.filter(i => i.responsavel === 'Jeniffer')
+    const c1Total = fatura.cartao1AtualMatheus + fatura.cartao1AtualJeniffer
+    const c2Total = fatura.cartao2AtualMatheus + fatura.cartao2AtualJeniffer
+    const outrosCards = [
+      ...(c1M.length > 0 ? [{ label: c1M.map(i => i.nome).join(' / '), responsavel: 'Matheus', atual: c1Total, previsto: c1M.reduce((s, i) => s + i.previsto, 0) }] : []),
+      ...(c1J.length > 0 ? [{ label: c1J.map(i => i.nome).join(' / '), responsavel: 'Jeniffer', atual: c1Total, previsto: c1J.reduce((s, i) => s + i.previsto, 0) }] : []),
+      ...(c2M.length > 0 ? [{ label: c2M.map(i => i.nome).join(' / '), responsavel: 'Matheus', atual: c2Total, previsto: c2M.reduce((s, i) => s + i.previsto, 0) }] : []),
+      ...(c2J.length > 0 ? [{ label: c2J.map(i => i.nome).join(' / '), responsavel: 'Jeniffer', atual: c2Total, previsto: c2J.reduce((s, i) => s + i.previsto, 0) }] : []),
+    ].filter(c => c.atual > 0 || c.previsto > 0)
+    const matheusCardsAtual = outrosCards.filter(c => c.responsavel === 'Matheus').reduce((s, c) => s + c.atual, 0)
+    const matheusCardsPrevisto = outrosCards.filter(c => c.responsavel === 'Matheus').reduce((s, c) => s + c.previsto, 0)
+    const jenifferCardsAtual = outrosCards.filter(c => c.responsavel === 'Jeniffer').reduce((s, c) => s + c.atual, 0)
+    const jenifferCardsPrevisto = outrosCards.filter(c => c.responsavel === 'Jeniffer').reduce((s, c) => s + c.previsto, 0)
+    const matheusTotalPrevisto = fatura.matheusPrevisto + matheusCardsPrevisto
+    const matheusTotalAtual = fatura.matheusAtual + matheusCardsAtual
+    const matheusRestante = matheusTotalPrevisto - matheusTotalAtual
+    const matheusPct = matheusTotalPrevisto > 0 ? Math.min(100, (matheusTotalAtual / matheusTotalPrevisto) * 100) : 0
+    const matheusResumoWarning = matheusRestante >= 0 && matheusTotalPrevisto > 0 && (matheusRestante / matheusTotalPrevisto) * 100 <= 10
+    const jenifferTotalPrevisto = fatura.jenifferPrevisto + jenifferCardsPrevisto
+    const jenifferTotalAtual = fatura.jenifferAtual + jenifferCardsAtual
+    const jenifferRestante = jenifferTotalPrevisto - jenifferTotalAtual
+    const jenifferPct = jenifferTotalPrevisto > 0 ? Math.min(100, (jenifferTotalAtual / jenifferTotalPrevisto) * 100) : 0
+    const jenifferResumoWarning = jenifferRestante >= 0 && jenifferTotalPrevisto > 0 && (jenifferRestante / jenifferTotalPrevisto) * 100 <= 10
+    return { outrosCards, matheusTotalPrevisto, matheusTotalAtual, matheusRestante, matheusPct, matheusResumoWarning, jenifferTotalPrevisto, jenifferTotalAtual, jenifferRestante, jenifferPct, jenifferResumoWarning }
+  }, [fatura])
+
   return (
     <div className="min-h-screen bg-gray-50 page-bottom-safe page-enter">
 
@@ -474,7 +536,7 @@ export default function Dashboard() {
             <button
               key={t}
               onClick={() => handleSetAba(t)}
-              className={`flex-1 py-1.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+              className={`flex-1 py-1.5 rounded-xl text-sm font-medium transition-colors duration-200 ${
                 aba === t
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-500 hover:text-gray-700'
@@ -560,7 +622,7 @@ export default function Dashboard() {
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
                   <div
-                    className={`h-2 rounded-full transition-all duration-700 ${comprometimentoBarColor}`}
+                    className={`h-2 rounded-full transition-[width] duration-500 ${comprometimentoBarColor}`}
                     style={{ width: `${Math.min(resumoCaixa.percentualComprometimento, 100)}%` }}
                   />
                 </div>
@@ -644,7 +706,7 @@ export default function Dashboard() {
                     </div>
                   )}
                   <div className="mt-2 h-2 bg-blue-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100) : 0}%` }} />
+                    <div className="h-full bg-blue-500 rounded-full transition-[width] duration-400" style={{ width: `${fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100) : 0}%` }} />
                   </div>
                   <p className="text-right text-[10px] text-blue-500 mt-0.5 num">{fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100).toFixed(0) : 0}%</p>
                   <div className={`flex justify-between text-xs font-bold mt-1.5 gap-1 ${fatura.sobraMatheus < 0 ? 'text-red-600' : matheusSobraWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
@@ -679,7 +741,7 @@ export default function Dashboard() {
                     </div>
                   )}
                   <div className="mt-2 h-2 bg-pink-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-pink-500 rounded-full transition-all duration-500" style={{ width: `${fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100) : 0}%` }} />
+                    <div className="h-full bg-pink-500 rounded-full transition-[width] duration-400" style={{ width: `${fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100) : 0}%` }} />
                   </div>
                   <p className="text-right text-[10px] text-pink-500 mt-0.5 num">{fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100).toFixed(0) : 0}%</p>
                   <div className={`flex justify-between text-xs font-bold mt-1.5 gap-1 ${fatura.sobraJeniffer < 0 ? 'text-red-600' : jenifferSobraWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
@@ -691,35 +753,8 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {(fatura.cartao1Items.length > 0 || fatura.cartao2Items.length > 0) && (() => {
-                const c1M = fatura.cartao1Items.filter(i => i.responsavel === 'Matheus')
-                const c1J = fatura.cartao1Items.filter(i => i.responsavel === 'Jeniffer')
-                const c2M = fatura.cartao2Items.filter(i => i.responsavel === 'Matheus')
-                const c2J = fatura.cartao2Items.filter(i => i.responsavel === 'Jeniffer')
-                const c1Total = fatura.cartao1AtualMatheus + fatura.cartao1AtualJeniffer
-                const c2Total = fatura.cartao2AtualMatheus + fatura.cartao2AtualJeniffer
-                const outrosCards = [
-                  ...(c1M.length > 0 ? [{ label: c1M.map(i => i.nome).join(' / '), responsavel: 'Matheus', atual: c1Total, previsto: c1M.reduce((s, i) => s + i.previsto, 0) }] : []),
-                  ...(c1J.length > 0 ? [{ label: c1J.map(i => i.nome).join(' / '), responsavel: 'Jeniffer', atual: c1Total, previsto: c1J.reduce((s, i) => s + i.previsto, 0) }] : []),
-                  ...(c2M.length > 0 ? [{ label: c2M.map(i => i.nome).join(' / '), responsavel: 'Matheus', atual: c2Total, previsto: c2M.reduce((s, i) => s + i.previsto, 0) }] : []),
-                  ...(c2J.length > 0 ? [{ label: c2J.map(i => i.nome).join(' / '), responsavel: 'Jeniffer', atual: c2Total, previsto: c2J.reduce((s, i) => s + i.previsto, 0) }] : []),
-                ].filter(c => c.atual > 0 || c.previsto > 0)
-
-                const matheusCardsAtual = outrosCards.filter(c => c.responsavel === 'Matheus').reduce((s, c) => s + c.atual, 0)
-                const matheusCardsPrevisto = outrosCards.filter(c => c.responsavel === 'Matheus').reduce((s, c) => s + c.previsto, 0)
-                const jenifferCardsAtual = outrosCards.filter(c => c.responsavel === 'Jeniffer').reduce((s, c) => s + c.atual, 0)
-                const jenifferCardsPrevisto = outrosCards.filter(c => c.responsavel === 'Jeniffer').reduce((s, c) => s + c.previsto, 0)
-                const matheusTotalPrevisto = fatura.matheusPrevisto + matheusCardsPrevisto
-                const matheusTotalAtual = fatura.matheusAtual + matheusCardsAtual
-                const matheusRestante = matheusTotalPrevisto - matheusTotalAtual
-                const matheusPct = matheusTotalPrevisto > 0 ? Math.min(100, (matheusTotalAtual / matheusTotalPrevisto) * 100) : 0
-                const matheusResumoWarning = matheusRestante >= 0 && matheusTotalPrevisto > 0 && (matheusRestante / matheusTotalPrevisto) * 100 <= 10
-                const jenifferTotalPrevisto = fatura.jenifferPrevisto + jenifferCardsPrevisto
-                const jenifferTotalAtual = fatura.jenifferAtual + jenifferCardsAtual
-                const jenifferRestante = jenifferTotalPrevisto - jenifferTotalAtual
-                const jenifferPct = jenifferTotalPrevisto > 0 ? Math.min(100, (jenifferTotalAtual / jenifferTotalPrevisto) * 100) : 0
-                const jenifferResumoWarning = jenifferRestante >= 0 && jenifferTotalPrevisto > 0 && (jenifferRestante / jenifferTotalPrevisto) * 100 <= 10
-
+              {cartaoExtrasData && (() => {
+                const { outrosCards, matheusTotalPrevisto, matheusTotalAtual, matheusRestante, matheusPct, matheusResumoWarning, jenifferTotalPrevisto, jenifferTotalAtual, jenifferRestante, jenifferPct, jenifferResumoWarning } = cartaoExtrasData
                 return (
                   <div className="mt-4 opacity-70">
                     <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Outros cartões</p>
@@ -744,7 +779,7 @@ export default function Dashboard() {
                               <span className="font-medium text-gray-800 num">{fmt(card.previsto)}</span>
                             </div>
                             <div className={`mt-1.5 h-2 rounded-full overflow-hidden ${isMatheus ? 'bg-blue-100' : 'bg-pink-100'}`}>
-                              <div className={`h-full rounded-full transition-all duration-500 ${isMatheus ? 'bg-blue-400' : 'bg-pink-400'}`} style={{ width: `${pct}%` }} />
+                              <div className={`h-full rounded-full transition-[width] duration-400 ${isMatheus ? 'bg-blue-400' : 'bg-pink-400'}`} style={{ width: `${pct}%` }} />
                             </div>
                             <div className={`flex items-center justify-between text-xs font-bold mt-1 gap-1 ${
                               sobra < 0 ? 'text-red-600' : isWarning ? 'text-amber-600' : 'text-emerald-600'
@@ -766,7 +801,7 @@ export default function Dashboard() {
                         <div className="flex justify-between text-xs gap-1 text-gray-500"><span>Atual</span><span className="font-medium text-gray-800 num">{fmt(matheusTotalAtual)}</span></div>
                         <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-500"><span>Previsto</span><span className="font-medium text-gray-800 num">{fmt(matheusTotalPrevisto)}</span></div>
                         <div className="mt-1.5 h-2 bg-blue-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${matheusPct}%` }} />
+                          <div className="h-full bg-blue-500 rounded-full transition-[width] duration-400" style={{ width: `${matheusPct}%` }} />
                         </div>
                         <div className={`flex justify-between text-xs font-bold mt-1 gap-1 ${matheusRestante < 0 ? 'text-red-600' : matheusResumoWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
                           <span className="flex items-center gap-0.5 whitespace-nowrap">{matheusRestante < 0 ? '⚠ Excesso' : matheusResumoWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção!</> : '✓ Restante'}</span>
@@ -778,7 +813,7 @@ export default function Dashboard() {
                         <div className="flex justify-between text-xs gap-1 text-gray-500"><span>Atual</span><span className="font-medium text-gray-800 num">{fmt(jenifferTotalAtual)}</span></div>
                         <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-500"><span>Previsto</span><span className="font-medium text-gray-800 num">{fmt(jenifferTotalPrevisto)}</span></div>
                         <div className="mt-1.5 h-2 bg-pink-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-pink-500 rounded-full transition-all duration-500" style={{ width: `${jenifferPct}%` }} />
+                          <div className="h-full bg-pink-500 rounded-full transition-[width] duration-400" style={{ width: `${jenifferPct}%` }} />
                         </div>
                         <div className={`flex justify-between text-xs font-bold mt-1 gap-1 ${jenifferRestante < 0 ? 'text-red-600' : jenifferResumoWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
                           <span className="flex items-center gap-0.5 whitespace-nowrap">{jenifferRestante < 0 ? '⚠ Excesso' : jenifferResumoWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção!</> : '✓ Restante'}</span>
@@ -906,7 +941,7 @@ export default function Dashboard() {
                       </div>
                       <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
                         <div
-                          className={`h-2 rounded-full transition-all duration-500 ${concluido ? 'bg-gradient-to-r from-emerald-500 to-green-500' : 'bg-gradient-to-r from-violet-400 to-violet-600'}`}
+                          className={`h-2 rounded-full transition-[width] duration-400 ${concluido ? 'bg-gradient-to-r from-emerald-500 to-green-500' : 'bg-gradient-to-r from-violet-400 to-violet-600'}`}
                           style={{ width: `${progresso}%` }}
                         />
                       </div>

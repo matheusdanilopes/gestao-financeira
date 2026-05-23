@@ -134,6 +134,10 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
         currentMonthIndex: mesesRef.findIndex(m => m === hojeRef),
       }
       dataCache.current.set(mesKey, novosDados)
+      if (dataCache.current.size > 12) {
+        const oldest = dataCache.current.keys().next().value
+        if (oldest) dataCache.current.delete(oldest)
+      }
       setDados(novosDados)
     } catch {
       setErro('Não foi possível carregar a evolução financeira.')
@@ -203,7 +207,7 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index' as const, intersect: false },
-      animation: { duration: 750, easing: 'easeInOutCubic' as const },
+      animation: { duration: 350, easing: 'easeOutQuart' as const },
       plugins: {
         legend: {
           position: 'bottom' as const,

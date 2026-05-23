@@ -270,7 +270,7 @@ export default function PeriodSelectorSheet({
           <div className={`absolute left-1/2 top-6 -translate-x-1/2
                            w-80 bg-white dark:bg-gray-900 rounded-3xl shadow-float
                            border border-gray-100 dark:border-gray-800
-                           transition-all duration-300 ${
+                           transition-[opacity,transform] duration-300 ${
             visible ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'
           }`}>
             <div className="px-4 pt-4 pb-2">
