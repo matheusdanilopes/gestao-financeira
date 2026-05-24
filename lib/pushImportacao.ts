@@ -104,17 +104,16 @@ export async function notificarImportacao(
     ? `importacao-sucesso-${cartao}`
     : `importacao-erro-${cartao}`
 
-  // Erros: direcionam para /importar (diagnóstico).
-  // Sucessos com contexto: deep link para /compras com filtros pré-aplicados.
-  // Sucessos sem contexto (novas == 0): /compras com apenas o cartão.
+  // Erros ou importações sem novas compras: /importar (resultado/diagnóstico).
+  // Sucessos com novas compras: deep link para /compras com filtros pré-aplicados.
+  const temNovasCompras = (novas ?? 0) > 0
   let url: string
-  if (tipo === 'erro') {
+  if (tipo === 'erro' || !temNovasCompras) {
     url = '/importar'
   } else if (contexto && ((contexto.purchaseDates?.length ?? 0) > 0 || (contexto.projetoFaturas?.length ?? 0) > 0)) {
     url = buildDeepLinkUrl(cartao, contexto)
   } else {
-    const ts = contexto?.importTs ?? Date.now()
-    url = `/compras?cartao=${cartao}&ts=${ts}`
+    url = `/compras?cartao=${cartao}&ts=${contexto?.importTs ?? Date.now()}`
   }
 
   const payload = {
