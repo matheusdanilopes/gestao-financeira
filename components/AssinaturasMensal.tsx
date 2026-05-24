@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths, endOfMonth } from 'date-fns'
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { log, numericOnly, formatBRL } from '@/lib/logger'
+import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
 
 interface Assinatura {
   id: string
@@ -46,7 +47,6 @@ interface Props {
   mesSelecionado: Date
 }
 
-const CATEGORIAS = ['Streaming', 'Música', 'Software', 'Saúde', 'Educação', 'Jogos', 'Segurança', 'Outros']
 const CARTOES_KEYS = ['nubank', 'cartao1', 'cartao2'] as const
 const RESPONSAVEIS = ['Matheus', 'Jeniffer', 'Compartilhado']
 
@@ -71,6 +71,20 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
   const [historico, setHistorico] = useState<HistoricoValor[]>([])
   const [cartaoLabels, setCartaoLabels] = useState<CartaoLabels>(CARTAO_LABELS_DEFAULT)
   const [verificando, setVerificando] = useState(false)
+
+  // Categorias carregadas do conjunto centralizado (configuracoes.categorias_compras)
+  const [categoriasDisponiveis, setCategoriasDisponiveis] = useState<string[]>(CATEGORIAS_PADRAO)
+  useEffect(() => {
+    fetch('/api/configuracoes')
+      .then(r => r.json())
+      .then(data => {
+        const valor = (data.configuracoes ?? []).find(
+          (c: { chave: string }) => c.chave === 'categorias_compras',
+        )?.valor
+        if (valor) setCategoriasDisponiveis(parseCategoriasConfig(valor))
+      })
+      .catch(() => {}) // mantém CATEGORIAS_PADRAO como fallback
+  }, [])
 
   const [modalAberto, setModalAberto] = useState<'adicionar' | 'editar' | 'excluir' | null>(null)
   const [itemSelecionado, setItemSelecionado] = useState<Assinatura | null>(null)
@@ -653,7 +667,11 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                   value={formData.categoria}
                   onChange={e => setFormData(f => ({ ...f, categoria: e.target.value }))}
                 >
-                  {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+                  {/* Garante que categoria existente (mesmo legada) sempre aparece */}
+                  {!categoriasDisponiveis.includes(formData.categoria) && formData.categoria && (
+                    <option value={formData.categoria}>{formData.categoria}</option>
+                  )}
+                  {categoriasDisponiveis.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
 

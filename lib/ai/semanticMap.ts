@@ -42,7 +42,9 @@ Campos:
   - valor: mensalidade atual em reais
   - cartao: onde é cobrado
   - responsavel: "Matheus" | "Jeniffer" | "Compartilhado"
-  - categoria: Streaming | Música | Software | Saúde | Educação | Jogos | Segurança | Outros
+  - categoria: conjunto unificado compartilhado com compras/despesas/receitas.
+    Valores comuns em assinaturas: Streaming | Música | Jogos | Segurança | Tecnologia | Saúde | Educação | Outros.
+    Categorias legacy 'Software' foram migradas para 'Tecnologia'.
   - ativa: true = ativo (false = cancelado/suspenso)
   - dia_cobranca: dia do mês em que é cobrada
 Métrica principal: SUM(valor) WHERE ativa = comprometimento fixo mensal total

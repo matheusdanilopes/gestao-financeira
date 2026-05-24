@@ -287,17 +287,21 @@ export default function ConfiguracoesPage() {
   }
 
   async function carregarUsoCategorias() {
-    const { data } = await supabase
-      .from('transacoes_nubank')
-      .select('categoria')
-      .not('categoria', 'is', null)
+    const [{ data: compras }, { data: assinaturas }] = await Promise.all([
+      supabase.from('transacoes_nubank').select('categoria').not('categoria', 'is', null),
+      supabase.from('assinaturas').select('categoria').not('categoria', 'is', null),
+    ])
 
-    const usage = (data ?? []).reduce<Record<string, number>>((acc, row) => {
-      const categoria = row.categoria as string | null
-      if (!categoria) return acc
-      acc[categoria] = (acc[categoria] ?? 0) + 1
-      return acc
-    }, {})
+    const usage: Record<string, number> = {}
+
+    for (const row of (compras ?? [])) {
+      const c = row.categoria as string | null
+      if (c) usage[c] = (usage[c] ?? 0) + 1
+    }
+    for (const row of (assinaturas ?? [])) {
+      const c = row.categoria as string | null
+      if (c) usage[c] = (usage[c] ?? 0) + 1
+    }
 
     setCategoriasUso(usage)
   }
@@ -445,13 +449,19 @@ export default function ConfiguracoesPage() {
 
     const categoriaEmUso = (categoriasUso[categoriaAntiga] ?? 0) > 0
     if (categoriaEmUso) {
-      const { error } = await supabase
-        .from('transacoes_nubank')
-        .update({ categoria: novoNome })
-        .eq('categoria', categoriaAntiga)
+      const [{ error: erroCompras }, { error: erroAssinaturas }] = await Promise.all([
+        supabase
+          .from('transacoes_nubank')
+          .update({ categoria: novoNome })
+          .eq('categoria', categoriaAntiga),
+        supabase
+          .from('assinaturas')
+          .update({ categoria: novoNome })
+          .eq('categoria', categoriaAntiga),
+      ])
 
-      if (error) {
-        setMensagem('Erro ao atualizar categoria nas compras: ' + error.message)
+      if (erroCompras || erroAssinaturas) {
+        setMensagem('Erro ao renomear categoria: ' + (erroCompras?.message ?? erroAssinaturas?.message))
         setCategoriasSalvando(false)
         return
       }
@@ -898,10 +908,13 @@ export default function ConfiguracoesPage() {
       {/* ---- ABA CATEGORIAS ---- */}
       {abaAtual === 'categorias' && (
         <div className="bg-white rounded-3xl shadow-card p-4 mb-4">
-          <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+          <h2 className="text-lg font-semibold mb-1 flex items-center gap-2">
             <Tags className="w-5 h-5 text-gray-500" />
-            Categorias de Compras
+            Categorias
           </h2>
+          <p className="text-xs text-gray-400 mb-3">
+            Usadas em compras, despesas, receitas e assinaturas.
+          </p>
 
           <div className="flex gap-2 mb-4">
             <input
@@ -936,7 +949,7 @@ export default function ConfiguracoesPage() {
                   ) : (
                     <div className="flex-1">
                       <p className="text-sm font-medium text-gray-700">{categoria}</p>
-                      <p className="text-xs text-gray-400">{emUso} compra(s) usando esta categoria</p>
+                      <p className="text-xs text-gray-400">{emUso} uso(s) em compras e assinaturas</p>
                     </div>
                   )}
 
@@ -973,7 +986,7 @@ export default function ConfiguracoesPage() {
           </div>
 
           <p className="text-xs text-gray-400 mt-3">
-            Você pode editar categorias em uso (as compras serão atualizadas automaticamente). Remoções só são permitidas para categorias sem uso.
+            Editar renomeia a categoria em compras e assinaturas automaticamente. Remoção só é permitida quando não há uso.
           </p>
         </div>
       )}
