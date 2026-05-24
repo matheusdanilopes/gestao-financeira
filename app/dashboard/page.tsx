@@ -50,6 +50,18 @@ const GraficoGastosDiarios = dynamic(() => import('@/components/GraficoGastosDia
 })
 
 const CategoryTreemap = dynamic(() => import('@/components/CategoryTreemap'), { ssr: false })
+
+const GraficoCategoriasDespesas = dynamic(
+  () => import('@/components/GraficoCategoriasDespesas'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-64 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-gray-200 border-t-indigo-500 rounded-full animate-spin" />
+      </div>
+    ),
+  }
+)
 import { InfoPopover } from '@/components/InfoPopover'
 
 const DrawerDetalhes = dynamic(() => import('@/components/DrawerDetalhes'), { ssr: false })
@@ -976,6 +988,36 @@ export default function Dashboard() {
         {graficosAbertos && (
           <div className={`space-y-4 lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0 lg:items-start${aba !== 'graficos' ? ' hidden' : ''}`}>
 
+        {/* ── Evolução Financeira Mensal ── */}
+        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center">
+              <LineChart className="w-4 h-4 text-emerald-600" />
+            </div>
+            <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
+              Evolução Financeira
+              <InfoPopover texto="Visão mensal das receitas, despesas e investimentos dos últimos 6 meses. Receitas e despesas são baseadas no planejamento do mês; investimentos refletem aportes realizados." />
+            </h2>
+          </div>
+          <p className="text-xs text-gray-400 mb-4 ml-10">Últimos 6 meses · Passe o cursor para detalhes</p>
+          <GraficoEvolucaoMensal mesAtual={mesAtual} />
+        </div>
+
+        {/* ── Categorias de Despesas ── */}
+        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center">
+              <BarChart3 className="w-4 h-4 text-indigo-600" />
+            </div>
+            <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
+              Categorias de Despesas
+              <InfoPopover texto="Distribuição dos gastos por categoria no mês selecionado. Quando há faturas ou compras importadas, o gráfico usa os valores reais — nunca duplica previsto + real. Toque em uma coluna para ver o detalhamento." />
+            </h2>
+          </div>
+          <p className="text-xs text-gray-400 mb-4 ml-10">Maior → menor · Toque para detalhes</p>
+          <GraficoCategoriasDespesas mesAtual={mesAtual} />
+        </div>
+
         {/* ── Gastos Diários ── */}
         <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
           <div className="flex items-center gap-2 mb-1">
@@ -993,6 +1035,21 @@ export default function Dashboard() {
             cartao1Nome={fatura.cartao1Nome}
             cartao2Nome={fatura.cartao2Nome}
           />
+        </div>
+
+        {/* ── Evolução de Investimentos ── */}
+        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center">
+              <PiggyBank className="w-4 h-4 text-violet-600" />
+            </div>
+            <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
+              Evolução de Investimentos
+              <InfoPopover texto="Evolução dos aportes mês a mês nos últimos 6 meses. A linha sólida mostra o valor efetivamente investido; a linha tracejada indica a meta calculada (percentual do saldo). Meses futuros exibem apenas a projeção da meta." />
+            </h2>
+          </div>
+          <p className="text-xs text-gray-400 mb-4 ml-10">Últimos 6 meses · Realizado vs. Meta</p>
+          <GraficoEvolucaoInvestimentos mesAtual={mesAtual} />
         </div>
 
         {/* ── Projeção de Parcelamentos ── */}
@@ -1019,36 +1076,6 @@ export default function Dashboard() {
         {/* ── Categorias da Fatura ── */}
         <div className="lg:col-span-2">
           <CategoryTreemap mesAtual={mesAtual} />
-        </div>
-
-        {/* ── Evolução Financeira Mensal ── */}
-        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center">
-              <LineChart className="w-4 h-4 text-emerald-600" />
-            </div>
-            <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
-              Evolução Financeira
-              <InfoPopover texto="Visão mensal das receitas, despesas e investimentos dos últimos 6 meses. Receitas e despesas são baseadas no planejamento do mês; investimentos refletem aportes realizados." />
-            </h2>
-          </div>
-          <p className="text-xs text-gray-400 mb-4 ml-10">Últimos 6 meses · Passe o cursor para detalhes</p>
-          <GraficoEvolucaoMensal mesAtual={mesAtual} />
-        </div>
-
-        {/* ── Evolução de Investimentos ── */}
-        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center">
-              <PiggyBank className="w-4 h-4 text-violet-600" />
-            </div>
-            <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
-              Evolução de Investimentos
-              <InfoPopover texto="Evolução dos aportes mês a mês nos últimos 6 meses. A linha sólida mostra o valor efetivamente investido; a linha tracejada indica a meta calculada (percentual do saldo). Meses futuros exibem apenas a projeção da meta." />
-            </h2>
-          </div>
-          <p className="text-xs text-gray-400 mb-4 ml-10">Últimos 6 meses · Realizado vs. Meta</p>
-          <GraficoEvolucaoInvestimentos mesAtual={mesAtual} />
         </div>
 
           </div>
