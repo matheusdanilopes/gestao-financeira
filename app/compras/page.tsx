@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 import { useGlobalSync } from '@/lib/useGlobalSync'
@@ -26,6 +27,7 @@ type Compra = {
   total_parcelas: number | null
   categoria: string | null
   cartao?: string
+  created_at?: string
 }
 
 type FormEditar = {
@@ -80,10 +82,20 @@ function getCartaoBorderColor(cartao: string | undefined, labels: Record<string,
 }
 
 
+const CARTOES_VALIDOS = ['nubank', 'cartao1', 'cartao2'] as const
+type CartaoValido = typeof CARTOES_VALIDOS[number]
+
 export default function ComprasPage() {
   const { mesAtual: mesGlobal, setMesAtual } = useMes()
   const mesAtual = addMonths(mesGlobal, 1)
   const isMesAtual = format(mesAtual, 'yyyy-MM') === format(addMonths(new Date(), 1), 'yyyy-MM')
+
+  // Parâmetros de deep link vindos da notificação de importação
+  const searchParams = useSearchParams()
+  const importCartao = searchParams.get('cartao')
+  const importDia = searchParams.get('dia')
+  const importMes = searchParams.get('mes')   // YYYY-MM
+  const importTs = searchParams.get('ts')     // Date.now() do momento da importação
 
   const [compras, setCompras] = useState<Compra[]>([])
   const [filtroResponsavel, setFiltroResponsavel] = useState('')
@@ -109,6 +121,12 @@ export default function ComprasPage() {
   const [ajusteFechamento, setAjusteFechamento] = useState(0)
   const [cartaoLabels, setCartaoLabels] = useState(CARTAO_LABEL)
 
+  // Ref para garantir que o contexto de deep link só é aplicado uma vez na montagem
+  const importContextApplied = useRef(false)
+  // Ref para o primeiro item importado (usado no auto-scroll)
+  const firstImportedRef = useRef<HTMLDivElement | null>(null)
+  const hasScrolled = useRef(false)
+
   const mesAtualKey = format(startOfMonth(mesAtual), 'yyyy-MM')
   const mesRefStr = format(startOfMonth(mesAtual), 'yyyy-MM-dd')
 
@@ -133,6 +151,38 @@ export default function ComprasPage() {
   const loading = status === 'loading'
 
   const isFirstRender = useRef(true)
+
+  // Aplica filtros contextuais vindos do deep link da notificação de importação.
+  // Executado apenas uma vez na montagem para não sobrescrever escolhas do usuário.
+  useEffect(() => {
+    if (importContextApplied.current) return
+    if (!importCartao && !importDia && !importMes) return
+    importContextApplied.current = true
+
+    if (importCartao && (CARTOES_VALIDOS as readonly string[]).includes(importCartao)) {
+      setFiltroCartao(importCartao as CartaoValido)
+    }
+    if (importDia) {
+      setFiltroDia(importDia)
+      setFiltrosExpandidos(true)
+    }
+    if (importMes) {
+      // mesGlobal = mesAtual - 1; mesAtual é o mês exibido na tela
+      const targetMesAtual = startOfMonth(parseISO(importMes + '-01'))
+      const targetMesGlobal = subMonths(targetMesAtual, 1)
+      setMesAtual(targetMesGlobal)
+    }
+  }, [importCartao, importDia, importMes, setMesAtual]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Compras recém-importadas: criadas dentro de uma janela de ±10 min em torno do importTs.
+  const isRecentlyImported = useCallback((c: Compra): boolean => {
+    if (!importTs || !c.created_at) return false
+    const ts = parseInt(importTs, 10)
+    if (isNaN(ts)) return false
+    const createdAt = new Date(c.created_at).getTime()
+    // Janela: 5 min antes do ts (transações inseridas antes do push) até 15 min depois (importações longas)
+    return createdAt >= ts - 5 * 60 * 1000 && createdAt <= ts + 15 * 60 * 1000
+  }, [importTs])
 
   function showToast(msg: string, tipo: 'ok' | 'erro' = 'ok') {
     setToast({ msg, tipo })
@@ -305,6 +355,29 @@ export default function ComprasPage() {
   const totalMatheus = useMemo(() => comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Matheus').reduce((acc, c) => acc + c.valor, 0), [comprasSemFiltroResponsavel])
   const totalJeniffer = useMemo(() => comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Jeniffer').reduce((acc, c) => acc + c.valor, 0), [comprasSemFiltroResponsavel])
 
+  // Hash da primeira compra importada na lista visível (para scroll e ref)
+  const firstImportedHash = useMemo(() => {
+    if (!importTs) return null
+    for (const [, items] of grupos) {
+      for (const c of items) {
+        if (isRecentlyImported(c)) return c.hash_linha
+      }
+    }
+    return null
+  }, [grupos, importTs, isRecentlyImported])
+
+  // Auto-scroll até a primeira compra importada após os dados carregarem
+  useEffect(() => {
+    if (!firstImportedHash || hasScrolled.current || loading) return
+    const elem = firstImportedRef.current
+    if (!elem) return
+    hasScrolled.current = true
+    const timer = setTimeout(() => {
+      elem.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [firstImportedHash, loading])
+
   // Troca de mês: recarrega dados laterais (compras já cobertas pelo useDataSync)
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return }
@@ -458,6 +531,20 @@ export default function ComprasPage() {
         </button>
       </div>
 
+      {/* Banner de contexto de importação */}
+      {importTs && firstImportedHash && (
+        <div className="bg-green-50 border border-green-200 rounded-2xl p-3 mb-3 flex items-center gap-2">
+          <ShoppingBag className="w-4 h-4 text-green-600 shrink-0" />
+          <p className="text-sm text-green-700 font-medium flex-1">Compras recém-importadas destacadas abaixo</p>
+          <button
+            onClick={limparFiltros}
+            className="text-xs text-green-600 font-semibold hover:text-green-800 transition-colors shrink-0"
+          >
+            Limpar
+          </button>
+        </div>
+      )}
+
       {/* Banner de offline */}
       {!isOnline && (
         <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 mb-3 flex items-center gap-2">
@@ -515,6 +602,8 @@ export default function ComprasPage() {
                     const isParcelado = c.parcela_atual && c.total_parcelas
                     const canInteract = !faturaFechada && isOnline
                     const borderColor = getCartaoBorderColor(c.cartao, cartaoLabels)
+                    const recentlyImported = isRecentlyImported(c)
+                    const isFirst = c.hash_linha === firstImportedHash
                     const metaParts = [
                       c.responsavel,
                       isParcelado ? `${c.parcela_atual}/${c.total_parcelas}x` : null,
@@ -527,7 +616,12 @@ export default function ComprasPage() {
                         disabled={!canInteract}
                       >
                         <div
-                          className={`px-4 py-3.5 flex items-center gap-3 border-l-4 ${borderColor} bg-white transition-colors ${canInteract ? 'cursor-pointer active:bg-gray-50 hover:bg-gray-50/50' : 'cursor-default'}`}
+                          ref={isFirst ? firstImportedRef : undefined}
+                          className={`px-4 py-3.5 flex items-center gap-3 border-l-4 ${borderColor} transition-colors ${
+                            recentlyImported
+                              ? 'bg-green-50/60 dark:bg-green-900/10'
+                              : 'bg-white'
+                          } ${canInteract ? 'cursor-pointer active:bg-gray-50 hover:bg-gray-50/50' : 'cursor-default'}`}
                           onClick={() => { if (canInteract) abrirEditar(c) }}
                           role={canInteract ? 'button' : undefined}
                           aria-label={canInteract ? `Editar ${c.descricao}` : undefined}
@@ -544,8 +638,13 @@ export default function ComprasPage() {
                               </p>
                             )}
                           </div>
-                          <div className="text-right shrink-0">
+                          <div className="text-right shrink-0 flex flex-col items-end gap-1">
                             <p className="text-[15px] font-bold text-gray-900 num">{formatBRL(c.valor)}</p>
+                            {recentlyImported && (
+                              <span className="text-[9px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full leading-none">
+                                Nova
+                              </span>
+                            )}
                           </div>
                         </div>
                       </SwipeableItem>

@@ -94,7 +94,16 @@ export const NOTIFICACAO_META: Record<string, NotificacaoMeta> = {
     rotulo: 'Importação',
   },
   importacao_concluida: {
-    rota: '/importar',
+    rota: '/compras',
+    rotaFn: (meta) => {
+      if (!meta?.cartao) return '/compras'
+      const params = new URLSearchParams()
+      params.set('cartao', String(meta.cartao))
+      if (meta.mes) params.set('mes', String(meta.mes))
+      if (meta.dia) params.set('dia', String(meta.dia))
+      if (meta.ts) params.set('ts', String(meta.ts))
+      return `/compras?${params.toString()}`
+    },
     grupo: 'importacao',
     corIcone: 'text-green-500',
     corBorda: 'border-l-green-400',
@@ -399,8 +408,8 @@ export function getNotificacaoMeta(acao: string): NotificacaoMeta {
 export const ROTA_PARA_ACOES: Record<string, string[]> = {
   '/wishlist':      ['wishlist_novo_item', 'wishlist_item_ia', 'wishlist_item_concluido'],
   '/contas':        ['conta_vencendo', 'conta_atrasada', 'pagar'],
-  '/importar':      ['importacao_iniciada', 'importacao_processando', 'importacao_concluida'],
-  '/compras':       ['categorizacao_concluida', 'pedido_criado', 'pedido_pendente', 'pedido_cancelado', 'pedido_concluido'],
+  '/importar':      ['importacao_iniciada', 'importacao_processando'],
+  '/compras':       ['categorizacao_concluida', 'pedido_criado', 'pedido_pendente', 'pedido_cancelado', 'pedido_concluido', 'importacao_concluida'],
   '/dashboard':     ['aporte'],
   '/receitas':      ['receber'],
   '/lista-mercado': ['lista_compra_finalizada', 'lista_sincronizacao', 'lista_item_compartilhado'],

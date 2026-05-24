@@ -41,6 +41,8 @@ export async function POST(req: NextRequest) {
     let duplicatasIgnoradas = 0
     let conciliados = 0
     let conflitos = 0
+    const importTs = Date.now()
+    const purchaseDates: string[] = []
 
     type StatsFatura = { noCSV: number; inseridas: number; ignoradas: number; totalNoBanco: number }
     const faturaStats: Record<string, StatsFatura> = {}
@@ -56,6 +58,7 @@ export async function POST(req: NextRequest) {
         case 'inserido':
           if (resultado.inseriu) {
             verdadeiramenteNovas++
+            purchaseDates.push(item.data_compra)
             stats.inseridas++
             if (item.responsavel === 'Matheus') novosMatheus++
             else novosJeniffer++
@@ -71,6 +74,7 @@ export async function POST(req: NextRequest) {
           break
         case 'conflito':
           conflitos++
+          purchaseDates.push(item.data_compra)
           stats.inseridas++
           if (item.responsavel === 'Matheus') novosMatheus++
           else novosJeniffer++
@@ -91,7 +95,11 @@ export async function POST(req: NextRequest) {
       faturaStats[fatura].totalNoBanco = count ?? 0
     }
 
-    await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, conflitos, 'nubank')
+    await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, conflitos, 'nubank', undefined, {
+      purchaseDates,
+      projetoFaturas: mesesNoArquivo,
+      importTs,
+    })
 
     return NextResponse.json({
       success: true,
@@ -108,7 +116,7 @@ export async function POST(req: NextRequest) {
     })
   } catch (error) {
     console.error('[import] Excecao:', error instanceof Error ? error.message : 'unknown')
-    await notificarImportacao(supabase, 'erro', undefined, undefined, 'nubank')
+    await notificarImportacao(supabase, 'erro', undefined, undefined, 'nubank', undefined, { importTs: Date.now() })
     return NextResponse.json({ error: 'Erro interno no servidor' }, { status: 500 })
   }
 }
