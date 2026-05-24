@@ -50,6 +50,18 @@ const GraficoGastosDiarios = dynamic(() => import('@/components/GraficoGastosDia
 })
 
 const CategoryTreemap = dynamic(() => import('@/components/CategoryTreemap'), { ssr: false })
+
+const GraficoCategoriasDespesas = dynamic(
+  () => import('@/components/GraficoCategoriasDespesas'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-64 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-gray-200 border-t-indigo-500 rounded-full animate-spin" />
+      </div>
+    ),
+  }
+)
 import { InfoPopover } from '@/components/InfoPopover'
 
 const DrawerDetalhes = dynamic(() => import('@/components/DrawerDetalhes'), { ssr: false })
@@ -995,6 +1007,21 @@ export default function Dashboard() {
           />
         </div>
 
+        {/* ── Categorias de Despesas ── */}
+        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center">
+              <BarChart3 className="w-4 h-4 text-indigo-600" />
+            </div>
+            <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
+              Categorias de Despesas
+              <InfoPopover texto="Distribuição dos gastos por categoria no mês selecionado. Quando há faturas ou compras importadas, o gráfico usa os valores reais — nunca duplica previsto + real. Toque em uma coluna para ver o detalhamento." />
+            </h2>
+          </div>
+          <p className="text-xs text-gray-400 mb-4 ml-10">Maior → menor · Toque para detalhes</p>
+          <GraficoCategoriasDespesas mesAtual={mesAtual} />
+        </div>
+
         {/* ── Projeção de Parcelamentos ── */}
         <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
           <div className="flex items-center gap-2 mb-1">
@@ -1017,7 +1044,7 @@ export default function Dashboard() {
         </div>
 
         {/* ── Categorias da Fatura ── */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-1">
           <CategoryTreemap mesAtual={mesAtual} />
         </div>
 
@@ -1037,7 +1064,7 @@ export default function Dashboard() {
         </div>
 
         {/* ── Evolução de Investimentos ── */}
-        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
+        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
           <div className="flex items-center gap-2 mb-1">
             <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center">
               <PiggyBank className="w-4 h-4 text-violet-600" />
