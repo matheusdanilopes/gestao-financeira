@@ -11,7 +11,7 @@ import {
   Legend,
 } from 'chart.js'
 import type { TooltipItem } from 'chart.js'
-import { addMonths, format, startOfMonth } from 'date-fns'
+import { format, startOfMonth } from 'date-fns'
 import { AlertCircle, BarChart3 } from 'lucide-react'
 import { formatBRL } from '@/lib/logger'
 import { supabase } from '@/lib/supabaseClient'
@@ -19,7 +19,6 @@ import { useIsDark } from '@/lib/useIsDark'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend)
 
-const NUBANK_ITEMS = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto'])
 const MAX_CATS = 12
 const BAR_GROUP_MIN_W = 88
 
@@ -48,31 +47,26 @@ interface CategoryData {
   label: string
   previsto: number
   pago: number
-  contagem: number
+  contagem: number   // paid items count
   pctPago: number
   overBudget: boolean
-  isCard: boolean
 }
 
 interface Props {
   mesAtual: Date
-  cartao1Nome?: string
-  cartao2Nome?: string
 }
 
-type CacheKey = string
 type CacheEntry = { categorias: CategoryData[] }
 
-export default function GraficoCategoriasDespesas({ mesAtual, cartao1Nome, cartao2Nome }: Props) {
+export default function GraficoCategoriasDespesas({ mesAtual }: Props) {
   const [dados, setDados] = useState<CacheEntry | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const { isDark } = useIsDark()
-  const cache = useRef(new Map<CacheKey, CacheEntry>())
+  const cache = useRef(new Map<string, CacheEntry>())
 
   const carregar = useCallback(async () => {
-    // Cache key includes card names so a change in label forces a refresh
-    const mesKey = `${format(mesAtual, 'yyyy-MM')}|${cartao1Nome ?? ''}|${cartao2Nome ?? ''}`
+    const mesKey = format(mesAtual, 'yyyy-MM')
     const cached = cache.current.get(mesKey)
     if (cached) {
       setDados(cached)
@@ -82,135 +76,60 @@ export default function GraficoCategoriasDespesas({ mesAtual, cartao1Nome, carta
     setErro(null)
 
     try {
-      const mesRefFatura = format(startOfMonth(addMonths(mesAtual, 1)), 'yyyy-MM-dd')
-      const mesRefAtual  = format(startOfMonth(mesAtual), 'yyyy-MM-dd')
+      const mesRefAtual = format(startOfMonth(mesAtual), 'yyyy-MM-dd')
 
-      // transacoes_nubank: fetch valor+cartao ONLY — no categoria.
-      // We only need running totals per card, never individual purchase categories.
-      const [{ data: transacoes }, { data: plan }] = await Promise.all([
-        supabase
-          .from('transacoes_nubank')
-          .select('valor, cartao')
-          .eq('projeto_fatura', mesRefFatura),
-        supabase
-          .from('planejamento')
-          .select('item, valor_previsto, valor_real, pago, categoria')
-          .eq('mes_referencia', mesRefAtual),
-      ])
+      // Source of truth: planejamento only.
+      // Categories are assigned by the user in the despesas screen — no
+      // individual card transaction breakdown needed or wanted here.
+      const { data: plan } = await supabase
+        .from('planejamento')
+        .select('item, valor_previsto, valor_real, pago, categoria')
+        .eq('mes_referencia', mesRefAtual)
 
-      // ── Consolidated totals from real transactions (no category split) ────
-      const totalTransNubank = (transacoes ?? [])
-        .filter(t => !t.cartao || t.cartao === 'nubank')
-        .reduce((s, t) => s + Number(t.valor ?? 0), 0)
-
-      const totalTransC1 = (transacoes ?? [])
-        .filter(t => t.cartao === 'cartao1')
-        .reduce((s, t) => s + Number(t.valor ?? 0), 0)
-
-      const totalTransC2 = (transacoes ?? [])
-        .filter(t => t.cartao === 'cartao2')
-        .reduce((s, t) => s + Number(t.valor ?? 0), 0)
-
-      // ── Card planned items from planejamento ──────────────────────────────
-      const nubankPlanItems = (plan ?? []).filter(p => NUBANK_ITEMS.has(String(p.item ?? '')))
-      const c1PlanItems     = (plan ?? []).filter(p => String(p.item ?? '').startsWith('[CARTAO1]'))
-      const c2PlanItems     = (plan ?? []).filter(p => String(p.item ?? '').startsWith('[CARTAO2]'))
-
-      // Previsto: sum of valor_previsto for each card
-      const nubankPrevisto = nubankPlanItems.reduce((s, p) => s + Number(p.valor_previsto ?? 0), 0)
-      const c1Previsto     = c1PlanItems.reduce((s, p) => s + Number(p.valor_previsto ?? 0), 0)
-      const c2Previsto     = c2PlanItems.reduce((s, p) => s + Number(p.valor_previsto ?? 0), 0)
-
-      // Pago (card priority): invoice confirmed payment > running transactions total
-      function cardPago(
-        planItems: typeof nubankPlanItems,
-        transTotal: number,
-      ): number {
-        const paidItems = planItems.filter(p => p.pago)
-        if (paidItems.length > 0)
-          return paidItems.reduce((s, p) => s + Number(p.valor_real ?? p.valor_previsto ?? 0), 0)
-        return transTotal
-      }
-
-      const nubankPago = cardPago(nubankPlanItems, totalTransNubank)
-      const c1Pago     = cardPago(c1PlanItems, totalTransC1)
-      const c2Pago     = cardPago(c2PlanItems, totalTransC2)
-
-      // ── Build category maps ───────────────────────────────────────────────
       const prevMap = new Map<string, number>()
-      const pagoMap = new Map<string, { valor: number; contagem: number; isCard: boolean }>()
+      const pagoMap = new Map<string, { valor: number; contagem: number }>()
 
-      function addPrev(cat: string, v: number) {
-        if (v > 0) prevMap.set(cat, (prevMap.get(cat) ?? 0) + v)
-      }
-      function addPago(cat: string, v: number, isCard = false) {
-        if (v <= 0) return
-        const e = pagoMap.get(cat) ?? { valor: 0, contagem: 0, isCard }
-        e.valor += v
-        if (!isCard) e.contagem++
-        pagoMap.set(cat, e)
-      }
-
-      // Consolidated card entries (single label per card)
-      const NUBANK_LABEL = 'NuBank'
-      const C1_LABEL = cartao1Nome || 'Cartão 1'
-      const C2_LABEL = cartao2Nome || 'Cartão 2'
-
-      if (nubankPrevisto > 0) addPrev(NUBANK_LABEL, nubankPrevisto)
-      if (nubankPago     > 0) addPago(NUBANK_LABEL, nubankPago, true)
-
-      if (c1Previsto > 0) addPrev(C1_LABEL, c1Previsto)
-      if (c1Pago     > 0) addPago(C1_LABEL, c1Pago, true)
-
-      if (c2Previsto > 0) addPrev(C2_LABEL, c2Previsto)
-      if (c2Pago     > 0) addPago(C2_LABEL, c2Pago, true)
-
-      // Non-card planejamento items — use their categoria directly
       for (const p of (plan ?? [])) {
         const item = String(p.item ?? '')
         if (item === 'Receita Total' || item.startsWith('[RECEITA]')) continue
-        if (NUBANK_ITEMS.has(item))         continue
-        if (item.startsWith('[CARTAO1]'))   continue
-        if (item.startsWith('[CARTAO2]'))   continue
 
-        const pv = Number(p.valor_previsto ?? 0)
         const cat = p.categoria || 'Outros'
-        if (pv > 0) addPrev(cat, pv)
+        const pv  = Number(p.valor_previsto ?? 0)
+
+        if (pv > 0)
+          prevMap.set(cat, (prevMap.get(cat) ?? 0) + pv)
 
         if (p.pago && p.valor_real != null) {
           const vr = Number(p.valor_real)
-          if (vr > 0) addPago(cat, vr, false)
+          if (vr > 0) {
+            const e = pagoMap.get(cat) ?? { valor: 0, contagem: 0 }
+            e.valor += vr
+            e.contagem++
+            pagoMap.set(cat, e)
+          }
         }
       }
 
-      // ── Merge, sort, slice ────────────────────────────────────────────────
-      const allCats = new Set([...prevMap.keys(), ...pagoMap.keys()])
+      const allCats  = new Set([...prevMap.keys(), ...pagoMap.keys()])
       const totalPago = [...pagoMap.values()].reduce((s, e) => s + e.valor, 0)
 
       const sorted = [...allCats]
-        .map(cat => {
-          const previsto = prevMap.get(cat) ?? 0
-          const entry    = pagoMap.get(cat)
-          const pago     = entry?.valor ?? 0
-          return {
-            label:    cat,
-            previsto,
-            pago,
-            contagem: entry?.contagem ?? 0,
-            isCard:   entry?.isCard ?? false,
-          }
-        })
+        .map(cat => ({
+          label:    cat,
+          previsto: prevMap.get(cat) ?? 0,
+          pago:     pagoMap.get(cat)?.valor ?? 0,
+          contagem: pagoMap.get(cat)?.contagem ?? 0,
+        }))
         .sort((a, b) => Math.max(b.pago, b.previsto) - Math.max(a.pago, a.previsto))
         .slice(0, MAX_CATS)
 
-      const categorias: CategoryData[] = sorted.map(({ label, previsto, pago, contagem, isCard }) => ({
+      const categorias: CategoryData[] = sorted.map(({ label, previsto, pago, contagem }) => ({
         label,
         previsto,
         pago,
         contagem,
         pctPago:    totalPago > 0 ? (pago / totalPago) * 100 : 0,
         overBudget: pago > previsto && previsto > 0,
-        isCard,
       }))
 
       const entry: CacheEntry = { categorias }
@@ -225,7 +144,7 @@ export default function GraficoCategoriasDespesas({ mesAtual, cartao1Nome, carta
     } finally {
       setCarregando(false)
     }
-  }, [mesAtual, cartao1Nome, cartao2Nome])
+  }, [mesAtual])
 
   useEffect(() => {
     carregar()
@@ -299,9 +218,9 @@ export default function GraficoCategoriasDespesas({ mesAtual, cartao1Nome, carta
             label: (ctx: TooltipItem<'bar'>) => {
               const cat = dados?.categorias[ctx.dataIndex]
               if (!cat) return ''
-              if (ctx.datasetIndex === 0) {
+              if (ctx.datasetIndex === 0)
                 return cat.previsto === 0 ? '  Previsto: —' : `  Previsto: ${formatBRL(cat.previsto)}`
-              }
+
               const linhas: string[] = [
                 `  Pago: ${cat.pago > 0 ? formatBRL(cat.pago) : '—'}`,
               ]
@@ -312,9 +231,8 @@ export default function GraficoCategoriasDespesas({ mesAtual, cartao1Nome, carta
                 linhas.push(`  Diferença: ${sinal}${formatBRL(diff)}`)
                 linhas.push(`  Variação: ${sinal}${pct.toFixed(1)}%`)
               }
-              // Only show lançamentos for non-card categories
-              if (!cat.isCard && cat.contagem > 0)
-                linhas.push(`  Lançamentos: ${cat.contagem}`)
+              if (cat.contagem > 0)
+                linhas.push(`  Itens pagos: ${cat.contagem}`)
               return linhas
             },
             afterBody: (items: TooltipItem<'bar'>[]) => {
@@ -377,7 +295,7 @@ export default function GraficoCategoriasDespesas({ mesAtual, cartao1Nome, carta
     )
   }
 
-  const minWidth = Math.max(dados.categorias.length * BAR_GROUP_MIN_W, 360)
+  const minWidth  = Math.max(dados.categorias.length * BAR_GROUP_MIN_W, 360)
   const overCount = dados.categorias.filter(c => c.overBudget).length
 
   return (

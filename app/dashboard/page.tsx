@@ -1019,11 +1019,7 @@ export default function Dashboard() {
             </h2>
           </div>
           <p className="text-xs text-gray-400 mb-4 ml-10">Maior → menor · Toque para detalhes</p>
-          <GraficoCategoriasDespesas
-            mesAtual={mesAtual}
-            cartao1Nome={fatura.cartao1Nome}
-            cartao2Nome={fatura.cartao2Nome}
-          />
+          <GraficoCategoriasDespesas mesAtual={mesAtual} />
         </div>
 
         {/* ── Projeção de Parcelamentos ── */}
