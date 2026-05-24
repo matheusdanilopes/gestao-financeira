@@ -25,6 +25,9 @@ export interface TransacaoNubank {
   parcela_atual: number | null
   total_parcelas: number | null
   cartao?: string
+  /** Índice de ocorrência dentro do lote importado (1-based). Usado para deduplição;
+   *  não é persistido no banco. */
+  occurrence_index?: number
 }
 
 function parseValorMonetario(valorRaw: number | string | null | undefined): number | null {
@@ -82,10 +85,20 @@ export function normalizarDescricaoParaHash(descricao: string): string {
     .toLowerCase()
 }
 
-function gerarHashLinha(dataISO: string, descricao: string, valor: number): string {
+function gerarHashLinha(
+  dataISO: string,
+  descricao: string,
+  valor: number,
+  cartao?: string,
+  occurrenceIndex: number = 1,
+): string {
   const valorHash = valor.toFixed(2)
   const descricaoHash = normalizarDescricaoParaHash(descricao)
-  const hashString = `${dataISO}|${descricaoHash}|${valorHash}`
+  const cartaoSuffix = cartao && cartao !== 'nubank' ? `|${cartao}` : ''
+  // Sufixo de ocorrência apenas a partir do segundo registro — assim o hash da
+  // primeira ocorrência é idêntico ao formato antigo (retrocompatibilidade total).
+  const occurrenceSuffix = occurrenceIndex > 1 ? `|${occurrenceIndex}` : ''
+  const hashString = `${dataISO}|${descricaoHash}|${valorHash}${cartaoSuffix}${occurrenceSuffix}`
   return createHash('sha256').update(hashString).digest('hex')
 }
 
@@ -113,6 +126,9 @@ export function processarCSV(
     transformHeader: (h: string) => h.replace(/^\uFEFF/, '').replace(/^\u00ef\u00bb\u00bf/, '').trim(),
   })
   const transacoes: TransacaoNubank[] = []
+  // Rastreia quantas vezes cada combinação (data|desc|valor) aparece no lote,
+  // permitindo que dois pedidos idênticos no mesmo dia recebam hashes distintos.
+  const occurrenceCounts = new Map<string, number>()
 
   function sanitizar(str: string): string {
     return str
@@ -154,13 +170,12 @@ export function processarCSV(
     const dataCompra = new Date(dataISO + 'T12:00:00') // meio-dia para evitar problemas de fuso
     let projetoFatura = calcularProjetoFatura(dataCompra, diaVencimento, ajusteFechamento)
 
-    // Para cartões não-NuBank, inclui o cartao no hash para evitar colisão
-    const hashInput = cartao !== 'nubank'
-      ? `${dataISO}|${normalizarDescricaoParaHash(descricao)}|${valor.toFixed(2)}|${cartao}`
-      : undefined
-    const hash_linha = hashInput
-      ? createHash('sha256').update(hashInput).digest('hex')
-      : gerarHashLinha(dataISO, descricao, valor)
+    // Conta ocorrências desta combinação dentro do lote para gerar hash único por linha
+    const occurrenceKey = `${dataISO}|${normalizarDescricaoParaHash(descricao)}|${valor.toFixed(2)}`
+    const occurrenceIndex = (occurrenceCounts.get(occurrenceKey) ?? 0) + 1
+    occurrenceCounts.set(occurrenceKey, occurrenceIndex)
+
+    const hash_linha = gerarHashLinha(dataISO, descricao, valor, cartao, occurrenceIndex)
 
     // Identificação de parcelas no formato X/Y
     let parcela_atual = null
@@ -189,6 +204,7 @@ export function processarCSV(
       parcela_atual,
       total_parcelas,
       cartao,
+      occurrence_index: occurrenceIndex,
     })
   }
 
@@ -209,6 +225,7 @@ export function processarTransacoesJSON(
   }
 
   const result: TransacaoNubank[] = []
+  const occurrenceCounts = new Map<string, number>()
 
   for (const row of transacoes) {
     const descricao = sanitizar(String(primeiroValorPreenchido(row.title, row.descricao) ?? ''))
@@ -238,12 +255,11 @@ export function processarTransacoesJSON(
     const dataCompra = new Date(dataISO + 'T12:00:00')
     let projetoFatura = calcularProjetoFatura(dataCompra, diaVencimento, ajusteFechamento)
 
-    const hashInput = cartao !== 'nubank'
-      ? `${dataISO}|${normalizarDescricaoParaHash(descricao)}|${valor.toFixed(2)}|${cartao}`
-      : undefined
-    const hash_linha = hashInput
-      ? createHash('sha256').update(hashInput).digest('hex')
-      : gerarHashLinha(dataISO, descricao, valor)
+    const occurrenceKey = `${dataISO}|${normalizarDescricaoParaHash(descricao)}|${valor.toFixed(2)}`
+    const occurrenceIndex = (occurrenceCounts.get(occurrenceKey) ?? 0) + 1
+    occurrenceCounts.set(occurrenceKey, occurrenceIndex)
+
+    const hash_linha = gerarHashLinha(dataISO, descricao, valor, cartao, occurrenceIndex)
 
     let parcela_atual = null
     let total_parcelas = null
@@ -267,6 +283,7 @@ export function processarTransacoesJSON(
       parcela_atual,
       total_parcelas,
       cartao,
+      occurrence_index: occurrenceIndex,
     })
   }
 

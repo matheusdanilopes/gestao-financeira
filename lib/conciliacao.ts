@@ -102,29 +102,53 @@ async function criarNotificacaoConflito(
   })
 }
 
+function buildPayload(item: TransacaoNubank, extra: Record<string, unknown>): Record<string, unknown> {
+  const { occurrence_index: _oi, ...base } = item as TransacaoNubank & { occurrence_index?: number }
+  return { ...base, ...extra }
+}
+
 export async function conciliarTransacao(
   supabase: SupabaseClient,
   item: TransacaoNubank,
   origem: OrigemImportacao
 ): Promise<ResultadoConciliacao> {
-  // 1. Hash pre-check: se o hash já existe, é duplicata exata → ignora
+  // occurrence_index indica a Nª ocorrência desta combinação (data|desc|valor) no lote.
+  // Valor 1 é o caso normal (retrocompatível); >1 significa compra legítima repetida.
+  const occurrenceIndex = (item as TransacaoNubank & { occurrence_index?: number }).occurrence_index ?? 1
+
+  // 1. Hash pre-check: se o hash já existe, é reimportação desta linha exata → ignora
   const { count: hashCount } = await supabase
     .from('transacoes_nubank')
     .select('*', { count: 'exact', head: true })
     .eq('hash_linha', item.hash_linha)
-  if ((hashCount ?? 0) > 0) return { acao: 'ignorado', inseriu: false }
+
+  if ((hashCount ?? 0) > 0) {
+    console.log(`[conciliacao] ignorado (hash duplicado) hash=${item.hash_linha.slice(0, 12)} desc="${item.descricao}" data=${item.data_compra} valor=${item.valor}`)
+    return { acao: 'ignorado', inseriu: false }
+  }
 
   // 2. Buscar match por nome (LOWER estrito) + data (±3 dias)
   const matches = await buscarMatchNomeData(supabase, item)
 
   if (matches.length > 0) {
-    // Escolhe o match com menor diferença de valor
     const match = matches.reduce((best, cur) =>
       Math.abs(cur.valor - item.valor) < Math.abs(best.valor - item.valor) ? cur : best
     )
     const diffValor = Math.abs(match.valor - item.valor)
 
     if (diffValor <= 0.05) {
+      // Conta quantos registros próximos já existem no banco para esta combinação.
+      // Se o banco tiver menos do que o índice da ocorrência atual, é uma compra
+      // legítima repetida (ex.: dois IFOODs no mesmo dia) → insere normalmente.
+      const closeMatchCount = matches.filter(m => Math.abs(m.valor - item.valor) <= 0.05).length
+
+      if (closeMatchCount < occurrenceIndex) {
+        console.log(`[conciliacao] inserido (ocorrência ${occurrenceIndex}, ${closeMatchCount} no banco) desc="${item.descricao}" data=${item.data_compra} valor=${item.valor}`)
+        const payload = buildPayload(item, { status: 'PENDENTE' })
+        const { ok } = await inserirRegistro(supabase, payload)
+        return { acao: 'inserido', inseriu: ok }
+      }
+
       // Match completo (nome + data + valor dentro da tolerância)
       if (origem === 'csv') {
         // CSV é autoridade: atualiza valor_final e marca como CONCILIADO
@@ -135,23 +159,20 @@ export async function conciliarTransacao(
         return { acao: 'conciliado', inseriu: false }
       }
       // API: ignora entrada redundante
+      console.log(`[conciliacao] ignorado (match nome+data+valor) desc="${item.descricao}" data=${item.data_compra} valor=${item.valor}`)
       return { acao: 'ignorado', inseriu: false }
     }
 
     // Match parcial: nome + data coincidem, mas valor difere > R$0,05
     // Acima de R$2,00 de diferença → nova compra direta, sem notificação
     if (diffValor > 2.00) {
-      const payload: Record<string, unknown> = { ...item, status: 'PENDENTE' }
+      const payload = buildPayload(item, { status: 'PENDENTE' })
       const { ok } = await inserirRegistro(supabase, payload)
       return { acao: 'inserido', inseriu: ok }
     }
 
     // Entre R$0,05 e R$2,00 → CONFLITO_VALOR + notificação para aprovação
-    const payload: Record<string, unknown> = {
-      ...item,
-      status: 'CONFLITO_VALOR',
-      conciliacao_ref: match.id,
-    }
+    const payload = buildPayload(item, { status: 'CONFLITO_VALOR', conciliacao_ref: match.id })
     const { id: conflito_id, ok } = await inserirRegistro(supabase, payload)
     if (!ok) return { acao: 'ignorado', inseriu: false }
 
@@ -162,7 +183,7 @@ export async function conciliarTransacao(
   }
 
   // 3. Sem match: insere como PENDENTE
-  const payload: Record<string, unknown> = { ...item, status: 'PENDENTE' }
+  const payload = buildPayload(item, { status: 'PENDENTE' })
   const { ok } = await inserirRegistro(supabase, payload)
   return { acao: 'inserido', inseriu: ok }
 }
