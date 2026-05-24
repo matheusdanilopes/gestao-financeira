@@ -130,6 +130,8 @@ export async function POST(req: NextRequest) {
     let totalValor = 0
     let verdadeiramenteNovas = 0
     let duplicatasIgnoradas = 0
+    const importTs = Date.now()
+    const purchaseDates: string[] = []
 
     type StatsFatura = { noCSV: number; inseridas: number; ignoradas: number; totalNoBanco: number }
     const faturaStats: Record<string, StatsFatura> = {}
@@ -154,6 +156,7 @@ export async function POST(req: NextRequest) {
         const inserido = await inserirTransacao(supabase, item)
         if (inserido) {
           verdadeiramenteNovas++
+          purchaseDates.push(item.data_compra)
           stats.inseridas++
           if (item.responsavel === 'Matheus') novosMatheus++
           else novosJeniffer++
@@ -177,7 +180,11 @@ export async function POST(req: NextRequest) {
       faturaStats[fatura].totalNoBanco = count ?? 0
     }
 
-    await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, undefined, cartao, nomeCartao)
+    await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, undefined, cartao, nomeCartao, {
+      purchaseDates,
+      projetoFaturas: mesesNoArquivo,
+      importTs,
+    })
 
     return NextResponse.json({
       success: true,
@@ -193,7 +200,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('[import/cartao] Exceção:', error)
     const msg = error instanceof Error ? error.message : String(error)
-    await notificarImportacao(supabase, 'erro', undefined, undefined, cartao, nomeCartao)
+    await notificarImportacao(supabase, 'erro', undefined, undefined, cartao, nomeCartao, { importTs: Date.now() })
     return NextResponse.json({ error: 'Erro interno: ' + msg }, { status: 500 })
   }
 }

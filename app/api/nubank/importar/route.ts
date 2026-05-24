@@ -56,6 +56,7 @@ async function salvarTransacoes(
   let novosJeniffer = 0
   let totalValor = 0
   const hashesImportados: string[] = []
+  const purchaseDates: string[] = []
   let verdadeiramenteNovas = 0
   let duplicatasIgnoradas = 0
   let conciliados = 0
@@ -76,6 +77,7 @@ async function salvarTransacoes(
         if (resultado.inseriu) {
           verdadeiramenteNovas++
           hashesImportados.push(item.hash_linha)
+          purchaseDates.push(item.data_compra)
           stats.inseridas++
           if (item.responsavel === 'Matheus') novosMatheus++
           else novosJeniffer++
@@ -92,6 +94,7 @@ async function salvarTransacoes(
       case 'conflito':
         // Conflito de valor: registrado com status CONFLITO_VALOR, notificação criada
         conflitos++
+        purchaseDates.push(item.data_compra)
         stats.inseridas++
         if (item.responsavel === 'Matheus') novosMatheus++
         else novosJeniffer++
@@ -125,6 +128,7 @@ async function salvarTransacoes(
     mesesReprocessados: mesesNoArquivo,
     resumoPorFatura: faturaStats,
     hashesImportados,
+    purchaseDates,
   }
 }
 
@@ -271,7 +275,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const { hashesImportados: _, ...importacaoPublica } = resultadoImportacao
+    const { hashesImportados: _, purchaseDates, ...importacaoPublica } = resultadoImportacao
 
     const mesesStr = importacaoPublica.mesesReprocessados.map(m => m.substring(0, 7)).join(', ')
     await registrarLog(
@@ -279,7 +283,12 @@ export async function POST(req: NextRequest) {
       parseFloat(importacaoPublica.total)
     )
 
-    await notificarImportacao(supabase, 'sucesso', importacaoPublica.novas, importacaoPublica.conflitos, cartao)
+    const importTs = Date.now()
+    await notificarImportacao(supabase, 'sucesso', importacaoPublica.novas, importacaoPublica.conflitos, cartao, undefined, {
+      purchaseDates,
+      projetoFaturas: importacaoPublica.mesesReprocessados,
+      importTs,
+    })
 
     return NextResponse.json({
       success: true,
@@ -290,7 +299,7 @@ export async function POST(req: NextRequest) {
     console.error('[nubank/importar] Exceção:', error)
     const msg = error instanceof Error ? error.message : String(error)
     await registrarLog(`ERRO: ${msg}`)
-    await notificarImportacao(supabase, 'erro', undefined, undefined, cartao)
+    await notificarImportacao(supabase, 'erro', undefined, undefined, cartao, undefined, { importTs: Date.now() })
     return NextResponse.json({ error: 'Erro interno: ' + msg }, { status: 500 })
   }
 }

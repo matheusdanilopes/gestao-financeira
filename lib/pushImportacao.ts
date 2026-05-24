@@ -19,13 +19,55 @@ function labelCartao(cartao: string, nomeCartao?: string): string {
   return nomeCartao || LABELS_PADRAO[cartao] || cartao
 }
 
+/** Contexto da importação para construir o deep link da notificação. */
+export interface ContextoImportacao {
+  /** Datas de compra (data_compra, YYYY-MM-DD) das transações inseridas — para filtro de dia. */
+  purchaseDates?: string[]
+  /** Valores de projeto_fatura (YYYY-MM-DD) das transações inseridas — para navegar ao mês correto. */
+  projetoFaturas?: string[]
+  /** Timestamp (Date.now()) do início da importação — identifica compras recém-importadas na tela. */
+  importTs?: number
+}
+
+/**
+ * Constrói a URL de deep link para a tela de Compras com filtros contextuais.
+ * Rota erros para /importar, sucessos para /compras com cartao + mes + dia (quando único) + ts.
+ */
+function buildDeepLinkUrl(cartao: string, ctx: ContextoImportacao): string {
+  const params = new URLSearchParams()
+  params.set('cartao', cartao)
+  params.set('ts', String(ctx.importTs ?? Date.now()))
+
+  const faturas = ctx.projetoFaturas ?? []
+  if (faturas.length > 0) {
+    const freq: Record<string, number> = {}
+    for (const f of faturas) {
+      const key = f.substring(0, 7)
+      freq[key] = (freq[key] ?? 0) + 1
+    }
+    const primaryMes = Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0]
+    params.set('mes', primaryMes)
+  }
+
+  const dates = ctx.purchaseDates ?? []
+  if (dates.length > 0) {
+    const dias = [...new Set(dates.map(d => d.substring(8, 10)))]
+    if (dias.length === 1) {
+      params.set('dia', String(parseInt(dias[0], 10)))
+    }
+  }
+
+  return `/compras?${params.toString()}`
+}
+
 export async function notificarImportacao(
   supabase: SupabaseClient,
   tipo: 'sucesso' | 'erro',
   novas?: number,
   conflitos?: number,
   cartao: string = 'nubank',
-  nomeCartao?: string
+  nomeCartao?: string,
+  contexto?: ContextoImportacao
 ) {
   if (!VAPID_PUBLIC || !VAPID_PRIVATE) return
 
@@ -62,10 +104,23 @@ export async function notificarImportacao(
     ? `importacao-sucesso-${cartao}`
     : `importacao-erro-${cartao}`
 
+  // Erros: direcionam para /importar (diagnóstico).
+  // Sucessos com contexto: deep link para /compras com filtros pré-aplicados.
+  // Sucessos sem contexto (novas == 0): /compras com apenas o cartão.
+  let url: string
+  if (tipo === 'erro') {
+    url = '/importar'
+  } else if (contexto && ((contexto.purchaseDates?.length ?? 0) > 0 || (contexto.projetoFaturas?.length ?? 0) > 0)) {
+    url = buildDeepLinkUrl(cartao, contexto)
+  } else {
+    const ts = contexto?.importTs ?? Date.now()
+    url = `/compras?cartao=${cartao}&ts=${ts}`
+  }
+
   const payload = {
     title,
     body,
-    url: '/importar',
+    url,
     tag,
     requireInteraction: tipo === 'erro',
   }
