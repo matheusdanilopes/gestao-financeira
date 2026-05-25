@@ -497,11 +497,13 @@ export default function Dashboard() {
     const c1J = fatura.cartao1Items.filter(i => i.responsavel === 'Jeniffer')
     const c2M = fatura.cartao2Items.filter(i => i.responsavel === 'Matheus')
     const c2J = fatura.cartao2Items.filter(i => i.responsavel === 'Jeniffer')
+    const c1Total = fatura.cartao1AtualMatheus + fatura.cartao1AtualJeniffer
+    const c2Total = fatura.cartao2AtualMatheus + fatura.cartao2AtualJeniffer
     const outrosCards = [
-      ...(c1M.length > 0 ? [{ label: c1M.map(i => i.nome).join(' / '), responsavel: 'Matheus', atual: fatura.cartao1AtualMatheus, previsto: c1M.reduce((s, i) => s + i.previsto, 0) }] : []),
-      ...(c1J.length > 0 ? [{ label: c1J.map(i => i.nome).join(' / '), responsavel: 'Jeniffer', atual: fatura.cartao1AtualJeniffer, previsto: c1J.reduce((s, i) => s + i.previsto, 0) }] : []),
-      ...(c2M.length > 0 ? [{ label: c2M.map(i => i.nome).join(' / '), responsavel: 'Matheus', atual: fatura.cartao2AtualMatheus, previsto: c2M.reduce((s, i) => s + i.previsto, 0) }] : []),
-      ...(c2J.length > 0 ? [{ label: c2J.map(i => i.nome).join(' / '), responsavel: 'Jeniffer', atual: fatura.cartao2AtualJeniffer, previsto: c2J.reduce((s, i) => s + i.previsto, 0) }] : []),
+      ...(c1M.length > 0 ? [{ label: c1M.map(i => i.nome).join(' / '), responsavel: 'Matheus', atual: c1Total, previsto: c1M.reduce((s, i) => s + i.previsto, 0) }] : []),
+      ...(c1J.length > 0 ? [{ label: c1J.map(i => i.nome).join(' / '), responsavel: 'Jeniffer', atual: c1Total, previsto: c1J.reduce((s, i) => s + i.previsto, 0) }] : []),
+      ...(c2M.length > 0 ? [{ label: c2M.map(i => i.nome).join(' / '), responsavel: 'Matheus', atual: c2Total, previsto: c2M.reduce((s, i) => s + i.previsto, 0) }] : []),
+      ...(c2J.length > 0 ? [{ label: c2J.map(i => i.nome).join(' / '), responsavel: 'Jeniffer', atual: c2Total, previsto: c2J.reduce((s, i) => s + i.previsto, 0) }] : []),
     ].filter(c => c.atual > 0 || c.previsto > 0)
     const matheusCardsAtual = outrosCards.filter(c => c.responsavel === 'Matheus').reduce((s, c) => s + c.atual, 0)
     const matheusCardsPrevisto = outrosCards.filter(c => c.responsavel === 'Matheus').reduce((s, c) => s + c.previsto, 0)
