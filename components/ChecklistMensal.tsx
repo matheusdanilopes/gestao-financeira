@@ -192,6 +192,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
       const { data } = await supabase
         .from('transacoes_nubank')
         .select('valor')
+        .eq('cartao', 'nubank')
         .eq('projeto_fatura', mesRefFatura)
         .eq('responsavel', responsavel)
       if (data && data.length > 0) {
