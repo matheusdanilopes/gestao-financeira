@@ -409,11 +409,11 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
                         {formatBRL(aportado)}
                       </p>
                       <p className="text-xs font-medium text-gray-500">
-                        Meta {formatBRL(meta)}
+                        Calculado {formatBRL(meta)}
                       </p>
                       {metaPrevista !== meta && metaPrevista > 0 && (
                         <p className="text-xs text-violet-400">
-                          Prev. {formatBRL(metaPrevista)}
+                          Previsto {formatBRL(metaPrevista)}
                         </p>
                       )}
                       {saldoAtualItem !== null && (
