@@ -286,6 +286,13 @@ button, a, [role="button"] {
 }
 .page-enter { animation: fade-up 0.12s ease; }
 
+/* ─── Dashboard badge (Previsão / Histórico) ─────────────────────────────── */
+@keyframes badge-fade-in {
+  from { opacity: 0; transform: scale(0.88); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.badge-fade-in { animation: badge-fade-in 0.22s ease; }
+
 /* ─── Toast notification ─────────────────────────────────────────────────── */
 @keyframes toast-up {
   from { opacity: 0; transform: translateY(16px); }

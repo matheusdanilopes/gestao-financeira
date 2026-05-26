@@ -111,6 +111,7 @@ interface ResumoCaixaState {
   sobraLiquida: number
   saldoPrevisto: number
   percentualComprometimento: number
+  todasDespesasPagas: boolean
 }
 
 interface DashboardData {
@@ -293,13 +294,19 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const faturaEfetiva = nubankMatheusEfetivo + nubankJenifferEfetivo + cartao1Efetivo + cartao2Efetivo
   const saldoPrevisto = receitaTotal - totalPlanejado
 
-  const contasFixasAtual = (planejamento || [])
+  const despesasItems = (planejamento || []).filter(p => {
+    const item = typeof p.item === 'string' ? p.item : ''
+    return !item.startsWith('[RECEITA]') && item !== 'Receita Total'
+  })
+
+  const contasFixasAtual = despesasItems
     .filter(p => {
       const item = typeof p.item === 'string' ? p.item : ''
-      return !item.startsWith('[RECEITA]') && item !== 'Receita Total'
-        && !NUBANK_ITEMS.has(item) && !item.startsWith('[CARTAO1]') && !item.startsWith('[CARTAO2]')
+      return !NUBANK_ITEMS.has(item) && !item.startsWith('[CARTAO1]') && !item.startsWith('[CARTAO2]')
     })
     .reduce((acc, p) => acc + (p.pago ? (p.valor_real ?? p.valor_previsto) : p.valor_previsto), 0)
+
+  const todasDespesasPagas = despesasItems.length > 0 && despesasItems.every(p => p.pago)
 
   const totalGastos = contasFixasAtual + faturaEfetiva
   const sobraLiquida = receitaTotal - totalGastos
@@ -345,6 +352,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
       receitaTotal, contasFixas: contasFixasAtual,
       fatura: faturaEfetiva, faturaEhPrevisto: !temLancamentosEfetivos, extras: 0,
       totalGastos, sobraLiquida, saldoPrevisto, percentualComprometimento,
+      todasDespesasPagas,
     },
     investimentos: (invData || []).map(i => ({ ...i, aportado: aportadoMap[i.id] || 0 })),
     assinaturasNaopagas: { matheus: assinNaoPagaMatheus, jeniffer: assinNaoPagaJeniffer },
@@ -363,6 +371,7 @@ const FATURA_INICIAL: FaturaState = {
 const RESUMO_INICIAL: ResumoCaixaState = {
   receitaTotal: 0, contasFixas: 0, fatura: 0, faturaEhPrevisto: false, extras: 0,
   totalGastos: 0, sobraLiquida: 0, saldoPrevisto: 0, percentualComprometimento: 0,
+  todasDespesasPagas: false,
 }
 
 export default function Dashboard() {
@@ -442,16 +451,6 @@ export default function Dashboard() {
 
   // Mostra skeleton só quando não há dado algum ainda (sem cache, aguardando fetch)
   const carregando = status === 'loading'
-
-  const isMesAtual = useMemo(
-    () => format(mesAtual, 'yyyy-MM') === format(new Date(), 'yyyy-MM'),
-    [mesAtual]
-  )
-
-  const isMesFuturo = useMemo(
-    () => format(mesAtual, 'yyyy-MM') > format(new Date(), 'yyyy-MM'),
-    [mesAtual]
-  )
 
   const comprometimentoColor = useMemo(() =>
     resumoCaixa.percentualComprometimento > 90 ? 'text-red-600' :
@@ -594,15 +593,15 @@ export default function Dashboard() {
                     </span>
                   </div>
                 </div>
-                {!isMesAtual && (
-                  <span className={`text-xs border rounded-xl px-2.5 py-1 font-medium ${
-                    isMesFuturo
-                      ? 'bg-blue-50 text-blue-700 border-blue-100'
-                      : 'bg-amber-50 text-amber-700 border-amber-100'
-                  }`}>
-                    {isMesFuturo ? 'Previsão' : 'Histórico'}
+                {resumoCaixa.todasDespesasPagas ? (
+                  <span key="historico" className="text-xs border rounded-xl px-2.5 py-1 font-medium bg-amber-50 text-amber-700 border-amber-100 badge-fade-in">
+                    Histórico
                   </span>
-                )}
+                ) : resumoCaixa.faturaEhPrevisto ? (
+                  <span key="previsao" className="text-xs border rounded-xl px-2.5 py-1 font-medium bg-blue-50 text-blue-700 border-blue-100 badge-fade-in">
+                    Previsão
+                  </span>
+                ) : null}
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
