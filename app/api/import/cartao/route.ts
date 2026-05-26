@@ -48,10 +48,11 @@ async function inserirTransacao(
   supabase: ReturnType<typeof criarSupabaseServer>,
   item: TransacaoNubank
 ): Promise<boolean> {
-  let result = await supabase.from('transacoes_nubank').insert(item)
+  const { occurrence_index: _oi, ...payload } = item as TransacaoNubank & { occurrence_index?: number }
+  let result = await supabase.from('transacoes_nubank').insert(payload)
 
   if (result.error?.message?.includes('data_compra')) {
-    const { data_compra, ...resto } = item as TransacaoNubank & Record<string, unknown>
+    const { data_compra, ...resto } = payload as Record<string, unknown>
     result = await supabase.from('transacoes_nubank').insert({ ...resto, data: data_compra })
   }
 
