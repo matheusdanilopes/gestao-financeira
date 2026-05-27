@@ -1,5 +1,5 @@
 import webpush from 'web-push'
-import { SupabaseClient } from '@supabase/supabase-js'
+import { SupabaseClient, createClient } from '@supabase/supabase-js'
 
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY ?? ''
@@ -9,6 +9,14 @@ if (VAPID_PUBLIC && VAPID_PRIVATE) {
   webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC, VAPID_PRIVATE)
 }
 
+// Cliente admin usado para ler push_subscriptions sem depender de sessão de usuário.
+// Necessário para importações via API key, onde o cliente passado não tem sessão.
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
+const supabaseAdmin = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+  : null
+
 const LABELS_PADRAO: Record<string, string> = {
   nubank: 'NuBank',
   cartao1: 'Cartão 1',
@@ -17,6 +25,13 @@ const LABELS_PADRAO: Record<string, string> = {
 
 function labelCartao(cartao: string, nomeCartao?: string): string {
   return nomeCartao || LABELS_PADRAO[cartao] || cartao
+}
+
+function nomeDoUsuario(email: string): string {
+  const lower = email.toLowerCase()
+  if (lower.includes('matheus')) return 'Matheus'
+  if (lower.includes('jeniffer') || lower.includes('jennifer')) return 'Jeniffer'
+  return email.split('@')[0]
 }
 
 /** Contexto da importação para construir o deep link da notificação. */
@@ -67,10 +82,9 @@ export async function notificarImportacao(
   conflitos?: number,
   cartao: string = 'nubank',
   nomeCartao?: string,
-  contexto?: ContextoImportacao
+  contexto?: ContextoImportacao,
+  deUsuario?: string
 ) {
-  if (!VAPID_PUBLIC || !VAPID_PRIVATE) return
-
   const nome = labelCartao(cartao, nomeCartao)
   let title: string
   let body: string
@@ -96,6 +110,21 @@ export async function notificarImportacao(
     title = `${nome} — importação não concluída`
     body = 'Algo deu errado na importação. Acesse o app para verificar o que aconteceu.'
   }
+
+  // Insere notificação in-app (sino) para que o outro usuário veja via Realtime ou PUSH_RECEIVED.
+  if (deUsuario) {
+    try {
+      await supabase.from('notificacoes').insert([{
+        de_usuario: deUsuario,
+        nome_usuario: nomeDoUsuario(deUsuario),
+        acao: tipo === 'sucesso' ? 'importacao_concluida' : 'importacao_erro',
+        descricao: body,
+        valor: null,
+      }])
+    } catch { /* notificação in-app é best-effort */ }
+  }
+
+  if (!VAPID_PUBLIC || !VAPID_PRIVATE) return
 
   // Tag única por cartão: cada cartão tem sua própria notificação independente.
   // Prefixo 'importacao-sucesso-' / 'importacao-erro-' permite ao SW fechar
@@ -125,7 +154,10 @@ export async function notificarImportacao(
   }
 
   try {
-    const { data: subs } = await supabase.from('push_subscriptions').select('*')
+    // Usa o cliente admin para garantir acesso às assinaturas independente de sessão.
+    // Fallback para o cliente passado caso SUPABASE_SERVICE_ROLE_KEY não esteja configurado.
+    const pushClient = supabaseAdmin ?? supabase
+    const { data: subs } = await pushClient.from('push_subscriptions').select('*')
     if (!subs?.length) return
 
     const results = await Promise.allSettled(
@@ -147,7 +179,7 @@ export async function notificarImportacao(
       .map(sub => sub.usuario)
 
     if (expiradas.length) {
-      await supabase.from('push_subscriptions').delete().in('usuario', expiradas)
+      await pushClient.from('push_subscriptions').delete().in('usuario', expiradas)
     }
   } catch { /* falha no push nunca deve interromper a resposta */ }
 }
