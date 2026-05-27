@@ -17,29 +17,35 @@ type CartaoValido = typeof CARTOES_VALIDOS[number]
 
 type AuthResult =
   | { ok: true }
-  | { ok: false; status: 401 | 403; message: string }
+  | { ok: false; status: 401; message: string }
 
-function autenticar(req: NextRequest): AuthResult {
+async function autenticar(req: NextRequest): Promise<AuthResult> {
   const apiKey = process.env.NUBANK_IMPORT_API_KEY
-  if (!apiKey) {
-    return {
-      ok: false,
-      status: 403,
-      message: 'Endpoint desabilitado: NUBANK_IMPORT_API_KEY não configurada no servidor.',
+
+  if (apiKey) {
+    const authHeader = req.headers.get('Authorization') ?? req.headers.get('authorization') ?? ''
+    if (!authHeader.startsWith('Bearer ')) {
+      return {
+        ok: false,
+        status: 401,
+        message: 'Header Authorization ausente ou inválido. Use: Authorization: Bearer <api-key>',
+      }
     }
+    if (authHeader.slice(7) !== apiKey) {
+      return { ok: false, status: 401, message: 'API key inválida.' }
+    }
+    return { ok: true }
   }
 
-  const authHeader = req.headers.get('Authorization') ?? req.headers.get('authorization') ?? ''
-  if (!authHeader.startsWith('Bearer ')) {
+  // Fallback: autenticação por sessão do Supabase quando NUBANK_IMPORT_API_KEY não está configurada
+  const supabase = criarSupabaseServer(req)
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (error || !user) {
     return {
       ok: false,
       status: 401,
-      message: 'Header Authorization ausente ou inválido. Use: Authorization: Bearer <api-key>',
+      message: 'Não autenticado. Configure NUBANK_IMPORT_API_KEY no servidor ou autentique-se via sessão.',
     }
-  }
-
-  if (authHeader.slice(7) !== apiKey) {
-    return { ok: false, status: 401, message: 'API key inválida.' }
   }
 
   return { ok: true }
@@ -133,7 +139,7 @@ async function salvarTransacoes(
 }
 
 export async function POST(req: NextRequest) {
-  const auth = autenticar(req)
+  const auth = await autenticar(req)
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status })
   }
