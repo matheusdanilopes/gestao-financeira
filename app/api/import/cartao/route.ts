@@ -62,7 +62,7 @@ async function inserirTransacao(
 }
 
 export async function POST(req: NextRequest) {
-  const { user, supabase, unauthorized } = await requireAuth(req)
+  const { supabase, unauthorized } = await requireAuth(req)
   if (unauthorized) return unauthorized
   let cartao = 'cartao1'
   let nomeCartao: string | undefined
@@ -185,7 +185,7 @@ export async function POST(req: NextRequest) {
       purchaseDates,
       projetoFaturas: mesesNoArquivo,
       importTs,
-    }, user?.email ?? user?.id)
+    })
 
     return NextResponse.json({
       success: true,
@@ -201,7 +201,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('[import/cartao] Exceção:', error)
     const msg = error instanceof Error ? error.message : String(error)
-    await notificarImportacao(supabase, 'erro', undefined, undefined, cartao, nomeCartao, { importTs: Date.now() }, user?.email ?? user?.id)
+    await notificarImportacao(supabase, 'erro', undefined, undefined, cartao, nomeCartao, { importTs: Date.now() })
     return NextResponse.json({ error: 'Erro interno: ' + msg }, { status: 500 })
   }
 }
