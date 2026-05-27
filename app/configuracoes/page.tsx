@@ -189,6 +189,11 @@ export default function ConfiguracoesPage() {
 
   // --- Notificações ---
   const [notificacoesVencimentoAtivas, setNotificacoesVencimentoAtivas] = useState(true)
+  const [permissaoPush, setPermissaoPush] = useState<NotificationPermission | 'unsupported' | null>(null)
+  const [subscricaoAtiva, setSubscricaoAtiva] = useState<boolean | null>(null)
+  const [registrandoPush, setRegistrandoPush] = useState(false)
+  const [testando, setTestando] = useState(false)
+  const [mensagemPush, setMensagemPush] = useState('')
 
   // --- Categorias ---
   const [categorias, setCategorias] = useState<string[]>(CATEGORIAS_PADRAO)
@@ -499,6 +504,97 @@ export default function ConfiguracoesPage() {
     setCategoriasSalvando(false)
   }
 
+  async function carregarStatusPush() {
+    if (typeof window === 'undefined') return
+    if (!('Notification' in window)) {
+      setPermissaoPush('unsupported')
+      return
+    }
+    setPermissaoPush(Notification.permission)
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      try {
+        const reg = await navigator.serviceWorker.ready
+        const sub = await reg.pushManager.getSubscription()
+        setSubscricaoAtiva(!!sub)
+      } catch {
+        setSubscricaoAtiva(false)
+      }
+    }
+  }
+
+  async function ativarNotificacoes() {
+    setRegistrandoPush(true)
+    setMensagemPush('')
+    try {
+      const perm = await Notification.requestPermission()
+      setPermissaoPush(perm)
+      if (perm !== 'granted') {
+        setMensagemPush('Permissão negada. Acesse as configurações do navegador/sistema para permitir notificações.')
+        return
+      }
+      const reg = await navigator.serviceWorker.ready
+      let sub = await reg.pushManager.getSubscription()
+      if (sub) await sub.unsubscribe()
+      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
+      if (!vapidKey) { setMensagemPush('VAPID não configurado.'); return }
+      const padding = '='.repeat((4 - (vapidKey.length % 4)) % 4)
+      const base64 = (vapidKey + padding).replace(/-/g, '+').replace(/_/g, '/')
+      const raw = atob(base64)
+      const arr = new Uint8Array(raw.length)
+      for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i)
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: arr })
+      const res = await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription: sub }),
+      })
+      if (res.ok) {
+        setSubscricaoAtiva(true)
+        setMensagemPush('Notificações ativadas com sucesso!')
+        try { localStorage.setItem('push_last_register', String(Date.now())) } catch { /* noop */ }
+      } else {
+        setMensagemPush('Erro ao registrar no servidor.')
+      }
+    } catch (err) {
+      setMensagemPush(err instanceof Error ? err.message : 'Erro ao ativar notificações.')
+    } finally {
+      setRegistrandoPush(false)
+    }
+  }
+
+  async function desativarNotificacoes() {
+    setRegistrandoPush(true)
+    setMensagemPush('')
+    try {
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.ready
+        const sub = await reg.pushManager.getSubscription()
+        if (sub) await sub.unsubscribe()
+      }
+      setSubscricaoAtiva(false)
+      setMensagemPush('Notificações desativadas.')
+      try { localStorage.removeItem('push_last_register') } catch { /* noop */ }
+    } catch (err) {
+      setMensagemPush(err instanceof Error ? err.message : 'Erro ao desativar.')
+    } finally {
+      setRegistrandoPush(false)
+    }
+  }
+
+  async function testarNotificacao() {
+    setTestando(true)
+    setMensagemPush('')
+    try {
+      const res = await fetch('/api/push/test', { method: 'POST' })
+      const data = await res.json()
+      setMensagemPush(res.ok ? 'Notificação de teste enviada! Verifique seu dispositivo.' : (data.error ?? 'Erro ao testar.'))
+    } catch {
+      setMensagemPush('Erro ao conectar ao servidor.')
+    } finally {
+      setTestando(false)
+    }
+  }
+
   async function handleLogout() {
     await supabase.auth.signOut()
     router.push('/login')
@@ -525,6 +621,7 @@ export default function ConfiguracoesPage() {
       carregarUsoCategorias()
       carregarFaturas()
       carregarLabelsCartao()
+      carregarStatusPush()
     }, 0)
     return () => clearTimeout(timer)
   }, [])
@@ -665,40 +762,114 @@ export default function ConfiguracoesPage() {
             </div>
           </div>
 
-          {/* CA04: Toggle de notificações de vencimento */}
-          <div className="bg-white rounded-3xl shadow-card p-4 mb-4">
-            <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+          {/* Notificações push */}
+          <div className="bg-white rounded-3xl shadow-card p-4 mb-4 space-y-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
               <Bell className="w-5 h-5 text-gray-500" />
-              Notificações de Vencimento
+              Notificações Push
             </h2>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-700">Alertas de vencimento</p>
-                <p className="text-xs text-gray-400 mt-0.5">T-1 e no dia do vencimento às 09:00</p>
+
+            {/* Status da permissão */}
+            {permissaoPush !== null && (
+              <div className={`flex items-center gap-2 px-3 py-2 rounded-2xl text-sm ${
+                permissaoPush === 'granted'
+                  ? 'bg-green-50 text-green-700'
+                  : permissaoPush === 'denied'
+                  ? 'bg-red-50 text-red-700'
+                  : permissaoPush === 'unsupported'
+                  ? 'bg-gray-50 text-gray-500'
+                  : 'bg-amber-50 text-amber-700'
+              }`}>
+                <span className={`w-2 h-2 rounded-full shrink-0 ${
+                  permissaoPush === 'granted' ? 'bg-green-500' :
+                  permissaoPush === 'denied'  ? 'bg-red-500' :
+                  permissaoPush === 'unsupported' ? 'bg-gray-400' : 'bg-amber-400'
+                }`} />
+                {permissaoPush === 'granted' && subscricaoAtiva
+                  ? 'Notificações ativas e subscrição registrada'
+                  : permissaoPush === 'granted' && subscricaoAtiva === false
+                  ? 'Permissão concedida, mas sem subscrição ativa'
+                  : permissaoPush === 'denied'
+                  ? 'Permissão bloqueada — libere nas configurações do sistema'
+                  : permissaoPush === 'unsupported'
+                  ? 'Notificações não suportadas neste navegador'
+                  : 'Permissão não concedida'}
               </div>
-              <button
-                type="button"
-                aria-checked={notificacoesVencimentoAtivas}
-                role="switch"
-                onClick={async () => {
-                  const newVal = !notificacoesVencimentoAtivas
-                  setNotificacoesVencimentoAtivas(newVal)
-                  await fetch('/api/configuracoes', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ configuracoes: [{ chave: 'notificacoes_vencimento_ativas', valor: String(newVal) }] }),
-                  })
-                }}
-                className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-2 ${
-                  notificacoesVencimentoAtivas ? 'bg-primary-600' : 'bg-gray-200'
-                }`}
-              >
-                <span
-                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 ${
-                    notificacoesVencimentoAtivas ? 'translate-x-5' : 'translate-x-0'
+            )}
+
+            {mensagemPush && (
+              <p className={`text-xs px-3 py-2 rounded-xl ${
+                mensagemPush.includes('sucesso') || mensagemPush.includes('enviada')
+                  ? 'bg-green-50 text-green-700'
+                  : 'bg-red-50 text-red-600'
+              }`}>
+                {mensagemPush}
+              </p>
+            )}
+
+            {/* Ações */}
+            {permissaoPush !== 'unsupported' && permissaoPush !== 'denied' && (
+              <div className="flex gap-2">
+                {(!subscricaoAtiva || permissaoPush !== 'granted') ? (
+                  <button
+                    onClick={ativarNotificacoes}
+                    disabled={registrandoPush}
+                    className="flex-1 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-2xl transition-all active:scale-[0.97] disabled:opacity-50 shadow-sm"
+                  >
+                    {registrandoPush ? 'Ativando…' : 'Ativar notificações'}
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={testarNotificacao}
+                      disabled={testando}
+                      className="flex-1 py-2.5 bg-primary-50 hover:bg-primary-100 text-primary-700 text-sm font-semibold rounded-2xl transition-all active:scale-[0.97] disabled:opacity-50 border border-primary-200"
+                    >
+                      {testando ? 'Enviando…' : 'Testar notificação'}
+                    </button>
+                    <button
+                      onClick={desativarNotificacoes}
+                      disabled={registrandoPush}
+                      className="py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-semibold rounded-2xl transition-all active:scale-[0.97] disabled:opacity-50"
+                    >
+                      {registrandoPush ? '…' : 'Desativar'}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Alertas de vencimento */}
+            <div className="border-t border-gray-100 pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Alertas de vencimento</p>
+                  <p className="text-xs text-gray-400 mt-0.5">T-1 e no dia do vencimento às 09:00</p>
+                </div>
+                <button
+                  type="button"
+                  aria-checked={notificacoesVencimentoAtivas}
+                  role="switch"
+                  onClick={async () => {
+                    const newVal = !notificacoesVencimentoAtivas
+                    setNotificacoesVencimentoAtivas(newVal)
+                    await fetch('/api/configuracoes', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ configuracoes: [{ chave: 'notificacoes_vencimento_ativas', valor: String(newVal) }] }),
+                    })
+                  }}
+                  className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-2 ${
+                    notificacoesVencimentoAtivas ? 'bg-primary-600' : 'bg-gray-200'
                   }`}
-                />
-              </button>
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 ${
+                      notificacoesVencimentoAtivas ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
             </div>
           </div>
 

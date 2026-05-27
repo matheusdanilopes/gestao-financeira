@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gestao-financeira-v8'
+const CACHE_NAME = 'gestao-financeira-v9'
 
 // Tags auto-fecháveis ao abrir o app — processo concluído, notificação apenas informativa.
 // Mantido em sincronia com SW_AUTO_CLOSE_TAGS em lib/notificationTypes.ts.
@@ -217,15 +217,18 @@ self.addEventListener('push', function (event) {
 
   const title = data.title || 'Gestão Financeira'
   const tag = data.tag || 'gestao-push'
+  const isPersistent = data.requireInteraction === true || PERSISTENT_TAGS.includes(tag)
   const options = {
     body: data.body || '',
     icon: '/icon-192.png',
     badge: '/icon-192.png',
     tag,
+    renotify: true,
     data: { url: data.url || '/dashboard', tag },
     vibrate: [200, 100, 200],
+    silent: false,
     // Notificações de erro/ação obrigatória ficam visíveis até o usuário interagir
-    requireInteraction: data.requireInteraction === true || PERSISTENT_TAGS.includes(tag),
+    requireInteraction: isPersistent,
   }
 
   event.waitUntil(
@@ -283,13 +286,14 @@ self.addEventListener('notificationclick', function (event) {
         }
       }
 
-      // Foca janela existente e navega, ou abre nova
-      for (const client of clientList) {
-        if ('focus' in client) {
-          return client.navigate(targetUrl).then(function (c) {
-            return c ? c.focus() : client.focus()
-          })
-        }
+      // Foca janela existente (mesmo origin) e navega, ou abre nova
+      const existingClient = clientList.find(function (c) {
+        try { return new URL(c.url).origin === self.location.origin } catch (_) { return false }
+      })
+      if (existingClient) {
+        return existingClient.navigate(targetUrl)
+          .then(function (c) { return (c || existingClient).focus() })
+          .catch(function () { return existingClient.focus() })
       }
       if (clients.openWindow) {
         return clients.openWindow(targetUrl)

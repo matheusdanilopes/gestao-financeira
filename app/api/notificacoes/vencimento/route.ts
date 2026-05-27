@@ -77,16 +77,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, enviados: 0 })
   }
 
+  function slugItem(nome: string): string {
+    return nome.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '').slice(0, 40)
+  }
+
   const notificacoes = subscriptions.flatMap(sub => {
     const desteUsuario = (i: { responsavel: string }) => i.responsavel === sub.usuario
-    const msgsHoje = itensHoje.filter(desteUsuario).map(item => ({
-      title: '⚠️ Vencimento hoje!',
-      body:  `Sua conta ${limparNomeItem(item.item)} vence hoje!`,
-    }))
-    const msgsAmanha = itensAmanha.filter(desteUsuario).map(item => ({
-      title: '📅 Vencimento amanhã',
-      body:  `Sua conta ${limparNomeItem(item.item)} vence amanhã.`,
-    }))
+    const msgsHoje = itensHoje.filter(desteUsuario).map(item => {
+      const nome = limparNomeItem(item.item)
+      return {
+        title: '⚠️ Vencimento hoje!',
+        body:  `Sua conta ${nome} vence hoje!`,
+        tag:   `conta-atrasada-${slugItem(nome)}`,
+        requireInteraction: true,
+      }
+    })
+    const msgsAmanha = itensAmanha.filter(desteUsuario).map(item => {
+      const nome = limparNomeItem(item.item)
+      return {
+        title: '📅 Vencimento amanhã',
+        body:  `Sua conta ${nome} vence amanhã.`,
+        tag:   `conta-vencendo-${slugItem(nome)}`,
+        requireInteraction: true,
+      }
+    })
     return [...msgsHoje, ...msgsAmanha].map(msg => ({ sub, msg }))
   })
 
@@ -98,7 +112,13 @@ export async function POST(req: NextRequest) {
     notificacoes.map(({ sub, msg }) =>
       webpush.sendNotification(
         sub.subscription,
-        JSON.stringify({ title: msg.title, body: msg.body, url: '/contas' }),
+        JSON.stringify({
+          title: msg.title,
+          body: msg.body,
+          url: '/contas',
+          tag: msg.tag,
+          requireInteraction: msg.requireInteraction,
+        }),
         { urgency: 'high', TTL: 86400 }
       )
     )
