@@ -57,6 +57,29 @@ function isStandalone(): boolean {
     (window.navigator as { standalone?: boolean }).standalone === true
 }
 
+function getIOSVersion(): number | null {
+  if (typeof navigator === 'undefined') return null
+  const match = navigator.userAgent.match(/OS (\d+)_/)
+  return match ? parseInt(match[1], 10) : null
+}
+
+// Força renovação da subscrição a cada 7 dias para evitar endpoints expirados.
+const PUSH_REFRESH_KEY = 'push_last_register'
+const PUSH_REFRESH_MS  = 7 * 24 * 60 * 60 * 1000
+
+function deveForcarRenovacao(): boolean {
+  try {
+    const last = localStorage.getItem(PUSH_REFRESH_KEY)
+    return !last || Date.now() - parseInt(last, 10) > PUSH_REFRESH_MS
+  } catch {
+    return false
+  }
+}
+
+function marcarRenovacao() {
+  try { localStorage.setItem(PUSH_REFRESH_KEY, String(Date.now())) } catch { /* noop */ }
+}
+
 // Mapa de ícones por tipo de notificação
 const ICONES_ACAO: Record<string, ComponentType<{ className?: string }>> = {
   importacao_iniciada:          Clock,
@@ -119,11 +142,12 @@ async function registrarPush(usuarioEmail: string, forcar = false): Promise<stri
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
       })
     }
-    await fetch('/api/push/subscribe', {
+    const res = await fetch('/api/push/subscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ usuario: usuarioEmail, subscription: sub }),
     })
+    if (res.ok) marcarRenovacao()
     return null
   } catch (err) {
     return err instanceof Error ? err.message : String(err)
@@ -232,9 +256,17 @@ export default memo(function NotificacoesBell() {
   async function registrarServiceWorker(email: string) {
     if (!('serviceWorker' in navigator)) return
 
-    if (isIOS() && !isStandalone()) {
-      setIosNaoInstalado(true)
-      return
+    if (isIOS()) {
+      if (!isStandalone()) {
+        setIosNaoInstalado(true)
+        return
+      }
+      // iOS push requer versão 16.4+
+      const iosVer = getIOSVersion()
+      if (iosVer !== null && iosVer < 16) {
+        setErroPush('Notificações push requerem iOS 16.4 ou superior. Atualize o sistema.')
+        return
+      }
     }
 
     try {
@@ -253,7 +285,9 @@ export default memo(function NotificacoesBell() {
       const perm = Notification.permission
       setPermissaoPush(perm)
       if (perm === 'granted') {
-        const erro = await registrarPush(email)
+        // Força renovação da subscrição a cada 7 dias para evitar endpoints expirados
+        const forcar = deveForcarRenovacao()
+        const erro = await registrarPush(email, forcar)
         if (erro) setErroPush(erro)
       }
     } catch (_) {}
