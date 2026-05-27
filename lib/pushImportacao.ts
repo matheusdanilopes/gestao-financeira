@@ -132,7 +132,14 @@ export async function notificarImportacao(
   }
 
   try {
-    const { data: subs } = await supabasePush.from('push_subscriptions').select('*')
+    // Usa o cliente autenticado passado pela rota (tem sessão de usuário → passa na RLS).
+    // Se não retornar subscriptions (rota sem sessão, ex: API key), tenta o cliente anon
+    // como fallback para manter compatibilidade com importações automatizadas.
+    let { data: subs } = await supabase.from('push_subscriptions').select('*')
+    if (!subs?.length) {
+      const { data: subsFallback } = await supabasePush.from('push_subscriptions').select('*')
+      subs = subsFallback
+    }
     if (!subs?.length) return
 
     const results = await Promise.allSettled(
@@ -154,7 +161,8 @@ export async function notificarImportacao(
       .map(sub => sub.usuario)
 
     if (expiradas.length) {
-      await supabasePush.from('push_subscriptions').delete().in('usuario', expiradas)
+      // Usa o mesmo cliente que conseguiu ler (autenticado se disponível)
+      await supabase.from('push_subscriptions').delete().in('usuario', expiradas)
     }
   } catch { /* falha no push nunca deve interromper a resposta */ }
 }
