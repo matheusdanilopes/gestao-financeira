@@ -19,6 +19,13 @@ function labelCartao(cartao: string, nomeCartao?: string): string {
   return nomeCartao || LABELS_PADRAO[cartao] || cartao
 }
 
+function nomeDoUsuario(email: string): string {
+  const lower = email.toLowerCase()
+  if (lower.includes('matheus')) return 'Matheus'
+  if (lower.includes('jeniffer') || lower.includes('jennifer')) return 'Jeniffer'
+  return email.split('@')[0]
+}
+
 /** Contexto da importação para construir o deep link da notificação. */
 export interface ContextoImportacao {
   /** Datas de compra (data_compra, YYYY-MM-DD) das transações inseridas — para filtro de dia. */
@@ -67,10 +74,9 @@ export async function notificarImportacao(
   conflitos?: number,
   cartao: string = 'nubank',
   nomeCartao?: string,
-  contexto?: ContextoImportacao
+  contexto?: ContextoImportacao,
+  deUsuario?: string
 ) {
-  if (!VAPID_PUBLIC || !VAPID_PRIVATE) return
-
   const nome = labelCartao(cartao, nomeCartao)
   let title: string
   let body: string
@@ -96,6 +102,21 @@ export async function notificarImportacao(
     title = `${nome} — importação não concluída`
     body = 'Algo deu errado na importação. Acesse o app para verificar o que aconteceu.'
   }
+
+  // Insere notificação in-app (sino) para que o outro usuário veja via Realtime ou PUSH_RECEIVED.
+  if (deUsuario) {
+    try {
+      await supabase.from('notificacoes').insert([{
+        de_usuario: deUsuario,
+        nome_usuario: nomeDoUsuario(deUsuario),
+        acao: tipo === 'sucesso' ? 'importacao_concluida' : 'importacao_erro',
+        descricao: body,
+        valor: null,
+      }])
+    } catch { /* notificação in-app é best-effort */ }
+  }
+
+  if (!VAPID_PUBLIC || !VAPID_PRIVATE) return
 
   // Tag única por cartão: cada cartão tem sua própria notificação independente.
   // Prefixo 'importacao-sucesso-' / 'importacao-erro-' permite ao SW fechar

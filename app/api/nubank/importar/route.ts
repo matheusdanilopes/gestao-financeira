@@ -145,6 +145,8 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = criarSupabaseServer(req)
+  const { data: { user: sessionUser } } = await supabase.auth.getUser()
+  const deUsuario = sessionUser?.email ?? undefined
 
   const url = new URL(req.url)
   let cartao: string = url.searchParams.get('cartao') ?? 'nubank'
@@ -193,7 +195,7 @@ export async function POST(req: NextRequest) {
       if (!file) {
         const msg = 'Campo "file" ausente no formulário.'
         await registrarLog(`ERRO: ${msg}`)
-        await notificarImportacao(supabase, 'erro', undefined, undefined, cartao)
+        await notificarImportacao(supabase, 'erro', undefined, undefined, cartao, undefined, undefined, deUsuario)
         return NextResponse.json({ error: msg }, { status: 400 })
       }
       const csvText = await file.text()
@@ -205,7 +207,7 @@ export async function POST(req: NextRequest) {
       } catch {
         const msg = 'Body inválido: esperado JSON ou multipart/form-data com campo "file".'
         await registrarLog(`ERRO: ${msg}`)
-        await notificarImportacao(supabase, 'erro', undefined, undefined, cartao)
+        await notificarImportacao(supabase, 'erro', undefined, undefined, cartao, undefined, undefined, deUsuario)
         return NextResponse.json({ error: msg }, { status: 400 })
       }
 
@@ -239,7 +241,7 @@ export async function POST(req: NextRequest) {
     if (transacoes.length === 0) {
       const msg = 'Nenhuma transação válida encontrada. Verifique o formato e se os valores são positivos.'
       await registrarLog(`ERRO: ${msg}`)
-      await notificarImportacao(supabase, 'erro', undefined, undefined, cartao)
+      await notificarImportacao(supabase, 'erro', undefined, undefined, cartao, undefined, undefined, deUsuario)
       return NextResponse.json({ success: false, error: msg }, { status: 422 })
     }
 
@@ -294,7 +296,7 @@ export async function POST(req: NextRequest) {
       purchaseDates,
       projetoFaturas: importacaoPublica.mesesReprocessados,
       importTs,
-    })
+    }, deUsuario)
 
     return NextResponse.json({
       success: true,
@@ -305,7 +307,7 @@ export async function POST(req: NextRequest) {
     console.error('[nubank/importar] Exceção:', error)
     const msg = error instanceof Error ? error.message : String(error)
     await registrarLog(`ERRO: ${msg}`)
-    await notificarImportacao(supabase, 'erro', undefined, undefined, cartao, undefined, { importTs: Date.now() })
+    await notificarImportacao(supabase, 'erro', undefined, undefined, cartao, undefined, { importTs: Date.now() }, deUsuario)
     return NextResponse.json({ error: 'Erro interno: ' + msg }, { status: 500 })
   }
 }
