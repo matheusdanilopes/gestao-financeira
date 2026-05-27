@@ -15,9 +15,18 @@ CREATE POLICY "authenticated_notificacoes" ON notificacoes
   WITH CHECK (auth.role() = 'authenticated');
 
 -- ── push_subscriptions ───────────────────────────────────────────────────────
+-- SELECT e DELETE abertos à anon key: necessário para envio de push em
+-- importações via API key (sem sessão de usuário). INSERT/UPDATE exigem auth.
+DROP POLICY IF EXISTS "authenticated_push_subs" ON push_subscriptions;
 DROP POLICY IF EXISTS "allow_all_push_subs" ON push_subscriptions;
-CREATE POLICY "authenticated_push_subs" ON push_subscriptions
-  FOR ALL USING (auth.role() = 'authenticated')
+CREATE POLICY "push_subs_read" ON push_subscriptions
+  FOR SELECT USING (true);
+CREATE POLICY "push_subs_delete" ON push_subscriptions
+  FOR DELETE USING (true);
+CREATE POLICY "push_subs_write" ON push_subscriptions
+  FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "push_subs_update" ON push_subscriptions
+  FOR UPDATE USING (auth.role() = 'authenticated')
   WITH CHECK (auth.role() = 'authenticated');
 
 -- ── investimentos ─────────────────────────────────────────────────────────────

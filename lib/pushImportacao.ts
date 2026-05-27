@@ -1,5 +1,5 @@
 import webpush from 'web-push'
-import { SupabaseClient } from '@supabase/supabase-js'
+import { SupabaseClient, createClient } from '@supabase/supabase-js'
 
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY ?? ''
@@ -8,6 +8,13 @@ const VAPID_EMAIL = process.env.VAPID_EMAIL ?? 'mailto:admin@gestaofinanceira.ap
 if (VAPID_PUBLIC && VAPID_PRIVATE) {
   webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC, VAPID_PRIVATE)
 }
+
+// Cliente sem sessão para leitura de push_subscriptions — necessário para
+// importações via API key onde não há cookies de autenticação no request.
+const supabasePush = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_anon_key ?? ''
+)
 
 const LABELS_PADRAO: Record<string, string> = {
   nubank: 'NuBank',
@@ -125,7 +132,7 @@ export async function notificarImportacao(
   }
 
   try {
-    const { data: subs } = await supabase.from('push_subscriptions').select('*')
+    const { data: subs } = await supabasePush.from('push_subscriptions').select('*')
     if (!subs?.length) return
 
     const results = await Promise.allSettled(
@@ -147,7 +154,7 @@ export async function notificarImportacao(
       .map(sub => sub.usuario)
 
     if (expiradas.length) {
-      await supabase.from('push_subscriptions').delete().in('usuario', expiradas)
+      await supabasePush.from('push_subscriptions').delete().in('usuario', expiradas)
     }
   } catch { /* falha no push nunca deve interromper a resposta */ }
 }
