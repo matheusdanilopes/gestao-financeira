@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gestao-financeira-v9'
+const CACHE_NAME = 'gestao-financeira-v10'
 
 // Tags auto-fecháveis ao abrir o app — processo concluído, notificação apenas informativa.
 // Mantido em sincronia com SW_AUTO_CLOSE_TAGS em lib/notificationTypes.ts.
@@ -217,7 +217,8 @@ self.addEventListener('push', function (event) {
 
   const title = data.title || 'Gestão Financeira'
   const tag = data.tag || 'gestao-push'
-  const isPersistent = data.requireInteraction === true || PERSISTENT_TAGS.includes(tag)
+  const isPersistent = data.requireInteraction === true ||
+    PERSISTENT_TAGS.some(function (t) { return tag === t || tag.startsWith(t + '-') })
   const options = {
     body: data.body || '',
     icon: '/icon-192.png',
@@ -293,7 +294,10 @@ self.addEventListener('notificationclick', function (event) {
       if (existingClient) {
         return existingClient.navigate(targetUrl)
           .then(function (c) { return (c || existingClient).focus() })
-          .catch(function () { return existingClient.focus() })
+          .catch(function () {
+            if (clients.openWindow) return clients.openWindow(targetUrl)
+            return existingClient.focus()
+          })
       }
       if (clients.openWindow) {
         return clients.openWindow(targetUrl)

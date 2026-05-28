@@ -22,7 +22,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'VAPID não configurado no servidor' }, { status: 503 })
   }
 
-  const usuario = user.email ?? user.id
+  if (!user.email) {
+    return NextResponse.json({ error: 'Conta sem email associado. Notificações requerem email.' }, { status: 400 })
+  }
+  const usuario = user.email
 
   const { data: sub } = await supabase
     .from('push_subscriptions')
