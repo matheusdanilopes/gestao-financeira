@@ -255,7 +255,6 @@ export default function ComprasPage() {
         responsavel: formEditar.responsavel,
         categoria: formEditar.categoria || null,
         categoria_origem: formEditar.categoria ? 'MANUAL' : null,
-        categoria_confianca: formEditar.categoria ? 1 : null,
         data: formEditar.data_compra,
         projeto_fatura: novoProjetoFatura,
       })

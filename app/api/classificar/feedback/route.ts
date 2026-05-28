@@ -48,7 +48,6 @@ export async function POST(req: NextRequest) {
     .update({
       categoria: categoria_validada,
       categoria_origem: 'USUARIO',
-      categoria_confianca: 1.0,
       classificacao_status: 'validado',
     })
     .eq('hash_linha', hash_linha)

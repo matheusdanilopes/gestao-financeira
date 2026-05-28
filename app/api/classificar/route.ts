@@ -92,7 +92,6 @@ export async function POST(req: NextRequest) {
         .update({
           categoria: resultado.categoria,
           categoria_origem: 'RAG',
-          categoria_confianca: resultado.confianca / 100,
           classificacao_status: classificacaoStatus,
         })
         .eq('hash_linha', t.hash_linha)

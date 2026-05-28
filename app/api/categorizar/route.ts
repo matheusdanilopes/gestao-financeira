@@ -8,7 +8,6 @@ const LOTE = 20
 const DELAY_ENTRE_LOTES_MS = 5000
 const GEMINI_MODEL = 'gemini-3-flash-preview'
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
-const CONFIANCA_PADRAO_IA = 0.85
 const JOB_STALE_MS = 6 * 60 * 1000
 
 function sleep(ms: number) {
@@ -177,7 +176,6 @@ export async function POST(req: NextRequest) {
               .update({
                 categoria: categorias[j],
                 categoria_origem: 'IA',
-                categoria_confianca: CONFIANCA_PADRAO_IA,
               })
               .eq('hash_linha', t.hash_linha)
           )
