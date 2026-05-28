@@ -136,9 +136,13 @@ export async function notificarImportacao(
     // Se não retornar subscriptions (rota sem sessão, ex: API key), tenta o cliente anon
     // como fallback para manter compatibilidade com importações automatizadas.
     let { data: subs } = await supabase.from('push_subscriptions').select('*')
-    if (!subs?.length) {
+    // Fallback apenas quando o cliente autenticado não retornou dados (RLS bloqueou — sem sessão).
+    // Array vazio [] significa que o usuário não tem assinaturas e não deve acionar o fallback.
+    let deleteClient: SupabaseClient = supabase
+    if (subs === null || subs === undefined) {
       const { data: subsFallback } = await supabasePush.from('push_subscriptions').select('*')
       subs = subsFallback
+      deleteClient = supabasePush
     }
     if (!subs?.length) return
 
@@ -161,8 +165,7 @@ export async function notificarImportacao(
       .map(sub => sub.usuario)
 
     if (expiradas.length) {
-      // Usa o mesmo cliente que conseguiu ler (autenticado se disponível)
-      await supabase.from('push_subscriptions').delete().in('usuario', expiradas)
+      await deleteClient.from('push_subscriptions').delete().in('usuario', expiradas)
     }
   } catch { /* falha no push nunca deve interromper a resposta */ }
 }

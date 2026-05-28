@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useTheme } from '@/components/ThemeProvider'
 import { CATEGORIAS_PADRAO, normalizarCategorias, parseCategoriasConfig } from '@/lib/categorias'
+import { PUSH_REFRESH_KEY } from '@/components/NotificacoesBell'
 
 interface LogEntry {
   id: string
@@ -551,7 +552,7 @@ export default function ConfiguracoesPage() {
       if (res.ok) {
         setSubscricaoAtiva(true)
         setMensagemPush('Notificações ativadas com sucesso!')
-        try { localStorage.setItem('push_last_register', String(Date.now())) } catch { /* noop */ }
+        try { localStorage.setItem(PUSH_REFRESH_KEY, String(Date.now())) } catch { /* noop */ }
       } else {
         setMensagemPush('Erro ao registrar no servidor.')
       }
@@ -573,7 +574,7 @@ export default function ConfiguracoesPage() {
       }
       setSubscricaoAtiva(false)
       setMensagemPush('Notificações desativadas.')
-      try { localStorage.removeItem('push_last_register') } catch { /* noop */ }
+      try { localStorage.removeItem(PUSH_REFRESH_KEY) } catch { /* noop */ }
     } catch (err) {
       setMensagemPush(err instanceof Error ? err.message : 'Erro ao desativar.')
     } finally {
@@ -808,7 +809,7 @@ export default function ConfiguracoesPage() {
             )}
 
             {/* Ações */}
-            {permissaoPush !== 'unsupported' && permissaoPush !== 'denied' && (
+            {permissaoPush !== null && permissaoPush !== 'unsupported' && permissaoPush !== 'denied' && (
               <div className="flex gap-2">
                 {(!subscricaoAtiva || permissaoPush !== 'granted') ? (
                   <button

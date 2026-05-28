@@ -57,22 +57,26 @@ function isStandalone(): boolean {
     (window.navigator as { standalone?: boolean }).standalone === true
 }
 
-function getIOSVersion(): number | null {
+function getIOSVersion(): { major: number; minor: number } | null {
   if (typeof navigator === 'undefined') return null
-  const match = navigator.userAgent.match(/OS (\d+)_/)
-  return match ? parseInt(match[1], 10) : null
+  // Regex específico para UA de iOS/iPadOS — evita casar com macOS ("OS X 10_15")
+  const match = navigator.userAgent.match(/(?:iPhone|CPU) OS (\d+)_(\d+)/)
+  if (!match) return null
+  return { major: parseInt(match[1], 10), minor: parseInt(match[2], 10) }
 }
 
 // Força renovação da subscrição a cada 7 dias para evitar endpoints expirados.
-const PUSH_REFRESH_KEY = 'push_last_register'
+export const PUSH_REFRESH_KEY = 'push_last_register'
 const PUSH_REFRESH_MS  = 7 * 24 * 60 * 60 * 1000
 
 function deveForcarRenovacao(): boolean {
   try {
     const last = localStorage.getItem(PUSH_REFRESH_KEY)
-    return !last || Date.now() - parseInt(last, 10) > PUSH_REFRESH_MS
+    if (!last) return true
+    const ts = parseInt(last, 10)
+    return isNaN(ts) || Date.now() - ts > PUSH_REFRESH_MS
   } catch {
-    return false
+    return true
   }
 }
 
@@ -142,12 +146,12 @@ async function registrarPush(usuarioEmail: string, forcar = false): Promise<stri
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
       })
     }
-    const res = await fetch('/api/push/subscribe', {
+    await fetch('/api/push/subscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ usuario: usuarioEmail, subscription: sub }),
     })
-    if (res.ok) marcarRenovacao()
+    marcarRenovacao()
     return null
   } catch (err) {
     return err instanceof Error ? err.message : String(err)
@@ -263,7 +267,7 @@ export default memo(function NotificacoesBell() {
       }
       // iOS push requer versão 16.4+
       const iosVer = getIOSVersion()
-      if (iosVer !== null && iosVer < 16) {
+      if (iosVer !== null && (iosVer.major < 16 || (iosVer.major === 16 && iosVer.minor < 4))) {
         setErroPush('Notificações push requerem iOS 16.4 ou superior. Atualize o sistema.')
         return
       }

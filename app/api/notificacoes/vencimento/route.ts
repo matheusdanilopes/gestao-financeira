@@ -19,6 +19,16 @@ function limparNomeItem(nome: string): string {
   return nome.replace(PREFIXO_CARTAO_1, '').replace(PREFIXO_CARTAO_2, '').trim()
 }
 
+function slugItem(nome: string): string {
+  return nome
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/[^\w-]/g, '')
+    .slice(0, 40)
+}
+
 /**
  * POST /api/notificacoes/vencimento
  *
@@ -75,10 +85,6 @@ export async function POST(req: NextRequest) {
 
   if ((itensHoje.length === 0 && itensAmanha.length === 0) || !subscriptions?.length) {
     return NextResponse.json({ ok: true, enviados: 0 })
-  }
-
-  function slugItem(nome: string): string {
-    return nome.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '').slice(0, 40)
   }
 
   const notificacoes = subscriptions.flatMap(sub => {
