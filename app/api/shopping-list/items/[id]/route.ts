@@ -18,7 +18,9 @@ export async function PUT(
 
   let body: Record<string, unknown>
   try {
-    body = await req.json()
+    const parsed = await req.json()
+    if (!parsed || typeof parsed !== 'object') throw new Error()
+    body = parsed as Record<string, unknown>
   } catch {
     return NextResponse.json({ error: 'Corpo inválido' }, { status: 400 })
   }

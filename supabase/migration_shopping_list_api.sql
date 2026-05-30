@@ -27,7 +27,7 @@ ALTER TABLE lista_mercado_historico ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "allow_all_lista_mercado_historico" ON lista_mercado_historico;
 CREATE POLICY "allow_all_lista_mercado_historico" ON lista_mercado_historico
-  FOR ALL USING (true) WITH CHECK (true);
+  FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 CREATE INDEX IF NOT EXISTS idx_lista_historico_item_id  ON lista_mercado_historico(item_id);
 CREATE INDEX IF NOT EXISTS idx_lista_historico_user_id  ON lista_mercado_historico(user_id);

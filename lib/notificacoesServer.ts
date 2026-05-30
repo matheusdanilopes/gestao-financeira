@@ -66,14 +66,27 @@ export async function notificarListaMercadoServer(
       requireInteraction: false,
     })
 
-    await Promise.allSettled(
-      subs.map((sub: { subscription: webpush.PushSubscription }) =>
+    const results = await Promise.allSettled(
+      subs.map((sub: { usuario: string; subscription: webpush.PushSubscription }) =>
         webpush.sendNotification(sub.subscription, payload, {
           urgency: 'normal',
           TTL: 3600,
         })
       )
     )
+
+    const expiradas = subs
+      .filter((_: unknown, i: number) => {
+        const r = results[i]
+        if (r.status !== 'rejected') return false
+        const status = (r.reason as { statusCode?: number })?.statusCode
+        return status === 410 || status === 404
+      })
+      .map((sub: { usuario: string }) => sub.usuario)
+
+    if (expiradas.length) {
+      await supabase.from('push_subscriptions').delete().in('usuario', expiradas)
+    }
   } catch {
     // Notification failure is non-fatal
   }

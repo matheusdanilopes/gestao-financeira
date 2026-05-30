@@ -16,7 +16,9 @@ export async function POST(req: NextRequest) {
 
   let body: Record<string, unknown>
   try {
-    body = await req.json()
+    const parsed = await req.json()
+    if (!parsed || typeof parsed !== 'object') throw new Error()
+    body = parsed as Record<string, unknown>
   } catch {
     return NextResponse.json({ error: 'Corpo inválido' }, { status: 400 })
   }
@@ -40,16 +42,13 @@ export async function POST(req: NextRequest) {
 
   const deUsuario = user.email ?? user.id
 
-  // ── Smart merge: if an unchecked item with the same name exists, add quantities ──
-  const { data: existentes } = await supabase
+  // ── Smart merge: DB-level case-insensitive lookup (uses idx_lista_mercado_nome) ──
+  const { data: itemExistente } = await supabase
     .from('lista_mercado_itens')
     .select('*')
     .eq('comprado', false)
-
-  const nomeLower = nome.toLowerCase()
-  const itemExistente = existentes?.find(
-    (i: { nome: string }) => i.nome.toLowerCase() === nomeLower
-  )
+    .ilike('nome', nome)
+    .maybeSingle()
 
   if (itemExistente) {
     const novaQtd = itemExistente.quantidade + quantidade
