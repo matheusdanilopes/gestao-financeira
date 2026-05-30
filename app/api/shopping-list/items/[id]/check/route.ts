@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/serverAuth'
+import { requireShoppingListAuth } from '@/lib/serverAuth'
 import { registrarHistoricoServer } from '@/lib/notificacoesServer'
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { user, supabase, unauthorized } = await requireAuth(req)
+  const { user, supabase, unauthorized } = await requireShoppingListAuth(req)
   if (unauthorized) return unauthorized
 
   const { id } = await params
@@ -42,8 +42,8 @@ export async function PATCH(
   await registrarHistoricoServer(supabase, {
     item_id: id,
     action: checked ? 'checked' : 'unchecked',
-    user_id: user.id,
-    criado_por: user.email ?? user.id,
+    user_id: user?.id ?? null,
+    criado_por: user?.email ?? user?.id ?? 'api',
     item_nome: item.nome,
     old_values: { comprado: item.comprado },
     new_values: { comprado: checked },

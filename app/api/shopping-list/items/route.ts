@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/serverAuth'
+import { requireShoppingListAuth } from '@/lib/serverAuth'
 import {
   notificarListaMercadoServer,
   registrarHistoricoServer,
@@ -11,7 +11,7 @@ const CATEGORIAS_VALIDAS = [
 ]
 
 export async function POST(req: NextRequest) {
-  const { user, supabase, unauthorized } = await requireAuth(req)
+  const { user, supabase, unauthorized } = await requireShoppingListAuth(req)
   if (unauthorized) return unauthorized
 
   let body: Record<string, unknown>
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
 
   const estimated_price: number | null = typeof body.estimated_price === 'number' ? body.estimated_price : null
 
-  const deUsuario = user.email ?? user.id
+  const deUsuario = user?.email ?? user?.id ?? 'api'
 
   // ── Smart merge: DB-level case-insensitive lookup (uses idx_lista_mercado_nome) ──
   const { data: itemExistente } = await supabase
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     await registrarHistoricoServer(supabase, {
       item_id: itemExistente.id,
       action: 'updated',
-      user_id: user.id,
+      user_id: user?.id ?? null,
       criado_por: deUsuario,
       item_nome: itemExistente.nome,
       old_values: { quantidade: itemExistente.quantidade },
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
     estimated_price,
     comprado: false,
     criado_por: deUsuario,
-    user_id: user.id,
+    user_id: user?.id ?? null,
   }
 
   const { data: inserted, error: insertError } = await supabase
@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
   await registrarHistoricoServer(supabase, {
     item_id: inserted.id,
     action: 'created',
-    user_id: user.id,
+    user_id: user?.id ?? null,
     criado_por: deUsuario,
     item_nome: nome,
     new_values: insertPayload as Record<string, unknown>,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/serverAuth'
+import { requireShoppingListAuth } from '@/lib/serverAuth'
 
 const CATEGORIAS_ORDEM = [
   'Proteínas', 'Carboidratos', 'Hortifruti', 'Laticínios', 'Temperos',
@@ -7,7 +7,7 @@ const CATEGORIAS_ORDEM = [
 ]
 
 export async function GET(req: NextRequest) {
-  const { supabase, unauthorized } = await requireAuth(req)
+  const { supabase, unauthorized } = await requireShoppingListAuth(req)
   if (unauthorized) return unauthorized
 
   const { data: items, error } = await supabase

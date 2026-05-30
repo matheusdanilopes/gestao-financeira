@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/serverAuth'
+import { requireShoppingListAuth } from '@/lib/serverAuth'
 import { registrarHistoricoServer } from '@/lib/notificacoesServer'
 
 const CATEGORIAS_VALIDAS = [
@@ -11,7 +11,7 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { user, supabase, unauthorized } = await requireAuth(req)
+  const { user, supabase, unauthorized } = await requireShoppingListAuth(req)
   if (unauthorized) return unauthorized
 
   const { id } = await params
@@ -78,8 +78,8 @@ export async function PUT(
   await registrarHistoricoServer(supabase, {
     item_id: id,
     action: 'updated',
-    user_id: user.id,
-    criado_por: user.email ?? user.id,
+    user_id: user?.id ?? null,
+    criado_por: user?.email ?? user?.id ?? 'api',
     item_nome: item.nome,
     old_values: item as Record<string, unknown>,
     new_values: updates,
@@ -92,7 +92,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { user, supabase, unauthorized } = await requireAuth(req)
+  const { user, supabase, unauthorized } = await requireShoppingListAuth(req)
   if (unauthorized) return unauthorized
 
   const { id } = await params
@@ -119,8 +119,8 @@ export async function DELETE(
   await registrarHistoricoServer(supabase, {
     item_id: id,
     action: 'deleted',
-    user_id: user.id,
-    criado_por: user.email ?? user.id,
+    user_id: user?.id ?? null,
+    criado_por: user?.email ?? user?.id ?? 'api',
     item_nome: item.nome,
     old_values: item as Record<string, unknown>,
   })
