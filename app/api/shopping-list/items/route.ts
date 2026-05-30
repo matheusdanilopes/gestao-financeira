@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireShoppingListAuth } from '@/lib/serverAuth'
+import { criarSupabaseServer } from '@/lib/supabaseServer'
 import {
   notificarListaMercadoServer,
   registrarHistoricoServer,
   type ItemNotificacao,
 } from '@/lib/notificacoesServer'
+
+type SupabaseClient = ReturnType<typeof criarSupabaseServer>
 
 const CATEGORIAS_VALIDAS = [
   'Proteínas', 'Carboidratos', 'Hortifruti', 'Laticínios', 'Temperos',
@@ -34,7 +37,7 @@ function parseItem(raw: RawItem) {
 }
 
 async function processarItem(
-  supabase: Awaited<ReturnType<typeof requireShoppingListAuth>>['supabase'],
+  supabase: SupabaseClient,
   raw: RawItem,
   userId: string | null,
   deUsuario: string,
