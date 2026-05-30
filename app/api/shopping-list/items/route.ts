@@ -3,6 +3,7 @@ import { requireShoppingListAuth } from '@/lib/serverAuth'
 import {
   notificarListaMercadoServer,
   registrarHistoricoServer,
+  type ItemNotificacao,
 } from '@/lib/notificacoesServer'
 
 const CATEGORIAS_VALIDAS = [
@@ -10,39 +11,38 @@ const CATEGORIAS_VALIDAS = [
   'Congelados', 'Bebidas', 'Higiene', 'Limpeza', 'Outros',
 ]
 
-export async function POST(req: NextRequest) {
-  const { user, supabase, unauthorized } = await requireShoppingListAuth(req)
-  if (unauthorized) return unauthorized
+type RawItem = Record<string, unknown>
 
-  let body: Record<string, unknown>
-  try {
-    const parsed = await req.json()
-    if (!parsed || typeof parsed !== 'object') throw new Error()
-    body = parsed as Record<string, unknown>
-  } catch {
-    return NextResponse.json({ error: 'Corpo inválido' }, { status: 400 })
-  }
+function parseItem(raw: RawItem) {
+  const nome = (
+    typeof raw.name === 'string' ? raw.name : typeof raw.nome === 'string' ? raw.nome : ''
+  ).trim()
 
-  const nome = (typeof body.name === 'string' ? body.name : typeof body.nome === 'string' ? body.nome : '').trim()
-  if (!nome) {
-    return NextResponse.json({ error: 'O campo "name" é obrigatório' }, { status: 400 })
-  }
-
-  const quantidadeRaw = body.quantity ?? body.quantidade
+  const quantidadeRaw = raw.quantity ?? raw.quantidade
   const quantidade = typeof quantidadeRaw === 'number' ? Math.max(1, Math.round(quantidadeRaw)) : 1
 
-  const unit: string = typeof body.unit === 'string' && body.unit.trim()
-    ? body.unit.trim()
-    : 'unidade'
+  const unit: string =
+    typeof raw.unit === 'string' && raw.unit.trim() ? raw.unit.trim() : 'unidade'
 
-  const categoryRaw = typeof body.category === 'string' ? body.category.trim() : 'Outros'
+  const categoryRaw = typeof raw.category === 'string' ? raw.category.trim() : 'Outros'
   const category = CATEGORIAS_VALIDAS.includes(categoryRaw) ? categoryRaw : 'Outros'
 
-  const estimated_price: number | null = typeof body.estimated_price === 'number' ? body.estimated_price : null
+  const estimated_price: number | null =
+    typeof raw.estimated_price === 'number' ? raw.estimated_price : null
 
-  const deUsuario = user?.email ?? user?.id ?? 'api'
+  return { nome, quantidade, unit, category, estimated_price }
+}
 
-  // ── Smart merge: DB-level case-insensitive lookup (uses idx_lista_mercado_nome) ──
+async function processarItem(
+  supabase: Awaited<ReturnType<typeof requireShoppingListAuth>>['supabase'],
+  raw: RawItem,
+  userId: string | null,
+  deUsuario: string,
+): Promise<{ notifItem: ItemNotificacao; itemId: string; merged: boolean } | null> {
+  const { nome, quantidade, unit, category, estimated_price } = parseItem(raw)
+  if (!nome) return null
+
+  // Smart merge: case-insensitive lookup
   const { data: itemExistente } = await supabase
     .from('lista_mercado_itens')
     .select('*')
@@ -65,30 +65,22 @@ export async function POST(req: NextRequest) {
       .update(updatePayload)
       .eq('id', itemExistente.id)
 
-    if (updateError) {
-      return NextResponse.json({ error: 'Erro ao atualizar item' }, { status: 500 })
-    }
+    if (updateError) return null
 
     await registrarHistoricoServer(supabase, {
       item_id: itemExistente.id,
       action: 'updated',
-      user_id: user?.id ?? null,
+      user_id: userId,
       criado_por: deUsuario,
       item_nome: itemExistente.nome,
       old_values: { quantidade: itemExistente.quantidade },
       new_values: { quantidade: novaQtd, merge_source: 'smart_merge' },
     })
 
-    void notificarListaMercadoServer(
-      supabase,
-      [{ nome, quantidade: novaQtd, unit }],
-      deUsuario
-    )
-
-    return NextResponse.json({ success: true, item_id: itemExistente.id, merged: true })
+    return { notifItem: { nome, quantidade: novaQtd, unit }, itemId: itemExistente.id, merged: true }
   }
 
-  // ── Create new item ──────────────────────────────────────────────────────────
+  // Create new item
   const insertPayload = {
     nome,
     quantidade,
@@ -97,7 +89,7 @@ export async function POST(req: NextRequest) {
     estimated_price,
     comprado: false,
     criado_por: deUsuario,
-    user_id: user?.id ?? null,
+    user_id: userId,
   }
 
   const { data: inserted, error: insertError } = await supabase
@@ -106,24 +98,74 @@ export async function POST(req: NextRequest) {
     .select('id')
     .single()
 
-  if (insertError || !inserted) {
-    return NextResponse.json({ error: 'Erro ao criar item' }, { status: 500 })
-  }
+  if (insertError || !inserted) return null
 
   await registrarHistoricoServer(supabase, {
     item_id: inserted.id,
     action: 'created',
-    user_id: user?.id ?? null,
+    user_id: userId,
     criado_por: deUsuario,
     item_nome: nome,
     new_values: insertPayload as Record<string, unknown>,
   })
 
+  return { notifItem: { nome, quantidade, unit }, itemId: inserted.id, merged: false }
+}
+
+export async function POST(req: NextRequest) {
+  const { user, supabase, unauthorized } = await requireShoppingListAuth(req)
+  if (unauthorized) return unauthorized
+
+  let body: unknown
+  try {
+    const parsed = await req.json()
+    if (!parsed || typeof parsed !== 'object') throw new Error()
+    body = parsed
+  } catch {
+    return NextResponse.json({ error: 'Corpo inválido' }, { status: 400 })
+  }
+
+  const deUsuario = user?.email ?? user?.id ?? 'api'
+  const userId = user?.id ?? null
+
+  // Accept either a single item or an array of items
+  const rawItems: RawItem[] = Array.isArray(body)
+    ? (body as RawItem[])
+    : [body as RawItem]
+
+  if (rawItems.length === 0) {
+    return NextResponse.json({ error: 'Nenhum item fornecido' }, { status: 400 })
+  }
+
+  const results = await Promise.all(
+    rawItems.map(raw => processarItem(supabase, raw, userId, deUsuario))
+  )
+
+  const successful = results.filter((r): r is NonNullable<typeof r> => r !== null)
+
+  if (successful.length === 0) {
+    return NextResponse.json({ error: 'Nenhum item válido processado' }, { status: 400 })
+  }
+
+  // Send ONE notification for all items added in this request
   void notificarListaMercadoServer(
     supabase,
-    [{ nome, quantidade, unit }],
+    successful.map(r => r.notifItem),
     deUsuario
   )
 
-  return NextResponse.json({ success: true, item_id: inserted.id, merged: false })
+  if (rawItems.length === 1) {
+    const result = successful[0]
+    return NextResponse.json({
+      success: true,
+      item_id: result.itemId,
+      merged: result.merged,
+    })
+  }
+
+  return NextResponse.json({
+    success: true,
+    items: successful.map(r => ({ item_id: r.itemId, merged: r.merged })),
+    count: successful.length,
+  })
 }
