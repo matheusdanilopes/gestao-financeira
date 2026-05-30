@@ -16,6 +16,7 @@ export type NotificacaoTipo =
   | 'lista_compra_finalizada'
   | 'lista_sincronizacao'
   | 'lista_item_compartilhado'
+  | 'lista_item_adicionado'
   // Pedidos / Compras
   | 'pedido_criado'
   | 'pedido_pendente'
@@ -207,6 +208,17 @@ export const NOTIFICACAO_META: Record<string, NotificacaoMeta> = {
     corBorda: 'border-l-teal-400',
     corFundo: 'bg-teal-50/40 dark:bg-teal-900/10',
     pushTag: 'lista-compartilhado',
+    autoFechar: false,
+    exigeInteracao: false,
+    rotulo: 'Lista Mercado',
+  },
+  lista_item_adicionado: {
+    rota: '/lista-mercado',
+    grupo: 'mercado',
+    corIcone: 'text-teal-500',
+    corBorda: 'border-l-teal-400',
+    corFundo: 'bg-teal-50/40 dark:bg-teal-900/10',
+    pushTag: 'lista-mercado-novo-item',
     autoFechar: false,
     exigeInteracao: false,
     rotulo: 'Lista Mercado',
@@ -412,7 +424,7 @@ export const ROTA_PARA_ACOES: Record<string, string[]> = {
   '/compras':       ['categorizacao_concluida', 'pedido_criado', 'pedido_pendente', 'pedido_cancelado', 'pedido_concluido', 'importacao_concluida'],
   '/dashboard':     ['aporte'],
   '/receitas':      ['receber'],
-  '/lista-mercado': ['lista_compra_finalizada', 'lista_sincronizacao', 'lista_item_compartilhado'],
+  '/lista-mercado': ['lista_compra_finalizada', 'lista_sincronizacao', 'lista_item_compartilhado', 'lista_item_adicionado'],
   '/financas':      ['pagamento_registrado'],
   '/assinaturas':   ['assinatura_alterada'],
   '/chat':          ['ia_processamento_concluido', 'ia_falha'],
