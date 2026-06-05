@@ -27,7 +27,7 @@ interface PlacedBlock extends CategoryItem {
 }
 
 const COLORS = [
-  '#6366f1',
+  '#059669',
   '#3b82f6',
   '#8b5cf6',
   '#ec4899',

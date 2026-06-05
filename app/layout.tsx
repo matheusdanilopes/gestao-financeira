@@ -17,8 +17,8 @@ export const metadata: Metadata = {
   title: 'Gestão Financeira Familiar',
   description: 'Controle de finanças com Matheus e Jeniffer',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#4f46e5' },
-    { media: '(prefers-color-scheme: dark)',  color: '#0f172a' },
+    { media: '(prefers-color-scheme: light)', color: '#059669' },
+    { media: '(prefers-color-scheme: dark)',  color: '#0a1410' },
   ],
   viewport: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=yes, viewport-fit=cover',
   icons: {

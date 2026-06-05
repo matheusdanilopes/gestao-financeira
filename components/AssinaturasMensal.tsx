@@ -349,10 +349,10 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-white rounded-2xl shadow p-3 text-center">
           <div className="flex items-center justify-center gap-1.5 mb-1">
-            <Repeat className="w-4 h-4 text-indigo-500" />
+            <Repeat className="w-4 h-4 text-primary-500" />
             <p className="text-xs text-gray-500">Total ativo/mês</p>
           </div>
-          <p className="text-lg font-bold text-indigo-700">R$ {totalAtivo.toFixed(2)}</p>
+          <p className="text-lg font-bold text-primary-700">R$ {totalAtivo.toFixed(2)}</p>
           <p className="text-xs text-gray-400">{itensAtivos.length} ativa(s)</p>
         </div>
         <div className="bg-white rounded-2xl shadow p-3 text-center">
@@ -408,7 +408,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
           <button
             onClick={verificarNaFatura}
             disabled={verificando}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-indigo-200 bg-indigo-50 text-indigo-700 text-sm font-medium hover:bg-indigo-100 transition active:scale-[0.98] disabled:opacity-60"
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-primary-200 bg-primary-50 text-primary-700 text-sm font-medium hover:bg-primary-100 transition active:scale-[0.98] disabled:opacity-60"
           >
             <Search className={`w-4 h-4 ${verificando ? 'animate-pulse' : ''}`} />
             {verificando ? 'Verificando…' : 'Verificar cobranças'}
@@ -418,14 +418,14 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
           onClick={() => setDropdownFiltro(d => !d)}
           className={`flex items-center gap-1.5 px-4 py-2.5 rounded-2xl border text-sm font-medium transition active:scale-[0.98] ${
             filtrosAtivos > 0
-              ? 'border-indigo-400 bg-indigo-600 text-white'
+              ? 'border-primary-400 bg-primary-600 text-white'
               : 'border-gray-200 bg-white text-gray-600'
           }`}
         >
           <SlidersHorizontal className="w-4 h-4" />
           Filtrar
           {filtrosAtivos > 0 && (
-            <span className="ml-0.5 bg-white text-indigo-600 rounded-full w-4 h-4 text-[10px] font-bold flex items-center justify-center">{filtrosAtivos}</span>
+            <span className="ml-0.5 bg-white text-primary-600 rounded-full w-4 h-4 text-[10px] font-bold flex items-center justify-center">{filtrosAtivos}</span>
           )}
         </button>
       </div>
@@ -435,13 +435,13 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
         <div className="bg-white rounded-2xl shadow border border-gray-100 p-3 space-y-2">
           <input
             type="text"
-            className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-shadow"
+            className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
             placeholder="Buscar por nome…"
             value={filtroDescricao}
             onChange={e => setFiltroDescricao(e.target.value)}
           />
           <select
-            className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-shadow"
+            className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
             value={filtroCartao}
             onChange={e => setFiltroCartao(e.target.value)}
           >
@@ -451,7 +451,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
             ))}
           </select>
           <select
-            className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-shadow"
+            className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
             value={filtroStatus}
             onChange={e => setFiltroStatus(e.target.value)}
           >
@@ -460,7 +460,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
             <option value="inativa">Inativas</option>
           </select>
           <select
-            className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-shadow"
+            className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
             value={filtroFatura}
             onChange={e => setFiltroFatura(e.target.value)}
           >
@@ -494,7 +494,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                 <CreditCard className="w-4 h-4 text-gray-500" />
                 <span className="font-semibold text-sm text-gray-700">{cartaoLabels[key]}</span>
               </div>
-              <span className="text-sm font-bold text-indigo-700">
+              <span className="text-sm font-bold text-primary-700">
                 R$ {totalGrupoAtivo.toFixed(2)}
                 <span className="text-xs font-normal text-gray-400">/mês</span>
               </span>
@@ -536,7 +536,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                         </p>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className={`text-sm font-bold ${item.ativa ? 'text-indigo-700' : 'text-gray-400'}`}>
+                        <p className={`text-sm font-bold ${item.ativa ? 'text-primary-700' : 'text-gray-400'}`}>
                           R$ {valorParaMes(item, mesSelecionado, historico).toFixed(2)}
                         </p>
                       </div>
@@ -584,7 +584,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       {isOnline && (
         <button
           onClick={() => setModalAberto('adicionar')}
-          className="w-full bg-indigo-600 text-white py-3 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all active:scale-[0.97] shadow-sm"
+          className="w-full bg-primary-600 text-white py-3 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm"
         >
           <Plus className="w-5 h-5" />
           Adicionar assinatura
@@ -616,7 +616,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                 <label className="text-xs font-medium text-gray-600 mb-1 block">Nome do serviço</label>
                 <input
                   type="text"
-                  className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
                   placeholder="Ex: Netflix, Spotify…"
                   value={formData.nome}
                   onChange={e => setFormData(f => ({ ...f, nome: e.target.value }))}
@@ -629,7 +629,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                 <input
                   type="text"
                   inputMode="decimal"
-                  className="w-full border border-gray-200 rounded-xl p-3 text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  className="w-full border border-gray-200 rounded-xl p-3 text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-primary-400"
                   placeholder="0,00"
                   value={formData.valor}
                   onChange={e => setFormData(f => ({ ...f, valor: numericOnly(e.target.value) }))}
@@ -639,7 +639,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
               <div>
                 <label className="text-xs font-medium text-gray-600 mb-1 block">Cartão</label>
                 <select
-                  className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                  className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
                   value={formData.cartao}
                   onChange={e => setFormData(f => ({ ...f, cartao: e.target.value }))}
                 >
@@ -652,7 +652,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
               <div>
                 <label className="text-xs font-medium text-gray-600 mb-1 block">Responsável</label>
                 <select
-                  className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                  className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
                   value={formData.responsavel}
                   onChange={e => setFormData(f => ({ ...f, responsavel: e.target.value }))}
                 >
@@ -663,7 +663,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
               <div>
                 <label className="text-xs font-medium text-gray-600 mb-1 block">Categoria</label>
                 <select
-                  className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                  className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
                   value={formData.categoria}
                   onChange={e => setFormData(f => ({ ...f, categoria: e.target.value }))}
                 >
@@ -683,7 +683,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                 <input
                   type="text"
                   inputMode="numeric"
-                  className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
                   placeholder="Ex: 15"
                   value={formData.dia_cobranca}
                   onChange={e => setFormData(f => ({ ...f, dia_cobranca: e.target.value.replace(/\D/g, '') }))}
@@ -697,7 +697,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                 </label>
                 <input
                   type="text"
-                  className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
                   placeholder="Ex: Plano família, conta compartilhada…"
                   value={formData.observacao}
                   onChange={e => setFormData(f => ({ ...f, observacao: e.target.value }))}
@@ -720,8 +720,8 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                     {entradasHistorico.map((h, idx) => (
                       <li key={h.id} className="flex justify-between text-xs text-gray-500">
                         <span>{format(new Date(h.vigente_desde + 'T12:00:00'), "dd/MM/yyyy")}</span>
-                        <span className={`font-medium ${idx === 0 ? 'text-indigo-600' : 'text-gray-400'}`}>
-                          {idx === 0 && <span className="mr-1 text-[10px] text-indigo-400">atual</span>}
+                        <span className={`font-medium ${idx === 0 ? 'text-primary-600' : 'text-gray-400'}`}>
+                          {idx === 0 && <span className="mr-1 text-[10px] text-primary-400">atual</span>}
                           R$ {Number(h.valor).toFixed(2)}
                         </span>
                       </li>
@@ -735,7 +735,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
               <button onClick={fecharModal} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600">
                 Cancelar
               </button>
-              <button onClick={salvar} className="flex-1 py-3 rounded-xl bg-indigo-600 text-white font-semibold">
+              <button onClick={salvar} className="flex-1 py-3 rounded-xl bg-primary-600 text-white font-semibold">
                 Salvar
               </button>
             </div>

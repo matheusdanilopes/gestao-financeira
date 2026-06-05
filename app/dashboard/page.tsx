@@ -10,57 +10,39 @@ import { useMes } from '@/components/MesProvider'
 import MonthSelector from '@/components/MonthSelector'
 import dynamic from 'next/dynamic'
 
+function ChartLoader({ height = 'h-64' }: { height?: string }) {
+  return (
+    <div className={`${height} flex items-center justify-center`}>
+      <div className="w-8 h-8 border-2 border-primary-100 border-t-primary-500 rounded-full animate-spin" />
+    </div>
+  )
+}
+
 const GraficoProjecao = dynamic(() => import('@/components/GraficoProjecao'), {
   ssr: false,
-  loading: () => (
-    <div className="h-72 flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-gray-200 border-t-primary-500 rounded-full animate-spin" />
-    </div>
-  ),
+  loading: () => <ChartLoader height="h-72" />,
 })
 
 const GraficoEvolucaoMensal = dynamic(() => import('@/components/GraficoEvolucaoMensal'), {
   ssr: false,
-  loading: () => (
-    <div className="h-64 flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-gray-200 border-t-emerald-500 rounded-full animate-spin" />
-    </div>
-  ),
+  loading: () => <ChartLoader />,
 })
 
 const GraficoEvolucaoInvestimentos = dynamic(
   () => import('@/components/GraficoEvolucaoInvestimentos'),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-56 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-gray-200 border-t-violet-500 rounded-full animate-spin" />
-      </div>
-    ),
-  }
+  { ssr: false, loading: () => <ChartLoader height="h-56" /> }
 )
 
 const GraficoGastosDiarios = dynamic(() => import('@/components/GraficoGastosDiarios'), {
   ssr: false,
-  loading: () => (
-    <div className="h-48 flex items-center justify-center">
-      <div className="w-7 h-7 border-2 border-gray-200 border-t-violet-500 rounded-full animate-spin" />
-    </div>
-  ),
+  loading: () => <ChartLoader height="h-48" />,
 })
 
 const CategoryTreemap = dynamic(() => import('@/components/CategoryTreemap'), { ssr: false })
 
 const GraficoCategoriasDespesas = dynamic(
   () => import('@/components/GraficoCategoriasDespesas'),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-64 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-gray-200 border-t-indigo-500 rounded-full animate-spin" />
-      </div>
-    ),
-  }
+  { ssr: false, loading: () => <ChartLoader /> }
 )
 import { InfoPopover } from '@/components/InfoPopover'
 
@@ -547,7 +529,7 @@ export default function Dashboard() {
             <button
               key={t}
               onClick={() => handleSetAba(t)}
-              className={`flex-1 py-1.5 rounded-xl text-sm font-medium transition-colors duration-200 ${
+              className={`flex-1 py-1.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
                 aba === t
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-500 hover:text-gray-700'
@@ -618,8 +600,8 @@ export default function Dashboard() {
                   <p className="text-base font-bold text-gray-700 num">{fmt(resumoCaixa.contasFixas)}</p>
                 </div>
                 <div className="bg-primary-50 border border-primary-100 rounded-2xl p-3 hidden md:block">
-                  <p className="text-xs text-primary-600 font-medium mb-0.5">Extras</p>
-                  <p className="text-base font-bold text-primary-700 num">{fmt(resumoCaixa.extras)}</p>
+                  <p className="text-xs font-medium mb-0.5" style={{color:'var(--color-primary)'}}>Extras</p>
+                  <p className="text-base font-bold num" style={{color:'var(--color-primary-700)'}}>{fmt(resumoCaixa.extras)}</p>
                 </div>
               </div>
 
@@ -653,7 +635,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-xl bg-primary-50 flex items-center justify-center">
-                <CreditCard className="w-4 h-4 text-primary-600" />
+                <CreditCard className="w-4 h-4" style={{color:'var(--color-primary)'}} />
               </div>
               <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
                 Fatura NuBank
@@ -664,11 +646,11 @@ export default function Dashboard() {
               const d = new Date(dataFechamentoNubank + 'T12:00:00')
               return (
                 <div className="shrink-0 bg-primary-50 border border-primary-100 rounded-xl px-2.5 py-1.5 text-right">
-                  <p className="text-[10px] font-medium text-primary-400 uppercase tracking-wider leading-none">Fecha</p>
-                  <p className="text-xs font-bold text-primary-700 num leading-snug mt-0.5">
+                  <p className="text-[10px] font-medium uppercase tracking-wider leading-none text-primary-400">Fecha</p>
+                  <p className="text-xs font-bold num leading-snug mt-0.5 text-primary-700">
                     {format(d, 'dd/MM')}
                   </p>
-                  <p className="text-[10px] text-primary-400 capitalize leading-none mt-0.5">
+                  <p className="text-[10px] capitalize leading-none mt-0.5 text-primary-400">
                     {format(d, 'EEEE', { locale: ptBR })}
                   </p>
                 </div>
@@ -705,7 +687,7 @@ export default function Dashboard() {
                     <span className="font-medium text-gray-800 num">{fmt(fatura.matheusPrevisto)}</span>
                   </div>
                   {assinaturasNaopagas.matheus > 0 && (
-                    <div className="flex justify-between text-xs gap-1 mt-0.5 text-indigo-600">
+                    <div className="flex justify-between text-xs gap-1 mt-0.5 text-primary-600">
                       <span>Assinaturas</span>
                       <span className="font-medium num">{fmt(assinaturasNaopagas.matheus)}</span>
                     </div>
@@ -740,7 +722,7 @@ export default function Dashboard() {
                     <span className="font-medium text-gray-800 num">{fmt(fatura.jenifferPrevisto)}</span>
                   </div>
                   {assinaturasNaopagas.jeniffer > 0 && (
-                    <div className="flex justify-between text-xs gap-1 mt-0.5 text-indigo-600">
+                    <div className="flex justify-between text-xs gap-1 mt-0.5 text-primary-600">
                       <span>Assinaturas</span>
                       <span className="font-medium num">{fmt(assinaturasNaopagas.jeniffer)}</span>
                     </div>
@@ -888,7 +870,7 @@ export default function Dashboard() {
                   }
                 </div>
                 <div className="flex flex-col items-center py-2.5 px-3 rounded-2xl bg-primary-50 border border-primary-100">
-                  <span className="text-xs text-primary-600 mb-1">Saldo Atual</span>
+                  <span className="text-xs mb-1 text-primary-600">Saldo Atual</span>
                   <span className={`text-base font-bold num ${resumoCaixa.sobraLiquida < 0 ? 'text-red-600' : saldoAtualWarning ? 'text-amber-600' : 'text-primary-700'}`}>
                     {fmt(resumoCaixa.sobraLiquida)}
                   </span>
@@ -1009,8 +991,8 @@ export default function Dashboard() {
         {/* ── Categorias de Despesas ── */}
         <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
           <div className="flex items-center gap-2 mb-1">
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center">
-              <BarChart3 className="w-4 h-4 text-indigo-600" />
+            <div className="w-8 h-8 rounded-xl bg-primary-50 flex items-center justify-center">
+              <BarChart3 className="w-4 h-4 text-primary-600" />
             </div>
             <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
               Categorias de Despesas
@@ -1024,8 +1006,8 @@ export default function Dashboard() {
         {/* ── Projeção de Parcelamentos ── */}
         <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
           <div className="flex items-center gap-2 mb-1">
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center">
-              <BarChart3 className="w-4 h-4 text-indigo-600" />
+            <div className="w-8 h-8 rounded-xl bg-primary-50 flex items-center justify-center">
+              <BarChart3 className="w-4 h-4 text-primary-600" />
             </div>
             <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
               Projeção de Parcelamentos

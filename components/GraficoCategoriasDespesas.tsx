@@ -266,7 +266,7 @@ export default function GraficoCategoriasDespesas({ mesAtual }: Props) {
   if (carregando && !dados) {
     return (
       <div className="h-64 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-gray-200 border-t-indigo-500 rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-gray-200 border-t-primary-500 rounded-full animate-spin" />
       </div>
     )
   }
@@ -313,7 +313,7 @@ export default function GraficoCategoriasDespesas({ mesAtual }: Props) {
             Previsto
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="inline-block w-3 h-3 rounded-sm bg-indigo-500 opacity-80" />
+            <span className="inline-block w-3 h-3 rounded-sm bg-primary-500 opacity-80" />
             Pago
           </span>
           {overCount > 0 && (

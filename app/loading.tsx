@@ -1,11 +1,11 @@
 export default function Loading() {
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-center gap-6"
+      className="min-h-screen flex flex-col items-center justify-center gap-5"
       style={{ backgroundColor: 'var(--color-bg)' }}
     >
-      <div className="w-16 h-16 rounded-3xl bg-indigo-600 flex items-center justify-center shadow-lg">
-        {/* TrendingUp icon inline — sem dependência de Lucide no Server Component */}
+      <div className="w-16 h-16 rounded-3xl flex items-center justify-center shadow-lg"
+           style={{ background: 'linear-gradient(145deg, #10b981 0%, #059669 55%, #047857 100%)' }}>
         <svg
           viewBox="0 0 24 24"
           className="w-8 h-8 text-white"
@@ -23,8 +23,8 @@ export default function Loading() {
       <div
         className="w-5 h-5 rounded-full border-2 animate-spin"
         style={{
-          borderColor: 'rgba(99,102,241,0.2)',
-          borderTopColor: '#6366f1',
+          borderColor: 'rgba(5,150,105,0.18)',
+          borderTopColor: '#059669',
         }}
       />
     </div>

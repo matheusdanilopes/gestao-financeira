@@ -84,8 +84,8 @@ function FinancasMenuPopover({ onClose }: { onClose: () => void }) {
 
 function CartaoMenuPopover({ onClose }: { onClose: () => void }) {
   const opcoes = [
-    { href: '/compras',      label: 'Compras',      Icon: ShoppingCart, cor: 'text-orange-500', bg: 'bg-orange-50' },
-    { href: '/assinaturas',  label: 'Assinaturas',  Icon: RepeatIcon,   cor: 'text-indigo-600', bg: 'bg-indigo-50' },
+    { href: '/compras',      label: 'Compras',      Icon: ShoppingCart, cor: 'text-orange-500',  bg: 'bg-orange-50'  },
+    { href: '/assinaturas',  label: 'Assinaturas',  Icon: RepeatIcon,   cor: 'text-primary-600', bg: 'bg-primary-50' },
   ]
 
   return (
@@ -118,7 +118,7 @@ function ExtrasMenuPopover({ onClose }: { onClose: () => void }) {
   const opcoes = [
     { href: '/wishlist',      label: 'Wishlist',      Icon: Heart,             cor: 'text-pink-500',    bg: 'bg-pink-50'    },
     { href: '/lista-mercado', label: 'Lista Mercado', Icon: ShoppingBasket,    cor: 'text-green-600',   bg: 'bg-green-50'   },
-    { href: '/chat',          label: 'IA Assistant',  Icon: MessageCircle,     cor: 'text-primary-600', bg: 'bg-primary-50' },
+    { href: '/chat',          label: 'IA',             Icon: MessageCircle,     cor: 'text-primary-600', bg: 'bg-primary-50' },
     { href: '/configuracoes', label: 'Configurações', Icon: SlidersHorizontal, cor: 'text-gray-600',    bg: 'bg-gray-100'   },
   ]
 
