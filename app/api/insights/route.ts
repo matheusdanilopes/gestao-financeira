@@ -63,7 +63,7 @@ async function callGemini(compactPayload: string): Promise<InsightItem[]> {
   const start = raw.indexOf('[')
   const end = raw.lastIndexOf(']')
   if (start === -1 || end <= start) throw new Error(`JSON array not found in Gemini response: ${raw.slice(0, 100)}`)
-  const parsed: Array<{ icone: string; texto: string; nivel: string }> = JSON.parse(raw.slice(start, end + 1))
+  const parsed: Array<Record<string, string>> = JSON.parse(raw.slice(start, end + 1))
 
   return parsed.slice(0, 4).map(item => ({
     icone: String(item.icone ?? '📊'),
