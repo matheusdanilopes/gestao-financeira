@@ -32,7 +32,7 @@ async function callGemini(compactPayload: string): Promise<InsightItem[]> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ role: 'user', parts: [{ text: buildPrompt(compactPayload) }] }],
-      generationConfig: { maxOutputTokens: 512, temperature: 0.3 },
+      generationConfig: { maxOutputTokens: 1024, temperature: 0.3 },
     }),
   })
 
@@ -46,9 +46,13 @@ async function callGemini(compactPayload: string): Promise<InsightItem[]> {
   const data = await res.json()
   const raw: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '[]'
 
-  // Strip markdown fences if present, then parse
-  const cleaned = raw.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim()
-  const parsed: Array<{ icone: string; texto: string; nivel: string }> = JSON.parse(cleaned)
+  // Gemini may prepend prose ("Aqui estão os insights:\n[...]") or wrap in
+  // markdown fences. Extract the first complete [...] block regardless of
+  // surrounding text to get clean parseable JSON.
+  const start = raw.indexOf('[')
+  const end = raw.lastIndexOf(']')
+  if (start === -1 || end <= start) throw new Error(`JSON array not found in Gemini response: ${raw.slice(0, 100)}`)
+  const parsed: Array<{ icone: string; texto: string; nivel: string }> = JSON.parse(raw.slice(start, end + 1))
 
   return parsed.slice(0, 4).map(item => ({
     icone: String(item.icone ?? '📊'),
