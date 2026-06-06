@@ -9,67 +9,46 @@ export type { InsightItem, InsightsResponse }
 const GEMINI_MODEL = 'gemini-3-flash-preview'
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
-// System instruction — set once, not repeated per-message.
-// Concise role + task description keeps token cost low.
-const SYSTEM_INSTRUCTION = `Você é analista financeiro do casal Matheus (M) e Jeniffer (J).
-Com base nos dados JSON, gere exatamente 4 insights acionáveis em português.
-Priorize: desvios de gastos, categorias de maior impacto, aderência ao orçamento, tendência histórica.
-Cada insight: emoji relevante + frase direta com o valor real em R$ (ex: R$ 1.234,56).`
+// Single user message that combines role + data + output instruction.
+// Mirrors the pattern used by the chat route (no systemInstruction, no responseSchema)
+// to stay compatible with all gemini-3-flash-preview versions.
+const buildPrompt = (payload: string) =>
+  `Você é analista financeiro do casal Matheus (M) e Jeniffer (J).
 
-// Enforced output schema — Gemini requires uppercase type names (STRING/OBJECT/ARRAY).
-const RESPONSE_SCHEMA = {
-  type: 'ARRAY',
-  items: {
-    type: 'OBJECT',
-    properties: {
-      icone: { type: 'STRING' },
-      texto: { type: 'STRING' },
-      nivel: { type: 'STRING', enum: ['alerta', 'positivo', 'info', 'sugestao'] },
-    },
-    required: ['icone', 'texto', 'nivel'],
-  },
-}
+Dados financeiros (JSON compacto):
+${payload}
+
+Gere EXATAMENTE 4 insights em JSON. Responda APENAS com o array, sem texto extra:
+[{"icone":"<emoji>","texto":"<frase em pt-BR com valor em R$, máx 110 chars>","nivel":"<alerta|positivo|info|sugestao>"},...]
+
+Priorize: variação de gastos, maiores categorias, aderência ao orçamento, tendência.`
 
 async function callGemini(compactPayload: string): Promise<InsightItem[]> {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) throw new Error('GEMINI_API_KEY não configurada')
 
-  const body = {
-    systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
-    contents: [{
-      role: 'user',
-      parts: [{ text: compactPayload }],
-    }],
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: RESPONSE_SCHEMA,
-      maxOutputTokens: 512,
-      temperature: 0.3,
-    },
-  }
-
-  // Log payload size for monitoring (not secret — just metrics)
-  console.log(`[insights] payload ${compactPayload.length} chars → Gemini`)
-
   const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: buildPrompt(compactPayload) }] }],
+      generationConfig: { maxOutputTokens: 512, temperature: 0.3 },
+    }),
   })
 
   if (!res.ok) {
     const text = await res.text()
-    if (res.status === 429) throw new Error('QUOTA_429')
-    // Log full body so Vercel logs reveal schema/config rejections
     console.error(`[insights] Gemini ${res.status}:`, text.slice(0, 500))
+    if (res.status === 429) throw new Error('QUOTA_429')
     throw new Error(`Gemini ${res.status}: ${text.slice(0, 200)}`)
   }
 
   const data = await res.json()
-  const raw = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '[]'
+  const raw: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '[]'
 
-  // responseMimeType guarantees valid JSON — direct parse, no stripping needed
-  const parsed: Array<{ icone: string; texto: string; nivel: string }> = JSON.parse(raw)
+  // Strip markdown fences if present, then parse
+  const cleaned = raw.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim()
+  const parsed: Array<{ icone: string; texto: string; nivel: string }> = JSON.parse(cleaned)
 
   return parsed.slice(0, 4).map(item => ({
     icone: String(item.icone ?? '📊'),
@@ -90,8 +69,11 @@ export async function GET(req: NextRequest) {
 
   try {
     const data = await fetchEnrichedData(user.id)
+    console.log(`[insights] enriched data: ${data.transacoes.length} tx, ${data.planejamento.length} plan`)
+
     const metrics = computeInsights(data)
     const payload = serializeInsightsCompact(metrics)
+    console.log(`[insights] payload (${payload.length} chars):`, payload.slice(0, 200))
 
     const insights = await callGemini(payload)
     const response: InsightsResponse = {
