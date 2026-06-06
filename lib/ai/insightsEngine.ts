@@ -1,6 +1,6 @@
 // Pre-computes financial metrics from raw data to avoid raw data dumps to AI
 
-import { format, subMonths } from 'date-fns'
+import { format, subMonths, addDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type {
   EnrichedData,
@@ -146,6 +146,11 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
     .filter(p => p.data_pagamento)
     .reduce((s, p) => s + p.valor_previsto, 0)
   const despesasEmAberto = totalOrcado - totalPago
+
+  const diaAtual = hoje.getDate()
+  const hojeStr = format(hoje, 'yyyy-MM-dd')
+  const em7diasStr = format(addDays(hoje, 7), 'yyyy-MM-dd')
+
   const itensPlanejamentoEmAberto = planAtual
     .filter(p => !p.data_pagamento)
     .sort((a, b) => {
@@ -158,6 +163,18 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
       valor: p.valor_previsto,
       vencimento: p.data_vencimento ?? undefined,
     }))
+
+  const itensVencidos = planAtual
+    .filter(p => !p.data_pagamento && p.data_vencimento && p.data_vencimento < hojeStr)
+    .sort((a, b) => (a.data_vencimento ?? '').localeCompare(b.data_vencimento ?? ''))
+    .slice(0, 5)
+    .map(p => ({ item: p.item, valor: p.valor_previsto, vencimento: p.data_vencimento! }))
+
+  const itensVencendo7d = planAtual
+    .filter(p => !p.data_pagamento && p.data_vencimento && p.data_vencimento >= hojeStr && p.data_vencimento <= em7diasStr)
+    .sort((a, b) => (a.data_vencimento ?? '').localeCompare(b.data_vencimento ?? ''))
+    .slice(0, 5)
+    .map(p => ({ item: p.item, valor: p.valor_previsto, vencimento: p.data_vencimento! }))
 
   // Investments
   const totalAportesHistorico = data.aportes.reduce((s, a) => s + a.valor, 0)
@@ -196,6 +213,7 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
   return {
     mesAtual: fmtMes(mesAtual),
     mesAnterior: fmtMes(mesAnterior),
+    diaAtual,
     totalGastos,
     totalGastosAnterior,
     variacaoGastos,
@@ -212,12 +230,259 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
     totalPago,
     despesasEmAberto,
     itensPlanejamentoEmAberto,
+    itensVencidos,
+    itensVencendo7d,
     totalAportesHistorico,
     aportesRecentes,
     mediaMensalHistorica,
     tendencia,
     tendenciaPct,
   }
+}
+
+/**
+ * Compact JSON payload for the dashboard insights API.
+ * Uses short keys and dense arrays to minimise token cost while preserving
+ * all signal the model needs. ~100 tokens vs ~600 for formatInsightsAsText.
+ *
+ * Schema (for documentation):
+ *   mes/ant       – month labels
+ *   gasto/prev    – total spending current/previous month
+ *   varPct        – % change
+ *   M/J           – Matheus / Jeniffer spending
+ *   cats          – top categories: [name, R$, share%, varPct?]
+ *   maiores       – top purchases: [description, R$, category]
+ *   parc          – installments: [count, total] or null
+ *   assins        – subscriptions: [count, monthly total] or null
+ *   orc           – budget: [planned, paid, open] or null
+ *   invRec        – recent investment contributions total or null
+ *   media6m       – 6-month spending average
+ *   tend          – trend string
+ */
+// ─── Rule-based fallback insights (no AI required) ───────────────────────────
+
+import type { InsightItem } from '@/lib/insightsTypes'
+
+const fmtR2 = (v: number) =>
+  v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 })
+
+const signPct2 = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
+
+/**
+ * Generates up to 4 structured insights (titulo + detalhe + recomendacao)
+ * from pre-computed metrics without calling any external AI API.
+ */
+export function generateFallbackInsights(ins: FinancialInsightsContext): InsightItem[] {
+  const items: InsightItem[] = []
+
+  // 1 — Gastos do mês vs histórico
+  if (ins.totalGastos > 0) {
+    const vsH = ins.mediaMensalHistorica > 0
+      ? ((ins.totalGastos - ins.mediaMensalHistorica) / ins.mediaMensalHistorica) * 100
+      : ins.variacaoGastos
+    const alto = vsH > 10
+    const baixo = vsH < -5
+    items.push({
+      icone: alto ? '⚠️' : baixo ? '✅' : '📊',
+      titulo: alto
+        ? `Gastos ${signPct2(vsH)} acima do padrão`
+        : baixo
+        ? `Gastos ${signPct2(vsH)} abaixo do padrão`
+        : `Gastos dentro do padrão em ${ins.mesAtual}`,
+      detalhe: ins.mediaMensalHistorica > 0
+        ? `${fmtR2(ins.totalGastos)} este mês vs média de ${fmtR2(ins.mediaMensalHistorica)}/mês`
+        : `${fmtR2(ins.totalGastos)} este mês vs ${fmtR2(ins.totalGastosAnterior)} em ${ins.mesAnterior}`,
+      recomendacao: alto
+        ? `Identifique os gastos extras e avalie o que pode ser cortado`
+        : baixo
+        ? `Ótimo controle! Considere direcionar a sobra para investimentos`
+        : `Continue monitorando para manter o equilíbrio`,
+      nivel: alto ? 'alerta' : baixo ? 'positivo' : 'info',
+      action: { label: 'Ver compras', route: '/compras' },
+    })
+  }
+
+  // 2 — Categoria líder
+  const top = ins.topCategorias[0]
+  if (top) {
+    const subindo = top.variacao !== undefined && top.variacao > 15
+    items.push({
+      icone: subindo ? '📈' : '💳',
+      titulo: `${top.categoria} lidera os gastos${subindo ? ` (${signPct2(top.variacao!)} ↑)` : ''}`,
+      detalhe: `${fmtR2(top.valor)} — ${top.percentual.toFixed(0)}% do total${top.variacao !== undefined ? ` vs ${fmtR2(top.anterior ?? 0)} no mês anterior` : ''}`,
+      recomendacao: subindo
+        ? `Revise os gastos em ${top.categoria} — crescimento acima do esperado`
+        : top.percentual > 30
+        ? `${top.categoria} representa mais de 30% do orçamento — avalie reduzir`
+        : `Monitore ${top.categoria} para evitar crescimento`,
+      nivel: subindo || top.percentual > 30 ? 'alerta' : 'info',
+      action: { label: 'Ver compras', route: '/compras' },
+    })
+  }
+
+  // 3 — Orçamento ou assinaturas
+  if (ins.totalOrcado > 0) {
+    const pct = Math.round((ins.totalPago / ins.totalOrcado) * 100)
+    const aberto = ins.despesasEmAberto
+
+    if (ins.itensVencidos.length > 0) {
+      // Lead with overdue items — highest urgency
+      const totalVencido = ins.itensVencidos.reduce((s, i) => s + i.valor, 0)
+      const plural = ins.itensVencidos.length > 1
+      items.push({
+        icone: '🔴',
+        titulo: `${ins.itensVencidos.length} despesa${plural ? 's' : ''} vencida${plural ? 's' : ''} sem pagamento`,
+        detalhe: `${fmtR2(totalVencido)} em atraso — venceu ${ins.itensVencidos[0].item}${plural ? ` e mais ${ins.itensVencidos.length - 1}` : ''}`,
+        recomendacao: `Quite imediatamente: ${ins.itensVencidos[0].item} (${fmtR2(ins.itensVencidos[0].valor)})`,
+        nivel: 'alerta',
+        action: { label: 'Ver planejamento', route: '/financas?tab=despesas' },
+      })
+    } else if (ins.itensVencendo7d.length > 0) {
+      // Upcoming payments in next 7 days
+      const totalVencendo = ins.itensVencendo7d.reduce((s, i) => s + i.valor, 0)
+      const plural = ins.itensVencendo7d.length > 1
+      const proximos = ins.itensVencendo7d.slice(0, 2).map(i => i.item).join(', ')
+      items.push({
+        icone: '📅',
+        titulo: `${ins.itensVencendo7d.length} despesa${plural ? 's' : ''} vence${plural ? 'm' : ''} esta semana`,
+        detalhe: `${fmtR2(totalVencendo)} a pagar em 7 dias — ${proximos}`,
+        recomendacao: `Reserve ${fmtR2(totalVencendo)} para quitar ${plural ? 'essas despesas' : 'essa despesa'} no prazo`,
+        nivel: 'sugestao',
+        action: { label: 'Ver planejamento', route: '/financas?tab=despesas' },
+      })
+    } else if (aberto === 0) {
+      items.push({
+        icone: '✅',
+        titulo: `Todas as despesas quitadas`,
+        detalhe: `Orçamento de ${fmtR2(ins.totalOrcado)} totalmente executado`,
+        recomendacao: `Ótima execução orçamentária este mês`,
+        nivel: 'positivo',
+        action: { label: 'Ver planejamento', route: '/financas?tab=despesas' },
+      })
+    } else if (pct >= 20 || ins.diaAtual >= 15) {
+      // Show % paid only when the number is meaningful (mid-to-late month or significant progress)
+      const proximoPendente = ins.itensPlanejamentoEmAberto[0]
+      items.push({
+        icone: pct >= 60 ? '📋' : '🎯',
+        titulo: `${pct}% do orçamento pago em ${ins.mesAtual}`,
+        detalhe: `${fmtR2(ins.totalPago)} pago de ${fmtR2(ins.totalOrcado)} — ${fmtR2(aberto)} pendente`,
+        recomendacao: proximoPendente
+          ? `Priorize: ${proximoPendente.item} (${fmtR2(proximoPendente.valor)})`
+          : `Quite as despesas em aberto antes do fechamento do mês`,
+        nivel: ins.diaAtual >= 25 && pct < 70 ? 'alerta' : 'sugestao',
+        action: { label: 'Ver planejamento', route: '/financas?tab=despesas' },
+      })
+    } else if (ins.assinaturasAtivas > 0) {
+      // Early month with nothing due yet — show subscriptions instead
+      items.push({
+        icone: '🔄',
+        titulo: `${ins.assinaturasAtivas} assinaturas ativas`,
+        detalhe: `${fmtR2(ins.totalAssinaturas)}/mês em serviços recorrentes`,
+        recomendacao: `Revise assinaturas pouco utilizadas para reduzir custos fixos`,
+        nivel: ins.totalAssinaturas > ins.mediaMensalHistorica * 0.15 ? 'alerta' : 'info',
+        action: { label: 'Ver assinaturas', route: '/assinaturas' },
+      })
+    }
+  } else if (ins.assinaturasAtivas > 0) {
+    items.push({
+      icone: '🔄',
+      titulo: `${ins.assinaturasAtivas} assinaturas ativas`,
+      detalhe: `${fmtR2(ins.totalAssinaturas)}/mês em serviços recorrentes`,
+      recomendacao: `Revise assinaturas pouco utilizadas para reduzir custos fixos`,
+      nivel: ins.totalAssinaturas > ins.mediaMensalHistorica * 0.15 ? 'alerta' : 'info',
+    })
+  }
+
+  // 4 — Tendência ou maior compra
+  if (ins.mediaMensalHistorica > 0) {
+    const isAlta = ins.tendencia === 'alta'
+    const isBaixa = ins.tendencia === 'baixa'
+    items.push({
+      icone: isAlta ? '📉' : isBaixa ? '📈' : '➡️',
+      titulo: isAlta
+        ? `Tendência de alta nos gastos`
+        : isBaixa
+        ? `Tendência de queda nos gastos`
+        : `Gastos estáveis nos últimos 6 meses`,
+      detalhe: `${signPct2(ins.tendenciaPct)} nos últimos 3 meses — média histórica: ${fmtR2(ins.mediaMensalHistorica)}/mês`,
+      recomendacao: isAlta
+        ? `Planeje uma revisão de orçamento para o próximo mês`
+        : isBaixa
+        ? `Aproveite a melhora para aumentar aportes em investimentos`
+        : `Mantenha a disciplina financeira atual`,
+      nivel: isAlta ? 'alerta' : isBaixa ? 'positivo' : 'info',
+    })
+  } else if (ins.maioresGastos[0]) {
+    const g = ins.maioresGastos[0]
+    items.push({
+      icone: '💡',
+      titulo: `Maior compra do mês`,
+      detalhe: `${g.descricao.slice(0, 35)} — ${fmtR2(g.valor)} em ${g.categoria}`,
+      recomendacao: `Verifique se esta compra estava prevista no orçamento`,
+      nivel: 'info',
+      action: { label: 'Ver compras', route: '/compras' },
+    })
+  }
+
+  return items.slice(0, 4)
+}
+
+export function serializeInsightsCompact(ins: FinancialInsightsContext): string {
+  const r2 = (n: number) => Math.round(n * 100) / 100
+
+  const cats = ins.topCategorias.slice(0, 5).map(c => {
+    const row: [string, number, number, number?] = [
+      c.categoria, r2(c.valor), Math.round(c.percentual),
+    ]
+    if (c.variacao !== undefined) row.push(Math.round(c.variacao * 10) / 10)
+    return row
+  })
+
+  const maiores = ins.maioresGastos.slice(0, 3).map(g =>
+    [g.descricao.slice(0, 30), r2(g.valor), g.categoria] as [string, number, string]
+  )
+
+  const invTotal = ins.aportesRecentes.reduce((s, a) => s + a.valor, 0)
+
+  const payload: Record<string, unknown> = {
+    mes: ins.mesAtual,
+    ant: ins.mesAnterior,
+    dia: ins.diaAtual,
+    gasto: r2(ins.totalGastos),
+    prev: r2(ins.totalGastosAnterior),
+    varPct: Math.round(ins.variacaoGastos * 10) / 10,
+    M: r2(ins.gastoMatheus),
+    J: r2(ins.gastoJeniffer),
+    cats,
+    maiores,
+  }
+
+  if (ins.comprasParceladas.count > 0)
+    payload.parc = [ins.comprasParceladas.count, r2(ins.comprasParceladas.totalValor)]
+
+  if (ins.assinaturasAtivas > 0)
+    payload.assins = [ins.assinaturasAtivas, r2(ins.totalAssinaturas)]
+
+  if (ins.totalOrcado > 0)
+    payload.orc = [r2(ins.totalOrcado), r2(ins.totalPago), r2(ins.despesasEmAberto)]
+
+  if (ins.itensVencidos.length > 0)
+    payload.vencidos = ins.itensVencidos.slice(0, 3).map(i => [i.item.slice(0, 25), r2(i.valor), i.vencimento])
+
+  if (ins.itensVencendo7d.length > 0)
+    payload.venc7d = ins.itensVencendo7d.slice(0, 3).map(i => [i.item.slice(0, 25), r2(i.valor), i.vencimento])
+
+  if (invTotal > 0)
+    payload.invRec = r2(invTotal)
+
+  if (ins.mediaMensalHistorica > 0) {
+    payload.media6m = r2(ins.mediaMensalHistorica)
+    payload.tend = ins.tendencia === 'estavel'
+      ? 'estavel'
+      : `${ins.tendencia} ${ins.tendenciaPct > 0 ? '+' : ''}${Math.round(ins.tendenciaPct * 10) / 10}%`
+  }
+
+  return JSON.stringify(payload)
 }
 
 export function formatInsightsAsText(ins: FinancialInsightsContext): string {

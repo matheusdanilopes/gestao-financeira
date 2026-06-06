@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
+import { format, startOfMonth, addMonths, subMonths, isSameMonth } from 'date-fns'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
 import { AlertTriangle, CreditCard, Wallet, BarChart3, PiggyBank, TrendingUp, TrendingDown, Minus, LineChart, Activity } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
@@ -66,6 +66,7 @@ import { InfoPopover } from '@/components/InfoPopover'
 
 const DrawerDetalhes = dynamic(() => import('@/components/DrawerDetalhes'), { ssr: false })
 const PeriodSelectorSheet = dynamic(() => import('@/components/PeriodSelectorSheet'), { ssr: false })
+const InsightsCard = dynamic(() => import('@/components/InsightsCard'), { ssr: false })
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { usePrefetchPages } from '@/lib/usePrefetchPages'
 import { formatBRL as fmt } from '@/lib/logger'
@@ -901,6 +902,9 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+
+        {/* ── Insights por IA — somente no mês atual ── */}
+        {isSameMonth(mesAtual, new Date()) && <InsightsCard />}
 
         {/* ── Investimentos ── */}
         {(carregando || investimentos.length > 0) && (

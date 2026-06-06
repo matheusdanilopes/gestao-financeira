@@ -76,6 +76,7 @@ export interface CategoryMetric {
 export interface FinancialInsightsContext {
   mesAtual: string
   mesAnterior: string
+  diaAtual: number
   totalGastos: number
   totalGastosAnterior: number
   variacaoGastos: number
@@ -92,6 +93,8 @@ export interface FinancialInsightsContext {
   totalPago: number
   despesasEmAberto: number
   itensPlanejamentoEmAberto: Array<{ item: string; valor: number; vencimento?: string }>
+  itensVencidos: Array<{ item: string; valor: number; vencimento: string }>
+  itensVencendo7d: Array<{ item: string; valor: number; vencimento: string }>
   totalAportesHistorico: number
   aportesRecentes: Array<{ descricao: string; valor: number; data: string }>
   mediaMensalHistorica: number
