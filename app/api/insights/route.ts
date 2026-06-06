@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
 import { fetchEnrichedData, clearEnrichedDataCache } from '@/lib/ai/contextBuilder'
-import { computeInsights, serializeInsightsCompact } from '@/lib/ai/insightsEngine'
+import { computeInsights, serializeInsightsCompact, generateFallbackInsights } from '@/lib/ai/insightsEngine'
 import type { InsightItem, InsightsResponse } from '@/lib/insightsTypes'
 
 export type { InsightItem, InsightsResponse }
@@ -69,13 +69,22 @@ export async function GET(req: NextRequest) {
 
   try {
     const data = await fetchEnrichedData(user.id)
-    console.log(`[insights] enriched data: ${data.transacoes.length} tx, ${data.planejamento.length} plan`)
-
     const metrics = computeInsights(data)
-    const payload = serializeInsightsCompact(metrics)
-    console.log(`[insights] payload (${payload.length} chars):`, payload.slice(0, 200))
 
-    const insights = await callGemini(payload)
+    // Try Gemini first; fall back to rule-based insights on any failure
+    let insights: InsightItem[]
+    let source: 'ai' | 'fallback' = 'ai'
+    try {
+      const payload = serializeInsightsCompact(metrics)
+      insights = await callGemini(payload)
+    } catch (geminiErr) {
+      console.error('[insights] Gemini falhou, usando fallback:', String(geminiErr))
+      insights = generateFallbackInsights(metrics)
+      source = 'fallback'
+    }
+
+    console.log(`[insights] gerado via ${source}: ${insights.length} itens`)
+
     const response: InsightsResponse = {
       insights,
       updatedAt: new Date().toISOString(),
@@ -86,10 +95,10 @@ export async function GET(req: NextRequest) {
     })
   } catch (err) {
     const msg = String(err instanceof Error ? err.message : err)
-    console.error('[insights] erro:', msg)
+    console.error('[insights] erro fatal (dados):', msg)
     return NextResponse.json(
       { error: 'Falha ao gerar insights', details: msg },
-      { status: msg.includes('QUOTA_429') ? 429 : 500 }
+      { status: 500 }
     )
   }
 }

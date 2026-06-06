@@ -239,6 +239,95 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
  *   media6m       – 6-month spending average
  *   tend          – trend string
  */
+// ─── Rule-based fallback insights (no AI required) ───────────────────────────
+
+import type { InsightItem } from '@/lib/insightsTypes'
+
+const fmtR2 = (v: number) =>
+  v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 })
+
+const signPct2 = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
+
+/**
+ * Generates up to 4 meaningful insights from pre-computed metrics without
+ * calling any external AI API. Used as the primary source when Gemini is
+ * unavailable and as a guaranteed fallback in all other cases.
+ */
+export function generateFallbackInsights(ins: FinancialInsightsContext): InsightItem[] {
+  const items: InsightItem[] = []
+
+  // 1 — Gastos do mês vs histórico ou mês anterior
+  if (ins.totalGastos > 0) {
+    const vsHistorico = ins.mediaMensalHistorica > 0
+      ? ((ins.totalGastos - ins.mediaMensalHistorica) / ins.mediaMensalHistorica) * 100
+      : null
+    const referencia = vsHistorico !== null
+      ? ` (${signPct2(vsHistorico)} vs média de 6m)`
+      : ins.totalGastosAnterior > 0
+      ? ` (${signPct2(ins.variacaoGastos)} vs ${ins.mesAnterior})`
+      : ''
+    const alto = (vsHistorico ?? ins.variacaoGastos) > 10
+    items.push({
+      icone: alto ? '⚠️' : ins.variacaoGastos < -5 ? '✅' : '📊',
+      texto: `Gastos em ${ins.mesAtual}: ${fmtR2(ins.totalGastos)}${referencia}`,
+      nivel: alto ? 'alerta' : ins.variacaoGastos < -5 ? 'positivo' : 'info',
+    })
+  }
+
+  // 2 — Categoria líder com variação
+  const top = ins.topCategorias[0]
+  if (top) {
+    const varStr = top.variacao !== undefined ? ` (${signPct2(top.variacao)} vs mês ant.)` : ''
+    items.push({
+      icone: top.variacao !== undefined && top.variacao > 20 ? '📈' : '💳',
+      texto: `${top.categoria} é o maior gasto: ${fmtR2(top.valor)} — ${top.percentual.toFixed(0)}% do total${varStr}`,
+      nivel: top.variacao !== undefined && top.variacao > 20 ? 'alerta' : 'info',
+    })
+  }
+
+  // 3 — Orçamento ou assinaturas
+  if (ins.totalOrcado > 0) {
+    const pct = (ins.totalPago / ins.totalOrcado) * 100
+    const aberto = ins.despesasEmAberto
+    items.push({
+      icone: aberto > 0 ? '🎯' : '✅',
+      texto: aberto > 0
+        ? `Orçamento ${pct.toFixed(0)}% pago — ${fmtR2(aberto)} ainda em aberto`
+        : `Orçamento 100% quitado em ${ins.mesAtual}`,
+      nivel: aberto > 0 ? 'sugestao' : 'positivo',
+    })
+  } else if (ins.assinaturasAtivas > 0) {
+    items.push({
+      icone: '🔄',
+      texto: `${ins.assinaturasAtivas} assinaturas ativas totalizam ${fmtR2(ins.totalAssinaturas)}/mês`,
+      nivel: 'info',
+    })
+  }
+
+  // 4 — Tendência histórica ou maior compra individual
+  if (ins.mediaMensalHistorica > 0) {
+    const tendStr = ins.tendencia === 'estavel'
+      ? 'estável nos últimos 6 meses'
+      : ins.tendencia === 'alta'
+      ? `em alta ${signPct2(ins.tendenciaPct)} nos últimos 3 meses`
+      : `em queda ${signPct2(ins.tendenciaPct)} nos últimos 3 meses`
+    items.push({
+      icone: ins.tendencia === 'alta' ? '📉' : ins.tendencia === 'baixa' ? '📈' : '➡️',
+      texto: `Tendência de gastos ${tendStr} (média: ${fmtR2(ins.mediaMensalHistorica)}/mês)`,
+      nivel: ins.tendencia === 'alta' ? 'alerta' : ins.tendencia === 'baixa' ? 'positivo' : 'info',
+    })
+  } else if (ins.maioresGastos[0]) {
+    const g = ins.maioresGastos[0]
+    items.push({
+      icone: '💡',
+      texto: `Maior compra: ${g.descricao.slice(0, 35)} — ${fmtR2(g.valor)} [${g.categoria}]`,
+      nivel: 'info',
+    })
+  }
+
+  return items.slice(0, 4)
+}
+
 export function serializeInsightsCompact(ins: FinancialInsightsContext): string {
   const r2 = (n: number) => Math.round(n * 100) / 100
 
