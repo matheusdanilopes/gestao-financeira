@@ -15,7 +15,7 @@ const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GE
 const buildPrompt = (payload: string) =>
   `Você é analista financeiro do casal Matheus (M) e Jeniffer (J).
 
-Dados financeiros:
+Dados financeiros (campo "dia" = dia atual do mês):
 ${payload}
 
 Gere EXATAMENTE 4 insights em JSON. Responda APENAS com o array JSON, sem texto antes ou depois:
@@ -32,6 +32,9 @@ Gere EXATAMENTE 4 insights em JSON. Responda APENAS com o array JSON, sem texto 
 Regras:
 - nivel "alerta": risco financeiro real. "positivo": conquista ou economia. "info": dado neutro. "sugestao": oportunidade de melhora.
 - Priorize: desvios de gastos vs histórico, categoria com maior crescimento, aderência ao orçamento, tendência de 3 meses.
+- Se "vencidos" não vazio: priorize alerta de despesas em atraso com os itens específicos.
+- Se "venc7d" não vazio: destaque vencimentos nos próximos 7 dias.
+- Se "dia" < 15 e % pago do orçamento for baixo (orc[1]/orc[0]): não trate como alerta — é início do mês.
 - Use valores reais dos dados — nunca invente números.`
 
 async function callGemini(compactPayload: string): Promise<InsightItem[]> {

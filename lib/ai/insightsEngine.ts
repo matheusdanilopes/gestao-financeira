@@ -1,6 +1,6 @@
 // Pre-computes financial metrics from raw data to avoid raw data dumps to AI
 
-import { format, subMonths } from 'date-fns'
+import { format, subMonths, addDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type {
   EnrichedData,
@@ -146,6 +146,11 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
     .filter(p => p.data_pagamento)
     .reduce((s, p) => s + p.valor_previsto, 0)
   const despesasEmAberto = totalOrcado - totalPago
+
+  const diaAtual = hoje.getDate()
+  const hojeStr = format(hoje, 'yyyy-MM-dd')
+  const em7diasStr = format(addDays(hoje, 7), 'yyyy-MM-dd')
+
   const itensPlanejamentoEmAberto = planAtual
     .filter(p => !p.data_pagamento)
     .sort((a, b) => {
@@ -158,6 +163,18 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
       valor: p.valor_previsto,
       vencimento: p.data_vencimento ?? undefined,
     }))
+
+  const itensVencidos = planAtual
+    .filter(p => !p.data_pagamento && p.data_vencimento && p.data_vencimento < hojeStr)
+    .sort((a, b) => (a.data_vencimento ?? '').localeCompare(b.data_vencimento ?? ''))
+    .slice(0, 5)
+    .map(p => ({ item: p.item, valor: p.valor_previsto, vencimento: p.data_vencimento! }))
+
+  const itensVencendo7d = planAtual
+    .filter(p => !p.data_pagamento && p.data_vencimento && p.data_vencimento >= hojeStr && p.data_vencimento <= em7diasStr)
+    .sort((a, b) => (a.data_vencimento ?? '').localeCompare(b.data_vencimento ?? ''))
+    .slice(0, 5)
+    .map(p => ({ item: p.item, valor: p.valor_previsto, vencimento: p.data_vencimento! }))
 
   // Investments
   const totalAportesHistorico = data.aportes.reduce((s, a) => s + a.valor, 0)
@@ -196,6 +213,7 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
   return {
     mesAtual: fmtMes(mesAtual),
     mesAnterior: fmtMes(mesAnterior),
+    diaAtual,
     totalGastos,
     totalGastosAnterior,
     variacaoGastos,
@@ -212,6 +230,8 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
     totalPago,
     despesasEmAberto,
     itensPlanejamentoEmAberto,
+    itensVencidos,
+    itensVencendo7d,
     totalAportesHistorico,
     aportesRecentes,
     mediaMensalHistorica,
@@ -302,21 +322,60 @@ export function generateFallbackInsights(ins: FinancialInsightsContext): Insight
   if (ins.totalOrcado > 0) {
     const pct = Math.round((ins.totalPago / ins.totalOrcado) * 100)
     const aberto = ins.despesasEmAberto
-    items.push({
-      icone: aberto === 0 ? '✅' : pct < 50 ? '🎯' : '📋',
-      titulo: aberto === 0
-        ? `Todas as despesas quitadas`
-        : `${pct}% do orçamento pago`,
-      detalhe: aberto === 0
-        ? `Orçamento de ${fmtR2(ins.totalOrcado)} totalmente executado`
-        : `${fmtR2(ins.totalPago)} pago de ${fmtR2(ins.totalOrcado)} — ${fmtR2(aberto)} em aberto`,
-      recomendacao: aberto === 0
-        ? `Ótima execução orçamentária este mês`
-        : ins.itensPlanejamentoEmAberto.length > 0
-        ? `Priorize: ${ins.itensPlanejamentoEmAberto[0].item} (${fmtR2(ins.itensPlanejamentoEmAberto[0].valor)})`
-        : `Quite as despesas em aberto antes do fechamento do mês`,
-      nivel: aberto === 0 ? 'positivo' : pct < 30 ? 'alerta' : 'sugestao',
-    })
+
+    if (ins.itensVencidos.length > 0) {
+      // Lead with overdue items — highest urgency
+      const totalVencido = ins.itensVencidos.reduce((s, i) => s + i.valor, 0)
+      const plural = ins.itensVencidos.length > 1
+      items.push({
+        icone: '🔴',
+        titulo: `${ins.itensVencidos.length} despesa${plural ? 's' : ''} vencida${plural ? 's' : ''} sem pagamento`,
+        detalhe: `${fmtR2(totalVencido)} em atraso — venceu ${ins.itensVencidos[0].item}${plural ? ` e mais ${ins.itensVencidos.length - 1}` : ''}`,
+        recomendacao: `Quite imediatamente: ${ins.itensVencidos[0].item} (${fmtR2(ins.itensVencidos[0].valor)})`,
+        nivel: 'alerta',
+      })
+    } else if (ins.itensVencendo7d.length > 0) {
+      // Upcoming payments in next 7 days
+      const totalVencendo = ins.itensVencendo7d.reduce((s, i) => s + i.valor, 0)
+      const plural = ins.itensVencendo7d.length > 1
+      const proximos = ins.itensVencendo7d.slice(0, 2).map(i => i.item).join(', ')
+      items.push({
+        icone: '📅',
+        titulo: `${ins.itensVencendo7d.length} despesa${plural ? 's' : ''} vence${plural ? 'm' : ''} esta semana`,
+        detalhe: `${fmtR2(totalVencendo)} a pagar em 7 dias — ${proximos}`,
+        recomendacao: `Reserve ${fmtR2(totalVencendo)} para quitar ${plural ? 'essas despesas' : 'essa despesa'} no prazo`,
+        nivel: 'sugestao',
+      })
+    } else if (aberto === 0) {
+      items.push({
+        icone: '✅',
+        titulo: `Todas as despesas quitadas`,
+        detalhe: `Orçamento de ${fmtR2(ins.totalOrcado)} totalmente executado`,
+        recomendacao: `Ótima execução orçamentária este mês`,
+        nivel: 'positivo',
+      })
+    } else if (pct >= 20 || ins.diaAtual >= 15) {
+      // Show % paid only when the number is meaningful (mid-to-late month or significant progress)
+      const proximoPendente = ins.itensPlanejamentoEmAberto[0]
+      items.push({
+        icone: pct >= 60 ? '📋' : '🎯',
+        titulo: `${pct}% do orçamento pago em ${ins.mesAtual}`,
+        detalhe: `${fmtR2(ins.totalPago)} pago de ${fmtR2(ins.totalOrcado)} — ${fmtR2(aberto)} pendente`,
+        recomendacao: proximoPendente
+          ? `Priorize: ${proximoPendente.item} (${fmtR2(proximoPendente.valor)})`
+          : `Quite as despesas em aberto antes do fechamento do mês`,
+        nivel: ins.diaAtual >= 25 && pct < 70 ? 'alerta' : 'sugestao',
+      })
+    } else if (ins.assinaturasAtivas > 0) {
+      // Early month with nothing due yet — show subscriptions instead
+      items.push({
+        icone: '🔄',
+        titulo: `${ins.assinaturasAtivas} assinaturas ativas`,
+        detalhe: `${fmtR2(ins.totalAssinaturas)}/mês em serviços recorrentes`,
+        recomendacao: `Revise assinaturas pouco utilizadas para reduzir custos fixos`,
+        nivel: ins.totalAssinaturas > ins.mediaMensalHistorica * 0.15 ? 'alerta' : 'info',
+      })
+    }
   } else if (ins.assinaturasAtivas > 0) {
     items.push({
       icone: '🔄',
@@ -380,6 +439,7 @@ export function serializeInsightsCompact(ins: FinancialInsightsContext): string 
   const payload: Record<string, unknown> = {
     mes: ins.mesAtual,
     ant: ins.mesAnterior,
+    dia: ins.diaAtual,
     gasto: r2(ins.totalGastos),
     prev: r2(ins.totalGastosAnterior),
     varPct: Math.round(ins.variacaoGastos * 10) / 10,
@@ -397,6 +457,12 @@ export function serializeInsightsCompact(ins: FinancialInsightsContext): string 
 
   if (ins.totalOrcado > 0)
     payload.orc = [r2(ins.totalOrcado), r2(ins.totalPago), r2(ins.despesasEmAberto)]
+
+  if (ins.itensVencidos.length > 0)
+    payload.vencidos = ins.itensVencidos.slice(0, 3).map(i => [i.item.slice(0, 25), r2(i.valor), i.vencimento])
+
+  if (ins.itensVencendo7d.length > 0)
+    payload.venc7d = ins.itensVencendo7d.slice(0, 3).map(i => [i.item.slice(0, 25), r2(i.valor), i.vencimento])
 
   if (invTotal > 0)
     payload.invRec = r2(invTotal)
