@@ -16,17 +16,15 @@ Com base nos dados JSON, gere exatamente 4 insights acionáveis em português.
 Priorize: desvios de gastos, categorias de maior impacto, aderência ao orçamento, tendência histórica.
 Cada insight: emoji relevante + frase direta com o valor real em R$ (ex: R$ 1.234,56).`
 
-// Enforced output schema — guarantees valid JSON, eliminates parsing hacks.
+// Enforced output schema — Gemini requires uppercase type names (STRING/OBJECT/ARRAY).
 const RESPONSE_SCHEMA = {
-  type: 'array',
-  minItems: 4,
-  maxItems: 4,
+  type: 'ARRAY',
   items: {
-    type: 'object',
+    type: 'OBJECT',
     properties: {
-      icone:  { type: 'string' },
-      texto:  { type: 'string', maxLength: 120 },
-      nivel:  { type: 'string', enum: ['alerta', 'positivo', 'info', 'sugestao'] },
+      icone: { type: 'STRING' },
+      texto: { type: 'STRING' },
+      nivel: { type: 'STRING', enum: ['alerta', 'positivo', 'info', 'sugestao'] },
     },
     required: ['icone', 'texto', 'nivel'],
   },
@@ -38,7 +36,10 @@ async function callGemini(compactPayload: string): Promise<InsightItem[]> {
 
   const body = {
     systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
-    contents: [{ role: 'user', parts: [{ text: compactPayload }] }],
+    contents: [{
+      role: 'user',
+      parts: [{ text: compactPayload }],
+    }],
     generationConfig: {
       responseMimeType: 'application/json',
       responseSchema: RESPONSE_SCHEMA,
@@ -46,6 +47,9 @@ async function callGemini(compactPayload: string): Promise<InsightItem[]> {
       temperature: 0.3,
     },
   }
+
+  // Log payload size for monitoring (not secret — just metrics)
+  console.log(`[insights] payload ${compactPayload.length} chars → Gemini`)
 
   const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
     method: 'POST',
@@ -56,6 +60,8 @@ async function callGemini(compactPayload: string): Promise<InsightItem[]> {
   if (!res.ok) {
     const text = await res.text()
     if (res.status === 429) throw new Error('QUOTA_429')
+    // Log full body so Vercel logs reveal schema/config rejections
+    console.error(`[insights] Gemini ${res.status}:`, text.slice(0, 500))
     throw new Error(`Gemini ${res.status}: ${text.slice(0, 200)}`)
   }
 
