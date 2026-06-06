@@ -57,6 +57,7 @@ export default function InsightsCard() {
 
   const isLoading = status === 'loading'
   const isUpdating = status === 'updating'
+  const isError = status === 'error'
   const hasContent = insights.length > 0
 
   return (
@@ -80,7 +81,7 @@ export default function InsightsCard() {
           </div>
         </div>
 
-        {/* Refresh button — only visible when idle/fresh */}
+        {/* Refresh button — only when not loading */}
         {!isLoading && !isUpdating && (
           <button
             onClick={refresh}
@@ -101,6 +102,18 @@ export default function InsightsCard() {
             <SkeletonRow />
             <SkeletonRow />
           </>
+        ) : isError && !hasContent ? (
+          <div className="flex flex-col items-center gap-2 py-5">
+            <p className="text-sm text-gray-400 text-center">
+              Não foi possível gerar os insights agora.
+            </p>
+            <button
+              onClick={refresh}
+              className="text-xs text-violet-600 font-medium flex items-center gap-1 hover:underline"
+            >
+              <RefreshCw className="w-3 h-3" /> Tentar novamente
+            </button>
+          </div>
         ) : hasContent ? (
           insights.map((item, i) => <InsightRow key={i} item={item} />)
         ) : (

@@ -31,7 +31,7 @@ export function clearEnrichedDataCache(userId: string): void {
   _userCache.delete(userId)
 }
 
-async function fetchEnrichedData(userId: string, force = false): Promise<EnrichedData> {
+export async function fetchEnrichedData(userId: string, force = false): Promise<EnrichedData> {
   const now = Date.now()
   const cached = _userCache.get(userId)
   if (!force && cached && now - cached.ts < CACHE_TTL_MS) return cached.data

@@ -1,71 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
-import { clearEnrichedDataCache } from '@/lib/ai/contextBuilder'
+import { fetchEnrichedData, clearEnrichedDataCache } from '@/lib/ai/contextBuilder'
 import { computeInsights, formatInsightsAsText } from '@/lib/ai/insightsEngine'
-import { createClient } from '@supabase/supabase-js'
-import { format, subMonths, startOfMonth } from 'date-fns'
-import type { EnrichedData } from '@/lib/ai/types'
 import type { InsightItem, InsightsResponse } from '@/lib/insightsTypes'
 
 export type { InsightItem, InsightsResponse }
 
 const GEMINI_MODEL = 'gemini-3-flash-preview'
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://placeholder.supabase.co',
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
-      process.env.NEXT_PUBLIC_SUPABASE_anon_key ??
-      'placeholder'
-  )
-}
-
-async function fetchFreshData(): Promise<EnrichedData> {
-  const supabase = getSupabase()
-  const limite = format(startOfMonth(subMonths(new Date(), 24)), 'yyyy-MM-dd')
-
-  const [r1, r2, r3, r4, r5] = await Promise.all([
-    supabase
-      .from('transacoes_nubank')
-      .select('descricao,valor,responsavel,categoria,projeto_fatura,data,cartao,parcela_atual,total_parcelas')
-      .gte('projeto_fatura', limite)
-      .order('projeto_fatura', { ascending: false }),
-    supabase
-      .from('planejamento')
-      .select('item,responsavel,valor_previsto,categoria,mes_referencia,parcela_atual,total_parcelas,data_vencimento,data_pagamento')
-      .gte('mes_referencia', limite)
-      .order('mes_referencia', { ascending: false }),
-    supabase.from('configuracoes').select('chave,valor'),
-    supabase
-      .from('assinaturas')
-      .select('nome,valor,cartao,responsavel,categoria,ativa,dia_cobranca')
-      .order('valor', { ascending: false }),
-    Promise.all([
-      supabase
-        .from('investimentos')
-        .select('id,descricao,percentual,mes_referencia')
-        .order('mes_referencia', { ascending: false }),
-      supabase
-        .from('investimentos_aportes')
-        .select('investimento_id,valor,data_aporte,observacao')
-        .order('data_aporte', { ascending: false })
-        .limit(100),
-    ]),
-  ])
-
-  const [invRes, aportesRes] = r5
-
-  return {
-    transacoes: (r1.data ?? []) as EnrichedData['transacoes'],
-    planejamento: (r2.data ?? []) as EnrichedData['planejamento'],
-    configuracoes: (r3.data ?? []) as EnrichedData['configuracoes'],
-    assinaturas: (r4.data ?? []) as EnrichedData['assinaturas'],
-    investimentos: (invRes.data ?? []) as EnrichedData['investimentos'],
-    aportes: (aportesRes.data ?? []) as EnrichedData['aportes'],
-    ts: Date.now(),
-  }
-}
 
 const INSIGHTS_PROMPT = `Você é um analista financeiro pessoal do casal Matheus e Jeniffer.
 
@@ -89,7 +31,7 @@ DADOS FINANCEIROS:
 `
 
 async function callGemini(metricsText: string): Promise<InsightItem[]> {
-  const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_AI_API_KEY
+  const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) throw new Error('GEMINI_API_KEY não configurada')
 
   const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
@@ -103,13 +45,14 @@ async function callGemini(metricsText: string): Promise<InsightItem[]> {
 
   if (!res.ok) {
     const body = await res.text()
-    throw new Error(`Gemini error ${res.status}: ${body.slice(0, 200)}`)
+    if (res.status === 429) throw new Error('QUOTA_429')
+    throw new Error(`Gemini ${res.status}: ${body.slice(0, 200)}`)
   }
 
   const data = await res.json()
   const raw = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '[]'
 
-  // Strip any markdown code fences Gemini might add
+  // Strip markdown code fences Gemini might add
   const cleaned = raw.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim()
 
   const parsed = JSON.parse(cleaned)
@@ -128,10 +71,13 @@ export async function GET(req: NextRequest) {
   const { unauthorized, user } = await requireAuth(req)
   if (unauthorized) return unauthorized
 
+  // ?fresh=true bypasses the 5-min cache (used after realtime events)
+  const fresh = req.nextUrl.searchParams.get('fresh') === 'true'
+  if (fresh) clearEnrichedDataCache(user.id)
+
   try {
-    // Always fetch fresh data so insights reflect latest changes
-    clearEnrichedDataCache(user.id)
-    const data = await fetchFreshData()
+    // Reuse contextBuilder's shared cache (avoids duplicate DB queries with chat)
+    const data = await fetchEnrichedData(user.id)
     const metrics = computeInsights(data)
     const metricsText = formatInsightsAsText(metrics)
 
@@ -145,10 +91,13 @@ export async function GET(req: NextRequest) {
       headers: { 'Cache-Control': 'no-store' },
     })
   } catch (err) {
-    console.error('[insights] erro:', err)
+    const msg = String(err instanceof Error ? err.message : err)
+    console.error('[insights] erro:', msg)
+
+    const status = msg.includes('QUOTA_429') ? 429 : 500
     return NextResponse.json(
-      { error: 'Falha ao gerar insights', details: String(err) },
-      { status: 500 }
+      { error: 'Falha ao gerar insights', details: msg },
+      { status }
     )
   }
 }

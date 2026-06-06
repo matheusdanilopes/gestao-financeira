@@ -10,6 +10,7 @@
  * 4. Debounce de 5s: múltiplas mudanças em sequência geram apenas uma análise
  * 5. Cooldown de 90s: evita chamadas excessivas à API de IA
  * 6. Marca insights como "atualizando" sem bloquear a exibição do conteúdo atual
+ * 7. Timeout de 30s: nunca trava indefinidamente em loading
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react'
@@ -29,6 +30,7 @@ export interface InsightsState {
 const CACHE_KEY = 'insights:dashboard'
 const DEBOUNCE_MS = 5_000
 const COOLDOWN_MS = 90_000
+const FETCH_TIMEOUT_MS = 30_000
 
 // Tables that trigger insight re-analysis when changed
 const WATCHED_TABLES = [
@@ -69,34 +71,40 @@ export function useInsights(): InsightsState {
   const isFetchingRef = useRef(false)
   const lastFetchRef = useRef<number>(0)
   const pendingRefreshRef = useRef(false)
-
-  // Use a ref for the debounce scheduler so fetchInsights can call it
-  // without creating a circular useCallback dependency.
   const scheduleRef = useRef<(() => void) | null>(null)
 
-  const fetchInsights = useCallback(async (isBackground = false) => {
+  const fetchInsights = useCallback(async (opts: { background?: boolean; fresh?: boolean } = {}) => {
+    const { background = false, fresh = false } = opts
     if (!isMountedRef.current) return
 
-    // Cooldown: prevent hammering the AI API
     const now = Date.now()
     if (isFetchingRef.current) {
       pendingRefreshRef.current = true
       return
     }
-    if (now - lastFetchRef.current < COOLDOWN_MS && isBackground) return
+    // Within cooldown on background-only fetches
+    if (background && !fresh && now - lastFetchRef.current < COOLDOWN_MS) return
 
     isFetchingRef.current = true
-    if (!isBackground) {
+    if (!background) {
       setStatus('loading')
     } else {
       setStatus(prev => (prev === 'fresh' || prev === 'updating') ? 'updating' : prev)
     }
 
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+
     try {
-      const res = await fetch('/api/insights', { credentials: 'include' })
+      const url = fresh ? '/api/insights?fresh=true' : '/api/insights'
+      const res = await fetch(url, {
+        credentials: 'include',
+        signal: controller.signal,
+      })
       if (!isMountedRef.current) return
 
       if (!res.ok) {
+        // Keep current content on background failures; show error on first load
         setStatus(prev => prev === 'loading' ? 'error' : 'fresh')
         return
       }
@@ -107,12 +115,13 @@ export function useInsights(): InsightsState {
       setUpdatedAt(new Date(data.updatedAt))
       setStatus('fresh')
       lastFetchRef.current = Date.now()
-    } catch {
+    } catch (err) {
       if (!isMountedRef.current) return
-      setStatus(prev => prev === 'loading' ? 'error' : 'fresh')
+      const isAbort = err instanceof Error && err.name === 'AbortError'
+      setStatus(prev => prev === 'loading' ? (isAbort ? 'error' : 'error') : 'fresh')
     } finally {
+      clearTimeout(timeoutId)
       isFetchingRef.current = false
-      // If a change arrived while fetching, schedule another run
       if (pendingRefreshRef.current && isMountedRef.current) {
         pendingRefreshRef.current = false
         scheduleRef.current?.()
@@ -123,16 +132,15 @@ export function useInsights(): InsightsState {
   const scheduleDebounced = useCallback(() => {
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
     debounceTimerRef.current = setTimeout(() => {
-      fetchInsights(true)
+      fetchInsights({ background: true, fresh: true })
     }, DEBOUNCE_MS)
   }, [fetchInsights])
 
-  // Keep ref in sync so fetchInsights's finally block can call it
   scheduleRef.current = scheduleDebounced
 
   const refresh = useCallback(() => {
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
-    fetchInsights(false)
+    fetchInsights({ background: false, fresh: true })
   }, [fetchInsights])
 
   useEffect(() => {
@@ -146,8 +154,8 @@ export function useInsights(): InsightsState {
       setStatus('updating')
     }
 
-    // 2. Fetch fresh insights on mount (background if cache exists)
-    fetchInsights(!!cached)
+    // 2. Fetch fresh insights on mount
+    fetchInsights({ background: !!cached, fresh: false })
 
     // 3. Realtime subscriptions on all financial tables
     const channel = supabase.channel('insights:realtime')
