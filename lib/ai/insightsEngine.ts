@@ -220,6 +220,76 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
   }
 }
 
+/**
+ * Compact JSON payload for the dashboard insights API.
+ * Uses short keys and dense arrays to minimise token cost while preserving
+ * all signal the model needs. ~100 tokens vs ~600 for formatInsightsAsText.
+ *
+ * Schema (for documentation):
+ *   mes/ant       – month labels
+ *   gasto/prev    – total spending current/previous month
+ *   varPct        – % change
+ *   M/J           – Matheus / Jeniffer spending
+ *   cats          – top categories: [name, R$, share%, varPct?]
+ *   maiores       – top purchases: [description, R$, category]
+ *   parc          – installments: [count, total] or null
+ *   assins        – subscriptions: [count, monthly total] or null
+ *   orc           – budget: [planned, paid, open] or null
+ *   invRec        – recent investment contributions total or null
+ *   media6m       – 6-month spending average
+ *   tend          – trend string
+ */
+export function serializeInsightsCompact(ins: FinancialInsightsContext): string {
+  const r2 = (n: number) => Math.round(n * 100) / 100
+
+  const cats = ins.topCategorias.slice(0, 5).map(c => {
+    const row: [string, number, number, number?] = [
+      c.categoria, r2(c.valor), Math.round(c.percentual),
+    ]
+    if (c.variacao !== undefined) row.push(Math.round(c.variacao * 10) / 10)
+    return row
+  })
+
+  const maiores = ins.maioresGastos.slice(0, 3).map(g =>
+    [g.descricao.slice(0, 30), r2(g.valor), g.categoria] as [string, number, string]
+  )
+
+  const invTotal = ins.aportesRecentes.reduce((s, a) => s + a.valor, 0)
+
+  const payload: Record<string, unknown> = {
+    mes: ins.mesAtual,
+    ant: ins.mesAnterior,
+    gasto: r2(ins.totalGastos),
+    prev: r2(ins.totalGastosAnterior),
+    varPct: Math.round(ins.variacaoGastos * 10) / 10,
+    M: r2(ins.gastoMatheus),
+    J: r2(ins.gastoJeniffer),
+    cats,
+    maiores,
+  }
+
+  if (ins.comprasParceladas.count > 0)
+    payload.parc = [ins.comprasParceladas.count, r2(ins.comprasParceladas.totalValor)]
+
+  if (ins.assinaturasAtivas > 0)
+    payload.assins = [ins.assinaturasAtivas, r2(ins.totalAssinaturas)]
+
+  if (ins.totalOrcado > 0)
+    payload.orc = [r2(ins.totalOrcado), r2(ins.totalPago), r2(ins.despesasEmAberto)]
+
+  if (invTotal > 0)
+    payload.invRec = r2(invTotal)
+
+  if (ins.mediaMensalHistorica > 0) {
+    payload.media6m = r2(ins.mediaMensalHistorica)
+    payload.tend = ins.tendencia === 'estavel'
+      ? 'estavel'
+      : `${ins.tendencia} ${ins.tendenciaPct > 0 ? '+' : ''}${Math.round(ins.tendenciaPct * 10) / 10}%`
+  }
+
+  return JSON.stringify(payload)
+}
+
 export function formatInsightsAsText(ins: FinancialInsightsContext): string {
   const fmtR = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
   const signPct = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
