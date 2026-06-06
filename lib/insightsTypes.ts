@@ -6,6 +6,7 @@ export interface InsightItem {
   detalhe: string       // metric with real value in R$, max ~80 chars
   recomendacao: string  // concrete actionable recommendation, max ~80 chars
   nivel: 'alerta' | 'positivo' | 'info' | 'sugestao'
+  action?: { label: string; route: string }
 }
 
 export interface InsightsResponse {

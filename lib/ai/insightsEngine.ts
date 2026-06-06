@@ -298,6 +298,7 @@ export function generateFallbackInsights(ins: FinancialInsightsContext): Insight
         ? `Ótimo controle! Considere direcionar a sobra para investimentos`
         : `Continue monitorando para manter o equilíbrio`,
       nivel: alto ? 'alerta' : baixo ? 'positivo' : 'info',
+      action: { label: 'Ver compras', route: '/compras' },
     })
   }
 
@@ -315,6 +316,7 @@ export function generateFallbackInsights(ins: FinancialInsightsContext): Insight
         ? `${top.categoria} representa mais de 30% do orçamento — avalie reduzir`
         : `Monitore ${top.categoria} para evitar crescimento`,
       nivel: subindo || top.percentual > 30 ? 'alerta' : 'info',
+      action: { label: 'Ver compras', route: '/compras' },
     })
   }
 
@@ -333,6 +335,7 @@ export function generateFallbackInsights(ins: FinancialInsightsContext): Insight
         detalhe: `${fmtR2(totalVencido)} em atraso — venceu ${ins.itensVencidos[0].item}${plural ? ` e mais ${ins.itensVencidos.length - 1}` : ''}`,
         recomendacao: `Quite imediatamente: ${ins.itensVencidos[0].item} (${fmtR2(ins.itensVencidos[0].valor)})`,
         nivel: 'alerta',
+        action: { label: 'Ver planejamento', route: '/financas?tab=despesas' },
       })
     } else if (ins.itensVencendo7d.length > 0) {
       // Upcoming payments in next 7 days
@@ -345,6 +348,7 @@ export function generateFallbackInsights(ins: FinancialInsightsContext): Insight
         detalhe: `${fmtR2(totalVencendo)} a pagar em 7 dias — ${proximos}`,
         recomendacao: `Reserve ${fmtR2(totalVencendo)} para quitar ${plural ? 'essas despesas' : 'essa despesa'} no prazo`,
         nivel: 'sugestao',
+        action: { label: 'Ver planejamento', route: '/financas?tab=despesas' },
       })
     } else if (aberto === 0) {
       items.push({
@@ -353,6 +357,7 @@ export function generateFallbackInsights(ins: FinancialInsightsContext): Insight
         detalhe: `Orçamento de ${fmtR2(ins.totalOrcado)} totalmente executado`,
         recomendacao: `Ótima execução orçamentária este mês`,
         nivel: 'positivo',
+        action: { label: 'Ver planejamento', route: '/financas?tab=despesas' },
       })
     } else if (pct >= 20 || ins.diaAtual >= 15) {
       // Show % paid only when the number is meaningful (mid-to-late month or significant progress)
@@ -365,6 +370,7 @@ export function generateFallbackInsights(ins: FinancialInsightsContext): Insight
           ? `Priorize: ${proximoPendente.item} (${fmtR2(proximoPendente.valor)})`
           : `Quite as despesas em aberto antes do fechamento do mês`,
         nivel: ins.diaAtual >= 25 && pct < 70 ? 'alerta' : 'sugestao',
+        action: { label: 'Ver planejamento', route: '/financas?tab=despesas' },
       })
     } else if (ins.assinaturasAtivas > 0) {
       // Early month with nothing due yet — show subscriptions instead
@@ -374,6 +380,7 @@ export function generateFallbackInsights(ins: FinancialInsightsContext): Insight
         detalhe: `${fmtR2(ins.totalAssinaturas)}/mês em serviços recorrentes`,
         recomendacao: `Revise assinaturas pouco utilizadas para reduzir custos fixos`,
         nivel: ins.totalAssinaturas > ins.mediaMensalHistorica * 0.15 ? 'alerta' : 'info',
+        action: { label: 'Ver assinaturas', route: '/assinaturas' },
       })
     }
   } else if (ins.assinaturasAtivas > 0) {
@@ -413,6 +420,7 @@ export function generateFallbackInsights(ins: FinancialInsightsContext): Insight
       detalhe: `${g.descricao.slice(0, 35)} — ${fmtR2(g.valor)} em ${g.categoria}`,
       recomendacao: `Verifique se esta compra estava prevista no orçamento`,
       nivel: 'info',
+      action: { label: 'Ver compras', route: '/compras' },
     })
   }
 

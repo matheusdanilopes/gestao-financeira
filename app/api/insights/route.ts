@@ -12,6 +12,13 @@ const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GE
 // Single user message that combines role + data + output instruction.
 // Mirrors the pattern used by the chat route (no systemInstruction, no responseSchema)
 // to stay compatible with all gemini-3-flash-preview versions.
+const CATEGORIA_ACTION: Record<string, { label: string; route: string }> = {
+  gastos:        { label: 'Ver compras',       route: '/compras' },
+  orcamento:     { label: 'Ver planejamento',  route: '/financas?tab=despesas' },
+  investimentos: { label: 'Ver investimentos', route: '/investimentos' },
+  assinaturas:   { label: 'Ver assinaturas',   route: '/assinaturas' },
+}
+
 const buildPrompt = (payload: string) =>
   `Você é analista financeiro do casal Matheus (M) e Jeniffer (J).
 
@@ -25,12 +32,14 @@ Gere EXATAMENTE 4 insights em JSON. Responda APENAS com o array JSON, sem texto 
     "titulo": "<título direto, máx 45 chars>",
     "detalhe": "<métrica com valor real em R$, máx 85 chars>",
     "recomendacao": "<ação concreta e específica, máx 85 chars>",
-    "nivel": "<alerta|positivo|info|sugestao>"
+    "nivel": "<alerta|positivo|info|sugestao>",
+    "categoria": "<gastos|orcamento|investimentos|assinaturas>"
   }
 ]
 
 Regras:
 - nivel "alerta": risco financeiro real. "positivo": conquista ou economia. "info": dado neutro. "sugestao": oportunidade de melhora.
+- "categoria": classifique a área do insight — "gastos" (transações/compras), "orcamento" (planejamento/vencimentos), "investimentos" (aportes/carteira), "assinaturas" (serviços recorrentes).
 - Priorize: desvios de gastos vs histórico, categoria com maior crescimento, aderência ao orçamento, tendência de 3 meses.
 - Se "vencidos" não vazio: priorize alerta de despesas em atraso com os itens específicos.
 - Se "venc7d" não vazio: destaque vencimentos nos próximos 7 dias.
@@ -68,15 +77,19 @@ async function callGemini(compactPayload: string): Promise<InsightItem[]> {
   if (start === -1 || end <= start) throw new Error(`JSON array not found in Gemini response: ${raw.slice(0, 100)}`)
   const parsed: Array<Record<string, string>> = JSON.parse(raw.slice(start, end + 1))
 
-  return parsed.slice(0, 4).map(item => ({
-    icone: String(item.icone ?? '📊'),
-    titulo: String(item.titulo ?? '').slice(0, 60),
-    detalhe: String(item.detalhe ?? item.texto ?? '').slice(0, 100),
-    recomendacao: String(item.recomendacao ?? '').slice(0, 100),
-    nivel: (['alerta', 'positivo', 'info', 'sugestao'].includes(item.nivel)
-      ? item.nivel
-      : 'info') as InsightItem['nivel'],
-  }))
+  return parsed.slice(0, 4).map(item => {
+    const action = CATEGORIA_ACTION[String(item.categoria ?? '')]
+    return {
+      icone: String(item.icone ?? '📊'),
+      titulo: String(item.titulo ?? '').slice(0, 60),
+      detalhe: String(item.detalhe ?? item.texto ?? '').slice(0, 100),
+      recomendacao: String(item.recomendacao ?? '').slice(0, 100),
+      nivel: (['alerta', 'positivo', 'info', 'sugestao'].includes(item.nivel)
+        ? item.nivel
+        : 'info') as InsightItem['nivel'],
+      ...(action ? { action } : {}),
+    }
+  })
 }
 
 export async function GET(req: NextRequest) {

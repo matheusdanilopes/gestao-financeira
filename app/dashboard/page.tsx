@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
+import { format, startOfMonth, addMonths, subMonths, isSameMonth } from 'date-fns'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
 import { AlertTriangle, CreditCard, Wallet, BarChart3, PiggyBank, TrendingUp, TrendingDown, Minus, LineChart, Activity } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
@@ -903,8 +903,8 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* ── Insights por IA ── */}
-        <InsightsCard />
+        {/* ── Insights por IA — somente no mês atual ── */}
+        {isSameMonth(mesAtual, new Date()) && <InsightsCard />}
 
         {/* ── Investimentos ── */}
         {(carregando || investimentos.length > 0) && (

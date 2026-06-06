@@ -1,8 +1,9 @@
 'use client'
 
-import { Sparkles, RefreshCw, Clock, ChevronRight } from 'lucide-react'
+import { Sparkles, RefreshCw, Clock, ChevronRight, ArrowRight } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { useRouter } from 'next/navigation'
 import { useInsights } from '@/lib/useInsights'
 import type { InsightItem } from '@/lib/insightsTypes'
 
@@ -45,8 +46,21 @@ const NIVEL_CONFIG: Record<InsightItem['nivel'], {
 
 function InsightRow({ item }: { item: InsightItem }) {
   const c = NIVEL_CONFIG[item.nivel]
+  const router = useRouter()
+  const isClickable = !!item.action
+
+  const handleClick = () => {
+    if (item.action) router.push(item.action.route)
+  }
+
   return (
-    <div className={`rounded-2xl overflow-hidden ${c.bg}`}>
+    <div
+      className={`rounded-2xl overflow-hidden ${c.bg} ${isClickable ? 'cursor-pointer transition-all duration-150 hover:scale-[1.015] hover:shadow-sm active:scale-[0.99]' : ''}`}
+      onClick={isClickable ? handleClick : undefined}
+      role={isClickable ? 'button' : undefined}
+      tabIndex={isClickable ? 0 : undefined}
+      onKeyDown={isClickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick() } } : undefined}
+    >
       {/* Top bar accent */}
       <div className={`h-0.5 w-full ${c.bar}`} />
 
@@ -57,6 +71,9 @@ function InsightRow({ item }: { item: InsightItem }) {
           <p className={`text-sm font-semibold leading-snug ${c.titleColor}`}>
             {item.titulo}
           </p>
+          {isClickable && (
+            <ArrowRight className={`w-3.5 h-3.5 ml-auto mt-0.5 shrink-0 opacity-40 ${c.titleColor}`} />
+          )}
         </div>
 
         {/* Metric detail */}
