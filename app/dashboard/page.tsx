@@ -66,6 +66,7 @@ import { InfoPopover } from '@/components/InfoPopover'
 
 const DrawerDetalhes = dynamic(() => import('@/components/DrawerDetalhes'), { ssr: false })
 const PeriodSelectorSheet = dynamic(() => import('@/components/PeriodSelectorSheet'), { ssr: false })
+const InsightsCard = dynamic(() => import('@/components/InsightsCard'), { ssr: false })
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { usePrefetchPages } from '@/lib/usePrefetchPages'
 import { formatBRL as fmt } from '@/lib/logger'
@@ -901,6 +902,9 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+
+        {/* ── Insights por IA ── */}
+        <InsightsCard />
 
         {/* ── Investimentos ── */}
         {(carregando || investimentos.length > 0) && (

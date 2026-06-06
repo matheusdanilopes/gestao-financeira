@@ -27,10 +27,14 @@ function getSupabase() {
   )
 }
 
-async function fetchEnrichedData(userId: string): Promise<EnrichedData> {
+export function clearEnrichedDataCache(userId: string): void {
+  _userCache.delete(userId)
+}
+
+async function fetchEnrichedData(userId: string, force = false): Promise<EnrichedData> {
   const now = Date.now()
   const cached = _userCache.get(userId)
-  if (cached && now - cached.ts < CACHE_TTL_MS) return cached.data
+  if (!force && cached && now - cached.ts < CACHE_TTL_MS) return cached.data
 
   // Evict oldest entry if cache is full, to prevent unbounded growth
   if (_userCache.size >= MAX_CACHE_ENTRIES) {
