@@ -2,7 +2,9 @@
 
 export interface InsightItem {
   icone: string
-  texto: string
+  titulo: string        // short title, max ~40 chars
+  detalhe: string       // metric with real value in R$, max ~80 chars
+  recomendacao: string  // concrete actionable recommendation, max ~80 chars
   nivel: 'alerta' | 'positivo' | 'info' | 'sugestao'
 }
 

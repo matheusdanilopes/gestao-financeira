@@ -249,78 +249,110 @@ const fmtR2 = (v: number) =>
 const signPct2 = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
 
 /**
- * Generates up to 4 meaningful insights from pre-computed metrics without
- * calling any external AI API. Used as the primary source when Gemini is
- * unavailable and as a guaranteed fallback in all other cases.
+ * Generates up to 4 structured insights (titulo + detalhe + recomendacao)
+ * from pre-computed metrics without calling any external AI API.
  */
 export function generateFallbackInsights(ins: FinancialInsightsContext): InsightItem[] {
   const items: InsightItem[] = []
 
-  // 1 — Gastos do mês vs histórico ou mês anterior
+  // 1 — Gastos do mês vs histórico
   if (ins.totalGastos > 0) {
-    const vsHistorico = ins.mediaMensalHistorica > 0
+    const vsH = ins.mediaMensalHistorica > 0
       ? ((ins.totalGastos - ins.mediaMensalHistorica) / ins.mediaMensalHistorica) * 100
-      : null
-    const referencia = vsHistorico !== null
-      ? ` (${signPct2(vsHistorico)} vs média de 6m)`
-      : ins.totalGastosAnterior > 0
-      ? ` (${signPct2(ins.variacaoGastos)} vs ${ins.mesAnterior})`
-      : ''
-    const alto = (vsHistorico ?? ins.variacaoGastos) > 10
+      : ins.variacaoGastos
+    const alto = vsH > 10
+    const baixo = vsH < -5
     items.push({
-      icone: alto ? '⚠️' : ins.variacaoGastos < -5 ? '✅' : '📊',
-      texto: `Gastos em ${ins.mesAtual}: ${fmtR2(ins.totalGastos)}${referencia}`,
-      nivel: alto ? 'alerta' : ins.variacaoGastos < -5 ? 'positivo' : 'info',
+      icone: alto ? '⚠️' : baixo ? '✅' : '📊',
+      titulo: alto
+        ? `Gastos ${signPct2(vsH)} acima do padrão`
+        : baixo
+        ? `Gastos ${signPct2(vsH)} abaixo do padrão`
+        : `Gastos dentro do padrão em ${ins.mesAtual}`,
+      detalhe: ins.mediaMensalHistorica > 0
+        ? `${fmtR2(ins.totalGastos)} este mês vs média de ${fmtR2(ins.mediaMensalHistorica)}/mês`
+        : `${fmtR2(ins.totalGastos)} este mês vs ${fmtR2(ins.totalGastosAnterior)} em ${ins.mesAnterior}`,
+      recomendacao: alto
+        ? `Identifique os gastos extras e avalie o que pode ser cortado`
+        : baixo
+        ? `Ótimo controle! Considere direcionar a sobra para investimentos`
+        : `Continue monitorando para manter o equilíbrio`,
+      nivel: alto ? 'alerta' : baixo ? 'positivo' : 'info',
     })
   }
 
-  // 2 — Categoria líder com variação
+  // 2 — Categoria líder
   const top = ins.topCategorias[0]
   if (top) {
-    const varStr = top.variacao !== undefined ? ` (${signPct2(top.variacao)} vs mês ant.)` : ''
+    const subindo = top.variacao !== undefined && top.variacao > 15
     items.push({
-      icone: top.variacao !== undefined && top.variacao > 20 ? '📈' : '💳',
-      texto: `${top.categoria} é o maior gasto: ${fmtR2(top.valor)} — ${top.percentual.toFixed(0)}% do total${varStr}`,
-      nivel: top.variacao !== undefined && top.variacao > 20 ? 'alerta' : 'info',
+      icone: subindo ? '📈' : '💳',
+      titulo: `${top.categoria} lidera os gastos${subindo ? ` (${signPct2(top.variacao!)} ↑)` : ''}`,
+      detalhe: `${fmtR2(top.valor)} — ${top.percentual.toFixed(0)}% do total${top.variacao !== undefined ? ` vs ${fmtR2(top.anterior ?? 0)} no mês anterior` : ''}`,
+      recomendacao: subindo
+        ? `Revise os gastos em ${top.categoria} — crescimento acima do esperado`
+        : top.percentual > 30
+        ? `${top.categoria} representa mais de 30% do orçamento — avalie reduzir`
+        : `Monitore ${top.categoria} para evitar crescimento`,
+      nivel: subindo || top.percentual > 30 ? 'alerta' : 'info',
     })
   }
 
   // 3 — Orçamento ou assinaturas
   if (ins.totalOrcado > 0) {
-    const pct = (ins.totalPago / ins.totalOrcado) * 100
+    const pct = Math.round((ins.totalPago / ins.totalOrcado) * 100)
     const aberto = ins.despesasEmAberto
     items.push({
-      icone: aberto > 0 ? '🎯' : '✅',
-      texto: aberto > 0
-        ? `Orçamento ${pct.toFixed(0)}% pago — ${fmtR2(aberto)} ainda em aberto`
-        : `Orçamento 100% quitado em ${ins.mesAtual}`,
-      nivel: aberto > 0 ? 'sugestao' : 'positivo',
+      icone: aberto === 0 ? '✅' : pct < 50 ? '🎯' : '📋',
+      titulo: aberto === 0
+        ? `Todas as despesas quitadas`
+        : `${pct}% do orçamento pago`,
+      detalhe: aberto === 0
+        ? `Orçamento de ${fmtR2(ins.totalOrcado)} totalmente executado`
+        : `${fmtR2(ins.totalPago)} pago de ${fmtR2(ins.totalOrcado)} — ${fmtR2(aberto)} em aberto`,
+      recomendacao: aberto === 0
+        ? `Ótima execução orçamentária este mês`
+        : ins.itensPlanejamentoEmAberto.length > 0
+        ? `Priorize: ${ins.itensPlanejamentoEmAberto[0].item} (${fmtR2(ins.itensPlanejamentoEmAberto[0].valor)})`
+        : `Quite as despesas em aberto antes do fechamento do mês`,
+      nivel: aberto === 0 ? 'positivo' : pct < 30 ? 'alerta' : 'sugestao',
     })
   } else if (ins.assinaturasAtivas > 0) {
     items.push({
       icone: '🔄',
-      texto: `${ins.assinaturasAtivas} assinaturas ativas totalizam ${fmtR2(ins.totalAssinaturas)}/mês`,
-      nivel: 'info',
+      titulo: `${ins.assinaturasAtivas} assinaturas ativas`,
+      detalhe: `${fmtR2(ins.totalAssinaturas)}/mês em serviços recorrentes`,
+      recomendacao: `Revise assinaturas pouco utilizadas para reduzir custos fixos`,
+      nivel: ins.totalAssinaturas > ins.mediaMensalHistorica * 0.15 ? 'alerta' : 'info',
     })
   }
 
-  // 4 — Tendência histórica ou maior compra individual
+  // 4 — Tendência ou maior compra
   if (ins.mediaMensalHistorica > 0) {
-    const tendStr = ins.tendencia === 'estavel'
-      ? 'estável nos últimos 6 meses'
-      : ins.tendencia === 'alta'
-      ? `em alta ${signPct2(ins.tendenciaPct)} nos últimos 3 meses`
-      : `em queda ${signPct2(ins.tendenciaPct)} nos últimos 3 meses`
+    const isAlta = ins.tendencia === 'alta'
+    const isBaixa = ins.tendencia === 'baixa'
     items.push({
-      icone: ins.tendencia === 'alta' ? '📉' : ins.tendencia === 'baixa' ? '📈' : '➡️',
-      texto: `Tendência de gastos ${tendStr} (média: ${fmtR2(ins.mediaMensalHistorica)}/mês)`,
-      nivel: ins.tendencia === 'alta' ? 'alerta' : ins.tendencia === 'baixa' ? 'positivo' : 'info',
+      icone: isAlta ? '📉' : isBaixa ? '📈' : '➡️',
+      titulo: isAlta
+        ? `Tendência de alta nos gastos`
+        : isBaixa
+        ? `Tendência de queda nos gastos`
+        : `Gastos estáveis nos últimos 6 meses`,
+      detalhe: `${signPct2(ins.tendenciaPct)} nos últimos 3 meses — média histórica: ${fmtR2(ins.mediaMensalHistorica)}/mês`,
+      recomendacao: isAlta
+        ? `Planeje uma revisão de orçamento para o próximo mês`
+        : isBaixa
+        ? `Aproveite a melhora para aumentar aportes em investimentos`
+        : `Mantenha a disciplina financeira atual`,
+      nivel: isAlta ? 'alerta' : isBaixa ? 'positivo' : 'info',
     })
   } else if (ins.maioresGastos[0]) {
     const g = ins.maioresGastos[0]
     items.push({
       icone: '💡',
-      texto: `Maior compra: ${g.descricao.slice(0, 35)} — ${fmtR2(g.valor)} [${g.categoria}]`,
+      titulo: `Maior compra do mês`,
+      detalhe: `${g.descricao.slice(0, 35)} — ${fmtR2(g.valor)} em ${g.categoria}`,
+      recomendacao: `Verifique se esta compra estava prevista no orçamento`,
       nivel: 'info',
     })
   }

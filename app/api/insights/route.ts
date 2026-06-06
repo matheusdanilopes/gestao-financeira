@@ -15,13 +15,24 @@ const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GE
 const buildPrompt = (payload: string) =>
   `Você é analista financeiro do casal Matheus (M) e Jeniffer (J).
 
-Dados financeiros (JSON compacto):
+Dados financeiros:
 ${payload}
 
-Gere EXATAMENTE 4 insights em JSON. Responda APENAS com o array, sem texto extra:
-[{"icone":"<emoji>","texto":"<frase em pt-BR com valor em R$, máx 110 chars>","nivel":"<alerta|positivo|info|sugestao>"},...]
+Gere EXATAMENTE 4 insights em JSON. Responda APENAS com o array JSON, sem texto antes ou depois:
+[
+  {
+    "icone": "<emoji único>",
+    "titulo": "<título direto, máx 45 chars>",
+    "detalhe": "<métrica com valor real em R$, máx 85 chars>",
+    "recomendacao": "<ação concreta e específica, máx 85 chars>",
+    "nivel": "<alerta|positivo|info|sugestao>"
+  }
+]
 
-Priorize: variação de gastos, maiores categorias, aderência ao orçamento, tendência.`
+Regras:
+- nivel "alerta": risco financeiro real. "positivo": conquista ou economia. "info": dado neutro. "sugestao": oportunidade de melhora.
+- Priorize: desvios de gastos vs histórico, categoria com maior crescimento, aderência ao orçamento, tendência de 3 meses.
+- Use valores reais dos dados — nunca invente números.`
 
 async function callGemini(compactPayload: string): Promise<InsightItem[]> {
   const apiKey = process.env.GEMINI_API_KEY
@@ -56,7 +67,9 @@ async function callGemini(compactPayload: string): Promise<InsightItem[]> {
 
   return parsed.slice(0, 4).map(item => ({
     icone: String(item.icone ?? '📊'),
-    texto: String(item.texto ?? '').slice(0, 120),
+    titulo: String(item.titulo ?? '').slice(0, 60),
+    detalhe: String(item.detalhe ?? item.texto ?? '').slice(0, 100),
+    recomendacao: String(item.recomendacao ?? '').slice(0, 100),
     nivel: (['alerta', 'positivo', 'info', 'sugestao'].includes(item.nivel)
       ? item.nivel
       : 'info') as InsightItem['nivel'],
