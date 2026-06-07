@@ -344,7 +344,7 @@ export function validateFinancialData(data: EnrichedData): ValidationResult {
     transacoesValidadas,
     transacoesExcluidas,
     problemas: allIssues,
-    certificado: !hasCritical || indice >= 60,
+    certificado: !hasCritical,
     resumo: buildResumo(indice, allIssues, transacoesValidadas, transacoesExcluidas),
   }
 

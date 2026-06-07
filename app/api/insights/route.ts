@@ -71,11 +71,17 @@ async function callGemini(compactPayload: string, confiabilidade: number): Promi
   const raw: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '[]'
 
   // Gemini may prepend prose ("Aqui estão os insights:\n[...]") or wrap in
-  // markdown fences. Extract the first complete [...] block regardless of
-  // surrounding text to get clean parseable JSON.
+  // markdown fences. Extract the first complete [...] block via bracket depth
+  // so trailing bracketed content (citations, footnotes) is not included.
   const start = raw.indexOf('[')
-  const end = raw.lastIndexOf(']')
-  if (start === -1 || end <= start) throw new Error(`JSON array not found in Gemini response: ${raw.slice(0, 100)}`)
+  if (start === -1) throw new Error(`JSON array not found in Gemini response: ${raw.slice(0, 100)}`)
+  let depth = 0
+  let end = -1
+  for (let i = start; i < raw.length; i++) {
+    if (raw[i] === '[') depth++
+    else if (raw[i] === ']') { depth--; if (depth === 0) { end = i; break } }
+  }
+  if (end === -1) throw new Error(`Unclosed JSON array in Gemini response: ${raw.slice(0, 100)}`)
   const parsed: Array<Record<string, string>> = JSON.parse(raw.slice(start, end + 1))
 
   return parsed.slice(0, 4).map(item => {

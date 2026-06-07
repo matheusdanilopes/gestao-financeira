@@ -86,8 +86,11 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
 
   const totalGastos = sumValor(txAtual)
   const totalGastosAnterior = sumValor(txAnterior)
+  // Guard: if the new billing period has no transactions yet (first days of the
+  // month before the closing date), avoid a false -100% MoM signal.
   const variacaoGastos =
-    totalGastosAnterior > 0
+    txAtual.length === 0 ? 0
+    : totalGastosAnterior > 0
       ? ((totalGastos - totalGastosAnterior) / totalGastosAnterior) * 100
       : 0
 
@@ -426,7 +429,7 @@ export function generateFallbackInsights(ins: FinancialInsightsContext): Insight
     const isAlta = ins.tendencia === 'alta'
     const isBaixa = ins.tendencia === 'baixa'
     items.push({
-      icone: isAlta ? '📉' : isBaixa ? '📈' : '➡️',
+      icone: isAlta ? '📈' : isBaixa ? '📉' : '➡️',
       titulo: isAlta
         ? `Tendência de alta nos gastos`
         : isBaixa

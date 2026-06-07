@@ -107,7 +107,7 @@ export function useInsights(): InsightsState {
 
       if (!res.ok) {
         setStatus(prev => prev === 'loading' ? 'error' : 'fresh')
-        if (background) setRefreshFailed(true)
+        setRefreshFailed(true)
         return
       }
 

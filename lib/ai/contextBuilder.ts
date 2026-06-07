@@ -3,9 +3,7 @@
 import { format, subMonths, startOfMonth, differenceInMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { createClient } from '@supabase/supabase-js'
-import { computeInsights, formatInsightsAsText, getMesEfetivo, nomeCartao } from './insightsEngine'
-import { SEMANTIC_DATABASE_MAP } from './semanticMap'
-import { FINANCIAL_GLOSSARY } from './glossary'
+import { getMesEfetivo, nomeCartao } from './insightsEngine'
 import type { EnrichedData, TelaAtual, Transacao } from './types'
 
 // ─── Per-user cache ───────────────────────────────────────────────────────────
@@ -450,77 +448,3 @@ function detectarIntencao(pergunta: string): Intent {
   return { tipo, mesesFoco, categoriasFoco, descricaoFoco, responsavelFoco }
 }
 
-// ─── Main builder ─────────────────────────────────────────────────────────────
-
-export async function buildAIContext(
-  userId: string,
-  pergunta: string,
-  telaExplicita?: TelaAtual
-): Promise<string> {
-  const data = await fetchEnrichedData(userId)
-  const intent = detectarIntencao(pergunta)
-  const tela = telaExplicita ?? detectScreenFromQuestion(pergunta)
-
-  const hoje = new Date()
-  const insights = computeInsights(data)
-  const insightsText = formatInsightsAsText(insights)
-
-  // Expand detail window for comparative/historical queries
-  const mesesFoco = [...intent.mesesFoco]
-  if (intent.tipo === 'comparativo' || intent.tipo === 'historico' || intent.tipo === 'planejamento') {
-    const meses = Array.from({ length: 4 }, (_, i) =>
-      format(subMonths(hoje, i), 'yyyy-MM')
-    )
-    meses.forEach(m => { if (!mesesFoco.includes(m)) mesesFoco.push(m) })
-  }
-
-  const historico = buildHistoricalContext(data, mesesFoco)
-  const catFocus = buildCategoryFocus(
-    data,
-    intent.categoriasFoco,
-    intent.descricaoFoco,
-    intent.responsavelFoco
-  )
-
-  // Subscription detail for assinaturas/dashboard/geral screens
-  let assinaturasDetail = ''
-  if (tela === 'assinaturas' || tela === 'geral' || tela === 'dashboard') {
-    const ativas = data.assinaturas.filter(a => a.ativa)
-    if (ativas.length > 0) {
-      assinaturasDetail = '\n══ ASSINATURAS ATIVAS ══\n'
-      for (const a of ativas) {
-        assinaturasDetail += `  ${a.nome} — ${fmtR(a.valor)}/mês [${a.categoria}] (${a.responsavel})\n`
-      }
-    }
-  }
-
-  // Investment detail for investimentos screen
-  let investDetail = ''
-  if (tela === 'investimentos' && data.investimentos.length > 0) {
-    investDetail = '\n══ CARTEIRA DE INVESTIMENTOS ══\n'
-    for (const inv of data.investimentos.slice(0, 10)) {
-      const aportes = data.aportes.filter(a => a.investimento_id === inv.id)
-      const totalAp = aportes.reduce((s, a) => s + a.valor, 0)
-      investDetail += `  ${inv.descricao}: ${inv.percentual}% (${fmtMes(inv.mes_referencia)})${totalAp > 0 ? ` | total aportado ${fmtR(totalAp)}` : ''}\n`
-    }
-  }
-
-  // Configs
-  let configInfo = ''
-  if (data.configuracoes.length > 0) {
-    configInfo = `\nCONFIGURAÇÕES: ${data.configuracoes.map(c => `${c.chave}=${c.valor}`).join(', ')}\n`
-  }
-
-  return `SISTEMA: Gestão Financeira — Matheus & Jeniffer
-Data: ${format(hoje, "dd/MM/yyyy (EEEE)", { locale: ptBR })}
-${SCREEN_CONTEXT[tela]}
-${configInfo}
-${insightsText}
-${assinaturasDetail}
-${investDetail}
-${historico}
-${catFocus}
-`
-}
-
-export { SEMANTIC_DATABASE_MAP, FINANCIAL_GLOSSARY }
