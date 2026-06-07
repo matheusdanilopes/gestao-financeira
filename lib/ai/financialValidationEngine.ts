@@ -6,9 +6,7 @@
  *
  * Responsibilities:
  *  - Remove duplicate transactions
- *  - Flag reversals / estornos
  *  - Exclude card-payment entries (not expenses)
- *  - Exclude internal account transfers
  *  - Flag investment redemptions (not operational income)
  *  - Detect installment double-counting
  *  - Detect statistical anomalies
@@ -72,40 +70,7 @@ function detectarDuplicatas(transacoes: Transacao[]): {
   return { excluirIndices, issues }
 }
 
-// ─── 2. Reversal / estorno detection — informational (CA03) ──────────────────
-// Negative values already reduce totals in sumValor(); we document them so the
-// AI understands why some line items look like credits.
-
-const ESTORNO_PATTERNS = [
-  /estorno/i,
-  /cancelamento/i,
-  /reembolso/i,
-  /chargeback/i,
-  /devolução/i,
-  /ressarcimento/i,
-]
-
-function detectarEstornos(transacoes: Transacao[]): ValidationIssue[] {
-  const issues: ValidationIssue[] = []
-
-  for (const t of transacoes) {
-    const isNegative = t.valor < 0
-    const isEstornoDesc = ESTORNO_PATTERNS.some(p => p.test(t.descricao))
-    if (isNegative || isEstornoDesc) {
-      issues.push({
-        type: 'reversal',
-        severity: 'info',
-        descricao: `${isNegative ? 'Crédito/estorno (valor negativo)' : 'Cancelamento detectado'}: "${t.descricao}" — ${R(t.valor)}`,
-        valor: t.valor,
-        transacoes: [t.descricao],
-      })
-    }
-  }
-
-  return issues
-}
-
-// ─── 3. Card payment exclusion (RN16, CA02) ──────────────────────────────────
+// ─── 2. Card payment exclusion (RN16, CA02) ──────────────────────────────────
 // Bill payments are financial settlements, not new expenses.
 
 const PAGAMENTO_CARTAO_PATTERNS = [
@@ -140,39 +105,7 @@ function detectarPagamentosCartao(transacoes: Transacao[]): {
   return { excluirIndices, issues }
 }
 
-// ─── 4. Internal transfer exclusion (RN15) ────────────────────────────────────
-
-const TRANSF_INTERNA_PATTERNS = [
-  /transf\.?\s*interna/i,
-  /transferência\s*(entre|para)\s*(conta|carteira)\s*própria/i,
-  /movimentação\s*(patrimonial|interna)/i,
-]
-
-function detectarTransferenciasInternas(transacoes: Transacao[]): {
-  excluirIndices: Set<number>
-  issues: ValidationIssue[]
-} {
-  const excluirIndices = new Set<number>()
-  const issues: ValidationIssue[] = []
-
-  for (let i = 0; i < transacoes.length; i++) {
-    const t = transacoes[i]
-    if (TRANSF_INTERNA_PATTERNS.some(p => p.test(t.descricao))) {
-      excluirIndices.add(i)
-      issues.push({
-        type: 'internal_transfer',
-        severity: 'warning',
-        descricao: `Transferência interna excluída: "${t.descricao}" — ${R(t.valor)}`,
-        valor: t.valor,
-        transacoes: [t.descricao],
-      })
-    }
-  }
-
-  return { excluirIndices, issues }
-}
-
-// ─── 5. Investment redemption — informational (RN17) ─────────────────────────
+// ─── 3. Investment redemption — informational (RN17) ─────────────────────────
 // Redemptions are patrimonial movements, not operational income.
 
 const RESGATE_PATTERNS = [
@@ -376,18 +309,10 @@ export function validateFinancialData(data: EnrichedData): ValidationResult {
   for (const i of pag.excluirIndices) excluirIndices.add(i)
   allIssues.push(...pag.issues)
 
-  // Step 3: Internal transfers — patrimonial movements, not income/expense
-  const transf = detectarTransferenciasInternas(data.transacoes)
-  for (const i of transf.excluirIndices) excluirIndices.add(i)
-  allIssues.push(...transf.issues)
-
-  // Step 4: Estornos — informational only; negative values already reduce sums
-  allIssues.push(...detectarEstornos(data.transacoes))
-
-  // Step 5: Investment redemptions — informational
+  // Step 3: Investment redemptions — informational
   allIssues.push(...detectarResgatesInvestimentos(data.transacoes))
 
-  // Step 6: Installment double-count — run on the already-filtered set
+  // Step 4: Installment double-count — run on the already-filtered set
   const txRestantes = data.transacoes.filter((_, i) => !excluirIndices.has(i))
   const parcCheck   = detectarDuplaContagemParcelamentos(txRestantes)
   // Map local indices back to original indices
@@ -456,10 +381,9 @@ export function formatCertificateForAI(
 
   if (cert.transacoesExcluidas > 0) {
     const typeLabels: Record<string, string> = {
-      duplicate:               'duplicata',
-      card_payment:            'pagamento de fatura',
-      internal_transfer:       'transferência interna',
-      installment_double_count:'dupla contagem de parcelamento',
+      duplicate:                'duplicata',
+      card_payment:             'pagamento de fatura',
+      installment_double_count: 'dupla contagem de parcelamento',
     }
     const countByType: Record<string, number> = {}
     for (const p of cert.problemas) {
@@ -478,21 +402,12 @@ export function formatCertificateForAI(
     lines.push(`⚠️ CRÍTICO (${criticos.length}): ${criticos.slice(0, 2).map(p => p.descricao.slice(0, 90)).join(' | ')}`)
   }
 
-  // Warning summary (max 2, excluding reversals which have their own line)
+  // Warning summary (max 2)
   const alertas = cert.problemas
-    .filter(p => p.severity === 'warning' && p.type !== 'reversal')
+    .filter(p => p.severity === 'warning')
     .slice(0, 2)
   if (alertas.length > 0) {
     lines.push(`Alertas: ${alertas.map(a => a.descricao.slice(0, 90)).join(' | ')}`)
-  }
-
-  // Reversal aggregate
-  const reversals = cert.problemas.filter(p => p.type === 'reversal')
-  if (reversals.length > 0) {
-    const totalEst = reversals.reduce((s, r) => s + Math.abs(r.valor ?? 0), 0)
-    lines.push(
-      `Estornos/créditos: ${reversals.length} item(ns) totalizando ${R(totalEst)} — já descontados nos totais`
-    )
   }
 
   // Anomaly summary

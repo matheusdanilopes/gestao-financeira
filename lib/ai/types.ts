@@ -125,9 +125,7 @@ export interface ChatRequestContext {
 
 export type ValidationIssueType =
   | 'duplicate'
-  | 'reversal'
   | 'card_payment'
-  | 'internal_transfer'
   | 'investment_redemption'
   | 'installment_double_count'
   | 'anomaly'

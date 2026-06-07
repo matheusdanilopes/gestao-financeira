@@ -145,10 +145,17 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
     assinaturasPorCategoria[a.categoria] = (assinaturasPorCategoria[a.categoria] ?? 0) + a.valor
   }
 
-  // Planning for current month
-  const planAtual = data.planejamento.filter(
-    p => (p.mes_referencia ?? '').substring(0, 7) === mesAtual
-  )
+  // Planning for current month — exclude credit-card bill entries stored in
+  // planejamento (NuBank/[CARTAO1]/[CARTAO2]). The dashboard and financas pages
+  // already exclude these; without this filter the AI receives an inflated total.
+  const PLAN_EXCLUDE = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto'])
+  const planAtual = data.planejamento.filter(p => {
+    if ((p.mes_referencia ?? '').substring(0, 7) !== mesAtual) return false
+    const item = typeof p.item === 'string' ? p.item : ''
+    return !PLAN_EXCLUDE.has(item)
+      && !item.startsWith('[CARTAO1]')
+      && !item.startsWith('[CARTAO2]')
+  })
   const totalOrcado = planAtual.reduce((s, p) => s + p.valor_previsto, 0)
   const totalPago = planAtual
     .filter(p => p.data_pagamento)
