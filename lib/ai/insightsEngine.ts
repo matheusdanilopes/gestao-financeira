@@ -37,14 +37,11 @@ function topCategories(lista: Transacao[], total: number, n = 6): CategoryMetric
     }))
 }
 
-// For a single purchase, use the actual purchase date as the effective month.
-// For installment parcels (total_parcelas > 1), use projeto_fatura so each
-// parcel lands in its correct billing month instead of all in the original month.
+// Always use projeto_fatura (billing month) so the AI sees the same numbers
+// as the app. Using data (purchase date) causes a mismatch when the billing
+// cycle closes mid-month: purchases made after cut-off belong to the next bill.
 function getMesEfetivo(t: Transacao): string {
-  if (t.total_parcelas && t.total_parcelas > 1) {
-    return (t.projeto_fatura ?? '').substring(0, 7)
-  }
-  return (t.data ?? t.projeto_fatura ?? '').substring(0, 7)
+  return (t.projeto_fatura ?? t.data ?? '').substring(0, 7)
 }
 
 export function computeInsights(data: EnrichedData): FinancialInsightsContext {

@@ -146,14 +146,9 @@ function topCats(lista: Transacao[], n: number): Array<[string, number]> {
   return Object.entries(acc).sort((a, b) => b[1] - a[1]).slice(0, n)
 }
 
-// ─── Effective month: purchase date for singles, fatura for installments ──────
-// Mirrors getMesEfetivo in insightsEngine.ts
-
+// Always use projeto_fatura (billing month) — mirrors getMesEfetivo in insightsEngine.ts
 function getMesEfetivo(t: Transacao): string {
-  if (t.total_parcelas && t.total_parcelas > 1) {
-    return (t.projeto_fatura ?? '').substring(0, 7)
-  }
-  return (t.data ?? t.projeto_fatura ?? '').substring(0, 7)
+  return (t.projeto_fatura ?? t.data ?? '').substring(0, 7)
 }
 
 // ─── Historical context (tiered detail) ──────────────────────────────────────

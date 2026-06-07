@@ -30,10 +30,9 @@ const fmtMes = (yyyyMM: string) => {
   catch { return yyyyMM }
 }
 
-// Single purchase: use purchase date. Installment: use billing month (projeto_fatura).
+// Always use projeto_fatura (billing month) so numbers match the app display.
 function mesEfetivo(t: Transacao): string {
-  if (t.total_parcelas && t.total_parcelas > 1) return (t.projeto_fatura ?? '').substring(0, 7)
-  return (t.data ?? t.projeto_fatura ?? '').substring(0, 7)
+  return (t.projeto_fatura ?? t.data ?? '').substring(0, 7)
 }
 
 function sumTx(txs: Transacao[]) {
