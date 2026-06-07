@@ -140,8 +140,8 @@ export function useInsights(): InsightsState {
 
   const refresh = useCallback(() => {
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
-    fetchInsights({ background: false, fresh: true })
-  }, [fetchInsights])
+    fetchInsights({ background: insights.length > 0, fresh: true })
+  }, [fetchInsights, insights.length])
 
   useEffect(() => {
     isMountedRef.current = true
