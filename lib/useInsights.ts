@@ -24,6 +24,7 @@ export interface InsightsState {
   insights: InsightItem[]
   updatedAt: Date | null
   status: InsightsStatus
+  refreshFailed: boolean
   refresh: () => void
 }
 
@@ -64,6 +65,7 @@ export function useInsights(): InsightsState {
   const [insights, setInsights] = useState<InsightItem[]>([])
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
   const [status, setStatus] = useState<InsightsStatus>('loading')
+  const [refreshFailed, setRefreshFailed] = useState(false)
 
   const channelRef = useRef<RealtimeChannel | null>(null)
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -104,8 +106,8 @@ export function useInsights(): InsightsState {
       if (!isMountedRef.current) return
 
       if (!res.ok) {
-        // Keep current content on background failures; show error on first load
         setStatus(prev => prev === 'loading' ? 'error' : 'fresh')
+        if (background) setRefreshFailed(true)
         return
       }
 
@@ -114,11 +116,12 @@ export function useInsights(): InsightsState {
       setInsights(data.insights)
       setUpdatedAt(new Date(data.updatedAt))
       setStatus('fresh')
+      setRefreshFailed(false)
       lastFetchRef.current = Date.now()
     } catch (err) {
       if (!isMountedRef.current) return
-      const isAbort = err instanceof Error && err.name === 'AbortError'
-      setStatus(prev => prev === 'loading' ? (isAbort ? 'error' : 'error') : 'fresh')
+      setStatus(prev => prev === 'loading' ? 'error' : 'fresh')
+      if (background) setRefreshFailed(true)
     } finally {
       clearTimeout(timeoutId)
       isFetchingRef.current = false
@@ -140,8 +143,8 @@ export function useInsights(): InsightsState {
 
   const refresh = useCallback(() => {
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
-    fetchInsights({ background: false, fresh: true })
-  }, [fetchInsights])
+    fetchInsights({ background: insights.length > 0, fresh: true })
+  }, [fetchInsights, insights.length])
 
   useEffect(() => {
     isMountedRef.current = true
@@ -179,5 +182,5 @@ export function useInsights(): InsightsState {
     }
   }, [fetchInsights, scheduleDebounced])
 
-  return { insights, updatedAt, status, refresh }
+  return { insights, updatedAt, status, refreshFailed, refresh }
 }

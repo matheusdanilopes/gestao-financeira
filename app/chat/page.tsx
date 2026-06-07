@@ -27,26 +27,26 @@ interface ConversaItem {
 }
 
 const SUGESTOES_PRIMARIAS = [
-  { texto: 'Como estamos no orçamento esse mês?', icon: TrendingUp },
-  { texto: 'Quais foram os maiores gastos?', icon: BarChart2 },
-  { texto: 'Compare esse mês com o anterior', icon: Calendar },
-  { texto: 'Qual categoria cresceu mais?', icon: PieChart },
+  { texto: 'Onde posso cortar gastos esse mês?', icon: TrendingUp },
+  { texto: 'Quanto sobrou para investir este mês?', icon: BarChart2 },
+  { texto: 'Tem conta vencendo esta semana?', icon: Calendar },
+  { texto: 'Qual categoria está acima do normal?', icon: PieChart },
 ]
 
 const SUGESTOES_SECUNDARIAS = [
-  'Quanto cada um gastou?',
-  'Quais assinaturas pesam mais?',
-  'Estamos dentro do planejado?',
-  'Algum gasto fora do padrão?',
+  'Quem gastou mais, Matheus ou Jeniffer?',
+  'Quais parcelamentos ainda estão ativos?',
+  'Dá para cancelar alguma assinatura?',
+  'Estou acima ou abaixo da minha média histórica?',
 ]
 
 const FOLLOWUPS = [
-  'Aprofunde a análise',
-  'Compare com o mês passado',
-  'Quais são as maiores despesas?',
-  'Como posso economizar?',
-  'Alguma tendência preocupante?',
-  'O que devo priorizar?',
+  'O que está puxando essa alta?',
+  'Como estava no mês passado?',
+  'Dá para fechar o mês no azul?',
+  'Qual foi a maior compra avulsa?',
+  'Que % dos gastos é fixo?',
+  'O que devo priorizar agora?',
 ]
 
 function parseInline(line: string): React.ReactNode[] {

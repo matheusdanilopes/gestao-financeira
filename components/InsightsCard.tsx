@@ -115,12 +115,14 @@ function SkeletonRow() {
 
 function formatUpdatedAt(date: Date): string {
   const diffMs = Date.now() - date.getTime()
-  if (diffMs < 60_000) return 'há menos de 1 minuto'
+  if (diffMs < 5 * 60_000) {
+    return `às ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
+  }
   return formatDistanceToNow(date, { locale: ptBR, addSuffix: true })
 }
 
 export default function InsightsCard() {
-  const { insights, updatedAt, status, refresh } = useInsights()
+  const { insights, updatedAt, status, refreshFailed, refresh } = useInsights()
 
   const isLoading = status === 'loading'
   const isUpdating = status === 'updating'
@@ -191,16 +193,26 @@ export default function InsightsCard() {
       </div>
 
       {/* Footer */}
-      {(updatedAt || isUpdating) && (
-        <div className="mt-3.5 pt-3 border-t border-gray-100 dark:border-gray-800 flex items-center gap-1.5">
-          <Clock className="w-3 h-3 text-gray-300 dark:text-gray-600 shrink-0" />
-          <p className="text-[11px] text-gray-400 dark:text-gray-500">
-            {isUpdating && !updatedAt
-              ? 'Analisando movimentações financeiras...'
-              : updatedAt
-              ? `Atualizado ${formatUpdatedAt(updatedAt)}`
-              : 'Atualizando...'}
-          </p>
+      {(updatedAt || isUpdating || refreshFailed) && (
+        <div className="mt-3.5 pt-3 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between gap-1.5">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Clock className="w-3 h-3 text-gray-300 dark:text-gray-600 shrink-0" />
+            <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate">
+              {isUpdating && !updatedAt
+                ? 'Analisando movimentações financeiras...'
+                : updatedAt
+                ? `Atualizado ${formatUpdatedAt(updatedAt)}`
+                : 'Atualizando...'}
+            </p>
+          </div>
+          {refreshFailed && !isUpdating && (
+            <button
+              onClick={refresh}
+              className="text-[10px] text-amber-500 font-medium flex items-center gap-1 shrink-0 hover:underline"
+            >
+              <RefreshCw className="w-3 h-3" /> Falhou — tentar
+            </button>
+          )}
         </div>
       )}
     </div>
