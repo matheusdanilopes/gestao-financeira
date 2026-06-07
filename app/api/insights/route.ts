@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
 import { fetchEnrichedData, clearEnrichedDataCache } from '@/lib/ai/contextBuilder'
 import { computeInsights, serializeInsightsCompact, generateFallbackInsights } from '@/lib/ai/insightsEngine'
+import { validateFinancialData } from '@/lib/ai/financialValidationEngine'
 import type { InsightItem, InsightsResponse } from '@/lib/insightsTypes'
 
 export type { InsightItem, InsightsResponse }
@@ -19,10 +20,10 @@ const CATEGORIA_ACTION: Record<string, { label: string; route: string }> = {
   assinaturas:   { label: 'Ver assinaturas',   route: '/assinaturas' },
 }
 
-const buildPrompt = (payload: string) =>
+const buildPrompt = (payload: string, confiabilidade: number) =>
   `Você é analista financeiro do casal Matheus (M) e Jeniffer (J).
 
-Dados financeiros (campo "dia" = dia atual do mês):
+Dados financeiros auditados (confiabilidade: ${confiabilidade}% | campo "dia" = dia atual do mês):
 ${payload}
 
 Gere EXATAMENTE 4 insights em JSON. Responda APENAS com o array JSON, sem texto antes ou depois:
@@ -46,7 +47,7 @@ Regras:
 - Se "dia" < 15 e % pago do orçamento for baixo (orc[1]/orc[0]): não trate como alerta — é início do mês.
 - Use valores reais dos dados — nunca invente números.`
 
-async function callGemini(compactPayload: string): Promise<InsightItem[]> {
+async function callGemini(compactPayload: string, confiabilidade: number): Promise<InsightItem[]> {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) throw new Error('GEMINI_API_KEY não configurada')
 
@@ -54,7 +55,7 @@ async function callGemini(compactPayload: string): Promise<InsightItem[]> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: buildPrompt(compactPayload) }] }],
+      contents: [{ role: 'user', parts: [{ text: buildPrompt(compactPayload, confiabilidade) }] }],
       generationConfig: { maxOutputTokens: 1024, temperature: 0.3 },
     }),
   })
@@ -101,15 +102,20 @@ export async function GET(req: NextRequest) {
   if (fresh) clearEnrichedDataCache(user.id)
 
   try {
-    const data = await fetchEnrichedData(user.id)
-    const metrics = computeInsights(data)
+    const rawData = await fetchEnrichedData(user.id)
+
+    // Mandatory validation gate (RN11): validate before computing any metric
+    const { validatedData, certificate } = validateFinancialData(rawData)
+    console.log(`[insights] validação: ${certificate.indiceConfiabilidade}% | ${certificate.transacoesValidadas}/${certificate.totalTransacoes} tx | ${certificate.transacoesExcluidas} excluídas`)
+
+    const metrics = computeInsights(validatedData)
 
     // Try Gemini first; fall back to rule-based insights on any failure
     let insights: InsightItem[]
     let source: 'ai' | 'fallback' = 'ai'
     try {
       const payload = serializeInsightsCompact(metrics)
-      insights = await callGemini(payload)
+      insights = await callGemini(payload, certificate.indiceConfiabilidade)
     } catch (geminiErr) {
       console.error('[insights] Gemini falhou, usando fallback:', String(geminiErr))
       insights = generateFallbackInsights(metrics)

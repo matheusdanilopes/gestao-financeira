@@ -16,6 +16,12 @@ import { format, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { fetchEnrichedData } from './contextBuilder'
 import { computeInsights, getMesEfetivo as mesEfetivo, nomeCartao } from './insightsEngine'
+import {
+  validateFinancialData,
+  formatCertificateForAI,
+  buildAntiDistortionSection,
+  buildExplainabilitySection,
+} from './financialValidationEngine'
 import type { EnrichedData, FinancialInsightsContext, Transacao, TelaAtual } from './types'
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -451,14 +457,51 @@ export async function buildChatContext({
   isFirstMessage: boolean
   tela?: TelaAtual
 }): Promise<string> {
-  const data = await fetchEnrichedData(userId)
-  const m = computeInsights(data)
+  const rawData = await fetchEnrichedData(userId)
+
+  // ── Mandatory validation gate (RN11) ──────────────────────────────────────
+  const { validatedData, certificate } = validateFinancialData(rawData)
+
+  // Block severely compromised datasets (CA05)
+  if (!certificate.certificado) {
+    return [
+      '⚠️ DADOS FINANCEIROS COM PROBLEMAS CRÍTICOS — ANÁLISE BLOQUEADA',
+      formatCertificateForAI(certificate),
+      'INSTRUÇÃO: Informe ao usuário que inconsistências críticas foram detectadas nos dados financeiros e que uma revisão é necessária antes de fornecer análises. Não tente gerar insights com estes dados.',
+    ].join('\n\n')
+  }
+
+  const m    = computeInsights(validatedData)
   const hoje = new Date()
 
   if (isFirstMessage) {
-    return buildFullContext(data, m, hoje, tela)
+    const baseCtx   = buildFullContext(validatedData, m, hoje, tela)
+    const certBlock = formatCertificateForAI(certificate)
+
+    // Anti-distortion motor (RN13): absolute + % + comparison base
+    const antiDistortion = buildAntiDistortionSection(
+      m.totalGastos,
+      m.totalGastosAnterior,
+      m.mediaMensalHistorica,
+      m.mesAtual,
+      m.mesAnterior
+    )
+
+    // Explainability metadata (RN19)
+    const explainability = buildExplainabilitySection(
+      m.topCategorias,
+      m.mesAtual,
+      m.mesAnterior
+    )
+
+    return [baseCtx, antiDistortion, explainability, certBlock]
+      .filter(s => s.length > 0)
+      .join('\n\n')
   }
 
-  const domain = detectContextDomain(pergunta)
-  return buildFocusedContext(data, m, domain, pergunta, hoje)
+  const domain    = detectContextDomain(pergunta)
+  const focusCtx  = buildFocusedContext(validatedData, m, domain, pergunta, hoje)
+  const certLine  = formatCertificateForAI(certificate, true)
+
+  return [focusCtx, certLine].filter(s => s.length > 0).join('\n\n')
 }

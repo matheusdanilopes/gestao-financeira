@@ -120,3 +120,34 @@ export interface ChatRequestContext {
   pergunta: string
   tela?: TelaAtual
 }
+
+// ─── Validation layer types ───────────────────────────────────────────────────
+
+export type ValidationIssueType =
+  | 'duplicate'
+  | 'reversal'
+  | 'card_payment'
+  | 'internal_transfer'
+  | 'investment_redemption'
+  | 'installment_double_count'
+  | 'anomaly'
+  | 'math_inconsistency'
+
+export interface ValidationIssue {
+  type: ValidationIssueType
+  severity: 'critical' | 'warning' | 'info'
+  descricao: string
+  valor?: number
+  transacoes?: string[]
+}
+
+export interface ValidationCertificate {
+  timestamp: string
+  indiceConfiabilidade: number   // 0–100
+  totalTransacoes: number
+  transacoesValidadas: number
+  transacoesExcluidas: number
+  problemas: ValidationIssue[]
+  certificado: boolean           // false when critical issues block AI
+  resumo: string
+}
