@@ -1,6 +1,6 @@
 // Pre-computes financial metrics from raw data to avoid raw data dumps to AI
 
-import { format, subMonths, addDays } from 'date-fns'
+import { format, subMonths, addMonths, addDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type {
   EnrichedData,
@@ -57,10 +57,23 @@ export function nomeCartao(cartao: string | null | undefined): string {
 
 export function computeInsights(data: EnrichedData): FinancialInsightsContext {
   const hoje = new Date()
-  const mesAtual = format(hoje, 'yyyy-MM')
-  const mesAnterior = format(subMonths(hoje, 1), 'yyyy-MM')
 
-  // Group by effective month: purchase date for singles, fatura month for parcels
+  // Credit-card billing convention (mirrors the dashboard):
+  //   mesCalendario = calendar month for planning queries (mes_referencia)
+  //   mesFatura     = the billing period currently accumulating charges
+  //
+  // Purchases made AFTER the monthly closing date are assigned to the NEXT
+  // calendar month's statement (projeto_fatura = next month).  The dashboard
+  // shows this next-month period as the "current" fatura, so we do the same.
+  //
+  // Example (closing = 3rd, today = 7 June):
+  //   June bill (2026-06) → closed 3 Jun → contains May-4 … Jun-3 purchases
+  //   July bill (2026-07) → currently open → contains Jun-4 … now purchases  ← correct "current"
+  const mesCalendario = format(hoje, 'yyyy-MM')           // for planejamento
+  const mesFatura     = format(addMonths(hoje, 1), 'yyyy-MM')  // current open bill
+  const mesFaturaAnterior = mesCalendario                  // last closed bill
+
+  // Group by effective month: projeto_fatura for parcels, data for singles
   const byMes: Record<string, Transacao[]> = {}
   for (const t of data.transacoes) {
     const m = getMesEfetivo(t)
@@ -68,8 +81,8 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
     byMes[m].push(t)
   }
 
-  const txAtual = byMes[mesAtual] ?? []
-  const txAnterior = byMes[mesAnterior] ?? []
+  const txAtual    = byMes[mesFatura]         ?? []
+  const txAnterior = byMes[mesFaturaAnterior] ?? []
 
   const totalGastos = sumValor(txAtual)
   const totalGastosAnterior = sumValor(txAnterior)
@@ -145,12 +158,12 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
     assinaturasPorCategoria[a.categoria] = (assinaturasPorCategoria[a.categoria] ?? 0) + a.valor
   }
 
-  // Planning for current month — exclude credit-card bill entries stored in
-  // planejamento (NuBank/[CARTAO1]/[CARTAO2]). The dashboard and financas pages
-  // already exclude these; without this filter the AI receives an inflated total.
+  // Planning for current calendar month — exclude credit-card bill entries stored
+  // in planejamento (NuBank/[CARTAO1]/[CARTAO2]).  Uses mesCalendario because
+  // planejamento.mes_referencia is keyed to the calendar month, not the billing period.
   const PLAN_EXCLUDE = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto'])
   const planAtual = data.planejamento.filter(p => {
-    if ((p.mes_referencia ?? '').substring(0, 7) !== mesAtual) return false
+    if ((p.mes_referencia ?? '').substring(0, 7) !== mesCalendario) return false
     const item = typeof p.item === 'string' ? p.item : ''
     return !PLAN_EXCLUDE.has(item)
       && !item.startsWith('[CARTAO1]')
@@ -205,9 +218,9 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
       }
     })
 
-  // Historical average (last 6 months excluding current)
+  // Historical average: last 6 closed billing periods (excludes current open bill)
   const meses6 = Array.from({ length: 6 }, (_, i) =>
-    format(subMonths(hoje, i + 1), 'yyyy-MM')
+    format(subMonths(addMonths(hoje, 1), i + 1), 'yyyy-MM')
   )
   const totaisMeses6 = meses6.map(m => sumValor(byMes[m] ?? []))
   const mediaMensalHistorica =
@@ -226,8 +239,8 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
     Math.abs(tendenciaPct) < 5 ? 'estavel' : tendenciaPct > 0 ? 'alta' : 'baixa'
 
   return {
-    mesAtual: fmtMes(mesAtual),
-    mesAnterior: fmtMes(mesAnterior),
+    mesAtual: fmtMes(mesFatura),
+    mesAnterior: fmtMes(mesFaturaAnterior),
     diaAtual,
     totalGastos,
     totalGastosAnterior,

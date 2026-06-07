@@ -12,7 +12,7 @@
  *  - Dados detalhados apenas sob demanda (RAG financeiro)
  */
 
-import { format, subMonths } from 'date-fns'
+import { format, subMonths, addMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { fetchEnrichedData } from './contextBuilder'
 import { computeInsights, getMesEfetivo as mesEfetivo, nomeCartao } from './insightsEngine'
@@ -140,8 +140,9 @@ function buildIndicadoresLayer(m: FinancialInsightsContext): string {
 // ─── Camada 4: Tendências por Categoria ──────────────────────────────────────
 
 function buildTendenciasLayer(data: EnrichedData, hoje: Date): string {
-  const meses3 = Array.from({ length: 3 }, (_, i) => format(subMonths(hoje, i + 1), 'yyyy-MM'))
-  const meses3ant = Array.from({ length: 3 }, (_, i) => format(subMonths(hoje, i + 4), 'yyyy-MM'))
+  // Use billing-period reference so tendencies match card metrics
+  const meses3    = Array.from({ length: 3 }, (_, i) => format(subMonths(addMonths(hoje, 1), i + 1), 'yyyy-MM'))
+  const meses3ant = Array.from({ length: 3 }, (_, i) => format(subMonths(addMonths(hoje, 1), i + 4), 'yyyy-MM'))
 
   const catsAtual: Record<string, number> = {}
   const catsAnt: Record<string, number> = {}
@@ -169,8 +170,11 @@ function buildTendenciasLayer(data: EnrichedData, hoje: Date): string {
 // ─── Motor de Contexto de Cartões ────────────────────────────────────────────
 
 function buildCardMotor(data: EnrichedData, hoje: Date): string {
-  const mesAtual = format(hoje, 'yyyy-MM')
-  const txAtual = data.transacoes.filter(t => mesEfetivo(t) === mesAtual)
+  // Use the billing-period convention: the "current" fatura is always the
+  // next calendar month (purchases after the closing date go to next month's bill).
+  // This matches how the dashboard computes mesRefFatura = addMonths(mes, 1).
+  const mesFatura = format(addMonths(hoje, 1), 'yyyy-MM')
+  const txAtual = data.transacoes.filter(t => mesEfetivo(t) === mesFatura)
   if (txAtual.length === 0) return ''
 
   const porCartao: Record<string, Transacao[]> = {}
@@ -185,8 +189,9 @@ function buildCardMotor(data: EnrichedData, hoje: Date): string {
   for (const [cartao, txs] of Object.entries(porCartao)) {
     const total = sumTx(txs)
 
+    // 6 most recent closed billing periods for the historical average
     const totais6m = Array.from({ length: 6 }, (_, i) => {
-      const m = format(subMonths(hoje, i + 1), 'yyyy-MM')
+      const m = format(subMonths(addMonths(hoje, 1), i + 1), 'yyyy-MM')
       return sumTx(data.transacoes.filter(t => mesEfetivo(t) === m && (nomeCartao(t.cartao)) === cartao))
     })
     const validos = totais6m.filter(v => v > 0)
@@ -300,7 +305,8 @@ function buildInsightsLayer(m: FinancialInsightsContext): string {
 // ─── Histórico Compacto ───────────────────────────────────────────────────────
 
 function buildHistoricoCompactoLayer(data: EnrichedData, hoje: Date, nMeses = 5): string {
-  const meses = Array.from({ length: nMeses }, (_, i) => format(subMonths(hoje, i + 1), 'yyyy-MM'))
+  // Billing-period reference: most recent closed bills first
+  const meses = Array.from({ length: nMeses }, (_, i) => format(subMonths(addMonths(hoje, 1), i + 1), 'yyyy-MM'))
   const entries = meses
     .map(m => {
       const total = sumTx(data.transacoes.filter(t => mesEfetivo(t) === m))
@@ -316,8 +322,8 @@ function buildHistoricoCompactoLayer(data: EnrichedData, hoje: Date, nMeses = 5)
 function buildCategoryFocusLayer(data: EnrichedData, categorias: string[], hoje: Date): string {
   if (categorias.length === 0) return ''
 
-  const mesAtual = format(hoje, 'yyyy-MM')
-  const mesesRange = Array.from({ length: 4 }, (_, i) => format(subMonths(hoje, i), 'yyyy-MM'))
+  const mesFatura  = format(addMonths(hoje, 1), 'yyyy-MM')
+  const mesesRange = Array.from({ length: 4 }, (_, i) => format(subMonths(addMonths(hoje, 1), i), 'yyyy-MM'))
 
   const relevant = data.transacoes.filter(t =>
     mesesRange.includes(mesEfetivo(t)) &&
@@ -337,7 +343,7 @@ function buildCategoryFocusLayer(data: EnrichedData, categorias: string[], hoje:
     .join(' · ')
 
   const topTx = relevant
-    .filter(t => mesEfetivo(t) === mesAtual)
+    .filter(t => mesEfetivo(t) === mesFatura)
     .sort((a, b) => b.valor - a.valor)
     .slice(0, 5)
 
