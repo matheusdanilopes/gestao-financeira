@@ -15,7 +15,7 @@
 import { format, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { fetchEnrichedData } from './contextBuilder'
-import { computeInsights } from './insightsEngine'
+import { computeInsights, getMesEfetivo as mesEfetivo } from './insightsEngine'
 import type { EnrichedData, FinancialInsightsContext, Transacao, TelaAtual } from './types'
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -28,11 +28,6 @@ const pct = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`
 const fmtMes = (yyyyMM: string) => {
   try { return format(new Date(yyyyMM + '-02'), 'MMM/yy', { locale: ptBR }).toUpperCase() }
   catch { return yyyyMM }
-}
-
-// Always use projeto_fatura (billing month) so numbers match the app display.
-function mesEfetivo(t: Transacao): string {
-  return (t.projeto_fatura ?? t.data ?? '').substring(0, 7)
 }
 
 function sumTx(txs: Transacao[]) {

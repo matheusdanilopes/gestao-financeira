@@ -3,7 +3,7 @@
 import { format, subMonths, startOfMonth, differenceInMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { createClient } from '@supabase/supabase-js'
-import { computeInsights, formatInsightsAsText } from './insightsEngine'
+import { computeInsights, formatInsightsAsText, getMesEfetivo } from './insightsEngine'
 import { SEMANTIC_DATABASE_MAP } from './semanticMap'
 import { FINANCIAL_GLOSSARY } from './glossary'
 import type { EnrichedData, TelaAtual, Transacao } from './types'
@@ -144,11 +144,6 @@ function topCats(lista: Transacao[], n: number): Array<[string, number]> {
     acc[cat] = (acc[cat] ?? 0) + t.valor
   }
   return Object.entries(acc).sort((a, b) => b[1] - a[1]).slice(0, n)
-}
-
-// Always use projeto_fatura (billing month) — mirrors getMesEfetivo in insightsEngine.ts
-function getMesEfetivo(t: Transacao): string {
-  return (t.projeto_fatura ?? t.data ?? '').substring(0, 7)
 }
 
 // ─── Historical context (tiered detail) ──────────────────────────────────────

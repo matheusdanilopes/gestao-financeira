@@ -40,7 +40,7 @@ function topCategories(lista: Transacao[], total: number, n = 6): CategoryMetric
 // Always use projeto_fatura (billing month) so the AI sees the same numbers
 // as the app. Using data (purchase date) causes a mismatch when the billing
 // cycle closes mid-month: purchases made after cut-off belong to the next bill.
-function getMesEfetivo(t: Transacao): string {
+export function getMesEfetivo(t: Transacao): string {
   return (t.projeto_fatura ?? t.data ?? '').substring(0, 7)
 }
 
