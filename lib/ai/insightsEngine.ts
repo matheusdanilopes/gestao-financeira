@@ -37,14 +37,22 @@ function topCategories(lista: Transacao[], total: number, n = 6): CategoryMetric
     }))
 }
 
-// For a single purchase, use the actual purchase date as the effective month.
-// For installment parcels (total_parcelas > 1), use projeto_fatura so each
-// parcel lands in its correct billing month instead of all in the original month.
-function getMesEfetivo(t: Transacao): string {
-  if (t.total_parcelas && t.total_parcelas > 1) {
-    return (t.projeto_fatura ?? '').substring(0, 7)
-  }
-  return (t.data ?? t.projeto_fatura ?? '').substring(0, 7)
+// Always use projeto_fatura (billing month) so the AI sees the same numbers
+// as the app. Using data (purchase date) causes a mismatch when the billing
+// cycle closes mid-month: purchases made after cut-off belong to the next bill.
+export function getMesEfetivo(t: Transacao): string {
+  return (t.projeto_fatura ?? t.data ?? '').substring(0, 7)
+}
+
+// Maps internal DB identifiers to human-readable card names shown in the app.
+const CARTAO_NOMES: Record<string, string> = {
+  nubank:  'Nubank',
+  cartao1: 'Cartão 1',
+  cartao2: 'Cartão 2',
+}
+export function nomeCartao(cartao: string | null | undefined): string {
+  const id = cartao ?? 'nubank'
+  return CARTAO_NOMES[id] ?? id
 }
 
 export function computeInsights(data: EnrichedData): FinancialInsightsContext {
@@ -112,13 +120,13 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
       valor: t.valor,
       categoria: t.categoria ?? 'Sem categoria',
       responsavel: t.responsavel,
-      cartao: t.cartao ?? 'nubank',
+      cartao: nomeCartao(t.cartao),
     }))
 
   // Spending by card
   const gastoPorCartao: Record<string, number> = {}
   for (const t of txAtual) {
-    const cartao = t.cartao ?? 'nubank'
+    const cartao = nomeCartao(t.cartao)
     gastoPorCartao[cartao] = (gastoPorCartao[cartao] ?? 0) + t.valor
   }
 
@@ -518,7 +526,7 @@ export function formatInsightsAsText(ins: FinancialInsightsContext): string {
 
   out += `\nMAIORES COMPRAS:\n`
   for (const g of ins.maioresGastos) {
-    const cartaoLabel = g.cartao !== 'nubank' ? ` {${g.cartao}}` : ''
+    const cartaoLabel = Object.keys(ins.gastoPorCartao).length > 1 ? ` {${g.cartao}}` : ''
     out += `  ${g.responsavel[0]} ${g.descricao}${cartaoLabel} — ${fmtR(g.valor)} [${g.categoria}]\n`
   }
 

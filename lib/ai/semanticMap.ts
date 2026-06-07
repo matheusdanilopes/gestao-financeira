@@ -15,7 +15,7 @@ Campos:
     ATENÇÃO: não é o mês da compra, mas o mês em que será cobrada
   - categoria: classificação financeira (Alimentação, Transporte, Saúde, etc.)
   - responsavel: "Matheus" ou "Jeniffer" — quem fez a compra
-  - cartao: "nubank" | "cartao1" | "cartao2" — qual cartão foi usado
+  - cartao: "Nubank" | "Cartão 1" | "Cartão 2" — qual cartão foi usado (mapeado de nubank/cartao1/cartao2)
   - parcela_atual / total_parcelas: para compras parceladas
     Ex: parcela_atual=2, total_parcelas=6 = 2ª parcela de 6
 Métrica principal: SUM(valor) GROUP BY projeto_fatura = gasto total da fatura do mês

@@ -15,7 +15,7 @@
 import { format, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { fetchEnrichedData } from './contextBuilder'
-import { computeInsights } from './insightsEngine'
+import { computeInsights, getMesEfetivo as mesEfetivo, nomeCartao } from './insightsEngine'
 import type { EnrichedData, FinancialInsightsContext, Transacao, TelaAtual } from './types'
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -28,12 +28,6 @@ const pct = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`
 const fmtMes = (yyyyMM: string) => {
   try { return format(new Date(yyyyMM + '-02'), 'MMM/yy', { locale: ptBR }).toUpperCase() }
   catch { return yyyyMM }
-}
-
-// Single purchase: use purchase date. Installment: use billing month (projeto_fatura).
-function mesEfetivo(t: Transacao): string {
-  if (t.total_parcelas && t.total_parcelas > 1) return (t.projeto_fatura ?? '').substring(0, 7)
-  return (t.data ?? t.projeto_fatura ?? '').substring(0, 7)
 }
 
 function sumTx(txs: Transacao[]) {
@@ -175,7 +169,7 @@ function buildCardMotor(data: EnrichedData, hoje: Date): string {
 
   const porCartao: Record<string, Transacao[]> = {}
   for (const t of txAtual) {
-    const c = t.cartao ?? 'nubank'
+    const c = nomeCartao(t.cartao)
     if (!porCartao[c]) porCartao[c] = []
     porCartao[c].push(t)
   }
@@ -187,7 +181,7 @@ function buildCardMotor(data: EnrichedData, hoje: Date): string {
 
     const totais6m = Array.from({ length: 6 }, (_, i) => {
       const m = format(subMonths(hoje, i + 1), 'yyyy-MM')
-      return sumTx(data.transacoes.filter(t => mesEfetivo(t) === m && (t.cartao ?? 'nubank') === cartao))
+      return sumTx(data.transacoes.filter(t => mesEfetivo(t) === m && (nomeCartao(t.cartao)) === cartao))
     })
     const validos = totais6m.filter(v => v > 0)
     const media6m = validos.length > 0 ? totais6m.reduce((s, v) => s + v, 0) / validos.length : 0

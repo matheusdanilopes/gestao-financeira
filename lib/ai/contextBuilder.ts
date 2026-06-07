@@ -3,7 +3,7 @@
 import { format, subMonths, startOfMonth, differenceInMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { createClient } from '@supabase/supabase-js'
-import { computeInsights, formatInsightsAsText } from './insightsEngine'
+import { computeInsights, formatInsightsAsText, getMesEfetivo, nomeCartao } from './insightsEngine'
 import { SEMANTIC_DATABASE_MAP } from './semanticMap'
 import { FINANCIAL_GLOSSARY } from './glossary'
 import type { EnrichedData, TelaAtual, Transacao } from './types'
@@ -146,16 +146,6 @@ function topCats(lista: Transacao[], n: number): Array<[string, number]> {
   return Object.entries(acc).sort((a, b) => b[1] - a[1]).slice(0, n)
 }
 
-// ─── Effective month: purchase date for singles, fatura for installments ──────
-// Mirrors getMesEfetivo in insightsEngine.ts
-
-function getMesEfetivo(t: Transacao): string {
-  if (t.total_parcelas && t.total_parcelas > 1) {
-    return (t.projeto_fatura ?? '').substring(0, 7)
-  }
-  return (t.data ?? t.projeto_fatura ?? '').substring(0, 7)
-}
-
 // ─── Historical context (tiered detail) ──────────────────────────────────────
 
 function buildHistoricalContext(
@@ -191,7 +181,7 @@ function buildHistoricalContext(
   let ctx = ''
 
   // Detect which cards appear across all transactions (used to decide whether to show card labels)
-  const allCards = new Set(data.transacoes.map(t => t.cartao ?? 'nubank'))
+  const allCards = new Set(data.transacoes.map(t => nomeCartao(t.cartao)))
   const multiCartao = allCards.size > 1
 
   // Full detail months
@@ -212,7 +202,7 @@ function buildHistoricalContext(
       if (multiCartao) {
         const porCartao: Record<string, number> = {}
         for (const t of lista) {
-          const c = t.cartao ?? 'nubank'
+          const c = nomeCartao(t.cartao)
           porCartao[c] = (porCartao[c] ?? 0) + t.valor
         }
         ctx += `  Por cartão: ${Object.entries(porCartao).map(([c, v]) => `${c} ${fmtR(v)}`).join(' | ')}\n`
@@ -226,7 +216,7 @@ function buildHistoricalContext(
       const top = [...lista].sort((a, b) => b.valor - a.valor).slice(0, 10)
       ctx += `  Maiores compras:\n`
       for (const t of top) {
-        const cartaoLabel = multiCartao ? ` [${t.cartao ?? 'nubank'}]` : ''
+        const cartaoLabel = multiCartao ? ` [${nomeCartao(t.cartao)}]` : ''
         ctx += `    ${(t.responsavel ?? '?')[0]} ${t.descricao}${cartaoLabel} ${fmtR(t.valor)}${t.categoria ? ` (${t.categoria})` : ''}\n`
       }
     }
@@ -248,7 +238,7 @@ function buildHistoricalContext(
       let line = `  ${fmtMes(m)}: ${fmtR(total)} — ${cats}`
       if (multiCartao) {
         const porCartao: Record<string, number> = {}
-        for (const t of lista) { const c = t.cartao ?? 'nubank'; porCartao[c] = (porCartao[c] ?? 0) + t.valor }
+        for (const t of lista) { const c = nomeCartao(t.cartao); porCartao[c] = (porCartao[c] ?? 0) + t.valor }
         line += ` | cartões: ${Object.entries(porCartao).map(([c, v]) => `${c} ${fmtR(v)}`).join(', ')}`
       }
       ctx += line + '\n'
@@ -337,7 +327,7 @@ function buildCategoryFocus(
   // Per-card totals
   const porCartao: Record<string, number> = {}
   for (const t of allFocused) {
-    const c = t.cartao ?? 'nubank'
+    const c = nomeCartao(t.cartao)
     porCartao[c] = (porCartao[c] ?? 0) + t.valor
   }
   const multiCard = Object.keys(porCartao).length > 1
@@ -369,7 +359,7 @@ function buildCategoryFocus(
   const topTx = [...txForMes].sort((a, b) => b.valor - a.valor).slice(0, 10)
   ctx += `  Transações${responsavelFoco ? ` (${responsavelFoco})` : ''}:\n`
   for (const t of topTx) {
-    const cartaoLabel = multiCard ? ` [${t.cartao ?? 'nubank'}]` : ''
+    const cartaoLabel = multiCard ? ` [${nomeCartao(t.cartao)}]` : ''
     const mesLabel = getMesEfetivo(t)
     ctx += `    ${(t.responsavel ?? '?')[0]} ${t.descricao}${cartaoLabel} — ${fmtR(t.valor)} (${fmtMes(mesLabel)}) [${t.categoria ?? 'sem cat'}]\n`
   }

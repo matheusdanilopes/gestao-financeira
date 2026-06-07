@@ -294,7 +294,7 @@ export default function ChatPage() {
       })
       const data = await res.json()
 
-      if (data.conversation_id && !convIdRef.current) {
+      if (data.conversation_id && convIdRef.current !== data.conversation_id) {
         convIdRef.current = data.conversation_id
         try { localStorage.setItem(convIdKey(userIdRef.current), data.conversation_id) } catch { /* ignore */ }
       }
