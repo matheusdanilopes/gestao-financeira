@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
-import { buildAIContext } from '@/lib/ai/contextBuilder'
+import { buildChatContext } from '@/lib/ai/financialContextEngine'
 import { buildSystemPrompt } from '@/lib/ai/prompts'
 import type { TelaAtual } from '@/lib/ai/types'
 
@@ -231,7 +231,8 @@ export async function POST(req: NextRequest) {
 
     const summaryPreamble = contextoConversa.find(m => m.role === 'system')
 
-    const contextoFinanceiro = await buildAIContext(userId, perguntaSafe, tela)
+    const isFirstMessage = contextoConversa.filter(m => m.role !== 'system').length === 0
+    const contextoFinanceiro = await buildChatContext({ userId, pergunta: perguntaSafe, isFirstMessage, tela })
     const systemPrompt = buildSystemPrompt(contextoFinanceiro, summaryPreamble?.content)
 
     const resposta = await geminiChat(apiKey, systemPrompt, mensagensParaIA)
