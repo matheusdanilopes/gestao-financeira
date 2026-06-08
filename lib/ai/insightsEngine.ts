@@ -183,12 +183,18 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
   const planTotalByCalMes: Record<string, number> = {}
   for (const p of data.planejamento) {
     const calMes = (p.mes_referencia ?? '').substring(0, 7)
+    if (!/^\d{4}-\d{2}$/.test(calMes)) continue   // skip rows with invalid/missing mes_referencia
     const item = typeof p.item === 'string' ? p.item : ''
     if (PLAN_EXCLUDE.has(item) || item.startsWith('[RECEITA]') || item.startsWith('[CARTAO1]') || item.startsWith('[CARTAO2]')) continue
-    planTotalByCalMes[calMes] = (planTotalByCalMes[calMes] ?? 0) + p.valor_previsto
+    planTotalByCalMes[calMes] = (planTotalByCalMes[calMes] ?? 0) + (p.valor_previsto ?? 0)
   }
-  const planForBilling = (billingMes: string): number =>
-    planTotalByCalMes[format(subMonths(new Date(billingMes + '-02'), 1), 'yyyy-MM')] ?? 0
+  // Use explicit year/month constructor to avoid timezone-related date shifts;
+  // validate billingMes format first to prevent RangeError from date-fns.
+  const planForBilling = (billingMes: string): number => {
+    if (!billingMes || !/^\d{4}-\d{2}$/.test(billingMes)) return 0
+    const [year, month] = billingMes.split('-').map(Number)
+    return planTotalByCalMes[format(subMonths(new Date(year, month - 1, 2), 1), 'yyyy-MM')] ?? 0
+  }
 
   // Combined previous month total (card fatura + fixed planned expenses).
   // If a month has no card charges, the plan total alone is used.
