@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, memo } from 'react'
 import ModalPortal from '@/components/ModalPortal'
 import {
   Send, Sparkles, User, Trash2, Plus, History, X,
-  MessageSquare, ChevronRight, TrendingUp, BarChart2, Calendar, PieChart,
+  MessageSquare, TrendingUp, BarChart2, Calendar, PieChart,
   MoreHorizontal,
 } from 'lucide-react'
 import NotificacoesBell from '@/components/NotificacoesBell'
@@ -166,6 +166,7 @@ export default function ChatPage() {
   const [carregandoConversas, setCarregandoConversas] = useState(false)
   const [overflowOpen, setOverflowOpen] = useState(false)
   const [compactHeader, setCompactHeader] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const fimRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -234,8 +235,22 @@ export default function ChatPage() {
     return () => el.removeEventListener('scroll', onScroll)
   }, [])
 
+  async function deletarConversaEspecifica(convId: string) {
+    const eraCurrent = convIdRef.current === convId
+    if (eraCurrent) novaConversa()
+    setConversas(prev => prev.filter(c => c.id !== convId))
+    setConfirmDeleteId(null)
+    try {
+      await fetch(
+        `/api/chat/conversations?conversation_id=${encodeURIComponent(convId)}&user_id=${encodeURIComponent(userIdRef.current)}`,
+        { method: 'DELETE' }
+      )
+    } catch { /* silencioso */ }
+  }
+
   async function abrirDrawer() {
     setOverflowOpen(false)
+    setConfirmDeleteId(null)
     setDrawerAberto(true)
     setCarregandoConversas(true)
     try {
@@ -379,7 +394,7 @@ export default function ChatPage() {
         <ModalPortal>
           <div
             className="fixed inset-0 z-[190] bg-black/30 backdrop-blur-sm"
-            onClick={() => setDrawerAberto(false)}
+            onClick={() => { setDrawerAberto(false); setConfirmDeleteId(null) }}
           />
         </ModalPortal>
       )}
@@ -393,7 +408,7 @@ export default function ChatPage() {
               <span className="font-semibold text-gray-800 dark:text-gray-200 text-sm">Conversas anteriores</span>
             </div>
             <button
-              onClick={() => setDrawerAberto(false)}
+              onClick={() => { setDrawerAberto(false); setConfirmDeleteId(null) }}
               className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 transition"
             >
               <X className="w-4 h-4" />
@@ -424,37 +439,64 @@ export default function ChatPage() {
               <ul className="space-y-0.5 px-2">
                 {conversas.map((conv) => {
                   const ativa = conv.id === convIdRef.current
+                  const confirmando = confirmDeleteId === conv.id
                   return (
                     <li key={conv.id}>
-                      <button
-                        onClick={() => selecionarConversa(conv)}
-                        className={`w-full text-left px-3 py-3 rounded-xl transition flex items-start gap-2.5 group ${
+                      {confirmando ? (
+                        <div className="px-3 py-2.5 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 flex items-center justify-between gap-2">
+                          <p className="text-xs text-red-600 dark:text-red-400 font-medium">Excluir esta conversa?</p>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="text-xs text-gray-500 dark:text-gray-400 px-2.5 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                            >
+                              Não
+                            </button>
+                            <button
+                              onClick={() => deletarConversaEspecifica(conv.id)}
+                              className="text-xs text-white bg-red-500 hover:bg-red-600 px-2.5 py-1 rounded-lg transition font-medium"
+                            >
+                              Excluir
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className={`flex items-center rounded-xl transition ${
                           ativa
                             ? 'bg-primary-50 dark:bg-primary-900/30 border border-primary-100 dark:border-primary-800'
                             : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                        }`}
-                      >
-                        <div className={`mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
-                          ativa ? 'bg-primary-100 dark:bg-primary-900' : 'bg-gray-100 dark:bg-gray-700'
                         }`}>
-                          <Sparkles className={`w-3.5 h-3.5 ${ativa ? 'text-primary-500' : 'text-gray-400 dark:text-gray-500'}`} />
+                          <button
+                            onClick={() => selecionarConversa(conv)}
+                            className="flex-1 text-left px-3 py-3 flex items-start gap-2.5 min-w-0"
+                          >
+                            <div className={`mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+                              ativa ? 'bg-primary-100 dark:bg-primary-900' : 'bg-gray-100 dark:bg-gray-700'
+                            }`}>
+                              <Sparkles className={`w-3.5 h-3.5 ${ativa ? 'text-primary-500' : 'text-gray-400 dark:text-gray-500'}`} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-xs font-medium truncate ${
+                                ativa ? 'text-primary-700 dark:text-primary-400' : 'text-gray-700 dark:text-gray-300'
+                              }`}>
+                                {conv.preview}
+                              </p>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-[10px] text-gray-400">{formatarData(conv.created_at)}</span>
+                                <span className="text-[10px] text-gray-300 dark:text-gray-600">·</span>
+                                <span className="text-[10px] text-gray-400">{conv.message_count} msgs</span>
+                              </div>
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteId(conv.id)}
+                            aria-label="Excluir conversa"
+                            className="p-2 mr-1.5 rounded-lg text-gray-300 dark:text-gray-600 hover:text-red-500 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-900/30 transition shrink-0"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-xs font-medium truncate ${
-                            ativa ? 'text-primary-700 dark:text-primary-400' : 'text-gray-700 dark:text-gray-300'
-                          }`}>
-                            {conv.preview}
-                          </p>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className="text-[10px] text-gray-400">{formatarData(conv.created_at)}</span>
-                            <span className="text-[10px] text-gray-300 dark:text-gray-600">·</span>
-                            <span className="text-[10px] text-gray-400">{conv.message_count} msgs</span>
-                          </div>
-                        </div>
-                        <ChevronRight className={`w-3.5 h-3.5 shrink-0 mt-1 transition ${
-                          ativa ? 'text-primary-300' : 'text-gray-300 group-hover:text-gray-400'
-                        }`} />
-                      </button>
+                      )}
                     </li>
                   )
                 })}
