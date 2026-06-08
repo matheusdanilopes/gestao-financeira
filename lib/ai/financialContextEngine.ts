@@ -99,10 +99,13 @@ function buildSnapshotLayer(m: FinancialInsightsContext): string {
   const vsHist = m.mediaMensalHistorica > 0
     ? ` | vs média 6m: ${pct(((m.totalGastos - m.mediaMensalHistorica) / m.mediaMensalHistorica) * 100)}`
     : ''
+  // totalMes = faturas cartão + despesas fixas planejadas (= "Gastos" exibido no dashboard)
+  const totalMes = m.totalGastos + m.totalOrcado
   const lines = [
     `SNAPSHOT ${m.mesAtual} (Dia ${m.diaAtual}):`,
-    `Gastos: ${R(m.totalGastos)}${vsAnt}${vsHist}`,
-    `Matheus: ${R(m.gastoMatheus)} | Jeniffer: ${R(m.gastoJeniffer)}`,
+    `Total do mês: ${R(totalMes)} = faturas cartão ${R(m.totalGastos)} + fixas planejadas ${R(m.totalOrcado)}`,
+    `Faturas cartão: ${R(m.totalGastos)}${vsAnt}${vsHist}`,
+    `Por responsável (cartão): Matheus ${R(m.gastoMatheus)} | Jeniffer ${R(m.gastoJeniffer)}`,
   ]
   if (m.totalAportesHistorico > 0) lines.push(`Investimentos total histórico: ${R(m.totalAportesHistorico)}`)
   return lines.join('\n')

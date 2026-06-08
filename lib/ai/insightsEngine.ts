@@ -245,8 +245,10 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
     Math.abs(tendenciaPct) < 5 ? 'estavel' : tendenciaPct > 0 ? 'alta' : 'baixa'
 
   return {
-    mesAtual: fmtMes(mesFatura),
-    mesAnterior: fmtMes(mesFaturaAnterior),
+    // Use calendar-month labels so the AI matches what the user sees in the dashboard
+    // ("Junho 2026"), even though card transactions are filtered by billing period (mesFatura).
+    mesAtual: fmtMes(mesCalendario),
+    mesAnterior: fmtMes(format(subMonths(hoje, 1), 'yyyy-MM')),
     diaAtual,
     totalGastos,
     totalGastosAnterior,
@@ -478,11 +480,14 @@ export function serializeInsightsCompact(ins: FinancialInsightsContext): string 
 
   const invTotal = ins.aportesRecentes.reduce((s, a) => s + a.valor, 0)
 
+  const totalMesCompact = ins.totalGastos + ins.totalOrcado
   const payload: Record<string, unknown> = {
     mes: ins.mesAtual,
     ant: ins.mesAnterior,
     dia: ins.diaAtual,
-    gasto: r2(ins.totalGastos),
+    // totalMes = faturas + fixas (matches "Gastos" shown on dashboard)
+    totalMes: r2(totalMesCompact),
+    gasto: r2(ins.totalGastos),   // card fatura only
     prev: r2(ins.totalGastosAnterior),
     varPct: Math.round(ins.variacaoGastos * 10) / 10,
     M: r2(ins.gastoMatheus),
@@ -533,12 +538,18 @@ export function formatInsightsAsText(ins: FinancialInsightsContext): string {
   let out = `\nMÉTRICAS FINANCEIRAS — ${ins.mesAtual}\n`
   out += `${'─'.repeat(50)}\n`
 
-  out += `GASTOS DO MÊS: ${fmtR(ins.totalGastos)}`
+  // Total = faturas (cartão) + despesas fixas planejadas — matches "Gastos" in the dashboard
+  const totalMes = ins.totalGastos + ins.totalOrcado
+  if (ins.totalOrcado > 0) {
+    out += `TOTAL DO MÊS: ${fmtR(totalMes)} (faturas cartão ${fmtR(ins.totalGastos)} + fixas ${fmtR(ins.totalOrcado)})\n`
+  }
+
+  out += `\nFATURAS CARTÃO (${ins.mesAtual}): ${fmtR(ins.totalGastos)}`
   if (ins.totalGastosAnterior > 0) {
     out += ` (${signPct(ins.variacaoGastos)} vs ${ins.mesAnterior}: ${fmtR(ins.totalGastosAnterior)})`
   }
   out += `\n`
-  out += `  Matheus: ${fmtR(ins.gastoMatheus)} | Jeniffer: ${fmtR(ins.gastoJeniffer)}\n`
+  out += `  Por responsável: Matheus ${fmtR(ins.gastoMatheus)} | Jeniffer ${fmtR(ins.gastoJeniffer)}\n`
 
   if (Object.keys(ins.gastoPorCartao).length > 1) {
     out += `  Por cartão: ${Object.entries(ins.gastoPorCartao).map(([c, v]) => `${c} ${fmtR(v)}`).join(' | ')}\n`

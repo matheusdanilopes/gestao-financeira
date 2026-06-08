@@ -38,7 +38,13 @@ Gere EXATAMENTE 4 insights em JSON. Responda APENAS com o array JSON, sem texto 
   }
 ]
 
+Glossário dos campos:
+- "totalMes": total do mês = faturas cartão + despesas fixas (o que o dashboard chama de "Gastos")
+- "gasto": apenas as faturas de cartão (subset de totalMes)
+- "orc[0]": total das despesas fixas planejadas | "orc[1]": já pago | "orc[2]": em aberto
+
 Regras:
+- Ao responder "total de despesas" use sempre "totalMes", não "gasto" isolado.
 - nivel "alerta": risco financeiro real. "positivo": conquista ou economia. "info": dado neutro. "sugestao": oportunidade de melhora.
 - "categoria": classifique a área do insight — "gastos" (transações/compras), "orcamento" (planejamento/vencimentos), "investimentos" (aportes/carteira), "assinaturas" (serviços recorrentes).
 - Priorize: desvios de gastos vs histórico, categoria com maior crescimento, aderência ao orçamento, tendência de 3 meses.
