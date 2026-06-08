@@ -85,14 +85,8 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
   const txAnterior = byMes[mesFaturaAnterior] ?? []
 
   const totalGastos = sumValor(txAtual)
-  const totalGastosAnterior = sumValor(txAnterior)
-  // Guard: if the new billing period has no transactions yet (first days of the
-  // month before the closing date), avoid a false -100% MoM signal.
-  const variacaoGastos =
-    txAtual.length === 0 ? 0
-    : totalGastosAnterior > 0
-      ? ((totalGastos - totalGastosAnterior) / totalGastosAnterior) * 100
-      : 0
+  // totalGastosAnterior and variacaoGastos are computed below, after
+  // planTotalByCalMes is built (they need combined card + plan figures).
 
   // Spending by person
   const gastoMatheus = sumValor(txAtual.filter(t => t.responsavel === 'Matheus'))
@@ -181,6 +175,34 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
     .reduce((s, p) => s + p.valor_previsto, 0)
   const despesasEmAberto = totalOrcado - totalPago
 
+  // ── Planning totals for ALL months ───────────────────────────────────────────
+  // Same exclusion rules as planAtual, across every mes_referencia.
+  // Billing period M corresponds to calendar month subMonths(M, 1):
+  //   mesFatura '2026-07' → calendar '2026-06' (current, = mesCalendario)
+  //   meses6[0] '2026-06' → calendar '2026-05' (previous month)
+  const planTotalByCalMes: Record<string, number> = {}
+  for (const p of data.planejamento) {
+    const calMes = (p.mes_referencia ?? '').substring(0, 7)
+    const item = typeof p.item === 'string' ? p.item : ''
+    if (PLAN_EXCLUDE.has(item) || item.startsWith('[RECEITA]') || item.startsWith('[CARTAO1]') || item.startsWith('[CARTAO2]')) continue
+    planTotalByCalMes[calMes] = (planTotalByCalMes[calMes] ?? 0) + p.valor_previsto
+  }
+  const planForBilling = (billingMes: string): number =>
+    planTotalByCalMes[format(subMonths(new Date(billingMes + '-02'), 1), 'yyyy-MM')] ?? 0
+
+  // Combined previous month total (card fatura + fixed planned expenses).
+  // If a month has no card charges, the plan total alone is used.
+  const totalGastosAnterior = sumValor(txAnterior) + planForBilling(mesFaturaAnterior)
+
+  // Variance uses combined totals (card + plan) so it matches what the
+  // dashboard shows as "Gastos" for each month.
+  const totalMesAtual = totalGastos + totalOrcado
+  const variacaoGastos =
+    totalMesAtual === 0 ? 0
+    : totalGastosAnterior > 0
+      ? ((totalMesAtual - totalGastosAnterior) / totalGastosAnterior) * 100
+      : 0
+
   const diaAtual = hoje.getDate()
   const hojeStr = format(hoje, 'yyyy-MM-dd')
   const em7diasStr = format(addDays(hoje, 7), 'yyyy-MM-dd')
@@ -228,16 +250,18 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
   const meses6 = Array.from({ length: 6 }, (_, i) =>
     format(subMonths(addMonths(hoje, 1), i + 1), 'yyyy-MM')
   )
-  const totaisMeses6 = meses6.map(m => sumValor(byMes[m] ?? []))
+  // Combined historical totals: card fatura + planning for each billing period.
+  // If a month had no card charges (e.g. a fully PIX month), only plan is counted.
+  const totaisMeses6 = meses6.map(m => sumValor(byMes[m] ?? []) + planForBilling(m))
+  const valoresMeses6ComDados = totaisMeses6.filter(v => v > 0)
   const mediaMensalHistorica =
-    totaisMeses6.filter(v => v > 0).length > 0
-      ? totaisMeses6.reduce((s, v) => s + v, 0) /
-        totaisMeses6.filter(v => v > 0).length
+    valoresMeses6ComDados.length > 0
+      ? valoresMeses6ComDados.reduce((s, v) => s + v, 0) / valoresMeses6ComDados.length
       : 0
 
-  // Trend: last 3 months vs 3 months before
-  const u3 = meses6.slice(0, 3).map(m => sumValor(byMes[m] ?? []))
-  const a3 = meses6.slice(3, 6).map(m => sumValor(byMes[m] ?? []))
+  // Trend: last 3 months vs 3 months before (combined card + plan)
+  const u3 = meses6.slice(0, 3).map(m => sumValor(byMes[m] ?? []) + planForBilling(m))
+  const a3 = meses6.slice(3, 6).map(m => sumValor(byMes[m] ?? []) + planForBilling(m))
   const mediaU3 = u3.reduce((s, v) => s + v, 0) / 3
   const mediaA3 = a3.reduce((s, v) => s + v, 0) / 3
   const tendenciaPct = mediaA3 > 0 ? ((mediaU3 - mediaA3) / mediaA3) * 100 : 0

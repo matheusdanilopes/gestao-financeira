@@ -95,17 +95,19 @@ function buildPerfilLayer(data: EnrichedData): string {
 // ─── Camada 2: Snapshot Financeiro ───────────────────────────────────────────
 
 function buildSnapshotLayer(m: FinancialInsightsContext): string {
-  const vsAnt = m.totalGastosAnterior > 0 ? ` | vs ${m.mesAnterior}: ${pct(m.variacaoGastos)}` : ''
-  const vsHist = m.mediaMensalHistorica > 0
-    ? ` | vs média 6m: ${pct(((m.totalGastos - m.mediaMensalHistorica) / m.mediaMensalHistorica) * 100)}`
-    : ''
-  // totalMes = faturas cartão + despesas fixas planejadas (= "Gastos" exibido no dashboard)
+  // totalMes = faturas cartão + fixas planejadas — same as "Gastos" on the dashboard
   const totalMes = m.totalGastos + m.totalOrcado
+  const vsAnt = m.totalGastosAnterior > 0
+    ? ` | vs ${m.mesAnterior}: ${R(m.totalGastosAnterior)} (${pct(m.variacaoGastos)})`
+    : ''
+  const vsHist = m.mediaMensalHistorica > 0
+    ? ` | média 6m: ${R(m.mediaMensalHistorica)}`
+    : ''
   const lines = [
     `SNAPSHOT ${m.mesAtual} (Dia ${m.diaAtual}):`,
-    `Total do mês: ${R(totalMes)} = faturas cartão ${R(m.totalGastos)} + fixas planejadas ${R(m.totalOrcado)}`,
-    `Faturas cartão: ${R(m.totalGastos)}${vsAnt}${vsHist}`,
-    `Por responsável (cartão): Matheus ${R(m.gastoMatheus)} | Jeniffer ${R(m.gastoJeniffer)}`,
+    `Total do mês: ${R(totalMes)}${vsAnt}${vsHist}`,
+    `  Faturas cartão: ${R(m.totalGastos)} | Fixas planejadas: ${R(m.totalOrcado)}`,
+    `  Por responsável (cartão): Matheus ${R(m.gastoMatheus)} | Jeniffer ${R(m.gastoJeniffer)}`,
   ]
   if (m.totalAportesHistorico > 0) lines.push(`Investimentos total histórico: ${R(m.totalAportesHistorico)}`)
   return lines.join('\n')
@@ -487,9 +489,10 @@ export async function buildChatContext({
     const baseCtx   = buildFullContext(validatedData, m, hoje, tela)
     const certBlock = formatCertificateForAI(certificate)
 
-    // Anti-distortion motor (RN13): absolute + % + comparison base
+    // Anti-distortion motor (RN13): uses combined total (card + plan) so it
+    // matches the "Gastos" figure the user sees on the dashboard.
     const antiDistortion = buildAntiDistortionSection(
-      m.totalGastos,
+      m.totalGastos + m.totalOrcado,
       m.totalGastosAnterior,
       m.mediaMensalHistorica,
       m.mesAtual,
