@@ -1,6 +1,6 @@
 // Pre-computes financial metrics from raw data to avoid raw data dumps to AI
 
-import { format, subMonths, addDays } from 'date-fns'
+import { format, subMonths, addMonths, addDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type {
   EnrichedData,
@@ -57,10 +57,23 @@ export function nomeCartao(cartao: string | null | undefined): string {
 
 export function computeInsights(data: EnrichedData): FinancialInsightsContext {
   const hoje = new Date()
-  const mesAtual = format(hoje, 'yyyy-MM')
-  const mesAnterior = format(subMonths(hoje, 1), 'yyyy-MM')
 
-  // Group by effective month: purchase date for singles, fatura month for parcels
+  // Credit-card billing convention (mirrors the dashboard):
+  //   mesCalendario = calendar month for planning queries (mes_referencia)
+  //   mesFatura     = the billing period currently accumulating charges
+  //
+  // Purchases made AFTER the monthly closing date are assigned to the NEXT
+  // calendar month's statement (projeto_fatura = next month).  The dashboard
+  // shows this next-month period as the "current" fatura, so we do the same.
+  //
+  // Example (closing = 3rd, today = 7 June):
+  //   June bill (2026-06) → closed 3 Jun → contains May-4 … Jun-3 purchases
+  //   July bill (2026-07) → currently open → contains Jun-4 … now purchases  ← correct "current"
+  const mesCalendario = format(hoje, 'yyyy-MM')           // for planejamento
+  const mesFatura     = format(addMonths(hoje, 1), 'yyyy-MM')  // current open bill
+  const mesFaturaAnterior = mesCalendario                  // last closed bill
+
+  // Group by effective month: projeto_fatura for parcels, data for singles
   const byMes: Record<string, Transacao[]> = {}
   for (const t of data.transacoes) {
     const m = getMesEfetivo(t)
@@ -68,13 +81,16 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
     byMes[m].push(t)
   }
 
-  const txAtual = byMes[mesAtual] ?? []
-  const txAnterior = byMes[mesAnterior] ?? []
+  const txAtual    = byMes[mesFatura]         ?? []
+  const txAnterior = byMes[mesFaturaAnterior] ?? []
 
   const totalGastos = sumValor(txAtual)
   const totalGastosAnterior = sumValor(txAnterior)
+  // Guard: if the new billing period has no transactions yet (first days of the
+  // month before the closing date), avoid a false -100% MoM signal.
   const variacaoGastos =
-    totalGastosAnterior > 0
+    txAtual.length === 0 ? 0
+    : totalGastosAnterior > 0
       ? ((totalGastos - totalGastosAnterior) / totalGastosAnterior) * 100
       : 0
 
@@ -145,10 +161,20 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
     assinaturasPorCategoria[a.categoria] = (assinaturasPorCategoria[a.categoria] ?? 0) + a.valor
   }
 
-  // Planning for current month
-  const planAtual = data.planejamento.filter(
-    p => (p.mes_referencia ?? '').substring(0, 7) === mesAtual
-  )
+  // Planning for current calendar month — mirrors the exclusion list used by
+  // the financas page (calcularSaldo) and ChecklistMensal:
+  //   - [RECEITA]* / "Receita Total" → income entries, not expenses
+  //   - NuBank items               → credit-card bill settlements
+  //   - [CARTAO1]* / [CARTAO2]*   → per-card instalment tracking rows
+  const PLAN_EXCLUDE = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto', 'Receita Total'])
+  const planAtual = data.planejamento.filter(p => {
+    if ((p.mes_referencia ?? '').substring(0, 7) !== mesCalendario) return false
+    const item = typeof p.item === 'string' ? p.item : ''
+    return !PLAN_EXCLUDE.has(item)
+      && !item.startsWith('[RECEITA]')
+      && !item.startsWith('[CARTAO1]')
+      && !item.startsWith('[CARTAO2]')
+  })
   const totalOrcado = planAtual.reduce((s, p) => s + p.valor_previsto, 0)
   const totalPago = planAtual
     .filter(p => p.data_pagamento)
@@ -198,9 +224,9 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
       }
     })
 
-  // Historical average (last 6 months excluding current)
+  // Historical average: last 6 closed billing periods (excludes current open bill)
   const meses6 = Array.from({ length: 6 }, (_, i) =>
-    format(subMonths(hoje, i + 1), 'yyyy-MM')
+    format(subMonths(addMonths(hoje, 1), i + 1), 'yyyy-MM')
   )
   const totaisMeses6 = meses6.map(m => sumValor(byMes[m] ?? []))
   const mediaMensalHistorica =
@@ -219,8 +245,10 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
     Math.abs(tendenciaPct) < 5 ? 'estavel' : tendenciaPct > 0 ? 'alta' : 'baixa'
 
   return {
-    mesAtual: fmtMes(mesAtual),
-    mesAnterior: fmtMes(mesAnterior),
+    // Use calendar-month labels so the AI matches what the user sees in the dashboard
+    // ("Junho 2026"), even though card transactions are filtered by billing period (mesFatura).
+    mesAtual: fmtMes(mesCalendario),
+    mesAnterior: fmtMes(format(subMonths(hoje, 1), 'yyyy-MM')),
     diaAtual,
     totalGastos,
     totalGastosAnterior,
@@ -406,7 +434,7 @@ export function generateFallbackInsights(ins: FinancialInsightsContext): Insight
     const isAlta = ins.tendencia === 'alta'
     const isBaixa = ins.tendencia === 'baixa'
     items.push({
-      icone: isAlta ? '📉' : isBaixa ? '📈' : '➡️',
+      icone: isAlta ? '📈' : isBaixa ? '📉' : '➡️',
       titulo: isAlta
         ? `Tendência de alta nos gastos`
         : isBaixa
@@ -452,11 +480,14 @@ export function serializeInsightsCompact(ins: FinancialInsightsContext): string 
 
   const invTotal = ins.aportesRecentes.reduce((s, a) => s + a.valor, 0)
 
+  const totalMesCompact = ins.totalGastos + ins.totalOrcado
   const payload: Record<string, unknown> = {
     mes: ins.mesAtual,
     ant: ins.mesAnterior,
     dia: ins.diaAtual,
-    gasto: r2(ins.totalGastos),
+    // totalMes = faturas + fixas (matches "Gastos" shown on dashboard)
+    totalMes: r2(totalMesCompact),
+    gasto: r2(ins.totalGastos),   // card fatura only
     prev: r2(ins.totalGastosAnterior),
     varPct: Math.round(ins.variacaoGastos * 10) / 10,
     M: r2(ins.gastoMatheus),
@@ -507,12 +538,18 @@ export function formatInsightsAsText(ins: FinancialInsightsContext): string {
   let out = `\nMÉTRICAS FINANCEIRAS — ${ins.mesAtual}\n`
   out += `${'─'.repeat(50)}\n`
 
-  out += `GASTOS DO MÊS: ${fmtR(ins.totalGastos)}`
+  // Total = faturas (cartão) + despesas fixas planejadas — matches "Gastos" in the dashboard
+  const totalMes = ins.totalGastos + ins.totalOrcado
+  if (ins.totalOrcado > 0) {
+    out += `TOTAL DO MÊS: ${fmtR(totalMes)} (faturas cartão ${fmtR(ins.totalGastos)} + fixas ${fmtR(ins.totalOrcado)})\n`
+  }
+
+  out += `\nFATURAS CARTÃO (${ins.mesAtual}): ${fmtR(ins.totalGastos)}`
   if (ins.totalGastosAnterior > 0) {
     out += ` (${signPct(ins.variacaoGastos)} vs ${ins.mesAnterior}: ${fmtR(ins.totalGastosAnterior)})`
   }
   out += `\n`
-  out += `  Matheus: ${fmtR(ins.gastoMatheus)} | Jeniffer: ${fmtR(ins.gastoJeniffer)}\n`
+  out += `  Por responsável: Matheus ${fmtR(ins.gastoMatheus)} | Jeniffer ${fmtR(ins.gastoJeniffer)}\n`
 
   if (Object.keys(ins.gastoPorCartao).length > 1) {
     out += `  Por cartão: ${Object.entries(ins.gastoPorCartao).map(([c, v]) => `${c} ${fmtR(v)}`).join(' | ')}\n`

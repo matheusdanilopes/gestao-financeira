@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
 import { fetchEnrichedData, clearEnrichedDataCache } from '@/lib/ai/contextBuilder'
 import { computeInsights, serializeInsightsCompact, generateFallbackInsights } from '@/lib/ai/insightsEngine'
+import { validateFinancialData } from '@/lib/ai/financialValidationEngine'
 import type { InsightItem, InsightsResponse } from '@/lib/insightsTypes'
 
 export type { InsightItem, InsightsResponse }
@@ -19,10 +20,10 @@ const CATEGORIA_ACTION: Record<string, { label: string; route: string }> = {
   assinaturas:   { label: 'Ver assinaturas',   route: '/assinaturas' },
 }
 
-const buildPrompt = (payload: string) =>
+const buildPrompt = (payload: string, confiabilidade: number) =>
   `Você é analista financeiro do casal Matheus (M) e Jeniffer (J).
 
-Dados financeiros (campo "dia" = dia atual do mês):
+Dados financeiros auditados (confiabilidade: ${confiabilidade}% | campo "dia" = dia atual do mês):
 ${payload}
 
 Gere EXATAMENTE 4 insights em JSON. Responda APENAS com o array JSON, sem texto antes ou depois:
@@ -37,7 +38,13 @@ Gere EXATAMENTE 4 insights em JSON. Responda APENAS com o array JSON, sem texto 
   }
 ]
 
+Glossário dos campos:
+- "totalMes": total do mês = faturas cartão + despesas fixas (o que o dashboard chama de "Gastos")
+- "gasto": apenas as faturas de cartão (subset de totalMes)
+- "orc[0]": total das despesas fixas planejadas | "orc[1]": já pago | "orc[2]": em aberto
+
 Regras:
+- Ao responder "total de despesas" use sempre "totalMes", não "gasto" isolado.
 - nivel "alerta": risco financeiro real. "positivo": conquista ou economia. "info": dado neutro. "sugestao": oportunidade de melhora.
 - "categoria": classifique a área do insight — "gastos" (transações/compras), "orcamento" (planejamento/vencimentos), "investimentos" (aportes/carteira), "assinaturas" (serviços recorrentes).
 - Priorize: desvios de gastos vs histórico, categoria com maior crescimento, aderência ao orçamento, tendência de 3 meses.
@@ -46,7 +53,7 @@ Regras:
 - Se "dia" < 15 e % pago do orçamento for baixo (orc[1]/orc[0]): não trate como alerta — é início do mês.
 - Use valores reais dos dados — nunca invente números.`
 
-async function callGemini(compactPayload: string): Promise<InsightItem[]> {
+async function callGemini(compactPayload: string, confiabilidade: number): Promise<InsightItem[]> {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) throw new Error('GEMINI_API_KEY não configurada')
 
@@ -54,7 +61,7 @@ async function callGemini(compactPayload: string): Promise<InsightItem[]> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: buildPrompt(compactPayload) }] }],
+      contents: [{ role: 'user', parts: [{ text: buildPrompt(compactPayload, confiabilidade) }] }],
       generationConfig: { maxOutputTokens: 1024, temperature: 0.3 },
     }),
   })
@@ -70,11 +77,17 @@ async function callGemini(compactPayload: string): Promise<InsightItem[]> {
   const raw: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '[]'
 
   // Gemini may prepend prose ("Aqui estão os insights:\n[...]") or wrap in
-  // markdown fences. Extract the first complete [...] block regardless of
-  // surrounding text to get clean parseable JSON.
+  // markdown fences. Extract the first complete [...] block via bracket depth
+  // so trailing bracketed content (citations, footnotes) is not included.
   const start = raw.indexOf('[')
-  const end = raw.lastIndexOf(']')
-  if (start === -1 || end <= start) throw new Error(`JSON array not found in Gemini response: ${raw.slice(0, 100)}`)
+  if (start === -1) throw new Error(`JSON array not found in Gemini response: ${raw.slice(0, 100)}`)
+  let depth = 0
+  let end = -1
+  for (let i = start; i < raw.length; i++) {
+    if (raw[i] === '[') depth++
+    else if (raw[i] === ']') { depth--; if (depth === 0) { end = i; break } }
+  }
+  if (end === -1) throw new Error(`Unclosed JSON array in Gemini response: ${raw.slice(0, 100)}`)
   const parsed: Array<Record<string, string>> = JSON.parse(raw.slice(start, end + 1))
 
   return parsed.slice(0, 4).map(item => {
@@ -101,15 +114,20 @@ export async function GET(req: NextRequest) {
   if (fresh) clearEnrichedDataCache(user.id)
 
   try {
-    const data = await fetchEnrichedData(user.id)
-    const metrics = computeInsights(data)
+    const rawData = await fetchEnrichedData(user.id)
+
+    // Mandatory validation gate (RN11): validate before computing any metric
+    const { validatedData, certificate } = validateFinancialData(rawData)
+    console.log(`[insights] validação: ${certificate.indiceConfiabilidade}% | ${certificate.transacoesValidadas}/${certificate.totalTransacoes} tx | ${certificate.transacoesExcluidas} excluídas`)
+
+    const metrics = computeInsights(validatedData)
 
     // Try Gemini first; fall back to rule-based insights on any failure
     let insights: InsightItem[]
     let source: 'ai' | 'fallback' = 'ai'
     try {
       const payload = serializeInsightsCompact(metrics)
-      insights = await callGemini(payload)
+      insights = await callGemini(payload, certificate.indiceConfiabilidade)
     } catch (geminiErr) {
       console.error('[insights] Gemini falhou, usando fallback:', String(geminiErr))
       insights = generateFallbackInsights(metrics)
