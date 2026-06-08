@@ -161,14 +161,17 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
     assinaturasPorCategoria[a.categoria] = (assinaturasPorCategoria[a.categoria] ?? 0) + a.valor
   }
 
-  // Planning for current calendar month — exclude credit-card bill entries stored
-  // in planejamento (NuBank/[CARTAO1]/[CARTAO2]).  Uses mesCalendario because
-  // planejamento.mes_referencia is keyed to the calendar month, not the billing period.
-  const PLAN_EXCLUDE = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto'])
+  // Planning for current calendar month — mirrors the exclusion list used by
+  // the financas page (calcularSaldo) and ChecklistMensal:
+  //   - [RECEITA]* / "Receita Total" → income entries, not expenses
+  //   - NuBank items               → credit-card bill settlements
+  //   - [CARTAO1]* / [CARTAO2]*   → per-card instalment tracking rows
+  const PLAN_EXCLUDE = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto', 'Receita Total'])
   const planAtual = data.planejamento.filter(p => {
     if ((p.mes_referencia ?? '').substring(0, 7) !== mesCalendario) return false
     const item = typeof p.item === 'string' ? p.item : ''
     return !PLAN_EXCLUDE.has(item)
+      && !item.startsWith('[RECEITA]')
       && !item.startsWith('[CARTAO1]')
       && !item.startsWith('[CARTAO2]')
   })
