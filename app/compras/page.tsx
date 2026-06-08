@@ -106,6 +106,7 @@ export default function ComprasPage() {
   const [filtroValorMin, setFiltroValorMin] = useState('')
   const [filtroDia, setFiltroDia] = useState('')
   const [filtroCategoria, setFiltroCategoria] = useState('')
+  const [filtroParcelamento, setFiltroParcelamento] = useState<'' | 'avista' | 'parcelado'>('')
   const [categorias, setCategorias] = useState<string[]>(CATEGORIAS_PADRAO)
 
   const [modalEditar, setModalEditar] = useState<Compra | null>(null)
@@ -294,7 +295,7 @@ export default function ComprasPage() {
     refetch()
   }
 
-  const filtrosAtivos = !!filtroResponsavel || !!filtroCartao || !!filtroDescricao || !!filtroValorMin || !!filtroDia || !!filtroCategoria
+  const filtrosAtivos = !!filtroResponsavel || !!filtroCartao || !!filtroDescricao || !!filtroValorMin || !!filtroDia || !!filtroCategoria || !!filtroParcelamento
 
   function handleFiltroDescricaoChange(value: string) {
     setFiltroDescricaoInput(value)
@@ -310,6 +311,7 @@ export default function ComprasPage() {
     setFiltroValorMin('')
     setFiltroDia('')
     setFiltroCategoria('')
+    setFiltroParcelamento('')
   }
 
   const comprasFiltradas = useMemo(() => {
@@ -322,10 +324,14 @@ export default function ComprasPage() {
         (!filtroDescricao || c.descricao.toLowerCase().includes(filtroDescricao.toLowerCase())) &&
         (!filtroValorMin || c.valor >= Number(filtroValorMin)) &&
         (!filtroDia || diaCompra === Number(filtroDia)) &&
-        (!filtroCategoria || c.categoria === filtroCategoria)
+        (!filtroCategoria || c.categoria === filtroCategoria) &&
+        (!filtroParcelamento ||
+          (filtroParcelamento === 'avista' && (c.total_parcelas === null || c.total_parcelas <= 1)) ||
+          (filtroParcelamento === 'parcelado' && c.total_parcelas !== null && c.total_parcelas > 1)
+        )
       )
     })
-  }, [compras, filtroResponsavel, filtroCartao, filtroDescricao, filtroValorMin, filtroDia, filtroCategoria])
+  }, [compras, filtroResponsavel, filtroCartao, filtroDescricao, filtroValorMin, filtroDia, filtroCategoria, filtroParcelamento])
 
   const grupos = useMemo(() => {
     const map = new Map<string, Compra[]>()
@@ -346,10 +352,14 @@ export default function ComprasPage() {
         (!filtroDescricao || c.descricao.toLowerCase().includes(filtroDescricao.toLowerCase())) &&
         (!filtroValorMin || c.valor >= Number(filtroValorMin)) &&
         (!filtroDia || diaCompra === Number(filtroDia)) &&
-        (!filtroCategoria || c.categoria === filtroCategoria)
+        (!filtroCategoria || c.categoria === filtroCategoria) &&
+        (!filtroParcelamento ||
+          (filtroParcelamento === 'avista' && (c.total_parcelas === null || c.total_parcelas <= 1)) ||
+          (filtroParcelamento === 'parcelado' && c.total_parcelas !== null && c.total_parcelas > 1)
+        )
       )
     })
-  }, [compras, filtroCartao, filtroDescricao, filtroValorMin, filtroDia, filtroCategoria])
+  }, [compras, filtroCartao, filtroDescricao, filtroValorMin, filtroDia, filtroCategoria, filtroParcelamento])
 
   const total = useMemo(() => comprasSemFiltroResponsavel.reduce((acc, c) => acc + c.valor, 0), [comprasSemFiltroResponsavel])
   const totalMatheus = useMemo(() => comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Matheus').reduce((acc, c) => acc + c.valor, 0), [comprasSemFiltroResponsavel])
@@ -462,6 +472,15 @@ export default function ComprasPage() {
             {categorias.map(cat => (
               <option key={cat} value={cat}>{cat}</option>
             ))}
+          </select>
+          <select
+            className="bg-gray-50 border border-transparent rounded-lg p-2 text-sm col-span-2 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+            value={filtroParcelamento}
+            onChange={(e) => setFiltroParcelamento(e.target.value as '' | 'avista' | 'parcelado')}
+          >
+            <option value="">Parcelamento (todos)</option>
+            <option value="avista">À vista</option>
+            <option value="parcelado">Parcelado</option>
           </select>
           <input
             type="text"
