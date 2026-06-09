@@ -234,46 +234,55 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
     const mesAnterior = format(startOfMonth(subMonths(mesSelecionado, 1)), 'yyyy-MM-dd')
     const mesAtual = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
 
-    const { data: itensAnteriores } = await supabase
-      .from('planejamento')
-      .select('*')
-      .eq('mes_referencia', mesAnterior)
-      .ilike('item', '[RECEITA]%')
+    try {
+      const { data: itensAnteriores } = await supabase
+        .from('planejamento')
+        .select('*')
+        .eq('mes_referencia', mesAnterior)
+        .ilike('item', '[RECEITA]%')
 
-    if (!itensAnteriores || itensAnteriores.length === 0) {
-      showToast('Nenhuma receita encontrada no mês anterior', 'erro')
-      setImportando(false)
-      return
-    }
+      if (!itensAnteriores || itensAnteriores.length === 0) {
+        showToast('Nenhuma receita encontrada no mês anterior', 'erro')
+        return
+      }
 
-    const nomesExistentes = new Set(itens.map(i => i.item.toLowerCase()))
-    const novos = itensAnteriores.filter(i => !nomesExistentes.has(i.item.toLowerCase()))
+      // 1. Busca IDs das receitas existentes no mês atual
+      const { data: existentes } = await supabase
+        .from('planejamento')
+        .select('id')
+        .eq('mes_referencia', mesAtual)
+        .ilike('item', '[RECEITA]%')
+      const idsExistentes = (existentes || []).map(i => i.id)
 
-    if (novos.length === 0) {
-      showToast('Todas as receitas já estão cadastradas')
-      setImportando(false)
-      return
-    }
+      // 2. Insere as receitas do mês anterior primeiro — se falhar, os dados existentes são preservados
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const inserts = itensAnteriores.map(({ id, mes_referencia, pago, valor_real, data_pagamento, created_at, parcela_atual, total_parcelas, ...resto }) => ({
+        ...resto,
+        mes_referencia: mesAtual,
+        pago: false,
+        valor_real: null,
+        data_pagamento: null,
+        parcela_atual: parcela_atual ? parcela_atual + 1 : null,
+        total_parcelas: total_parcelas ?? null,
+      }))
 
-    const inserts = novos.map(i => ({
-      item: i.item,
-      responsavel: i.responsavel,
-      valor_previsto: i.valor_previsto,
-      categoria: i.categoria ?? 'Extra',
-      mes_referencia: mesAtual,
-      pago: false,
-      valor_real: null,
-    }))
+      const { error: insertError } = await supabase.from('planejamento').insert(inserts)
+      if (insertError) throw insertError
 
-    const { error } = await supabase.from('planejamento').insert(inserts)
-    if (error) {
-      showToast('Erro ao importar receitas', 'erro')
-    } else {
-      log('inserir', 'receitas', `Importadas ${novos.length} receita(s) do mês anterior`)
-      showToast(`${novos.length} receita${novos.length > 1 ? 's' : ''} importada${novos.length > 1 ? 's' : ''}!`)
+      // 3. Só apaga os existentes após o insert ser bem-sucedido
+      if (idsExistentes.length > 0) {
+        await supabase.from('planejamento').delete().in('id', idsExistentes)
+      }
+
+      log('inserir', 'receitas', `Importadas ${inserts.length} receita(s) do mês anterior`)
+      showToast(`${inserts.length} receita${inserts.length > 1 ? 's' : ''} importada${inserts.length > 1 ? 's' : ''}!`)
       refetch()
+    } catch (e) {
+      console.error('Erro ao importar receitas:', e)
+      showToast('Erro ao importar receitas', 'erro')
+    } finally {
+      setImportando(false)
     }
-    setImportando(false)
   }
 
   function abrirEditar(item: ItemReceita) {
