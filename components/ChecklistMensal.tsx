@@ -343,13 +343,12 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
 
       // 2. Insere os itens do mês anterior primeiro — se falhar, os dados existentes são preservados
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const novosItens = previewImport.itens.map(({ id, mes_referencia, pago, valor_real, data_pagamento, data_vencimento, created_at, parcela_atual, total_parcelas, ...resto }) => ({
+      const novosItens = previewImport.itens.map(({ id, mes_referencia, pago, valor_real, data_pagamento, created_at, parcela_atual, total_parcelas, ...resto }) => ({
         ...resto,
         mes_referencia: mesAtualStr,
         pago: false,
         valor_real: null,
         data_pagamento: null,
-        data_vencimento: null,
         parcela_atual: parcela_atual ? parcela_atual + 1 : null,
         total_parcelas: total_parcelas ?? null,
       }))
