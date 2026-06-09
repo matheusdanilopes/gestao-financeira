@@ -271,17 +271,39 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
     if (!previewImport) return
     setImportando(true)
     const mesAtualStr = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
-    await supabase.from('investimentos').delete().eq('mes_referencia', mesAtualStr)
-    const novos = previewImport.itens.map(i => ({
-      descricao: i.descricao, percentual: i.percentual, mes_referencia: mesAtualStr,
-    }))
-    if (novos.length > 0) await supabase.from('investimentos').insert(novos)
-    log('importar', 'investimentos', `Importados ${novos.length} investimento(s) de ${previewImport.mesOrigem}`)
-    setImportando(false)
-    fecharModal()
-    setPreviewImport(null)
-    refetch()
-    showToast(`${novos.length} investimento(s) importado(s)!`)
+    try {
+      // 1. Busca IDs dos investimentos existentes no mês atual
+      const { data: existentes } = await supabase
+        .from('investimentos')
+        .select('id')
+        .eq('mes_referencia', mesAtualStr)
+      const idsExistentes = (existentes || []).map(i => i.id)
+
+      // 2. Insere os investimentos do mês anterior primeiro — se falhar, os dados existentes são preservados
+      const novos = previewImport.itens.map(i => ({
+        descricao: i.descricao, percentual: i.percentual, mes_referencia: mesAtualStr,
+      }))
+      if (novos.length > 0) {
+        const { error: insertError } = await supabase.from('investimentos').insert(novos)
+        if (insertError) throw insertError
+      }
+
+      // 3. Só apaga os existentes após o insert ser bem-sucedido
+      if (idsExistentes.length > 0) {
+        await supabase.from('investimentos').delete().in('id', idsExistentes)
+      }
+
+      log('importar', 'investimentos', `Importados ${novos.length} investimento(s) de ${previewImport.mesOrigem}`)
+      fecharModal()
+      setPreviewImport(null)
+      refetch()
+      showToast(`${novos.length} investimento(s) importado(s)!`)
+    } catch (e) {
+      console.error('Erro ao importar investimentos:', e)
+      showToast('Erro ao importar. Os dados existentes foram preservados.', 'erro')
+    } finally {
+      setImportando(false)
+    }
   }
 
   const pctBar = Math.min(totalPercentual, 100)
