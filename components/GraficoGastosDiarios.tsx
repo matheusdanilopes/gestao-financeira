@@ -350,7 +350,7 @@ export default function GraficoGastosDiarios({
         legend: { display: false },
         tooltip: {
           enabled: false,
-          external: (context: { tooltip: { opacity: number; dataPoints?: { dataIndex: number; datasetIndex: number; parsed: { y: number } }[] } }) => {
+          external: (context: { tooltip: { opacity: number; dataPoints?: { dataIndex: number; datasetIndex: number; parsed: { y: number | null } }[] } }) => {
             if (context.tooltip.opacity === 0) {
               setHoveredPoint(null)
               setBurndownHover(null)
