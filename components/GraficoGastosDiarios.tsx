@@ -413,6 +413,15 @@ export default function GraficoGastosDiarios({
     // hasData and totalFat are derived from series — not separate dependencies
   }, [series, chartSeries, isDark, visao, filtroResp, filtroCartao, previsto, rawData, assinaturas])
 
+  // Y-axis floor: 0 when within budget; 10% below the worst overspend otherwise
+  const minY = useMemo(() => {
+    if (visao !== 'burndown' || !chartData) return 0
+    const realData = (chartData.datasets.find(d => d.label === 'Real')?.data ?? []) as number[]
+    if (realData.length === 0) return 0
+    const menorSaldo = Math.min(...realData)
+    return menorSaldo >= 0 ? 0 : menorSaldo * 1.1
+  }, [visao, chartData])
+
   // options depends only on isDark — series data is read via seriesRef in
   // callbacks, so filter changes don't rebuild options or trigger re-animation.
   const options = useMemo(() => {
@@ -450,11 +459,13 @@ export default function GraficoGastosDiarios({
       },
       scales: {
         y: {
+          min: minY,
           ticks: {
             callback: (v: number | string) => {
               const n = Number(v)
               if (n === 0) return 'R$0'
               if (n >= 1000) return `R$${(n / 1000).toFixed(0)}k`
+              if (n <= -1000) return `-R$${(Math.abs(n) / 1000).toFixed(0)}k`
               return `R$${n.toFixed(0)}`
             },
             font: { size: 10 },
@@ -493,7 +504,7 @@ export default function GraficoGastosDiarios({
         },
       },
     }
-  }, [isDark, visao])
+  }, [isDark, visao, minY])
 
   if (loading) {
     return (
