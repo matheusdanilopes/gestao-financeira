@@ -136,13 +136,20 @@ interface BurndownHover {
 
 export type { Visao }
 
+interface PrevistoPorFiltro {
+  matheus: number   // NuBank Matheus
+  jeniffer: number  // NuBank Jeniffer
+  cartao1: number   // Cartão 1 total (sem breakdown por pessoa)
+  cartao2: number   // Cartão 2 total (sem breakdown por pessoa)
+}
+
 interface Props {
   mesAtual: Date
   cartao1Nome?: string
   cartao2Nome?: string
   visao: Visao
   onVisaoChange: (v: Visao) => void
-  totalPrevisto?: number
+  previsto?: PrevistoPorFiltro
 }
 
 export default function GraficoGastosDiarios({
@@ -151,7 +158,7 @@ export default function GraficoGastosDiarios({
   cartao2Nome = 'Cartão 2',
   visao,
   onVisaoChange,
-  totalPrevisto,
+  previsto,
 }: Props) {
   const [rawData, setRawData]           = useState<TransacaoRaw[]>([])
   const [loading, setLoading]           = useState(true)
@@ -301,7 +308,20 @@ export default function GraficoGastosDiarios({
 
     if (visao === 'acumulado') {
       const n = series.length
-      const metaEsperado = totalPrevisto ?? totalFat
+      // Previsto filtrado: NuBank tem breakdown por responsável; cartão 1/2 não têm
+      const metaEsperado = previsto
+        ? (() => {
+            let v = 0
+            if (filtroCartao === 'todos' || filtroCartao === 'nubank') {
+              if (filtroResp === 'todos')     v += previsto.matheus + previsto.jeniffer
+              else if (filtroResp === 'Matheus')  v += previsto.matheus
+              else if (filtroResp === 'Jeniffer') v += previsto.jeniffer
+            }
+            if (filtroCartao === 'todos' || filtroCartao === 'cartao1') v += previsto.cartao1
+            if (filtroCartao === 'todos' || filtroCartao === 'cartao2') v += previsto.cartao2
+            return v
+          })()
+        : totalFat
       let cum = 0
       realDs.data = series.map(p => { cum += p.total; return cum })
       const esperadoData = series.map((_, i) =>
@@ -341,7 +361,7 @@ export default function GraficoGastosDiarios({
       datasets: [realDs],
     }
     // hasData and totalFat are derived from series — not separate dependencies
-  }, [series, isDark, visao])
+  }, [series, isDark, visao, filtroResp, filtroCartao, previsto])
 
   // options depends only on isDark — series data is read via seriesRef in
   // callbacks, so filter changes don't rebuild options or trigger re-animation.
