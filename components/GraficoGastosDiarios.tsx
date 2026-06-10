@@ -472,13 +472,15 @@ export default function GraficoGastosDiarios({
     // hasData and totalFat are derived from series — not separate dependencies
   }, [series, chartSeries, isDark, visao, filtroResp, filtroCartao, previsto, rawData, assinaturas])
 
-  // Y-axis floor: 0 when within budget; 10% below the worst overspend otherwise
+  // Y-axis floor: 0 when within budget; 10% below the worst value across ALL datasets
   const minY = useMemo(() => {
     if (visao !== 'burndown' || !chartData) return 0
-    const realData = (chartData.datasets.find(d => d.label === 'Real')?.data ?? []) as number[]
-    if (realData.length === 0) return 0
-    const menorSaldo = Math.min(...realData)
-    return menorSaldo >= 0 ? 0 : menorSaldo * 1.1
+    const allValues = chartData.datasets.flatMap(ds =>
+      (ds.data as (number | null)[]).filter((v): v is number => v !== null),
+    )
+    if (allValues.length === 0) return 0
+    const menor = Math.min(...allValues)
+    return menor >= 0 ? 0 : menor * 1.1
   }, [visao, chartData])
 
   // Y-axis ceiling: 10% above the highest value across all datasets
