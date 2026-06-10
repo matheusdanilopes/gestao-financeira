@@ -13,7 +13,7 @@ import {
 } from 'chart.js'
 import { format, startOfMonth, addMonths, eachDayOfInterval } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Activity, AlertCircle, BarChart2, ChevronDown, TrendingUp } from 'lucide-react'
+import { Activity, AlertCircle, ChevronDown } from 'lucide-react'
 import { formatBRL } from '@/lib/logger'
 import { supabase } from '@/lib/supabaseClient'
 import type { Plugin } from 'chart.js'
@@ -134,23 +134,28 @@ interface BurndownHover {
   esperado: number
 }
 
+export type { Visao }
+
 interface Props {
   mesAtual: Date
   cartao1Nome?: string
   cartao2Nome?: string
+  visao: Visao
+  onVisaoChange: (v: Visao) => void
 }
 
 export default function GraficoGastosDiarios({
   mesAtual,
   cartao1Nome = 'Cartão 1',
   cartao2Nome = 'Cartão 2',
+  visao,
+  onVisaoChange,
 }: Props) {
   const [rawData, setRawData]           = useState<TransacaoRaw[]>([])
   const [loading, setLoading]           = useState(true)
   const [error, setError]               = useState<string | null>(null)
   const [filtroResp, setFiltroResp]     = useState<FiltroResponsavel>('todos')
   const [filtroCartao, setFiltroCartao] = useState<FiltroCartao>('todos')
-  const [visao, setVisao]               = useState<Visao>('valor')
   const { isDark, isDarkRef }           = useIsDark()
 
   // Kept in a ref so tooltip callbacks always read current series without
@@ -441,7 +446,7 @@ export default function GraficoGastosDiarios({
   return (
     <div>
       {/* Filters — two selects side by side with chevron indicator */}
-      <div className="flex gap-2 mb-3">
+      <div className="flex gap-2 mb-4">
         <div className="relative flex-1">
           <select
             value={filtroResp}
@@ -467,34 +472,6 @@ export default function GraficoGastosDiarios({
             <option value="cartao2">{cartao2Nome}</option>
           </select>
           <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-        </div>
-      </div>
-
-      {/* View toggle: Valor / Burndown */}
-      <div className="flex justify-end mb-4">
-        <div className="inline-flex items-center bg-[#13151f] border border-white/[0.08] rounded-full p-[3px] gap-[2px]">
-          <button
-            onClick={() => setVisao('valor')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all duration-200 ${
-              visao === 'valor'
-                ? 'bg-violet-600 text-white shadow-sm'
-                : 'text-gray-400 hover:text-gray-300'
-            }`}
-          >
-            <TrendingUp className="w-3 h-3" />
-            Valor
-          </button>
-          <button
-            onClick={() => setVisao('burndown')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all duration-200 ${
-              visao === 'burndown'
-                ? 'bg-violet-600 text-white shadow-sm'
-                : 'text-gray-400 hover:text-gray-300'
-            }`}
-          >
-            <BarChart2 className="w-3 h-3" />
-            Burndown
-          </button>
         </div>
       </div>
 
