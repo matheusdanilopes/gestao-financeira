@@ -11,7 +11,7 @@ import {
   Tooltip,
   Filler,
 } from 'chart.js'
-import { format, startOfMonth, addMonths, eachDayOfInterval } from 'date-fns'
+import { format, startOfMonth, addMonths, addDays, eachDayOfInterval } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Activity, AlertCircle, ChevronDown } from 'lucide-react'
 import { formatBRL } from '@/lib/logger'
@@ -150,6 +150,7 @@ interface Props {
   visao: Visao
   onVisaoChange: (v: Visao) => void
   previsto?: PrevistoPorFiltro
+  dataFechamentoFatura?: string | null
 }
 
 export default function GraficoGastosDiarios({
@@ -159,6 +160,7 @@ export default function GraficoGastosDiarios({
   visao,
   onVisaoChange,
   previsto,
+  dataFechamentoFatura,
 }: Props) {
   const [rawData, setRawData]           = useState<TransacaoRaw[]>([])
   const [assinaturas, setAssinaturas]   = useState<{ valor: number; responsavel: string; cartao: string }[]>([])
@@ -284,8 +286,27 @@ export default function GraficoGastosDiarios({
     })
   }, [rawData, filtroResp, filtroCartao])
 
+  // In burndown mode, extend series with zero-spend days up to the invoice closing date
+  // so the Esperado line reaches exactly 0 on that day.
+  const chartSeries = useMemo((): DatePoint[] => {
+    if (visao !== 'burndown' || !dataFechamentoFatura || series.length === 0) return series
+    const endDate  = new Date(dataFechamentoFatura + 'T12:00:00')
+    const lastDate = new Date(series[series.length - 1].isoDate + 'T12:00:00')
+    if (endDate <= lastDate) return series
+    return [
+      ...series,
+      ...eachDayOfInterval({ start: addDays(lastDate, 1), end: endDate }).map(d => ({
+        isoDate:   format(d, 'yyyy-MM-dd'),
+        label:     format(d, 'd/MMM', { locale: ptBR }),
+        fullLabel: format(d, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR }),
+        total: 0,
+        count: 0,
+      })),
+    ]
+  }, [series, visao, dataFechamentoFatura])
+
   // Keep ref in sync so options callbacks can read it without deps
-  useEffect(() => { seriesRef.current = series }, [series])
+  useEffect(() => { seriesRef.current = chartSeries }, [chartSeries])
 
   const hasData  = series.some(p => p.total > 0)
   const totalFat = series.reduce((s, p) => s + p.total, 0)
@@ -316,7 +337,7 @@ export default function GraficoGastosDiarios({
     }
 
     if (visao === 'burndown') {
-      const n = series.length
+      const n = chartSeries.length
 
       // Previsto filtrado: NuBank tem breakdown por responsável; cartão 1/2 não têm
       const previstoBruto = previsto
@@ -352,13 +373,13 @@ export default function GraficoGastosDiarios({
 
       const metaEsperado = Math.max(0, previstoBruto - deducaoParcelas - deducaoAssinaturas)
       let cum = 0
-      realDs.data = series.map(p => { cum += p.total; return metaEsperado - cum })
-      const esperadoData = series.map((_, i) =>
+      realDs.data = chartSeries.map(p => { cum += p.total; return metaEsperado - cum })
+      const esperadoData = chartSeries.map((_, i) =>
         n > 1 ? metaEsperado * (1 - i / (n - 1)) : 0,
       )
       const slateColor = isDark ? 'rgba(148,163,184,0.45)' : 'rgba(100,116,139,0.55)'
       return {
-        labels: series.map(p => p.label),
+        labels: chartSeries.map(p => p.label),
         datasets: [
           {
             label: 'Esperado',
@@ -390,7 +411,7 @@ export default function GraficoGastosDiarios({
       datasets: [realDs],
     }
     // hasData and totalFat are derived from series — not separate dependencies
-  }, [series, isDark, visao, filtroResp, filtroCartao, previsto, rawData, assinaturas])
+  }, [series, chartSeries, isDark, visao, filtroResp, filtroCartao, previsto, rawData, assinaturas])
 
   // options depends only on isDark — series data is read via seriesRef in
   // callbacks, so filter changes don't rebuild options or trigger re-animation.

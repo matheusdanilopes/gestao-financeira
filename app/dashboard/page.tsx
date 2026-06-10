@@ -1037,6 +1037,7 @@ export default function Dashboard() {
             visao={visaoGastosDiarios}
             onVisaoChange={setVisaoGastosDiarios}
             previsto={{ matheus: fatura.matheusPrevisto, jeniffer: fatura.jenifferPrevisto, cartao1: fatura.cartao1Previsto, cartao2: fatura.cartao2Previsto }}
+            dataFechamentoFatura={dataFechamentoNubank}
           />
         </div>
 
