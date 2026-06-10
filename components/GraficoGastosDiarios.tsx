@@ -16,7 +16,7 @@ import { ptBR } from 'date-fns/locale'
 import { Activity, AlertCircle, ChevronDown } from 'lucide-react'
 import { formatBRL } from '@/lib/logger'
 import { supabase } from '@/lib/supabaseClient'
-import type { TooltipItem, Plugin } from 'chart.js'
+import type { Plugin } from 'chart.js'
 import { useIsDark } from '@/lib/useIsDark'
 import { makeCrosshairPlugin } from '@/lib/chartPlugins'
 
@@ -40,9 +40,9 @@ const gradientPlugin: Plugin<'line'> = {
     const c = chart as GradientChart
     if (!c.chartArea) return
     const g = c.ctx.createLinearGradient(0, c.chartArea.top, 0, c.chartArea.bottom)
-    g.addColorStop(0,   rgb(0.28))
-    g.addColorStop(0.5, rgb(0.08))
-    g.addColorStop(1,   rgb(0))
+    g.addColorStop(0,    rgb(0.38))
+    g.addColorStop(0.55, rgb(0.12))
+    g.addColorStop(1,    rgb(0))
     if (c.data.datasets[0]) c.data.datasets[0].backgroundColor = g
   },
 }
@@ -88,6 +88,12 @@ interface DatePoint {
   count: number
 }
 
+interface HoveredPoint {
+  fullLabel: string
+  total: number
+  count: number
+}
+
 interface Props {
   mesAtual: Date
   cartao1Nome?: string
@@ -110,6 +116,7 @@ export default function GraficoGastosDiarios({
   // adding series to the options dependency array (which would re-animate
   // the chart on every filter change).
   const seriesRef = useRef<DatePoint[]>([])
+  const [hoveredPoint, setHoveredPoint] = useState<HoveredPoint | null>(null)
 
   const plugins = useMemo(
     () => [gradientPlugin, makeCrosshairPlugin('gastosDiariosCrosshair', isDarkRef, 0.12, 0.08)] as Plugin<'line'>[],
@@ -222,15 +229,16 @@ export default function GraficoGastosDiarios({
         borderColor: rgb(1),
         backgroundColor: 'transparent',
         borderWidth: 2.5,
-        tension: 0.42,
+        cubicInterpolationMode: 'monotone' as const,
+        tension: 0.4,
         fill: true,
-        pointRadius: series.map(p => (p.total > 0 ? 3.5 : 0)),
-        pointHoverRadius: 9,
-        pointHitRadius: 24,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHitRadius: 28,
         pointBackgroundColor: rgb(1),
         pointBorderColor: pBorder,
-        pointBorderWidth: 2.5,
-        pointHoverBorderWidth: 2.5,
+        pointBorderWidth: 2,
+        pointHoverBorderWidth: 2,
       }],
     }
     // hasData is derived from series — not a separate dependency
@@ -241,7 +249,6 @@ export default function GraficoGastosDiarios({
   const options = useMemo(() => {
     const txt  = isDark ? '#9ca3af' : '#6b7280'
     const grid = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'
-    const tbg  = isDark ? 'rgba(15,23,42,0.97)'   : 'rgba(15,23,42,0.93)'
 
     return {
       responsive: true,
@@ -251,27 +258,15 @@ export default function GraficoGastosDiarios({
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: tbg,
-          titleColor: '#f1f5f9',
-          bodyColor: '#94a3b8',
-          padding: { top: 10, right: 16, bottom: 10, left: 16 },
-          cornerRadius: 12,
-          borderColor: 'rgba(255,255,255,0.08)',
-          borderWidth: 1,
-          callbacks: {
-            title: (items: TooltipItem<'line'>[]) =>
-              seriesRef.current[items[0]?.dataIndex ?? 0]?.fullLabel ?? '',
-            label: (ctx: TooltipItem<'line'>) => `  ${formatBRL(ctx.parsed.y ?? 0)}`,
-            afterLabel: (ctx: TooltipItem<'line'>) => {
-              const cnt = seriesRef.current[ctx.dataIndex]?.count ?? 0
-              return cnt > 0 ? `  ${cnt} lançamento${cnt !== 1 ? 's' : ''}` : ''
-            },
-            labelColor: () => ({
-              borderColor: rgb(0.9),
-              backgroundColor: rgb(0.85),
-              borderWidth: 2,
-              borderRadius: 3,
-            }),
+          enabled: false,
+          external: (context: { tooltip: { opacity: number; dataPoints?: { dataIndex: number }[] } }) => {
+            if (context.tooltip.opacity === 0) {
+              setHoveredPoint(null)
+              return
+            }
+            const idx = context.tooltip.dataPoints?.[0]?.dataIndex ?? -1
+            const pt = seriesRef.current[idx]
+            if (pt) setHoveredPoint({ fullLabel: pt.fullLabel, total: pt.total, count: pt.count })
           },
         },
       },
@@ -285,7 +280,7 @@ export default function GraficoGastosDiarios({
               return `R$${n.toFixed(0)}`
             },
             font: { size: 10 },
-            maxTicksLimit: 4,
+            maxTicksLimit: 3,
             color: txt,
           },
           grid: { color: grid, lineWidth: 1 },
@@ -299,7 +294,7 @@ export default function GraficoGastosDiarios({
             maxRotation: 0,
             callback: (_v: number | string, index: number) => {
               const len = seriesRef.current.length
-              if (index === 0 || index === len - 1 || index % 5 === 0) {
+              if (index === 0 || index === len - 1) {
                 return seriesRef.current[index]?.label ?? ''
               }
               return ''
@@ -380,23 +375,23 @@ export default function GraficoGastosDiarios({
       ) : (
         <>
           {/* Summary row */}
-          <div className="flex items-end justify-between mb-4">
+          <div className="flex items-end justify-between mb-3">
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+              <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest mb-0.5">
                 Total da fatura
               </p>
-              <p className="text-lg font-bold text-violet-700 num">{formatBRL(totalFat)}</p>
+              <p className="text-xl font-bold text-violet-500 num">{formatBRL(totalFat)}</p>
             </div>
             {peakDay.total > 0 && (
               <div className="text-right">
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">
+                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest mb-0.5">
                   Maior gasto
                 </p>
                 <div className="flex items-center justify-end gap-1.5">
-                  <span className="text-sm font-semibold text-gray-700 num">
+                  <span className="text-sm font-semibold text-gray-300 num">
                     {formatBRL(peakDay.total)}
                   </span>
-                  <span className="text-[10px] text-gray-500 bg-gray-100 rounded-full px-2 py-0.5">
+                  <span className="text-[10px] text-gray-400 bg-white/10 rounded-full px-2 py-0.5">
                     {peakDay.label}
                   </span>
                 </div>
@@ -404,7 +399,26 @@ export default function GraficoGastosDiarios({
             )}
           </div>
 
-          <div className="h-44 md:h-52 lg:h-56">
+          {/* Hovered-day info — updates as user drags over the chart */}
+          <div className="h-8 mb-2 flex items-center">
+            {hoveredPoint ? (
+              <div className="flex items-baseline gap-2">
+                <span className="text-sm font-bold text-violet-400 num">
+                  {formatBRL(hoveredPoint.total)}
+                </span>
+                <span className="text-xs text-gray-400">{hoveredPoint.fullLabel}</span>
+                {hoveredPoint.count > 0 && (
+                  <span className="text-[11px] text-gray-500">
+                    · {hoveredPoint.count} lançamento{hoveredPoint.count !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <span className="text-[11px] text-gray-600 select-none">Arraste para ver o dia</span>
+            )}
+          </div>
+
+          <div className="h-40 md:h-48 lg:h-52">
             {chartData && <Line data={chartData} options={options} plugins={plugins} />}
           </div>
         </>
