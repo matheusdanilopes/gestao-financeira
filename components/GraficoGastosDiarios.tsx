@@ -13,7 +13,7 @@ import {
 } from 'chart.js'
 import { format, startOfMonth, addMonths, eachDayOfInterval } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Activity, AlertCircle, ChevronDown, Hash, TrendingUp } from 'lucide-react'
+import { Activity, AlertCircle, BarChart2, ChevronDown, TrendingUp } from 'lucide-react'
 import { formatBRL } from '@/lib/logger'
 import { supabase } from '@/lib/supabaseClient'
 import type { Plugin } from 'chart.js'
@@ -31,7 +31,7 @@ function rgb(a = 1) {
 interface GradientChart {
   ctx: CanvasRenderingContext2D
   chartArea?: { top: number; bottom: number }
-  data: { datasets: Array<{ backgroundColor?: string | CanvasGradient | null }> }
+  data: { datasets: Array<{ backgroundColor?: string | CanvasGradient | null; fill?: unknown }> }
 }
 
 interface WeekendChart {
@@ -75,7 +75,8 @@ const gradientPlugin: Plugin<'line'> = {
     g.addColorStop(0,    rgb(0.38))
     g.addColorStop(0.55, rgb(0.12))
     g.addColorStop(1,    rgb(0))
-    if (c.data.datasets[0]) c.data.datasets[0].backgroundColor = g
+    const ds = c.data.datasets.find(d => d.fill === true) ?? c.data.datasets[0]
+    if (ds) ds.backgroundColor = g
   },
 }
 
@@ -87,7 +88,7 @@ const SELECT_CLS =
 
 type FiltroResponsavel = 'todos' | 'Matheus' | 'Jeniffer'
 type FiltroCartao      = 'todos' | 'nubank'  | 'cartao1' | 'cartao2'
-type Visao             = 'valor' | 'qtd'
+type Visao             = 'valor' | 'burndown'
 
 interface TransacaoRaw {
   valor: number
@@ -127,6 +128,12 @@ interface HoveredPoint {
   count: number
 }
 
+interface BurndownHover {
+  fullLabel: string
+  real: number
+  esperado: number
+}
+
 interface Props {
   mesAtual: Date
   cartao1Nome?: string
@@ -150,7 +157,14 @@ export default function GraficoGastosDiarios({
   // adding series to the options dependency array (which would re-animate
   // the chart on every filter change).
   const seriesRef = useRef<DatePoint[]>([])
-  const [hoveredPoint, setHoveredPoint] = useState<HoveredPoint | null>(null)
+  const [hoveredPoint, setHoveredPoint]     = useState<HoveredPoint | null>(null)
+  const [burndownHover, setBurndownHover]   = useState<BurndownHover | null>(null)
+
+  // Reset hover state when switching views so stale data doesn't persist
+  useEffect(() => {
+    setHoveredPoint(null)
+    setBurndownHover(null)
+  }, [visao])
 
   const weekendPlugin = useMemo(
     () => makeWeekendBandPlugin(seriesRef, isDarkRef),
@@ -259,28 +273,66 @@ export default function GraficoGastosDiarios({
 
   const chartData = useMemo(() => {
     if (!hasData) return null
-    const pBorder = isDark ? '#0f172a' : '#ffffff'
+    const pBorder  = isDark ? '#0f172a' : '#ffffff'
+    const realDs = {
+      label: 'Real',
+      data: [] as number[],
+      borderColor: rgb(1),
+      backgroundColor: 'transparent',
+      borderWidth: 2.5,
+      cubicInterpolationMode: 'monotone' as const,
+      tension: 0.4,
+      fill: true,
+      pointRadius: 0,
+      pointHoverRadius: 5,
+      pointHitRadius: 28,
+      pointBackgroundColor: rgb(1),
+      pointBorderColor: pBorder,
+      pointBorderWidth: 2,
+      pointHoverBorderWidth: 2,
+    }
+
+    if (visao === 'burndown') {
+      const n = series.length
+      let cum = 0
+      realDs.data = series.map(p => { cum += p.total; return cum })
+      const esperadoData = series.map((_, i) =>
+        n > 1 ? totalFat * (i / (n - 1)) : totalFat,
+      )
+      const slateColor = isDark ? 'rgba(148,163,184,0.45)' : 'rgba(100,116,139,0.55)'
+      return {
+        labels: series.map(p => p.label),
+        datasets: [
+          {
+            label: 'Esperado',
+            data: esperadoData,
+            borderColor: slateColor,
+            backgroundColor: 'transparent',
+            borderWidth: 1.5,
+            borderDash: [5, 4],
+            cubicInterpolationMode: 'monotone' as const,
+            tension: 0,
+            fill: false,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            pointHitRadius: 20,
+            pointBackgroundColor: slateColor,
+            pointBorderColor: pBorder,
+            pointBorderWidth: 1.5,
+            pointHoverBorderWidth: 1.5,
+          },
+          realDs,
+        ],
+      }
+    }
+
+    realDs.label = 'Gastos do dia'
+    realDs.data  = series.map(p => p.total)
     return {
       labels: series.map(p => p.label),
-      datasets: [{
-        label: visao === 'qtd' ? 'Lançamentos do dia' : 'Gastos do dia',
-        data: series.map(p => visao === 'qtd' ? p.count : p.total),
-        borderColor: rgb(1),
-        backgroundColor: 'transparent',
-        borderWidth: 2.5,
-        cubicInterpolationMode: 'monotone' as const,
-        tension: 0.4,
-        fill: true,
-        pointRadius: 0,
-        pointHoverRadius: 5,
-        pointHitRadius: 28,
-        pointBackgroundColor: rgb(1),
-        pointBorderColor: pBorder,
-        pointBorderWidth: 2,
-        pointHoverBorderWidth: 2,
-      }],
+      datasets: [realDs],
     }
-    // hasData is derived from series — not a separate dependency
+    // hasData and totalFat are derived from series — not separate dependencies
   }, [series, isDark, visao])
 
   // options depends only on isDark — series data is read via seriesRef in
@@ -298,14 +350,23 @@ export default function GraficoGastosDiarios({
         legend: { display: false },
         tooltip: {
           enabled: false,
-          external: (context: { tooltip: { opacity: number; dataPoints?: { dataIndex: number }[] } }) => {
+          external: (context: { tooltip: { opacity: number; dataPoints?: { dataIndex: number; datasetIndex: number; parsed: { y: number } }[] } }) => {
             if (context.tooltip.opacity === 0) {
               setHoveredPoint(null)
+              setBurndownHover(null)
               return
             }
-            const idx = context.tooltip.dataPoints?.[0]?.dataIndex ?? -1
-            const pt = seriesRef.current[idx]
-            if (pt) setHoveredPoint({ fullLabel: pt.fullLabel, total: pt.total, count: pt.count })
+            const dp  = context.tooltip.dataPoints ?? []
+            const idx = dp[0]?.dataIndex ?? -1
+            const pt  = seriesRef.current[idx]
+            if (!pt) return
+            if (visao === 'burndown') {
+              const esperado = dp.find(d => d.datasetIndex === 0)?.parsed.y ?? 0
+              const real     = dp.find(d => d.datasetIndex === 1)?.parsed.y ?? 0
+              setBurndownHover({ fullLabel: pt.fullLabel, real, esperado })
+            } else {
+              setHoveredPoint({ fullLabel: pt.fullLabel, total: pt.total, count: pt.count })
+            }
           },
         },
       },
@@ -314,7 +375,6 @@ export default function GraficoGastosDiarios({
           ticks: {
             callback: (v: number | string) => {
               const n = Number(v)
-              if (visao === 'qtd') return n === 0 ? '0' : `${Math.round(n)}`
               if (n === 0) return 'R$0'
               if (n >= 1000) return `R$${(n / 1000).toFixed(0)}k`
               return `R$${n.toFixed(0)}`
@@ -410,7 +470,7 @@ export default function GraficoGastosDiarios({
         </div>
       </div>
 
-      {/* View toggle: Valor / Qtd */}
+      {/* View toggle: Valor / Burndown */}
       <div className="flex justify-end mb-4">
         <div className="inline-flex items-center bg-[#13151f] border border-white/[0.08] rounded-full p-[3px] gap-[2px]">
           <button
@@ -425,15 +485,15 @@ export default function GraficoGastosDiarios({
             Valor
           </button>
           <button
-            onClick={() => setVisao('qtd')}
+            onClick={() => setVisao('burndown')}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all duration-200 ${
-              visao === 'qtd'
+              visao === 'burndown'
                 ? 'bg-violet-600 text-white shadow-sm'
                 : 'text-gray-400 hover:text-gray-300'
             }`}
           >
-            <Hash className="w-3 h-3" />
-            Qtd
+            <BarChart2 className="w-3 h-3" />
+            Burndown
           </button>
         </div>
       </div>
@@ -477,21 +537,29 @@ export default function GraficoGastosDiarios({
 
           {/* Hovered-day info — updates as user drags over the chart */}
           <div className="h-8 mb-2 flex items-center">
-            {hoveredPoint ? (
+            {visao === 'burndown' ? (
+              burndownHover ? (
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <span className="text-sm font-bold text-violet-400 num">{formatBRL(burndownHover.real)}</span>
+                  <span className="text-[11px] text-gray-500">real</span>
+                  <span className="text-[11px] text-gray-600">·</span>
+                  <span className="text-sm font-semibold text-slate-400 num">{formatBRL(burndownHover.esperado)}</span>
+                  <span className="text-[11px] text-gray-500">esperado</span>
+                  <span className="text-[11px] text-gray-600">·</span>
+                  <span className="text-xs text-gray-400">{burndownHover.fullLabel}</span>
+                </div>
+              ) : (
+                <span className="text-[11px] text-gray-600 select-none">Arraste para comparar real vs esperado</span>
+              )
+            ) : hoveredPoint ? (
               <div className="flex items-baseline gap-2">
-                <span className="text-sm font-bold text-violet-400 num">
-                  {visao === 'qtd'
-                    ? `${hoveredPoint.count} lançamento${hoveredPoint.count !== 1 ? 's' : ''}`
-                    : formatBRL(hoveredPoint.total)}
-                </span>
+                <span className="text-sm font-bold text-violet-400 num">{formatBRL(hoveredPoint.total)}</span>
                 <span className="text-xs text-gray-400">{hoveredPoint.fullLabel}</span>
-                {visao === 'qtd' ? (
-                  <span className="text-[11px] text-gray-500">· {formatBRL(hoveredPoint.total)}</span>
-                ) : hoveredPoint.count > 0 ? (
+                {hoveredPoint.count > 0 && (
                   <span className="text-[11px] text-gray-500">
                     · {hoveredPoint.count} lançamento{hoveredPoint.count !== 1 ? 's' : ''}
                   </span>
-                ) : null}
+                )}
               </div>
             ) : (
               <span className="text-[11px] text-gray-600 select-none">Arraste para ver o dia</span>
