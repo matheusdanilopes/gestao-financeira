@@ -34,6 +34,38 @@ interface GradientChart {
   data: { datasets: Array<{ backgroundColor?: string | CanvasGradient | null }> }
 }
 
+interface WeekendChart {
+  ctx: CanvasRenderingContext2D
+  chartArea?: { top: number; height: number }
+  scales: { x: { getPixelForValue: (v: number) => number } }
+}
+
+function makeWeekendBandPlugin(
+  seriesRef: { current: DatePoint[] },
+  isDarkRef: { current: boolean },
+): Plugin<'line'> {
+  return {
+    id: 'gastosDiariosWeekend',
+    beforeDatasetsDraw(chart: unknown) {
+      const c = chart as WeekendChart
+      if (!c.chartArea) return
+      const series = seriesRef.current
+      if (series.length < 2) return
+      const step = c.scales.x.getPixelForValue(1) - c.scales.x.getPixelForValue(0)
+      const alpha = isDarkRef.current ? 0.10 : 0.06
+      c.ctx.save()
+      series.forEach((pt, i) => {
+        const day = new Date(pt.isoDate + 'T12:00:00').getDay()
+        if (day !== 0 && day !== 6) return
+        const x = c.scales.x.getPixelForValue(i)
+        c.ctx.fillStyle = `rgba(124, 58, 237, ${alpha})`
+        c.ctx.fillRect(x - step / 2, c.chartArea!.top, step, c.chartArea!.height)
+      })
+      c.ctx.restore()
+    },
+  }
+}
+
 const gradientPlugin: Plugin<'line'> = {
   id: 'gastosDiariosGradient',
   beforeDatasetsDraw(chart: unknown) {
@@ -118,9 +150,14 @@ export default function GraficoGastosDiarios({
   const seriesRef = useRef<DatePoint[]>([])
   const [hoveredPoint, setHoveredPoint] = useState<HoveredPoint | null>(null)
 
-  const plugins = useMemo(
-    () => [gradientPlugin, makeCrosshairPlugin('gastosDiariosCrosshair', isDarkRef, 0.12, 0.08)] as Plugin<'line'>[],
+  const weekendPlugin = useMemo(
+    () => makeWeekendBandPlugin(seriesRef, isDarkRef),
     [isDarkRef],
+  )
+
+  const plugins = useMemo(
+    () => [gradientPlugin, weekendPlugin, makeCrosshairPlugin('gastosDiariosCrosshair', isDarkRef, 0.12, 0.08)] as Plugin<'line'>[],
+    [isDarkRef, weekendPlugin],
   )
 
   const mesRefFatura = useMemo(
@@ -289,13 +326,21 @@ export default function GraficoGastosDiarios({
         x: {
           ticks: {
             font: { size: 10 },
-            color: txt,
+            color: (ctx: { index: number }) => {
+              const pt = seriesRef.current[ctx.index]
+              if (!pt) return txt
+              const day = new Date(pt.isoDate + 'T12:00:00').getDay()
+              return (day === 0 || day === 6) ? rgb(0.9) : txt
+            },
             padding: 4,
             maxRotation: 0,
             callback: (_v: number | string, index: number) => {
               const len = seriesRef.current.length
-              if (index === 0 || index === len - 1) {
-                return seriesRef.current[index]?.label ?? ''
+              const pt = seriesRef.current[index]
+              if (!pt) return ''
+              const day = new Date(pt.isoDate + 'T12:00:00').getDay()
+              if (index === 0 || index === len - 1 || day === 0 || day === 6) {
+                return pt.label
               }
               return ''
             },
