@@ -201,7 +201,7 @@ export default function GraficoGastosDiarios({
       return {
         isoDate:   iso,
         label:     format(d, 'd/MMM',                         { locale: ptBR }),
-        fullLabel: format(d, "d 'de' MMMM 'de' yyyy",         { locale: ptBR }),
+        fullLabel: format(d, "EEEE, d 'de' MMMM 'de' yyyy",    { locale: ptBR }),
         total: data.total,
         count: data.count,
       }
