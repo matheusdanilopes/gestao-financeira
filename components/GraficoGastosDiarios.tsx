@@ -66,6 +66,40 @@ function makeWeekendBandPlugin(
   }
 }
 
+function makeTodayLinePlugin(
+  seriesRef: { current: DatePoint[] },
+  isDarkRef: { current: boolean },
+  visaoRef: { current: Visao },
+): Plugin<'line'> {
+  return {
+    id: 'gastosDiariosTodayLine',
+    afterDatasetsDraw(chart: unknown) {
+      if (visaoRef.current !== 'burndown') return
+      const c = chart as WeekendChart
+      if (!c.chartArea) return
+      const series = seriesRef.current
+      const todayIso = format(new Date(), 'yyyy-MM-dd')
+      const idx = series.findIndex(p => p.isoDate === todayIso)
+      if (idx < 0) return
+      const x = c.scales.x.getPixelForValue(idx)
+      const { top, height } = c.chartArea
+      const isDark = isDarkRef.current
+      c.ctx.save()
+      c.ctx.strokeStyle = isDark ? 'rgba(226,232,240,0.18)' : 'rgba(100,116,139,0.18)'
+      c.ctx.lineWidth = 1
+      c.ctx.beginPath()
+      c.ctx.moveTo(x, top)
+      c.ctx.lineTo(x, top + height)
+      c.ctx.stroke()
+      c.ctx.fillStyle = isDark ? 'rgba(226,232,240,0.35)' : 'rgba(100,116,139,0.35)'
+      c.ctx.font = '9px system-ui, sans-serif'
+      c.ctx.textAlign = 'center'
+      c.ctx.fillText('hoje', x, top + 9)
+      c.ctx.restore()
+    },
+  }
+}
+
 const gradientPlugin: Plugin<'line'> = {
   id: 'gastosDiariosGradient',
   beforeDatasetsDraw(chart: unknown) {
@@ -131,7 +165,7 @@ interface HoveredPoint {
 interface BurndownHover {
   fullLabel: string
   real: number
-  esperado: number
+  projecao: number | null
 }
 
 export type { Visao }
@@ -169,6 +203,8 @@ export default function GraficoGastosDiarios({
   const [filtroResp, setFiltroResp]     = useState<FiltroResponsavel>('todos')
   const [filtroCartao, setFiltroCartao] = useState<FiltroCartao>('todos')
   const { isDark, isDarkRef }           = useIsDark()
+  const visaoRef = useRef<Visao>(visao)
+  useEffect(() => { visaoRef.current = visao }, [visao])
 
   // Kept in a ref so tooltip callbacks always read current series without
   // adding series to the options dependency array (which would re-animate
@@ -188,9 +224,14 @@ export default function GraficoGastosDiarios({
     [isDarkRef],
   )
 
+  const todayPlugin = useMemo(
+    () => makeTodayLinePlugin(seriesRef, isDarkRef, visaoRef),
+    [isDarkRef, visaoRef],
+  )
+
   const plugins = useMemo(
-    () => [gradientPlugin, weekendPlugin, makeCrosshairPlugin('gastosDiariosCrosshair', isDarkRef, 0.12, 0.08)] as Plugin<'line'>[],
-    [isDarkRef, weekendPlugin],
+    () => [gradientPlugin, weekendPlugin, todayPlugin, makeCrosshairPlugin('gastosDiariosCrosshair', isDarkRef, 0.12, 0.08)] as Plugin<'line'>[],
+    [isDarkRef, weekendPlugin, todayPlugin],
   )
 
   const mesRefFatura = useMemo(
@@ -374,16 +415,33 @@ export default function GraficoGastosDiarios({
       const metaEsperado = Math.max(0, previstoBruto - deducaoParcelas - deducaoAssinaturas)
       let cum = 0
       realDs.data = chartSeries.map(p => { cum += p.total; return metaEsperado - cum })
-      const esperadoData = chartSeries.map((_, i) =>
-        n > 1 ? metaEsperado * (1 - i / (n - 1)) : 0,
-      )
+
+      // Dynamic projection: starts at today's real value, ends at estimated close
+      // based on current average daily spending — not a rigid linear budget line.
+      const todayIso   = format(new Date(), 'yyyy-MM-dd')
+      const todayIdx   = chartSeries.findIndex(p => p.isoDate === todayIso)
+      const remDays    = todayIdx >= 0 ? n - 1 - todayIdx : 0
+      const projData: (number | null)[] = chartSeries.map(() => null)
+      if (todayIdx >= 0 && remDays > 0) {
+        let cumToday = 0
+        for (let i = 0; i <= todayIdx; i++) cumToday += chartSeries[i].total
+        const realValueToday  = metaEsperado - cumToday
+        const avgDailySpend   = cumToday / (todayIdx + 1)
+        const projectedFinal  = realValueToday - avgDailySpend * remDays
+        projData[todayIdx] = realValueToday
+        for (let i = todayIdx + 1; i < n; i++) {
+          const t = (i - todayIdx) / remDays
+          projData[i] = realValueToday + t * (projectedFinal - realValueToday)
+        }
+      }
+
       const slateColor = isDark ? 'rgba(148,163,184,0.45)' : 'rgba(100,116,139,0.55)'
       return {
         labels: chartSeries.map(p => p.label),
         datasets: [
           {
-            label: 'Esperado',
-            data: esperadoData,
+            label: 'Projeção',
+            data: projData,
             borderColor: slateColor,
             backgroundColor: 'transparent',
             borderWidth: 1.5,
@@ -448,9 +506,9 @@ export default function GraficoGastosDiarios({
             const pt  = seriesRef.current[idx]
             if (!pt) return
             if (visao === 'burndown') {
-              const esperado = dp.find(d => d.datasetIndex === 0)?.parsed.y ?? 0
+              const projecao = dp.find(d => d.datasetIndex === 0)?.parsed.y ?? null
               const real     = dp.find(d => d.datasetIndex === 1)?.parsed.y ?? 0
-              setBurndownHover({ fullLabel: pt.fullLabel, real, esperado })
+              setBurndownHover({ fullLabel: pt.fullLabel, real, projecao })
             } else {
               setHoveredPoint({ fullLabel: pt.fullLabel, total: pt.total, count: pt.count })
             }
@@ -605,9 +663,13 @@ export default function GraficoGastosDiarios({
                 <div className="flex items-baseline gap-2 flex-wrap">
                   <span className="text-sm font-bold text-violet-400 num">{formatBRL(burndownHover.real)}</span>
                   <span className="text-[11px] text-gray-500">restante</span>
-                  <span className="text-[11px] text-gray-600">·</span>
-                  <span className="text-sm font-semibold text-slate-400 num">{formatBRL(burndownHover.esperado)}</span>
-                  <span className="text-[11px] text-gray-500">previsto restante</span>
+                  {burndownHover.projecao !== null && (
+                    <>
+                      <span className="text-[11px] text-gray-600">·</span>
+                      <span className="text-sm font-semibold text-slate-400 num">{formatBRL(burndownHover.projecao)}</span>
+                      <span className="text-[11px] text-gray-500">tendência de fechamento</span>
+                    </>
+                  )}
                   <span className="text-[11px] text-gray-600">·</span>
                   <span className="text-xs text-gray-400">{burndownHover.fullLabel}</span>
                 </div>
