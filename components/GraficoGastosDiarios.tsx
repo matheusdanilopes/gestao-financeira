@@ -480,6 +480,18 @@ export default function GraficoGastosDiarios({
     return menorSaldo >= 0 ? 0 : menorSaldo * 1.1
   }, [visao, chartData])
 
+  // Y-axis ceiling: 10% above the highest value across all datasets
+  const maxY = useMemo(() => {
+    if (visao !== 'burndown' || !chartData) return undefined
+    const allValues = chartData.datasets.flatMap(ds =>
+      (ds.data as (number | null)[]).filter((v): v is number => v !== null),
+    )
+    if (allValues.length === 0) return undefined
+    const maior = Math.max(...allValues)
+    if (maior === 0) return undefined
+    return maior > 0 ? maior * 1.1 : maior * 0.9
+  }, [visao, chartData])
+
   // options depends only on isDark — series data is read via seriesRef in
   // callbacks, so filter changes don't rebuild options or trigger re-animation.
   const options = useMemo(() => {
@@ -518,6 +530,7 @@ export default function GraficoGastosDiarios({
       scales: {
         y: {
           min: minY,
+          max: maxY,
           ticks: {
             callback: (v: number | string) => {
               const n = Number(v)
@@ -562,7 +575,7 @@ export default function GraficoGastosDiarios({
         },
       },
     }
-  }, [isDark, visao, minY])
+  }, [isDark, visao, minY, maxY])
 
   if (loading) {
     return (
