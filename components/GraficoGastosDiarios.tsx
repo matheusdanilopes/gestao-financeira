@@ -161,6 +161,7 @@ export default function GraficoGastosDiarios({
   previsto,
 }: Props) {
   const [rawData, setRawData]           = useState<TransacaoRaw[]>([])
+  const [assinaturas, setAssinaturas]   = useState<{ valor: number; responsavel: string; cartao: string }[]>([])
   const [loading, setLoading]           = useState(true)
   const [error, setError]               = useState<string | null>(null)
   const [filtroResp, setFiltroResp]     = useState<FiltroResponsavel>('todos')
@@ -198,10 +199,18 @@ export default function GraficoGastosDiarios({
   const carregar = useCallback(async () => {
     setError(null)
     try {
-      const { data, error: err } = await supabase
-        .from('transacoes_nubank')
-        .select('valor, data_compra, responsavel, cartao, descricao, parcela_atual, total_parcelas')
-        .eq('projeto_fatura', mesRefFatura)
+      const [txResult, assResult] = await Promise.all([
+        supabase
+          .from('transacoes_nubank')
+          .select('valor, data_compra, responsavel, cartao, descricao, parcela_atual, total_parcelas')
+          .eq('projeto_fatura', mesRefFatura),
+        supabase
+          .from('assinaturas')
+          .select('valor, responsavel, cartao')
+          .eq('ativa', true),
+      ])
+      setAssinaturas(assResult.data ?? [])
+      const { data, error: err } = txResult
 
       if (err) {
         if (err.message?.includes('data_compra')) {
@@ -308,12 +317,13 @@ export default function GraficoGastosDiarios({
 
     if (visao === 'acumulado') {
       const n = series.length
+
       // Previsto filtrado: NuBank tem breakdown por responsável; cartão 1/2 não têm
-      const metaEsperado = previsto
+      const previstoBruto = previsto
         ? (() => {
             let v = 0
             if (filtroCartao === 'todos' || filtroCartao === 'nubank') {
-              if (filtroResp === 'todos')     v += previsto.matheus + previsto.jeniffer
+              if (filtroResp === 'todos')         v += previsto.matheus + previsto.jeniffer
               else if (filtroResp === 'Matheus')  v += previsto.matheus
               else if (filtroResp === 'Jeniffer') v += previsto.jeniffer
             }
@@ -322,6 +332,25 @@ export default function GraficoGastosDiarios({
             return v
           })()
         : totalFat
+
+      // Dedução 1: parcelas 2/X em diante presentes nesta fatura (já filtradas por resp/cartão)
+      const deducaoParcelas = rawData
+        .filter(tx =>
+          (filtroResp === 'todos'    || tx.responsavel === filtroResp) &&
+          (filtroCartao === 'todos'  || tx.cartao === filtroCartao) &&
+          ehParcelaNaoInicial(tx),
+        )
+        .reduce((s, tx) => s + tx.valor, 0)
+
+      // Dedução 2: assinaturas ativas (filtradas por resp/cartão)
+      const deducaoAssinaturas = assinaturas
+        .filter(a =>
+          (filtroResp === 'todos'   || a.responsavel === filtroResp) &&
+          (filtroCartao === 'todos' || a.cartao === filtroCartao),
+        )
+        .reduce((s, a) => s + a.valor, 0)
+
+      const metaEsperado = Math.max(0, previstoBruto - deducaoParcelas - deducaoAssinaturas)
       let cum = 0
       realDs.data = series.map(p => { cum += p.total; return cum })
       const esperadoData = series.map((_, i) =>
@@ -361,7 +390,7 @@ export default function GraficoGastosDiarios({
       datasets: [realDs],
     }
     // hasData and totalFat are derived from series — not separate dependencies
-  }, [series, isDark, visao, filtroResp, filtroCartao, previsto])
+  }, [series, isDark, visao, filtroResp, filtroCartao, previsto, rawData, assinaturas])
 
   // options depends only on isDark — series data is read via seriesRef in
   // callbacks, so filter changes don't rebuild options or trigger re-animation.
