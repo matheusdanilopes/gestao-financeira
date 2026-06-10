@@ -197,7 +197,6 @@ export default function GraficoGastosDiarios({
   dataFechamentoFatura,
 }: Props) {
   const [rawData, setRawData]           = useState<TransacaoRaw[]>([])
-  const [assinaturas, setAssinaturas]   = useState<{ valor: number; responsavel: string; cartao: string }[]>([])
   const [loading, setLoading]           = useState(true)
   const [error, setError]               = useState<string | null>(null)
   const [filtroResp, setFiltroResp]     = useState<FiltroResponsavel>('todos')
@@ -242,17 +241,10 @@ export default function GraficoGastosDiarios({
   const carregar = useCallback(async () => {
     setError(null)
     try {
-      const [txResult, assResult] = await Promise.all([
-        supabase
-          .from('transacoes_nubank')
-          .select('valor, data_compra, responsavel, cartao, descricao, parcela_atual, total_parcelas')
-          .eq('projeto_fatura', mesRefFatura),
-        supabase
-          .from('assinaturas')
-          .select('valor, responsavel, cartao')
-          .eq('ativa', true),
-      ])
-      setAssinaturas(assResult.data ?? [])
+      const txResult = await supabase
+        .from('transacoes_nubank')
+        .select('valor, data_compra, responsavel, cartao, descricao, parcela_atual, total_parcelas')
+        .eq('projeto_fatura', mesRefFatura)
       const { data, error: err } = txResult
 
       if (err) {
@@ -404,15 +396,7 @@ export default function GraficoGastosDiarios({
         )
         .reduce((s, tx) => s + tx.valor, 0)
 
-      // Dedução 2: assinaturas ativas (filtradas por resp/cartão)
-      const deducaoAssinaturas = assinaturas
-        .filter(a =>
-          (filtroResp === 'todos'   || a.responsavel === filtroResp) &&
-          (filtroCartao === 'todos' || a.cartao === filtroCartao),
-        )
-        .reduce((s, a) => s + a.valor, 0)
-
-      const metaEsperado = Math.max(0, previstoBruto - deducaoParcelas - deducaoAssinaturas)
+      const metaEsperado = Math.max(0, previstoBruto - deducaoParcelas)
       let cum = 0
       realDs.data = chartSeries.map(p => { cum += p.total; return metaEsperado - cum })
 
@@ -470,7 +454,7 @@ export default function GraficoGastosDiarios({
       datasets: [realDs],
     }
     // hasData and totalFat are derived from series — not separate dependencies
-  }, [series, chartSeries, isDark, visao, filtroResp, filtroCartao, previsto, rawData, assinaturas])
+  }, [series, chartSeries, isDark, visao, filtroResp, filtroCartao, previsto, rawData])
 
   // Y-axis floor: 0 when within budget; 10% below the worst value across ALL datasets
   const minY = useMemo(() => {
