@@ -61,6 +61,23 @@ interface TransacaoRaw {
   data_compra: string | null
   responsavel: string
   cartao: string
+  descricao?: string | null
+  parcela_atual?: number | string | null
+  total_parcelas?: number | string | null
+}
+
+function ehParcelaNaoInicial(tx: TransacaoRaw): boolean {
+  if (tx.parcela_atual && tx.total_parcelas) {
+    const atual = Number(tx.parcela_atual)
+    const total = Number(tx.total_parcelas)
+    if (atual >= 1 && total >= atual) return atual > 1
+  }
+  const desc = String(tx.descricao || '')
+  const matchParcela = desc.match(/parcela\s*(\d+)\s*\/\s*(\d+)/i)
+  if (matchParcela) return Number(matchParcela[1]) > 1
+  const matchSlash = desc.match(/\b(\d{1,2})\/(\d{1,2})\b/)
+  if (matchSlash && Number(matchSlash[2]) >= 2) return Number(matchSlash[1]) > 1
+  return false
 }
 
 interface DatePoint {
@@ -109,7 +126,7 @@ export default function GraficoGastosDiarios({
     try {
       const { data, error: err } = await supabase
         .from('transacoes_nubank')
-        .select('valor, data_compra, responsavel, cartao')
+        .select('valor, data_compra, responsavel, cartao, descricao, parcela_atual, total_parcelas')
         .eq('projeto_fatura', mesRefFatura)
 
       if (err) {
@@ -117,16 +134,19 @@ export default function GraficoGastosDiarios({
           // Legacy schema: column named 'data' instead of 'data_compra'
           const { data: legacyData, error: legacyErr } = await supabase
             .from('transacoes_nubank')
-            .select('valor, data, responsavel, cartao')
+            .select('valor, data, responsavel, cartao, descricao, parcela_atual, total_parcelas')
             .eq('projeto_fatura', mesRefFatura)
           if (legacyErr) throw legacyErr
           setRawData(
             (legacyData ?? []).map(
-              (r: { valor: number; data: string | null; responsavel: string; cartao: string }) => ({
+              (r: { valor: number; data: string | null; responsavel: string; cartao: string; descricao?: string | null; parcela_atual?: number | string | null; total_parcelas?: number | string | null }) => ({
                 valor: r.valor,
                 data_compra: r.data,
                 responsavel: r.responsavel,
                 cartao: r.cartao,
+                descricao: r.descricao,
+                parcela_atual: r.parcela_atual,
+                total_parcelas: r.total_parcelas,
               }),
             ),
           )
@@ -155,6 +175,7 @@ export default function GraficoGastosDiarios({
       if (!tx.data_compra) continue
       if (filtroResp !== 'todos' && tx.responsavel !== filtroResp) continue
       if (filtroCartao !== 'todos' && tx.cartao !== filtroCartao) continue
+      if (ehParcelaNaoInicial(tx)) continue
       const entry = byDate.get(tx.data_compra) ?? { total: 0, count: 0 }
       entry.total += tx.valor
       entry.count++
