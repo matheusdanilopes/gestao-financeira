@@ -1036,6 +1036,7 @@ export default function Dashboard() {
             cartao2Nome={fatura.cartao2Nome}
             visao={visaoGastosDiarios}
             onVisaoChange={setVisaoGastosDiarios}
+            totalPrevisto={fatura.matheusPrevisto + fatura.jenifferPrevisto + fatura.cartao1Previsto + fatura.cartao2Previsto}
           />
         </div>
 

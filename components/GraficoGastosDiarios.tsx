@@ -142,6 +142,7 @@ interface Props {
   cartao2Nome?: string
   visao: Visao
   onVisaoChange: (v: Visao) => void
+  totalPrevisto?: number
 }
 
 export default function GraficoGastosDiarios({
@@ -150,6 +151,7 @@ export default function GraficoGastosDiarios({
   cartao2Nome = 'Cartão 2',
   visao,
   onVisaoChange,
+  totalPrevisto,
 }: Props) {
   const [rawData, setRawData]           = useState<TransacaoRaw[]>([])
   const [loading, setLoading]           = useState(true)
@@ -299,10 +301,11 @@ export default function GraficoGastosDiarios({
 
     if (visao === 'acumulado') {
       const n = series.length
+      const metaEsperado = totalPrevisto ?? totalFat
       let cum = 0
       realDs.data = series.map(p => { cum += p.total; return cum })
       const esperadoData = series.map((_, i) =>
-        n > 1 ? totalFat * (i / (n - 1)) : totalFat,
+        n > 1 ? metaEsperado * (i / (n - 1)) : metaEsperado,
       )
       const slateColor = isDark ? 'rgba(148,163,184,0.45)' : 'rgba(100,116,139,0.55)'
       return {
