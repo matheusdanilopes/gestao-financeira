@@ -13,7 +13,7 @@ import {
 } from 'chart.js'
 import { format, startOfMonth, addMonths, eachDayOfInterval } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Activity, AlertCircle, ChevronDown } from 'lucide-react'
+import { Activity, AlertCircle, ChevronDown, Hash, TrendingUp } from 'lucide-react'
 import { formatBRL } from '@/lib/logger'
 import { supabase } from '@/lib/supabaseClient'
 import type { Plugin } from 'chart.js'
@@ -87,6 +87,7 @@ const SELECT_CLS =
 
 type FiltroResponsavel = 'todos' | 'Matheus' | 'Jeniffer'
 type FiltroCartao      = 'todos' | 'nubank'  | 'cartao1' | 'cartao2'
+type Visao             = 'valor' | 'qtd'
 
 interface TransacaoRaw {
   valor: number
@@ -142,6 +143,7 @@ export default function GraficoGastosDiarios({
   const [error, setError]               = useState<string | null>(null)
   const [filtroResp, setFiltroResp]     = useState<FiltroResponsavel>('todos')
   const [filtroCartao, setFiltroCartao] = useState<FiltroCartao>('todos')
+  const [visao, setVisao]               = useState<Visao>('valor')
   const { isDark, isDarkRef }           = useIsDark()
 
   // Kept in a ref so tooltip callbacks always read current series without
@@ -261,8 +263,8 @@ export default function GraficoGastosDiarios({
     return {
       labels: series.map(p => p.label),
       datasets: [{
-        label: 'Gastos do dia',
-        data: series.map(p => p.total),
+        label: visao === 'qtd' ? 'Lançamentos do dia' : 'Gastos do dia',
+        data: series.map(p => visao === 'qtd' ? p.count : p.total),
         borderColor: rgb(1),
         backgroundColor: 'transparent',
         borderWidth: 2.5,
@@ -279,7 +281,7 @@ export default function GraficoGastosDiarios({
       }],
     }
     // hasData is derived from series — not a separate dependency
-  }, [series, isDark])
+  }, [series, isDark, visao])
 
   // options depends only on isDark — series data is read via seriesRef in
   // callbacks, so filter changes don't rebuild options or trigger re-animation.
@@ -312,6 +314,7 @@ export default function GraficoGastosDiarios({
           ticks: {
             callback: (v: number | string) => {
               const n = Number(v)
+              if (visao === 'qtd') return n === 0 ? '0' : `${Math.round(n)}`
               if (n === 0) return 'R$0'
               if (n >= 1000) return `R$${(n / 1000).toFixed(0)}k`
               return `R$${n.toFixed(0)}`
@@ -350,7 +353,7 @@ export default function GraficoGastosDiarios({
         },
       },
     }
-  }, [isDark])
+  }, [isDark, visao])
 
   if (loading) {
     return (
@@ -378,7 +381,7 @@ export default function GraficoGastosDiarios({
   return (
     <div>
       {/* Filters — two selects side by side with chevron indicator */}
-      <div className="flex gap-2 mb-5">
+      <div className="flex gap-2 mb-3">
         <div className="relative flex-1">
           <select
             value={filtroResp}
@@ -404,6 +407,34 @@ export default function GraficoGastosDiarios({
             <option value="cartao2">{cartao2Nome}</option>
           </select>
           <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+        </div>
+      </div>
+
+      {/* View toggle: Valor / Qtd */}
+      <div className="flex justify-end mb-4">
+        <div className="inline-flex items-center bg-[#13151f] border border-white/[0.08] rounded-full p-[3px] gap-[2px]">
+          <button
+            onClick={() => setVisao('valor')}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all duration-200 ${
+              visao === 'valor'
+                ? 'bg-violet-600 text-white shadow-sm'
+                : 'text-gray-400 hover:text-gray-300'
+            }`}
+          >
+            <TrendingUp className="w-3 h-3" />
+            Valor
+          </button>
+          <button
+            onClick={() => setVisao('qtd')}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all duration-200 ${
+              visao === 'qtd'
+                ? 'bg-violet-600 text-white shadow-sm'
+                : 'text-gray-400 hover:text-gray-300'
+            }`}
+          >
+            <Hash className="w-3 h-3" />
+            Qtd
+          </button>
         </div>
       </div>
 
@@ -449,14 +480,18 @@ export default function GraficoGastosDiarios({
             {hoveredPoint ? (
               <div className="flex items-baseline gap-2">
                 <span className="text-sm font-bold text-violet-400 num">
-                  {formatBRL(hoveredPoint.total)}
+                  {visao === 'qtd'
+                    ? `${hoveredPoint.count} lançamento${hoveredPoint.count !== 1 ? 's' : ''}`
+                    : formatBRL(hoveredPoint.total)}
                 </span>
                 <span className="text-xs text-gray-400">{hoveredPoint.fullLabel}</span>
-                {hoveredPoint.count > 0 && (
+                {visao === 'qtd' ? (
+                  <span className="text-[11px] text-gray-500">· {formatBRL(hoveredPoint.total)}</span>
+                ) : hoveredPoint.count > 0 ? (
                   <span className="text-[11px] text-gray-500">
                     · {hoveredPoint.count} lançamento{hoveredPoint.count !== 1 ? 's' : ''}
                   </span>
-                )}
+                ) : null}
               </div>
             ) : (
               <span className="text-[11px] text-gray-600 select-none">Arraste para ver o dia</span>
