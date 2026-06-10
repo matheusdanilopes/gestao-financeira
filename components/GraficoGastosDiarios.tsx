@@ -88,7 +88,7 @@ const SELECT_CLS =
 
 type FiltroResponsavel = 'todos' | 'Matheus' | 'Jeniffer'
 type FiltroCartao      = 'todos' | 'nubank'  | 'cartao1' | 'cartao2'
-type Visao             = 'valor' | 'burndown'
+type Visao             = 'valor' | 'acumulado'
 
 interface TransacaoRaw {
   valor: number
@@ -163,7 +163,7 @@ export default function GraficoGastosDiarios({
   // the chart on every filter change).
   const seriesRef = useRef<DatePoint[]>([])
   const [hoveredPoint, setHoveredPoint]     = useState<HoveredPoint | null>(null)
-  const [burndownHover, setBurndownHover]   = useState<BurndownHover | null>(null)
+  const [acumuladoHover, setBurndownHover]   = useState<BurndownHover | null>(null)
 
   // Reset hover state when switching views so stale data doesn't persist
   useEffect(() => {
@@ -297,7 +297,7 @@ export default function GraficoGastosDiarios({
       pointHoverBorderWidth: 2,
     }
 
-    if (visao === 'burndown') {
+    if (visao === 'acumulado') {
       const n = series.length
       let cum = 0
       realDs.data = series.map(p => { cum += p.total; return cum })
@@ -365,7 +365,7 @@ export default function GraficoGastosDiarios({
             const idx = dp[0]?.dataIndex ?? -1
             const pt  = seriesRef.current[idx]
             if (!pt) return
-            if (visao === 'burndown') {
+            if (visao === 'acumulado') {
               const esperado = dp.find(d => d.datasetIndex === 0)?.parsed.y ?? 0
               const real     = dp.find(d => d.datasetIndex === 1)?.parsed.y ?? 0
               setBurndownHover({ fullLabel: pt.fullLabel, real, esperado })
@@ -398,7 +398,9 @@ export default function GraficoGastosDiarios({
               const pt = seriesRef.current[ctx.index]
               if (!pt) return txt
               const day = new Date(pt.isoDate + 'T12:00:00').getDay()
-              return (day === 0 || day === 6) ? rgb(0.9) : txt
+              return (day === 0 || day === 6)
+                ? (isDark ? 'rgba(226,232,240,0.85)' : rgb(0.85))
+                : txt
             },
             padding: 4,
             maxRotation: 0,
@@ -513,17 +515,17 @@ export default function GraficoGastosDiarios({
           </div>
 
           {/* Hovered-day info — updates as user drags over the chart */}
-          <div className="h-8 mb-2 flex items-center">
-            {visao === 'burndown' ? (
-              burndownHover ? (
+          <div className="h-8 mb-4 flex items-center">
+            {visao === 'acumulado' ? (
+              acumuladoHover ? (
                 <div className="flex items-baseline gap-2 flex-wrap">
-                  <span className="text-sm font-bold text-violet-400 num">{formatBRL(burndownHover.real)}</span>
+                  <span className="text-sm font-bold text-violet-400 num">{formatBRL(acumuladoHover.real)}</span>
                   <span className="text-[11px] text-gray-500">real</span>
                   <span className="text-[11px] text-gray-600">·</span>
-                  <span className="text-sm font-semibold text-slate-400 num">{formatBRL(burndownHover.esperado)}</span>
+                  <span className="text-sm font-semibold text-slate-400 num">{formatBRL(acumuladoHover.esperado)}</span>
                   <span className="text-[11px] text-gray-500">esperado</span>
                   <span className="text-[11px] text-gray-600">·</span>
-                  <span className="text-xs text-gray-400">{burndownHover.fullLabel}</span>
+                  <span className="text-xs text-gray-400">{acumuladoHover.fullLabel}</span>
                 </div>
               ) : (
                 <span className="text-[11px] text-gray-600 select-none">Arraste para comparar real vs esperado</span>
