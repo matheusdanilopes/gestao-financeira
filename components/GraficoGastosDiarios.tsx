@@ -88,7 +88,7 @@ const SELECT_CLS =
 
 type FiltroResponsavel = 'todos' | 'Matheus' | 'Jeniffer'
 type FiltroCartao      = 'todos' | 'nubank'  | 'cartao1' | 'cartao2'
-type Visao             = 'valor' | 'acumulado'
+type Visao             = 'valor' | 'burndown'
 
 interface TransacaoRaw {
   valor: number
@@ -173,7 +173,7 @@ export default function GraficoGastosDiarios({
   // the chart on every filter change).
   const seriesRef = useRef<DatePoint[]>([])
   const [hoveredPoint, setHoveredPoint]     = useState<HoveredPoint | null>(null)
-  const [acumuladoHover, setBurndownHover]   = useState<BurndownHover | null>(null)
+  const [burndownHover, setBurndownHover]   = useState<BurndownHover | null>(null)
 
   // Reset hover state when switching views so stale data doesn't persist
   useEffect(() => {
@@ -315,7 +315,7 @@ export default function GraficoGastosDiarios({
       pointHoverBorderWidth: 2,
     }
 
-    if (visao === 'acumulado') {
+    if (visao === 'burndown') {
       const n = series.length
 
       // Previsto filtrado: NuBank tem breakdown por responsável; cartão 1/2 não têm
@@ -352,9 +352,9 @@ export default function GraficoGastosDiarios({
 
       const metaEsperado = Math.max(0, previstoBruto - deducaoParcelas - deducaoAssinaturas)
       let cum = 0
-      realDs.data = series.map(p => { cum += p.total; return cum })
+      realDs.data = series.map(p => { cum += p.total; return metaEsperado - cum })
       const esperadoData = series.map((_, i) =>
-        n > 1 ? metaEsperado * (i / (n - 1)) : metaEsperado,
+        n > 1 ? metaEsperado * (1 - i / (n - 1)) : 0,
       )
       const slateColor = isDark ? 'rgba(148,163,184,0.45)' : 'rgba(100,116,139,0.55)'
       return {
@@ -417,7 +417,7 @@ export default function GraficoGastosDiarios({
             const idx = dp[0]?.dataIndex ?? -1
             const pt  = seriesRef.current[idx]
             if (!pt) return
-            if (visao === 'acumulado') {
+            if (visao === 'burndown') {
               const esperado = dp.find(d => d.datasetIndex === 0)?.parsed.y ?? 0
               const real     = dp.find(d => d.datasetIndex === 1)?.parsed.y ?? 0
               setBurndownHover({ fullLabel: pt.fullLabel, real, esperado })
@@ -568,19 +568,19 @@ export default function GraficoGastosDiarios({
 
           {/* Hovered-day info — updates as user drags over the chart */}
           <div className="h-8 mb-4 flex items-center">
-            {visao === 'acumulado' ? (
-              acumuladoHover ? (
+            {visao === 'burndown' ? (
+              burndownHover ? (
                 <div className="flex items-baseline gap-2 flex-wrap">
-                  <span className="text-sm font-bold text-violet-400 num">{formatBRL(acumuladoHover.real)}</span>
-                  <span className="text-[11px] text-gray-500">real</span>
+                  <span className="text-sm font-bold text-violet-400 num">{formatBRL(burndownHover.real)}</span>
+                  <span className="text-[11px] text-gray-500">restante</span>
                   <span className="text-[11px] text-gray-600">·</span>
-                  <span className="text-sm font-semibold text-slate-400 num">{formatBRL(acumuladoHover.esperado)}</span>
-                  <span className="text-[11px] text-gray-500">esperado</span>
+                  <span className="text-sm font-semibold text-slate-400 num">{formatBRL(burndownHover.esperado)}</span>
+                  <span className="text-[11px] text-gray-500">previsto restante</span>
                   <span className="text-[11px] text-gray-600">·</span>
-                  <span className="text-xs text-gray-400">{acumuladoHover.fullLabel}</span>
+                  <span className="text-xs text-gray-400">{burndownHover.fullLabel}</span>
                 </div>
               ) : (
-                <span className="text-[11px] text-gray-600 select-none">Arraste para comparar real vs esperado</span>
+                <span className="text-[11px] text-gray-600 select-none">Arraste para ver o saldo restante</span>
               )
             ) : hoveredPoint ? (
               <div className="flex items-baseline gap-2">

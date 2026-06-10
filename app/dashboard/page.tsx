@@ -394,7 +394,7 @@ export default function Dashboard() {
   const [aba, setAba] = useState<'resumo' | 'graficos'>('resumo')
   // Lazy mount: charts only render after the first visit to the Gráficos tab
   const [graficosAbertos, setGraficosAbertos]         = useState(false)
-  const [visaoGastosDiarios, setVisaoGastosDiarios]   = useState<'valor' | 'acumulado'>('valor')
+  const [visaoGastosDiarios, setVisaoGastosDiarios]   = useState<'valor' | 'burndown'>('valor')
 
   const handleSetAba = useCallback((novaAba: 'resumo' | 'graficos') => {
     setAba(novaAba)
@@ -1015,20 +1015,20 @@ export default function Dashboard() {
                 Valor
               </button>
               <button
-                onClick={() => setVisaoGastosDiarios('acumulado')}
+                onClick={() => setVisaoGastosDiarios('burndown')}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all duration-200 ${
-                  visaoGastosDiarios === 'acumulado'
+                  visaoGastosDiarios === 'burndown'
                     ? 'bg-violet-600 text-white shadow-sm'
                     : 'text-gray-400 hover:text-gray-600'
                 }`}
               >
                 <BarChart2 className="w-3 h-3" />
-                Acumulado
+                Burndown
               </button>
             </div>
           </div>
           <p className="text-xs text-gray-400 mb-4 ml-10">
-            {visaoGastosDiarios === 'acumulado' ? 'Real vs Esperado · Toque para detalhes' : 'Dia a dia · Toque para detalhes'}
+            {visaoGastosDiarios === 'burndown' ? 'Consumo do previsto · Toque para detalhes' : 'Dia a dia · Toque para detalhes'}
           </p>
           <GraficoGastosDiarios
             mesAtual={mesAtual}
