@@ -435,7 +435,7 @@ export default function GraficoGastosDiarios({
         }
       }
 
-      const slateColor = isDark ? 'rgba(148,163,184,0.45)' : 'rgba(100,116,139,0.55)'
+      const slateColor = isDark ? 'rgba(148,163,184,0.75)' : 'rgba(100,116,139,0.70)'
       return {
         labels: chartSeries.map(p => p.label),
         datasets: [
@@ -444,12 +444,13 @@ export default function GraficoGastosDiarios({
             data: projData,
             borderColor: slateColor,
             backgroundColor: 'transparent',
-            borderWidth: 1.5,
-            borderDash: [5, 4],
-            cubicInterpolationMode: 'monotone' as const,
+            borderWidth: 2,
+            borderDash: [6, 4],
             tension: 0,
             fill: false,
-            pointRadius: 0,
+            spanGaps: false,
+            pointRadius: (ctx: { dataIndex: number }) =>
+              ctx.dataIndex === todayIdx ? 3 : 0,
             pointHoverRadius: 4,
             pointHitRadius: 20,
             pointBackgroundColor: slateColor,
@@ -670,21 +671,22 @@ export default function GraficoGastosDiarios({
           </div>
 
           {/* Hovered-day info — updates as user drags over the chart */}
-          <div className="h-8 mb-4 flex items-center">
+          <div className="min-h-[2.5rem] mb-4 flex items-start">
             {visao === 'burndown' ? (
               burndownHover ? (
-                <div className="flex items-baseline gap-2 flex-wrap">
-                  <span className="text-sm font-bold text-violet-400 num">{formatBRL(burndownHover.real)}</span>
-                  <span className="text-[11px] text-gray-500">restante</span>
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-sm font-bold text-violet-400 num">{formatBRL(burndownHover.real)}</span>
+                    <span className="text-[11px] text-gray-500">restante</span>
+                    <span className="text-[11px] text-gray-400">·</span>
+                    <span className="text-xs text-gray-400">{burndownHover.fullLabel}</span>
+                  </div>
                   {burndownHover.projecao !== null && (
-                    <>
-                      <span className="text-[11px] text-gray-600">·</span>
+                    <div className="flex items-baseline gap-1.5">
                       <span className="text-sm font-semibold text-slate-400 num">{formatBRL(burndownHover.projecao)}</span>
                       <span className="text-[11px] text-gray-500">tendência de fechamento</span>
-                    </>
+                    </div>
                   )}
-                  <span className="text-[11px] text-gray-600">·</span>
-                  <span className="text-xs text-gray-400">{burndownHover.fullLabel}</span>
                 </div>
               ) : (
                 <span className="text-[11px] text-gray-600 select-none">Arraste para ver o saldo restante</span>
