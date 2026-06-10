@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths, subMonths, isSameMonth } from 'date-fns'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
-import { AlertTriangle, CreditCard, Wallet, BarChart3, PiggyBank, TrendingUp, TrendingDown, Minus, LineChart, Activity } from 'lucide-react'
+import { AlertTriangle, BarChart2, BarChart3, CreditCard, Wallet, PiggyBank, TrendingUp, TrendingDown, Minus, LineChart, Activity } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
 import MonthSelector from '@/components/MonthSelector'
@@ -393,7 +393,8 @@ export default function Dashboard() {
   const [detalhesPonto, setDetalhesPonto] = useState<{ serie: string; mes: string; valor: number; itens: Record<string, unknown>[] } | null>(null) // itens typed loosely; DrawerDetalhes accepts DrawerItem[] which is compatible
   const [aba, setAba] = useState<'resumo' | 'graficos'>('resumo')
   // Lazy mount: charts only render after the first visit to the Gráficos tab
-  const [graficosAbertos, setGraficosAbertos] = useState(false)
+  const [graficosAbertos, setGraficosAbertos]         = useState(false)
+  const [visaoGastosDiarios, setVisaoGastosDiarios]   = useState<'valor' | 'burndown'>('valor')
 
   const handleSetAba = useCallback((novaAba: 'resumo' | 'graficos') => {
     setAba(novaAba)
@@ -1001,12 +1002,42 @@ export default function Dashboard() {
               Gastos Diários
               <InfoPopover texto="Evolução dos gastos ao longo dos dias do mês selecionado. Considera todas as compras com data de compra registrada no período. Use os filtros para visualizar por pessoa ou por cartão." />
             </h2>
+            <div className="ml-auto inline-flex items-center bg-gray-100 rounded-full p-[3px] gap-[2px]">
+              <button
+                onClick={() => setVisaoGastosDiarios('valor')}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all duration-200 ${
+                  visaoGastosDiarios === 'valor'
+                    ? 'bg-violet-600 text-white shadow-sm'
+                    : 'text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                <TrendingUp className="w-3 h-3" />
+                Valor
+              </button>
+              <button
+                onClick={() => setVisaoGastosDiarios('burndown')}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all duration-200 ${
+                  visaoGastosDiarios === 'burndown'
+                    ? 'bg-violet-600 text-white shadow-sm'
+                    : 'text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                <BarChart2 className="w-3 h-3" />
+                Burndown
+              </button>
+            </div>
           </div>
-          <p className="text-xs text-gray-400 mb-4 ml-10">Dia a dia · Toque para detalhes</p>
+          <p className="text-xs text-gray-400 mb-4 ml-10">
+            {visaoGastosDiarios === 'burndown' ? 'Consumo do previsto · Toque para detalhes' : 'Dia a dia · Toque para detalhes'}
+          </p>
           <GraficoGastosDiarios
             mesAtual={mesAtual}
             cartao1Nome={fatura.cartao1Nome}
             cartao2Nome={fatura.cartao2Nome}
+            visao={visaoGastosDiarios}
+            onVisaoChange={setVisaoGastosDiarios}
+            previsto={{ matheus: fatura.matheusPrevisto, jeniffer: fatura.jenifferPrevisto, cartao1: fatura.cartao1Previsto, cartao2: fatura.cartao2Previsto }}
+            dataFechamentoFatura={dataFechamentoNubank}
           />
         </div>
 
