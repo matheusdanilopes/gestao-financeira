@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { ThemeProvider } from '@/components/ThemeProvider'
@@ -13,14 +13,21 @@ import { CategorizacaoProvider } from '@/components/CategorizacaoProvider'
 import { RefreshProvider } from '@/components/RefreshProvider'
 import ClientShell from '@/components/ClientShell'
 
-export const metadata: Metadata = {
-  title: 'Gestão Financeira Familiar',
-  description: 'Controle de finanças com Matheus e Jeniffer',
+export const viewport: Viewport = {
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#4f46e5' },
     { media: '(prefers-color-scheme: dark)',  color: '#0f172a' },
   ],
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=yes, viewport-fit=cover',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: true,
+  viewportFit: 'cover',
+}
+
+export const metadata: Metadata = {
+  title: 'Gestão Financeira Familiar',
+  description: 'Controle de finanças com Matheus e Jeniffer',
   icons: {
     icon: [
       { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
