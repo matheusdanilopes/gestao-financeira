@@ -282,11 +282,14 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       }
 
       if (valorMudou) {
-        if (entradaExistente) {
-          await supabase.from('assinaturas_historico').update({ valor }).eq('id', entradaExistente.id)
-        } else {
-          await supabase.from('assinaturas_historico').insert([{ assinatura_id: itemSelecionado.id, valor, vigente_desde: vigenteDe }])
-        }
+        // Apaga todas as entradas do mês (inclusive duplicatas geradas por INSERTs anteriores)
+        // e insere uma entrada canônica. Garante estado limpo independente do histórico de edições.
+        await supabase.from('assinaturas_historico')
+          .delete()
+          .eq('assinatura_id', itemSelecionado.id)
+          .eq('vigente_desde', vigenteDe)
+        await supabase.from('assinaturas_historico')
+          .insert([{ assinatura_id: itemSelecionado.id, valor, vigente_desde: vigenteDe }])
       }
       const { error } = await supabase.from('assinaturas').update(payload).eq('id', itemSelecionado.id)
       if (error) {
