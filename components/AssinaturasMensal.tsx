@@ -141,7 +141,10 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     const cutoff = format(endOfMonth(mes), 'yyyy-MM-dd')
     const entry = hist
       .filter(h => h.assinatura_id === assinatura.id && h.vigente_desde <= cutoff)
-      .sort((a, b) => b.vigente_desde.localeCompare(a.vigente_desde))[0]
+      .sort((a, b) => {
+        const d = b.vigente_desde.localeCompare(a.vigente_desde)
+        return d !== 0 ? d : b.criado_em.localeCompare(a.criado_em)
+      })[0]
     return entry?.valor ?? assinatura.valor
   }
 
@@ -262,12 +265,44 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       log('inserir', 'assinaturas', `Nova assinatura: ${nome} — ${formatBRL(valor)}`, valor)
       showToast('Assinatura adicionada!')
     } else if (itemSelecionado) {
-      const valorMudou = valor !== itemSelecionado.valor
+      const valorEfetivoAtual = valorParaMes(itemSelecionado, mesSelecionado, historico)
+      const valorMudou = valor !== valorEfetivoAtual
+
+      // Atualização otimista — reflete a mudança imediatamente sem esperar refetch
+      setItens(prev => prev.map(i => i.id === itemSelecionado.id ? { ...i, ...payload } : i))
+      const entradaExistente = historico.find(
+        h => h.assinatura_id === itemSelecionado.id && h.vigente_desde === vigenteDe
+      )
+      const tempId = `opt-${Date.now()}`
       if (valorMudou) {
-        await supabase.from('assinaturas_historico').insert([{ assinatura_id: itemSelecionado.id, valor, vigente_desde: vigenteDe }])
+        setHistorico(prev => [
+          ...prev.filter(h => !(h.assinatura_id === itemSelecionado.id && h.vigente_desde === vigenteDe)),
+          { id: tempId, assinatura_id: itemSelecionado.id, valor, vigente_desde: vigenteDe, criado_em: new Date().toISOString() },
+        ])
+      }
+
+      if (valorMudou) {
+        // Apaga todas as entradas do mês (inclusive duplicatas geradas por INSERTs anteriores)
+        // e insere uma entrada canônica. Garante estado limpo independente do histórico de edições.
+        await supabase.from('assinaturas_historico')
+          .delete()
+          .eq('assinatura_id', itemSelecionado.id)
+          .eq('vigente_desde', vigenteDe)
+        await supabase.from('assinaturas_historico')
+          .insert([{ assinatura_id: itemSelecionado.id, valor, vigente_desde: vigenteDe }])
       }
       const { error } = await supabase.from('assinaturas').update(payload).eq('id', itemSelecionado.id)
-      if (error) { showToast('Erro ao salvar', 'erro'); return }
+      if (error) {
+        setItens(prev => prev.map(i => i.id === itemSelecionado.id ? itemSelecionado : i))
+        if (valorMudou) {
+          setHistorico(prev => {
+            const sem = prev.filter(h => h.id !== tempId)
+            return entradaExistente ? [...sem, entradaExistente] : sem
+          })
+        }
+        showToast('Erro ao salvar', 'erro')
+        return
+      }
       log('editar', 'assinaturas', `Editada: ${nome} — ${formatBRL(valor)}`, valor)
       showToast('Atualizado!')
     }
@@ -307,7 +342,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     setItemSelecionado(item)
     setFormData({
       nome: item.nome,
-      valor: String(item.valor),
+      valor: String(valorParaMes(item, mesSelecionado, historico)),
       cartao: item.cartao,
       responsavel: item.responsavel,
       dia_cobranca: item.dia_cobranca ? String(item.dia_cobranca) : '',
