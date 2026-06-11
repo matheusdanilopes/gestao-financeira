@@ -141,7 +141,10 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     const cutoff = format(endOfMonth(mes), 'yyyy-MM-dd')
     const entry = hist
       .filter(h => h.assinatura_id === assinatura.id && h.vigente_desde <= cutoff)
-      .sort((a, b) => b.vigente_desde.localeCompare(a.vigente_desde))[0]
+      .sort((a, b) => {
+        const d = b.vigente_desde.localeCompare(a.vigente_desde)
+        return d !== 0 ? d : b.criado_em.localeCompare(a.criado_em)
+      })[0]
     return entry?.valor ?? assinatura.valor
   }
 
@@ -279,7 +282,11 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       }
 
       if (valorMudou) {
-        await supabase.from('assinaturas_historico').insert([{ assinatura_id: itemSelecionado.id, valor, vigente_desde: vigenteDe }])
+        if (entradaExistente) {
+          await supabase.from('assinaturas_historico').update({ valor }).eq('id', entradaExistente.id)
+        } else {
+          await supabase.from('assinaturas_historico').insert([{ assinatura_id: itemSelecionado.id, valor, vigente_desde: vigenteDe }])
+        }
       }
       const { error } = await supabase.from('assinaturas').update(payload).eq('id', itemSelecionado.id)
       if (error) {
