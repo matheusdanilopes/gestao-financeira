@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
+import { format, startOfMonth, addMonths, subMonths, isSameMonth } from 'date-fns'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
-import { AlertTriangle, CreditCard, Wallet, BarChart3, PiggyBank, TrendingUp, TrendingDown, Minus, LineChart, Activity } from 'lucide-react'
+import { AlertTriangle, BarChart2, BarChart3, CreditCard, Wallet, PiggyBank, TrendingUp, TrendingDown, Minus, LineChart, Activity } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
 import MonthSelector from '@/components/MonthSelector'
@@ -66,6 +66,7 @@ import { InfoPopover } from '@/components/InfoPopover'
 
 const DrawerDetalhes = dynamic(() => import('@/components/DrawerDetalhes'), { ssr: false })
 const PeriodSelectorSheet = dynamic(() => import('@/components/PeriodSelectorSheet'), { ssr: false })
+const InsightsCard = dynamic(() => import('@/components/InsightsCard'), { ssr: false })
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { usePrefetchPages } from '@/lib/usePrefetchPages'
 import { formatBRL as fmt } from '@/lib/logger'
@@ -119,6 +120,10 @@ interface DashboardData {
   resumoCaixa: ResumoCaixaState
   investimentos: { id: string; descricao: string; percentual: number; aportado: number }[]
   assinaturasNaopagas: { matheus: number; jeniffer: number }
+  assinaturasDivergentes: {
+    matheus: { nome: string; valorEsperado: number; valorCobrado: number; diff: number }[]
+    jeniffer: { nome: string; valorEsperado: number; valorCobrado: number; diff: number }[]
+  }
   dataFechamentoNubank: string | null
 }
 
@@ -323,6 +328,25 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const assinNaoPagaMatheus = calcNaoPaga('Matheus')
   const assinNaoPagaJeniffer = calcNaoPaga('Jeniffer')
 
+  type AssinDivergente = { nome: string; valorEsperado: number; valorCobrado: number; diff: number }
+  const calcDivergente = (responsavel: string): AssinDivergente[] =>
+    assinAtivas
+      .filter((a: AssinaturaRow) => a.responsavel === responsavel)
+      .flatMap((a: AssinaturaRow) => {
+        const nome = a.nome.toLowerCase()
+        const matches = txFaturaList.filter((tx: TransacaoRow) =>
+          tx.descricao?.toLowerCase().includes(nome)
+        )
+        if (matches.length === 0) return []
+        if (matches.some((tx: TransacaoRow) => Math.abs(tx.valor - a.valor) <= 0.05)) return []
+        const best = matches.reduce((prev: TransacaoRow, cur: TransacaoRow) =>
+          Math.abs(cur.valor - a.valor) < Math.abs(prev.valor - a.valor) ? cur : prev
+        )
+        return [{ nome: a.nome, valorEsperado: a.valor, valorCobrado: best.valor, diff: best.valor - a.valor }]
+      })
+  const divergentesMatheus  = calcDivergente('Matheus')
+  const divergentesJeniffer = calcDivergente('Jeniffer')
+
   const ids = (invData || []).map(i => i.id)
   const aportadoMap: Record<string, number> = {}
   if (ids.length > 0) {
@@ -356,6 +380,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     },
     investimentos: (invData || []).map(i => ({ ...i, aportado: aportadoMap[i.id] || 0 })),
     assinaturasNaopagas: { matheus: assinNaoPagaMatheus, jeniffer: assinNaoPagaJeniffer },
+    assinaturasDivergentes: { matheus: divergentesMatheus, jeniffer: divergentesJeniffer },
     dataFechamentoNubank,
   }
 }
@@ -384,6 +409,7 @@ export default function Dashboard() {
     resumoCaixa: RESUMO_INICIAL,
     investimentos: [],
     assinaturasNaopagas: { matheus: 0, jeniffer: 0 },
+    assinaturasDivergentes: { matheus: [], jeniffer: [] },
     dataFechamentoNubank: null,
   })
 
@@ -392,7 +418,8 @@ export default function Dashboard() {
   const [detalhesPonto, setDetalhesPonto] = useState<{ serie: string; mes: string; valor: number; itens: Record<string, unknown>[] } | null>(null) // itens typed loosely; DrawerDetalhes accepts DrawerItem[] which is compatible
   const [aba, setAba] = useState<'resumo' | 'graficos'>('resumo')
   // Lazy mount: charts only render after the first visit to the Gráficos tab
-  const [graficosAbertos, setGraficosAbertos] = useState(false)
+  const [graficosAbertos, setGraficosAbertos]         = useState(false)
+  const [visaoGastosDiarios, setVisaoGastosDiarios]   = useState<'valor' | 'burndown'>('valor')
 
   const handleSetAba = useCallback((novaAba: 'resumo' | 'graficos') => {
     setAba(novaAba)
@@ -400,7 +427,7 @@ export default function Dashboard() {
   }, [])
 
   // Extrai os campos do estado consolidado — sem custo de performance
-  const { fatura, resumoCaixa, investimentos, assinaturasNaopagas, dataFechamentoNubank } = dados
+  const { fatura, resumoCaixa, investimentos, assinaturasNaopagas, assinaturasDivergentes, dataFechamentoNubank } = dados
 
   // Aplica dados vindos do cache (stale) ou do fetch fresco — sem mostrar skeleton
   const applyData = useCallback((data: unknown) => {
@@ -710,6 +737,18 @@ export default function Dashboard() {
                       <span className="font-medium num">{fmt(assinaturasNaopagas.matheus)}</span>
                     </div>
                   )}
+                  {assinaturasDivergentes.matheus.length > 0 && (
+                    <div className="mt-0.5 border-t border-amber-100 pt-0.5">
+                      {assinaturasDivergentes.matheus.map((d) => (
+                        <div key={d.nome} className="flex justify-between text-xs gap-1 text-amber-600">
+                          <span className="truncate shrink" title={d.nome}>⚠ {d.nome}</span>
+                          <span className="font-medium num shrink-0 whitespace-nowrap">
+                            {d.diff > 0 ? '+' : ''}{fmt(d.diff)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {fatura.matheusProjecaoParcelas > 0 && (
                     <div className="flex justify-between items-center gap-1 mt-0.5 text-[10px]">
                       <span className="text-gray-500 whitespace-nowrap shrink-0">Parc. prev.</span>
@@ -743,6 +782,18 @@ export default function Dashboard() {
                     <div className="flex justify-between text-xs gap-1 mt-0.5 text-indigo-600">
                       <span>Assinaturas</span>
                       <span className="font-medium num">{fmt(assinaturasNaopagas.jeniffer)}</span>
+                    </div>
+                  )}
+                  {assinaturasDivergentes.jeniffer.length > 0 && (
+                    <div className="mt-0.5 border-t border-amber-100 pt-0.5">
+                      {assinaturasDivergentes.jeniffer.map((d) => (
+                        <div key={d.nome} className="flex justify-between text-xs gap-1 text-amber-600">
+                          <span className="truncate shrink" title={d.nome}>⚠ {d.nome}</span>
+                          <span className="font-medium num shrink-0 whitespace-nowrap">
+                            {d.diff > 0 ? '+' : ''}{fmt(d.diff)}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   )}
                   {fatura.jenifferProjecaoParcelas > 0 && (
@@ -902,6 +953,9 @@ export default function Dashboard() {
           )}
         </div>
 
+        {/* ── Insights por IA — somente no mês atual ── */}
+        {isSameMonth(mesAtual, new Date()) && <InsightsCard />}
+
         {/* ── Investimentos ── */}
         {(carregando || investimentos.length > 0) && (
           <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
@@ -997,12 +1051,42 @@ export default function Dashboard() {
               Gastos Diários
               <InfoPopover texto="Evolução dos gastos ao longo dos dias do mês selecionado. Considera todas as compras com data de compra registrada no período. Use os filtros para visualizar por pessoa ou por cartão." />
             </h2>
+            <div className="ml-auto inline-flex items-center bg-gray-100 rounded-full p-[3px] gap-[2px]">
+              <button
+                onClick={() => setVisaoGastosDiarios('valor')}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all duration-200 ${
+                  visaoGastosDiarios === 'valor'
+                    ? 'bg-violet-600 text-white shadow-sm'
+                    : 'text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                <TrendingUp className="w-3 h-3" />
+                Valor
+              </button>
+              <button
+                onClick={() => setVisaoGastosDiarios('burndown')}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all duration-200 ${
+                  visaoGastosDiarios === 'burndown'
+                    ? 'bg-violet-600 text-white shadow-sm'
+                    : 'text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                <BarChart2 className="w-3 h-3" />
+                Burndown
+              </button>
+            </div>
           </div>
-          <p className="text-xs text-gray-400 mb-4 ml-10">Dia a dia · Toque para detalhes</p>
+          <p className="text-xs text-gray-400 mb-4 ml-10">
+            {visaoGastosDiarios === 'burndown' ? 'Consumo do previsto · Toque para detalhes' : 'Dia a dia · Toque para detalhes'}
+          </p>
           <GraficoGastosDiarios
             mesAtual={mesAtual}
             cartao1Nome={fatura.cartao1Nome}
             cartao2Nome={fatura.cartao2Nome}
+            visao={visaoGastosDiarios}
+            onVisaoChange={setVisaoGastosDiarios}
+            previsto={{ matheus: fatura.matheusPrevisto, jeniffer: fatura.jenifferPrevisto, cartao1: fatura.cartao1Previsto, cartao2: fatura.cartao2Previsto }}
+            dataFechamentoFatura={dataFechamentoNubank}
           />
         </div>
 
