@@ -284,12 +284,38 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       if (valorMudou) {
         // Apaga todas as entradas do mês (inclusive duplicatas geradas por INSERTs anteriores)
         // e insere uma entrada canônica. Garante estado limpo independente do histórico de edições.
-        await supabase.from('assinaturas_historico')
+        const { error: delErr } = await supabase.from('assinaturas_historico')
           .delete()
           .eq('assinatura_id', itemSelecionado.id)
           .eq('vigente_desde', vigenteDe)
-        await supabase.from('assinaturas_historico')
+        if (delErr) {
+          setItens(prev => prev.map(i => i.id === itemSelecionado.id ? itemSelecionado : i))
+          setHistorico(prev => {
+            const sem = prev.filter(h => h.id !== tempId)
+            return entradaExistente ? [...sem, entradaExistente] : sem
+          })
+          showToast('Erro ao salvar', 'erro')
+          return
+        }
+        const { data: novaEntrada, error: insErr } = await supabase.from('assinaturas_historico')
           .insert([{ assinatura_id: itemSelecionado.id, valor, vigente_desde: vigenteDe }])
+          .select()
+          .single()
+        if (insErr || !novaEntrada) {
+          setItens(prev => prev.map(i => i.id === itemSelecionado.id ? itemSelecionado : i))
+          setHistorico(prev => {
+            const sem = prev.filter(h => h.id !== tempId)
+            return entradaExistente ? [...sem, entradaExistente] : sem
+          })
+          showToast('Erro ao salvar', 'erro')
+          return
+        }
+        // Substitui a entrada otimista (tempId) pela entrada real do banco,
+        // garantindo que o estado seja correto mesmo se o refetch() for bloqueado.
+        setHistorico(prev => [
+          ...prev.filter(h => h.id !== tempId && !(h.assinatura_id === itemSelecionado.id && h.vigente_desde === vigenteDe)),
+          novaEntrada,
+        ])
       }
       const { error } = await supabase.from('assinaturas').update(payload).eq('id', itemSelecionado.id)
       if (error) {
