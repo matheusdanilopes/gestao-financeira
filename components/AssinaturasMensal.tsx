@@ -247,7 +247,8 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     const valor = parseFloat(formData.valor.replace(',', '.'))
     if (!nome || isNaN(valor) || valor <= 0) return
 
-    const vigenteDe = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
+    const vigenteDe  = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
+    const vigenteFim = format(endOfMonth(mesSelecionado),   'yyyy-MM-dd')
     const payload = {
       nome,
       valor,
@@ -270,30 +271,32 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
 
       // Atualização otimista — reflete a mudança imediatamente sem esperar refetch
       setItens(prev => prev.map(i => i.id === itemSelecionado.id ? { ...i, ...payload } : i))
-      const entradaExistente = historico.find(
-        h => h.assinatura_id === itemSelecionado.id && h.vigente_desde === vigenteDe
-      )
+      const dentroDoMes = (h: { assinatura_id: string; vigente_desde: string }) =>
+        h.assinatura_id === itemSelecionado.id &&
+        h.vigente_desde >= vigenteDe && h.vigente_desde <= vigenteFim
+
+      // Captura TODAS as entradas do mês (backfill pode gerar múltiplas com datas distintas).
+      const entradasExistentes = historico.filter(dentroDoMes)
+
       const tempId = `opt-${Date.now()}`
       if (valorMudou) {
         setHistorico(prev => [
-          ...prev.filter(h => !(h.assinatura_id === itemSelecionado.id && h.vigente_desde === vigenteDe)),
+          ...prev.filter(h => !dentroDoMes(h)),
           { id: tempId, assinatura_id: itemSelecionado.id, valor, vigente_desde: vigenteDe, criado_em: new Date().toISOString() },
         ])
       }
 
       if (valorMudou) {
-        // Apaga todas as entradas do mês (inclusive duplicatas geradas por INSERTs anteriores)
-        // e insere uma entrada canônica. Garante estado limpo independente do histórico de edições.
+        // Apaga TODAS as entradas do mês via range (captura backfill com datas como '2026-06-11'
+        // que o .eq('vigente_desde', '2026-06-01') não removeria, causando o revert).
         const { error: delErr } = await supabase.from('assinaturas_historico')
           .delete()
           .eq('assinatura_id', itemSelecionado.id)
-          .eq('vigente_desde', vigenteDe)
+          .gte('vigente_desde', vigenteDe)
+          .lte('vigente_desde', vigenteFim)
         if (delErr) {
           setItens(prev => prev.map(i => i.id === itemSelecionado.id ? itemSelecionado : i))
-          setHistorico(prev => {
-            const sem = prev.filter(h => h.id !== tempId)
-            return entradaExistente ? [...sem, entradaExistente] : sem
-          })
+          setHistorico(prev => [...prev.filter(h => h.id !== tempId), ...entradasExistentes])
           showToast('Erro ao salvar', 'erro')
           return
         }
@@ -303,17 +306,13 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
           .single()
         if (insErr || !novaEntrada) {
           setItens(prev => prev.map(i => i.id === itemSelecionado.id ? itemSelecionado : i))
-          setHistorico(prev => {
-            const sem = prev.filter(h => h.id !== tempId)
-            return entradaExistente ? [...sem, entradaExistente] : sem
-          })
+          setHistorico(prev => [...prev.filter(h => h.id !== tempId), ...entradasExistentes])
           showToast('Erro ao salvar', 'erro')
           return
         }
-        // Substitui a entrada otimista (tempId) pela entrada real do banco,
-        // garantindo que o estado seja correto mesmo se o refetch() for bloqueado.
+        // Substitui a entrada otimista (tempId) pela entrada real do banco.
         setHistorico(prev => [
-          ...prev.filter(h => h.id !== tempId && !(h.assinatura_id === itemSelecionado.id && h.vigente_desde === vigenteDe)),
+          ...prev.filter(h => h.id !== tempId && !dentroDoMes(h)),
           novaEntrada,
         ])
       }
@@ -321,10 +320,10 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       if (error) {
         setItens(prev => prev.map(i => i.id === itemSelecionado.id ? itemSelecionado : i))
         if (valorMudou) {
-          setHistorico(prev => {
-            const sem = prev.filter(h => h.id !== tempId)
-            return entradaExistente ? [...sem, entradaExistente] : sem
-          })
+          setHistorico(prev => [
+            ...prev.filter(h => h.id !== tempId && !dentroDoMes(h)),
+            ...entradasExistentes,
+          ])
         }
         showToast('Erro ao salvar', 'erro')
         return

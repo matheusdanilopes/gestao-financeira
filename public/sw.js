@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gestao-financeira-v10'
+const CACHE_NAME = 'gestao-financeira-v11'
 
 // Tags auto-fecháveis ao abrir o app — processo concluído, notificação apenas informativa.
 // Mantido em sincronia com SW_AUTO_CLOSE_TAGS em lib/notificationTypes.ts.
@@ -86,7 +86,7 @@ const PRECACHE_ROUTES = [
   '/configuracoes',
 ]
 
-const NAVIGATION_TIMEOUT_MS = 4000
+const NAVIGATION_TIMEOUT_MS = 10000
 
 function fetchWithTimeout(request, timeoutMs) {
   return new Promise((resolve, reject) => {
@@ -195,7 +195,11 @@ self.addEventListener('fetch', (event) => {
                         !u.pathname.startsWith('/_next/') &&
                         !u.pathname.startsWith('/api/')
                     })
-                    return nav ? cache.match(nav, { ignoreVary: true }) : undefined
+                    if (nav) return cache.match(nav, { ignoreVary: true })
+                  return new Response(
+                    '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Carregando…</title><script>setTimeout(function(){location.reload()},4000)<\/script></head><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0"><p>Reconectando…</p></body></html>',
+                    { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+                  )
                   })
                 )
               })
