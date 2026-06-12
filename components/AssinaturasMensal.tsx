@@ -271,20 +271,17 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
 
       // Atualização otimista — reflete a mudança imediatamente sem esperar refetch
       setItens(prev => prev.map(i => i.id === itemSelecionado.id ? { ...i, ...payload } : i))
-      // Captura qualquer entrada do mês corrente (backfill usa created_at::date,
-      // que pode ser '2026-06-11' em vez de '2026-06-01' — range cobre todos os dias).
-      const entradaExistente = historico.find(
-        h => h.assinatura_id === itemSelecionado.id &&
-             h.vigente_desde >= vigenteDe && h.vigente_desde <= vigenteFim
-      )
-      const dentrDoMes = (h: { assinatura_id: string; vigente_desde: string }) =>
+      const dentroDoMes = (h: { assinatura_id: string; vigente_desde: string }) =>
         h.assinatura_id === itemSelecionado.id &&
         h.vigente_desde >= vigenteDe && h.vigente_desde <= vigenteFim
+
+      // Captura TODAS as entradas do mês (backfill pode gerar múltiplas com datas distintas).
+      const entradasExistentes = historico.filter(dentroDoMes)
 
       const tempId = `opt-${Date.now()}`
       if (valorMudou) {
         setHistorico(prev => [
-          ...prev.filter(h => !dentrDoMes(h)),
+          ...prev.filter(h => !dentroDoMes(h)),
           { id: tempId, assinatura_id: itemSelecionado.id, valor, vigente_desde: vigenteDe, criado_em: new Date().toISOString() },
         ])
       }
@@ -299,10 +296,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
           .lte('vigente_desde', vigenteFim)
         if (delErr) {
           setItens(prev => prev.map(i => i.id === itemSelecionado.id ? itemSelecionado : i))
-          setHistorico(prev => {
-            const sem = prev.filter(h => h.id !== tempId)
-            return entradaExistente ? [...sem, entradaExistente] : sem
-          })
+          setHistorico(prev => [...prev.filter(h => h.id !== tempId), ...entradasExistentes])
           showToast('Erro ao salvar', 'erro')
           return
         }
@@ -312,16 +306,13 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
           .single()
         if (insErr || !novaEntrada) {
           setItens(prev => prev.map(i => i.id === itemSelecionado.id ? itemSelecionado : i))
-          setHistorico(prev => {
-            const sem = prev.filter(h => h.id !== tempId)
-            return entradaExistente ? [...sem, entradaExistente] : sem
-          })
+          setHistorico(prev => [...prev.filter(h => h.id !== tempId), ...entradasExistentes])
           showToast('Erro ao salvar', 'erro')
           return
         }
         // Substitui a entrada otimista (tempId) pela entrada real do banco.
         setHistorico(prev => [
-          ...prev.filter(h => h.id !== tempId && !dentrDoMes(h)),
+          ...prev.filter(h => h.id !== tempId && !dentroDoMes(h)),
           novaEntrada,
         ])
       }
@@ -329,10 +320,10 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       if (error) {
         setItens(prev => prev.map(i => i.id === itemSelecionado.id ? itemSelecionado : i))
         if (valorMudou) {
-          setHistorico(prev => {
-            const sem = prev.filter(h => h.id !== tempId && !dentrDoMes(h))
-            return entradaExistente ? [...sem, entradaExistente] : sem
-          })
+          setHistorico(prev => [
+            ...prev.filter(h => h.id !== tempId && !dentroDoMes(h)),
+            ...entradasExistentes,
+          ])
         }
         showToast('Erro ao salvar', 'erro')
         return
