@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths, addMonths, parseISO } from 'date-fns'
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { ptBR } from 'date-fns/locale'
-import { CheckCircle2, AlertCircle, CreditCard, RotateCcw, WifiOff, Bell, Calendar } from 'lucide-react'
+import { CheckCircle2, AlertCircle, CreditCard, RotateCcw, WifiOff, Bell, Calendar, Receipt } from 'lucide-react'
 import PageActionButtons from '@/components/PageActionButtons'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { calcularStatusVencimento, verificarVencimentos, type StatusVencimento } from '@/lib/notificacoesVencimento'
@@ -476,6 +476,12 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
 
       {/* Resumo / Filtro de status */}
       <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
+        <div className="flex items-center gap-2 mb-3.5">
+          <div className="w-7 h-7 rounded-xl bg-red-100 flex items-center justify-center">
+            <Receipt className="w-4 h-4 text-red-600" />
+          </div>
+          <span className="font-semibold text-gray-800 text-sm">Resumo das Despesas</span>
+        </div>
         <div className="grid grid-cols-3 gap-2 mb-3.5">
           <button
             onClick={() => setFiltroStatus(filtroStatus === '' ? '' : '')}
