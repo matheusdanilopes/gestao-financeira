@@ -14,12 +14,12 @@ import dynamic from 'next/dynamic'
 // transmite a estrutura que vai surgir e melhora a performance percebida.
 const GraficoProjecao = dynamic(() => import('@/components/GraficoProjecao'), {
   ssr: false,
-  loading: () => <div className="h-72 skeleton rounded-2xl" />,
+  loading: () => <div className="h-56 md:h-64 lg:h-72 skeleton rounded-2xl" />,
 })
 
 const GraficoEvolucaoMensal = dynamic(() => import('@/components/GraficoEvolucaoMensal'), {
   ssr: false,
-  loading: () => <div className="h-64 skeleton rounded-2xl" />,
+  loading: () => <div className="h-56 md:h-64 lg:h-72 skeleton rounded-2xl" />,
 })
 
 const GraficoEvolucaoInvestimentos = dynamic(
