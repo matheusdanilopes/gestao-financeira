@@ -104,6 +104,55 @@ async function calcularSaldo(mes: Date): Promise<SaldoData> {
   }
 }
 
+function InvestimentosPageSkeleton() {
+  return (
+    <div className="space-y-3 animate-pulse">
+      {/* Resumo skeleton */}
+      <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="w-5 h-5 bg-gray-100 rounded-lg shrink-0" />
+          <div className="h-4 bg-gray-100 rounded-full w-48" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="h-20 bg-gray-100 rounded-2xl" />
+          <div className="h-20 bg-gray-100 rounded-2xl" />
+          <div className="h-20 bg-gray-100 rounded-2xl" />
+          <div className="h-20 bg-gray-100 rounded-2xl" />
+        </div>
+        <div className="space-y-1.5">
+          <div className="flex justify-between">
+            <div className="h-3 bg-gray-100 rounded-full w-32" />
+            <div className="h-3 bg-gray-100 rounded-full w-8" />
+          </div>
+          <div className="h-2 bg-gray-100 rounded-full" />
+          <div className="flex justify-between mt-1">
+            <div className="h-3 bg-gray-100 rounded-full w-24" />
+            <div className="h-3 bg-gray-100 rounded-full w-36" />
+          </div>
+        </div>
+      </div>
+      {/* Lista skeleton */}
+      <div className="bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="px-4 py-3 border-b border-gray-100 last:border-b-0">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-2 h-2 rounded-full bg-gray-100 shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-3.5 bg-gray-100 rounded-full w-2/3" />
+                <div className="h-3 bg-gray-100 rounded-full w-1/3" />
+              </div>
+              <div className="h-4 bg-gray-100 rounded-full w-20 shrink-0" />
+            </div>
+            <div className="pl-5">
+              <div className="h-1.5 bg-gray-100 rounded-full w-full" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function InvestimentosContent() {
   const { mesAtual, setMesAtual } = useMes()
   const searchParams = useSearchParams()
@@ -135,14 +184,7 @@ function InvestimentosContent() {
 
       <div className="page-content">
         {carregando ? (
-          <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-6 animate-pulse space-y-3">
-            <div className="h-5 bg-gray-100 rounded-xl w-1/2" />
-            <div className="grid grid-cols-2 gap-3">
-              <div className="h-20 bg-gray-100 rounded-2xl" />
-              <div className="h-20 bg-gray-100 rounded-2xl" />
-            </div>
-            <div className="h-2 bg-gray-100 rounded-full" />
-          </div>
+          <InvestimentosPageSkeleton />
         ) : (
           <InvestimentosMensal mesSelecionado={mesAtual} saldo={saldo} saldoPrevisto={saldoPrevisto} autoOpen={autoOpen} />
         )}
