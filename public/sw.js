@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gestao-financeira-v12'
+const CACHE_NAME = 'gestao-financeira-v13'
 
 const OFFLINE_HTML = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Carregando…</title><script>setTimeout(function(){location.reload()},4000)<\/script></head><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0"><p>Reconectando…</p></body></html>'
 const OFFLINE_RESPONSE = () => new Response(OFFLINE_HTML, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
@@ -74,8 +74,9 @@ function getGrupoTags(clickedTag) {
 }
 
 // Rotas críticas pré-cacheadas no install para garantir abertura offline.
+// Não inclui '/' — o servidor redireciona para /dashboard (redirected:true)
+// e a resposta não pode ser cacheada nem servida corretamente em iOS/WKWebView.
 const PRECACHE_ROUTES = [
-  '/',
   '/dashboard',
   '/lista-mercado',
   '/financas',
@@ -181,10 +182,23 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (request.mode === 'navigate') {
+    // Root path redirects to /dashboard on the server. Intercepting it and returning
+    // response.redirected=true to WKWebView (iOS Safari / Chrome iOS) causes
+    // "This page couldn't load". Skip the SW and let the browser handle the redirect
+    // natively; the /dashboard navigation will be intercepted separately.
+    if (url.pathname === '/') return
+
     event.respondWith(
-      fetchWithTimeout(request, NAVIGATION_TIMEOUT_MS)
+      // redirect:'manual' means if the server returns a redirect, we get an opaque redirect
+      // response (type:'opaqueredirect') which we pass back to the browser to follow itself —
+      // this is iOS-safe. Contrast with redirect:'follow' which produces response.redirected=true
+      // that WKWebView can reject for navigation events.
+      fetchWithTimeout(new Request(request, { redirect: 'manual' }), NAVIGATION_TIMEOUT_MS)
         .then(response => {
-          if (response.ok && !response.redirected) {
+          // Opaque redirect — pass through for browser to follow (no caching)
+          if (response.type === 'opaqueredirect') return response
+          // Normal response — cache and serve
+          if (response.ok) {
             const clone = response.clone()
             caches.open(CACHE_NAME).then(cache => cache.put(request, clone))
           }
