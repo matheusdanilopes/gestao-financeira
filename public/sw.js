@@ -1,4 +1,7 @@
-const CACHE_NAME = 'gestao-financeira-v11'
+const CACHE_NAME = 'gestao-financeira-v12'
+
+const OFFLINE_HTML = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Carregando…</title><script>setTimeout(function(){location.reload()},4000)<\/script></head><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0"><p>Reconectando…</p></body></html>'
+const OFFLINE_RESPONSE = () => new Response(OFFLINE_HTML, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
 
 // Tags auto-fecháveis ao abrir o app — processo concluído, notificação apenas informativa.
 // Mantido em sincronia com SW_AUTO_CLOSE_TAGS em lib/notificationTypes.ts.
@@ -145,7 +148,7 @@ self.addEventListener('fetch', (event) => {
             caches.open(CACHE_NAME).then(cache => cache.put(request, clone))
           }
           return response
-        })
+        }).catch(() => new Response('', { status: 503, statusText: 'Service Unavailable' }))
       })
     )
     return
@@ -160,11 +163,18 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       caches.open(CACHE_NAME).then(async cache => {
         const cached = await cache.match(request)
-        const fetchPromise = fetch(request).then(response => {
+        if (cached) {
+          // Serve from cache immediately; update in background
+          fetch(request).then(response => {
+            if (response.ok) cache.put(request, response.clone())
+          }).catch(() => {})
+          return cached
+        }
+        // Not cached: fetch from network (may throw, letting browser handle error natively)
+        return fetch(request).then(response => {
           if (response.ok) cache.put(request, response.clone())
           return response
-        }).catch(() => cached)
-        return cached ?? fetchPromise
+        }).catch(() => new Response('', { status: 503, statusText: 'Service Unavailable' }))
       })
     )
     return
@@ -195,16 +205,17 @@ self.addEventListener('fetch', (event) => {
                         !u.pathname.startsWith('/_next/') &&
                         !u.pathname.startsWith('/api/')
                     })
-                    if (nav) return cache.match(nav, { ignoreVary: true })
-                  return new Response(
-                    '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Carregando…</title><script>setTimeout(function(){location.reload()},4000)<\/script></head><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0"><p>Reconectando…</p></body></html>',
-                    { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
-                  )
+                    // Guard: cache.match(nav) can resolve to undefined on iOS if the entry was
+                    // evicted between cache.keys() and cache.match(). Always fall back to OFFLINE_RESPONSE.
+                    if (nav) return cache.match(nav, { ignoreVary: true }).then(r => r || OFFLINE_RESPONSE())
+                    return OFFLINE_RESPONSE()
                   })
                 )
               })
             })
           })
+          // Last-resort guard: if any step in the cache chain itself throws, still return a valid Response.
+          .catch(() => OFFLINE_RESPONSE())
         )
     )
     return
