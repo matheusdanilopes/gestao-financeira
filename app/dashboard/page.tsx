@@ -1025,17 +1025,15 @@ export default function Dashboard() {
 
         {/* ── Gastos Diários ── */}
         <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
-          <div className="flex flex-col gap-2 mb-1 sm:flex-row sm:items-center">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
-                <Activity className="w-4 h-4 text-violet-600" />
-              </div>
-              <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5 whitespace-nowrap">
-                Gastos Diários
-                <InfoPopover texto="Evolução dos gastos ao longo dos dias do mês selecionado. Considera todas as compras com data de compra registrada no período. Use os filtros para visualizar por pessoa ou por cartão." />
-              </h2>
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
+              <Activity className="w-4 h-4 text-violet-600" />
             </div>
-            <div className="inline-flex items-center bg-gray-100 rounded-full p-[2px] gap-[1px] self-start sm:self-auto sm:ml-auto shrink-0">
+            <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5 whitespace-nowrap shrink-0">
+              Gastos Diários
+              <InfoPopover texto="Evolução dos gastos ao longo dos dias do mês selecionado. Considera todas as compras com data de compra registrada no período. Use os filtros para visualizar por pessoa ou por cartão." />
+            </h2>
+            <div className="inline-flex items-center bg-gray-100 rounded-full p-[2px] gap-[1px] ml-auto shrink-0">
               <button
                 onClick={() => setVisaoGastosDiarios('valor')}
                 className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 ${
