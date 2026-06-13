@@ -260,8 +260,22 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
   /* ── loading ── */
   if (carregando) {
     return (
-      <div className="h-64 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-gray-200 border-t-emerald-500 rounded-full animate-spin" />
+      <div className="h-56 md:h-64 lg:h-72 animate-pulse">
+        <div className="h-full flex flex-col gap-2 pt-2 pb-6">
+          <div className="flex-1 flex items-end gap-1 px-2">
+            {[45, 68, 55, 75, 60, 82].map((h, i) => (
+              <div
+                key={i}
+                className="flex-1 rounded-t-lg bg-gray-100 dark:bg-white/[0.05]"
+                style={{ height: `${h}%` }}
+              />
+            ))}
+          </div>
+          <div className="flex gap-4 justify-center">
+            <div className="h-2 w-16 bg-gray-100 dark:bg-white/[0.05] rounded-full" />
+            <div className="h-2 w-16 bg-gray-100 dark:bg-white/[0.05] rounded-full" />
+          </div>
+        </div>
       </div>
     )
   }
@@ -270,11 +284,11 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
   if (erro) {
     return (
       <div className="h-64 flex flex-col items-center justify-center gap-3 text-red-400">
-        <AlertCircle className="w-8 h-8" />
-        <span className="text-sm">{erro}</span>
+        <AlertCircle className="w-7 h-7 opacity-70" />
+        <span className="text-sm text-gray-500">{erro}</span>
         <button
           onClick={() => { setCarregando(true); carregar() }}
-          className="text-xs text-blue-500 underline"
+          className="text-xs text-primary-500 hover:text-primary-600 underline transition-colors"
         >
           Tentar novamente
         </button>

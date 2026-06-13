@@ -116,9 +116,13 @@ export function SwipeableItem({
         <div
           aria-hidden="true"
           className="absolute inset-y-0 right-0 flex items-center justify-center bg-red-500"
-          style={{ width: SWIPE_REVEAL_WIDTH, opacity: revealProgress }}
+          style={{
+            width: SWIPE_REVEAL_WIDTH,
+            opacity: revealProgress,
+            borderRadius: revealProgress > 0.05 ? '0 0.75rem 0.75rem 0' : '0',
+          }}
         >
-          <Trash2 className="w-5 h-5 text-white" />
+          <Trash2 className="w-5 h-5 text-white" strokeWidth={2} />
         </div>
         <div
           style={{
@@ -206,24 +210,24 @@ function DeleteConfirmSheet({
       >
         {/* Handle bar */}
         <div className="flex justify-center pt-3 pb-1" aria-hidden="true">
-          <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
+          <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-600" />
         </div>
 
         {/* Body */}
-        <div className="px-5 pt-3 pb-4">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-none">
-              <Trash2 className="w-5 h-5 text-red-500" aria-hidden="true" />
+        <div className="px-5 pt-4 pb-5">
+          <div className="flex items-center gap-3.5 mb-6">
+            <div className="w-11 h-11 rounded-2xl bg-red-50 dark:bg-red-900/30 flex items-center justify-center flex-none">
+              <Trash2 className="w-5 h-5 text-red-500" aria-hidden="true" strokeWidth={2} />
             </div>
             <div>
               <p
                 id="delete-confirm-title"
                 className="text-[15px] font-semibold text-gray-900 dark:text-white leading-snug"
               >
-                Deseja remover este item?
+                Remover este item?
               </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                O item será excluído da lista.
+              <p className="text-sm text-gray-400 mt-0.5">
+                Essa ação não pode ser desfeita.
               </p>
             </div>
           </div>
@@ -234,19 +238,19 @@ function DeleteConfirmSheet({
               ref={cancelBtnRef}
               type="button"
               onClick={handleCancel}
-              className="flex-1 h-12 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300
-                         font-semibold text-sm transition-colors
+              className="flex-1 h-12 rounded-2xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300
+                         font-semibold text-sm transition-all ease-smooth
                          hover:bg-gray-200 dark:hover:bg-gray-700
-                         active:scale-[0.97] active:bg-gray-200"
+                         active:scale-[0.97]"
             >
               Cancelar
             </button>
             <button
               type="button"
               onClick={handleConfirm}
-              className="flex-1 h-12 rounded-xl bg-red-500 text-white font-semibold text-sm
-                         transition-colors
-                         hover:bg-red-600 active:bg-red-600 active:scale-[0.97]"
+              className="flex-1 h-12 rounded-2xl bg-red-500 text-white font-semibold text-sm
+                         transition-all ease-smooth
+                         hover:bg-red-600 active:scale-[0.97]"
             >
               Excluir
             </button>

@@ -44,27 +44,27 @@ function CardRegistro({ registro, onExcluir }: { registro: RegistroCompra; onExc
   const horaFormatada = format(parseISO(registro.data_hora), 'HH:mm', { locale: ptBR })
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-card overflow-hidden">
       <SwipeableItem onDelete={() => onExcluir(registro.id)} requireConfirmation>
       <div>
       {/* Cabeçalho do card */}
       <button
         type="button"
         onClick={() => setExpandido(v => !v)}
-        className="w-full flex items-center gap-4 px-4 py-4 hover:bg-gray-50 transition-colors text-left"
+        className="w-full flex items-center gap-4 px-4 py-4 hover:bg-gray-50 transition-colors text-left active:bg-gray-50"
       >
         {/* Ícone */}
-        <div className="w-10 h-10 rounded-2xl bg-green-50 flex items-center justify-center flex-none">
-          <ShoppingBasket className="w-5 h-5 text-green-600" strokeWidth={1.8} />
+        <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center flex-none">
+          <ShoppingBasket className="w-5 h-5 text-emerald-600" strokeWidth={1.8} />
         </div>
 
         {/* Info principal */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold text-gray-900">{dataFormatada}</p>
+            <p className="text-sm font-bold text-gray-900">{dataFormatada}</p>
             <span className="text-[11px] text-gray-400 font-medium">{horaFormatada}</span>
           </div>
-          <div className="flex items-center gap-3 mt-0.5">
+          <div className="flex items-center gap-2.5 mt-0.5">
             <span className="flex items-center gap-1 text-xs text-gray-500">
               <Package className="w-3 h-3" strokeWidth={2} />
               {registro.itens_count} {registro.itens_count === 1 ? 'item' : 'itens'}
@@ -77,7 +77,7 @@ function CardRegistro({ registro, onExcluir }: { registro: RegistroCompra; onExc
 
         {/* Total + expand */}
         <div className="flex items-center gap-2 flex-none">
-          <p className="text-base font-bold text-gray-900 tabular-nums">
+          <p className="text-base font-bold text-gray-900 num">
             {formatBRL(registro.valor_total)}
           </p>
           {expandido
@@ -91,15 +91,15 @@ function CardRegistro({ registro, onExcluir }: { registro: RegistroCompra; onExc
       {expandido && registro.itens.length > 0 && (
         <div className="border-t border-gray-50 divide-y divide-gray-50">
           {registro.itens.map((item, idx) => (
-            <div key={idx} className="flex items-center justify-between px-4 py-2.5">
+            <div key={idx} className="flex items-center justify-between px-4 py-3">
               <div className="flex-1 min-w-0 mr-3">
-                <p className="text-sm text-gray-800 font-medium truncate">{item.nome}</p>
-                <p className="text-[11px] text-gray-400">
+                <p className="text-sm text-gray-800 font-semibold truncate">{item.nome}</p>
+                <p className="text-[11px] text-gray-400 num">
                   {item.quantidade}× {item.preco_unit != null ? formatBRL(item.preco_unit) : 'sem preço'}
                 </p>
               </div>
               {item.preco_unit != null && (
-                <p className="text-sm font-semibold text-gray-700 tabular-nums flex-none">
+                <p className="text-sm font-bold text-gray-700 num flex-none">
                   {formatBRL(item.quantidade * item.preco_unit)}
                 </p>
               )}
@@ -107,9 +107,9 @@ function CardRegistro({ registro, onExcluir }: { registro: RegistroCompra; onExc
           ))}
 
           {/* Subtotal dos itens */}
-          <div className="flex items-center justify-between px-4 py-3 bg-green-50">
-            <span className="text-xs font-semibold text-green-700">Total pago</span>
-            <span className="text-base font-bold text-green-700 tabular-nums">
+          <div className="flex items-center justify-between px-4 py-3.5 bg-emerald-50 border-t border-emerald-100">
+            <span className="text-xs font-bold text-emerald-700 uppercase tracking-wide">Total pago</span>
+            <span className="text-base font-bold text-emerald-700 num">
               {formatBRL(registro.valor_total)}
             </span>
           </div>
@@ -229,18 +229,23 @@ export default function HistoricoComprasPage() {
       <div className="px-4 py-4">
         {loading && historico.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <RefreshCw className="w-6 h-6 text-gray-300 animate-spin" />
+            <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center">
+              <RefreshCw className="w-5 h-5 text-gray-300 animate-spin" />
+            </div>
             <p className="text-sm text-gray-400">Carregando histórico…</p>
           </div>
         )}
 
         {error && (
-          <div className="flex flex-col items-center justify-center py-12 gap-3 text-center px-8">
-            <p className="text-sm text-red-500 font-medium">{error}</p>
+          <div className="flex flex-col items-center justify-center py-12 gap-4 text-center px-8">
+            <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center">
+              <RefreshCw className="w-5 h-5 text-red-300" />
+            </div>
+            <p className="text-sm text-red-500 font-medium leading-relaxed">{error}</p>
             <button
               type="button"
               onClick={handleRefresh}
-              className="text-xs text-primary-600 font-semibold px-4 py-2 rounded-xl bg-primary-50 hover:bg-primary-100 transition-colors"
+              className="text-xs text-primary-600 font-semibold px-4 py-2.5 rounded-xl bg-primary-50 hover:bg-primary-100 transition-colors active:scale-[0.97]"
             >
               Tentar novamente
             </button>
@@ -249,12 +254,12 @@ export default function HistoricoComprasPage() {
 
         {!loading && !error && filtrado.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-center px-8 gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center">
-              <Inbox className="w-8 h-8 text-gray-200" strokeWidth={1.5} />
+            <div className="w-16 h-16 rounded-3xl bg-gray-50 flex items-center justify-center">
+              <Inbox className="w-7 h-7 text-gray-200" strokeWidth={1.5} />
             </div>
             <div>
-              <p className="text-sm font-semibold text-gray-700 mb-1">Nenhuma compra encontrada</p>
-              <p className="text-xs text-gray-400 leading-relaxed">
+              <p className="text-sm font-semibold text-gray-700 mb-1.5">Nenhuma compra encontrada</p>
+              <p className="text-xs text-gray-400 leading-relaxed max-w-[220px] mx-auto">
                 {periodo === 'tudo'
                   ? 'Finalize uma compra na lista de mercado para registrá-la aqui.'
                   : `Sem compras no período selecionado. Tente um período mais amplo.`
@@ -265,7 +270,7 @@ export default function HistoricoComprasPage() {
               <button
                 type="button"
                 onClick={() => setPeriodo('tudo')}
-                className="text-xs text-primary-600 font-semibold px-4 py-2 rounded-xl bg-primary-50 hover:bg-primary-100 transition-colors"
+                className="text-xs text-primary-600 font-semibold px-4 py-2.5 rounded-xl bg-primary-50 hover:bg-primary-100 transition-colors active:scale-[0.97]"
               >
                 Ver todas as compras
               </button>
@@ -279,9 +284,9 @@ export default function HistoricoComprasPage() {
             {/* Label do mês */}
             <div className="flex items-center gap-2 mb-3">
               <Calendar className="w-3.5 h-3.5 text-gray-400 flex-none" strokeWidth={2} />
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">{mes}</p>
+              <p className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">{mes}</p>
               <div className="flex-1 h-px bg-gray-100" />
-              <span className="text-xs text-gray-400 font-medium tabular-nums">
+              <span className="text-xs text-gray-500 font-bold num">
                 {formatBRL(registros.reduce((s, r) => s + r.valor_total, 0))}
               </span>
             </div>

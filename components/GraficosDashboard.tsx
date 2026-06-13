@@ -110,10 +110,11 @@ function DonutChart({ values, colors, size = 130 }: { values: number[]; colors: 
 function Skeleton() {
   return (
     <div className="space-y-4">
-      {[1, 2, 3].map(i => (
-        <div key={i} className="bg-white rounded-xl shadow p-4 animate-pulse">
-          <div className="h-4 bg-gray-200 rounded w-2/5 mb-3" />
-          <div className="h-32 bg-gray-100 rounded" />
+      {[140, 160, 180].map((h, i) => (
+        <div key={i} className="bg-white rounded-3xl border border-gray-100 shadow-card p-4 animate-pulse">
+          <div className="h-3 bg-gray-200 rounded-full w-2/5 mb-1.5" />
+          <div className="h-2 bg-gray-100 rounded-full w-1/3 mb-4" />
+          <div className="rounded-2xl bg-gray-100" style={{ height: h }} />
         </div>
       ))}
     </div>
@@ -154,7 +155,7 @@ export default function GraficosDashboard({ transacoes, carregando }: Props) {
 
   if (carregando) return <Skeleton />
   if (!dados) return (
-    <div className="bg-white rounded-xl shadow p-6 text-center text-gray-400 text-sm">
+    <div className="bg-white rounded-3xl border border-gray-100 shadow-card p-8 text-center text-gray-400 text-sm">
       Nenhuma transação encontrada para o mês selecionado.
     </div>
   )
@@ -165,8 +166,8 @@ export default function GraficosDashboard({ transacoes, carregando }: Props) {
     <div className="space-y-4">
 
       {/* Compras por pessoa */}
-      <div className="bg-white rounded-xl shadow p-4">
-        <h2 className="text-base font-semibold text-gray-800 mb-0.5">🛒 Compras por pessoa</h2>
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-card p-4">
+        <h2 className="text-sm font-semibold text-gray-800 mb-0.5">Compras por pessoa</h2>
         <p className="text-xs text-gray-400 mb-3">Quantidade de compras na fatura do mês</p>
         <BarChart
           labels={['Matheus', 'Jeniffer']}
@@ -177,25 +178,25 @@ export default function GraficosDashboard({ transacoes, carregando }: Props) {
         <div className="grid grid-cols-2 gap-2 mt-2 pt-3 border-t border-gray-100">
           <div>
             <div className="flex items-center gap-1.5 mb-0.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-              <span className="text-xs font-medium text-gray-700">Matheus</span>
+              <div className="w-2 h-2 rounded-full bg-blue-500" />
+              <span className="text-xs font-semibold text-gray-700">Matheus</span>
             </div>
-            <p className="text-xs text-gray-500 pl-4">{matheusQtd} compras · R$ {matheusVal.toFixed(2)}</p>
+            <p className="text-xs text-gray-500 pl-3.5 tabular-nums">{matheusQtd} compras · R$ {matheusVal.toFixed(2)}</p>
           </div>
           <div>
             <div className="flex items-center gap-1.5 mb-0.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-pink-500" />
-              <span className="text-xs font-medium text-gray-700">Jeniffer</span>
+              <div className="w-2 h-2 rounded-full bg-pink-500" />
+              <span className="text-xs font-semibold text-gray-700">Jeniffer</span>
             </div>
-            <p className="text-xs text-gray-500 pl-4">{jenifferQtd} compras · R$ {jenifferVal.toFixed(2)}</p>
+            <p className="text-xs text-gray-500 pl-3.5 tabular-nums">{jenifferQtd} compras · R$ {jenifferVal.toFixed(2)}</p>
           </div>
         </div>
       </div>
 
       {/* Compras por dia */}
       {dias.length > 0 && (
-        <div className="bg-white rounded-xl shadow p-4">
-          <h2 className="text-base font-semibold text-gray-800 mb-0.5">📅 Compras por dia</h2>
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-card p-4">
+          <h2 className="text-sm font-semibold text-gray-800 mb-0.5">Compras por dia</h2>
           <p className="text-xs text-gray-400 mb-3">Quantidade de compras por dia do mês</p>
           <BarChart
             labels={dias}
@@ -208,21 +209,21 @@ export default function GraficosDashboard({ transacoes, carregando }: Props) {
 
       {/* Valor por categoria */}
       {cats.length > 0 && (
-        <div className="bg-white rounded-xl shadow p-4">
-          <h2 className="text-base font-semibold text-gray-800 mb-0.5">🏷️ Valor por categoria</h2>
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-card p-4">
+          <h2 className="text-sm font-semibold text-gray-800 mb-0.5">Valor por categoria</h2>
           <p className="text-xs text-gray-400 mb-3">Total gasto em cada categoria</p>
           <div className="flex gap-4 items-center">
             <div className="shrink-0">
               <DonutChart values={cats.map(([, v]) => v)} colors={CAT_COLORS} size={130} />
             </div>
-            <div className="flex-1 space-y-2 overflow-y-auto" style={{ maxHeight: 130 }}>
+            <div className="flex-1 space-y-2.5 overflow-y-auto" style={{ maxHeight: 130 }}>
               {cats.map(([cat, val], i) => (
                 <div key={cat} className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: CAT_COLORS[i % CAT_COLORS.length] }} />
-                  <p className="flex-1 text-xs text-gray-700 truncate">{cat}</p>
+                  <p className="flex-1 text-xs text-gray-600 truncate">{cat}</p>
                   <div className="text-right shrink-0">
-                    <span className="text-xs font-semibold text-gray-700">R$ {val.toFixed(2)}</span>
-                    <span className="text-xs text-gray-400 ml-1">
+                    <span className="text-xs font-semibold text-gray-800 tabular-nums">R$ {val.toFixed(2)}</span>
+                    <span className="text-[10px] text-gray-400 ml-1 tabular-nums">
                       {totalCat > 0 ? ((val / totalCat) * 100).toFixed(0) : 0}%
                     </span>
                   </div>

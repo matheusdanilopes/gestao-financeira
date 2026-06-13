@@ -303,29 +303,31 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
     <div className="space-y-3">
 
       {/* Resumo */}
-      <div className="bg-white rounded-2xl shadow p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <TrendingUp className="w-5 h-5 text-green-600" />
-          <span className="font-semibold text-gray-800">Resumo de Receitas</span>
-        </div>
-        <div className="grid grid-cols-2 gap-3 mb-3">
-          <div className="bg-gray-50 rounded-xl p-3 text-center">
-            <p className="text-xs text-gray-500 mb-0.5">Previsto</p>
-            <p className="text-lg font-bold text-gray-800">{formatBRL(totalPrevisto)}</p>
+      <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
+        <div className="flex items-center gap-2 mb-3.5">
+          <div className="w-7 h-7 rounded-xl bg-emerald-100 flex items-center justify-center">
+            <TrendingUp className="w-4 h-4 text-emerald-600" />
           </div>
-          <div className="bg-green-50 rounded-xl p-3 text-center">
-            <p className="text-xs text-gray-500 mb-0.5">Recebido</p>
-            <p className="text-lg font-bold text-green-700">{formatBRL(totalRecebido)}</p>
+          <span className="font-semibold text-gray-800 text-sm">Resumo de Receitas</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2.5 mb-3.5">
+          <div className="bg-gray-50 rounded-2xl p-3 text-center">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">Previsto</p>
+            <p className="text-base font-bold text-gray-800 num">{formatBRL(totalPrevisto)}</p>
+          </div>
+          <div className="bg-emerald-50 rounded-2xl p-3 text-center">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-500 mb-0.5">Recebido</p>
+            <p className="text-base font-bold text-emerald-700 num">{formatBRL(totalRecebido)}</p>
           </div>
         </div>
         <div>
-          <div className="flex justify-between text-xs text-gray-500 mb-1">
+          <div className="flex justify-between text-xs text-gray-500 mb-1.5">
             <span>Progresso do mês</span>
-            <span className="font-semibold text-green-700">{percentual.toFixed(0)}%</span>
+            <span className="font-bold text-emerald-600 tabular-nums">{percentual.toFixed(0)}%</span>
           </div>
-          <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+          <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
             <div
-              className="h-2 rounded-full bg-green-500 transition-[width] duration-500"
+              className="h-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-[width] duration-700 ease-smooth"
               style={{ width: `${percentual}%` }}
             />
           </div>
@@ -351,7 +353,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
       )}
 
       {/* Lista */}
-      <div className="bg-white rounded-2xl shadow overflow-hidden divide-y divide-gray-100">
+      <div className="bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden divide-y divide-gray-100">
         {itens.length === 0 ? (
           <div className="py-12 flex flex-col items-center gap-2 text-gray-300">
             <TrendingUp className="w-10 h-10" />
@@ -453,8 +455,8 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed bottom-24 left-1/2 -translate-x-1/2 px-5 py-3 rounded-2xl shadow-lg text-sm font-semibold text-white z-[60] ${
-          toast.tipo === 'ok' ? 'bg-green-600' : 'bg-red-500'
+        <div className={`fixed bottom-24 left-1/2 -translate-x-1/2 px-5 py-2.5 rounded-2xl shadow-float text-sm font-semibold text-white z-[60] ${
+          toast.tipo === 'ok' ? 'bg-gray-900' : 'bg-red-500'
         }`}>
           {toast.msg}
         </div>
@@ -463,8 +465,8 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
       {/* ── Modal: registrar recebimento parcial ── */}
       {modalRecebimento && (
         <ModalPortal>
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-float">
             <div className="flex items-start justify-between mb-1">
               <h3 className="text-lg font-bold">Registrar Recebimento</h3>
               <button onClick={() => setModalRecebimento(null)} className="p-1 rounded-lg text-gray-400 hover:bg-gray-100">
@@ -534,8 +536,8 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
       {/* ── Modal: histórico de recebimentos ── */}
       {modalHistorico && (
         <ModalPortal>
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-float">
             <div className="flex items-start justify-between mb-1">
               <h3 className="text-lg font-bold">Histórico</h3>
               <button onClick={() => setModalHistorico(null)} className="p-1 rounded-lg text-gray-400 hover:bg-gray-100">
@@ -650,8 +652,8 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
       {/* ── Modal: adicionar / editar ── */}
       {(modalAberto === 'adicionar' || modalAberto === 'editar') && (
         <ModalPortal>
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-float">
             <h3 className="text-lg font-bold mb-5">
               {modalAberto === 'adicionar' ? 'Nova Receita' : 'Editar Receita'}
             </h3>
@@ -704,8 +706,8 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
       {/* ── Modal: excluir ── */}
       {modalAberto === 'excluir' && itemSelecionado && (
         <ModalPortal>
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-float">
             <h3 className="text-lg font-bold mb-2">Excluir receita</h3>
             <p className="text-sm text-gray-500 mb-6">
               Tem certeza que deseja excluir <span className="font-semibold text-gray-800">&quot;{paraNomeExibicao(itemSelecionado.item)}&quot;</span>?

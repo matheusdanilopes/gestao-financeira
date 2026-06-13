@@ -309,12 +309,12 @@ function ModalWishlist({
                       type="button"
                       onClick={() => imageInputRef.current?.click()}
                       disabled={identificando}
-                      className="w-full py-2.5 rounded-xl border-2 border-dashed border-gray-200
-                                 flex items-center justify-center gap-2 text-sm font-medium text-gray-400
+                      className="w-full py-2.5 rounded-2xl border-2 border-dashed border-gray-200
+                                 flex items-center justify-center gap-2 text-sm font-semibold text-gray-400
                                  hover:border-primary-300 hover:text-primary-500 transition-colors
                                  active:scale-[0.99] disabled:opacity-50"
                     >
-                      <Camera className="w-4 h-4" />
+                      <Camera className="w-4 h-4" strokeWidth={2} />
                       Identificar com IA
                     </button>
                   )}
@@ -403,7 +403,11 @@ function ModalWishlist({
                   onClick={() => setDetalhesAbertos(v => !v)}
                   className="flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-700 transition-colors py-1"
                 >
-                  Detalhes {detalhesAbertos ? '↑' : '↓'}
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 transition-transform duration-200 ${detalhesAbertos ? 'rotate-180' : ''}`}
+                    strokeWidth={2.5}
+                  />
+                  Detalhes
                 </button>
               </div>
 
@@ -523,11 +527,11 @@ function ModalWishlist({
               {/* Ações */}
               <div className="flex gap-3 pt-1 pb-safe">
                 <button type="button" onClick={onClose}
-                  className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+                  className="flex-1 py-3.5 rounded-2xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors active:scale-[0.97]">
                   Cancelar
                 </button>
                 <button type="submit" disabled={!form.nome.trim() || salvando}
-                  className="flex-1 py-3 rounded-xl bg-primary-600 text-white text-sm font-semibold disabled:opacity-50 hover:bg-primary-700 transition-colors">
+                  className="flex-1 py-3.5 rounded-2xl bg-primary-600 text-white text-sm font-semibold disabled:opacity-50 hover:bg-primary-700 transition-colors active:scale-[0.97]">
                   {salvando ? 'Salvando…' : 'Salvar'}
                 </button>
               </div>
@@ -634,14 +638,14 @@ function WishlistCard({
     <SwipeableItem onDelete={() => onExcluir(item.id)} requireConfirmation>
       <div
         id={`wishlist-item-${item.id}`}
-        className={`rounded-2xl shadow-sm border border-gray-100 overflow-hidden bg-white border-l-4${highlighted ? ' animate-wishlist-highlight' : ''}`}
+        className={`rounded-2xl shadow-card border border-gray-100 overflow-hidden bg-white border-l-4${highlighted ? ' animate-wishlist-highlight' : ''}`}
         style={{ borderLeftColor: cfg.borderColor }}
       >
         {/* Clickable card body */}
         <button
           type="button"
           onClick={() => onEditar(item)}
-          className="w-full text-left px-4 pt-4 pb-3 active:bg-gray-50 transition-colors duration-150
+          className="w-full text-left px-4 pt-4 pb-3 active:bg-gray-50/80 transition-colors duration-150
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-inset"
         >
           {/* Emoji + nome */}
@@ -649,30 +653,30 @@ function WishlistCard({
             {item.emoji && (
               <span className="text-2xl flex-none leading-tight mt-0.5" aria-hidden="true">{item.emoji}</span>
             )}
-            <p className="flex-1 text-[15px] font-semibold text-gray-900 leading-snug min-w-0 line-clamp-2">
+            <p className="flex-1 text-[15px] font-bold text-gray-900 leading-snug min-w-0 line-clamp-2">
               {item.nome}
             </p>
           </div>
 
           {/* Badges: prioridade + categoria + IA status */}
           <div className="flex items-center gap-1.5 flex-wrap mb-2.5">
-            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${cfg.bg} ${cfg.text}`}>
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${cfg.bg} ${cfg.text}`}>
               <span className={`w-1.5 h-1.5 rounded-full flex-none ${cfg.dot}`} />
               {cfg.label}
             </span>
             {item.categoria && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600">
                 {item.categoria}
               </span>
             )}
             {item.fonte === 'compartilhamento' && item.ai_status === 'pendente' && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-violet-50 text-violet-500">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-violet-50 text-violet-500">
                 <Loader2 className="w-2.5 h-2.5 animate-spin" />
                 Identificando...
               </span>
             )}
             {item.fonte === 'compartilhamento' && item.ai_status !== 'pendente' && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-violet-50 text-violet-500">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-violet-50 text-violet-500">
                 <Camera className="w-2.5 h-2.5" />
                 Compartilhado
               </span>
@@ -681,7 +685,7 @@ function WishlistCard({
 
           {/* Descrição da IA ou nota */}
           {(item.descricao_ia || item.nota) && (
-            <p className="text-xs text-gray-500 line-clamp-1 italic">
+            <p className="text-xs text-gray-400 line-clamp-1 italic leading-relaxed">
               &ldquo;{item.descricao_ia ?? item.nota}&rdquo;
             </p>
           )}
@@ -692,7 +696,7 @@ function WishlistCard({
           {/* Left: valor + link + data */}
           <div className="flex items-center gap-2 min-w-0">
             {item.valor_estimado != null && (
-              <span className="text-xs font-bold text-gray-700 tabular-nums">
+              <span className="text-xs font-bold text-gray-800 num">
                 {formatBRL(item.valor_estimado)}
               </span>
             )}
@@ -701,9 +705,9 @@ function WishlistCard({
                 href={item.link_ref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 text-[11px] text-primary-600 hover:underline"
+                className="flex items-center gap-1 text-[11px] text-primary-600 font-semibold hover:underline"
               >
-                <ExternalLink className="w-3 h-3" />
+                <ExternalLink className="w-3 h-3" strokeWidth={2} />
                 Ver
               </a>
             )}
@@ -713,7 +717,7 @@ function WishlistCard({
           </div>
 
           {/* Right: camera + retry + avatar + star + realizar */}
-          <div className="flex items-center gap-2 flex-none">
+          <div className="flex items-center gap-1.5 flex-none">
             {item.ai_status === 'nao_identificado' && item.imagem_url && (
               <RetryIAButton
                 itemId={item.id}
@@ -737,8 +741,8 @@ function WishlistCard({
             <button
               type="button"
               onClick={() => onRealizar(item.id)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-50 text-green-600
-                         text-xs font-semibold hover:bg-green-100 transition-colors active:scale-95"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-50 text-emerald-600
+                         text-xs font-bold hover:bg-emerald-100 transition-colors active:scale-95"
               aria-label="Marcar como realizado"
             >
               <Check className="w-3.5 h-3.5" strokeWidth={2.5} />
@@ -749,7 +753,7 @@ function WishlistCard({
 
         {/* Swipe hint — aparece uma vez no primeiro card */}
         {mostraHint && (
-          <div className="px-4 pb-2 flex items-center justify-end border-t border-gray-50">
+          <div className="px-4 pb-2.5 flex items-center justify-end border-t border-gray-50">
             <span className="text-[10px] text-gray-300 italic">← deslize para excluir</span>
           </div>
         )}
@@ -771,11 +775,11 @@ function CardRealizado({
 }) {
   return (
     <SwipeableItem onDelete={() => onExcluir(item.id)} requireConfirmation>
-      <div className="w-full bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+      <div className="w-full bg-white rounded-2xl p-4 shadow-card border border-gray-100">
         {/* Nome + restaurar */}
         <div className="flex items-start gap-2.5 mb-2">
           {item.emoji && (
-            <span className="text-xl flex-none opacity-40" aria-hidden="true">{item.emoji}</span>
+            <span className="text-xl flex-none opacity-35" aria-hidden="true">{item.emoji}</span>
           )}
           <p className="flex-1 text-sm font-medium text-gray-400 line-through leading-snug min-w-0 line-clamp-2">
             {item.nome}
@@ -784,17 +788,17 @@ function CardRealizado({
             type="button"
             onClick={() => onRestaurar(item.id)}
             className="flex-none flex items-center gap-1 text-[11px] text-gray-400 hover:text-primary-600
-                       font-medium transition-colors px-2 py-0.5 rounded-full hover:bg-primary-50 active:scale-95"
+                       font-semibold transition-colors px-2 py-0.5 rounded-full hover:bg-primary-50 active:scale-95"
             aria-label="Restaurar desejo"
           >
-            <RotateCcw className="w-3 h-3" />
+            <RotateCcw className="w-3 h-3" strokeWidth={2} />
             Restaurar
           </button>
         </div>
 
         {/* Metadados */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="inline-flex items-center gap-1 text-[10px] text-green-600">
+          <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 font-semibold">
             <Check className="w-3 h-3" strokeWidth={2.5} />
             {item.realizado_em ? formatarData(item.realizado_em) : 'Realizado'}
           </span>
@@ -809,7 +813,7 @@ function CardRealizado({
                 </span>
           )}
           {item.valor_estimado != null && (
-            <span className="text-[10px] text-gray-400 tabular-nums">
+            <span className="text-[10px] text-gray-400 num">
               · {formatBRL(item.valor_estimado)}
             </span>
           )}
@@ -1214,7 +1218,7 @@ function WishlistContent() {
                 <span className="text-green-600 font-medium"> · {historico.length} realizados</span>
               )}
               {totalAtivos > 0 && (
-                <span className="text-gray-500 font-medium"> · {formatBRL(totalAtivos)}</span>
+                <span className="text-gray-500 font-semibold num"> · {formatBRL(totalAtivos)}</span>
               )}
             </p>
           </div>
@@ -1230,8 +1234,8 @@ function WishlistContent() {
           <button
             type="button"
             onClick={() => { setItemEditando(null); setModalAberto(true) }}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary-600 text-white text-xs font-semibold
-                       hover:bg-primary-700 transition-colors active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary-600 text-white text-xs font-bold
+                       hover:bg-primary-700 transition-all ease-spring active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
           >
             <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
             Novo
@@ -1372,15 +1376,15 @@ function WishlistContent() {
       <div className="px-4 pt-4">
         {(aba === 'ativos' ? ativosFiltrados : historicoDis).length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-pink-50 flex items-center justify-center mb-4">
-              <Heart className="w-8 h-8 text-pink-300" strokeWidth={1.5} />
+            <div className="w-16 h-16 rounded-3xl bg-pink-50 flex items-center justify-center mb-4">
+              <Heart className="w-7 h-7 text-pink-300" strokeWidth={1.5} />
             </div>
-            <p className="text-sm font-semibold text-gray-700 mb-1">
+            <p className="text-sm font-semibold text-gray-700 mb-1.5">
               {aba === 'ativos'
                 ? (busca || filtroCategoria || filtroUsuario ? 'Nenhum resultado' : 'Nenhum desejo ainda')
                 : 'Nenhum desejo realizado'}
             </p>
-            <p className="text-xs text-gray-400 max-w-[220px]">
+            <p className="text-xs text-gray-400 max-w-[220px] leading-relaxed">
               {aba === 'ativos'
                 ? (busca || filtroCategoria || filtroUsuario
                     ? 'Tente outros termos ou filtros'
@@ -1391,8 +1395,8 @@ function WishlistContent() {
               <button
                 type="button"
                 onClick={() => { setItemEditando(null); setModalAberto(true) }}
-                className="mt-5 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary-600 text-white text-sm font-semibold
-                           hover:bg-primary-700 transition-colors"
+                className="mt-5 flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-primary-600 text-white text-sm font-semibold
+                           hover:bg-primary-700 transition-colors active:scale-[0.97]"
               >
                 <Plus className="w-4 h-4" strokeWidth={2.5} />
                 Adicionar desejo

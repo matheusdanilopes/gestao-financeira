@@ -117,8 +117,8 @@ const gradientPlugin: Plugin<'line'> = {
 // Module-level constant — not recreated on every render
 const SELECT_CLS =
   'w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 pr-8 text-xs text-gray-700 ' +
-  'font-medium appearance-none cursor-pointer focus:outline-none focus:ring-1 ' +
-  'focus:ring-violet-400 focus:border-violet-400 hover:border-gray-300 transition-colors'
+  'font-semibold appearance-none cursor-pointer focus:outline-none focus:ring-2 ' +
+  'focus:ring-violet-400 focus:border-violet-400 hover:border-gray-300 transition-all'
 
 type FiltroResponsavel = 'todos' | 'Matheus' | 'Jeniffer'
 type FiltroCartao      = 'todos' | 'nubank'  | 'cartao1' | 'cartao2'
@@ -566,8 +566,20 @@ export default function GraficoGastosDiarios({
 
   if (loading) {
     return (
-      <div className="h-48 flex items-center justify-center">
-        <div className="w-7 h-7 border-2 border-gray-200 border-t-violet-500 rounded-full animate-spin" />
+      <div className="animate-pulse space-y-3">
+        <div className="flex gap-2">
+          <div className="flex-1 h-8 bg-gray-100 dark:bg-white/[0.05] rounded-xl" />
+          <div className="flex-1 h-8 bg-gray-100 dark:bg-white/[0.05] rounded-xl" />
+        </div>
+        <div className="h-48 flex items-end gap-0.5 px-1">
+          {Array.from({ length: 24 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex-1 rounded-t bg-gray-100 dark:bg-white/[0.05]"
+              style={{ height: `${20 + Math.sin(i * 0.8) * 30 + Math.random() * 20}%` }}
+            />
+          ))}
+        </div>
       </div>
     )
   }
@@ -575,11 +587,11 @@ export default function GraficoGastosDiarios({
   if (error) {
     return (
       <div className="h-48 flex flex-col items-center justify-center gap-3 text-red-400">
-        <AlertCircle className="w-7 h-7" />
-        <span className="text-sm">{error}</span>
+        <AlertCircle className="w-7 h-7 opacity-70" />
+        <span className="text-sm text-gray-500">{error}</span>
         <button
           onClick={() => { setLoading(true); carregar() }}
-          className="text-xs text-violet-500 underline"
+          className="text-xs text-violet-500 hover:text-violet-600 underline transition-colors"
         >
           Tentar novamente
         </button>
@@ -634,21 +646,21 @@ export default function GraficoGastosDiarios({
           {/* Summary row */}
           <div className="flex items-end justify-between mb-3">
             <div>
-              <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest mb-0.5">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-0.5">
                 Total da fatura
               </p>
-              <p className="text-xl font-bold text-violet-500 num">{formatBRL(totalFat)}</p>
+              <p className="text-2xl font-bold text-violet-500 num leading-none">{formatBRL(totalFat)}</p>
             </div>
             {peakDay.total > 0 && (
               <div className="text-right">
-                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest mb-0.5">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-0.5">
                   Maior gasto
                 </p>
                 <div className="flex items-center justify-end gap-1.5">
-                  <span className="text-sm font-semibold text-gray-300 num">
+                  <span className="text-sm font-bold text-gray-600 num">
                     {formatBRL(peakDay.total)}
                   </span>
-                  <span className="text-[10px] text-gray-400 bg-white/10 rounded-full px-2 py-0.5">
+                  <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 rounded-full px-2 py-0.5">
                     {peakDay.label}
                   </span>
                 </div>

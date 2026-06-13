@@ -136,12 +136,12 @@ function BottomSheetPreco({
         >
           <div className="w-full bg-white rounded-t-3xl shadow-2xl px-5 pt-2 pb-6 modal-sheet">
             <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5" />
-            <p className="text-xs text-gray-500 mb-1 font-medium">Preço unitário de</p>
-            <p className="text-base font-semibold text-gray-900 mb-4 truncate">{item.nome}</p>
+            <p className="text-[11px] text-gray-400 mb-0.5 font-semibold uppercase tracking-wide">Preço unitário de</p>
+            <p className="text-base font-bold text-gray-900 mb-5 truncate">{item.nome}</p>
 
             <form onSubmit={e => { e.preventDefault(); handleConfirmar() }}>
               <div className="relative mb-3">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium">R$</span>
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-semibold">R$</span>
                 <input
                   ref={inputRef}
                   type="text"
@@ -150,7 +150,7 @@ function BottomSheetPreco({
                   onChange={e => setValor(e.target.value)}
                   onKeyDown={e => e.key === 'Escape' && onClose()}
                   placeholder="0,00"
-                  className="w-full pl-10 pr-4 py-3.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-900
+                  className="w-full pl-10 pr-4 py-3.5 rounded-2xl border border-gray-200 text-sm font-semibold text-gray-900
                              placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
                 />
               </div>
@@ -159,11 +159,11 @@ function BottomSheetPreco({
                 <button
                   type="button"
                   onClick={() => setCameraAberta(true)}
-                  className="w-full flex items-center justify-center gap-2 py-3 mb-4 rounded-xl
-                             border border-dashed border-primary-300 bg-primary-50 text-primary-600
-                             active:bg-primary-100 transition-colors"
+                  className="w-full flex items-center justify-center gap-2 py-3 mb-4 rounded-2xl
+                             border border-dashed border-primary-200 bg-primary-50 text-primary-600
+                             active:bg-primary-100 transition-colors active:scale-[0.99]"
                 >
-                  <Camera className="w-4 h-4" />
+                  <Camera className="w-4 h-4" strokeWidth={2} />
                   <span className="text-sm font-semibold">Ler preço com câmera</span>
                 </button>
               )}
@@ -173,18 +173,18 @@ function BottomSheetPreco({
                   <button
                     type="button"
                     onClick={() => { onConfirmar(null); onClose() }}
-                    className="px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-500
-                               hover:bg-gray-50 transition-colors"
+                    className="px-4 py-3.5 rounded-2xl border border-gray-200 text-sm font-semibold text-gray-500
+                               hover:bg-gray-50 transition-colors active:scale-[0.97]"
                   >
                     Remover
                   </button>
                 )}
                 <button type="button" onClick={onClose}
-                  className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+                  className="flex-1 py-3.5 rounded-2xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors active:scale-[0.97]">
                   Cancelar
                 </button>
                 <button type="submit"
-                  className="flex-1 py-3 rounded-xl bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 transition-colors">
+                  className="flex-1 py-3.5 rounded-2xl bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 transition-colors active:scale-[0.97]">
                   Confirmar
                 </button>
               </div>
@@ -259,18 +259,18 @@ function BottomSheetConfirmarCompra({
             <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5" />
 
             <div className="flex items-center gap-3 mb-5">
-              <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center flex-none">
-                <Check className="w-4.5 h-4.5 text-green-500" strokeWidth={2.5} />
+              <div className="w-10 h-10 rounded-2xl bg-green-50 flex items-center justify-center flex-none">
+                <Check className="w-5 h-5 text-green-500" strokeWidth={2.5} />
               </div>
               <div className="min-w-0">
-                <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide">Conferir antes de marcar</p>
-                <p className="text-base font-semibold text-gray-900 truncate">{item.nome}</p>
+                <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide">Conferir antes de marcar</p>
+                <p className="text-base font-bold text-gray-900 truncate">{item.nome}</p>
               </div>
             </div>
 
             {/* Quantidade */}
             <div className="mb-4">
-              <label className="block text-xs font-medium text-gray-500 mb-2">Quantidade</label>
+              <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Quantidade</label>
               <div className="flex items-center gap-4">
                 <button
                   type="button"
@@ -281,7 +281,7 @@ function BottomSheetConfirmarCompra({
                 >
                   <Minus className="w-5 h-5" strokeWidth={2.5} />
                 </button>
-                <span className="flex-1 text-center text-3xl font-bold text-gray-900 tabular-nums">{qtd}</span>
+                <span className="flex-1 text-center text-3xl font-bold text-gray-900 tabular-nums num">{qtd}</span>
                 <button
                   type="button"
                   onClick={() => setQtd(q => q + 1)}
@@ -295,9 +295,9 @@ function BottomSheetConfirmarCompra({
 
             {/* Preço unitário */}
             <div className="mb-4">
-              <label className="block text-xs font-medium text-gray-500 mb-2">Preço unitário</label>
+              <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Preço unitário</label>
               <div className="relative mb-2">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium">R$</span>
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-semibold">R$</span>
                 <input
                   ref={precoInputRef}
                   type="text"
@@ -306,7 +306,7 @@ function BottomSheetConfirmarCompra({
                   onChange={e => setPreco(e.target.value)}
                   onKeyDown={e => e.key === 'Escape' && onClose()}
                   placeholder="0,00"
-                  className="w-full pl-10 pr-4 py-3.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-900
+                  className="w-full pl-10 pr-4 py-3.5 rounded-2xl border border-gray-200 text-sm font-semibold text-gray-900
                              placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent"
                 />
               </div>
@@ -314,11 +314,11 @@ function BottomSheetConfirmarCompra({
                 <button
                   type="button"
                   onClick={() => setCameraAberta(true)}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl
-                             border border-dashed border-green-300 bg-green-50 text-green-700
-                             active:bg-green-100 transition-colors"
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl
+                             border border-dashed border-green-200 bg-green-50 text-green-700
+                             active:bg-green-100 transition-colors active:scale-[0.99]"
                 >
-                  <Camera className="w-4 h-4" />
+                  <Camera className="w-4 h-4" strokeWidth={2} />
                   <span className="text-sm font-semibold">Ler preço com câmera</span>
                 </button>
               )}
@@ -326,9 +326,9 @@ function BottomSheetConfirmarCompra({
 
             {/* Subtotal */}
             {subtotal != null && (
-              <div className="mb-4 px-4 py-3 rounded-2xl bg-green-50 flex items-center justify-between">
-                <span className="text-sm text-green-700 font-medium">Total do item</span>
-                <span className="text-lg font-bold text-green-700 tabular-nums">{formatBRL(subtotal)}</span>
+              <div className="mb-4 px-4 py-3.5 rounded-2xl bg-green-50 border border-green-100 flex items-center justify-between">
+                <span className="text-sm text-green-700 font-semibold">Total do item</span>
+                <span className="text-lg font-bold text-green-700 num">{formatBRL(subtotal)}</span>
               </div>
             )}
 
@@ -337,15 +337,15 @@ function BottomSheetConfirmarCompra({
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 py-3.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+                className="flex-1 py-3.5 rounded-2xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors active:scale-[0.97]"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={() => { onConfirmar(qtd, precoNum); onClose() }}
-                className="flex-1 py-3.5 rounded-xl bg-green-500 text-white text-sm font-semibold
-                           hover:bg-green-600 transition-colors active:scale-95 flex items-center justify-center gap-2"
+                className="flex-1 py-3.5 rounded-2xl bg-green-500 text-white text-sm font-semibold
+                           hover:bg-green-600 transition-colors active:scale-[0.97] flex items-center justify-center gap-2"
               >
                 <Check className="w-4 h-4" strokeWidth={2.5} />
                 Comprado
@@ -420,8 +420,8 @@ function BottomSheetFinalizarCompra({
           <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5" />
 
           <div className="flex items-center gap-3 mb-5">
-            <div className="w-10 h-10 rounded-2xl bg-green-50 flex items-center justify-center flex-none">
-              <ShoppingBasket className="w-5 h-5 text-green-600" strokeWidth={1.8} />
+            <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center flex-none">
+              <ShoppingBasket className="w-5 h-5 text-emerald-600" strokeWidth={1.8} />
             </div>
             <div>
               <p className="text-base font-bold text-gray-900">Finalizar Compra</p>
@@ -433,17 +433,17 @@ function BottomSheetFinalizarCompra({
 
           {/* Resumo de itens */}
           {comprados.length > 0 && (
-            <div className="mb-4 max-h-36 overflow-y-auto rounded-xl border border-gray-100 divide-y divide-gray-50">
+            <div className="mb-4 max-h-36 overflow-y-auto rounded-2xl border border-gray-100 divide-y divide-gray-50">
               {comprados.slice(0, 8).map(item => (
-                <div key={item.id} className="flex items-center justify-between px-3 py-2">
+                <div key={item.id} className="flex items-center justify-between px-3.5 py-2.5">
                   <span className="text-sm text-gray-700 truncate flex-1 mr-2">{item.nome}</span>
-                  <span className="text-xs text-gray-400 flex-none tabular-nums">
+                  <span className="text-xs text-gray-400 flex-none num">
                     {item.quantidade}× {item.preco_unit != null ? formatBRL(item.preco_unit) : '—'}
                   </span>
                 </div>
               ))}
               {comprados.length > 8 && (
-                <div className="px-3 py-2 text-xs text-gray-400 text-center">
+                <div className="px-3.5 py-2 text-xs text-gray-400 text-center">
                   +{comprados.length - 8} itens
                 </div>
               )}
@@ -452,9 +452,9 @@ function BottomSheetFinalizarCompra({
 
           {/* Valor total pago */}
           <div className="mb-4">
-            <label className="block text-xs font-medium text-gray-500 mb-2">Valor total pago</label>
+            <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Valor total pago</label>
             <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium">R$</span>
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-semibold">R$</span>
               <input
                 ref={inputRef}
                 type="text"
@@ -463,12 +463,12 @@ function BottomSheetFinalizarCompra({
                 onChange={e => setValor(e.target.value)}
                 onKeyDown={e => e.key === 'Escape' && onClose()}
                 placeholder="0,00"
-                className="w-full pl-10 pr-4 py-3.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-900
+                className="w-full pl-10 pr-4 py-3.5 rounded-2xl border border-gray-200 text-sm font-semibold text-gray-900
                            placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent"
               />
             </div>
             {totalCalculado > 0 && (
-              <p className="text-[11px] text-gray-400 mt-1.5">
+              <p className="text-[11px] text-gray-400 mt-1.5 num">
                 Estimado pela lista: {formatBRL(totalCalculado)}
               </p>
             )}
@@ -478,7 +478,7 @@ function BottomSheetFinalizarCompra({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-3.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+              className="flex-1 py-3.5 rounded-2xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors active:scale-[0.97]"
             >
               Cancelar
             </button>
@@ -486,8 +486,8 @@ function BottomSheetFinalizarCompra({
               type="button"
               disabled={!valido || salvando}
               onClick={() => valido && onFinalizar(valorNum)}
-              className="flex-1 py-3.5 rounded-xl bg-green-500 text-white text-sm font-semibold
-                         hover:bg-green-600 disabled:opacity-50 transition-colors active:scale-95
+              className="flex-1 py-3.5 rounded-2xl bg-emerald-500 text-white text-sm font-semibold
+                         hover:bg-emerald-600 disabled:opacity-50 transition-colors active:scale-[0.97]
                          flex items-center justify-center gap-2"
             >
               {salvando ? (
@@ -544,8 +544,8 @@ function BottomSheetPendingOps({
           <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5" />
 
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center flex-none">
-              <RefreshCw className="w-4.5 h-4.5 text-orange-500" strokeWidth={2} />
+            <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center flex-none">
+              <RefreshCw className="w-5 h-5 text-amber-500" strokeWidth={2} />
             </div>
             <div>
               <p className="text-base font-bold text-gray-900">Operações pendentes</p>
@@ -555,10 +555,10 @@ function BottomSheetPendingOps({
             </div>
           </div>
 
-          <div className="mb-4 rounded-xl border border-gray-100 divide-y divide-gray-50 overflow-hidden">
+          <div className="mb-4 rounded-2xl border border-gray-100 divide-y divide-gray-50 overflow-hidden">
             {ops.map(op => (
-              <div key={op.opId} className="flex items-center gap-3 px-3 py-2.5">
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-none
+              <div key={op.opId} className="flex items-center gap-3 px-3.5 py-3">
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-none
                   ${op.type === 'create' ? 'bg-green-50 text-green-600' :
                     op.type === 'delete' ? 'bg-red-50 text-red-500' :
                     'bg-blue-50 text-blue-600'}`}>
@@ -566,13 +566,13 @@ function BottomSheetPendingOps({
                 </span>
                 <span className="text-sm text-gray-700 truncate flex-1">{resolveNome(op)}</span>
                 {op.retries > 0 && (
-                  <span className="text-[10px] text-gray-400 flex-none">{op.retries} tentativa{op.retries > 1 ? 's' : ''}</span>
+                  <span className="text-[10px] text-gray-400 flex-none num">{op.retries} tentativa{op.retries > 1 ? 's' : ''}</span>
                 )}
               </div>
             ))}
           </div>
 
-          <p className="text-xs text-gray-400 mb-4 text-center">
+          <p className="text-xs text-gray-400 mb-5 text-center leading-relaxed">
             Essas ações ainda não foram salvas no servidor. Tente sincronizar ou descarte-as.
           </p>
 
@@ -580,16 +580,16 @@ function BottomSheetPendingOps({
             <button
               type="button"
               onClick={() => { onClear(); onClose() }}
-              className="flex-1 py-3.5 rounded-xl border border-red-200 text-sm font-semibold text-red-500
-                         hover:bg-red-50 transition-colors"
+              className="flex-1 py-3.5 rounded-2xl border border-red-200 text-sm font-semibold text-red-500
+                         hover:bg-red-50 transition-colors active:scale-[0.97]"
             >
               Descartar
             </button>
             <button
               type="button"
               onClick={() => { onSync(); onClose() }}
-              className="flex-1 py-3.5 rounded-xl bg-orange-500 text-white text-sm font-semibold
-                         hover:bg-orange-600 transition-colors flex items-center justify-center gap-2"
+              className="flex-1 py-3.5 rounded-2xl bg-amber-500 text-white text-sm font-semibold
+                         hover:bg-amber-600 transition-colors active:scale-[0.97] flex items-center justify-center gap-2"
             >
               <RefreshCw className="w-4 h-4" strokeWidth={2.5} />
               Sincronizar agora
@@ -649,7 +649,7 @@ function ItemRow({
     <SwipeableItem onDelete={() => onExcluir(item.id)} disabled={editandoNome} requireConfirmation>
       <div
         className={`flex items-center gap-3 px-4 bg-white border-b border-gray-50
-                    transition-opacity duration-200 ${item.comprado ? 'opacity-50 py-2' : 'py-3.5'}`}
+                    transition-all duration-200 ease-smooth ${item.comprado ? 'opacity-40 py-2.5' : 'py-3.5'}`}
       >
         {/* Checkbox — 44px touch target */}
         <button
@@ -736,20 +736,20 @@ function ItemRow({
           <button
             type="button"
             onClick={() => onAbrirPreco(item)}
-            className="flex-none text-right min-w-[64px]"
+            className="flex-none text-right min-w-[64px] active:scale-95 transition-transform"
             aria-label="Definir preço"
           >
             {item.preco_unit != null ? (
               <div>
-                <p className="text-[11px] text-gray-400 leading-none tabular-nums">
+                <p className="text-[10px] text-gray-400 leading-none num">
                   {formatBRL(item.preco_unit)}/un
                 </p>
-                <p className="text-sm font-semibold text-gray-900 tabular-nums mt-0.5">
+                <p className="text-sm font-bold text-gray-700 num mt-0.5">
                   {formatBRL(subtotal)}
                 </p>
               </div>
             ) : (
-              <span className="text-xs text-primary-500 font-medium">+ preço</span>
+              <span className="text-xs text-primary-500 font-semibold">+ preço</span>
             )}
           </button>
         )}
@@ -852,7 +852,7 @@ function SubtotalBar({
                   parcial
                 </p>
               )}
-              <span className="text-sm font-bold text-gray-900 tabular-nums">
+              <span className="text-sm font-bold text-gray-900 num">
                 {formatBRL(total)}
               </span>
             </div>
@@ -862,12 +862,12 @@ function SubtotalBar({
               <button
                 type="button"
                 onClick={onFinalizar}
-                className="flex items-center gap-1.5 text-[11px] font-semibold text-white
-                           bg-green-500 hover:bg-green-600 active:bg-green-700
-                           px-3 py-2 rounded-xl transition-colors active:scale-95 flex-none"
+                className="flex items-center gap-1.5 text-[11px] font-bold text-white
+                           bg-emerald-500 hover:bg-emerald-600
+                           px-3 py-2 rounded-xl transition-all ease-spring active:scale-90 flex-none"
               >
                 <Check className="w-3 h-3" strokeWidth={2.5} />
-                Finalizar ({compradosCount})
+                Finalizar · {compradosCount}
               </button>
             )}
           </div>
@@ -947,15 +947,15 @@ function InputAdicionar({
           onChange={handleChange}
           onBlur={() => setTimeout(() => setSugestoes([]), 150)}
           placeholder="Adicionar item… (ex: Leite 2)"
-          className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-900
+          className="flex-1 px-4 py-2.5 rounded-2xl border border-gray-200 text-sm font-medium text-gray-900
                      placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
         />
         <button
           type="submit"
           disabled={!valor.trim()}
           aria-label="Adicionar item"
-          className="w-10 h-10 rounded-xl bg-primary-600 flex items-center justify-center text-white
-                     disabled:opacity-40 hover:bg-primary-700 transition-colors active:scale-95
+          className="w-10 h-10 rounded-2xl bg-primary-600 flex items-center justify-center text-white
+                     disabled:opacity-40 hover:bg-primary-700 transition-all ease-spring active:scale-90
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
         >
           <Plus className="w-5 h-5" strokeWidth={2.5} />
@@ -964,13 +964,13 @@ function InputAdicionar({
 
       {/* Autocomplete */}
       {sugestoes.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl border border-gray-100 shadow-card-md z-20 overflow-hidden">
+        <div className="absolute top-full left-0 right-0 mt-1.5 bg-white rounded-2xl border border-gray-100 shadow-card-md z-20 overflow-hidden">
           {sugestoes.map(s => (
             <button
               key={s}
               type="button"
               onMouseDown={() => submeter(s)}
-              className="w-full text-left px-4 py-2.5 text-sm text-gray-800 hover:bg-gray-50 transition-colors
+              className="w-full text-left px-4 py-3 text-sm text-gray-800 hover:bg-gray-50 transition-colors
                          border-b border-gray-50 last:border-0 font-medium"
             >
               {s}
@@ -1066,8 +1066,8 @@ export default function ListaMercadoPage() {
       {/* Header */}
       <div className="sticky top-0 z-10 sticky-header border-b border-gray-100 px-4 pt-4 pb-3">
         <div className="flex items-center gap-3 mb-3">
-          <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center flex-none">
-            <ShoppingBasket className="w-5 h-5 text-green-600" strokeWidth={1.8} />
+          <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center flex-none">
+            <ShoppingBasket className="w-5 h-5 text-emerald-600" strokeWidth={1.8} />
           </div>
           <div className="flex-1 min-w-0">
             <h1 className="text-lg font-bold text-gray-900 leading-none">Lista de Mercado</h1>
@@ -1079,7 +1079,7 @@ export default function ListaMercadoPage() {
                 )}
               </p>
               {totalItens > 0 && comprados.length > 0 && (
-                <span className="text-[10px] font-semibold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full tabular-nums">
+                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full num">
                   {comprados.length}/{totalItens}
                 </span>
               )}
@@ -1118,7 +1118,7 @@ export default function ListaMercadoPage() {
             onClick={() => router.push('/lista-mercado/historico')}
             aria-label="Histórico de compras"
             className="flex items-center gap-1.5 flex-none px-3 py-1.5 rounded-xl
-                       bg-gray-100 hover:bg-gray-200 transition-colors"
+                       bg-gray-100 hover:bg-gray-200 transition-colors active:scale-[0.97]"
           >
             <History className="w-3.5 h-3.5 text-gray-500" strokeWidth={2} />
             <span className="text-xs font-semibold text-gray-600">Histórico</span>
@@ -1131,23 +1131,23 @@ export default function ListaMercadoPage() {
       {/* Lista */}
       {itens.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center px-8">
-          <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${!isOnline ? 'bg-amber-50' : 'bg-green-50'}`}>
+          <div className={`w-16 h-16 rounded-3xl flex items-center justify-center mb-4 ${!isOnline ? 'bg-amber-50' : 'bg-green-50'}`}>
             {!isOnline
-              ? <WifiOff className="w-8 h-8 text-amber-300" strokeWidth={1.5} />
-              : <ShoppingBasket className="w-8 h-8 text-green-300" strokeWidth={1.5} />
+              ? <WifiOff className="w-7 h-7 text-amber-300" strokeWidth={1.5} />
+              : <ShoppingBasket className="w-7 h-7 text-green-300" strokeWidth={1.5} />
             }
           </div>
-          <p className="text-sm font-semibold text-gray-700 mb-1">
+          <p className="text-sm font-semibold text-gray-700 mb-1.5">
             {!isOnline ? 'Sem dados salvos offline' : 'Lista vazia'}
           </p>
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-gray-400 leading-relaxed max-w-[220px]">
             {!isOnline
               ? 'Abra o app online ao menos uma vez para carregar sua lista'
               : 'Adicione os itens que precisam ser comprados'}
           </p>
         </div>
       ) : (
-        <div className="bg-white mt-2 rounded-2xl mx-4 overflow-hidden shadow-sm border border-gray-100">
+        <div className="bg-white mt-2 rounded-2xl mx-4 overflow-hidden shadow-card border border-gray-100">
           {/* Pendentes */}
           {pendentes.map((item, idx) => (
             <ItemRow
@@ -1169,12 +1169,14 @@ export default function ListaMercadoPage() {
               <button
                 type="button"
                 onClick={() => setCompradosAbertos(v => !v)}
-                className="w-full flex items-center gap-2 px-4 py-2 bg-gray-50 border-t border-b border-gray-100
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 bg-gray-50 border-t border-b border-gray-100
                            hover:bg-gray-100 transition-colors"
               >
-                <Check className="w-3.5 h-3.5 text-green-500 flex-none" strokeWidth={2.5} />
-                <span className="text-xs font-semibold text-gray-500 flex-1 text-left">
-                  Comprados ({comprados.length})
+                <span className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center flex-none">
+                  <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                </span>
+                <span className="text-xs font-bold text-gray-500 flex-1 text-left tracking-tight">
+                  Comprados · {comprados.length}
                 </span>
                 {compradosAbertos
                   ? <ChevronUp className="w-3.5 h-3.5 text-gray-400 flex-none" strokeWidth={2} />
@@ -1244,13 +1246,15 @@ export default function ListaMercadoPage() {
       {/* Toast de sucesso ao salvar histórico */}
       {successToast && (
         <div className="fixed bottom-24 left-4 right-4 z-[300] max-w-md mx-auto toast-enter">
-          <div className="flex items-center gap-3 bg-green-600 text-white rounded-2xl px-4 py-3.5 shadow-float">
-            <Check className="w-4 h-4 flex-none" strokeWidth={2.5} />
+          <div className="flex items-center gap-3 bg-emerald-600 text-white rounded-2xl px-4 py-3.5 shadow-float">
+            <div className="w-7 h-7 rounded-xl bg-white/20 flex items-center justify-center flex-none">
+              <Check className="w-4 h-4" strokeWidth={2.5} />
+            </div>
             <p className="flex-1 text-sm font-semibold">Compra salva no histórico!</p>
             <button
               type="button"
               onClick={() => router.push('/lista-mercado/historico')}
-              className="text-xs font-semibold text-green-200 hover:text-white py-1 px-2 rounded-lg transition-colors"
+              className="text-xs font-bold text-emerald-200 hover:text-white py-1 px-2.5 rounded-lg bg-white/15 hover:bg-white/25 transition-colors"
             >
               Ver
             </button>
