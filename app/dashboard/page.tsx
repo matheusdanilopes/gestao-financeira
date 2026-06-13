@@ -1035,27 +1035,27 @@ export default function Dashboard() {
                 <InfoPopover texto="Evolução dos gastos ao longo dos dias do mês selecionado. Considera todas as compras com data de compra registrada no período. Use os filtros para visualizar por pessoa ou por cartão." />
               </h2>
             </div>
-            <div className="inline-flex items-center bg-gray-100 rounded-full p-[3px] gap-[2px] self-start sm:self-auto sm:ml-auto shrink-0">
+            <div className="inline-flex items-center bg-gray-100 rounded-full p-[2px] gap-[1px] self-start sm:self-auto sm:ml-auto shrink-0">
               <button
                 onClick={() => setVisaoGastosDiarios('valor')}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all duration-200 ${
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 ${
                   visaoGastosDiarios === 'valor'
                     ? 'bg-violet-600 text-white shadow-sm'
                     : 'text-gray-400 hover:text-gray-600'
                 }`}
               >
-                <TrendingUp className="w-3 h-3" />
+                <TrendingUp className="w-2.5 h-2.5" />
                 Valor
               </button>
               <button
                 onClick={() => setVisaoGastosDiarios('burndown')}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all duration-200 ${
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 ${
                   visaoGastosDiarios === 'burndown'
                     ? 'bg-violet-600 text-white shadow-sm'
                     : 'text-gray-400 hover:text-gray-600'
                 }`}
               >
-                <BarChart2 className="w-3 h-3" />
+                <BarChart2 className="w-2.5 h-2.5" />
                 Burndown
               </button>
             </div>
