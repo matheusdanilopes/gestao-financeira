@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths, addMonths, parseISO } from 'date-fns'
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { ptBR } from 'date-fns/locale'
-import { CheckCircle2, AlertCircle, CreditCard, RotateCcw, WifiOff, Bell, Calendar } from 'lucide-react'
+import { CheckCircle2, AlertCircle, CreditCard, RotateCcw, WifiOff, Bell, Calendar, Receipt } from 'lucide-react'
 import PageActionButtons from '@/components/PageActionButtons'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { calcularStatusVencimento, verificarVencimentos, type StatusVencimento } from '@/lib/notificacoesVencimento'
@@ -476,16 +476,22 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
 
       {/* Resumo / Filtro de status */}
       <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
-        <div className="grid grid-cols-3 gap-2 mb-3">
+        <div className="flex items-center gap-2 mb-3.5">
+          <div className="w-7 h-7 rounded-xl bg-red-100 flex items-center justify-center">
+            <Receipt className="w-4 h-4 text-red-600" />
+          </div>
+          <span className="font-semibold text-gray-800 text-sm">Resumo das Despesas</span>
+        </div>
+        <div className="grid grid-cols-3 gap-2 mb-3.5">
           <button
             onClick={() => setFiltroStatus(filtroStatus === '' ? '' : '')}
             className={`rounded-2xl p-2.5 text-center transition-all duration-200 active:scale-[0.97] ${
               filtroStatus === ''
                 ? 'bg-gray-700 shadow-md ring-2 ring-gray-400 ring-offset-1'
-                : 'bg-gray-50 border border-gray-100'
+                : 'bg-gray-50 border border-gray-100 hover:bg-gray-100'
             }`}
           >
-            <p className={`text-[11px] mb-0.5 font-medium ${filtroStatus === '' ? 'text-gray-300' : 'text-gray-500'}`}>Previsto</p>
+            <p className={`text-[10px] mb-0.5 font-semibold uppercase tracking-wide ${filtroStatus === '' ? 'text-gray-300' : 'text-gray-500'}`}>Previsto</p>
             <p className={`text-xs font-bold break-all leading-tight num ${filtroStatus === '' ? 'text-white' : 'text-gray-800'}`}>{formatarMoeda(totalPrevisto)}</p>
           </button>
           <button
@@ -493,10 +499,10 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
             className={`rounded-2xl p-2.5 text-center transition-all duration-200 active:scale-[0.97] ${
               filtroStatus === 'pago'
                 ? 'bg-primary-600 shadow-md ring-2 ring-primary-300 ring-offset-1'
-                : 'bg-primary-50 border border-primary-100'
+                : 'bg-primary-50 border border-primary-100 hover:bg-primary-100/50'
             }`}
           >
-            <p className={`text-[11px] mb-0.5 ${filtroStatus === 'pago' ? 'text-primary-100' : 'text-primary-500'}`}>Pago</p>
+            <p className={`text-[10px] mb-0.5 font-semibold uppercase tracking-wide ${filtroStatus === 'pago' ? 'text-primary-100' : 'text-primary-500'}`}>Pago</p>
             <p className={`text-xs font-bold break-all leading-tight num ${filtroStatus === 'pago' ? 'text-white' : 'text-primary-700'}`}>{formatarMoeda(totalPago)}</p>
           </button>
           <button
@@ -504,24 +510,24 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
             className={`rounded-2xl p-2.5 text-center transition-all duration-200 active:scale-[0.97] ${
               filtroStatus === 'pendente'
                 ? totalPendente <= 0.009 ? 'bg-green-600 shadow-md ring-2 ring-green-300 ring-offset-1' : 'bg-red-600 shadow-md ring-2 ring-red-300 ring-offset-1'
-                : totalPendente <= 0.009 ? 'bg-green-50 border border-green-100' : 'bg-red-50 border border-red-100'
+                : totalPendente <= 0.009 ? 'bg-green-50 border border-green-100 hover:bg-green-100/50' : 'bg-red-50 border border-red-100 hover:bg-red-100/50'
             }`}
           >
-            <p className={`text-[11px] mb-0.5 ${filtroStatus === 'pendente' ? 'text-red-100' : totalPendente <= 0.009 ? 'text-green-600' : 'text-red-500'}`}>A pagar</p>
+            <p className={`text-[10px] mb-0.5 font-semibold uppercase tracking-wide ${filtroStatus === 'pendente' ? 'text-red-100' : totalPendente <= 0.009 ? 'text-green-600' : 'text-red-500'}`}>A pagar</p>
             {totalPendente <= 0.009
-              ? <p className={`text-xs font-bold leading-tight ${filtroStatus === 'pendente' ? 'text-white' : 'text-green-600'}`}>Quitado ✓</p>
+              ? <p className={`text-xs font-bold leading-tight ${filtroStatus === 'pendente' ? 'text-white' : 'text-green-600'}`}>Quitado</p>
               : <p className={`text-xs font-bold break-all leading-tight num ${filtroStatus === 'pendente' ? 'text-white' : 'text-red-600'}`}>{formatarMoeda(totalPendente)}</p>
             }
           </button>
         </div>
         <div>
-          <div className="flex justify-between text-xs text-gray-500 mb-1">
-            <span>{itensPagos}/{itens.length} itens pagos</span>
-            <span className="font-semibold text-primary-700">{percentualPago.toFixed(0)}%</span>
+          <div className="flex justify-between text-xs text-gray-500 mb-1.5">
+            <span className="tabular-nums">{itensPagos}/{itens.length} itens pagos</span>
+            <span className="font-bold text-primary-600 tabular-nums">{percentualPago.toFixed(0)}%</span>
           </div>
-          <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+          <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
             <div
-              className="h-2 rounded-full bg-gradient-to-r from-primary-500 to-primary-600 transition-[width] duration-500"
+              className="h-1.5 rounded-full bg-gradient-to-r from-primary-500 to-primary-600 transition-[width] duration-700 ease-smooth"
               style={{ width: `${percentualPago}%` }}
             />
           </div>

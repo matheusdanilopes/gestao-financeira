@@ -42,13 +42,13 @@ interface FaturaExibida {
 }
 
 const ACAO_CONFIG: Record<string, { label: string; color: string }> = {
-  inserir: { label: 'Inserção', color: 'bg-green-100 text-green-700' },
-  editar: { label: 'Edição', color: 'bg-blue-100 text-blue-700' },
-  excluir: { label: 'Exclusão', color: 'bg-red-100 text-red-600' },
-  pagar: { label: 'Pagamento', color: 'bg-emerald-100 text-emerald-700' },
-  receber: { label: 'Recebimento', color: 'bg-teal-100 text-teal-700' },
-  aporte: { label: 'Aporte', color: 'bg-violet-100 text-violet-700' },
-  importar: { label: 'Importação', color: 'bg-amber-100 text-amber-700' },
+  inserir:  { label: 'Inserção',     color: 'bg-green-100 text-green-700' },
+  editar:   { label: 'Edição',       color: 'bg-blue-100 text-blue-700' },
+  excluir:  { label: 'Exclusão',     color: 'bg-red-100 text-red-600' },
+  pagar:    { label: 'Pagamento',    color: 'bg-emerald-100 text-emerald-700' },
+  receber:  { label: 'Recebimento',  color: 'bg-teal-100 text-teal-700' },
+  aporte:   { label: 'Aporte',       color: 'bg-violet-100 text-violet-700' },
+  importar: { label: 'Importação',   color: 'bg-amber-100 text-amber-700' },
 }
 
 const CARTAO_LABELS: Record<string, string> = {
@@ -87,17 +87,19 @@ function SecaoCartao({
     : `Fecha dia ${30 + diaFechamento} (mês ant.)`
 
   return (
-    <div className={`border rounded-2xl overflow-hidden transition-colors ${expandido ? 'border-primary-200' : 'border-gray-200'}`}>
+    <div className={`border rounded-2xl overflow-hidden transition-colors ${expandido ? 'border-primary-200 dark:border-primary-800' : 'border-gray-200 dark:border-gray-700'}`}>
       <button
         type="button"
         onClick={onToggle}
         className={`w-full flex items-center gap-3 px-4 py-4 transition-colors active:scale-[0.99] ${
-          expandido ? 'bg-primary-50' : 'bg-white hover:bg-gray-50'
+          expandido ? 'bg-primary-50 dark:bg-primary-900/20' : 'bg-white dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800'
         }`}
       >
-        <CreditCard className={`w-5 h-5 shrink-0 ${expandido ? 'text-primary-500' : 'text-gray-400'}`} />
+        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${expandido ? 'bg-primary-100 dark:bg-primary-900/40' : 'bg-gray-100 dark:bg-gray-700'}`}>
+          <CreditCard className={`w-4 h-4 ${expandido ? 'text-primary-500' : 'text-gray-400 dark:text-gray-500'}`} />
+        </div>
         <div className="flex-1 min-w-0 text-left">
-          <span className={`font-semibold text-sm block ${expandido ? 'text-primary-700' : 'text-gray-700'}`}>
+          <span className={`font-semibold text-sm block tracking-tight ${expandido ? 'text-primary-700 dark:text-primary-400' : 'text-gray-700 dark:text-gray-300'}`}>
             {titulo}
           </span>
           {!expandido && (
@@ -111,25 +113,25 @@ function SecaoCartao({
             </div>
           )}
         </div>
-        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 shrink-0 ${expandido ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ease-spring shrink-0 ${expandido ? 'rotate-180' : ''}`} />
       </button>
 
       {expandido && (
-        <div className="px-4 pb-4 pt-3 space-y-4 border-t border-primary-100">
+        <div className="px-4 pb-5 pt-4 space-y-4 border-t border-primary-100 dark:border-primary-900/30 bg-white dark:bg-gray-800/30">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Dia de Vencimento</label>
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wider">Dia de Vencimento</label>
             <input
               type="number"
               min={1}
               max={31}
               value={diaVenc}
               onChange={(e) => setDiaVenc(Math.max(1, Math.min(31, parseInt(e.target.value) || 1)))}
-              className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-primary-400 focus:border-transparent text-lg transition-shadow"
+              className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-primary-400 focus:border-transparent text-lg font-semibold num transition-shadow"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Ajuste Fino do Fechamento</label>
-            <div className="flex gap-3">
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wider">Ajuste Fino do Fechamento</label>
+            <div className="flex gap-2">
               {([-1, 0, 1] as const).map((v) => (
                 <button
                   key={v}
@@ -137,8 +139,8 @@ function SecaoCartao({
                   onClick={() => setAjuste(v)}
                   className={`flex-1 py-2.5 rounded-2xl border-2 font-semibold transition active:scale-[0.97] ${
                     ajuste === v
-                      ? 'border-primary-500 bg-primary-50 text-primary-700'
-                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                      ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400'
+                      : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
                   }`}
                 >
                   {v > 0 ? `+${v}` : v}
@@ -146,9 +148,9 @@ function SecaoCartao({
               ))}
             </div>
           </div>
-          <div className="bg-primary-50 border border-primary-100 rounded-2xl p-3">
-            <p className="text-xs text-gray-500">Fechamento calculado</p>
-            <p className="font-semibold text-primary-700 mt-0.5">{descricaoFechamento(diaVenc, ajuste)}</p>
+          <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-100 dark:border-primary-800 rounded-2xl p-3.5">
+            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider mb-0.5">Fechamento calculado</p>
+            <p className="font-semibold text-primary-700 dark:text-primary-400">{descricaoFechamento(diaVenc, ajuste)}</p>
           </div>
         </div>
       )}
@@ -639,14 +641,18 @@ export default function ConfiguracoesPage() {
     return input
   }
 
+  // Verifica se a mensagem é de erro ou sucesso
+  const mensagemSucesso = mensagem.toLowerCase().includes('sucesso') || mensagem.toLowerCase().includes('atualizada')
+
   return (
-    <div className="min-h-screen bg-gray-50 page-content page-bottom-safe">
+    <div className="min-h-screen bg-gray-50 page-content page-bottom-safe page-enter">
+      {/* Header */}
       <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 z-10">
-        <h1 className="text-xl font-bold text-gray-900">Configurações</h1>
+        <h1 className="text-xl font-bold text-gray-900 tracking-tight">Configurações</h1>
       </div>
 
       {/* Tabs */}
-      <div className="flex overflow-x-auto gap-2 mb-4 mt-3 pb-0.5 scrollbar-none">
+      <div className="flex overflow-x-auto gap-2 mb-4 mt-3 pb-0.5 scrollbar-hide">
         {([
           { key: 'geral',       label: 'Geral',      icon: Settings },
           { key: 'faturas',     label: 'Faturas',    icon: CreditCard },
@@ -659,7 +665,7 @@ export default function ConfiguracoesPage() {
             className={`shrink-0 px-4 py-2.5 rounded-2xl border text-sm font-semibold flex items-center gap-2 transition active:scale-[0.97] ${
               abaAtual === key
                 ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
-                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
             }`}
           >
             <Icon className="w-4 h-4" />
@@ -668,18 +674,34 @@ export default function ConfiguracoesPage() {
         ))}
       </div>
 
+      {/* Toast de feedback */}
       {mensagem && (
-        <p className="text-green-600 text-sm text-center font-medium bg-green-50 rounded-lg py-2 mb-3">
+        <div className={`flex items-center gap-2.5 px-4 py-3 rounded-2xl mb-4 text-sm font-medium ${
+          mensagemSucesso
+            ? 'bg-emerald-50 border border-emerald-100 text-emerald-700'
+            : 'bg-red-50 border border-red-100 text-red-600'
+        }`}>
+          <span className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+            mensagemSucesso ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-500'
+          }`}>
+            {mensagemSucesso
+              ? <Check className="w-3 h-3" />
+              : <X className="w-3 h-3" />
+            }
+          </span>
           {mensagem}
-        </p>
+        </div>
       )}
 
       {/* ---- ABA GERAL ---- */}
       {abaAtual === 'geral' && (
         <>
-          <div className="bg-white rounded-3xl shadow-card p-4 mb-4">
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <Settings className="w-5 h-5 text-gray-500" />
+          {/* Ciclos de fatura */}
+          <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 mb-4">
+            <h2 className="text-base font-semibold mb-4 flex items-center gap-2.5 text-gray-800 tracking-tight">
+              <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
+                <Settings className="w-4 h-4 text-gray-500" />
+              </div>
               Ciclos de Fatura por Cartão
             </h2>
 
@@ -715,16 +737,24 @@ export default function ConfiguracoesPage() {
               <button
                 onClick={salvar}
                 disabled={salvando}
-                className="w-full bg-primary-600 text-white py-3 rounded-2xl font-semibold hover:bg-primary-700 transition-all active:scale-[0.97] disabled:opacity-50 shadow-sm"
+                className="w-full bg-primary-600 text-white py-3 rounded-2xl font-semibold hover:bg-primary-700 transition-all active:scale-[0.97] disabled:opacity-50 shadow-sm mt-1"
               >
-                {salvando ? 'Salvando...' : 'Salvar Configurações'}
+                {salvando ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Salvando…
+                  </span>
+                ) : 'Salvar Configurações'}
               </button>
             </div>
           </div>
 
-          <div className="bg-white rounded-3xl shadow-card p-4 mb-4">
-            <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-              <Upload className="w-5 h-5 text-gray-500" />
+          {/* Importar dados */}
+          <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 mb-4">
+            <h2 className="text-base font-semibold mb-3 flex items-center gap-2.5 text-gray-800 tracking-tight">
+              <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
+                <Upload className="w-4 h-4 text-gray-500" />
+              </div>
               Importar Dados
             </h2>
             <Link
@@ -736,27 +766,30 @@ export default function ConfiguracoesPage() {
             </Link>
           </div>
 
-          <div className="bg-white rounded-3xl shadow-card p-4 mb-4">
-            <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-              <Sun className="w-5 h-5 text-gray-500" />
+          {/* Tema */}
+          <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 mb-4">
+            <h2 className="text-base font-semibold mb-4 flex items-center gap-2.5 text-gray-800 tracking-tight">
+              <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
+                <Sun className="w-4 h-4 text-gray-500" />
+              </div>
               Tema
             </h2>
-            <div className="flex gap-3">
+            <div className="flex gap-2">
               {([
-                { value: 'light', label: 'Claro', Icon: Sun },
-                { value: 'dark', label: 'Escuro', Icon: Moon },
+                { value: 'light',  label: 'Claro',   Icon: Sun },
+                { value: 'dark',   label: 'Escuro',  Icon: Moon },
                 { value: 'system', label: 'Sistema', Icon: Monitor },
               ] as const).map(({ value, label, Icon }) => (
                 <button
                   key={value}
                   onClick={() => setTheme(value)}
-                  className={`flex-1 flex flex-col items-center gap-1.5 py-3 rounded-2xl border-2 font-semibold text-sm transition active:scale-[0.97] ${
+                  className={`flex-1 flex flex-col items-center gap-2 py-3.5 rounded-2xl border-2 font-semibold text-sm transition active:scale-[0.97] ${
                     theme === value
-                      ? 'border-primary-500 bg-primary-50 text-primary-700'
-                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                      ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400'
+                      : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
                   }`}
                 >
-                  <Icon className="w-5 h-5" />
+                  <Icon className={`w-5 h-5 ${theme === value ? 'text-primary-500' : ''}`} />
                   {label}
                 </button>
               ))}
@@ -764,22 +797,24 @@ export default function ConfiguracoesPage() {
           </div>
 
           {/* Notificações push */}
-          <div className="bg-white rounded-3xl shadow-card p-4 mb-4 space-y-4">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <Bell className="w-5 h-5 text-gray-500" />
+          <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 mb-4 space-y-4">
+            <h2 className="text-base font-semibold flex items-center gap-2.5 text-gray-800 tracking-tight">
+              <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
+                <Bell className="w-4 h-4 text-gray-500" />
+              </div>
               Notificações Push
             </h2>
 
             {/* Status da permissão */}
             {permissaoPush !== null && (
-              <div className={`flex items-center gap-2 px-3 py-2 rounded-2xl text-sm ${
+              <div className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl text-sm font-medium ${
                 permissaoPush === 'granted'
-                  ? 'bg-green-50 text-green-700'
+                  ? 'bg-green-50 border border-green-100 text-green-700'
                   : permissaoPush === 'denied'
-                  ? 'bg-red-50 text-red-700'
+                  ? 'bg-red-50 border border-red-100 text-red-700'
                   : permissaoPush === 'unsupported'
-                  ? 'bg-gray-50 text-gray-500'
-                  : 'bg-amber-50 text-amber-700'
+                  ? 'bg-gray-50 border border-gray-200 text-gray-500'
+                  : 'bg-amber-50 border border-amber-100 text-amber-700'
               }`}>
                 <span className={`w-2 h-2 rounded-full shrink-0 ${
                   permissaoPush === 'granted' ? 'bg-green-500' :
@@ -799,10 +834,10 @@ export default function ConfiguracoesPage() {
             )}
 
             {mensagemPush && (
-              <p className={`text-xs px-3 py-2 rounded-xl ${
+              <p className={`text-xs px-3.5 py-2.5 rounded-2xl border ${
                 mensagemPush.includes('sucesso') || mensagemPush.includes('enviada')
-                  ? 'bg-green-50 text-green-700'
-                  : 'bg-red-50 text-red-600'
+                  ? 'bg-green-50 border-green-100 text-green-700'
+                  : 'bg-red-50 border-red-100 text-red-600'
               }`}>
                 {mensagemPush}
               </p>
@@ -817,7 +852,12 @@ export default function ConfiguracoesPage() {
                     disabled={registrandoPush}
                     className="flex-1 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-2xl transition-all active:scale-[0.97] disabled:opacity-50 shadow-sm"
                   >
-                    {registrandoPush ? 'Ativando…' : 'Ativar notificações'}
+                    {registrandoPush ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Ativando…
+                      </span>
+                    ) : 'Ativar notificações'}
                   </button>
                 ) : (
                   <>
@@ -842,9 +882,9 @@ export default function ConfiguracoesPage() {
 
             {/* Alertas de vencimento */}
             <div className="border-t border-gray-100 pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-700">Alertas de vencimento</p>
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-700 tracking-tight">Alertas de vencimento</p>
                   <p className="text-xs text-gray-400 mt-0.5">T-1 e no dia do vencimento às 09:00</p>
                 </div>
                 <button
@@ -860,12 +900,12 @@ export default function ConfiguracoesPage() {
                       body: JSON.stringify({ configuracoes: [{ chave: 'notificacoes_vencimento_ativas', valor: String(newVal) }] }),
                     })
                   }}
-                  className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-2 ${
-                    notificacoesVencimentoAtivas ? 'bg-primary-600' : 'bg-gray-200'
+                  className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-spring focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 ${
+                    notificacoesVencimentoAtivas ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-700'
                   }`}
                 >
                   <span
-                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 ${
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 ease-spring ${
                       notificacoesVencimentoAtivas ? 'translate-x-5' : 'translate-x-0'
                     }`}
                   />
@@ -874,12 +914,13 @@ export default function ConfiguracoesPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-3xl shadow-card p-4 mb-4">
+          {/* Sair */}
+          <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-3 mb-4">
             <button
               onClick={handleLogout}
-              className="w-full flex items-center justify-center gap-2 py-3 text-red-600 font-semibold hover:bg-red-50 rounded-xl transition"
+              className="w-full flex items-center justify-center gap-2.5 py-3 text-red-600 font-semibold hover:bg-red-50 rounded-2xl transition-colors active:scale-[0.98]"
             >
-              <LogOut className="w-5 h-5" />
+              <LogOut className="w-4 h-4" />
               Sair da conta
             </button>
           </div>
@@ -889,13 +930,15 @@ export default function ConfiguracoesPage() {
       {/* ---- ABA FATURAS ---- */}
       {abaAtual === 'faturas' && (
         <div className="space-y-4">
-          <div className="bg-white rounded-3xl shadow-card p-4">
-            <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-              <CreditCard className="w-5 h-5 text-gray-500" />
+          <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
+            <h2 className="text-base font-semibold mb-1 flex items-center gap-2.5 text-gray-800 tracking-tight">
+              <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
+                <CreditCard className="w-4 h-4 text-gray-500" />
+              </div>
               Datas de Fechamento
             </h2>
-            <p className="text-sm text-gray-500 mb-4">
-              Registre a data real de fechamento de cada fatura. Datas calculadas (em cinza) são estimativas com base no dia de vencimento configurado.
+            <p className="text-sm text-gray-500 mb-4 ml-10">
+              Registre a data real de fechamento de cada fatura. Datas em cinza são estimativas automáticas.
             </p>
 
             {/* Seletor de cartão */}
@@ -906,8 +949,8 @@ export default function ConfiguracoesPage() {
                   onClick={() => setCartaoFaturas(c)}
                   className={`flex-1 py-2 rounded-2xl border text-xs font-semibold transition active:scale-[0.97] ${
                     cartaoFaturas === c
-                      ? 'bg-primary-600 text-white border-primary-600'
-                      : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                      ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
+                      : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 >
                   {cartaoLabels[c]}
@@ -916,7 +959,9 @@ export default function ConfiguracoesPage() {
             </div>
 
             {faturasCarregando ? (
-              <p className="text-sm text-gray-400 text-center py-6">Carregando...</p>
+              <div className="space-y-2 py-2">
+                {[...Array(4)].map((_, i) => <div key={i} className="skeleton h-14 rounded-2xl" />)}
+              </div>
             ) : (
               <div className="space-y-2">
                 {mesesExibidos.map((f) => {
@@ -927,11 +972,15 @@ export default function ConfiguracoesPage() {
                   return (
                     <div
                       key={f.mesReferencia}
-                      className={`border rounded-2xl p-3 ${emEdicao ? 'border-primary-300 bg-primary-50' : 'border-gray-200'}`}
+                      className={`border rounded-2xl p-3 transition-colors ${
+                        emEdicao
+                          ? 'border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-primary-900/20'
+                          : 'border-gray-200 dark:border-gray-700'
+                      }`}
                     >
-                      <div className="flex items-start gap-2">
+                      <div className="flex items-center gap-2">
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-800 capitalize">{f.mesLabel}</p>
+                          <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 capitalize tracking-tight">{f.mesLabel}</p>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <CalendarDays className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                             {emEdicao ? (
@@ -939,12 +988,12 @@ export default function ConfiguracoesPage() {
                                 type="date"
                                 value={novaDataFechamento}
                                 onChange={e => setNovaDataFechamento(e.target.value)}
-                                className="text-sm border border-gray-200 rounded-xl px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
+                                className="text-sm border border-gray-200 rounded-xl px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white dark:bg-gray-800"
                               />
                             ) : (
-                              <span className={`text-sm ${isRegistrada ? 'text-gray-800 font-medium' : 'text-gray-400'}`}>
+                              <span className={`text-sm num ${isRegistrada ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
                                 {formatarData(dataExibida)}
-                                {!isRegistrada && <span className="ml-1 text-[10px] text-gray-400">(calculado)</span>}
+                                {!isRegistrada && <span className="ml-1 text-[10px] text-gray-400 dark:text-gray-500">(calculado)</span>}
                               </span>
                             )}
                           </div>
@@ -956,14 +1005,14 @@ export default function ConfiguracoesPage() {
                               <button
                                 onClick={() => registrarFechamento(f.mesReferencia, inputParaISO(novaDataFechamento))}
                                 disabled={salvandoFatura || !novaDataFechamento}
-                                className="p-1.5 rounded-xl text-green-700 hover:bg-green-50 disabled:opacity-40 transition-colors"
+                                className="w-8 h-8 flex items-center justify-center rounded-xl text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 disabled:opacity-40 transition-colors"
                                 title="Salvar"
                               >
                                 <Check className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => { setEditandoFatura(null); setNovaDataFechamento('') }}
-                                className="p-1.5 rounded-xl text-gray-500 hover:bg-gray-100 transition-colors"
+                                className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 transition-colors"
                                 title="Cancelar"
                               >
                                 <X className="w-4 h-4" />
@@ -977,7 +1026,7 @@ export default function ConfiguracoesPage() {
                                   setNovaDataFechamento(dataExibida)
                                 }}
                                 disabled={salvandoFatura}
-                                className="p-1.5 rounded-xl text-primary-600 hover:bg-primary-50 disabled:opacity-40 transition-colors"
+                                className="w-8 h-8 flex items-center justify-center rounded-xl text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 disabled:opacity-40 transition-colors"
                                 title="Registrar/editar data de fechamento"
                               >
                                 <Pencil className="w-4 h-4" />
@@ -986,8 +1035,8 @@ export default function ConfiguracoesPage() {
                                 <button
                                   onClick={() => removerFechamento(f.mesReferencia)}
                                   disabled={salvandoFatura}
-                                  className="p-1.5 rounded-xl text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors"
-                                  title="Remover data registrada (volta ao cálculo automático)"
+                                  className="w-8 h-8 flex items-center justify-center rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 transition-colors"
+                                  title="Remover data registrada"
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
@@ -1002,8 +1051,8 @@ export default function ConfiguracoesPage() {
               </div>
             )}
 
-            <p className="text-xs text-gray-400 mt-3">
-              Datas em cinza são calculadas automaticamente. Clique no lápis para registrar a data real de fechamento (útil quando cai em fim de semana ou feriado).
+            <p className="text-xs text-gray-400 mt-3 leading-relaxed">
+              Datas em cinza são calculadas automaticamente. Use o lápis para registrar a data real (útil quando cai em fim de semana ou feriado).
             </p>
           </div>
         </div>
@@ -1011,35 +1060,56 @@ export default function ConfiguracoesPage() {
 
       {/* ---- ABA ATIVIDADES ---- */}
       {abaAtual === 'atividades' && (
-        <div className="bg-white rounded-3xl shadow-card p-4 mb-4">
-          <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-            <Activity className="w-5 h-5 text-gray-500" />
-            Atividade Recente
-            {logsTotal > 0 && <span className="ml-auto text-xs text-gray-400 font-normal">{logsTotal} registro(s)</span>}
-          </h2>
+        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 mb-4">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
+              <Activity className="w-4 h-4 text-gray-500" />
+            </div>
+            <h2 className="text-base font-semibold text-gray-800 tracking-tight flex-1">Atividade Recente</h2>
+            {logsTotal > 0 && (
+              <span className="text-xs text-gray-400 font-normal bg-gray-100 px-2 py-0.5 rounded-full">
+                {logsTotal} reg.
+              </span>
+            )}
+          </div>
 
-          <div className="grid grid-cols-2 gap-2 mb-3">
+          {/* Filtros */}
+          <div className="grid grid-cols-2 gap-2 mb-4">
             <input
               type="text"
               value={filtroBusca}
               onChange={(e) => setFiltroBusca(e.target.value)}
-              placeholder="Buscar descrição"
-              className="col-span-2 bg-gray-50 rounded-2xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+              placeholder="Buscar descrição…"
+              className="col-span-2 bg-gray-50 border border-gray-200 dark:border-gray-700 rounded-2xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow placeholder-gray-400"
             />
-            <select value={filtroAcao} onChange={(e) => setFiltroAcao(e.target.value)} className="bg-gray-50 rounded-2xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow">
+            <select
+              value={filtroAcao}
+              onChange={(e) => setFiltroAcao(e.target.value)}
+              className="bg-gray-50 border border-gray-200 dark:border-gray-700 rounded-2xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+            >
               <option value="">Ação (todas)</option>
               {Object.entries(ACAO_CONFIG).map(([key, value]) => <option key={key} value={key}>{value.label}</option>)}
             </select>
-            <select value={filtroTabela} onChange={(e) => setFiltroTabela(e.target.value)} className="bg-gray-50 rounded-2xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow">
+            <select
+              value={filtroTabela}
+              onChange={(e) => setFiltroTabela(e.target.value)}
+              className="bg-gray-50 border border-gray-200 dark:border-gray-700 rounded-2xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+            >
               <option value="">Tabela (todas)</option>
               {tabelasDisponiveis.map(tabela => <option key={tabela} value={tabela}>{tabela}</option>)}
             </select>
           </div>
 
           {logsFiltrados.length === 0 && !logsCarregando ? (
-            <p className="text-sm text-gray-400 text-center py-6">Nenhuma atividade para os filtros informados</p>
+            <div className="flex flex-col items-center justify-center py-10 gap-2 text-center">
+              <div className="w-10 h-10 rounded-2xl bg-gray-100 flex items-center justify-center mb-1">
+                <Activity className="w-5 h-5 text-gray-400" />
+              </div>
+              <p className="text-sm font-medium text-gray-500">Nenhuma atividade encontrada</p>
+              <p className="text-xs text-gray-400">Tente ajustar os filtros</p>
+            </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-0">
               {logsFiltrados.map((entry) => {
                 const cfg = ACAO_CONFIG[entry.acao] ?? { label: entry.acao, color: 'bg-gray-100 text-gray-600' }
                 const dt = new Date(entry.created_at)
@@ -1047,12 +1117,12 @@ export default function ConfiguracoesPage() {
                 const horaStr = dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 
                 return (
-                  <div key={entry.id} className="flex items-start gap-3 py-2 border-b border-gray-50 last:border-0">
-                    <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full mt-0.5 ${cfg.color}`}>
+                  <div key={entry.id} className="flex items-start gap-3 py-2.5 border-b border-gray-50 last:border-0">
+                    <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full mt-0.5 whitespace-nowrap ${cfg.color}`}>
                       {cfg.label}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-700 leading-snug">{entry.descricao}</p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 leading-snug">{entry.descricao}</p>
                       <p className="text-xs text-gray-400 mt-0.5">
                         {entry.tabela} · {dataStr} às {horaStr}
                         {entry.usuario && <span className="ml-1 text-gray-500">· {entry.usuario}</span>}
@@ -1066,7 +1136,7 @@ export default function ConfiguracoesPage() {
                 <button
                   onClick={() => carregarLogs(logsPage + 1)}
                   disabled={logsCarregando}
-                  className="w-full mt-1 py-2 text-sm text-primary-600 hover:text-primary-700 flex items-center justify-center gap-1 disabled:opacity-50 transition-colors"
+                  className="w-full mt-2 py-2.5 text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 flex items-center justify-center gap-1.5 disabled:opacity-50 transition-colors rounded-2xl hover:bg-primary-50 dark:hover:bg-primary-900/20"
                 >
                   <ChevronDown className="w-4 h-4" />
                   {logsCarregando ? 'Carregando…' : `Ver mais (${logsTotal - logs.length} restantes)`}
@@ -1079,57 +1149,71 @@ export default function ConfiguracoesPage() {
 
       {/* ---- ABA CATEGORIAS ---- */}
       {abaAtual === 'categorias' && (
-        <div className="bg-white rounded-3xl shadow-card p-4 mb-4">
-          <h2 className="text-lg font-semibold mb-1 flex items-center gap-2">
-            <Tags className="w-5 h-5 text-gray-500" />
-            Categorias
-          </h2>
-          <p className="text-xs text-gray-400 mb-3">
+        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 mb-4">
+          <div className="flex items-center gap-2.5 mb-1">
+            <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
+              <Tags className="w-4 h-4 text-gray-500" />
+            </div>
+            <h2 className="text-base font-semibold text-gray-800 tracking-tight">Categorias</h2>
+          </div>
+          <p className="text-xs text-gray-400 mb-4 ml-10">
             Usadas em compras, despesas, receitas e assinaturas.
           </p>
 
+          {/* Adicionar categoria */}
           <div className="flex gap-2 mb-4">
             <input
               type="text"
               value={novaCategoria}
               onChange={(e) => setNovaCategoria(e.target.value)}
               placeholder="Nova categoria"
-              className="flex-1 bg-gray-50 rounded-2xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); adicionarCategoria() } }}
+              className="flex-1 bg-gray-50 border border-gray-200 dark:border-gray-700 rounded-2xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow placeholder-gray-400"
             />
             <button
               onClick={adicionarCategoria}
-              disabled={categoriasSalvando}
-              className="px-3 rounded-2xl bg-primary-600 text-white text-sm font-semibold disabled:opacity-50 hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm"
+              disabled={categoriasSalvando || !novaCategoria.trim()}
+              className="w-10 h-10 flex items-center justify-center rounded-2xl bg-primary-600 text-white disabled:opacity-40 hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm shrink-0"
+              aria-label="Adicionar categoria"
             >
               <Plus className="w-4 h-4" />
             </button>
           </div>
 
+          {/* Lista de categorias */}
           <div className="space-y-2">
             {categorias.map((categoria) => {
               const emUso = categoriasUso[categoria] ?? 0
               const emEdicao = editandoCategoria === categoria
               return (
-                <div key={categoria} className="border border-gray-200 rounded-2xl p-2.5 flex items-center gap-2">
+                <div key={categoria} className={`border rounded-2xl p-3 flex items-center gap-2 transition-colors ${
+                  emEdicao
+                    ? 'border-primary-200 dark:border-primary-800 bg-primary-50 dark:bg-primary-900/20'
+                    : 'border-gray-200 dark:border-gray-700'
+                }`}>
                   {emEdicao ? (
                     <input
                       autoFocus
                       value={novoNomeCategoria}
                       onChange={(e) => setNovoNomeCategoria(e.target.value)}
-                      className="flex-1 bg-gray-50 rounded-xl p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+                      onKeyDown={(e) => { if (e.key === 'Enter') confirmarEdicaoCategoria(categoria); if (e.key === 'Escape') { setEditandoCategoria(null); setNovoNomeCategoria('') } }}
+                      className="flex-1 bg-white dark:bg-gray-800 border border-primary-200 dark:border-primary-700 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
                     />
                   ) : (
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-700">{categoria}</p>
-                      <p className="text-xs text-gray-400">{emUso} uso(s) em compras e assinaturas</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 tracking-tight">{categoria}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {emUso > 0 ? `${emUso} uso${emUso > 1 ? 's' : ''} em compras e assinaturas` : 'Sem usos registrados'}
+                      </p>
                     </div>
                   )}
 
+                  {/* Botão confirmar edição */}
                   {emEdicao ? (
                     <button
                       onClick={() => confirmarEdicaoCategoria(categoria)}
                       disabled={categoriasSalvando}
-                      className="p-2 rounded-xl text-green-700 hover:bg-green-50 active:bg-green-100 transition-colors"
+                      className="w-8 h-8 flex items-center justify-center rounded-xl text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 active:bg-emerald-100 transition-colors"
                       title="Salvar alteração"
                     >
                       <Check className="w-4 h-4" />
@@ -1137,17 +1221,18 @@ export default function ConfiguracoesPage() {
                   ) : (
                     <button
                       onClick={() => { setEditandoCategoria(categoria); setNovoNomeCategoria(categoria) }}
-                      className="p-2 rounded-xl text-primary-600 hover:bg-primary-50 active:bg-primary-100 transition-colors"
+                      className="w-8 h-8 flex items-center justify-center rounded-xl text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 active:bg-primary-100 transition-colors"
                       title="Editar categoria"
                     >
                       <Pencil className="w-4 h-4" />
                     </button>
                   )}
 
+                  {/* Botão remover */}
                   <button
                     onClick={() => removerCategoria(categoria)}
                     disabled={categoriasSalvando || emUso > 0}
-                    className="p-2 rounded-xl text-red-500 hover:bg-red-50 active:bg-red-100 disabled:opacity-40 transition-colors"
+                    className="w-8 h-8 flex items-center justify-center rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 active:bg-red-100 disabled:opacity-30 transition-colors"
                     title={emUso > 0 ? 'Não é possível remover categorias em uso' : 'Remover categoria'}
                   >
                     <Trash2 className="w-4 h-4" />
@@ -1157,7 +1242,7 @@ export default function ConfiguracoesPage() {
             })}
           </div>
 
-          <p className="text-xs text-gray-400 mt-3">
+          <p className="text-xs text-gray-400 mt-3 leading-relaxed">
             Editar renomeia a categoria em compras e assinaturas automaticamente. Remoção só é permitida quando não há uso.
           </p>
         </div>

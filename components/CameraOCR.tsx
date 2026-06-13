@@ -172,17 +172,19 @@ export function CameraOCR({ onConfirmar, onClose }: Props) {
           <button
             type="button"
             onClick={handleClose}
-            className="w-11 h-11 flex items-center justify-center rounded-full bg-white/10 text-white active:bg-white/20"
+            className="w-11 h-11 flex items-center justify-center rounded-2xl bg-white/12 text-white
+                       active:bg-white/20 transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5" strokeWidth={2} />
           </button>
-          <span className="text-white font-semibold text-sm">Ler preço</span>
+          <span className="text-white font-semibold text-sm tracking-tight">Ler preço</span>
           {torchSupported ? (
             <button
               type="button"
               onClick={toggleTorch}
               aria-label={torchOn ? 'Desligar lanterna' : 'Ligar lanterna'}
-              className="w-11 h-11 flex items-center justify-center rounded-full bg-white/10 text-white active:bg-white/20"
+              className={`w-11 h-11 flex items-center justify-center rounded-2xl transition-colors
+                          ${torchOn ? 'bg-amber-400/30 text-amber-300' : 'bg-white/12 text-white active:bg-white/20'}`}
             >
               {torchOn ? <ZapOff className="w-5 h-5" /> : <Zap className="w-5 h-5" />}
             </button>
@@ -209,30 +211,31 @@ export function CameraOCR({ onConfirmar, onClose }: Props) {
             <>
               <div
                 className="absolute inset-0 pointer-events-none"
-                style={{ background: 'rgba(0,0,0,0.45)' }}
+                style={{ background: 'rgba(0,0,0,0.50)' }}
               />
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div
                   className="w-72 h-28 rounded-2xl relative overflow-hidden"
-                  style={{ boxShadow: '0 0 0 9999px rgba(0,0,0,0.45)' }}
+                  style={{ boxShadow: '0 0 0 9999px rgba(0,0,0,0.50)' }}
                 >
                   {status === 'preview' && (
-                    <div className="absolute inset-x-0 h-0.5 bg-green-400/80 rounded-full animate-scan-line" />
+                    <div className="absolute inset-x-0 h-0.5 bg-green-400 rounded-full animate-scan-line" />
                   )}
                   {status === 'processing' && (
-                    <div className="absolute inset-0 bg-white/10 flex items-center justify-center">
-                      <Loader2 className="w-5 h-5 text-white/80 animate-spin" />
+                    <div className="absolute inset-0 bg-white/10 backdrop-blur-[1px] flex items-center justify-center">
+                      <Loader2 className="w-5 h-5 text-white animate-spin" />
                     </div>
                   )}
-                  <span className="absolute -top-0.5 -left-0.5 w-5 h-5 border-t-[3px] border-l-[3px] border-white rounded-tl-2xl" />
-                  <span className="absolute -top-0.5 -right-0.5 w-5 h-5 border-t-[3px] border-r-[3px] border-white rounded-tr-2xl" />
-                  <span className="absolute -bottom-0.5 -left-0.5 w-5 h-5 border-b-[3px] border-l-[3px] border-white rounded-bl-2xl" />
-                  <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 border-b-[3px] border-r-[3px] border-white rounded-br-2xl" />
+                  {/* Corner brackets — thicker and brighter for premium feel */}
+                  <span className="absolute -top-0.5 -left-0.5 w-6 h-6 border-t-[3px] border-l-[3px] border-white rounded-tl-2xl" />
+                  <span className="absolute -top-0.5 -right-0.5 w-6 h-6 border-t-[3px] border-r-[3px] border-white rounded-tr-2xl" />
+                  <span className="absolute -bottom-0.5 -left-0.5 w-6 h-6 border-b-[3px] border-l-[3px] border-white rounded-bl-2xl" />
+                  <span className="absolute -bottom-0.5 -right-0.5 w-6 h-6 border-b-[3px] border-r-[3px] border-white rounded-br-2xl" />
                 </div>
               </div>
               {status === 'preview' && (
                 <div className="absolute bottom-4 left-0 right-0 flex justify-center pointer-events-none">
-                  <p className="text-white/75 text-xs bg-black/40 py-1.5 px-4 rounded-full">
+                  <p className="text-white/80 text-xs font-medium bg-black/50 py-1.5 px-4 rounded-full tracking-tight">
                     Aponte a etiqueta e toque para capturar
                   </p>
                 </div>
@@ -241,20 +244,21 @@ export function CameraOCR({ onConfirmar, onClose }: Props) {
           )}
 
           {status === 'requesting' && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <p className="text-white/60 text-sm">Acessando câmera…</p>
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+              <Loader2 className="w-6 h-6 text-white/50 animate-spin" />
+              <p className="text-white/50 text-sm">Acessando câmera…</p>
             </div>
           )}
 
           {status === 'error' && (
-            <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-4 px-8">
-              <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
-                <AlertCircle className="w-6 h-6 text-red-400" />
+            <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-5 px-8">
+              <div className="w-14 h-14 rounded-2xl bg-red-500/20 border border-red-500/30 flex items-center justify-center">
+                <AlertCircle className="w-7 h-7 text-red-400" strokeWidth={1.8} />
               </div>
               {errorKind === 'permission' && (
                 <div className="text-center">
                   <p className="text-white text-sm font-semibold mb-2">Permissão de câmera negada</p>
-                  <p className="text-white/60 text-xs leading-relaxed">
+                  <p className="text-white/55 text-xs leading-relaxed">
                     {isIOS
                       ? 'Vá em Ajustes › Safari › Câmera e permita o acesso.'
                       : 'Toque no ícone de câmera na barra de endereços e permita o acesso.'}
@@ -263,18 +267,18 @@ export function CameraOCR({ onConfirmar, onClose }: Props) {
               )}
               {errorKind === 'notfound' && (
                 <div className="text-center">
-                  <p className="text-white text-sm font-semibold mb-1">Preço não encontrado</p>
-                  <p className="text-white/60 text-xs">Aproxime mais da etiqueta ou melhore a iluminação.</p>
+                  <p className="text-white text-sm font-semibold mb-1.5">Preço não encontrado</p>
+                  <p className="text-white/55 text-xs leading-relaxed">Aproxime mais da etiqueta ou melhore a iluminação.</p>
                 </div>
               )}
               {errorKind === 'network' && (
                 <div className="text-center">
-                  <p className="text-white text-sm font-semibold mb-1">Erro de conexão</p>
-                  <p className="text-white/60 text-xs">Verifique o sinal e tente novamente.</p>
+                  <p className="text-white text-sm font-semibold mb-1.5">Erro de conexão</p>
+                  <p className="text-white/55 text-xs">Verifique o sinal e tente novamente.</p>
                 </div>
               )}
               {errorKind === 'device' && (
-                <p className="text-white text-sm text-center">
+                <p className="text-white text-sm text-center leading-relaxed">
                   Não foi possível acessar a câmera neste dispositivo.
                 </p>
               )}
@@ -288,15 +292,15 @@ export function CameraOCR({ onConfirmar, onClose }: Props) {
         <div className="bg-black" style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom))' }}>
           {status === 'result' && (
             <div className="px-4 pt-4">
-              <div className="bg-white rounded-3xl px-5 py-4">
-                <div className="flex items-center gap-2.5 mb-3">
-                  <div className="w-7 h-7 rounded-full bg-green-50 flex items-center justify-center flex-none">
+              <div className="bg-white rounded-3xl px-5 py-4 shadow-float">
+                <div className="flex items-center gap-2.5 mb-4">
+                  <div className="w-7 h-7 rounded-xl bg-green-50 flex items-center justify-center flex-none">
                     <Check className="w-3.5 h-3.5 text-green-500" strokeWidth={2.5} />
                   </div>
-                  <p className="text-xs font-semibold text-gray-600">Preço detectado — edite se necessário</p>
+                  <p className="text-xs font-semibold text-gray-500 tracking-tight">Preço detectado — edite se necessário</p>
                 </div>
-                <div className="relative mb-3">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium">
+                <div className="relative mb-4">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-base text-gray-400 font-semibold">
                     R$
                   </span>
                   <input
@@ -306,27 +310,27 @@ export function CameraOCR({ onConfirmar, onClose }: Props) {
                     value={precoEditado}
                     onChange={e => setPrecoEditado(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && confirmar()}
-                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 text-2xl font-bold
-                               text-gray-900 text-center focus:outline-none focus:ring-2 focus:ring-green-400"
+                    className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 text-2xl font-bold
+                               text-gray-900 text-center focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent"
                   />
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2.5">
                   <button
                     type="button"
                     onClick={retake}
-                    className="flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl bg-gray-100
-                               text-gray-700 text-sm font-semibold active:bg-gray-200 transition-colors"
+                    className="flex items-center justify-center gap-1.5 px-4 py-3.5 rounded-2xl bg-gray-100
+                               text-gray-700 text-sm font-semibold active:bg-gray-200 transition-colors active:scale-[0.97]"
                   >
-                    <RotateCcw className="w-3.5 h-3.5" />
+                    <RotateCcw className="w-3.5 h-3.5" strokeWidth={2} />
                     Refazer
                   </button>
                   <button
                     type="button"
                     onClick={confirmar}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-green-500
-                               text-white text-sm font-bold active:bg-green-600 transition-colors"
+                    className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-green-500
+                               text-white text-sm font-bold active:bg-green-600 transition-colors active:scale-[0.98]"
                   >
-                    <Check className="w-4 h-4" />
+                    <Check className="w-4 h-4" strokeWidth={2.5} />
                     Confirmar R$ {precoEditado || '0,00'}
                   </button>
                 </div>
@@ -340,17 +344,17 @@ export function CameraOCR({ onConfirmar, onClose }: Props) {
                 <button
                   type="button"
                   onClick={retake}
-                  className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-white/10
+                  className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-white/12
                              text-white text-sm font-semibold active:bg-white/20 transition-colors"
                 >
-                  <RotateCcw className="w-4 h-4" />
+                  <RotateCcw className="w-4 h-4" strokeWidth={2} />
                   Tentar novamente
                 </button>
               )}
               <button
                 type="button"
                 onClick={handleClose}
-                className="flex-1 flex items-center justify-center py-3.5 rounded-2xl bg-white/10
+                className="flex-1 flex items-center justify-center py-3.5 rounded-2xl bg-white/12
                            text-white text-sm font-semibold active:bg-white/20 transition-colors"
               >
                 Digitar manualmente
@@ -363,10 +367,11 @@ export function CameraOCR({ onConfirmar, onClose }: Props) {
               <button
                 type="button"
                 onClick={capture}
-                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-white
-                           text-gray-900 text-sm font-bold active:bg-gray-100 transition-colors"
+                className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl bg-white
+                           text-gray-900 text-sm font-bold active:bg-gray-100 transition-colors active:scale-[0.98]
+                           shadow-sm"
               >
-                <Camera className="w-5 h-5" />
+                <Camera className="w-5 h-5" strokeWidth={2} />
                 Capturar
               </button>
             </div>
@@ -374,9 +379,9 @@ export function CameraOCR({ onConfirmar, onClose }: Props) {
 
           {status === 'processing' && (
             <div className="px-5 pt-4">
-              <div className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-white/10">
-                <Loader2 className="w-4 h-4 text-white animate-spin" />
-                <span className="text-white text-sm font-medium">Detectando preço…</span>
+              <div className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl bg-white/10 border border-white/10">
+                <Loader2 className="w-4 h-4 text-white/80 animate-spin" />
+                <span className="text-white/80 text-sm font-medium">Detectando preço…</span>
               </div>
             </div>
           )}

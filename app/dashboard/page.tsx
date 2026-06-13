@@ -10,43 +10,29 @@ import { useMes } from '@/components/MesProvider'
 import MonthSelector from '@/components/MonthSelector'
 import dynamic from 'next/dynamic'
 
+// Fallbacks de carregamento: skeleton estruturado no formato do gráfico —
+// transmite a estrutura que vai surgir e melhora a performance percebida.
 const GraficoProjecao = dynamic(() => import('@/components/GraficoProjecao'), {
   ssr: false,
-  loading: () => (
-    <div className="h-72 flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-gray-200 border-t-primary-500 rounded-full animate-spin" />
-    </div>
-  ),
+  loading: () => <div className="h-56 md:h-64 lg:h-72 skeleton rounded-2xl" />,
 })
 
 const GraficoEvolucaoMensal = dynamic(() => import('@/components/GraficoEvolucaoMensal'), {
   ssr: false,
-  loading: () => (
-    <div className="h-64 flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-gray-200 border-t-emerald-500 rounded-full animate-spin" />
-    </div>
-  ),
+  loading: () => <div className="h-56 md:h-64 lg:h-72 skeleton rounded-2xl" />,
 })
 
 const GraficoEvolucaoInvestimentos = dynamic(
   () => import('@/components/GraficoEvolucaoInvestimentos'),
   {
     ssr: false,
-    loading: () => (
-      <div className="h-56 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-gray-200 border-t-violet-500 rounded-full animate-spin" />
-      </div>
-    ),
+    loading: () => <div className="h-56 skeleton rounded-2xl" />,
   }
 )
 
 const GraficoGastosDiarios = dynamic(() => import('@/components/GraficoGastosDiarios'), {
   ssr: false,
-  loading: () => (
-    <div className="h-48 flex items-center justify-center">
-      <div className="w-7 h-7 border-2 border-gray-200 border-t-violet-500 rounded-full animate-spin" />
-    </div>
-  ),
+  loading: () => <div className="h-48 skeleton rounded-2xl" />,
 })
 
 const CategoryTreemap = dynamic(() => import('@/components/CategoryTreemap'), { ssr: false })
@@ -55,11 +41,7 @@ const GraficoCategoriasDespesas = dynamic(
   () => import('@/components/GraficoCategoriasDespesas'),
   {
     ssr: false,
-    loading: () => (
-      <div className="h-64 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-gray-200 border-t-indigo-500 rounded-full animate-spin" />
-      </div>
-    ),
+    loading: () => <div className="h-64 skeleton rounded-2xl" />,
   }
 )
 import { InfoPopover } from '@/components/InfoPopover'
@@ -610,7 +592,7 @@ export default function Dashboard() {
                     {resumoCaixa.faturaEhPrevisto ? 'Saldo estimado' : 'Saldo atual'}
                     <InfoPopover texto="Quanto sobra da renda após todos os gastos do mês. 'Saldo atual' usa os lançamentos reais da fatura NuBank. 'Saldo estimado' aparece quando a fatura ainda não tem lançamentos — o valor é calculado com base nas parcelas em andamento. Verde = saldo saudável, âmbar = sobra abaixo de 10% da renda, vermelho = saldo negativo. A barra mostra o % da renda comprometido com gastos." />
                   </p>
-                  <p className={`text-3xl font-bold num ${heroColor}`}>
+                  <p className={`text-3xl lg:text-4xl font-bold num value-tight ${heroColor}`}>
                     {fmt(heroSaldo)}
                   </p>
                   <div className="flex items-center gap-1.5 mt-1.5">
@@ -660,7 +642,7 @@ export default function Dashboard() {
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
                   <div
-                    className={`h-2 rounded-full transition-[width] duration-500 ${comprometimentoBarColor}`}
+                    className={`h-2 rounded-full transition-[width] duration-500 ease-smooth ${comprometimentoBarColor}`}
                     style={{ width: `${Math.min(resumoCaixa.percentualComprometimento, 100)}%` }}
                   />
                 </div>
@@ -756,7 +738,7 @@ export default function Dashboard() {
                     </div>
                   )}
                   <div className="mt-2 h-2 bg-blue-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-500 rounded-full transition-[width] duration-400" style={{ width: `${fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100) : 0}%` }} />
+                    <div className="h-full bg-blue-500 rounded-full transition-[width] duration-400 ease-smooth" style={{ width: `${fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100) : 0}%` }} />
                   </div>
                   <p className="text-right text-[10px] text-blue-500 mt-0.5 num">{fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100).toFixed(0) : 0}%</p>
                   <div className={`flex justify-between text-xs font-bold mt-1.5 gap-1 ${fatura.sobraMatheus < 0 ? 'text-red-600' : matheusSobraWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
@@ -803,7 +785,7 @@ export default function Dashboard() {
                     </div>
                   )}
                   <div className="mt-2 h-2 bg-pink-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-pink-500 rounded-full transition-[width] duration-400" style={{ width: `${fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100) : 0}%` }} />
+                    <div className="h-full bg-pink-500 rounded-full transition-[width] duration-400 ease-smooth" style={{ width: `${fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100) : 0}%` }} />
                   </div>
                   <p className="text-right text-[10px] text-pink-500 mt-0.5 num">{fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100).toFixed(0) : 0}%</p>
                   <div className={`flex justify-between text-xs font-bold mt-1.5 gap-1 ${fatura.sobraJeniffer < 0 ? 'text-red-600' : jenifferSobraWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
@@ -841,7 +823,7 @@ export default function Dashboard() {
                               <span className="font-medium text-gray-800 num">{fmt(card.previsto)}</span>
                             </div>
                             <div className={`mt-1.5 h-2 rounded-full overflow-hidden ${isMatheus ? 'bg-blue-100' : 'bg-pink-100'}`}>
-                              <div className={`h-full rounded-full transition-[width] duration-400 ${isMatheus ? 'bg-blue-400' : 'bg-pink-400'}`} style={{ width: `${pct}%` }} />
+                              <div className={`h-full rounded-full transition-[width] duration-400 ease-smooth ${isMatheus ? 'bg-blue-400' : 'bg-pink-400'}`} style={{ width: `${pct}%` }} />
                             </div>
                             <div className={`flex items-center justify-between text-xs font-bold mt-1 gap-1 ${
                               sobra < 0 ? 'text-red-600' : isWarning ? 'text-amber-600' : 'text-emerald-600'
@@ -863,7 +845,7 @@ export default function Dashboard() {
                         <div className="flex justify-between text-xs gap-1 text-gray-500"><span>Atual</span><span className="font-medium text-gray-800 num">{fmt(matheusTotalAtual)}</span></div>
                         <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-500"><span>Previsto</span><span className="font-medium text-gray-800 num">{fmt(matheusTotalPrevisto)}</span></div>
                         <div className="mt-1.5 h-2 bg-blue-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-blue-500 rounded-full transition-[width] duration-400" style={{ width: `${matheusPct}%` }} />
+                          <div className="h-full bg-blue-500 rounded-full transition-[width] duration-400 ease-smooth" style={{ width: `${matheusPct}%` }} />
                         </div>
                         <div className={`flex justify-between text-xs font-bold mt-1 gap-1 ${matheusRestante < 0 ? 'text-red-600' : matheusResumoWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
                           <span className="flex items-center gap-0.5 whitespace-nowrap">{matheusRestante < 0 ? '⚠ Excesso' : matheusResumoWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção!</> : '✓ Restante'}</span>
@@ -875,7 +857,7 @@ export default function Dashboard() {
                         <div className="flex justify-between text-xs gap-1 text-gray-500"><span>Atual</span><span className="font-medium text-gray-800 num">{fmt(jenifferTotalAtual)}</span></div>
                         <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-500"><span>Previsto</span><span className="font-medium text-gray-800 num">{fmt(jenifferTotalPrevisto)}</span></div>
                         <div className="mt-1.5 h-2 bg-pink-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-pink-500 rounded-full transition-[width] duration-400" style={{ width: `${jenifferPct}%` }} />
+                          <div className="h-full bg-pink-500 rounded-full transition-[width] duration-400 ease-smooth" style={{ width: `${jenifferPct}%` }} />
                         </div>
                         <div className={`flex justify-between text-xs font-bold mt-1 gap-1 ${jenifferRestante < 0 ? 'text-red-600' : jenifferResumoWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
                           <span className="flex items-center gap-0.5 whitespace-nowrap">{jenifferRestante < 0 ? '⚠ Excesso' : jenifferResumoWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção!</> : '✓ Restante'}</span>
@@ -1006,7 +988,7 @@ export default function Dashboard() {
                       </div>
                       <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
                         <div
-                          className={`h-2 rounded-full transition-[width] duration-400 ${concluido ? 'bg-gradient-to-r from-emerald-500 to-green-500' : 'bg-gradient-to-r from-violet-400 to-violet-600'}`}
+                          className={`h-2 rounded-full transition-[width] duration-400 ease-smooth ${concluido ? 'bg-gradient-to-r from-emerald-500 to-green-500' : 'bg-gradient-to-r from-violet-400 to-violet-600'}`}
                           style={{ width: `${progresso}%` }}
                         />
                       </div>
@@ -1044,34 +1026,34 @@ export default function Dashboard() {
         {/* ── Gastos Diários ── */}
         <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
           <div className="flex items-center gap-2 mb-1">
-            <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
               <Activity className="w-4 h-4 text-violet-600" />
             </div>
-            <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
+            <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5 whitespace-nowrap shrink-0">
               Gastos Diários
               <InfoPopover texto="Evolução dos gastos ao longo dos dias do mês selecionado. Considera todas as compras com data de compra registrada no período. Use os filtros para visualizar por pessoa ou por cartão." />
             </h2>
-            <div className="ml-auto inline-flex items-center bg-gray-100 rounded-full p-[3px] gap-[2px]">
+            <div className="inline-flex items-center bg-gray-100 rounded-full p-[2px] gap-[1px] ml-auto shrink-0">
               <button
                 onClick={() => setVisaoGastosDiarios('valor')}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all duration-200 ${
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 ${
                   visaoGastosDiarios === 'valor'
                     ? 'bg-violet-600 text-white shadow-sm'
                     : 'text-gray-400 hover:text-gray-600'
                 }`}
               >
-                <TrendingUp className="w-3 h-3" />
+                <TrendingUp className="w-2.5 h-2.5" />
                 Valor
               </button>
               <button
                 onClick={() => setVisaoGastosDiarios('burndown')}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all duration-200 ${
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 ${
                   visaoGastosDiarios === 'burndown'
                     ? 'bg-violet-600 text-white shadow-sm'
                     : 'text-gray-400 hover:text-gray-600'
                 }`}
               >
-                <BarChart2 className="w-3 h-3" />
+                <BarChart2 className="w-2.5 h-2.5" />
                 Burndown
               </button>
             </div>

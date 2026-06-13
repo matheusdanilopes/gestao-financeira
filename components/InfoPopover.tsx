@@ -53,8 +53,11 @@ export function InfoPopover({ texto }: InfoPopoverProps) {
       <button
         ref={btnRef}
         onClick={() => aberto ? setAberto(false) : handleOpen()}
-        className="text-gray-400 hover:text-gray-600 transition-colors"
+        className="p-0.5 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300
+                   hover:bg-gray-100 dark:hover:bg-gray-800
+                   active:scale-90 transition-all duration-150 focus:outline-none"
         aria-label="Mais informações"
+        aria-expanded={aberto}
       >
         <Info className="w-4 h-4" />
       </button>
@@ -62,16 +65,25 @@ export function InfoPopover({ texto }: InfoPopoverProps) {
         <div
           ref={popRef}
           style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
-          className="w-64 bg-gray-900 text-white text-sm rounded-xl shadow-float p-3"
+          className="w-64 animate-in
+                     bg-gray-900 dark:bg-gray-950
+                     text-white text-sm rounded-2xl
+                     shadow-float
+                     border border-white/10
+                     p-3.5"
         >
           <button
             onClick={() => setAberto(false)}
-            className="absolute top-2 right-2 text-gray-400 hover:text-white transition-colors"
+            className="absolute top-2.5 right-2.5
+                       text-gray-500 hover:text-gray-200
+                       p-0.5 rounded-lg
+                       hover:bg-white/10
+                       transition-all duration-150 focus:outline-none"
             aria-label="Fechar"
           >
             <X className="w-3.5 h-3.5" />
           </button>
-          <p className="pr-5 leading-relaxed text-gray-100">{texto}</p>
+          <p className="pr-6 leading-relaxed text-gray-200 text-[13px]">{texto}</p>
         </div>
       )}
     </span>

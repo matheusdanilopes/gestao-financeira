@@ -53,18 +53,26 @@ export default memo(function DataStatusIndicator({ status, lastUpdated, onRefres
 
   if (status === 'offline') {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-red-500 bg-red-50 px-2 py-0.5 rounded-full border border-red-100">
-        <WifiOff className="w-3 h-3" />
-        Offline
+      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold
+                       text-red-600 dark:text-red-400
+                       bg-red-50 dark:bg-red-950/40
+                       px-2.5 py-1 rounded-full
+                       border border-red-100 dark:border-red-800/60
+                       shadow-sm">
+        <WifiOff className="w-3 h-3 shrink-0" aria-hidden="true" />
+        <span>Sem conexão</span>
       </span>
     )
   }
 
   if (status === 'loading' && !lastUpdated) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
-        <RefreshCw className="w-3 h-3 animate-spin" />
-        Atualizando…
+      <span className="inline-flex items-center gap-1.5 text-[11px] font-medium
+                       text-gray-400 dark:text-gray-500
+                       bg-gray-50 dark:bg-gray-800/60
+                       px-2.5 py-1 rounded-full">
+        <RefreshCw className="w-3 h-3 animate-spin shrink-0" aria-hidden="true" />
+        <span>Atualizando…</span>
       </span>
     )
   }
@@ -73,15 +81,24 @@ export default memo(function DataStatusIndicator({ status, lastUpdated, onRefres
     <button
       onClick={handleRefresh}
       disabled={refreshing || !onRefresh}
-      className="inline-flex items-center gap-1 text-xs font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full hover:bg-gray-100 transition-colors disabled:cursor-default"
+      className="inline-flex items-center gap-1.5 text-[11px] font-medium
+                 text-gray-400 dark:text-gray-500
+                 bg-gray-50 dark:bg-gray-800/60
+                 px-2.5 py-1 rounded-full
+                 hover:bg-gray-100 dark:hover:bg-gray-700/60
+                 hover:text-gray-600 dark:hover:text-gray-300
+                 transition-colors duration-150 disabled:cursor-default
+                 group"
       title={onRefresh ? 'Clique para atualizar' : undefined}
+      aria-label={onRefresh ? `Dados: ${label}. Clique para atualizar` : `Dados: ${label}`}
     >
       {refreshing ? (
-        <RefreshCw className="w-3 h-3 animate-spin text-primary-500" />
+        <RefreshCw className="w-3 h-3 animate-spin text-primary-500 dark:text-primary-400 shrink-0" aria-hidden="true" />
       ) : (
-        <Wifi className="w-3 h-3 text-green-500" />
+        <Wifi className="w-3 h-3 text-green-500 dark:text-green-400 shrink-0
+                         group-hover:text-green-600 dark:group-hover:text-green-300 transition-colors" aria-hidden="true" />
       )}
-      {label}
+      <span>{label}</span>
     </button>
   )
 })

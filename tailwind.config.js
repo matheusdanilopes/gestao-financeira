@@ -34,17 +34,24 @@ module.exports = {
         },
       },
       boxShadow: {
-        'card':       '0 2px 8px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
-        'card-md':    '0 4px 16px rgba(0,0,0,0.10), 0 2px 4px rgba(0,0,0,0.06)',
-        'card-hover': '0 8px 24px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06)',
-        'float':      '0 20px 40px rgba(0,0,0,0.15), 0 4px 8px rgba(0,0,0,0.08)',
+        // Sombras em base slate (16,24,40) — leitura mais sofisticada e fria que
+        // o preto puro, com camadas (contato + ambiente) para profundidade real.
+        'card':       '0 1px 2px rgba(16,24,40,0.04), 0 4px 12px rgba(16,24,40,0.05)',
+        'card-md':    '0 2px 4px rgba(16,24,40,0.05), 0 8px 24px rgba(16,24,40,0.08)',
+        'card-hover': '0 4px 8px rgba(16,24,40,0.06), 0 16px 32px rgba(16,24,40,0.10)',
+        'float':      '0 8px 16px rgba(16,24,40,0.08), 0 24px 48px rgba(16,24,40,0.16)',
       },
       borderRadius: {
         '3xl': '1.5rem',
         '4xl': '2rem',
       },
+      letterSpacing: {
+        'tighter-2': '-0.02em',
+      },
       transitionTimingFunction: {
         'spring': 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+        // Curva de saída suave (emphasized decelerate) p/ transições de estado/valor
+        'smooth': 'cubic-bezier(0.16, 1, 0.3, 1)',
       },
       transitionDuration: {
         '400': '400ms',

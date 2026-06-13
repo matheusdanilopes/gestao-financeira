@@ -151,32 +151,43 @@ export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }:
     }
   }
 
+  const filterSelectClass = "w-full text-sm border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-400 dark:focus:ring-primary-500 focus:border-transparent transition-shadow duration-150"
+
   return (
     <>
       <ModalPortal>
-      <div className="fixed inset-0 bg-black/50 z-[190] transition-opacity" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/50 dark:bg-black/70 z-[190] modal-overlay" onClick={onClose} />
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-xl z-[200] max-h-[80vh] overflow-y-auto">
+      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 rounded-t-3xl shadow-float z-[200] max-h-[84vh] overflow-y-auto modal-sheet">
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-1 sticky top-0 bg-white dark:bg-gray-900 z-10">
+          <div className="w-9 h-1 rounded-full bg-gray-200 dark:bg-gray-700" />
+        </div>
+
         {/* Cabeçalho fixo */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-4 space-y-3">
+        <div className="sticky top-[28px] bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 px-4 pb-4 pt-1 space-y-3 z-10">
           <div className="flex justify-between items-start">
             <div>
-              <h3 className="text-lg font-bold">{dados.serie}</h3>
-              <p className="text-sm text-gray-500">{dados.mes}</p>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 tracking-tight">{dados.serie}</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{dados.mes}</p>
             </div>
-            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full">
-              <X className="w-5 h-5" />
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors active:scale-90"
+              aria-label="Fechar"
+            >
+              <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
             </button>
           </div>
 
           {/* Filtros */}
-          <div className="flex gap-2">
+          <div className="flex gap-2.5">
             <div className="flex-1">
-              <label className="block text-xs text-gray-400 mb-1">Filtrar por</label>
+              <label className="block text-[11px] font-medium text-gray-400 dark:text-gray-500 mb-1.5 uppercase tracking-wide">Filtrar por</label>
               <select
                 value={filtroCampo}
                 onChange={e => handleCampoChange(e.target.value as CampoFiltro)}
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                className={filterSelectClass}
               >
                 {CAMPOS_FILTRO.map(c => (
                   <option key={c.value} value={c.value}>{c.label}</option>
@@ -184,20 +195,20 @@ export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }:
               </select>
             </div>
             <div className="flex-1">
-              <label className="block text-xs text-gray-400 mb-1">Valor</label>
+              <label className="block text-[11px] font-medium text-gray-400 dark:text-gray-500 mb-1.5 uppercase tracking-wide">Valor</label>
               {filtroCampo === 'descricao' ? (
                 <input
                   type="text"
                   value={filtroValor}
                   onChange={e => setFiltroValor(e.target.value)}
                   placeholder="Buscar descrição..."
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  className={filterSelectClass}
                 />
               ) : (
                 <select
                   value={filtroValor}
                   onChange={e => setFiltroValor(e.target.value)}
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  className={filterSelectClass}
                 >
                   {valoresDisponiveis.map(v => (
                     <option key={v} value={v}>
@@ -208,13 +219,13 @@ export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }:
               )}
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2.5">
             <div className="flex-1">
-              <label className="block text-xs text-gray-400 mb-1">Filtrar por (2)</label>
+              <label className="block text-[11px] font-medium text-gray-400 dark:text-gray-500 mb-1.5 uppercase tracking-wide">Filtrar por (2)</label>
               <select
                 value={filtroCampo2}
                 onChange={e => handleCampo2Change(e.target.value as CampoFiltro)}
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                className={filterSelectClass}
               >
                 {CAMPOS_FILTRO.filter(c => c.value !== filtroCampo).map(c => (
                   <option key={c.value} value={c.value}>{c.label}</option>
@@ -222,20 +233,20 @@ export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }:
               </select>
             </div>
             <div className="flex-1">
-              <label className="block text-xs text-gray-400 mb-1">Valor (2)</label>
+              <label className="block text-[11px] font-medium text-gray-400 dark:text-gray-500 mb-1.5 uppercase tracking-wide">Valor (2)</label>
               {filtroCampo2 === 'descricao' ? (
                 <input
                   type="text"
                   value={filtroValor2}
                   onChange={e => setFiltroValor2(e.target.value)}
                   placeholder="Buscar descrição..."
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  className={filterSelectClass}
                 />
               ) : (
                 <select
                   value={filtroValor2}
                   onChange={e => setFiltroValor2(e.target.value)}
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  className={filterSelectClass}
                 >
                   {valoresDisponiveis2.map(v => (
                     <option key={v} value={v}>
@@ -248,18 +259,19 @@ export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }:
           </div>
         </div>
 
-        <div className="p-4">
-          <div className="bg-blue-50 rounded-lg p-3 mb-4">
-            <p className="text-sm text-gray-600">Valor total</p>
-            <p className="text-2xl font-bold text-blue-600">
+        <div className="p-4 pb-8">
+          {/* Total card */}
+          <div className="bg-primary-50 dark:bg-primary-900/20 rounded-2xl p-4 mb-4 border border-primary-100 dark:border-primary-900/40">
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-0.5">Valor total</p>
+            <p className="text-2xl font-bold text-primary-700 dark:text-primary-300 num tracking-tight">
               {formatBRL(itensFiltrados.length === itens.length ? dados.valor : valorFiltrado)}
             </p>
           </div>
 
-          <h4 className="font-semibold mb-2 flex items-baseline gap-2">
-            Itens que compõem este valor:
+          <h4 className="font-semibold text-gray-800 dark:text-gray-100 mb-3 flex items-baseline gap-2">
+            Itens que compõem este valor
             {itensFiltrados.length < itens.length && (
-              <span className="text-sm font-normal text-gray-400">
+              <span className="text-xs font-normal text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
                 {itensFiltrados.length} de {itens.length}
               </span>
             )}
@@ -270,26 +282,26 @@ export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }:
               {itensFiltrados.map((item, index) => {
                 const cartaoLabel = item.cartao ? (labelsCartao[item.cartao] ?? CARTAO_LABEL[item.cartao] ?? item.cartao) : null
                 const cartaoBadgeColor =
-                  item.cartao === 'nubank' ? 'bg-purple-100 text-purple-700' :
-                  item.cartao === 'cartao1' ? 'bg-blue-100 text-blue-700' :
-                  item.cartao === 'cartao2' ? 'bg-pink-100 text-pink-700' : ''
+                  item.cartao === 'nubank' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' :
+                  item.cartao === 'cartao1' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' :
+                  item.cartao === 'cartao2' ? 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300' : ''
                 return (
-                  <div key={index} className="bg-gray-50 rounded-lg p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="font-medium flex-1">{item.descricao || item.item}</p>
+                  <div key={index} className="bg-gray-50 dark:bg-gray-800/60 rounded-2xl p-3.5 border border-gray-100 dark:border-gray-700/50">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <p className="font-medium text-gray-800 dark:text-gray-100 flex-1 text-sm leading-snug">{item.descricao || item.item}</p>
                       {cartaoLabel && (
-                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap ${cartaoBadgeColor}`}>
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${cartaoBadgeColor}`}>
                           {cartaoLabel}
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-gray-500">
-                      {item.responsavel && `Responsável: ${item.responsavel}`}
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {item.responsavel && `${item.responsavel}`}
                       {item.data_compra && (
                         <> · {new Date(item.data_compra + 'T12:00:00').toLocaleDateString('pt-BR')}</>
                       )}
                     </p>
-                    <p className="text-sm font-semibold text-green-600">
+                    <p className="text-sm font-semibold text-green-600 dark:text-green-400 mt-1 num">
                       {formatBRL(item.valor ?? item.valor_previsto ?? 0)}
                     </p>
                   </div>
@@ -297,7 +309,7 @@ export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }:
               })}
             </div>
           ) : (
-            <p className="text-gray-500 text-sm">Nenhum item encontrado para este filtro.</p>
+            <p className="text-gray-400 dark:text-gray-500 text-sm text-center py-6">Nenhum item encontrado para este filtro.</p>
           )}
         </div>
       </div>

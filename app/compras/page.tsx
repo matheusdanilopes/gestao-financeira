@@ -401,7 +401,7 @@ export default function ComprasPage() {
     <div className="min-h-screen bg-gray-50 page-content page-bottom-safe">
 
       {toast && (
-        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-medium shadow-float ${
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-semibold shadow-float transition-all ${
           toast.tipo === 'ok' ? 'bg-gray-900 text-white' : 'bg-red-500 text-white'
         }`}>
           {toast.msg}
@@ -430,10 +430,10 @@ export default function ComprasPage() {
             <button
               key={val}
               onClick={() => setFiltroCartao(val as '' | 'nubank' | 'cartao1' | 'cartao2')}
-              className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all active:scale-95 truncate ${
+              className={`flex-1 py-1.5 text-[11px] font-semibold rounded-xl transition-all active:scale-95 truncate ${
                 filtroCartao === val
-                  ? val === '' ? 'bg-gray-700 text-white' : getCartaoColors(val, cartaoLabels).chip
-                  : 'bg-white border border-gray-200 text-gray-400 dark:text-gray-300'
+                  ? val === '' ? 'bg-gray-800 text-white shadow-sm' : getCartaoColors(val, cartaoLabels).chip + ' shadow-sm'
+                  : 'bg-white border border-gray-200 text-gray-400'
               }`}
             >
               {label}
@@ -442,10 +442,10 @@ export default function ComprasPage() {
         </div>
         <button
           onClick={() => setFiltrosExpandidos(v => !v)}
-          className={`shrink-0 flex items-center gap-1 py-1.5 px-2.5 rounded-lg border text-[11px] font-medium transition-colors ${
+          className={`shrink-0 flex items-center gap-1 py-1.5 px-2.5 rounded-xl border text-[11px] font-semibold transition-all active:scale-[0.97] ${
             filtrosAtivos
               ? 'bg-primary-50 border-primary-200 text-primary-600'
-              : 'bg-white border-gray-200 text-gray-400 dark:text-gray-300'
+              : 'bg-white border-gray-200 text-gray-500'
           }`}
         >
           <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -582,14 +582,24 @@ export default function ComprasPage() {
 
       {/* Lista agrupada por data */}
       {loading ? (
-        <div className="bg-white rounded-3xl border border-gray-100 shadow-card divide-y">
-          {[1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="px-4 py-3.5 flex items-center gap-3 border-l-4 border-l-gray-200 animate-pulse">
-              <div className="flex-1 space-y-2">
-                <div className="h-3.5 bg-gray-200 rounded-xl w-3/4" />
-                <div className="h-2.5 bg-gray-100 rounded-xl w-2/5" />
+        <div className="space-y-3">
+          {[0, 1].map(g => (
+            <div key={g} className="bg-white rounded-3xl border border-gray-100 shadow-card overflow-hidden animate-pulse">
+              {/* Cabeçalho de grupo skeleton */}
+              <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+                <div className="h-3 bg-gray-200 rounded-lg w-28" />
+                <div className="h-3 bg-gray-100 rounded-lg w-16" />
               </div>
-              <div className="h-4 bg-gray-200 rounded-xl w-16" />
+              {/* Linhas skeleton */}
+              {[1, 2, 3].map(i => (
+                <div key={i} className="px-4 py-3.5 flex items-center gap-3 border-l-4 border-l-gray-100 border-b border-gray-50 last:border-b-0">
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3.5 bg-gray-100 rounded-xl" style={{ width: `${55 + (i * 13) % 30}%` }} />
+                    <div className="h-2.5 bg-gray-50 rounded-xl w-2/5" />
+                  </div>
+                  <div className="h-4 bg-gray-100 rounded-xl w-16" />
+                </div>
+              ))}
             </div>
           ))}
         </div>

@@ -43,11 +43,13 @@ ChartJS.register(
 // ── Chart option objects ──────────────────────────────────────────────────────
 
 const baseTooltip = {
-  backgroundColor: 'rgba(17,24,39,0.92)',
-  titleColor: '#f9fafb',
-  bodyColor: '#d1d5db',
-  padding: 10,
-  cornerRadius: 8,
+  backgroundColor: 'rgba(15,23,42,0.97)',
+  titleColor: '#f1f5f9',
+  bodyColor: '#94a3b8',
+  padding: { top: 10, right: 14, bottom: 10, left: 14 },
+  cornerRadius: 12,
+  borderColor: 'rgba(255,255,255,0.08)',
+  borderWidth: 1,
   displayColors: false,
 }
 
@@ -55,31 +57,33 @@ const trendOptions: ChartOptions<'line'> = {
   responsive: true,
   maintainAspectRatio: false,
   interaction: { mode: 'index', intersect: false },
+  animation: { duration: 400, easing: 'easeOutQuart' },
   plugins: {
     legend: { display: false },
     tooltip: {
       ...baseTooltip,
       callbacks: {
         label: (ctx) =>
-          ` R$ ${(ctx.parsed.y ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+          `  R$ ${(ctx.parsed.y ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
       },
     },
   },
   scales: {
     x: {
       grid: { display: false },
-      ticks: { font: { size: 11 }, color: '#6b7280' },
+      ticks: { font: { size: 11 }, color: '#6b7280', padding: 6 },
       border: { display: false },
     },
     y: {
-      grid: { color: 'rgba(0,0,0,0.04)' },
-      border: { display: false },
+      grid: { color: 'rgba(0,0,0,0.045)', lineWidth: 1 },
+      border: { display: false, dash: [4, 4] },
       ticks: {
         callback: (v) =>
           Number(v) >= 1000 ? `R$${(Number(v) / 1000).toFixed(0)}k` : `R$${v}`,
-        font: { size: 11 },
+        font: { size: 10 },
         color: '#9ca3af',
         maxTicksLimit: 5,
+        padding: 6,
       },
     },
   },
@@ -88,17 +92,20 @@ const trendOptions: ChartOptions<'line'> = {
 const donutOptions: ChartOptions<'doughnut'> = {
   responsive: true,
   maintainAspectRatio: false,
-  cutout: '68%',
+  cutout: '72%',
+  animation: { duration: 500, easing: 'easeOutQuart' },
   plugins: {
     legend: { display: false },
     tooltip: {
       ...baseTooltip,
       displayColors: true,
+      boxWidth: 8,
+      boxHeight: 8,
       callbacks: {
         label: (ctx) => {
           const total = (ctx.dataset.data as number[]).reduce((a, b) => a + b, 0)
           const pct = total > 0 ? ((ctx.parsed / total) * 100).toFixed(1) : '0'
-          return ` R$ ${ctx.parsed.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (${pct}%)`
+          return `  R$ ${ctx.parsed.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (${pct}%)`
         },
       },
     },
@@ -108,28 +115,42 @@ const donutOptions: ChartOptions<'doughnut'> = {
 const barBaseOptions: ChartOptions<'bar'> = {
   responsive: true,
   maintainAspectRatio: false,
+  animation: { duration: 430, easing: 'easeOutQuart' },
   plugins: {
-    legend: { position: 'top', labels: { font: { size: 11 }, usePointStyle: true, boxHeight: 8, padding: 12 } },
+    legend: {
+      position: 'top',
+      labels: {
+        font: { size: 11 },
+        usePointStyle: true,
+        pointStyle: 'circle',
+        boxHeight: 6,
+        padding: 16,
+        color: '#6b7280',
+      },
+    },
     tooltip: {
       ...baseTooltip,
       displayColors: true,
+      boxWidth: 8,
+      boxHeight: 8,
       callbacks: {
         label: (ctx) =>
-          ` R$ ${(ctx.parsed.y ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+          `  R$ ${(ctx.parsed.y ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
       },
     },
   },
   scales: {
-    x: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#6b7280' }, border: { display: false } },
+    x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#6b7280', padding: 4 }, border: { display: false } },
     y: {
-      grid: { color: 'rgba(0,0,0,0.04)' },
-      border: { display: false },
+      grid: { color: 'rgba(0,0,0,0.045)', lineWidth: 1 },
+      border: { display: false, dash: [4, 4] },
       ticks: {
         callback: (v) =>
           Number(v) >= 1000 ? `R$${(Number(v) / 1000).toFixed(0)}k` : `R$${v}`,
-        font: { size: 11 },
+        font: { size: 10 },
         color: '#9ca3af',
         maxTicksLimit: 5,
+        padding: 6,
       },
     },
   },
@@ -144,12 +165,12 @@ interface SortConfig { key: SortKey; dir: 'asc' | 'desc' }
 
 function KpiCard({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) {
   return (
-    <div className="bg-white dark:bg-[#1e293b] rounded-2xl shadow-card border border-gray-100 dark:border-white/[0.06] px-4 py-3 flex flex-col gap-0.5 min-w-0">
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">{label}</span>
-      <span className={`text-xl font-bold leading-tight truncate ${accent ?? 'text-gray-800 dark:text-gray-100'}`}>
+    <div className="bg-white dark:bg-[#1e293b] rounded-2xl shadow-card border border-gray-100 dark:border-white/[0.06] px-4 py-3 flex flex-col gap-0.5 min-w-0 transition-shadow hover:shadow-md">
+      <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500">{label}</span>
+      <span className={`text-xl font-bold leading-tight truncate num ${accent ?? 'text-gray-800 dark:text-gray-100'}`}>
         {value}
       </span>
-      {sub && <span className="text-[11px] text-gray-400">{sub}</span>}
+      {sub && <span className="text-[11px] text-gray-400 dark:text-gray-500">{sub}</span>}
     </div>
   )
 }
@@ -158,8 +179,8 @@ function KpiCard({ label, value, sub, accent }: { label: string; value: string; 
 
 function ChartCard({ title, children, className = '' }: { title: string; children: React.ReactNode; className?: string }) {
   return (
-    <div className={`bg-white dark:bg-[#1e293b] rounded-3xl shadow-card border border-gray-100 dark:border-white/[0.06] p-5 flex flex-col gap-3 ${className}`}>
-      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">{title}</h3>
+    <div className={`bg-white dark:bg-[#1e293b] rounded-3xl shadow-card border border-gray-100 dark:border-white/[0.06] p-5 flex flex-col gap-4 transition-shadow hover:shadow-md ${className}`}>
+      <h3 className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500">{title}</h3>
       {children}
     </div>
   )
@@ -255,17 +276,17 @@ export default function AnalyticsDesktop() {
 
           {/* Logo / Title */}
           <div className="px-5 py-4 border-b border-gray-100 dark:border-white/[0.06] flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-primary-500 flex items-center justify-center flex-shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center flex-shrink-0 shadow-sm">
               <BarChart3 className="w-4 h-4 text-white" />
             </div>
-            <span className="font-bold text-sm text-gray-800 dark:text-gray-100">Analytics</span>
+            <span className="font-bold text-sm text-gray-800 dark:text-gray-100 tracking-tight">Analytics</span>
           </div>
 
           <div className="flex flex-col gap-5 p-4 flex-1">
 
             {/* Date Range */}
             <section>
-              <span className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-2">
+              <span className="block text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-2.5">
                 Período
               </span>
               <div className="flex flex-col gap-1.5">
@@ -273,20 +294,23 @@ export default function AnalyticsDesktop() {
                   type="month"
                   value={toMonthInput(dateFrom)}
                   onChange={(e) => setDateFrom(fromMonthInput(e.target.value))}
-                  className="w-full text-xs rounded-lg border border-gray-200 dark:border-white/[0.08] bg-gray-50 dark:bg-[#0f172a] text-gray-700 dark:text-gray-200 px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                  className="w-full text-xs rounded-xl border border-gray-200 dark:border-white/[0.08] bg-gray-50 dark:bg-[#0f172a] text-gray-700 dark:text-gray-200 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
                 />
                 <input
                   type="month"
                   value={toMonthInput(dateTo)}
                   onChange={(e) => setDateTo(fromMonthInput(e.target.value))}
-                  className="w-full text-xs rounded-lg border border-gray-200 dark:border-white/[0.08] bg-gray-50 dark:bg-[#0f172a] text-gray-700 dark:text-gray-200 px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                  className="w-full text-xs rounded-xl border border-gray-200 dark:border-white/[0.08] bg-gray-50 dark:bg-[#0f172a] text-gray-700 dark:text-gray-200 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
                 />
               </div>
             </section>
 
+            {/* Divider */}
+            <div className="h-px bg-gray-100 dark:bg-white/[0.04]" />
+
             {/* Responsável */}
             <section>
-              <span className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-2">
+              <span className="block text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-2.5">
                 Responsável
               </span>
               <div className="flex gap-1.5 flex-wrap">
@@ -294,13 +318,13 @@ export default function AnalyticsDesktop() {
                   <button
                     key={r}
                     onClick={() => setResponsavel(r)}
-                    className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${
+                    className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all duration-150 ${
                       responsavel === r
                         ? r === 'Matheus'
-                          ? 'bg-matheus text-white'
+                          ? 'bg-matheus text-white shadow-sm'
                           : r === 'Jeniffer'
-                          ? 'bg-jeniffer text-white'
-                          : 'bg-primary-500 text-white'
+                          ? 'bg-jeniffer text-white shadow-sm'
+                          : 'bg-primary-500 text-white shadow-sm'
                         : 'bg-gray-100 dark:bg-white/[0.06] text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/[0.1]'
                     }`}
                   >
@@ -310,18 +334,21 @@ export default function AnalyticsDesktop() {
               </div>
             </section>
 
+            {/* Divider */}
+            <div className="h-px bg-gray-100 dark:bg-white/[0.04]" />
+
             {/* Categories */}
             <section className="flex-1">
-              <span className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-2">
+              <span className="block text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-2.5">
                 Categorias
               </span>
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1.5">
                 {CATEGORIAS_PADRAO.map((cat, i) => (
-                  <label key={cat} className="flex items-center gap-2 cursor-pointer group">
+                  <label key={cat} className="flex items-center gap-2.5 cursor-pointer group py-0.5">
                     <span
-                      className={`w-3 h-3 rounded-sm flex-shrink-0 border transition-colors ${
+                      className={`w-3 h-3 rounded flex-shrink-0 border transition-all duration-150 ${
                         selectedCats.includes(cat)
-                          ? 'border-transparent'
+                          ? 'border-transparent scale-110'
                           : 'border-gray-300 dark:border-white/20 bg-transparent'
                       }`}
                       style={selectedCats.includes(cat) ? { backgroundColor: CAT_COLORS[i % CAT_COLORS.length] } : {}}
@@ -332,7 +359,7 @@ export default function AnalyticsDesktop() {
                       checked={selectedCats.includes(cat)}
                       onChange={() => toggleCat(cat)}
                     />
-                    <span className="text-xs text-gray-600 dark:text-gray-300 group-hover:text-gray-800 dark:group-hover:text-gray-100 transition-colors">
+                    <span className="text-xs text-gray-600 dark:text-gray-300 group-hover:text-gray-800 dark:group-hover:text-gray-100 transition-colors leading-none">
                       {cat}
                     </span>
                   </label>
@@ -344,10 +371,15 @@ export default function AnalyticsDesktop() {
             {(selectedCats.length > 0 || responsavel) && (
               <button
                 onClick={clearFilters}
-                className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors mt-1"
               >
                 <X className="w-3.5 h-3.5" />
                 Limpar filtros
+                {selectedCats.length > 0 && (
+                  <span className="ml-auto bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
+                    {selectedCats.length}
+                  </span>
+                )}
               </button>
             )}
           </div>
@@ -415,23 +447,23 @@ export default function AnalyticsDesktop() {
 
                   {/* Category donut (1 col) */}
                   <ChartCard title="Por Categoria" className="col-span-1">
-                    <div className="h-52">
+                    <div className="h-48 flex items-center justify-center">
                       <Doughnut data={categoryDonutData} options={donutOptions} />
                     </div>
                     {/* Custom legend */}
-                    <ul className="flex flex-col gap-1 overflow-y-auto max-h-36">
+                    <ul className="flex flex-col gap-1.5 overflow-y-auto max-h-40 pr-0.5">
                       {(categoryDonutData.labels as string[]).map((label, i) => {
                         const total = (categoryDonutData.datasets[0].data as number[]).reduce((a, b) => a + b, 0)
                         const val = categoryDonutData.datasets[0].data[i] as number
                         const pct = total > 0 ? ((val / total) * 100).toFixed(1) : '0'
                         return (
-                          <li key={label} className="flex items-center gap-2 min-w-0">
+                          <li key={label} className="flex items-center gap-2 min-w-0 group">
                             <span
-                              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                              className="w-2 h-2 rounded-full flex-shrink-0 opacity-90"
                               style={{ backgroundColor: CAT_COLORS[i % CAT_COLORS.length] }}
                             />
-                            <span className="text-[11px] text-gray-600 dark:text-gray-300 truncate flex-1">{label}</span>
-                            <span className="text-[11px] text-gray-400 font-medium flex-shrink-0">{pct}%</span>
+                            <span className="text-[11px] text-gray-600 dark:text-gray-300 truncate flex-1 group-hover:text-gray-800 dark:group-hover:text-gray-100 transition-colors">{label}</span>
+                            <span className="text-[11px] text-gray-400 dark:text-gray-500 font-semibold tabular-nums flex-shrink-0">{pct}%</span>
                           </li>
                         )
                       })}
@@ -474,29 +506,47 @@ export default function AnalyticsDesktop() {
                     {cardCategoryTreemap.map((c) => (
                       <div
                         key={c.categoria}
-                        className="rounded-xl p-2 text-white min-h-20"
-                        style={{ backgroundColor: c.color, gridColumn: `span ${Math.max(2, Math.min(12, Math.round(c.pct / 8)))}` }}
+                        className="relative rounded-2xl p-3 text-white min-h-20 flex flex-col justify-end transition-transform hover:scale-[1.02] cursor-default overflow-hidden"
+                        style={{
+                          gridColumn: `span ${Math.max(2, Math.min(12, Math.round(c.pct / 8)))}`,
+                          background: `linear-gradient(135deg, ${c.color}ee, ${c.color}bb)`,
+                        }}
                       >
-                        <div className="text-[11px] font-semibold truncate">{c.categoria}</div>
-                        <div className="text-[10px] opacity-90">{c.pct.toFixed(1)}%</div>
+                        <div
+                          className="absolute inset-0 pointer-events-none"
+                          style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(0,0,0,0.06) 100%)' }}
+                        />
+                        <div className="relative">
+                          <div className="text-[11px] font-bold truncate drop-shadow-sm">{c.categoria}</div>
+                          <div className="text-[10px] opacity-80 font-semibold tabular-nums">{c.pct.toFixed(1)}%</div>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </ChartCard>
 
                 <ChartCard title="Orçamento (Previsto vs Realizado)">
-                  <div className="space-y-2">
-                    {budgetProgress.length === 0 && <div className="text-xs text-gray-400">Sem orçamento para o mês selecionado.</div>}
+                  <div className="space-y-3">
+                    {budgetProgress.length === 0 && (
+                      <div className="text-xs text-gray-400 dark:text-gray-500 py-2">Sem orçamento para o mês selecionado.</div>
+                    )}
                     {budgetProgress.map((b) => (
-                      <div key={b.categoria} className="space-y-1">
-                        <div className="flex justify-between text-xs"><span>{b.categoria}</span><span>{b.gasto.toLocaleString('pt-BR')} / {b.previsto.toLocaleString('pt-BR')}</span></div>
-                        <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden relative">
-                          <div className={`h-full ${b.pct < 80 ? 'bg-blue-500' : b.pct < 90 ? 'bg-amber-400' : 'bg-red-500'}`} style={{ width: `${Math.min(b.pct, 100)}%` }} />
+                      <div key={b.categoria} className="space-y-1.5">
+                        <div className="flex justify-between items-baseline">
+                          <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{b.categoria}</span>
+                          <span className={`text-[11px] font-semibold tabular-nums ${b.pct >= 100 ? 'text-red-500' : b.pct >= 90 ? 'text-amber-500' : 'text-gray-400 dark:text-gray-500'}`}>
+                            {b.pct.toFixed(0)}%
+                          </span>
+                        </div>
+                        <div className="w-full h-1.5 rounded-full bg-gray-100 dark:bg-white/[0.06] overflow-hidden">
                           <div
-                            className="absolute h-3 w-0.5 bg-gray-800/70"
-                            style={{ left: '100%', top: 0 }}
-                            aria-hidden="true"
+                            className={`h-full rounded-full transition-[width] duration-500 ${b.pct < 80 ? 'bg-blue-500' : b.pct < 90 ? 'bg-amber-400' : 'bg-red-500'}`}
+                            style={{ width: `${Math.min(b.pct, 100)}%` }}
                           />
+                        </div>
+                        <div className="flex justify-between text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">
+                          <span>Gasto: {b.gasto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                          <span>Previsto: {b.previsto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                         </div>
                       </div>
                     ))}
@@ -507,15 +557,25 @@ export default function AnalyticsDesktop() {
                 <div className="bg-white dark:bg-[#1e293b] rounded-3xl shadow-card border border-gray-100 dark:border-white/[0.06] overflow-hidden">
                   {/* Toolbar */}
                   <div className="px-5 py-3 border-b border-gray-100 dark:border-white/[0.06] flex items-center gap-3">
-                    <input
-                      type="text"
-                      placeholder="Filtrar categoria…"
-                      value={catSearch}
-                      onChange={(e) => setCatSearch(e.target.value)}
-                      className="flex-1 text-sm rounded-lg border border-gray-200 dark:border-white/[0.08] bg-gray-50 dark:bg-[#0f172a] text-gray-700 dark:text-gray-200 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-400"
-                    />
-                    <span className="text-xs text-gray-400 flex-shrink-0 tabular-nums">
-                      {sortedRows.length} registros
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        placeholder="Filtrar categoria…"
+                        value={catSearch}
+                        onChange={(e) => setCatSearch(e.target.value)}
+                        className="w-full text-sm rounded-xl border border-gray-200 dark:border-white/[0.08] bg-gray-50 dark:bg-[#0f172a] text-gray-700 dark:text-gray-200 px-3 py-1.5 pl-3 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+                      />
+                      {catSearch && (
+                        <button
+                          onClick={() => setCatSearch('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    <span className="text-[11px] text-gray-400 dark:text-gray-500 flex-shrink-0 tabular-nums font-medium">
+                      {sortedRows.length} {sortedRows.length === 1 ? 'registro' : 'registros'}
                     </span>
                   </div>
 
@@ -536,21 +596,21 @@ export default function AnalyticsDesktop() {
                             <th
                               key={col.key}
                               onClick={() => handleSort(col.key)}
-                              className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200 transition-colors whitespace-nowrap"
+                              className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200 transition-colors whitespace-nowrap"
                             >
                               {col.label}
                               <SortIcon k={col.key} />
                             </th>
                           ))}
-                          <th className="px-4 py-2.5 text-right text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap">
+                          <th className="px-4 py-2.5 text-right text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest whitespace-nowrap">
                             Desvio (R$)
                           </th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-50 dark:divide-white/[0.04]">
+                      <tbody className="divide-y divide-gray-50 dark:divide-white/[0.03]">
                         {sortedRows.length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-400">
+                            <td colSpan={6} className="px-4 py-12 text-center text-sm text-gray-400 dark:text-gray-500">
                               Nenhum dado encontrado para o período selecionado.
                             </td>
                           </tr>
@@ -558,44 +618,48 @@ export default function AnalyticsDesktop() {
                           sortedRows.map((row, i) => {
                             const catIdx = CATEGORIAS_PADRAO.indexOf(row.categoria)
                             const catColor = CAT_COLORS[catIdx >= 0 ? catIdx : i % CAT_COLORS.length]
+                            const budget = budgetProgress.find((b) => b.categoria === row.categoria)
+                            const desvio = budget ? budget.variancia : null
                             return (
                               <tr key={i} className="hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
-                                <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs tabular-nums whitespace-nowrap">
+                                <td className="px-4 py-2.5 text-gray-500 dark:text-gray-400 text-xs tabular-nums whitespace-nowrap font-medium">
                                   {row.mes}
                                 </td>
-                                <td className="px-4 py-2">
+                                <td className="px-4 py-2.5">
                                   <span
-                                    className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full text-white"
+                                    className="inline-block text-[10px] font-bold px-2.5 py-0.5 rounded-full text-white"
                                     style={{ backgroundColor: catColor }}
                                   >
                                     {row.categoria}
                                   </span>
                                 </td>
-                                <td className="px-4 py-2">
+                                <td className="px-4 py-2.5">
                                   <span
                                     className={`text-xs font-semibold ${
                                       row.responsavel === 'Matheus'
                                         ? 'text-matheus'
                                         : row.responsavel === 'Jeniffer'
                                         ? 'text-jeniffer'
-                                        : 'text-gray-500'
+                                        : 'text-gray-500 dark:text-gray-400'
                                     }`}
                                   >
                                     {row.responsavel}
                                   </span>
                                 </td>
-                                <td className="px-4 py-2 text-right font-semibold text-gray-800 dark:text-gray-100 tabular-nums text-xs whitespace-nowrap">
+                                <td className="px-4 py-2.5 text-right font-bold text-gray-800 dark:text-gray-100 tabular-nums text-xs whitespace-nowrap num">
                                   {fmtFull(row.total_gasto)}
                                 </td>
-                                <td className="px-4 py-2 text-right text-gray-400 tabular-nums text-xs">
+                                <td className="px-4 py-2.5 text-right text-gray-400 dark:text-gray-500 tabular-nums text-xs font-medium">
                                   {row.contagem}
                                 </td>
-                                <td className="px-4 py-2 text-right text-xs tabular-nums text-gray-500">
-                                  {(() => {
-                                    const budget = budgetProgress.find((b) => b.categoria === row.categoria)
-                                    if (!budget) return '—'
-                                    return fmtFull(budget.variancia)
-                                  })()}
+                                <td className="px-4 py-2.5 text-right text-xs tabular-nums font-semibold num">
+                                  {desvio === null ? (
+                                    <span className="text-gray-300 dark:text-gray-600">—</span>
+                                  ) : (
+                                    <span className={desvio > 0 ? 'text-red-500' : desvio < 0 ? 'text-emerald-500' : 'text-gray-400'}>
+                                      {desvio > 0 ? '+' : ''}{fmtFull(desvio)}
+                                    </span>
+                                  )}
                                 </td>
                               </tr>
                             )

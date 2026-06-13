@@ -12,6 +12,7 @@ import {
   CreditCard, Search, SlidersHorizontal, History,
 } from 'lucide-react'
 import { SwipeableItem } from '@/components/SwipeableItem'
+import EmptyState from '@/components/EmptyState'
 import { log, numericOnly, formatBRL } from '@/lib/logger'
 import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
 
@@ -398,27 +399,27 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[300] px-4 py-2 rounded-xl text-sm font-medium shadow-lg ${
-          toast.tipo === 'ok' ? 'bg-green-600 text-white' : 'bg-red-500 text-white'
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-medium shadow-float ${
+          toast.tipo === 'ok' ? 'bg-gray-900 text-white' : 'bg-red-500 text-white'
         }`}>
           {toast.msg}
         </div>
       )}
 
-      {/* Resumo: Total ativo/mês + Pago em mês */}
+      {/* Resumo: Total ativo/mês + Detectado no mês */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-white rounded-2xl shadow p-3 text-center">
-          <div className="flex items-center justify-center gap-1.5 mb-1">
-            <Repeat className="w-4 h-4 text-indigo-500" />
-            <p className="text-xs text-gray-500">Total ativo/mês</p>
+        <div className="bg-white rounded-2xl shadow-card border border-gray-100 p-4 text-center">
+          <div className="flex items-center justify-center gap-1.5 mb-1.5">
+            <Repeat className="w-3.5 h-3.5 text-primary-500" />
+            <p className="text-xs text-gray-400 font-medium">Total ativo/mês</p>
           </div>
-          <p className="text-lg font-bold text-indigo-700">R$ {totalAtivo.toFixed(2)}</p>
-          <p className="text-xs text-gray-400">{itensAtivos.length} ativa(s)</p>
+          <p className="text-xl font-bold text-primary-700 num leading-none">R$ {totalAtivo.toFixed(2)}</p>
+          <p className="text-xs text-gray-400 mt-1">{itensAtivos.length} ativa(s)</p>
         </div>
-        <div className="bg-white rounded-2xl shadow p-3 text-center">
-          <p className="text-xs text-gray-500 mb-1">Pago em {mesFmt}</p>
-          <p className="text-lg font-bold text-green-700">R$ {detectadasValor.toFixed(2)}</p>
-          <p className="text-xs text-gray-400">{detectadasCount}/{itensAtivos.length} identificadas</p>
+        <div className="bg-white rounded-2xl shadow-card border border-gray-100 p-4 text-center">
+          <p className="text-xs text-gray-400 font-medium mb-1.5">Detectado em {mesFmt}</p>
+          <p className="text-xl font-bold text-green-700 num leading-none">R$ {detectadasValor.toFixed(2)}</p>
+          <p className="text-xs text-gray-400 mt-1">{detectadasCount}/{itensAtivos.length} identificadas</p>
         </div>
       </div>
 
@@ -468,7 +469,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
           <button
             onClick={verificarNaFatura}
             disabled={verificando}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-indigo-200 bg-indigo-50 text-indigo-700 text-sm font-medium hover:bg-indigo-100 transition active:scale-[0.98] disabled:opacity-60"
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-primary-200 bg-primary-50 text-primary-700 text-sm font-semibold hover:bg-primary-100 transition-all active:scale-[0.98] disabled:opacity-60"
           >
             <Search className={`w-4 h-4 ${verificando ? 'animate-pulse' : ''}`} />
             {verificando ? 'Verificando…' : 'Verificar cobranças'}
@@ -476,32 +477,32 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
         )}
         <button
           onClick={() => setDropdownFiltro(d => !d)}
-          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-2xl border text-sm font-medium transition active:scale-[0.98] ${
+          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-2xl border text-sm font-semibold transition-all active:scale-[0.98] ${
             filtrosAtivos > 0
-              ? 'border-indigo-400 bg-indigo-600 text-white'
+              ? 'border-primary-400 bg-primary-600 text-white shadow-sm'
               : 'border-gray-200 bg-white text-gray-600'
           }`}
         >
           <SlidersHorizontal className="w-4 h-4" />
           Filtrar
           {filtrosAtivos > 0 && (
-            <span className="ml-0.5 bg-white text-indigo-600 rounded-full w-4 h-4 text-[10px] font-bold flex items-center justify-center">{filtrosAtivos}</span>
+            <span className="ml-0.5 bg-white text-primary-600 rounded-full w-4 h-4 text-[10px] font-bold flex items-center justify-center">{filtrosAtivos}</span>
           )}
         </button>
       </div>
 
       {/* Dropdown de filtro */}
       {dropdownFiltro && (
-        <div className="bg-white rounded-2xl shadow border border-gray-100 p-3 space-y-2">
+        <div className="bg-white rounded-2xl shadow-card border border-gray-100 p-3 space-y-2">
           <input
             type="text"
-            className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-shadow"
+            className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
             placeholder="Buscar por nome…"
             value={filtroDescricao}
             onChange={e => setFiltroDescricao(e.target.value)}
           />
           <select
-            className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-shadow"
+            className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
             value={filtroCartao}
             onChange={e => setFiltroCartao(e.target.value)}
           >
@@ -511,7 +512,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
             ))}
           </select>
           <select
-            className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-shadow"
+            className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
             value={filtroStatus}
             onChange={e => setFiltroStatus(e.target.value)}
           >
@@ -520,7 +521,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
             <option value="inativa">Inativas</option>
           </select>
           <select
-            className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-shadow"
+            className="bg-gray-50 border border-transparent rounded-xl p-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
             value={filtroFatura}
             onChange={e => setFiltroFatura(e.target.value)}
           >
@@ -533,7 +534,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
           {filtrosAtivos > 0 && (
             <button
               onClick={() => { setFiltroCartao('todos'); setFiltroDescricao(''); setFiltroStatus('todas'); setFiltroFatura('todas') }}
-              className="w-full text-xs text-red-500 hover:text-red-700 py-1 font-semibold transition-colors"
+              className="w-full text-xs text-red-500 hover:text-red-700 py-1.5 font-semibold transition-colors"
             >
               Limpar filtros
             </button>
@@ -548,15 +549,15 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
         const totalGrupoAtivo = grupo.filter(i => i.ativa).reduce((acc, i) => acc + valorParaMes(i, mesSelecionado, historico), 0)
 
         return (
-          <div key={key} className="bg-white rounded-2xl shadow overflow-hidden">
+          <div key={key} className="bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden">
             <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
               <div className="flex items-center gap-2">
-                <CreditCard className="w-4 h-4 text-gray-500" />
+                <CreditCard className="w-3.5 h-3.5 text-gray-400" />
                 <span className="font-semibold text-sm text-gray-700">{cartaoLabels[key]}</span>
               </div>
-              <span className="text-sm font-bold text-indigo-700">
+              <span className="text-sm font-bold text-primary-700 num">
                 R$ {totalGrupoAtivo.toFixed(2)}
-                <span className="text-xs font-normal text-gray-400">/mês</span>
+                <span className="text-xs font-normal text-gray-400 ml-0.5">/mês</span>
               </span>
             </div>
 
@@ -570,7 +571,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                     disabled={!isOnline}
                   >
                     <div
-                      className={`px-4 py-3 flex items-center gap-3 ${!item.ativa ? 'opacity-50' : ''} ${isOnline ? 'cursor-pointer active:bg-gray-50 hover:bg-gray-50/50' : ''}`}
+                      className={`px-4 py-3.5 flex items-center gap-3 transition-colors ${!item.ativa ? 'opacity-50' : ''} ${isOnline ? 'cursor-pointer active:bg-gray-50 hover:bg-gray-50/50' : ''}`}
                       onClick={() => { if (isOnline) abrirEditar(item) }}
                       role={isOnline ? 'button' : undefined}
                       tabIndex={isOnline ? 0 : undefined}
@@ -580,23 +581,23 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                       <StatusBadge status={status} />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <p className={`text-sm font-medium truncate ${
-                            item.ativa ? 'text-gray-800' : 'text-gray-400 line-through'
+                          <p className={`text-[15px] font-semibold truncate leading-snug ${
+                            item.ativa ? 'text-gray-900' : 'text-gray-400 line-through'
                           }`}>
                             {item.nome}
                           </p>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400 shrink-0">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400 shrink-0 font-medium">
                             {item.categoria}
                           </span>
                         </div>
-                        <p className="text-xs text-gray-400">
+                        <p className="text-xs text-gray-400 mt-0.5 leading-tight">
                           {item.responsavel}
                           {item.dia_cobranca ? ` · dia ${item.dia_cobranca}` : ''}
                           {item.observacao ? ` · ${item.observacao}` : ''}
                         </p>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className={`text-sm font-bold ${item.ativa ? 'text-indigo-700' : 'text-gray-400'}`}>
+                        <p className={`text-[15px] font-bold num ${item.ativa ? 'text-primary-700' : 'text-gray-400'}`}>
                           R$ {valorParaMes(item, mesSelecionado, historico).toFixed(2)}
                         </p>
                       </div>
@@ -605,10 +606,10 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                           <button
                             onClick={() => toggleAtiva(item)}
                             title={item.ativa ? 'Desativar' : 'Ativar'}
-                            className={`p-1.5 rounded-lg transition ${
+                            className={`p-1.5 rounded-xl transition-colors ${
                               item.ativa
-                                ? 'text-gray-400 hover:bg-gray-50'
-                                : 'text-green-600 hover:bg-green-50'
+                                ? 'text-gray-300 hover:bg-gray-100 hover:text-gray-500'
+                                : 'text-green-500 hover:bg-green-50'
                             }`}
                           >
                             {item.ativa
@@ -628,9 +629,12 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       })}
 
       {itensFiltrados.length === 0 && (
-        <div className="bg-white rounded-2xl shadow py-12 flex flex-col items-center gap-2 text-gray-300">
-          <Repeat className="w-10 h-10" />
-          <p className="text-sm">Nenhuma assinatura cadastrada</p>
+        <div className="bg-white rounded-3xl shadow-card border border-gray-100">
+          <EmptyState
+            icon={Repeat}
+            title="Nenhuma assinatura"
+            description="Adicione serviços recorrentes para acompanhar suas cobranças mensais"
+          />
         </div>
       )}
 
@@ -644,7 +648,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       {isOnline && (
         <button
           onClick={() => setModalAberto('adicionar')}
-          className="w-full bg-indigo-600 text-white py-3 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all active:scale-[0.97] shadow-sm"
+          className="w-full bg-primary-600 text-white py-3.5 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm"
         >
           <Plus className="w-5 h-5" />
           Adicionar assinatura
@@ -654,29 +658,29 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       {/* Modal: adicionar / editar */}
       {(modalAberto === 'adicionar' || modalAberto === 'editar') && (
         <ModalPortal>
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4 modal-overlay">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm p-6 max-h-[90vh] overflow-y-auto shadow-float modal-sheet sm:modal-center">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-bold">
                 {modalAberto === 'adicionar' ? 'Nova Assinatura' : 'Editar Assinatura'}
               </h3>
-              <button onClick={fecharModal} className="p-1 text-gray-400 hover:text-gray-600">
+              <button onClick={fecharModal} className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 transition-all hover:rotate-90 duration-200">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {modalAberto === 'editar' && (
-              <div className="mb-4 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
-                Novo valor será aplicado apenas para cobranças futuras. Registros históricos permanecem inalterados.
+              <div className="mb-4 rounded-2xl bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-800 leading-relaxed">
+                Novo valor aplicado apenas a partir deste mês. Registros históricos permanecem inalterados.
               </div>
             )}
 
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Nome do serviço</label>
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Nome do serviço</label>
                 <input
                   type="text"
-                  className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  className="w-full border border-gray-200 rounded-2xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
                   placeholder="Ex: Netflix, Spotify…"
                   value={formData.nome}
                   onChange={e => setFormData(f => ({ ...f, nome: e.target.value }))}
@@ -685,11 +689,11 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
               </div>
 
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Valor mensal (R$)</label>
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Valor mensal (R$)</label>
                 <input
                   type="text"
                   inputMode="decimal"
-                  className="w-full border border-gray-200 rounded-xl p-3 text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  className="w-full border border-gray-200 rounded-2xl p-3 text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow num"
                   placeholder="0,00"
                   value={formData.valor}
                   onChange={e => setFormData(f => ({ ...f, valor: numericOnly(e.target.value) }))}
@@ -697,9 +701,9 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
               </div>
 
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Cartão</label>
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Cartão</label>
                 <select
-                  className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                  className="w-full border border-gray-200 rounded-2xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow bg-white"
                   value={formData.cartao}
                   onChange={e => setFormData(f => ({ ...f, cartao: e.target.value }))}
                 >
@@ -710,9 +714,9 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
               </div>
 
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Responsável</label>
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Responsável</label>
                 <select
-                  className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                  className="w-full border border-gray-200 rounded-2xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow bg-white"
                   value={formData.responsavel}
                   onChange={e => setFormData(f => ({ ...f, responsavel: e.target.value }))}
                 >
@@ -721,9 +725,9 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
               </div>
 
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Categoria</label>
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Categoria</label>
                 <select
-                  className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                  className="w-full border border-gray-200 rounded-2xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow bg-white"
                   value={formData.categoria}
                   onChange={e => setFormData(f => ({ ...f, categoria: e.target.value }))}
                 >
@@ -736,14 +740,14 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
               </div>
 
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">
                   Dia de cobrança
                   <span className="ml-1 text-gray-400 font-normal">(opcional)</span>
                 </label>
                 <input
                   type="text"
                   inputMode="numeric"
-                  className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  className="w-full border border-gray-200 rounded-2xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
                   placeholder="Ex: 15"
                   value={formData.dia_cobranca}
                   onChange={e => setFormData(f => ({ ...f, dia_cobranca: e.target.value.replace(/\D/g, '') }))}
@@ -751,13 +755,13 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
               </div>
 
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">
                   Observação
                   <span className="ml-1 text-gray-400 font-normal">(opcional)</span>
                 </label>
                 <input
                   type="text"
-                  className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  className="w-full border border-gray-200 rounded-2xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
                   placeholder="Ex: Plano família, conta compartilhada…"
                   value={formData.observacao}
                   onChange={e => setFormData(f => ({ ...f, observacao: e.target.value }))}
@@ -772,16 +776,16 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
               if (entradasHistorico.length <= 1) return null
               return (
                 <details className="mt-4">
-                  <summary className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none">
+                  <summary className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none hover:text-gray-700 transition-colors">
                     <History className="w-3.5 h-3.5" />
                     Histórico de valores ({entradasHistorico.length})
                   </summary>
-                  <ul className="mt-2 space-y-1 pl-1">
+                  <ul className="mt-2.5 space-y-1.5 pl-1">
                     {entradasHistorico.map((h, idx) => (
                       <li key={h.id} className="flex justify-between text-xs text-gray-500">
                         <span>{format(new Date(h.vigente_desde + 'T12:00:00'), "dd/MM/yyyy")}</span>
-                        <span className={`font-medium ${idx === 0 ? 'text-indigo-600' : 'text-gray-400'}`}>
-                          {idx === 0 && <span className="mr-1 text-[10px] text-indigo-400">atual</span>}
+                        <span className={`font-semibold num ${idx === 0 ? 'text-primary-600' : 'text-gray-400'}`}>
+                          {idx === 0 && <span className="mr-1 text-[10px] text-primary-400">atual</span>}
                           R$ {Number(h.valor).toFixed(2)}
                         </span>
                       </li>
@@ -792,10 +796,16 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
             })()}
 
             <div className="flex gap-3 mt-6">
-              <button onClick={fecharModal} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600">
+              <button
+                onClick={fecharModal}
+                className="flex-1 py-3 rounded-2xl bg-gray-100 font-semibold text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]"
+              >
                 Cancelar
               </button>
-              <button onClick={salvar} className="flex-1 py-3 rounded-xl bg-indigo-600 text-white font-semibold">
+              <button
+                onClick={salvar}
+                className="flex-1 py-3 rounded-2xl bg-primary-600 text-white font-semibold hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm"
+              >
                 Salvar
               </button>
             </div>
@@ -807,18 +817,27 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       {/* Modal: excluir */}
       {modalAberto === 'excluir' && itemSelecionado && (
         <ModalPortal>
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6">
-            <h3 className="text-lg font-bold mb-2">Excluir assinatura</h3>
-            <p className="text-sm text-gray-500 mb-6">
-              Tem certeza que deseja excluir{' '}
-              <span className="font-semibold text-gray-800">&quot;{itemSelecionado.nome}&quot;</span>?
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4 modal-overlay">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm p-6 shadow-float modal-sheet sm:modal-center">
+            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+              <XCircle className="w-6 h-6 text-red-500" />
+            </div>
+            <h3 className="text-lg font-bold text-center mb-1">Excluir assinatura?</h3>
+            <p className="text-sm text-gray-500 text-center mb-6">
+              <span className="font-semibold text-gray-800">&quot;{itemSelecionado.nome}&quot;</span>{' '}
+              será removida permanentemente.
             </p>
             <div className="flex gap-3">
-              <button onClick={fecharModal} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600">
+              <button
+                onClick={fecharModal}
+                className="flex-1 py-3 rounded-2xl bg-gray-100 font-semibold text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]"
+              >
                 Cancelar
               </button>
-              <button onClick={excluir} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-semibold">
+              <button
+                onClick={excluir}
+                className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-semibold hover:bg-red-600 transition-all active:scale-[0.97] shadow-sm"
+              >
                 Excluir
               </button>
             </div>

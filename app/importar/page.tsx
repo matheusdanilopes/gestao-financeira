@@ -228,20 +228,20 @@ export default function ImportarPage() {
   return (
     <div className="min-h-screen bg-gray-50 page-content page-bottom-safe">
       <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 z-10">
-        <h1 className="text-xl font-bold text-gray-900 mb-1">Importar CSV</h1>
-        <p className="text-sm text-gray-500">Selecione o cartão e faça upload do arquivo CSV</p>
+        <h1 className="text-xl font-bold text-gray-900 mb-0.5">Importar CSV</h1>
+        <p className="text-sm text-gray-400">Selecione o cartão e faça upload do arquivo</p>
       </div>
 
       {/* Seletor de cartão */}
-      <div className="bg-white rounded-2xl shadow-sm p-1 mb-4 flex gap-1">
+      <div className="bg-white rounded-2xl shadow-card border border-gray-100 p-1 mb-4 flex gap-1">
         {(Object.keys(cartaoLabels) as TipoCartao[]).map(tipo => (
           <button
             key={tipo}
             onClick={() => { setCartaoSelecionado(tipo); setResumo(null); setErro(null) }}
-            className={`flex-1 py-2 px-3 rounded-xl text-sm font-semibold transition-all ${
+            className={`flex-1 py-2 px-3 rounded-xl text-sm font-semibold transition-all active:scale-[0.97] ${
               cartaoSelecionado === tipo
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-gray-500 hover:bg-gray-100'
+                ? 'bg-primary-600 text-white shadow-sm'
+                : 'text-gray-500 hover:bg-gray-50'
             }`}
           >
             {cartaoLabels[tipo]}
@@ -249,115 +249,145 @@ export default function ImportarPage() {
         ))}
       </div>
 
+      {/* Zona de drop */}
       <div
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onClick={() => !uploading && fileInputRef.current?.click()}
-        className={`bg-white rounded-2xl border-2 border-dashed transition-all cursor-pointer p-8 text-center mb-4 ${
-          arrastando
-            ? 'border-blue-400 bg-blue-50 scale-[1.01]'
-            : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+        className={`bg-white rounded-3xl border-2 border-dashed transition-all cursor-pointer p-8 text-center mb-4 shadow-card ${
+          uploading
+            ? 'border-primary-200 bg-primary-50/40 cursor-default'
+            : arrastando
+              ? 'border-primary-400 bg-primary-50 scale-[1.01]'
+              : 'border-gray-200 hover:border-primary-300 hover:bg-gray-50/60 active:scale-[0.99]'
         }`}
       >
         <input ref={fileInputRef} type="file" accept=".csv" onChange={handleFileInput} className="hidden" disabled={uploading} />
 
         {uploading ? (
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-12 h-12 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin" />
-            <p className="text-blue-600 font-medium">Processando {nomeArquivo}…</p>
+          <div className="flex flex-col items-center gap-4">
+            {/* Skeleton animado de progresso */}
+            <div className="relative w-14 h-14 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-2xl bg-primary-50 border border-primary-100" />
+              <div className="w-6 h-6 rounded-full border-[3px] border-primary-200 border-t-primary-600 animate-spin" />
+            </div>
+            <div className="space-y-1.5 text-center">
+              <p className="text-sm font-semibold text-primary-700">Processando arquivo…</p>
+              <p className="text-xs text-gray-400 truncate max-w-[200px] mx-auto">{nomeArquivo}</p>
+              <p className="text-xs text-gray-400">Lendo, validando e inserindo — aguarde</p>
+            </div>
+            <div className="w-40 h-1.5 bg-primary-100 rounded-full overflow-hidden">
+              <div className="h-full bg-primary-400 rounded-full animate-pulse w-2/3" />
+            </div>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-3">
-            <div className={`w-14 h-14 rounded-full flex items-center justify-center transition ${arrastando ? 'bg-blue-100' : 'bg-gray-100'}`}>
-              <Upload className={`w-7 h-7 ${arrastando ? 'text-blue-500' : 'text-gray-400'}`} />
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border transition-colors ${
+              arrastando ? 'bg-primary-50 border-primary-200' : 'bg-gray-50 border-gray-100'
+            }`}>
+              <Upload className={`w-6 h-6 transition-colors ${arrastando ? 'text-primary-500' : 'text-gray-400'}`} />
             </div>
             <div>
-              <p className="font-semibold text-gray-700">
+              <p className="font-semibold text-gray-700 text-sm">
                 {arrastando ? 'Solte o arquivo aqui' : `Arraste o CSV do ${cartaoLabels[cartaoSelecionado]}`}
               </p>
-              <p className="text-sm text-gray-400 mt-0.5">ou toque para selecionar</p>
+              <p className="text-xs text-gray-400 mt-0.5">ou toque para selecionar</p>
             </div>
-            <span className="text-xs bg-gray-100 text-gray-500 px-3 py-1 rounded-full">.csv</span>
+            <span className="text-xs bg-gray-100 text-gray-500 px-3 py-1 rounded-full font-mono">.csv</span>
           </div>
         )}
       </div>
 
+      {/* Dica de formato */}
       {cartaoSelecionado === 'nubank' ? (
-        <div className="bg-blue-50 rounded-xl p-3 mb-4 text-xs text-blue-700 space-y-1">
-          <p className="font-semibold">Como exportar do Nubank:</p>
-          <p>Nubank → Minha conta → Exportar gastos → Selecione o período → Baixar CSV</p>
+        <div className="bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3 mb-4 text-xs text-blue-700 space-y-0.5">
+          <p className="font-semibold text-blue-800">Como exportar do Nubank</p>
+          <p className="text-blue-600">Nubank → Minha conta → Exportar gastos → Período → Baixar CSV</p>
         </div>
       ) : (
-        <div className="bg-amber-50 rounded-xl p-3 mb-4 text-xs text-amber-700 space-y-1">
-          <p className="font-semibold">Formato esperado para {cartaoLabels[cartaoSelecionado]}:</p>
+        <div className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 mb-4 text-xs text-amber-700 space-y-1">
+          <p className="font-semibold text-amber-800">Formato esperado para {cartaoLabels[cartaoSelecionado]}</p>
           <p>Colunas: <span className="font-mono bg-amber-100 px-1 rounded">date, title, amount</span> — ou — <span className="font-mono bg-amber-100 px-1 rounded">Data, Descrição, Valor</span></p>
-          <p>Parcelas são detectadas automaticamente pelo padrão <span className="font-mono bg-amber-100 px-1 rounded">X/Y</span> na descrição (ex: 2/12).</p>
+          <p>Parcelas detectadas pelo padrão <span className="font-mono bg-amber-100 px-1 rounded">X/Y</span> na descrição (ex: 2/12).</p>
         </div>
       )}
 
+      {/* Erro de importação com causa e ação */}
       {erro && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
-          <XCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-          <div>
-            <p className="font-semibold text-red-700 text-sm">Erro na importação</p>
-            <p className="text-red-600 text-sm mt-0.5">{erro}</p>
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3 mb-4">
+          <div className="w-8 h-8 rounded-xl bg-red-100 border border-red-200 flex items-center justify-center shrink-0 mt-0.5">
+            <XCircle className="w-4 h-4 text-red-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-red-800 text-sm">Falha na importação</p>
+            <p className="text-red-600 text-xs mt-1 leading-relaxed">{erro}</p>
+            <p className="text-red-400 text-xs mt-1.5">Verifique o formato do arquivo e tente novamente.</p>
           </div>
         </div>
       )}
 
+      {/* Botão IA */}
       <button
         onClick={categorizar}
         disabled={categorizando}
-        className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white py-3 rounded-xl font-semibold hover:bg-purple-700 transition disabled:opacity-50 mb-4"
+        className="w-full flex items-center justify-center gap-2 bg-violet-600 text-white py-3 rounded-2xl font-semibold hover:bg-violet-700 transition-all disabled:opacity-50 active:scale-[0.98] shadow-sm mb-4"
       >
-        <Sparkles className="w-4 h-4" />
-        {categorizando ? 'Categorizando...' : 'Categorizar com IA'}
+        <Sparkles className={`w-4 h-4 ${categorizando ? 'animate-pulse' : ''}`} />
+        {categorizando ? 'Categorizando com IA…' : 'Categorizar com IA'}
       </button>
 
       {categorizadoMsg && (
-        <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 mb-4 text-sm text-purple-700 text-center">
+        <div className="bg-violet-50 border border-violet-200 rounded-2xl px-4 py-3 mb-4 text-sm text-violet-700 text-center font-medium">
           {categorizadoMsg}
         </div>
       )}
 
       {resumo && (
-        <div className="bg-white rounded-xl shadow p-4 space-y-4">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5 text-green-500" />
-            <h3 className="font-semibold text-gray-800">Importação concluída</h3>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-gray-50 rounded-lg p-3 text-center">
-              <p className="text-2xl font-bold text-gray-800">{resumo.totalLidas}</p>
-              <p className="text-xs text-gray-500 mt-0.5">Lidas no arquivo</p>
+        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-5 space-y-4 mb-4">
+          {/* Cabeçalho */}
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-2xl bg-green-50 border border-green-100 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-5 h-5 text-green-600" />
             </div>
-            <div className="bg-green-50 rounded-lg p-3 text-center">
-              <p className="text-2xl font-bold text-green-700">{resumo.novas}</p>
-              <p className="text-xs text-gray-500 mt-0.5">Novas importadas</p>
-            </div>
-            <div className="bg-blue-50 rounded-lg p-3 text-center">
-              <p className="text-2xl font-bold text-blue-700">{resumo.matheus}</p>
-              <p className="text-xs text-gray-500 mt-0.5">Matheus</p>
-            </div>
-            <div className="bg-pink-50 rounded-lg p-3 text-center">
-              <p className="text-2xl font-bold text-pink-700">{resumo.jeniffer}</p>
-              <p className="text-xs text-gray-500 mt-0.5">Jeniffer</p>
+            <div>
+              <p className="text-sm font-bold text-gray-900 leading-tight">Importação concluída</p>
+              <p className="text-xs text-gray-400">Arquivo processado com sucesso</p>
             </div>
           </div>
 
-          <div className="flex items-center justify-between pt-2 border-t">
+          {/* Grid: lidas / novas */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-gray-50 border border-gray-100 rounded-2xl p-3 text-center">
+              <p className="text-2xl font-bold text-gray-800 num leading-none">{resumo.totalLidas}</p>
+              <p className="text-xs text-gray-500 mt-1">Lidas no arquivo</p>
+            </div>
+            <div className="bg-green-50 border border-green-100 rounded-2xl p-3 text-center">
+              <p className="text-2xl font-bold text-green-700 num leading-none">{resumo.novas}</p>
+              <p className="text-xs text-gray-500 mt-1">Novas importadas</p>
+            </div>
+            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-3 text-center">
+              <p className="text-2xl font-bold text-blue-700 num leading-none">{resumo.matheus}</p>
+              <p className="text-xs text-gray-500 mt-1">Matheus</p>
+            </div>
+            <div className="bg-pink-50 border border-pink-100 rounded-2xl p-3 text-center">
+              <p className="text-2xl font-bold text-pink-600 num leading-none">{resumo.jeniffer}</p>
+              <p className="text-xs text-gray-500 mt-1">Jeniffer</p>
+            </div>
+          </div>
+
+          {/* Total */}
+          <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3">
             <span className="text-sm text-gray-500">Valor total importado</span>
-            <span className="font-bold text-gray-800">R$ {resumo.total}</span>
+            <span className="font-bold text-gray-900 num">R$ {resumo.total}</span>
           </div>
 
           {resumo.mesesSobrescritos.length > 0 && (
-            <div className="pt-2 border-t">
-              <p className="text-xs text-amber-700 font-semibold mb-1">Meses sobrescritos:</p>
+            <div className="pt-1">
+              <p className="text-xs text-amber-700 font-semibold mb-1.5">Meses reprocessados</p>
               <div className="flex flex-wrap gap-1">
                 {resumo.mesesSobrescritos.map(m => (
-                  <span key={m} className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                  <span key={m} className="text-xs bg-amber-50 border border-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
                     {m.substring(0, 7)}
                   </span>
                 ))}
@@ -366,13 +396,13 @@ export default function ImportarPage() {
           )}
           {resumo.duplicatasNoArquivo > 0 && (
             <p className="text-xs text-gray-400 text-center">
-              {resumo.duplicatasNoArquivo} linha(s) ignoradas (já existiam)
+              {resumo.duplicatasNoArquivo} linha(s) ignorada(s) — já existiam no banco
             </p>
           )}
 
           {resumo.resumoPorFatura && Object.keys(resumo.resumoPorFatura).length > 0 && (
-            <div className="pt-2 border-t space-y-2">
-              <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Verificação por fatura</p>
+            <div className="pt-1 space-y-2">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Verificação por fatura</p>
               {Object.entries(resumo.resumoPorFatura)
                 .sort(([a], [b]) => a.localeCompare(b))
                 .map(([fatura, stats]) => {
@@ -381,30 +411,30 @@ export default function ImportarPage() {
                     .replace(/^\w/, c => c.toUpperCase())
                   const temExcesso = stats.totalNoBanco > stats.noCSV
                   return (
-                    <div key={fatura} className={`rounded-lg p-3 text-xs space-y-1.5 ${temExcesso ? 'bg-amber-50 border border-amber-200' : 'bg-gray-50'}`}>
+                    <div key={fatura} className={`rounded-2xl p-3 text-xs space-y-2 ${temExcesso ? 'bg-amber-50 border border-amber-200' : 'bg-gray-50 border border-gray-100'}`}>
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-gray-700">{label}</span>
                         {temExcesso
-                          ? <span className="text-amber-600 font-medium">Banco tem mais registros que o CSV</span>
-                          : <span className="text-green-600 font-medium">OK</span>
+                          ? <span className="text-amber-600 font-semibold">Banco &gt; CSV</span>
+                          : <span className="text-green-600 font-semibold">OK</span>
                         }
                       </div>
                       <div className="grid grid-cols-4 gap-1 text-center">
                         <div>
-                          <p className="font-bold text-gray-800">{stats.noCSV}</p>
-                          <p className="text-gray-400">no CSV</p>
+                          <p className="font-bold text-gray-700 num">{stats.noCSV}</p>
+                          <p className="text-gray-400 mt-0.5">no CSV</p>
                         </div>
                         <div>
-                          <p className="font-bold text-green-700">{stats.inseridas}</p>
-                          <p className="text-gray-400">inseridas</p>
+                          <p className="font-bold text-green-700 num">{stats.inseridas}</p>
+                          <p className="text-gray-400 mt-0.5">inseridas</p>
                         </div>
                         <div>
-                          <p className="font-bold text-gray-500">{stats.ignoradas}</p>
-                          <p className="text-gray-400">ignoradas</p>
+                          <p className="font-bold text-gray-500 num">{stats.ignoradas}</p>
+                          <p className="text-gray-400 mt-0.5">ignoradas</p>
                         </div>
                         <div>
-                          <p className={`font-bold ${temExcesso ? 'text-amber-700' : 'text-gray-800'}`}>{stats.totalNoBanco}</p>
-                          <p className="text-gray-400">no banco</p>
+                          <p className={`font-bold num ${temExcesso ? 'text-amber-700' : 'text-gray-700'}`}>{stats.totalNoBanco}</p>
+                          <p className="text-gray-400 mt-0.5">no banco</p>
                         </div>
                       </div>
                     </div>
@@ -415,84 +445,89 @@ export default function ImportarPage() {
         </div>
       )}
 
-      <div className="mt-6">
+      {/* Seção: Dados Históricos */}
+      <div className="mt-2">
         <div className="flex items-center gap-2 mb-3">
           <ShieldCheck className="w-4 h-4 text-gray-400" />
-          <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Dados Históricos</h2>
+          <h2 className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest">Dados Históricos</h2>
         </div>
 
         <button
           onClick={executarDiagnostico}
           disabled={diagnosticando}
-          className="w-full flex items-center justify-center gap-2 bg-gray-100 text-gray-700 py-3 rounded-xl font-medium hover:bg-gray-200 transition disabled:opacity-50 mb-3 text-sm"
+          className="w-full flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-700 py-3 rounded-2xl font-medium hover:bg-gray-50 transition-all disabled:opacity-50 mb-3 text-sm shadow-card active:scale-[0.98]"
         >
-          <ShieldCheck className="w-4 h-4" />
-          {diagnosticando ? 'Verificando…' : 'Verificar duplicatas históricas (±3 dias)'}
+          <ShieldCheck className={`w-4 h-4 ${diagnosticando ? 'animate-pulse text-primary-500' : ''}`} />
+          {diagnosticando ? 'Verificando duplicatas…' : 'Verificar duplicatas históricas (±3 dias)'}
         </button>
 
         {diagnostico && (
-          <div className={`rounded-xl p-4 mb-4 ${diagnostico.totalPares > 0 ? 'bg-amber-50 border border-amber-200' : 'bg-green-50 border border-green-200'}`}>
+          <div className={`rounded-2xl p-4 mb-4 ${diagnostico.totalPares > 0 ? 'bg-amber-50 border border-amber-200' : 'bg-green-50 border border-green-100'}`}>
             {diagnostico.totalPares === 0 ? (
-              <div className="flex items-center gap-2 text-green-700">
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span className="text-sm font-medium">Nenhuma duplicata histórica detectada.</span>
+              <div className="flex items-center gap-2.5 text-green-700">
+                <div className="w-7 h-7 rounded-xl bg-green-100 border border-green-200 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+                <span className="text-sm font-semibold">Nenhuma duplicata histórica detectada</span>
               </div>
             ) : (
               <>
                 <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-7 h-7 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0 mt-0.5">
+                      <AlertCircle className="w-4 h-4 text-amber-600" />
+                    </div>
                     <div>
-                      <p className="text-sm font-semibold text-amber-800">
-                        {diagnostico.totalPares} par(es) de duplicata histórica detectado(s)
+                      <p className="text-sm font-bold text-amber-900">
+                        {diagnostico.totalPares} duplicata(s) detectada(s)
                       </p>
                       <p className="text-xs text-amber-700 mt-0.5">
-                        {diagnostico.mesmaFatura} na mesma fatura · {diagnostico.faturasDiferentes} em faturas diferentes
+                        {diagnostico.mesmaFatura} mesma fatura · {diagnostico.faturasDiferentes} faturas diferentes
                       </p>
                     </div>
                   </div>
                   <button
                     onClick={() => setDiagnosticoExpandido(v => !v)}
-                    className="text-xs text-amber-700 underline shrink-0"
+                    className="text-xs text-amber-700 font-semibold shrink-0 underline underline-offset-2 transition-opacity hover:opacity-70"
                   >
                     {diagnosticoExpandido ? 'Ocultar' : 'Ver detalhes'}
                   </button>
                 </div>
 
-                {/* Correction result banner */}
+                {/* Resultado da correção */}
                 {resultadoCorrecao && (
-                  <div className={`mt-3 rounded-lg p-3 text-sm flex items-center gap-2 ${resultadoCorrecao.removidos >= 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                  <div className={`mt-3 rounded-xl p-3 text-sm flex items-center gap-2.5 ${resultadoCorrecao.removidos >= 0 ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'}`}>
                     {resultadoCorrecao.removidos >= 0
-                      ? <CheckCircle2 className="w-4 h-4 shrink-0" />
-                      : <XCircle className="w-4 h-4 shrink-0" />
+                      ? <CheckCircle2 className="w-4 h-4 shrink-0 text-green-600" />
+                      : <XCircle className="w-4 h-4 shrink-0 text-red-500" />
                     }
-                    <span>{resultadoCorrecao.mensagem}</span>
+                    <span className="font-medium">{resultadoCorrecao.mensagem}</span>
                   </div>
                 )}
 
-                {/* Confirmation step */}
+                {/* Confirmação de exclusão */}
                 {pendingModo ? (
-                  <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3 space-y-3">
-                    <p className="text-sm font-semibold text-red-800">Confirmar exclusão permanente</p>
-                    <p className="text-xs text-red-700">
+                  <div className="mt-3 bg-red-50 border border-red-200 rounded-2xl p-4 space-y-3">
+                    <p className="text-sm font-bold text-red-800">Confirmar exclusão permanente</p>
+                    <p className="text-xs text-red-700 leading-relaxed">
                       {pendingModo === 'conservador'
-                        ? `Serão removidos registros duplicados dentro da mesma fatura (${diagnostico.mesmaFatura} par(es)). Critério: mantém o mais recente e/ou categorizado manualmente.`
-                        : `Serão removidos todos os pares próximos, incluindo os ${diagnostico.faturasDiferentes} par(es) em faturas diferentes. Isso altera os totais por fatura.`
+                        ? `Serão removidos duplicados da mesma fatura (${diagnostico.mesmaFatura} par(es)). O registro mais recente e/ou categorizado manualmente é mantido.`
+                        : `Serão removidos todos os ${diagnostico.totalPares} pares, incluindo ${diagnostico.faturasDiferentes} em faturas diferentes. Isso altera os totais por fatura.`
                       }
                     </p>
                     <div className="flex gap-2">
                       <button
                         onClick={confirmarCorrecao}
                         disabled={corrigindo}
-                        className="flex-1 flex items-center justify-center gap-1.5 bg-red-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-red-700 transition disabled:opacity-50"
+                        className="flex-1 flex items-center justify-center gap-1.5 bg-red-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-red-700 transition-all disabled:opacity-50 active:scale-[0.97]"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className={`w-3.5 h-3.5 ${corrigindo ? 'animate-pulse' : ''}`} />
                         {corrigindo ? 'Removendo…' : 'Confirmar exclusão'}
                       </button>
                       <button
                         onClick={() => setPendingModo(null)}
                         disabled={corrigindo}
-                        className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition disabled:opacity-50"
+                        className="flex-1 bg-white border border-gray-200 text-gray-700 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition-all disabled:opacity-50"
                       >
                         Cancelar
                       </button>
@@ -502,20 +537,20 @@ export default function ImportarPage() {
                   <div className="mt-3 flex gap-2">
                     <button
                       onClick={() => setPendingModo('conservador')}
-                      className="flex-1 flex items-center justify-center gap-1.5 bg-amber-600 text-white py-2 rounded-lg text-xs font-semibold hover:bg-amber-700 transition"
+                      className="flex-1 flex items-center justify-center gap-1.5 bg-amber-500 text-white py-2.5 rounded-xl text-xs font-semibold hover:bg-amber-600 transition-all active:scale-[0.97]"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      Corrigir mesma fatura
-                      <span className="bg-amber-500 px-1.5 py-0.5 rounded-full">{diagnostico.mesmaFatura}</span>
+                      Mesma fatura
+                      <span className="bg-amber-400 px-1.5 py-0.5 rounded-full font-bold">{diagnostico.mesmaFatura}</span>
                     </button>
                     {diagnostico.faturasDiferentes > 0 && (
                       <button
                         onClick={() => setPendingModo('completo')}
-                        className="flex-1 flex items-center justify-center gap-1.5 bg-red-600 text-white py-2 rounded-lg text-xs font-semibold hover:bg-red-700 transition"
+                        className="flex-1 flex items-center justify-center gap-1.5 bg-red-500 text-white py-2.5 rounded-xl text-xs font-semibold hover:bg-red-600 transition-all active:scale-[0.97]"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
-                        Corrigir tudo
-                        <span className="bg-red-500 px-1.5 py-0.5 rounded-full">{diagnostico.totalPares}</span>
+                        Tudo
+                        <span className="bg-red-400 px-1.5 py-0.5 rounded-full font-bold">{diagnostico.totalPares}</span>
                       </button>
                     )}
                   </div>
@@ -524,18 +559,18 @@ export default function ImportarPage() {
                 {diagnosticoExpandido && (
                   <div className="mt-3 space-y-2">
                     {diagnostico.pares.map((p, i) => (
-                      <div key={i} className="bg-white rounded-lg p-2.5 text-xs space-y-1 border border-amber-100">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-gray-800 truncate max-w-[70%]">{p.descricao}</span>
-                          <span className="text-gray-500 font-mono">R$ {Number(p.valor).toFixed(2)}</span>
+                      <div key={i} className="bg-white rounded-xl p-3 text-xs space-y-1.5 border border-amber-100">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-semibold text-gray-800 truncate">{p.descricao}</span>
+                          <span className="text-gray-600 font-mono shrink-0">R$ {Number(p.valor).toFixed(2)}</span>
                         </div>
-                        <div className="flex items-center gap-2 text-gray-500">
+                        <div className="flex items-center gap-1.5 text-gray-400 flex-wrap">
                           <span>{p.data_a}</span>
-                          <span>→</span>
+                          <span className="text-gray-300">→</span>
                           <span>{p.data_b}</span>
-                          <span className="text-amber-600">({p.dias}d)</span>
+                          <span className="text-amber-600 font-medium">({p.dias}d)</span>
                           {!p.mesmaFatura && (
-                            <span className="text-red-500 font-medium">faturas distintas</span>
+                            <span className="text-red-500 font-semibold bg-red-50 px-1.5 py-0.5 rounded-full">faturas distintas</span>
                           )}
                         </div>
                       </div>
@@ -548,83 +583,86 @@ export default function ImportarPage() {
         )}
       </div>
 
-      <div className="mt-2">
+      {/* Seção: Atividades recentes */}
+      <div className="mt-4">
         <div className="flex items-center gap-2 mb-3">
           <Clock className="w-4 h-4 text-gray-400" />
-          <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Atividades Recentes via API</h2>
+          <h2 className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest">Atividades Recentes via API</h2>
         </div>
 
         {atividades.length === 0 ? (
-          <div className="bg-white rounded-xl p-6 text-center text-sm text-gray-400">
-            Nenhuma importação via API registrada ainda.
+          <div className="bg-white rounded-2xl shadow-card border border-gray-100 py-8 text-center">
+            <p className="text-sm text-gray-400">Nenhuma importação via API registrada</p>
           </div>
         ) : (
-          <div className="space-y-2 max-h-64 overflow-y-auto pr-0.5">
-            {atividades.map(a => {
-              const isErro = a.descricao.startsWith('ERRO:')
-              const descricaoExibida = isErro ? a.descricao.slice(6).trim() : a.descricao
-              const data = new Date(a.created_at)
-              const dataStr = data.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
-              const horaStr = data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-              return (
-                <div
-                  key={a.id}
-                  className={`rounded-xl px-4 py-3 flex items-start gap-3 ${isErro ? 'bg-red-50' : 'bg-white'}`}
-                >
-                  <div className="shrink-0 mt-0.5">
-                    {isErro
-                      ? <AlertCircle className="w-4 h-4 text-red-400" />
-                      : <CheckCircle2 className="w-4 h-4 text-green-500" />
-                    }
+          <div className="bg-white rounded-2xl shadow-card border border-gray-100 overflow-hidden">
+            <div className="divide-y divide-gray-50 max-h-64 overflow-y-auto">
+              {atividades.map(a => {
+                const isErro = a.descricao.startsWith('ERRO:')
+                const descricaoExibida = isErro ? a.descricao.slice(6).trim() : a.descricao
+                const data = new Date(a.created_at)
+                const dataStr = data.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+                const horaStr = data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+                return (
+                  <div
+                    key={a.id}
+                    className={`px-4 py-3 flex items-start gap-3 ${isErro ? 'bg-red-50' : ''}`}
+                  >
+                    <div className="shrink-0 mt-0.5">
+                      {isErro
+                        ? <AlertCircle className="w-4 h-4 text-red-400" />
+                        : <CheckCircle2 className="w-4 h-4 text-green-500" />
+                      }
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium truncate ${isErro ? 'text-red-700' : 'text-gray-800'}`}>
+                        {descricaoExibida}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">{dataStr} · {horaStr}</p>
+                    </div>
+                    {!isErro && a.valor != null && (
+                      <span className="text-sm font-semibold text-green-700 whitespace-nowrap num">
+                        R$ {Number(a.valor).toFixed(2).replace('.', ',')}
+                      </span>
+                    )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium truncate ${isErro ? 'text-red-700' : 'text-gray-800'}`}>
-                      {descricaoExibida}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-0.5">{dataStr} · {horaStr}</p>
-                  </div>
-                  {!isErro && a.valor != null && (
-                    <span className="text-sm font-semibold text-green-700 whitespace-nowrap">
-                      R$ {Number(a.valor).toFixed(2).replace('.', ',')}
-                    </span>
-                  )}
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
         )}
       </div>
 
       {/* Integração via API */}
-      <div className="mt-4 bg-white rounded-2xl shadow-sm p-4">
-        <h2 className="text-base font-semibold mb-1 flex items-center gap-2">
-          <Code2 className="w-5 h-5 text-gray-500" />
+      <div className="mt-4 bg-white rounded-3xl shadow-card border border-gray-100 p-5">
+        <h2 className="text-sm font-bold text-gray-900 mb-1 flex items-center gap-2">
+          <Code2 className="w-4 h-4 text-gray-500" />
           Integração via API
         </h2>
-        <p className="text-sm text-gray-500 mb-3">
+        <p className="text-xs text-gray-400 mb-4 leading-relaxed">
           Importe transações automaticamente via API REST com autenticação por token Bearer.
         </p>
         <button
           onClick={() => setModalApiAberto(true)}
-          className="w-full flex items-center justify-center gap-2 border border-blue-200 text-blue-600 py-3 rounded-2xl font-semibold hover:bg-blue-50 transition active:scale-[0.97]"
+          className="w-full flex items-center justify-center gap-2 border border-primary-200 text-primary-600 py-3 rounded-2xl font-semibold hover:bg-primary-50 transition-all active:scale-[0.97]"
         >
           <Code2 className="w-4 h-4" />
-          Ver Instruções de Integração
+          Ver instruções de integração
         </button>
       </div>
 
       {/* Modal: Instruções de Integração via API */}
       {modalApiAberto && (
         <ModalPortal>
-        <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-[200]">
-          <div className="bg-white rounded-t-2xl w-full max-h-[88vh] overflow-y-auto overflow-x-hidden">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end justify-center z-[200] modal-overlay">
+          <div className="bg-white rounded-t-3xl w-full max-h-[88vh] overflow-y-auto overflow-x-hidden modal-sheet">
             <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-4 flex items-center justify-between">
-              <h2 className="text-lg font-bold flex items-center gap-2">
-                <Code2 className="w-5 h-5 text-blue-600" />
+              <h2 className="text-base font-bold flex items-center gap-2">
+                <Code2 className="w-4 h-4 text-primary-600" />
                 Integração via API
               </h2>
-              <button onClick={() => setModalApiAberto(false)} className="p-2 rounded-full hover:bg-gray-100 transition">
-                <X className="w-5 h-5 text-gray-500" />
+              <button onClick={() => setModalApiAberto(false)} className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 transition-all hover:rotate-90 duration-200">
+                <X className="w-5 h-5" />
               </button>
             </div>
 

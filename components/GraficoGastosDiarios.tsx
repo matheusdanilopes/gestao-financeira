@@ -13,7 +13,8 @@ import {
 } from 'chart.js'
 import { format, startOfMonth, addMonths, addDays, eachDayOfInterval } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Activity, AlertCircle, ChevronDown } from 'lucide-react'
+import { Activity, AlertCircle } from 'lucide-react'
+import FilterSelect from '@/components/FilterSelect'
 import { formatBRL } from '@/lib/logger'
 import { supabase } from '@/lib/supabaseClient'
 import type { Plugin } from 'chart.js'
@@ -113,12 +114,6 @@ const gradientPlugin: Plugin<'line'> = {
     if (ds) ds.backgroundColor = g
   },
 }
-
-// Module-level constant — not recreated on every render
-const SELECT_CLS =
-  'w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 pr-8 text-xs text-gray-700 ' +
-  'font-medium appearance-none cursor-pointer focus:outline-none focus:ring-1 ' +
-  'focus:ring-violet-400 focus:border-violet-400 hover:border-gray-300 transition-colors'
 
 type FiltroResponsavel = 'todos' | 'Matheus' | 'Jeniffer'
 type FiltroCartao      = 'todos' | 'nubank'  | 'cartao1' | 'cartao2'
@@ -566,8 +561,20 @@ export default function GraficoGastosDiarios({
 
   if (loading) {
     return (
-      <div className="h-48 flex items-center justify-center">
-        <div className="w-7 h-7 border-2 border-gray-200 border-t-violet-500 rounded-full animate-spin" />
+      <div className="animate-pulse space-y-3">
+        <div className="flex gap-2">
+          <div className="flex-1 h-[34px] bg-gray-100 dark:bg-white/[0.05] rounded-xl" />
+          <div className="flex-1 h-[34px] bg-gray-100 dark:bg-white/[0.05] rounded-xl" />
+        </div>
+        <div className="h-48 flex items-end gap-0.5 px-1">
+          {Array.from({ length: 24 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex-1 rounded-t bg-gray-100 dark:bg-white/[0.05]"
+              style={{ height: `${20 + Math.sin(i * 0.8) * 30 + Math.random() * 20}%` }}
+            />
+          ))}
+        </div>
       </div>
     )
   }
@@ -575,11 +582,11 @@ export default function GraficoGastosDiarios({
   if (error) {
     return (
       <div className="h-48 flex flex-col items-center justify-center gap-3 text-red-400">
-        <AlertCircle className="w-7 h-7" />
-        <span className="text-sm">{error}</span>
+        <AlertCircle className="w-7 h-7 opacity-70" />
+        <span className="text-sm text-gray-500">{error}</span>
         <button
           onClick={() => { setLoading(true); carregar() }}
-          className="text-xs text-violet-500 underline"
+          className="text-xs text-violet-500 hover:text-violet-600 underline transition-colors"
         >
           Tentar novamente
         </button>
@@ -589,34 +596,27 @@ export default function GraficoGastosDiarios({
 
   return (
     <div>
-      {/* Filters — two selects side by side with chevron indicator */}
+      {/* Filters — pílulas de filtro (mesma aparência da Wishlist) */}
       <div className="flex gap-2 mb-4">
-        <div className="relative flex-1">
-          <select
-            value={filtroResp}
-            onChange={e => setFiltroResp(e.target.value as FiltroResponsavel)}
-            className={SELECT_CLS}
-          >
-            <option value="todos">Todos</option>
-            <option value="Matheus">Matheus</option>
-            <option value="Jeniffer">Jeniffer</option>
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-        </div>
-
-        <div className="relative flex-1">
-          <select
-            value={filtroCartao}
-            onChange={e => setFiltroCartao(e.target.value as FiltroCartao)}
-            className={SELECT_CLS}
-          >
-            <option value="todos">Todos os cartões</option>
-            <option value="nubank">NuBank</option>
-            <option value="cartao1">{cartao1Nome}</option>
-            <option value="cartao2">{cartao2Nome}</option>
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-        </div>
+        <FilterSelect
+          value={filtroResp}
+          onChange={v => setFiltroResp(v as FiltroResponsavel)}
+          options={[
+            { value: 'todos',    label: 'Todos'    },
+            { value: 'Matheus',  label: 'Matheus'  },
+            { value: 'Jeniffer', label: 'Jeniffer' },
+          ]}
+        />
+        <FilterSelect
+          value={filtroCartao}
+          onChange={v => setFiltroCartao(v as FiltroCartao)}
+          options={[
+            { value: 'todos',   label: 'Todos os cartões' },
+            { value: 'nubank',  label: 'NuBank'           },
+            { value: 'cartao1', label: cartao1Nome        },
+            { value: 'cartao2', label: cartao2Nome        },
+          ]}
+        />
       </div>
 
       {!hasData ? (
@@ -634,21 +634,21 @@ export default function GraficoGastosDiarios({
           {/* Summary row */}
           <div className="flex items-end justify-between mb-3">
             <div>
-              <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest mb-0.5">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-0.5">
                 Total da fatura
               </p>
-              <p className="text-xl font-bold text-violet-500 num">{formatBRL(totalFat)}</p>
+              <p className="text-2xl font-bold text-violet-500 num leading-none">{formatBRL(totalFat)}</p>
             </div>
             {peakDay.total > 0 && (
               <div className="text-right">
-                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest mb-0.5">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-0.5">
                   Maior gasto
                 </p>
                 <div className="flex items-center justify-end gap-1.5">
-                  <span className="text-sm font-semibold text-gray-300 num">
+                  <span className="text-sm font-bold text-gray-600 num">
                     {formatBRL(peakDay.total)}
                   </span>
-                  <span className="text-[10px] text-gray-400 bg-white/10 rounded-full px-2 py-0.5">
+                  <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 rounded-full px-2 py-0.5">
                     {peakDay.label}
                   </span>
                 </div>

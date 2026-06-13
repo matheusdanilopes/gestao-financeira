@@ -295,8 +295,22 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual }: Props) {
 
   if (carregando) {
     return (
-      <div className="h-56 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-gray-200 border-t-violet-500 rounded-full animate-spin" />
+      <div className="h-56 animate-pulse">
+        <div className="h-full flex flex-col gap-2 pt-2 pb-6">
+          <div className="flex-1 flex items-end gap-1 px-2">
+            {[30, 50, 42, 65, 55, 70].map((h, i) => (
+              <div
+                key={i}
+                className="flex-1 rounded-t-lg bg-gray-100 dark:bg-white/[0.05]"
+                style={{ height: `${h}%` }}
+              />
+            ))}
+          </div>
+          <div className="flex gap-4 justify-center">
+            <div className="h-2 w-16 bg-gray-100 dark:bg-white/[0.05] rounded-full" />
+            <div className="h-2 w-16 bg-gray-100 dark:bg-white/[0.05] rounded-full" />
+          </div>
+        </div>
       </div>
     )
   }
@@ -304,11 +318,11 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual }: Props) {
   if (erro) {
     return (
       <div className="h-56 flex flex-col items-center justify-center gap-3 text-red-400">
-        <AlertCircle className="w-8 h-8" />
-        <span className="text-sm">{erro}</span>
+        <AlertCircle className="w-7 h-7 opacity-70" />
+        <span className="text-sm text-gray-500">{erro}</span>
         <button
           onClick={() => { setCarregando(true); carregar() }}
-          className="text-xs text-blue-500 underline"
+          className="text-xs text-violet-500 hover:text-violet-600 underline transition-colors"
         >
           Tentar novamente
         </button>

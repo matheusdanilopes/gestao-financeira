@@ -265,8 +265,16 @@ export default function GraficoCategoriasDespesas({ mesAtual }: Props) {
 
   if (carregando && !dados) {
     return (
-      <div className="h-64 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-gray-200 border-t-indigo-500 rounded-full animate-spin" />
+      <div className="h-64 animate-pulse flex items-end gap-2 px-1 pb-4">
+        {[65, 45, 80, 55, 35, 70, 50, 60, 40, 75, 30, 55].map((h, i) => (
+          <div key={i} className="flex-1 flex flex-col gap-1 items-center">
+            <div
+              className="w-full rounded-t-lg bg-gray-100 dark:bg-white/[0.05]"
+              style={{ height: `${h}%` }}
+            />
+            <div className="h-1.5 w-3/4 rounded-full bg-gray-100 dark:bg-white/[0.05]" />
+          </div>
+        ))}
       </div>
     )
   }
@@ -274,11 +282,11 @@ export default function GraficoCategoriasDespesas({ mesAtual }: Props) {
   if (erro) {
     return (
       <div className="h-64 flex flex-col items-center justify-center gap-3 text-red-400">
-        <AlertCircle className="w-8 h-8" />
-        <span className="text-sm">{erro}</span>
+        <AlertCircle className="w-7 h-7 opacity-70" />
+        <span className="text-sm text-gray-500">{erro}</span>
         <button
           onClick={() => { setCarregando(true); carregar() }}
-          className="text-xs text-blue-500 underline"
+          className="text-xs text-indigo-500 hover:text-indigo-600 underline transition-colors"
         >
           Tentar novamente
         </button>
@@ -306,26 +314,26 @@ export default function GraficoCategoriasDespesas({ mesAtual }: Props) {
         </div>
       </div>
 
-      <div className="flex items-center justify-between mt-3 flex-wrap gap-2">
-        <p className="flex items-center gap-4 text-[11px] text-gray-400">
+      <div className="flex items-center justify-between mt-3.5 flex-wrap gap-2">
+        <p className="flex items-center gap-3 text-[11px] text-gray-400">
           <span className="flex items-center gap-1.5">
-            <span className="inline-block w-3 h-3 rounded-sm bg-slate-300 dark:bg-slate-500 opacity-70" />
+            <span className="inline-block w-2.5 h-2.5 rounded bg-slate-300 dark:bg-slate-500 opacity-70" />
             Previsto
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="inline-block w-3 h-3 rounded-sm bg-indigo-500 opacity-80" />
+            <span className="inline-block w-2.5 h-2.5 rounded bg-indigo-500 opacity-80" />
             Pago
           </span>
           {overCount > 0 && (
             <span className="flex items-center gap-1.5">
-              <span className="inline-block w-3 h-3 rounded-sm bg-red-500 opacity-80" />
+              <span className="inline-block w-2.5 h-2.5 rounded bg-red-500 opacity-80" />
               Acima do previsto
             </span>
           )}
         </p>
         {overCount > 0 && (
-          <span className="text-[11px] font-medium text-red-500 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded-full">
-            ⚠ {overCount} {overCount === 1 ? 'categoria acima' : 'categorias acima'} do previsto
+          <span className="text-[11px] font-semibold text-red-500 bg-red-50 dark:bg-red-900/20 px-2.5 py-0.5 rounded-full">
+            {overCount} {overCount === 1 ? 'categoria acima' : 'categorias acima'} do previsto
           </span>
         )}
       </div>

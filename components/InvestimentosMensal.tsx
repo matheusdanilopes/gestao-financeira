@@ -314,58 +314,60 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[300] px-4 py-2 rounded-xl text-sm font-medium shadow-lg ${
-          toast.tipo === 'ok' ? 'bg-green-600 text-white' : 'bg-red-500 text-white'
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-medium shadow-float ${
+          toast.tipo === 'ok' ? 'bg-gray-900 text-white' : 'bg-red-500 text-white'
         }`}>
           {toast.msg}
         </div>
       )}
 
       {/* Resumo */}
-      <div className="bg-white rounded-2xl shadow p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <PiggyBank className="w-5 h-5 text-violet-600" />
-          <span className="font-semibold text-gray-800">Resumo de Investimentos</span>
+      <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
+        <div className="flex items-center gap-2 mb-3.5">
+          <div className="w-7 h-7 rounded-xl bg-violet-100 flex items-center justify-center">
+            <PiggyBank className="w-4 h-4 text-violet-600" />
+          </div>
+          <span className="font-semibold text-gray-800 text-sm">Resumo de Investimentos</span>
         </div>
-        <div className="grid grid-cols-2 gap-3 mb-3">
-          <div className="bg-gray-50 rounded-xl p-3 text-center">
-            <p className="text-xs text-gray-500 mb-0.5">Saldo atual</p>
-            <p className={`text-lg font-bold ${saldo >= 0 ? 'text-gray-800' : 'text-red-600'}`}>
+        <div className="grid grid-cols-2 gap-2.5 mb-3.5">
+          <div className="bg-gray-50 rounded-2xl p-3 text-center">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">Saldo atual</p>
+            <p className={`text-base font-bold num ${saldo >= 0 ? 'text-gray-800' : 'text-red-600'}`}>
               {formatBRL(saldo)}
             </p>
           </div>
-          <div className="bg-violet-50 rounded-xl p-3 text-center">
-            <p className="text-xs text-violet-500 mb-0.5">Meta prevista</p>
-            <p className={`text-lg font-bold ${totalMetaPrevisto >= 0 ? 'text-violet-700' : 'text-red-600'}`}>
+          <div className="bg-violet-50 rounded-2xl p-3 text-center">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-violet-400 mb-0.5">Meta prevista</p>
+            <p className={`text-base font-bold num ${totalMetaPrevisto >= 0 ? 'text-violet-700' : 'text-red-600'}`}>
               {formatBRL(totalMetaPrevisto)}
             </p>
-            <p className="text-xs text-violet-300">{totalPercentual.toFixed(0)}% do previsto</p>
+            <p className="text-[10px] text-violet-400 tabular-nums mt-0.5">{totalPercentual.toFixed(0)}% do previsto</p>
           </div>
-          <div className="bg-green-50 rounded-xl p-3 text-center">
-            <p className="text-xs text-gray-500 mb-0.5">Total aportado</p>
-            <p className="text-lg font-bold text-green-700">{formatBRL(totalAportadoGeral)}</p>
+          <div className="bg-emerald-50 rounded-2xl p-3 text-center">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-500 mb-0.5">Total aportado</p>
+            <p className="text-base font-bold text-emerald-700 num">{formatBRL(totalAportadoGeral)}</p>
           </div>
-          <div className="bg-gray-50 rounded-xl p-3 text-center">
-            <p className="text-xs text-gray-500 mb-0.5">Restante</p>
-            <p className={`text-lg font-bold ${totalMeta - totalAportadoGeral > 0 ? 'text-gray-700' : 'text-green-600'}`}>
+          <div className="bg-gray-50 rounded-2xl p-3 text-center">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">Restante</p>
+            <p className={`text-base font-bold num ${totalMeta - totalAportadoGeral > 0 ? 'text-gray-700' : 'text-emerald-600'}`}>
               {formatBRL(Math.max(0, totalMeta - totalAportadoGeral))}
             </p>
           </div>
         </div>
         <div>
-          <div className="flex justify-between text-xs text-gray-500 mb-1">
+          <div className="flex justify-between text-xs text-gray-500 mb-1.5">
             <span>Progresso de aportes</span>
-            <span className="font-semibold text-violet-700">{progressoGeralPct.toFixed(0)}%</span>
+            <span className="font-bold text-violet-600 tabular-nums">{progressoGeralPct.toFixed(0)}%</span>
           </div>
-          <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+          <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
             <div
-              className="h-2 rounded-full bg-violet-500 transition-[width] duration-500"
+              className="h-1.5 rounded-full bg-gradient-to-r from-violet-500 to-violet-600 transition-[width] duration-700 ease-smooth"
               style={{ width: `${progressoGeralPct}%` }}
             />
           </div>
-          <div className="flex justify-between text-xs text-gray-400 mt-1">
+          <div className="flex justify-between text-[10px] text-gray-400 mt-1.5 tabular-nums">
             <span>Alocação: {totalPercentual.toFixed(1)}%</span>
-            <span>{Math.max(0, 100 - totalPercentual).toFixed(1)}% do saldo disponível para alocar</span>
+            <span>{Math.max(0, 100 - totalPercentual).toFixed(1)}% disponível para alocar</span>
           </div>
         </div>
       </div>
@@ -390,7 +392,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
       )}
 
       {/* Lista */}
-      <div className="bg-white rounded-2xl shadow overflow-hidden divide-y divide-gray-100">
+      <div className="bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden divide-y divide-gray-100">
         {itens.length === 0 ? (
           <div className="py-12 flex flex-col items-center gap-2 text-gray-300">
             <PiggyBank className="w-10 h-10" />
@@ -492,8 +494,8 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
       {/* ── Modal: registrar aporte ── */}
       {modalAporte && (
         <ModalPortal>
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-float">
             <div className="flex items-start justify-between mb-1">
               <h3 className="text-lg font-bold">Registrar Aporte</h3>
               <button onClick={() => setModalAporte(null)} className="p-1 text-gray-400 hover:text-gray-600">
@@ -575,8 +577,8 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
       {/* ── Modal: histórico de aportes ── */}
       {modalHistorico && (
         <ModalPortal>
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-float">
             <div className="flex items-start justify-between mb-1">
               <h3 className="text-lg font-bold">Histórico de Aportes</h3>
               <button onClick={() => { setModalHistorico(null); setAportePendingDelete(null) }} className="p-1 text-gray-400 hover:text-gray-600">
@@ -657,8 +659,8 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
       {/* ── Modal: adicionar / editar investimento ── */}
       {(modalAberto === 'adicionar' || modalAberto === 'editar') && (
         <ModalPortal>
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-float">
             <h3 className="text-lg font-bold mb-5">
               {modalAberto === 'adicionar' ? 'Novo Investimento' : 'Editar Investimento'}
             </h3>
@@ -720,8 +722,8 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
       {/* ── Modal: excluir investimento ── */}
       {modalAberto === 'excluir' && itemSelecionado && (
         <ModalPortal>
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-float">
             <h3 className="text-lg font-bold mb-2">Excluir investimento</h3>
             <p className="text-sm text-gray-500 mb-2">
               Tem certeza que deseja excluir{' '}
@@ -746,8 +748,8 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
       {/* ── Modal: importar mês anterior ── */}
       {modalAberto === 'importar' && previewImport && (
         <ModalPortal>
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-float">
             <h3 className="text-lg font-bold mb-1">Importar mês anterior</h3>
             <p className="text-sm text-gray-500 mb-4">
               Investimentos de <span className="font-semibold capitalize">{previewImport.mesOrigem}</span>

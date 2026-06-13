@@ -254,10 +254,18 @@ export default function CategoryTreemap({ compras: comprasProp, mesAtual, loadin
     return (
       <div className="bg-white rounded-3xl border border-gray-100 shadow-card mb-4">
         <div className="px-4 pt-3 pb-2 flex items-center justify-between">
-          <div className="h-3.5 w-20 bg-gray-200 rounded-xl animate-pulse" />
+          <div className="h-3 w-24 bg-gray-200 rounded-full animate-pulse" />
           <div className="h-6 w-28 bg-gray-100 rounded-xl animate-pulse" />
         </div>
-        <div className="h-[220px] mx-3 mb-3 bg-gray-100 rounded-2xl animate-pulse" />
+        {/* Skeleton que imita blocos de treemap */}
+        <div className="mx-3 mb-3 grid grid-cols-12 gap-1.5 animate-pulse" style={{ height: TREEMAP_H }}>
+          <div className="col-span-5 bg-gray-200 rounded-xl" />
+          <div className="col-span-3 bg-gray-100 rounded-xl" />
+          <div className="col-span-4 bg-gray-200 rounded-xl" />
+          <div className="col-span-4 bg-gray-100 rounded-xl" />
+          <div className="col-span-5 bg-gray-200 rounded-xl" />
+          <div className="col-span-3 bg-gray-100 rounded-xl" />
+        </div>
       </div>
     )
   }
@@ -270,11 +278,11 @@ export default function CategoryTreemap({ compras: comprasProp, mesAtual, loadin
       <div className="flex items-center justify-between px-4 pt-3 pb-2">
         <div className="flex items-center gap-1.5">
           <LayoutGrid className="w-3.5 h-3.5 text-gray-400" />
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest">
             Categorias da Fatura
           </span>
         </div>
-        <div className="flex rounded-xl overflow-hidden border border-gray-200">
+        <div className="flex rounded-xl overflow-hidden border border-gray-200 dark:border-white/10">
           <button
             onClick={() => setMode('value')}
             className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold transition-colors ${
@@ -303,7 +311,7 @@ export default function CategoryTreemap({ compras: comprasProp, mesAtual, loadin
       {/* Treemap canvas */}
       <div
         ref={containerCb}
-        className="relative mx-3 mb-3 rounded-2xl overflow-hidden bg-gray-50"
+        className="relative mx-3 mb-3 rounded-2xl overflow-hidden bg-gray-50 dark:bg-white/[0.03]"
         style={{ height: TREEMAP_H }}
       >
         {cW > 0 &&
@@ -373,45 +381,45 @@ export default function CategoryTreemap({ compras: comprasProp, mesAtual, loadin
       {/* Detail card */}
       {selected && (
         <div
-          className="mx-3 mb-3 rounded-2xl p-3"
-          style={{ backgroundColor: selected.color + '1c' }}
+          className="mx-3 mb-3 rounded-2xl p-3.5"
+          style={{ backgroundColor: selected.color + '18' }}
         >
           <div className="flex items-start gap-2.5">
             <div
-              className="w-8 h-8 rounded-xl shrink-0 mt-0.5"
+              className="w-9 h-9 rounded-xl shrink-0 mt-0.5 shadow-sm"
               style={{ backgroundColor: selected.color }}
             />
             <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-2.5">
                 <p className="text-sm font-bold text-gray-900 truncate pr-1">{selected.label}</p>
                 <button
                   onClick={() => setSelected(null)}
-                  className="p-0.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-black/5 transition-colors shrink-0"
+                  className="p-0.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-black/[0.06] transition-colors shrink-0"
                   aria-label="Fechar detalhe"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
               <div className="grid grid-cols-2 gap-1.5">
-                <div className="bg-white/60 rounded-xl p-2">
-                  <p className="text-[9px] text-gray-400 font-medium leading-tight">Total</p>
-                  <p className="text-xs font-bold text-gray-900 num mt-0.5 whitespace-nowrap">
+                <div className="bg-white/70 rounded-xl p-2.5">
+                  <p className="text-[9px] text-gray-400 font-semibold uppercase tracking-wide leading-tight">Total</p>
+                  <p className="text-xs font-bold text-gray-900 num mt-1 whitespace-nowrap">
                     {formatBRL(selected.valor)}
                   </p>
                 </div>
-                <div className="bg-white/60 rounded-xl p-2">
-                  <p className="text-[9px] text-gray-400 font-medium leading-tight">Compras</p>
-                  <p className="text-xs font-bold text-gray-900 mt-0.5">{selected.contagem}×</p>
+                <div className="bg-white/70 rounded-xl p-2.5">
+                  <p className="text-[9px] text-gray-400 font-semibold uppercase tracking-wide leading-tight">Compras</p>
+                  <p className="text-xs font-bold text-gray-900 mt-1">{selected.contagem}×</p>
                 </div>
-                <div className="bg-white/60 rounded-xl p-2">
-                  <p className="text-[9px] text-gray-400 font-medium leading-tight">Ticket médio</p>
-                  <p className="text-xs font-bold text-gray-900 num mt-0.5 whitespace-nowrap">
+                <div className="bg-white/70 rounded-xl p-2.5">
+                  <p className="text-[9px] text-gray-400 font-semibold uppercase tracking-wide leading-tight">Ticket médio</p>
+                  <p className="text-xs font-bold text-gray-900 num mt-1 whitespace-nowrap">
                     {formatBRL(selected.valor / selected.contagem)}
                   </p>
                 </div>
-                <div className="bg-white/60 rounded-xl p-2">
-                  <p className="text-[9px] text-gray-400 font-medium leading-tight">% fatura</p>
-                  <p className="text-xs font-bold text-gray-900 mt-0.5">
+                <div className="bg-white/70 rounded-xl p-2.5">
+                  <p className="text-[9px] text-gray-400 font-semibold uppercase tracking-wide leading-tight">% fatura</p>
+                  <p className="text-xs font-bold text-gray-900 mt-1">
                     {selected.pct.toFixed(1)}%
                   </p>
                 </div>
