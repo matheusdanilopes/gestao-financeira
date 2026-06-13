@@ -610,7 +610,7 @@ export default function Dashboard() {
                     {resumoCaixa.faturaEhPrevisto ? 'Saldo estimado' : 'Saldo atual'}
                     <InfoPopover texto="Quanto sobra da renda após todos os gastos do mês. 'Saldo atual' usa os lançamentos reais da fatura NuBank. 'Saldo estimado' aparece quando a fatura ainda não tem lançamentos — o valor é calculado com base nas parcelas em andamento. Verde = saldo saudável, âmbar = sobra abaixo de 10% da renda, vermelho = saldo negativo. A barra mostra o % da renda comprometido com gastos." />
                   </p>
-                  <p className={`text-3xl font-bold num ${heroColor}`}>
+                  <p className={`text-3xl lg:text-4xl font-bold num value-tight ${heroColor}`}>
                     {fmt(heroSaldo)}
                   </p>
                   <div className="flex items-center gap-1.5 mt-1.5">
@@ -660,7 +660,7 @@ export default function Dashboard() {
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
                   <div
-                    className={`h-2 rounded-full transition-[width] duration-500 ${comprometimentoBarColor}`}
+                    className={`h-2 rounded-full transition-[width] duration-500 ease-smooth ${comprometimentoBarColor}`}
                     style={{ width: `${Math.min(resumoCaixa.percentualComprometimento, 100)}%` }}
                   />
                 </div>

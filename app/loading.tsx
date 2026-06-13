@@ -1,10 +1,17 @@
 export default function Loading() {
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-center gap-6"
+      className="min-h-screen flex flex-col items-center justify-center gap-7 page-enter"
       style={{ backgroundColor: 'var(--color-bg)' }}
     >
-      <div className="w-16 h-16 rounded-3xl bg-indigo-600 flex items-center justify-center shadow-lg">
+      <div
+        className="w-16 h-16 rounded-3xl flex items-center justify-center"
+        style={{
+          background: 'linear-gradient(145deg, #6366f1 0%, #4f46e5 55%, #4338ca 100%)',
+          boxShadow:
+            '0 12px 32px rgba(79,70,229,0.40), 0 4px 10px rgba(79,70,229,0.25), inset 0 1px 0 rgba(255,255,255,0.22)',
+        }}
+      >
         {/* TrendingUp icon inline — sem dependência de Lucide no Server Component */}
         <svg
           viewBox="0 0 24 24"
