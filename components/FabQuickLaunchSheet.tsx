@@ -669,18 +669,18 @@ export default function FabQuickLaunchSheet({ onClose }: { onClose: () => void }
         <div className="bg-white dark:bg-gray-900 rounded-t-[28px] shadow-2xl mx-auto max-w-lg overflow-hidden">
           {/* Drag handle */}
           <div className="flex justify-center pt-3 pb-1">
-            <div className="w-9 h-1 rounded-full bg-gray-200 dark:bg-gray-700" />
+            <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-700" />
           </div>
 
-          <div className="px-5 pb-5 pt-2">
+          <div className="px-5 pb-6 pt-2">
             {view === 'menu' && (
               <div className="fab-form-enter">
                 <div className="flex items-center justify-between mb-5">
                   <div>
-                    <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">
+                    <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 tracking-tight">
                       Lançamento Rápido
                     </h2>
-                    <p className="text-xs text-gray-400 mt-0.5">
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                       {isOnline ? 'O que deseja registrar?' : 'Disponível offline'}
                     </p>
                   </div>
@@ -688,10 +688,11 @@ export default function FabQuickLaunchSheet({ onClose }: { onClose: () => void }
                     type="button"
                     onClick={onClose}
                     className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800
-                               transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                               active:scale-90 transition-all duration-150
+                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                     aria-label="Fechar"
                   >
-                    <X className="w-4 h-4 text-gray-500" />
+                    <X className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                   </button>
                 </div>
 
@@ -701,12 +702,13 @@ export default function FabQuickLaunchSheet({ onClose }: { onClose: () => void }
                       key={id}
                       type="button"
                       onClick={() => setView(targetView)}
-                      className={`flex flex-col items-center gap-2.5 p-4 rounded-2xl
+                      className={`flex flex-col items-center gap-3 p-5 rounded-2xl
                                   ${bg} ring-1 ${ring}
-                                  active:scale-95 transition-all duration-150
-                                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400`}
+                                  active:scale-[0.96] transition-all duration-150 ease-spring
+                                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
+                                  tap-scale`}
                     >
-                      <span className="text-2xl leading-none select-none">{emoji}</span>
+                      <span className="text-3xl leading-none select-none">{emoji}</span>
                       <span className={`text-xs font-bold ${cor} text-center leading-tight`}>
                         {label}
                       </span>

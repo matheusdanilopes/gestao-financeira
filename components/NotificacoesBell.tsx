@@ -367,26 +367,41 @@ export default memo(function NotificacoesBell() {
     <div ref={dropdownRef} className="relative">
       <button
         onClick={handleToggleBell}
-        className="relative p-2 rounded-full hover:bg-white/20 transition-colors"
-        aria-label="Notificações"
+        className="relative p-2 rounded-xl hover:bg-white/15 dark:hover:bg-white/10
+                   active:scale-90 transition-all duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+        aria-label={`Notificações${naoLidas > 0 ? ` — ${naoLidas} não lida${naoLidas > 1 ? 's' : ''}` : ''}`}
+        aria-expanded={aberto}
       >
-        <Bell className="w-6 h-6 text-gray-700 dark:text-gray-200" />
+        <Bell className="w-5 h-5 text-gray-700 dark:text-gray-200" />
         {naoLidas > 0 && (
-          <span className="absolute top-0.5 right-0.5 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
+          <span
+            className="absolute top-0.5 right-0.5 min-w-[17px] h-[17px] px-1
+                       bg-red-500 text-white text-[9px] font-bold
+                       rounded-full flex items-center justify-center leading-none
+                       ring-2 ring-white dark:ring-gray-900"
+            aria-hidden="true"
+          >
             {naoLidas > 99 ? '99+' : naoLidas}
           </span>
         )}
       </button>
 
       {aberto && (
-        <div className="absolute right-0 top-full mt-2 w-[340px] lg:w-[400px] max-w-[calc(100vw-16px)] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700 z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-2.5
+                        w-[340px] lg:w-[400px] max-w-[calc(100vw-16px)]
+                        bg-white dark:bg-gray-900
+                        rounded-2xl shadow-float
+                        border border-gray-100 dark:border-gray-800
+                        z-50 overflow-hidden
+                        animate-in">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800">
             <div className="flex items-center gap-2">
-              <Bell className="w-4 h-4 text-gray-600 dark:text-gray-300" />
-              <span className="font-semibold text-gray-800 dark:text-gray-100">Notificações</span>
+              <Bell className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+              <span className="font-semibold text-gray-800 dark:text-gray-100 text-sm">Notificações</span>
               {naoLidas > 0 && (
-                <span className="px-2 py-0.5 bg-red-100 text-red-600 text-xs font-bold rounded-full">
+                <span className="px-2 py-0.5 bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 text-[11px] font-bold rounded-full border border-red-100 dark:border-red-900/50">
                   {naoLidas} nova{naoLidas > 1 ? 's' : ''}
                 </span>
               )}
@@ -395,7 +410,10 @@ export default memo(function NotificacoesBell() {
               {naoLidas > 0 && (
                 <button
                   onClick={marcarTodasLidas}
-                  className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium
+                             text-primary-600 dark:text-primary-400
+                             hover:bg-primary-50 dark:hover:bg-primary-900/30
+                             rounded-lg transition-colors"
                   title="Marcar todas como lidas"
                 >
                   <CheckCheck className="w-3.5 h-3.5" />
@@ -404,20 +422,21 @@ export default memo(function NotificacoesBell() {
               )}
               <button
                 onClick={() => setAberto(false)}
-                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors active:scale-90"
+                aria-label="Fechar notificações"
               >
-                <X className="w-4 h-4 text-gray-500" />
+                <X className="w-4 h-4 text-gray-400 dark:text-gray-500" />
               </button>
             </div>
           </div>
 
           {/* iOS: precisa instalar o PWA */}
           {iosNaoInstalado && (
-            <div className="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-100 dark:border-amber-800">
-              <p className="text-xs text-amber-800 dark:text-amber-300 mb-1 font-medium">
+            <div className="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-100 dark:border-amber-800/50">
+              <p className="text-xs text-amber-800 dark:text-amber-300 mb-1 font-semibold">
                 Instale o app para receber notificações
               </p>
-              <p className="text-xs text-amber-700 dark:text-amber-400">
+              <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
                 No Safari, toque em <strong>Compartilhar</strong> → <strong>Adicionar à Tela de Início</strong> e reabra o app pelo ícone.
               </p>
             </div>
@@ -425,21 +444,21 @@ export default memo(function NotificacoesBell() {
 
           {/* Erro ao registrar push */}
           {erroPush && (
-            <div className="px-4 py-3 bg-red-50 dark:bg-red-900/20 border-b border-red-100 dark:border-red-800">
-              <p className="text-xs text-red-700 dark:text-red-300 font-medium mb-0.5">Não foi possível ativar as notificações</p>
-              <p className="text-xs text-red-600 dark:text-red-400 break-all">{erroPush}</p>
+            <div className="px-4 py-3 bg-red-50 dark:bg-red-900/20 border-b border-red-100 dark:border-red-900/40">
+              <p className="text-xs text-red-700 dark:text-red-300 font-semibold mb-0.5">Não foi possível ativar as notificações</p>
+              <p className="text-xs text-red-600 dark:text-red-400 break-all leading-relaxed">{erroPush}</p>
             </div>
           )}
 
           {/* Push notification prompt */}
           {!iosNaoInstalado && permissaoPush === 'default' && (
-            <div className="px-4 py-3 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800">
-              <p className="text-xs text-blue-700 dark:text-blue-300 mb-2">
+            <div className="px-4 py-3.5 bg-primary-50 dark:bg-primary-900/20 border-b border-primary-100 dark:border-primary-900/40">
+              <p className="text-xs text-primary-700 dark:text-primary-300 mb-2.5 leading-relaxed">
                 Ative as notificações para ser avisado no celular quando o outro usuário fizer uma operação.
               </p>
               <button
                 onClick={solicitarPermissaoPush}
-                className="w-full py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors"
+                className="w-full py-2 bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold rounded-xl transition-colors active:scale-[0.98]"
               >
                 Ativar notificações no celular
               </button>
@@ -447,11 +466,13 @@ export default memo(function NotificacoesBell() {
           )}
 
           {/* Lista */}
-          <div className="max-h-[360px] lg:max-h-[520px] overflow-y-auto divide-y divide-gray-50 dark:divide-gray-800">
+          <div className="max-h-[360px] lg:max-h-[520px] overflow-y-auto divide-y divide-gray-50 dark:divide-gray-800/70">
             {notificacoes.length === 0 ? (
-              <div className="py-10 text-center">
-                <Bell className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                <p className="text-sm text-gray-400">Nenhuma notificação ainda</p>
+              <div className="py-12 text-center">
+                <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mx-auto mb-3">
+                  <Bell className="w-6 h-6 text-gray-300 dark:text-gray-600" />
+                </div>
+                <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">Nenhuma notificação ainda</p>
               </div>
             ) : (
               notificacoes.map(n => {
@@ -464,23 +485,21 @@ export default memo(function NotificacoesBell() {
                   <div
                     key={n.id}
                     onClick={isClickavel ? () => handleNotificacaoClick(n) : undefined}
-                    className={`flex items-start gap-3 px-4 py-3 border-l-4 transition-colors ${meta.corBorda} ${
-                      isClickavel ? 'cursor-pointer hover:brightness-95' : ''
+                    className={`flex items-start gap-3 px-4 py-3 border-l-[3px] transition-colors duration-100 ${meta.corBorda} ${
+                      isClickavel ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50' : ''
                     } ${
                       n.lida
-                        ? 'bg-white dark:bg-gray-900 opacity-60'
+                        ? 'bg-white dark:bg-gray-900 opacity-55'
                         : meta.corFundo
                     }`}
                   >
                     <div className="mt-0.5 flex-shrink-0">{renderIcone(n.acao)}</div>
                     <div className="flex-1 min-w-0">
                       {/* Rótulo do módulo */}
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
-                          {meta.rotulo}
-                        </span>
-                      </div>
-                      <p className="text-sm font-medium text-gray-800 dark:text-gray-100 leading-snug">
+                      <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500">
+                        {meta.rotulo}
+                      </span>
+                      <p className="text-sm font-medium text-gray-800 dark:text-gray-100 leading-snug mt-0.5">
                         {normalizarDescricao(n.descricao)}
                         {n.valor != null && (
                           <span className="text-gray-500 dark:text-gray-400 font-normal">
@@ -494,7 +513,9 @@ export default memo(function NotificacoesBell() {
                           <button
                             onClick={(e) => { e.stopPropagation(); resolverConflito(n.id, 'aprovar') }}
                             disabled={emResolucao}
-                            className="flex items-center gap-1 px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700
+                                       text-white text-xs font-semibold rounded-xl transition-colors
+                                       disabled:opacity-50 active:scale-95"
                           >
                             <ThumbsUp className="w-3 h-3" />
                             Aprovar
@@ -502,19 +523,24 @@ export default memo(function NotificacoesBell() {
                           <button
                             onClick={(e) => { e.stopPropagation(); resolverConflito(n.id, 'recusar') }}
                             disabled={emResolucao}
-                            className="flex items-center gap-1 px-3 py-1 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+                            className="flex items-center gap-1.5 px-3 py-1.5
+                                       bg-red-50 dark:bg-red-950/50
+                                       hover:bg-red-100 dark:hover:bg-red-900/50
+                                       text-red-700 dark:text-red-400
+                                       text-xs font-semibold rounded-xl transition-colors
+                                       disabled:opacity-50 active:scale-95"
                           >
                             <ThumbsDown className="w-3 h-3" />
                             Recusar
                           </button>
                         </div>
                       )}
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-gray-400">
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        <span className="text-[11px] text-gray-500 dark:text-gray-400 font-medium">
                           {n.nome_usuario ?? n.de_usuario.split('@')[0]}
                         </span>
-                        <span className="text-gray-300">·</span>
-                        <span className="text-xs text-gray-400">
+                        <span className="text-gray-300 dark:text-gray-700 text-xs">·</span>
+                        <span className="text-[11px] text-gray-400 dark:text-gray-500">
                           {formatDistanceToNow(new Date(n.created_at), { locale: ptBR, addSuffix: true })}
                         </span>
                       </div>
@@ -523,8 +549,10 @@ export default memo(function NotificacoesBell() {
                     {!n.lida && isConflito && (
                       <button
                         onClick={(e) => { e.stopPropagation(); marcarComoLida(n.id) }}
-                        className="flex-shrink-0 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors mt-0.5"
+                        className="flex-shrink-0 p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800
+                                   rounded-lg transition-colors active:scale-90 mt-0.5"
                         title="Marcar como lida"
+                        aria-label="Marcar como lida"
                       >
                         <Check className="w-3.5 h-3.5 text-gray-400" />
                       </button>

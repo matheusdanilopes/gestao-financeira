@@ -232,15 +232,17 @@ export default function PeriodSelectorSheet({
         onClick={onClose}
         className="flex-1 py-3 rounded-2xl border border-gray-200 dark:border-gray-700
                    text-gray-600 dark:text-gray-300 font-medium text-sm
-                   active:scale-95 transition-all hover:bg-gray-50 dark:hover:bg-gray-800"
+                   hover:bg-gray-50 dark:hover:bg-gray-800
+                   active:scale-[0.97] transition-all ease-spring duration-150"
       >
         Cancelar
       </button>
       <button
         onClick={handleConfirm}
-        className="flex-1 py-3 rounded-2xl bg-primary-600 hover:bg-primary-700
+        className="flex-1 py-3 rounded-2xl bg-primary-600 hover:bg-primary-500
                    text-white font-semibold text-sm
-                   active:scale-95 transition-all shadow-sm"
+                   active:scale-[0.97] transition-all ease-spring duration-150
+                   shadow-sm hover:shadow-card-md"
       >
         Confirmar
       </button>
@@ -273,8 +275,8 @@ export default function PeriodSelectorSheet({
                            transition-[opacity,transform] duration-300 ${
             visible ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'
           }`}>
-            <div className="px-4 pt-4 pb-2">
-              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 text-center">
+            <div className="px-4 pt-5 pb-2 border-b border-gray-100 dark:border-gray-800">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 text-center uppercase tracking-wide">
                 Selecionar período
               </h2>
             </div>
@@ -284,14 +286,14 @@ export default function PeriodSelectorSheet({
         ) : (
           /* ── Mobile: top sheet ── */
           <div className={`absolute top-0 left-0 right-0
-                           bg-white dark:bg-gray-900 rounded-b-[28px] shadow-2xl
+                           bg-white dark:bg-gray-900 rounded-b-3xl shadow-2xl
                            transition-transform duration-300 ease-out ${
             visible ? 'translate-y-0' : '-translate-y-full'
           }`}
                style={{ paddingTop: 'env(safe-area-inset-top)' }}
           >
-            <div className="px-4 pt-4 pb-2">
-              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 text-center">
+            <div className="px-4 pt-5 pb-2 border-b border-gray-100 dark:border-gray-800">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 text-center uppercase tracking-wide">
                 Selecionar período
               </h2>
             </div>

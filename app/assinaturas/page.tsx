@@ -9,7 +9,7 @@ export default function AssinaturasPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 page-bottom-safe page-enter">
-      <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 px-4 md:px-6 lg:px-8 z-[10]">
+      <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 z-[10]">
         <h1 className="text-xl font-bold text-gray-900 mb-3">Assinaturas</h1>
         <MonthSelector value={mesAtual} onChange={setMesAtual} />
       </div>
