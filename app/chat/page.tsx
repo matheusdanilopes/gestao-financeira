@@ -58,9 +58,9 @@ function parseInline(line: string): React.ReactNode[] {
     if (part.startsWith('*') && part.endsWith('*'))
       return <em key={idx}>{part.slice(1, -1)}</em>
     if (part.startsWith('`') && part.endsWith('`'))
-      return <code key={idx} className="bg-gray-100 dark:bg-gray-700 px-1 rounded text-[11px] font-mono">{part.slice(1, -1)}</code>
+      return <code key={idx} className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded-lg text-[11px] font-mono tracking-tight">{part.slice(1, -1)}</code>
     if (/^R\$\s*[\d.,]+$/.test(part))
-      return <span key={idx} className="font-semibold tabular-nums">{part}</span>
+      return <span key={idx} className="font-semibold num value-tight">{part}</span>
     return part
   })
 }
@@ -75,13 +75,13 @@ const MarkdownContent = memo(function MarkdownContent({ text }: { text: string }
 
     if (line.startsWith('# ')) {
       elements.push(
-        <h1 key={i} className="text-base font-bold text-gray-900 dark:text-gray-100 mt-3 mb-1">
+        <h1 key={i} className="text-base font-bold text-gray-900 dark:text-gray-100 mt-3 mb-1 tracking-tight">
           {parseInline(line.slice(2))}
         </h1>
       )
     } else if (line.startsWith('## ')) {
       elements.push(
-        <h2 key={i} className="text-sm font-bold text-gray-800 dark:text-gray-200 mt-2.5 mb-1">
+        <h2 key={i} className="text-sm font-bold text-gray-800 dark:text-gray-200 mt-2.5 mb-1 tracking-tight">
           {parseInline(line.slice(3))}
         </h2>
       )
@@ -93,12 +93,12 @@ const MarkdownContent = memo(function MarkdownContent({ text }: { text: string }
       )
     } else if (line.startsWith('> ')) {
       elements.push(
-        <blockquote key={i} className="border-l-2 border-primary-300 dark:border-primary-600 pl-3 text-gray-600 dark:text-gray-400 italic my-1">
+        <blockquote key={i} className="border-l-2 border-primary-300 dark:border-primary-600 pl-3 text-gray-600 dark:text-gray-400 italic my-1.5 rounded-r">
           {parseInline(line.slice(2))}
         </blockquote>
       )
     } else if (line.trim() === '---' || line.trim() === '***') {
-      elements.push(<hr key={i} className="border-gray-200 dark:border-gray-600 my-2" />)
+      elements.push(<hr key={i} className="border-gray-200 dark:border-gray-700 my-2" />)
     } else if (line.match(/^[-*] /)) {
       const items: React.ReactNode[] = []
       while (i < lines.length && lines[i].match(/^[-*] /)) {
@@ -106,7 +106,7 @@ const MarkdownContent = memo(function MarkdownContent({ text }: { text: string }
         i++
       }
       elements.push(
-        <ul key={`ul-${i}`} className="list-disc pl-4 space-y-1 my-1.5">
+        <ul key={`ul-${i}`} className="list-disc pl-4 space-y-1 my-1.5 text-gray-700 dark:text-gray-300">
           {items}
         </ul>
       )
@@ -118,7 +118,7 @@ const MarkdownContent = memo(function MarkdownContent({ text }: { text: string }
         i++
       }
       elements.push(
-        <ol key={`ol-${i}`} className="list-decimal pl-4 space-y-1 my-1.5">
+        <ol key={`ol-${i}`} className="list-decimal pl-4 space-y-1 my-1.5 text-gray-700 dark:text-gray-300">
           {items}
         </ol>
       )
@@ -135,7 +135,7 @@ const MarkdownContent = memo(function MarkdownContent({ text }: { text: string }
     i++
   }
 
-  return <div className="text-sm space-y-2">{elements}</div>
+  return <div className="text-sm space-y-1.5">{elements}</div>
 })
 
 function convIdKey(userId: string) {
@@ -155,6 +155,42 @@ function formatarData(iso: string): string {
 function newId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
 }
+
+/* Indicador de "pensando" com 3 dots staggered */
+const ThinkingIndicator = memo(function ThinkingIndicator() {
+  return (
+    <div className="flex gap-2.5 items-end">
+      {/* Avatar da IA */}
+      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-sm">
+        <Sparkles className="w-3.5 h-3.5 text-white" />
+      </div>
+      {/* Bolha */}
+      <div className="bg-white dark:bg-gray-800 shadow-card border border-gray-100 dark:border-gray-700 rounded-2xl rounded-bl-sm px-4 py-3.5 flex items-center gap-3">
+        <span className="text-xs text-gray-400 dark:text-gray-500 font-medium">Analisando seus dados</span>
+        <span className="flex gap-1 items-center" aria-label="Processando">
+          <span
+            className="w-1.5 h-1.5 rounded-full bg-violet-400 dark:bg-violet-500"
+            style={{ animation: 'thinking-dot 1.2s ease-in-out infinite', animationDelay: '0ms' }}
+          />
+          <span
+            className="w-1.5 h-1.5 rounded-full bg-violet-400 dark:bg-violet-500"
+            style={{ animation: 'thinking-dot 1.2s ease-in-out infinite', animationDelay: '240ms' }}
+          />
+          <span
+            className="w-1.5 h-1.5 rounded-full bg-violet-400 dark:bg-violet-500"
+            style={{ animation: 'thinking-dot 1.2s ease-in-out infinite', animationDelay: '480ms' }}
+          />
+        </span>
+        <style>{`
+          @keyframes thinking-dot {
+            0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
+            40%            { transform: scale(1.15); opacity: 1; }
+          }
+        `}</style>
+      </div>
+    </div>
+  )
+})
 
 export default function ChatPage() {
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
@@ -393,7 +429,7 @@ export default function ChatPage() {
       {drawerAberto && (
         <ModalPortal>
           <div
-            className="fixed inset-0 z-[190] bg-black/30 backdrop-blur-sm"
+            className="fixed inset-0 z-[190] bg-black/40 backdrop-blur-sm modal-overlay"
             onClick={() => { setDrawerAberto(false); setConfirmDeleteId(null) }}
           />
         </ModalPortal>
@@ -401,39 +437,52 @@ export default function ChatPage() {
 
       {/* Drawer de conversas */}
       <ModalPortal>
-        <div className={`fixed top-0 left-0 h-full w-80 lg:w-96 max-w-[85vw] bg-white dark:bg-gray-800 z-[200] shadow-xl flex flex-col transition-transform duration-300 ${drawerAberto ? 'translate-x-0' : '-translate-x-full'}`}>
-          <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100 dark:border-gray-700">
-            <div className="flex items-center gap-2">
-              <History className="w-4 h-4 text-blue-500" />
-              <span className="font-semibold text-gray-800 dark:text-gray-200 text-sm">Conversas anteriores</span>
+        <div className={`fixed top-0 left-0 h-full w-80 lg:w-96 max-w-[85vw] bg-white dark:bg-gray-900 z-[200] shadow-float flex flex-col transition-transform duration-300 ease-smooth border-r border-gray-100 dark:border-gray-700/60 ${drawerAberto ? 'translate-x-0' : '-translate-x-full'}`}>
+          {/* Drawer header */}
+          <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100 dark:border-gray-700/60">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0">
+                <History className="w-3.5 h-3.5 text-white" />
+              </div>
+              <span className="font-semibold text-gray-800 dark:text-gray-100 text-sm tracking-tight">Conversas anteriores</span>
             </div>
             <button
               onClick={() => { setDrawerAberto(false); setConfirmDeleteId(null) }}
-              className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 transition"
+              className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 dark:text-gray-500 transition-colors tap-scale"
+              aria-label="Fechar histórico"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          <button
-            onClick={() => { novaConversa(); setDrawerAberto(false) }}
-            className="mx-3 mt-3 mb-1 flex items-center gap-2 px-3 py-2.5 rounded-xl border border-primary-200 dark:border-primary-800 bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 text-sm font-medium hover:bg-primary-100 dark:hover:bg-primary-900/40 transition"
-          >
-            <Plus className="w-4 h-4" />
-            Nova conversa
-          </button>
+          {/* Nova conversa */}
+          <div className="px-3 pt-3 pb-1">
+            <button
+              onClick={() => { novaConversa(); setDrawerAberto(false) }}
+              className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-2xl border border-primary-200 dark:border-primary-800 bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 text-sm font-semibold hover:bg-primary-100 dark:hover:bg-primary-900/40 transition active:scale-[0.98]"
+            >
+              <Plus className="w-4 h-4 shrink-0" />
+              Nova conversa
+            </button>
+          </div>
 
+          {/* Lista de conversas */}
           <div className="flex-1 overflow-y-auto py-2">
             {carregandoConversas ? (
               <div className="space-y-2 px-3 pt-2">
                 {[...Array(5)].map((_, idx) => (
-                  <div key={idx} className="skeleton h-14 rounded-xl" />
+                  <div key={idx} className="skeleton h-14 rounded-2xl" />
                 ))}
               </div>
             ) : conversas.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 gap-2 text-gray-400 dark:text-gray-500">
-                <MessageSquare className="w-8 h-8" />
-                <p className="text-sm">Nenhuma conversa anterior</p>
+              <div className="flex flex-col items-center justify-center py-12 gap-3 text-center px-4">
+                <div className="w-11 h-11 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                  <MessageSquare className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Nenhuma conversa anterior</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Suas conversas aparecerão aqui</p>
+                </div>
               </div>
             ) : (
               <ul className="space-y-0.5 px-2">
@@ -443,55 +492,55 @@ export default function ChatPage() {
                   return (
                     <li key={conv.id}>
                       {confirmando ? (
-                        <div className="px-3 py-2.5 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 flex items-center justify-between gap-2">
+                        <div className="mx-1 px-3 py-2.5 rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 flex items-center justify-between gap-2">
                           <p className="text-xs text-red-600 dark:text-red-400 font-medium">Excluir esta conversa?</p>
                           <div className="flex items-center gap-2 shrink-0">
                             <button
                               onClick={() => setConfirmDeleteId(null)}
-                              className="text-xs text-gray-500 dark:text-gray-400 px-2.5 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                              className="text-xs text-gray-500 dark:text-gray-400 px-2.5 py-1 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition"
                             >
                               Não
                             </button>
                             <button
                               onClick={() => deletarConversaEspecifica(conv.id)}
-                              className="text-xs text-white bg-red-500 hover:bg-red-600 px-2.5 py-1 rounded-lg transition font-medium"
+                              className="text-xs text-white bg-red-500 hover:bg-red-600 px-2.5 py-1 rounded-xl transition font-semibold"
                             >
                               Excluir
                             </button>
                           </div>
                         </div>
                       ) : (
-                        <div className={`flex items-center rounded-xl transition ${
+                        <div className={`flex items-center rounded-2xl transition-colors ${
                           ativa
                             ? 'bg-primary-50 dark:bg-primary-900/30 border border-primary-100 dark:border-primary-800'
-                            : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                            : 'hover:bg-gray-50 dark:hover:bg-gray-800/60 border border-transparent'
                         }`}>
                           <button
                             onClick={() => selecionarConversa(conv)}
                             className="flex-1 text-left px-3 py-3 flex items-start gap-2.5 min-w-0"
                           >
                             <div className={`mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
-                              ativa ? 'bg-primary-100 dark:bg-primary-900' : 'bg-gray-100 dark:bg-gray-700'
+                              ativa ? 'bg-primary-100 dark:bg-primary-900' : 'bg-gray-100 dark:bg-gray-800'
                             }`}>
                               <Sparkles className={`w-3.5 h-3.5 ${ativa ? 'text-primary-500' : 'text-gray-400 dark:text-gray-500'}`} />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className={`text-xs font-medium truncate ${
+                              <p className={`text-xs font-semibold truncate leading-snug ${
                                 ativa ? 'text-primary-700 dark:text-primary-400' : 'text-gray-700 dark:text-gray-300'
                               }`}>
                                 {conv.preview}
                               </p>
                               <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className="text-[10px] text-gray-400">{formatarData(conv.created_at)}</span>
+                                <span className="text-[10px] text-gray-400 dark:text-gray-500">{formatarData(conv.created_at)}</span>
                                 <span className="text-[10px] text-gray-300 dark:text-gray-600">·</span>
-                                <span className="text-[10px] text-gray-400">{conv.message_count} msgs</span>
+                                <span className="text-[10px] text-gray-400 dark:text-gray-500">{conv.message_count} msgs</span>
                               </div>
                             </div>
                           </button>
                           <button
                             onClick={() => setConfirmDeleteId(conv.id)}
                             aria-label="Excluir conversa"
-                            className="p-2 mr-1.5 rounded-lg text-gray-300 dark:text-gray-600 hover:text-red-500 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-900/30 transition shrink-0"
+                            className="p-2 mr-1.5 rounded-xl text-gray-300 dark:text-gray-600 hover:text-red-500 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-900/30 transition shrink-0"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -529,15 +578,15 @@ export default function ChatPage() {
 
           {/* Center zone: Context */}
           <div className="flex-1 min-w-0 flex items-center justify-center gap-2">
-            <div className={`w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-sm transition-all duration-200 ${compactHeader ? 'scale-90' : ''}`}>
+            <div className={`w-7 h-7 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-sm transition-all duration-200 ${compactHeader ? 'scale-90' : ''}`}>
               <Sparkles className="w-4 h-4 text-white" />
             </div>
             <div className="min-w-0 text-center">
-              <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight truncate">
+              <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight truncate tracking-tight">
                 IA Financeira
               </p>
               <div className={`flex items-center justify-center gap-1.5 transition-all duration-200 overflow-hidden ${compactHeader ? 'max-h-0 opacity-0' : 'max-h-4 opacity-100 mt-0.5'}`}>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
                 <span className="text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap">Analisando · {mesAtual}</span>
               </div>
             </div>
@@ -561,12 +610,12 @@ export default function ChatPage() {
               {overflowOpen && (
                 <div
                   role="menu"
-                  className="absolute right-0 top-12 w-52 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden z-[151] animate-in"
+                  className="absolute right-0 top-12 w-52 bg-white dark:bg-gray-900 rounded-2xl shadow-float border border-gray-100 dark:border-gray-700/60 overflow-hidden z-[151] animate-in"
                 >
                   <button
                     role="menuitem"
                     onClick={handleNovaConversa}
-                    className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition text-left"
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition text-left"
                   >
                     <Plus className="w-4 h-4 text-gray-400 shrink-0" />
                     Nova conversa
@@ -595,34 +644,55 @@ export default function ChatPage() {
         className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-4 pt-8 pb-24 space-y-5"
       >
         {mensagens.length === 0 && !carregando ? (
-          <div className="flex flex-col items-center justify-center min-h-full py-8 gap-5">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-md">
-              <Sparkles className="w-8 h-8 text-white" />
-            </div>
-            <div className="text-center">
-              <p className="font-semibold text-gray-700 dark:text-gray-200 text-base">Olá! Sou seu assistente financeiro.</p>
-              <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Analiso os dados do mês e respondo suas perguntas.</p>
+          /* ── Estado vazio / boas-vindas ── */
+          <div className="flex flex-col items-center justify-center min-h-full py-8 gap-6 page-enter">
+            {/* Avatar grande da IA */}
+            <div className="relative">
+              <div className="w-18 h-18 w-[72px] h-[72px] rounded-3xl bg-gradient-to-br from-violet-500 via-indigo-500 to-indigo-600 flex items-center justify-center shadow-float">
+                <Sparkles className="w-9 h-9 text-white" />
+              </div>
+              {/* Anel de status online */}
+              <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-400 border-2 border-white dark:border-gray-900 rounded-full" />
             </div>
 
-            <div className="w-full grid grid-cols-2 gap-2.5 mt-1">
+            <div className="text-center space-y-1.5 px-2">
+              <p className="font-bold text-gray-800 dark:text-gray-100 text-base tracking-tight text-balance">
+                Olá! Sou seu assistente financeiro.
+              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed text-balance max-w-[280px] mx-auto">
+                Analiso os seus dados reais do mês e respondo perguntas sobre gastos, investimentos e planejamento.
+              </p>
+            </div>
+
+            {/* Badge "Baseado nos seus dados" */}
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+              <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">Baseado nos seus dados financeiros</span>
+            </div>
+
+            {/* Sugestões primárias em grid 2x2 */}
+            <div className="w-full grid grid-cols-2 gap-2.5">
               {SUGESTOES_PRIMARIAS.map(({ texto, icon: Icon }) => (
                 <button
                   key={texto}
                   onClick={() => enviar(texto)}
-                  className="text-left bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-4 py-3 hover:border-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 dark:hover:border-primary-700 transition active:scale-[0.98] shadow-card"
+                  className="card-3d text-left bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-4 py-3.5 hover:border-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 dark:hover:border-primary-700 transition-colors shadow-card group"
                 >
-                  <Icon className="w-4 h-4 text-primary-500 dark:text-primary-400 mb-2" />
+                  <div className="w-7 h-7 rounded-xl bg-primary-50 dark:bg-primary-900/40 flex items-center justify-center mb-2.5 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/60 transition-colors">
+                    <Icon className="w-4 h-4 text-primary-500 dark:text-primary-400" />
+                  </div>
                   <p className="text-xs text-gray-600 dark:text-gray-400 leading-snug font-medium">{texto}</p>
                 </button>
               ))}
             </div>
 
+            {/* Chips secundários */}
             <div className="w-full flex gap-2 overflow-x-auto scrollbar-hide pb-1">
               {SUGESTOES_SECUNDARIAS.map((s) => (
                 <button
                   key={s}
                   onClick={() => enviar(s)}
-                  className="shrink-0 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full px-3 py-1.5 hover:bg-primary-100 hover:text-primary-700 dark:hover:bg-primary-900/40 dark:hover:text-primary-400 transition whitespace-nowrap"
+                  className="shrink-0 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-full px-3.5 py-1.5 hover:bg-primary-100 hover:text-primary-700 dark:hover:bg-primary-900/40 dark:hover:text-primary-400 transition-colors whitespace-nowrap border border-transparent hover:border-primary-200 dark:hover:border-primary-800"
                 >
                   {s}
                 </button>
@@ -633,15 +703,16 @@ export default function ChatPage() {
           <>
             {historicoRestaurado && (
               <div className="flex justify-center">
-                <span className="text-[11px] text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">
+                <span className="text-[11px] text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full border border-gray-200 dark:border-gray-700">
                   Conversa anterior restaurada
                 </span>
               </div>
             )}
 
             {mensagens.map((m) => (
-              <div key={m.id} className={`flex gap-2.5 ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+              <div key={m.id} className={`flex gap-2.5 ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'} items-end`}>
+                {/* Avatar */}
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ${
                   m.role === 'user'
                     ? 'bg-primary-600'
                     : 'bg-gradient-to-br from-violet-500 to-indigo-600'
@@ -651,10 +722,12 @@ export default function ChatPage() {
                     : <Sparkles className="w-3.5 h-3.5 text-white" />
                   }
                 </div>
-                <div className={`max-w-[85%] sm:max-w-[78%] lg:max-w-2xl rounded-2xl ${
+
+                {/* Bolha */}
+                <div className={`max-w-[85%] sm:max-w-[78%] lg:max-w-2xl ${
                   m.role === 'user'
-                    ? 'bg-primary-600 text-white rounded-tr-sm px-4 py-2.5 text-sm leading-relaxed'
-                    : 'bg-white dark:bg-gray-800 text-gray-800 shadow-card border border-gray-100 dark:border-gray-700 rounded-tl-sm px-5 py-4'
+                    ? 'bg-primary-600 text-white rounded-3xl rounded-br-sm px-4 py-2.5 text-sm leading-relaxed shadow-sm'
+                    : 'bg-white dark:bg-gray-800 text-gray-800 shadow-card border border-gray-100 dark:border-gray-700 rounded-3xl rounded-bl-sm px-5 py-4'
                 }`}>
                   {m.role === 'user'
                     ? m.content
@@ -666,12 +739,12 @@ export default function ChatPage() {
 
             {/* Follow-up chips após última resposta da IA */}
             {ultimaMensagemAI && !carregando && (
-              <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 pl-9">
+              <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 pl-10">
                 {followupChips.map((chip) => (
                   <button
                     key={chip}
                     onClick={() => enviar(chip)}
-                    className="shrink-0 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full px-3 py-1.5 hover:bg-primary-100 hover:text-primary-700 dark:hover:bg-primary-900/40 dark:hover:text-primary-400 transition whitespace-nowrap"
+                    className="shrink-0 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-full px-3.5 py-1.5 hover:bg-primary-100 hover:text-primary-700 dark:hover:bg-primary-900/40 dark:hover:text-primary-400 transition-colors whitespace-nowrap border border-transparent hover:border-primary-200 dark:hover:border-primary-800"
                   >
                     {chip}
                   </button>
@@ -681,22 +754,8 @@ export default function ChatPage() {
           </>
         )}
 
-        {/* Indicador de carregamento */}
-        {carregando && (
-          <div className="flex gap-2.5">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0">
-              <Sparkles className="w-3.5 h-3.5 text-white" />
-            </div>
-            <div className="bg-white dark:bg-gray-800 shadow-card border border-gray-100 dark:border-gray-700 rounded-2xl rounded-tl-sm px-5 py-4 flex items-center gap-3">
-              <div className="flex gap-1 items-center">
-                <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-pulse" style={{ animationDelay: '0ms' }} />
-                <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-pulse" style={{ animationDelay: '200ms' }} />
-                <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-pulse" style={{ animationDelay: '400ms' }} />
-              </div>
-              <span className="text-xs text-gray-400 dark:text-gray-500">Analisando seus dados…</span>
-            </div>
-          </div>
-        )}
+        {/* Indicador de carregamento — "pensando" */}
+        {carregando && <ThinkingIndicator />}
 
         <div ref={fimRef} />
       </div>
@@ -715,13 +774,14 @@ export default function ChatPage() {
             placeholder="Pergunte sobre suas finanças…"
             rows={1}
             disabled={carregando}
-            className="flex-1 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-2xl px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-shadow disabled:opacity-50"
+            className="flex-1 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-2xl px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-shadow disabled:opacity-50"
             style={{ lineHeight: '1.5', overflow: 'hidden' }}
           />
           <button
             onClick={() => enviar()}
             disabled={!input.trim() || carregando}
-            className="w-10 h-10 bg-primary-600 rounded-full flex items-center justify-center transition hover:bg-primary-700 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+            aria-label="Enviar mensagem"
+            className="w-10 h-10 bg-primary-600 rounded-full flex items-center justify-center transition-all hover:bg-primary-700 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shrink-0 shadow-sm hover:shadow-md"
           >
             <Send className="w-4 h-4 text-white" />
           </button>
