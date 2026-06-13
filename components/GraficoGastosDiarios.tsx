@@ -13,7 +13,8 @@ import {
 } from 'chart.js'
 import { format, startOfMonth, addMonths, addDays, eachDayOfInterval } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Activity, AlertCircle, ChevronDown } from 'lucide-react'
+import { Activity, AlertCircle } from 'lucide-react'
+import FilterSelect from '@/components/FilterSelect'
 import { formatBRL } from '@/lib/logger'
 import { supabase } from '@/lib/supabaseClient'
 import type { Plugin } from 'chart.js'
@@ -113,12 +114,6 @@ const gradientPlugin: Plugin<'line'> = {
     if (ds) ds.backgroundColor = g
   },
 }
-
-// Module-level constant — not recreated on every render
-const SELECT_CLS =
-  'w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 pr-8 text-xs text-gray-700 ' +
-  'font-medium appearance-none cursor-pointer focus:outline-none focus:ring-2 ' +
-  'focus:ring-violet-400 focus:border-violet-400 hover:border-gray-300 transition-all'
 
 type FiltroResponsavel = 'todos' | 'Matheus' | 'Jeniffer'
 type FiltroCartao      = 'todos' | 'nubank'  | 'cartao1' | 'cartao2'
@@ -601,34 +596,27 @@ export default function GraficoGastosDiarios({
 
   return (
     <div>
-      {/* Filters — two selects side by side with chevron indicator */}
+      {/* Filters — pílulas de filtro (mesma aparência da Wishlist) */}
       <div className="flex gap-2 mb-4">
-        <div className="relative flex-1">
-          <select
-            value={filtroResp}
-            onChange={e => setFiltroResp(e.target.value as FiltroResponsavel)}
-            className={SELECT_CLS}
-          >
-            <option value="todos">Todos</option>
-            <option value="Matheus">Matheus</option>
-            <option value="Jeniffer">Jeniffer</option>
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-        </div>
-
-        <div className="relative flex-1">
-          <select
-            value={filtroCartao}
-            onChange={e => setFiltroCartao(e.target.value as FiltroCartao)}
-            className={SELECT_CLS}
-          >
-            <option value="todos">Todos os cartões</option>
-            <option value="nubank">NuBank</option>
-            <option value="cartao1">{cartao1Nome}</option>
-            <option value="cartao2">{cartao2Nome}</option>
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-        </div>
+        <FilterSelect
+          value={filtroResp}
+          onChange={v => setFiltroResp(v as FiltroResponsavel)}
+          options={[
+            { value: 'todos',    label: 'Todos'    },
+            { value: 'Matheus',  label: 'Matheus'  },
+            { value: 'Jeniffer', label: 'Jeniffer' },
+          ]}
+        />
+        <FilterSelect
+          value={filtroCartao}
+          onChange={v => setFiltroCartao(v as FiltroCartao)}
+          options={[
+            { value: 'todos',   label: 'Todos os cartões' },
+            { value: 'nubank',  label: 'NuBank'           },
+            { value: 'cartao1', label: cartao1Nome        },
+            { value: 'cartao2', label: cartao2Nome        },
+          ]}
+        />
       </div>
 
       {!hasData ? (
