@@ -1044,7 +1044,7 @@ export default function Dashboard() {
                           <div className="text-right">
                             <span className="text-xs text-gray-400 num">Calculado Atual {fmt(meta)}</span>
                             {metaPrevista !== meta && metaPrevista > 0 && (
-                              <span className="block text-[10px] text-gray-300 num">prev. {fmt(metaPrevista)}</span>
+                              <span className="block text-[10px] text-gray-300 num">Previsto {fmt(metaPrevista)}</span>
                             )}
                           </div>
                         </div>
