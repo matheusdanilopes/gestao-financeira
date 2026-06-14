@@ -776,7 +776,7 @@ export default function Dashboard() {
                 {/* NuBank total */}
                 <div className="mb-3 pb-3 border-b border-gray-100">
                   <div className="flex items-baseline justify-between">
-                    <p className="text-2xl font-bold text-gray-900 num">{fmt(fatura.totalRealizado)}</p>
+                    <p className="text-3xl font-bold text-gray-900 num">{fmt(fatura.totalRealizado)}</p>
                     <span className="text-xs text-gray-400">total atual</span>
                   </div>
                 </div>
@@ -792,7 +792,7 @@ export default function Dashboard() {
                         <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Matheus</p>
                       </div>
                       <div className="mb-2">
-                        <p className="text-base font-bold text-gray-900 num truncate">{fmt(fatura.matheusAtual)}</p>
+                        <p className="text-lg font-bold text-gray-900 num truncate">{fmt(fatura.matheusAtual)}</p>
                         <p className="text-[10px] text-gray-400 num mt-0.5">de {fmt(fatura.matheusPrevisto)}</p>
                       </div>
                       {assinaturasNaopagas.matheus > 0 && (
@@ -823,13 +823,13 @@ export default function Dashboard() {
                         <div className="h-full bg-blue-400 rounded-full transition-[width] duration-400 ease-smooth" style={{ width: `${fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100) : 0}%` }} />
                       </div>
                       <p className="text-right text-[10px] text-gray-400 num mb-2">{fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100).toFixed(0) : 0}%</p>
-                      <div className={`flex items-center justify-between text-[10px] font-semibold rounded-lg px-2 py-1.5 ${
+                      <div className={`rounded-lg px-2.5 py-1.5 ${
                         fatura.sobraMatheus < 0 ? 'bg-red-50 text-red-600' : matheusSobraWarning ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-700'
                       }`}>
-                        <span className="flex items-center gap-1 shrink-0">
+                        <div className="flex items-center gap-1 text-[10px] font-medium">
                           {fatura.sobraMatheus < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso</> : matheusSobraWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção</> : '✓ Restante'}
-                        </span>
-                        <span className="num font-bold truncate ml-1">{fmt(Math.abs(fatura.sobraMatheus))}</span>
+                        </div>
+                        <p className="text-sm font-bold num mt-0.5">{fmt(Math.abs(fatura.sobraMatheus))}</p>
                       </div>
                     </div>
                   </div>
@@ -843,7 +843,7 @@ export default function Dashboard() {
                         <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Jeniffer</p>
                       </div>
                       <div className="mb-2">
-                        <p className="text-base font-bold text-gray-900 num truncate">{fmt(fatura.jenifferAtual)}</p>
+                        <p className="text-lg font-bold text-gray-900 num truncate">{fmt(fatura.jenifferAtual)}</p>
                         <p className="text-[10px] text-gray-400 num mt-0.5">de {fmt(fatura.jenifferPrevisto)}</p>
                       </div>
                       {assinaturasNaopagas.jeniffer > 0 && (
@@ -874,13 +874,13 @@ export default function Dashboard() {
                         <div className="h-full bg-pink-400 rounded-full transition-[width] duration-400 ease-smooth" style={{ width: `${fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100) : 0}%` }} />
                       </div>
                       <p className="text-right text-[10px] text-gray-400 num mb-2">{fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100).toFixed(0) : 0}%</p>
-                      <div className={`flex items-center justify-between text-[10px] font-semibold rounded-lg px-2 py-1.5 ${
+                      <div className={`rounded-lg px-2.5 py-1.5 ${
                         fatura.sobraJeniffer < 0 ? 'bg-red-50 text-red-600' : jenifferSobraWarning ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-700'
                       }`}>
-                        <span className="flex items-center gap-1 shrink-0">
+                        <div className="flex items-center gap-1 text-[10px] font-medium">
                           {fatura.sobraJeniffer < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso</> : jenifferSobraWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção</> : '✓ Restante'}
-                        </span>
-                        <span className="num font-bold truncate ml-1">{fmt(Math.abs(fatura.sobraJeniffer))}</span>
+                        </div>
+                        <p className="text-sm font-bold num mt-0.5">{fmt(Math.abs(fatura.sobraJeniffer))}</p>
                       </div>
                     </div>
                   </div>
@@ -914,13 +914,13 @@ export default function Dashboard() {
                                 <div className={`h-1 rounded-full overflow-hidden mb-0.5 ${isMatheus ? 'bg-blue-100' : 'bg-pink-100'}`}>
                                   <div className={`h-full rounded-full transition-[width] duration-400 ease-smooth ${isMatheus ? 'bg-blue-400' : 'bg-pink-400'}`} style={{ width: `${pct}%` }} />
                                 </div>
-                                <div className={`flex items-center justify-between text-[10px] font-semibold rounded-md px-1.5 py-1 mt-1.5 ${
+                                <div className={`rounded-md px-1.5 py-1 mt-1.5 ${
                                   sobra < 0 ? 'bg-red-50 text-red-600' : isWarning ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-700'
                                 }`}>
-                                  <span className="flex items-center gap-0.5 shrink-0">
+                                  <div className="flex items-center gap-0.5 text-[10px] font-medium">
                                     {sobra < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso</> : isWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção</> : '✓ Restante'}
-                                  </span>
-                                  <span className="num font-bold truncate ml-1">{fmt(Math.abs(sobra))}</span>
+                                  </div>
+                                  <p className="text-xs font-bold num mt-0.5">{fmt(Math.abs(sobra))}</p>
                                 </div>
                               </div>
                             </div>
@@ -944,9 +944,9 @@ export default function Dashboard() {
                             <div className="h-1 bg-blue-100 rounded-full overflow-hidden mb-0.5">
                               <div className="h-full bg-blue-400 rounded-full transition-[width] duration-400 ease-smooth" style={{ width: `${matheusPct}%` }} />
                             </div>
-                            <div className={`flex items-center justify-between text-[10px] font-semibold rounded-lg px-2 py-1 mt-1.5 ${matheusRestante < 0 ? 'bg-red-50 text-red-600' : matheusResumoWarning ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-700'}`}>
-                              <span className="flex items-center gap-0.5 shrink-0">{matheusRestante < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso</> : matheusResumoWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção</> : '✓ Restante'}</span>
-                              <span className="num font-bold truncate ml-1">{fmt(Math.abs(matheusRestante))}</span>
+                            <div className={`rounded-lg px-2 py-1 mt-1.5 ${matheusRestante < 0 ? 'bg-red-50 text-red-600' : matheusResumoWarning ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-700'}`}>
+                              <div className="flex items-center gap-0.5 text-[10px] font-medium">{matheusRestante < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso</> : matheusResumoWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção</> : '✓ Restante'}</div>
+                              <p className="text-xs font-bold num mt-0.5">{fmt(Math.abs(matheusRestante))}</p>
                             </div>
                           </div>
                         </div>
@@ -964,9 +964,9 @@ export default function Dashboard() {
                             <div className="h-1 bg-pink-100 rounded-full overflow-hidden mb-0.5">
                               <div className="h-full bg-pink-400 rounded-full transition-[width] duration-400 ease-smooth" style={{ width: `${jenifferPct}%` }} />
                             </div>
-                            <div className={`flex items-center justify-between text-[10px] font-semibold rounded-lg px-2 py-1 mt-1.5 ${jenifferRestante < 0 ? 'bg-red-50 text-red-600' : jenifferResumoWarning ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-700'}`}>
-                              <span className="flex items-center gap-0.5 shrink-0">{jenifferRestante < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso</> : jenifferResumoWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção</> : '✓ Restante'}</span>
-                              <span className="num font-bold truncate ml-1">{fmt(Math.abs(jenifferRestante))}</span>
+                            <div className={`rounded-lg px-2 py-1 mt-1.5 ${jenifferRestante < 0 ? 'bg-red-50 text-red-600' : jenifferResumoWarning ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-700'}`}>
+                              <div className="flex items-center gap-0.5 text-[10px] font-medium">{jenifferRestante < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso</> : jenifferResumoWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção</> : '✓ Restante'}</div>
+                              <p className="text-xs font-bold num mt-0.5">{fmt(Math.abs(jenifferRestante))}</p>
                             </div>
                           </div>
                         </div>
