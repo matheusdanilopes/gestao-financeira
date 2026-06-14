@@ -115,7 +115,6 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
 
   const mesRefStr = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
 
-  // Fetcher estável para o useDataSync
   const fetcherItens = useCallback(async () => {
     const { data } = await supabase
       .from('planejamento')
@@ -126,7 +125,6 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     return data || []
   }, [mesRefStr])
 
-  // Sincronização automática: Realtime + polling 45s + cache localStorage
   const { isOnline, refetch } = useGlobalSync({
     cacheKey: `checklist:${mesRefStr}`,
     tables: ['planejamento'],
@@ -145,10 +143,8 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     const valorNumerico = parseFloat(valorReal.replace(',', '.'))
     const item = itens.find(i => i.id === id)
     const diff = item ? Math.abs(valorNumerico - item.valor_previsto) : 0
-    // CA03: auto-preenche com hoje, permite edição manual
     const dpagamento = dataPagamento || format(new Date(), 'yyyy-MM-dd')
 
-    // Optimistic update — UI responde antes da confirmação do servidor
     setModalAberto(null)
     setValorReal('')
     setDataPagamento('')
@@ -167,7 +163,6 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
         showToast('Pagamento registrado!')
       }
     } else {
-      // Rollback
       setItens(prev => prev.map(i => i.id === id ? { ...i, pago: false, valor_real: item?.valor_real ?? null, data_pagamento: item?.data_pagamento ?? null } : i))
       showToast('Erro ao registrar pagamento', 'erro')
     }
@@ -182,7 +177,6 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
   async function abrirModalPagamento(item: ItemPlanejamento) {
     setItemSelecionado(item)
     setValorReal('')
-    // CA03: pré-preenche data de pagamento com hoje
     setDataPagamento(format(new Date(), 'yyyy-MM-dd'))
     setModalAberto('pagar')
 
@@ -204,7 +198,6 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
   async function desfazerPagamento(id: string) {
     const item = itens.find(i => i.id === id)
 
-    // Optimistic update
     setModalAberto(null)
     setItens(prev => prev.map(i => i.id === id ? { ...i, pago: false, valor_real: null, data_pagamento: null } : i))
 
@@ -217,7 +210,6 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
       log('editar', 'planejamento', `Pagamento desfeito: ${item ? removerPrefixoCartao(item.item) : id}`)
       showToast('Pagamento removido')
     } else {
-      // Rollback
       setItens(prev => prev.map(i => i.id === id ? { ...i, pago: true, valor_real: item?.valor_real ?? null, data_pagamento: item?.data_pagamento ?? null } : i))
       showToast('Erro ao desfazer pagamento', 'erro')
     }
@@ -226,7 +218,6 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
   async function excluirItem(id: string) {
     const item = itens.find(i => i.id === id)
 
-    // Optimistic update
     setModalAberto(null)
     setItens(prev => prev.filter(i => i.id !== id))
 
@@ -235,7 +226,6 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
       log('excluir', 'planejamento', `Excluído: ${item ? removerPrefixoCartao(item.item) : id}`)
       showToast('Item excluído')
     } else {
-      // Rollback
       if (item) setItens(prev => [...prev, item])
       showToast('Erro ao excluir', 'erro')
     }
@@ -246,7 +236,6 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     const valor = parseFloat(formData.valor_previsto.replace(',', '.'))
     if (!formData.item.trim()) return
     if (isNaN(valor) || valor <= 0) { showToast('Informe um valor válido', 'erro'); return }
-    // RN01: data_vencimento obrigatória para despesas não-Cartão
     if (formData.categoria !== 'Cartão' && !formData.data_vencimento) {
       showToast('Informe a data de vencimento', 'erro')
       return
@@ -274,7 +263,6 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     const valor = parseFloat(formData.valor_previsto.replace(',', '.'))
     if (!formData.item.trim()) { showToast('Informe a descrição', 'erro'); return }
     if (isNaN(valor) || valor <= 0) { showToast('Informe um valor válido', 'erro'); return }
-    // RN01: data_vencimento obrigatória para despesas não-Cartão
     if (formData.categoria !== 'Cartão' && !formData.data_vencimento) {
       showToast('Informe a data de vencimento', 'erro')
       return
@@ -313,7 +301,6 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
       .not('item', 'ilike', '[RECEITA]%')
 
     const candidatos = (itensAnteriores || []).filter(i => {
-      // Remove parcelas que encerraram no mês anterior
       if (i.parcela_atual && i.total_parcelas) {
         return i.parcela_atual < i.total_parcelas
       }
@@ -333,7 +320,6 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     try {
       const mesAtualStr = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
 
-      // 1. Busca os IDs dos itens que serão substituídos (antes de apagar)
       const { data: existentes } = await supabase
         .from('planejamento')
         .select('id')
@@ -341,7 +327,6 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
         .not('item', 'ilike', '[RECEITA]%')
       const idsExistentes = (existentes || []).map(i => i.id)
 
-      // 2. Insere os itens do mês anterior primeiro — se falhar, os dados existentes são preservados
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const novosItens = previewImport.itens.map(({ id, mes_referencia, pago, valor_real, data_pagamento, created_at, parcela_atual, total_parcelas, ...resto }) => ({
         ...resto,
@@ -358,7 +343,6 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
         if (insertError) throw insertError
       }
 
-      // 3. Só apaga os itens antigos pelos IDs coletados após o insert ser bem-sucedido
       if (idsExistentes.length > 0) {
         await supabase.from('planejamento').delete().in('id', idsExistentes)
       }
@@ -446,7 +430,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
         </div>
       )}
 
-      {/* RN04: Alertas inline de vencimento próximo */}
+      {/* Alertas inline de vencimento próximo */}
       {(() => {
         const alertas = verificarVencimentos(itens)
         if (alertas.hoje.length === 0 && alertas.amanha.length === 0) return null
@@ -474,53 +458,36 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
         )
       })()}
 
-      {/* Resumo / Filtro de status */}
+      {/* Resumo + Filtros */}
       <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
         <div className="flex items-center gap-2 mb-3.5">
           <div className="w-7 h-7 rounded-xl bg-red-100 flex items-center justify-center">
             <Receipt className="w-4 h-4 text-red-600" />
           </div>
-          <span className="font-semibold text-gray-800 text-sm">Resumo das Despesas</span>
+          <span className="font-semibold text-gray-800 text-sm">Resumo de Despesas</span>
         </div>
+
+        {/* Métricas — leitura, sem peso visual extra */}
         <div className="grid grid-cols-3 gap-2 mb-3.5">
-          <button
-            onClick={() => setFiltroStatus(filtroStatus === '' ? '' : '')}
-            className={`rounded-2xl p-2.5 text-center transition-all duration-200 active:scale-[0.97] ${
-              filtroStatus === ''
-                ? 'bg-gray-700 shadow-md ring-2 ring-gray-400 ring-offset-1'
-                : 'bg-gray-50 border border-gray-100 hover:bg-gray-100'
-            }`}
-          >
-            <p className={`text-[10px] mb-0.5 font-semibold uppercase tracking-wide ${filtroStatus === '' ? 'text-gray-300' : 'text-gray-500'}`}>Previsto</p>
-            <p className={`text-xs font-bold break-all leading-tight num ${filtroStatus === '' ? 'text-white' : 'text-gray-800'}`}>{formatarMoeda(totalPrevisto)}</p>
-          </button>
-          <button
-            onClick={() => setFiltroStatus(filtroStatus === 'pago' ? '' : 'pago')}
-            className={`rounded-2xl p-2.5 text-center transition-all duration-200 active:scale-[0.97] ${
-              filtroStatus === 'pago'
-                ? 'bg-primary-600 shadow-md ring-2 ring-primary-300 ring-offset-1'
-                : 'bg-primary-50 border border-primary-100 hover:bg-primary-100/50'
-            }`}
-          >
-            <p className={`text-[10px] mb-0.5 font-semibold uppercase tracking-wide ${filtroStatus === 'pago' ? 'text-primary-100' : 'text-primary-500'}`}>Pago</p>
-            <p className={`text-xs font-bold break-all leading-tight num ${filtroStatus === 'pago' ? 'text-white' : 'text-primary-700'}`}>{formatarMoeda(totalPago)}</p>
-          </button>
-          <button
-            onClick={() => setFiltroStatus(filtroStatus === 'pendente' ? '' : 'pendente')}
-            className={`rounded-2xl p-2.5 text-center transition-all duration-200 active:scale-[0.97] ${
-              filtroStatus === 'pendente'
-                ? totalPendente <= 0.009 ? 'bg-green-600 shadow-md ring-2 ring-green-300 ring-offset-1' : 'bg-red-600 shadow-md ring-2 ring-red-300 ring-offset-1'
-                : totalPendente <= 0.009 ? 'bg-green-50 border border-green-100 hover:bg-green-100/50' : 'bg-red-50 border border-red-100 hover:bg-red-100/50'
-            }`}
-          >
-            <p className={`text-[10px] mb-0.5 font-semibold uppercase tracking-wide ${filtroStatus === 'pendente' ? 'text-red-100' : totalPendente <= 0.009 ? 'text-green-600' : 'text-red-500'}`}>A pagar</p>
+          <div className="bg-gray-50 rounded-2xl p-2.5 text-center">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">Previsto</p>
+            <p className="text-xs font-bold text-gray-800 break-all leading-tight num">{formatarMoeda(totalPrevisto)}</p>
+          </div>
+          <div className="bg-primary-50 rounded-2xl p-2.5 text-center">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-primary-500 mb-0.5">Pago</p>
+            <p className="text-xs font-bold text-primary-700 break-all leading-tight num">{formatarMoeda(totalPago)}</p>
+          </div>
+          <div className={`rounded-2xl p-2.5 text-center ${totalPendente <= 0.009 ? 'bg-green-50' : 'bg-red-50'}`}>
+            <p className={`text-[10px] font-semibold uppercase tracking-wide mb-0.5 ${totalPendente <= 0.009 ? 'text-green-500' : 'text-red-500'}`}>A pagar</p>
             {totalPendente <= 0.009
-              ? <p className={`text-xs font-bold leading-tight ${filtroStatus === 'pendente' ? 'text-white' : 'text-green-600'}`}>Quitado</p>
-              : <p className={`text-xs font-bold break-all leading-tight num ${filtroStatus === 'pendente' ? 'text-white' : 'text-red-600'}`}>{formatarMoeda(totalPendente)}</p>
+              ? <p className="text-xs font-bold text-green-600 leading-tight">Quitado</p>
+              : <p className="text-xs font-bold text-red-600 break-all leading-tight num">{formatarMoeda(totalPendente)}</p>
             }
-          </button>
+          </div>
         </div>
-        <div>
+
+        {/* Barra de progresso geral */}
+        <div className="mb-3">
           <div className="flex justify-between text-xs text-gray-500 mb-1.5">
             <span className="tabular-nums">{itensPagos}/{itens.length} itens pagos</span>
             <span className="font-bold text-primary-600 tabular-nums">{percentualPago.toFixed(0)}%</span>
@@ -531,6 +498,27 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
               style={{ width: `${percentualPago}%` }}
             />
           </div>
+        </div>
+
+        {/* Filtros compactos */}
+        <div className="flex gap-1.5 pt-3 border-t border-gray-100">
+          {(['', 'pago', 'pendente'] as const).map((f) => {
+            const label = f === '' ? 'Todos' : f === 'pago' ? 'Pagos' : 'Pendentes'
+            const isActive = filtroStatus === f
+            return (
+              <button
+                key={f}
+                onClick={() => setFiltroStatus(f)}
+                className={`text-xs px-3 py-1 rounded-full font-medium transition-all duration-150 active:scale-95 ${
+                  isActive
+                    ? 'bg-gray-800 text-white'
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                }`}
+              >
+                {label}
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -557,9 +545,18 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
       {/* Lista agrupada por categoria */}
       {gruposPorCategoria.length === 0 ? (
         <div className="bg-white rounded-3xl shadow-card border border-gray-100">
-          <div className="flex flex-col items-center justify-center py-12 gap-2 text-gray-400">
-            <CheckCircle2 className="w-9 h-9 text-gray-200" strokeWidth={1.5} />
-            <p className="text-sm font-medium">{filtroStatus ? 'Nenhum item neste filtro' : 'Nenhum item cadastrado'}</p>
+          <div className="flex flex-col items-center justify-center py-14 gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center">
+              <Receipt className="w-6 h-6 text-red-300" strokeWidth={1.5} />
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-medium text-gray-500">
+                {filtroStatus ? 'Nenhum item neste filtro' : 'Nenhuma despesa cadastrada'}
+              </p>
+              {!filtroStatus && (
+                <p className="text-xs text-gray-400 mt-0.5">Toque em + Adicionar para começar</p>
+              )}
+            </div>
           </div>
         </div>
       ) : (
@@ -567,6 +564,8 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
           {gruposPorCategoria.map(({ categoria, itens: grupoItens }) => {
             const subtotalGrupo = grupoItens.reduce((acc, i) => acc + i.valor_previsto, 0)
             const pendentesGrupo = grupoItens.filter(i => !i.pago).length
+            const pagosGrupo = grupoItens.filter(i => i.pago).length
+            const pctGrupo = grupoItens.length > 0 ? (pagosGrupo / grupoItens.length) * 100 : 0
             return (
               <div key={categoria} className="bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden">
                 {/* Cabeçalho do grupo */}
@@ -584,6 +583,16 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
                   <span className="text-xs font-semibold text-gray-700 num">{formatarMoeda(subtotalGrupo)}</span>
                 </div>
 
+                {/* Barra de progresso da categoria */}
+                {pctGrupo > 0 && (
+                  <div className="h-0.5 bg-gray-100">
+                    <div
+                      className="h-0.5 bg-primary-400 transition-[width] duration-700 ease-smooth"
+                      style={{ width: `${pctGrupo}%` }}
+                    />
+                  </div>
+                )}
+
                 {/* Itens do grupo */}
                 <div className="divide-y divide-gray-100">
                   {grupoItens.map((item) => {
@@ -600,7 +609,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
                             item.responsavel === 'Jeniffer'
                               ? 'border-l-pink-400'
                               : 'border-l-blue-400'
-                          } ${item.pago ? 'bg-gray-50' : 'bg-white'} ${isOnline ? 'cursor-pointer active:bg-gray-50 hover:bg-gray-50/50' : ''}`}
+                          } ${item.pago ? 'bg-gray-50/60' : 'bg-white'} ${isOnline ? 'cursor-pointer active:bg-gray-50 hover:bg-gray-50/50' : ''}`}
                           onClick={() => { if (isOnline) abrirModalEditar(item) }}
                           role={isOnline ? 'button' : undefined}
                           tabIndex={isOnline ? 0 : undefined}
@@ -613,7 +622,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
 
                             {/* Info */}
                             <div className="flex-1 min-w-0">
-                              <p className={`text-sm font-medium truncate ${item.pago ? 'text-gray-500 line-through' : 'text-gray-800'}`}>
+                              <p className={`text-sm font-medium truncate ${item.pago ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
                                 {removerPrefixoCartao(item.item)}
                               </p>
                               <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
@@ -623,9 +632,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
                                     <CreditCard className="w-2.5 h-2.5" /> {tipoCartao === 'cartao1' ? 'Cartão 1' : 'Cartão 2'}
                                   </span>
                                 )}
-                                {/* RN03: badge de status automático */}
                                 <StatusBadge status={calcularStatusVencimento(item.data_pagamento, item.data_vencimento)} />
-                                {/* Exibe data de vencimento quando pendente */}
                                 {item.data_vencimento && !item.data_pagamento && (
                                   <span className="inline-flex items-center gap-0.5 text-[10px] text-gray-400">
                                     <Calendar className="w-2.5 h-2.5" />
@@ -637,7 +644,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
 
                             {/* Valores */}
                             <div className="text-right shrink-0 mr-1">
-                              <p className="text-sm font-semibold text-gray-800 num">
+                              <p className={`text-sm font-semibold num ${item.pago ? 'text-gray-400' : 'text-gray-800'}`}>
                                 {formatarMoeda(item.valor_previsto)}
                               </p>
                               {item.pago && (
@@ -689,41 +696,42 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
         </div>
       )}
 
+      {/* Modal: Registrar Pagamento */}
       {modalAberto === 'pagar' && itemSelecionado && (
         <ModalPortal>
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4 modal-overlay">
           <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm p-6 shadow-float modal-sheet sm:modal-center">
             <h3 className="text-lg font-bold mb-1">Registrar Pagamento</h3>
             <p className="text-sm text-gray-500 mb-4">{removerPrefixoCartao(itemSelecionado.item)}</p>
-            <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Valor pago (R$)</label>
+            <label className="text-xs font-medium text-gray-600 mb-1.5 block">Valor pago (R$)</label>
             <input
               type="text"
               inputMode="decimal"
               placeholder={`Previsto: ${formatarMoeda(itemSelecionado.valor_previsto)}`}
               value={valorReal}
               onChange={(e) => setValorReal(numericOnly(e.target.value))}
-              className="w-full border border-gray-200 rounded-2xl p-3 text-lg font-semibold mb-4 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+              className="w-full border border-gray-200 rounded-xl p-3 text-lg font-semibold mb-4 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
               autoFocus
             />
-            {/* CA03: data de pagamento auto-preenchida com hoje, editável manualmente */}
-            <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Data de pagamento</label>
+            <label className="text-xs font-medium text-gray-600 mb-1.5 block">Data de pagamento</label>
             <input
               type="date"
               value={dataPagamento}
               onChange={(e) => setDataPagamento(e.target.value)}
               min={itemSelecionado.mes_referencia}
               max={format(new Date(), 'yyyy-MM-dd')}
-              className="w-full border border-gray-200 rounded-2xl p-3 text-sm mb-5 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+              className="w-full border border-gray-200 rounded-xl p-3 text-sm mb-5 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
             />
             <div className="flex gap-3">
-              <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-2xl bg-gray-100 font-semibold text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]">Cancelar</button>
-              <button onClick={() => marcarComoPago(itemSelecionado.id)} className="flex-1 py-3 rounded-2xl bg-green-600 text-white font-semibold hover:bg-green-700 transition-all active:scale-[0.97] shadow-sm">Confirmar</button>
+              <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]">Cancelar</button>
+              <button onClick={() => marcarComoPago(itemSelecionado.id)} className="flex-1 py-3 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 transition-all active:scale-[0.97] shadow-sm">Confirmar</button>
             </div>
           </div>
         </div>
         </ModalPortal>
       )}
 
+      {/* Modal: Adicionar / Editar */}
       {(modalAberto === 'adicionar' || modalAberto === 'editar') && (
         <ModalPortal>
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4 modal-overlay">
@@ -731,39 +739,38 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
             <h3 className="text-lg font-bold mb-5">{modalAberto === 'adicionar' ? 'Novo Item' : 'Editar Item'}</h3>
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Descrição</label>
-                <input type="text" value={formData.item} onChange={(e) => setFormData({ ...formData, item: e.target.value })} className="w-full border border-gray-200 rounded-2xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow" />
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Descrição</label>
+                <input type="text" value={formData.item} onChange={(e) => setFormData({ ...formData, item: e.target.value })} className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow" />
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Responsável</label>
-                <select value={formData.responsavel} onChange={(e) => setFormData({ ...formData, responsavel: e.target.value })} className="w-full border border-gray-200 rounded-2xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow bg-white">
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Responsável</label>
+                <select value={formData.responsavel} onChange={(e) => setFormData({ ...formData, responsavel: e.target.value })} className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow bg-white">
                   <option value="Matheus">Matheus</option>
                   <option value="Jeniffer">Jeniffer</option>
                 </select>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Categoria</label>
-                <select value={formData.categoria} onChange={(e) => setFormData({ ...formData, categoria: e.target.value })} className="w-full border border-gray-200 rounded-2xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow bg-white">
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Categoria</label>
+                <select value={formData.categoria} onChange={(e) => setFormData({ ...formData, categoria: e.target.value })} className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow bg-white">
                   {CATEGORIAS_PLANEJAMENTO.map(cat => (
                     <option key={cat} value={cat}>{cat}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Cartão</label>
-                <select value={formData.tipo_cartao} onChange={(e) => setFormData({ ...formData, tipo_cartao: e.target.value as '' | 'cartao1' | 'cartao2' })} className="w-full border border-gray-200 rounded-2xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow bg-white">
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Cartão</label>
+                <select value={formData.tipo_cartao} onChange={(e) => setFormData({ ...formData, tipo_cartao: e.target.value as '' | 'cartao1' | 'cartao2' })} className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow bg-white">
                   <option value="">Nenhum</option>
                   <option value="cartao1">Cartão 1</option>
                   <option value="cartao2">Cartão 2</option>
                 </select>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Valor previsto (R$)</label>
-                <input type="text" inputMode="decimal" value={formData.valor_previsto} onChange={(e) => setFormData({ ...formData, valor_previsto: numericOnly(e.target.value) })} className="w-full border border-gray-200 rounded-2xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow" placeholder="0,00" />
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Valor previsto (R$)</label>
+                <input type="text" inputMode="decimal" value={formData.valor_previsto} onChange={(e) => setFormData({ ...formData, valor_previsto: numericOnly(e.target.value) })} className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow" placeholder="0,00" />
               </div>
-              {/* CA01: Date Picker — RN01: obrigatório para despesas não-Cartão */}
               <div>
-                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">
+                <label className="text-xs font-medium text-gray-600 mb-1 block">
                   Data de Vencimento
                   {formData.categoria !== 'Cartão' && <span className="text-red-400 ml-0.5">*</span>}
                 </label>
@@ -771,19 +778,20 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
                   type="date"
                   value={formData.data_vencimento}
                   onChange={(e) => setFormData({ ...formData, data_vencimento: e.target.value })}
-                  className="w-full border border-gray-200 rounded-2xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+                  className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
                 />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-2xl bg-gray-100 font-semibold text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]">Cancelar</button>
-              <button onClick={modalAberto === 'adicionar' ? adicionarItem : editarItem} className="flex-1 py-3 rounded-2xl bg-primary-600 text-white font-semibold hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm">Salvar</button>
+              <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]">Cancelar</button>
+              <button onClick={modalAberto === 'adicionar' ? adicionarItem : editarItem} className="flex-1 py-3 rounded-xl bg-primary-600 text-white font-semibold hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm">Salvar</button>
             </div>
           </div>
         </div>
         </ModalPortal>
       )}
 
+      {/* Modal: Importar mês anterior */}
       {modalAberto === 'importar' && previewImport && (
         <ModalPortal>
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[200] p-4 modal-overlay">
@@ -793,7 +801,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
               Origem: <span className="font-semibold capitalize">{previewImport.mesOrigem}</span>
             </p>
 
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 mb-3 text-xs text-amber-800 space-y-1">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 text-xs text-amber-800 space-y-1">
               <p className="font-semibold">⚠️ Atenção — esta ação irá:</p>
               <p>• Apagar todos os itens de despesa do mês atual</p>
               <p>• Copiar {previewImport.itens.length} item(ns) do mês anterior</p>
@@ -823,14 +831,14 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
             <div className="flex gap-3">
               <button
                 onClick={() => { setModalAberto(null); setPreviewImport(null) }}
-                className="flex-1 py-2.5 rounded-2xl bg-gray-100 font-semibold text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]"
+                className="flex-1 py-2.5 rounded-xl bg-gray-100 font-medium text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]"
               >
                 Cancelar
               </button>
               <button
                 onClick={confirmarImportarMesAnterior}
                 disabled={importandoMesAnterior || previewImport.itens.length === 0}
-                className="flex-1 py-2.5 rounded-2xl bg-orange-500 text-white font-semibold hover:bg-orange-600 disabled:opacity-50 transition-all active:scale-[0.97] shadow-sm"
+                className="flex-1 py-2.5 rounded-xl bg-orange-500 text-white font-semibold hover:bg-orange-600 disabled:opacity-50 transition-all active:scale-[0.97] shadow-sm"
               >
                 {importandoMesAnterior ? 'Importando…' : 'Confirmar'}
               </button>
@@ -840,6 +848,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
         </ModalPortal>
       )}
 
+      {/* Modal: Excluir */}
       {modalAberto === 'excluir' && itemSelecionado && (
         <ModalPortal>
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4 modal-overlay">
@@ -849,14 +858,15 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
               Tem certeza que deseja excluir <span className="font-semibold text-gray-800">&quot;{removerPrefixoCartao(itemSelecionado.item)}&quot;</span>?
             </p>
             <div className="flex gap-3">
-              <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-2xl bg-gray-100 font-semibold text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]">Cancelar</button>
-              <button onClick={() => excluirItem(itemSelecionado.id)} className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-semibold hover:bg-red-600 transition-all active:scale-[0.97] shadow-sm">Excluir</button>
+              <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]">Cancelar</button>
+              <button onClick={() => excluirItem(itemSelecionado.id)} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 transition-all active:scale-[0.97] shadow-sm">Excluir</button>
             </div>
           </div>
         </div>
         </ModalPortal>
       )}
 
+      {/* Modal: Desfazer pagamento */}
       {modalAberto === 'desfazer' && itemSelecionado && (
         <ModalPortal>
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4 modal-overlay">
@@ -870,12 +880,12 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
                 Valor registrado: {formatarMoeda(itemSelecionado.valor_real)}
               </p>
             )}
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-2xl px-3 py-2 mb-5">
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-5">
               O item voltará para o status de pendente e o valor registrado será apagado.
             </p>
             <div className="flex gap-3">
-              <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-2xl bg-gray-100 font-semibold text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]">Cancelar</button>
-              <button onClick={() => desfazerPagamento(itemSelecionado.id)} className="flex-1 py-3 rounded-2xl bg-amber-500 text-white font-semibold hover:bg-amber-600 transition-all active:scale-[0.97] shadow-sm">Desfazer</button>
+              <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]">Cancelar</button>
+              <button onClick={() => desfazerPagamento(itemSelecionado.id)} className="flex-1 py-3 rounded-xl bg-amber-500 text-white font-semibold hover:bg-amber-600 transition-all active:scale-[0.97] shadow-sm">Desfazer</button>
             </div>
           </div>
         </div>
