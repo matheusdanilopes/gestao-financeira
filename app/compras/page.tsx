@@ -14,6 +14,7 @@ import { ptBR } from 'date-fns/locale'
 import { log, numericOnly, formatBRL } from '@/lib/logger'
 import { useMes } from '@/components/MesProvider'
 import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
+import FilterSelect from '@/components/FilterSelect'
 import { calcularProjetoFatura } from '@/lib/fatura'
 
 type Compra = {
@@ -469,27 +470,25 @@ export default function ComprasPage() {
             </div>
 
             {/* Categoria */}
-            <select
-              className="w-full bg-gray-700 border border-transparent rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+            <FilterSelect
               value={filtroCategoria}
-              onChange={(e) => setFiltroCategoria(e.target.value)}
-            >
-              <option value="">Categoria (todas)</option>
-              {categorias.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
+              onChange={v => setFiltroCategoria(v)}
+              options={[
+                { value: '', label: 'Categoria (todas)' },
+                ...categorias.map(cat => ({ value: cat, label: cat })),
+              ]}
+            />
 
             {/* Parcelamento */}
-            <select
-              className="w-full bg-gray-700 border border-transparent rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+            <FilterSelect
               value={filtroParcelamento}
-              onChange={(e) => setFiltroParcelamento(e.target.value as '' | 'avista' | 'parcelado')}
-            >
-              <option value="">Parcelamento (todos)</option>
-              <option value="avista">À vista</option>
-              <option value="parcelado">Parcelado</option>
-            </select>
+              onChange={v => setFiltroParcelamento(v as '' | 'avista' | 'parcelado')}
+              options={[
+                { value: '',          label: 'Parcelamento (todos)' },
+                { value: 'avista',    label: 'À vista'              },
+                { value: 'parcelado', label: 'Parcelado'            },
+              ]}
+            />
 
             {/* Valor mínimo + Data */}
             <div className="grid grid-cols-2 gap-2">
