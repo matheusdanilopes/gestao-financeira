@@ -7,8 +7,9 @@ import { supabase } from '@/lib/supabaseClient'
 import { descricaoFechamento, calcularDataFechamentoDaFaturaISO } from '@/lib/fatura'
 import {
   Settings, LogOut, Upload, Activity, ChevronDown, Sun, Moon, Monitor,
-  Tags, Plus, Pencil, Trash2, Check, CreditCard, CalendarDays, X, Bell,
+  Tags, Plus, Pencil, Trash2, Check, CreditCard, CalendarDays, X, Bell, Search,
 } from 'lucide-react'
+import FilterSelect from '@/components/FilterSelect'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useTheme } from '@/components/ThemeProvider'
@@ -1074,30 +1075,35 @@ export default function ConfiguracoesPage() {
           </div>
 
           {/* Filtros */}
-          <div className="grid grid-cols-2 gap-2 mb-4">
-            <input
-              type="text"
-              value={filtroBusca}
-              onChange={(e) => setFiltroBusca(e.target.value)}
-              placeholder="Buscar descrição…"
-              className="col-span-2 bg-gray-50 border border-gray-200 dark:border-gray-700 rounded-2xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow placeholder-gray-400"
-            />
-            <select
-              value={filtroAcao}
-              onChange={(e) => setFiltroAcao(e.target.value)}
-              className="bg-gray-50 border border-gray-200 dark:border-gray-700 rounded-2xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
-            >
-              <option value="">Ação (todas)</option>
-              {Object.entries(ACAO_CONFIG).map(([key, value]) => <option key={key} value={key}>{value.label}</option>)}
-            </select>
-            <select
-              value={filtroTabela}
-              onChange={(e) => setFiltroTabela(e.target.value)}
-              className="bg-gray-50 border border-gray-200 dark:border-gray-700 rounded-2xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
-            >
-              <option value="">Tabela (todas)</option>
-              {tabelasDisponiveis.map(tabela => <option key={tabela} value={tabela}>{tabela}</option>)}
-            </select>
+          <div className="space-y-2 mb-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <input
+                type="text"
+                value={filtroBusca}
+                onChange={(e) => setFiltroBusca(e.target.value)}
+                placeholder="Buscar descrição…"
+                className="w-full bg-gray-50 border border-gray-200 dark:border-gray-700 rounded-2xl pl-9 pr-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow placeholder-gray-400"
+              />
+            </div>
+            <div className="flex gap-2">
+              <FilterSelect
+                value={filtroAcao}
+                onChange={v => setFiltroAcao(v)}
+                options={[
+                  { value: '', label: 'Ação (todas)' },
+                  ...Object.entries(ACAO_CONFIG).map(([key, cfg]) => ({ value: key, label: cfg.label })),
+                ]}
+              />
+              <FilterSelect
+                value={filtroTabela}
+                onChange={v => setFiltroTabela(v)}
+                options={[
+                  { value: '', label: 'Tabela (todas)' },
+                  ...tabelasDisponiveis.map(tabela => ({ value: tabela, label: tabela })),
+                ]}
+              />
+            </div>
           </div>
 
           {logsFiltrados.length === 0 && !logsCarregando ? (
