@@ -2,10 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Enable smooth cross-document transitions (Chrome/Edge 126+; no-op elsewhere) */
-@view-transition {
-  navigation: auto;
-}
 
 /* ─── Design tokens (light) ──────────────────────────────────────────────── */
 :root {

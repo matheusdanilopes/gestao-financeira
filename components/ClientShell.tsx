@@ -65,7 +65,7 @@ export default function ClientShell({ children }: { children: React.ReactNode })
   return (
     <>
       {(mostrarBell || (mostrarRefresh && syncState)) && (
-        <div className="fixed top-3 right-3 lg:top-2.5 lg:right-6 z-50 flex items-center gap-2">
+        <div className="fixed top-[calc(0.75rem+var(--safe-top))] right-3 lg:top-[calc(0.625rem+var(--safe-top))] lg:right-6 z-50 flex items-center gap-2">
           {mostrarRefresh && syncState && (
             <DataStatusIndicator
               status={syncState.status}
