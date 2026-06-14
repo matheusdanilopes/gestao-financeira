@@ -421,7 +421,7 @@ export default function ComprasPage() {
       <div className="bg-gray-800 rounded-2xl p-3 mb-3 space-y-2.5">
         {/* Tab chips + botão Filtros */}
         <div className="flex items-center gap-2">
-          <div className="flex gap-1 flex-1 overflow-x-auto scrollbar-hide">
+          <div className="flex gap-1 flex-1 min-w-0">
             {([
               ['', 'Todos'],
               ['nubank', cartaoLabels.nubank],
@@ -431,7 +431,7 @@ export default function ComprasPage() {
               <button
                 key={val}
                 onClick={() => setFiltroCartao(val as '' | 'nubank' | 'cartao1' | 'cartao2')}
-                className={`shrink-0 py-1.5 px-3 text-[11px] font-semibold rounded-xl transition-all active:scale-95 truncate ${
+                className={`flex-1 min-w-0 py-1.5 text-[11px] font-semibold rounded-xl transition-all active:scale-95 truncate ${
                   filtroCartao === val
                     ? 'bg-white text-gray-900 shadow-sm'
                     : 'text-gray-400 hover:text-gray-200'
