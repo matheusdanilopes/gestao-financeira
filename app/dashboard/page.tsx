@@ -784,96 +784,108 @@ export default function Dashboard() {
                 <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">NuBank</p>
                 <div className="grid grid-cols-2 gap-3">
                   {/* Matheus NuBank */}
-                  <div className="bg-blue-50 border border-blue-100 border-t-4 border-t-blue-500 p-3 rounded-2xl">
-                    <p className="font-bold text-blue-800 text-sm uppercase tracking-wide mb-1.5">Matheus</p>
-                    <div className="flex justify-between text-xs gap-1 text-gray-500">
-                      <span>Atual</span>
-                      <span className="font-medium text-gray-800 num">{fmt(fatura.matheusAtual)}</span>
-                    </div>
-                    <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-500">
-                      <span>Previsto</span>
-                      <span className="font-medium text-gray-800 num">{fmt(fatura.matheusPrevisto)}</span>
-                    </div>
-                    {assinaturasNaopagas.matheus > 0 && (
-                      <div className="flex justify-between text-xs gap-1 mt-0.5 text-indigo-600">
-                        <span>Assinaturas</span>
-                        <span className="font-medium num">{fmt(assinaturasNaopagas.matheus)}</span>
+                  <div className="bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
+                    <div className="h-[3px] bg-blue-300 opacity-70" />
+                    <div className="p-3.5">
+                      <div className="flex items-center gap-1.5 mb-2.5">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
+                        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Matheus</p>
                       </div>
-                    )}
-                    {assinaturasDivergentes.matheus.length > 0 && (
-                      <div className="mt-0.5 border-t border-amber-100 pt-0.5">
-                        {assinaturasDivergentes.matheus.map((d) => (
-                          <div key={d.nome} className="flex justify-between text-xs gap-1 text-amber-600">
-                            <span className="truncate shrink" title={d.nome}>⚠ {d.nome}</span>
-                            <span className="font-medium num shrink-0 whitespace-nowrap">
-                              {d.diff > 0 ? '+' : ''}{fmt(d.diff)}
-                            </span>
-                          </div>
-                        ))}
+                      <div className="mb-2.5">
+                        <div className="flex items-baseline gap-1.5 flex-wrap">
+                          <span className="text-lg font-bold text-gray-900 num">{fmt(fatura.matheusAtual)}</span>
+                          <span className="text-[11px] text-gray-400 num">de {fmt(fatura.matheusPrevisto)}</span>
+                        </div>
                       </div>
-                    )}
-                    {fatura.matheusProjecaoParcelas > 0 && (
-                      <div className="flex justify-between items-center gap-1 mt-0.5 text-[10px]">
-                        <span className="text-gray-500 whitespace-nowrap shrink-0">Parc. prev.</span>
-                        <span className="font-medium text-orange-700 num whitespace-nowrap">− {fmt(fatura.matheusProjecaoParcelas)}</span>
+                      {assinaturasNaopagas.matheus > 0 && (
+                        <div className="flex justify-between text-xs gap-1 mb-1 text-indigo-500">
+                          <span>Assinaturas</span>
+                          <span className="font-medium num">{fmt(assinaturasNaopagas.matheus)}</span>
+                        </div>
+                      )}
+                      {assinaturasDivergentes.matheus.length > 0 && (
+                        <div className="mb-1">
+                          {assinaturasDivergentes.matheus.map((d) => (
+                            <div key={d.nome} className="flex justify-between text-xs gap-1 text-amber-600">
+                              <span className="truncate shrink" title={d.nome}>⚠ {d.nome}</span>
+                              <span className="font-medium num shrink-0 whitespace-nowrap">
+                                {d.diff > 0 ? '+' : ''}{fmt(d.diff)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {fatura.matheusProjecaoParcelas > 0 && (
+                        <div className="flex justify-between items-center gap-1 mb-1 text-[10px]">
+                          <span className="text-gray-400 whitespace-nowrap shrink-0">Parc. prev.</span>
+                          <span className="font-medium text-orange-600 num whitespace-nowrap">− {fmt(fatura.matheusProjecaoParcelas)}</span>
+                        </div>
+                      )}
+                      <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden mb-0.5">
+                        <div className="h-full bg-blue-400 rounded-full transition-[width] duration-400 ease-smooth" style={{ width: `${fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100) : 0}%` }} />
                       </div>
-                    )}
-                    <div className="mt-2 h-2 bg-blue-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-blue-500 rounded-full transition-[width] duration-400 ease-smooth" style={{ width: `${fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100) : 0}%` }} />
-                    </div>
-                    <p className="text-right text-[10px] text-blue-500 mt-0.5 num">{fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100).toFixed(0) : 0}%</p>
-                    <div className={`flex justify-between text-xs font-bold mt-1.5 gap-1 ${fatura.sobraMatheus < 0 ? 'text-red-600' : matheusSobraWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
-                      <span className="flex items-center gap-0.5 whitespace-nowrap">
-                        {fatura.sobraMatheus < 0 ? '⚠ Excesso' : matheusSobraWarning ? <><AlertTriangle className="w-3 h-3 inline-block" /> Atenção!</> : '✓ Restante'}
-                      </span>
-                      <span className="num shrink-0">{fmt(Math.abs(fatura.sobraMatheus))}</span>
+                      <p className="text-right text-[10px] text-gray-400 num mb-2.5">{fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100).toFixed(0) : 0}%</p>
+                      <div className={`flex items-center justify-between text-xs font-medium rounded-xl px-2.5 py-1.5 ${
+                        fatura.sobraMatheus < 0 ? 'bg-red-50 text-red-600' : matheusSobraWarning ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-700'
+                      }`}>
+                        <span className="flex items-center gap-1 whitespace-nowrap">
+                          {fatura.sobraMatheus < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso</> : matheusSobraWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção</> : '✓ Restante'}
+                        </span>
+                        <span className="num font-bold shrink-0">{fmt(Math.abs(fatura.sobraMatheus))}</span>
+                      </div>
                     </div>
                   </div>
 
                   {/* Jeniffer NuBank */}
-                  <div className="bg-pink-50 border border-pink-100 border-t-4 border-t-pink-500 p-3 rounded-2xl">
-                    <p className="font-bold text-pink-800 text-sm uppercase tracking-wide mb-1.5">Jeniffer</p>
-                    <div className="flex justify-between text-xs gap-1 text-gray-500">
-                      <span>Atual</span>
-                      <span className="font-medium text-gray-800 num">{fmt(fatura.jenifferAtual)}</span>
-                    </div>
-                    <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-500">
-                      <span>Previsto</span>
-                      <span className="font-medium text-gray-800 num">{fmt(fatura.jenifferPrevisto)}</span>
-                    </div>
-                    {assinaturasNaopagas.jeniffer > 0 && (
-                      <div className="flex justify-between text-xs gap-1 mt-0.5 text-indigo-600">
-                        <span>Assinaturas</span>
-                        <span className="font-medium num">{fmt(assinaturasNaopagas.jeniffer)}</span>
+                  <div className="bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
+                    <div className="h-[3px] bg-pink-300 opacity-70" />
+                    <div className="p-3.5">
+                      <div className="flex items-center gap-1.5 mb-2.5">
+                        <div className="w-1.5 h-1.5 rounded-full bg-pink-400 shrink-0" />
+                        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Jeniffer</p>
                       </div>
-                    )}
-                    {assinaturasDivergentes.jeniffer.length > 0 && (
-                      <div className="mt-0.5 border-t border-amber-100 pt-0.5">
-                        {assinaturasDivergentes.jeniffer.map((d) => (
-                          <div key={d.nome} className="flex justify-between text-xs gap-1 text-amber-600">
-                            <span className="truncate shrink" title={d.nome}>⚠ {d.nome}</span>
-                            <span className="font-medium num shrink-0 whitespace-nowrap">
-                              {d.diff > 0 ? '+' : ''}{fmt(d.diff)}
-                            </span>
-                          </div>
-                        ))}
+                      <div className="mb-2.5">
+                        <div className="flex items-baseline gap-1.5 flex-wrap">
+                          <span className="text-lg font-bold text-gray-900 num">{fmt(fatura.jenifferAtual)}</span>
+                          <span className="text-[11px] text-gray-400 num">de {fmt(fatura.jenifferPrevisto)}</span>
+                        </div>
                       </div>
-                    )}
-                    {fatura.jenifferProjecaoParcelas > 0 && (
-                      <div className="flex justify-between items-center gap-1 mt-0.5 text-[10px]">
-                        <span className="text-gray-500 whitespace-nowrap shrink-0">Parc. prev.</span>
-                        <span className="font-medium text-orange-700 num whitespace-nowrap">− {fmt(fatura.jenifferProjecaoParcelas)}</span>
+                      {assinaturasNaopagas.jeniffer > 0 && (
+                        <div className="flex justify-between text-xs gap-1 mb-1 text-indigo-500">
+                          <span>Assinaturas</span>
+                          <span className="font-medium num">{fmt(assinaturasNaopagas.jeniffer)}</span>
+                        </div>
+                      )}
+                      {assinaturasDivergentes.jeniffer.length > 0 && (
+                        <div className="mb-1">
+                          {assinaturasDivergentes.jeniffer.map((d) => (
+                            <div key={d.nome} className="flex justify-between text-xs gap-1 text-amber-600">
+                              <span className="truncate shrink" title={d.nome}>⚠ {d.nome}</span>
+                              <span className="font-medium num shrink-0 whitespace-nowrap">
+                                {d.diff > 0 ? '+' : ''}{fmt(d.diff)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {fatura.jenifferProjecaoParcelas > 0 && (
+                        <div className="flex justify-between items-center gap-1 mb-1 text-[10px]">
+                          <span className="text-gray-400 whitespace-nowrap shrink-0">Parc. prev.</span>
+                          <span className="font-medium text-orange-600 num whitespace-nowrap">− {fmt(fatura.jenifferProjecaoParcelas)}</span>
+                        </div>
+                      )}
+                      <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden mb-0.5">
+                        <div className="h-full bg-pink-400 rounded-full transition-[width] duration-400 ease-smooth" style={{ width: `${fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100) : 0}%` }} />
                       </div>
-                    )}
-                    <div className="mt-2 h-2 bg-pink-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-pink-500 rounded-full transition-[width] duration-400 ease-smooth" style={{ width: `${fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100) : 0}%` }} />
-                    </div>
-                    <p className="text-right text-[10px] text-pink-500 mt-0.5 num">{fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100).toFixed(0) : 0}%</p>
-                    <div className={`flex justify-between text-xs font-bold mt-1.5 gap-1 ${fatura.sobraJeniffer < 0 ? 'text-red-600' : jenifferSobraWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
-                      <span className="flex items-center gap-0.5 whitespace-nowrap">
-                        {fatura.sobraJeniffer < 0 ? '⚠ Excesso' : jenifferSobraWarning ? <><AlertTriangle className="w-3 h-3 inline-block" /> Atenção!</> : '✓ Restante'}
-                      </span>
-                      <span className="num shrink-0">{fmt(Math.abs(fatura.sobraJeniffer))}</span>
+                      <p className="text-right text-[10px] text-gray-400 num mb-2.5">{fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100).toFixed(0) : 0}%</p>
+                      <div className={`flex items-center justify-between text-xs font-medium rounded-xl px-2.5 py-1.5 ${
+                        fatura.sobraJeniffer < 0 ? 'bg-red-50 text-red-600' : jenifferSobraWarning ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-700'
+                      }`}>
+                        <span className="flex items-center gap-1 whitespace-nowrap">
+                          {fatura.sobraJeniffer < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso</> : jenifferSobraWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção</> : '✓ Restante'}
+                        </span>
+                        <span className="num font-bold shrink-0">{fmt(Math.abs(fatura.sobraJeniffer))}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -892,28 +904,28 @@ export default function Dashboard() {
                           const isWarning = sobra >= 0 && pctRestante <= 10
                           const isMatheus = card.responsavel === 'Matheus'
                           return (
-                            <div key={i} className={`p-2 rounded-2xl border border-t-2 ${
-                              isMatheus ? 'bg-blue-50 border-blue-100 border-t-blue-400' : 'bg-pink-50 border-pink-100 border-t-pink-400'
-                            }`}>
-                              <p className={`font-semibold text-xs mb-1 ${isMatheus ? 'text-blue-800' : 'text-pink-800'}`}>{card.label}</p>
-                              <div className="flex justify-between text-xs gap-1 text-gray-500">
-                                <span>Atual</span>
-                                <span className="font-medium text-gray-800 num">{fmt(card.atual)}</span>
-                              </div>
-                              <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-500">
-                                <span>Previsto</span>
-                                <span className="font-medium text-gray-800 num">{fmt(card.previsto)}</span>
-                              </div>
-                              <div className={`mt-1.5 h-2 rounded-full overflow-hidden ${isMatheus ? 'bg-blue-100' : 'bg-pink-100'}`}>
-                                <div className={`h-full rounded-full transition-[width] duration-400 ease-smooth ${isMatheus ? 'bg-blue-400' : 'bg-pink-400'}`} style={{ width: `${pct}%` }} />
-                              </div>
-                              <div className={`flex items-center justify-between text-xs font-bold mt-1 gap-1 ${
-                                sobra < 0 ? 'text-red-600' : isWarning ? 'text-amber-600' : 'text-emerald-600'
-                              }`}>
-                                <span className="flex items-center gap-0.5 whitespace-nowrap">
-                                  {sobra < 0 ? '⚠ Excesso' : isWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção!</> : '✓ Restante'}
-                                </span>
-                                <span className="num shrink-0">{fmt(Math.abs(sobra))}</span>
+                            <div key={i} className="bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
+                              <div className={`h-[2px] opacity-60 ${isMatheus ? 'bg-blue-300' : 'bg-pink-300'}`} />
+                              <div className="p-2.5">
+                                <div className="flex items-center gap-1 mb-1.5">
+                                  <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isMatheus ? 'bg-blue-400' : 'bg-pink-400'}`} />
+                                  <p className="font-semibold text-[11px] text-gray-500 truncate">{card.label}</p>
+                                </div>
+                                <div className="flex items-baseline gap-1 mb-1.5 flex-wrap">
+                                  <span className="text-sm font-bold text-gray-900 num">{fmt(card.atual)}</span>
+                                  <span className="text-[10px] text-gray-400 num">de {fmt(card.previsto)}</span>
+                                </div>
+                                <div className={`h-1 rounded-full overflow-hidden mb-0.5 ${isMatheus ? 'bg-blue-100' : 'bg-pink-100'}`}>
+                                  <div className={`h-full rounded-full transition-[width] duration-400 ease-smooth ${isMatheus ? 'bg-blue-400' : 'bg-pink-400'}`} style={{ width: `${pct}%` }} />
+                                </div>
+                                <div className={`flex items-center justify-between text-xs font-medium rounded-lg px-2 py-1 mt-1.5 ${
+                                  sobra < 0 ? 'bg-red-50 text-red-600' : isWarning ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-700'
+                                }`}>
+                                  <span className="flex items-center gap-0.5 whitespace-nowrap">
+                                    {sobra < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso</> : isWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção</> : '✓ Restante'}
+                                  </span>
+                                  <span className="num font-bold shrink-0">{fmt(Math.abs(sobra))}</span>
+                                </div>
                               </div>
                             </div>
                           )
@@ -922,28 +934,44 @@ export default function Dashboard() {
 
                       <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-3 mb-2">Resumo por pessoa</p>
                       <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-blue-50 border border-blue-100 border-t-4 border-t-blue-500 p-2 rounded-2xl">
-                          <p className="font-bold text-xs text-blue-700 uppercase tracking-wide mb-1.5">Matheus</p>
-                          <div className="flex justify-between text-xs gap-1 text-gray-500"><span>Atual</span><span className="font-medium text-gray-800 num">{fmt(matheusTotalAtual)}</span></div>
-                          <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-500"><span>Previsto</span><span className="font-medium text-gray-800 num">{fmt(matheusTotalPrevisto)}</span></div>
-                          <div className="mt-1.5 h-2 bg-blue-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-blue-500 rounded-full transition-[width] duration-400 ease-smooth" style={{ width: `${matheusPct}%` }} />
-                          </div>
-                          <div className={`flex justify-between text-xs font-bold mt-1 gap-1 ${matheusRestante < 0 ? 'text-red-600' : matheusResumoWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
-                            <span className="flex items-center gap-0.5 whitespace-nowrap">{matheusRestante < 0 ? '⚠ Excesso' : matheusResumoWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção!</> : '✓ Restante'}</span>
-                            <span className="num shrink-0">{fmt(Math.abs(matheusRestante))}</span>
+                        <div className="bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
+                          <div className="h-[2px] bg-blue-300 opacity-60" />
+                          <div className="p-2.5">
+                            <div className="flex items-center gap-1 mb-1.5">
+                              <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
+                              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Matheus</p>
+                            </div>
+                            <div className="flex items-baseline gap-1 mb-1.5 flex-wrap">
+                              <span className="text-sm font-bold text-gray-900 num">{fmt(matheusTotalAtual)}</span>
+                              <span className="text-[10px] text-gray-400 num">de {fmt(matheusTotalPrevisto)}</span>
+                            </div>
+                            <div className="h-1 bg-blue-100 rounded-full overflow-hidden mb-0.5">
+                              <div className="h-full bg-blue-400 rounded-full transition-[width] duration-400 ease-smooth" style={{ width: `${matheusPct}%` }} />
+                            </div>
+                            <div className={`flex items-center justify-between text-xs font-medium rounded-lg px-2 py-1 mt-1.5 ${matheusRestante < 0 ? 'bg-red-50 text-red-600' : matheusResumoWarning ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-700'}`}>
+                              <span className="flex items-center gap-0.5 whitespace-nowrap">{matheusRestante < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso</> : matheusResumoWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção</> : '✓ Restante'}</span>
+                              <span className="num font-bold shrink-0">{fmt(Math.abs(matheusRestante))}</span>
+                            </div>
                           </div>
                         </div>
-                        <div className="bg-pink-50 border border-pink-100 border-t-4 border-t-pink-500 p-2 rounded-2xl">
-                          <p className="font-bold text-xs text-pink-700 uppercase tracking-wide mb-1.5">Jeniffer</p>
-                          <div className="flex justify-between text-xs gap-1 text-gray-500"><span>Atual</span><span className="font-medium text-gray-800 num">{fmt(jenifferTotalAtual)}</span></div>
-                          <div className="flex justify-between text-xs gap-1 mt-0.5 text-gray-500"><span>Previsto</span><span className="font-medium text-gray-800 num">{fmt(jenifferTotalPrevisto)}</span></div>
-                          <div className="mt-1.5 h-2 bg-pink-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-pink-500 rounded-full transition-[width] duration-400 ease-smooth" style={{ width: `${jenifferPct}%` }} />
-                          </div>
-                          <div className={`flex justify-between text-xs font-bold mt-1 gap-1 ${jenifferRestante < 0 ? 'text-red-600' : jenifferResumoWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
-                            <span className="flex items-center gap-0.5 whitespace-nowrap">{jenifferRestante < 0 ? '⚠ Excesso' : jenifferResumoWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção!</> : '✓ Restante'}</span>
-                            <span className="num shrink-0">{fmt(Math.abs(jenifferRestante))}</span>
+                        <div className="bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
+                          <div className="h-[2px] bg-pink-300 opacity-60" />
+                          <div className="p-2.5">
+                            <div className="flex items-center gap-1 mb-1.5">
+                              <div className="w-1.5 h-1.5 rounded-full bg-pink-400 shrink-0" />
+                              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Jeniffer</p>
+                            </div>
+                            <div className="flex items-baseline gap-1 mb-1.5 flex-wrap">
+                              <span className="text-sm font-bold text-gray-900 num">{fmt(jenifferTotalAtual)}</span>
+                              <span className="text-[10px] text-gray-400 num">de {fmt(jenifferTotalPrevisto)}</span>
+                            </div>
+                            <div className="h-1 bg-pink-100 rounded-full overflow-hidden mb-0.5">
+                              <div className="h-full bg-pink-400 rounded-full transition-[width] duration-400 ease-smooth" style={{ width: `${jenifferPct}%` }} />
+                            </div>
+                            <div className={`flex items-center justify-between text-xs font-medium rounded-lg px-2 py-1 mt-1.5 ${jenifferRestante < 0 ? 'bg-red-50 text-red-600' : jenifferResumoWarning ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-700'}`}>
+                              <span className="flex items-center gap-0.5 whitespace-nowrap">{jenifferRestante < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso</> : jenifferResumoWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção</> : '✓ Restante'}</span>
+                              <span className="num font-bold shrink-0">{fmt(Math.abs(jenifferRestante))}</span>
+                            </div>
                           </div>
                         </div>
                       </div>
