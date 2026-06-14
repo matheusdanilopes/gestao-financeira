@@ -306,6 +306,18 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
     }
   }
 
+  const [filtroStatus, setFiltroStatus] = useState<'' | 'concluido' | 'andamento'>('')
+
+  const itensFiltrados = useMemo(() => {
+    if (filtroStatus === '') return itens
+    return itens.filter(item => {
+      const meta = saldo > 0 ? saldo * item.percentual / 100 : 0
+      const aportado = totalAportado(item.id)
+      const concluido = aportado >= meta && meta > 0
+      return filtroStatus === 'concluido' ? concluido : !concluido
+    })
+  }, [itens, filtroStatus, saldo, aportes])
+
   const pctBar = Math.min(totalPercentual, 100)
   const progressoGeralPct = totalMeta > 0 ? Math.min((totalAportadoGeral / totalMeta) * 100, 100) : 0
 
@@ -370,6 +382,26 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
             <span>{Math.max(0, 100 - totalPercentual).toFixed(1)}% disponível para alocar</span>
           </div>
         </div>
+
+        {/* Filtros compactos */}
+        <div className="flex gap-1.5 pt-3 border-t border-gray-100">
+          {(['', 'concluido', 'andamento'] as const).map((f) => {
+            const label = f === '' ? 'Todos' : f === 'concluido' ? 'Concluídos' : 'Em andamento'
+            return (
+              <button
+                key={f}
+                onClick={() => setFiltroStatus(f)}
+                className={`text-xs px-3 py-1 rounded-full font-medium transition-all duration-150 active:scale-95 ${
+                  filtroStatus === f
+                    ? 'bg-gray-800 text-white'
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                }`}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* Banner offline */}
@@ -393,13 +425,22 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
 
       {/* Lista */}
       <div className="bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden divide-y divide-gray-100">
-        {itens.length === 0 ? (
-          <div className="py-12 flex flex-col items-center gap-2 text-gray-300">
-            <PiggyBank className="w-10 h-10" />
-            <p className="text-sm">Nenhum investimento cadastrado</p>
+        {itensFiltrados.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-14 gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-violet-50 flex items-center justify-center">
+              <PiggyBank className="w-6 h-6 text-violet-300" strokeWidth={1.5} />
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-medium text-gray-500">
+                {filtroStatus ? 'Nenhum item neste filtro' : 'Nenhum investimento cadastrado'}
+              </p>
+              {!filtroStatus && (
+                <p className="text-xs text-gray-400 mt-0.5">Toque em + Adicionar para começar</p>
+              )}
+            </div>
           </div>
         ) : (
-          itens.map((item) => {
+          itensFiltrados.map((item) => {
             const meta = saldo > 0 ? saldo * item.percentual / 100 : 0
             const metaPrevista = saldoPrevisto > 0 ? saldoPrevisto * item.percentual / 100 : 0
             const aportado = totalAportado(item.id)
