@@ -993,59 +993,70 @@ export default function Dashboard() {
                 </a>
               </div>
               {carregando ? (
-                <div className="animate-pulse space-y-3">
-                  <div className="h-5 bg-gray-100 rounded-xl w-3/4" />
-                  <div className="h-5 bg-gray-100 rounded-xl w-1/2" />
+                <div className="animate-pulse space-y-2.5">
+                  <div className="h-20 bg-gray-100 rounded-2xl" />
+                  <div className="h-20 bg-gray-100 rounded-2xl" />
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {investimentos.map((inv) => {
                     const meta = resumoCaixa.sobraLiquida > 0 ? resumoCaixa.sobraLiquida * inv.percentual / 100 : 0
                     const metaPrevista = resumoCaixa.saldoPrevisto > 0 ? resumoCaixa.saldoPrevisto * inv.percentual / 100 : 0
                     const progresso = meta > 0 ? Math.min((inv.aportado / meta) * 100, 100) : 0
                     const concluido = meta > 0 && inv.aportado >= meta
+                    const pct = Math.round(progresso)
                     return (
-                      <div key={inv.id}>
-                        <div className="flex justify-between items-center text-sm mb-1.5">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${concluido ? 'bg-emerald-500' : 'bg-violet-400'}`} />
-                            <span className="text-gray-700 text-sm">{inv.descricao}</span>
+                      <div key={inv.id} className="bg-gray-50 rounded-2xl p-3.5">
+                        {/* Name + badge */}
+                        <div className="flex items-center justify-between gap-2 mb-2.5">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${concluido ? 'bg-emerald-500' : 'bg-violet-400'}`} />
+                            <span className="text-sm font-semibold text-gray-700 truncate">{inv.descricao}</span>
                           </div>
-                          <div className="text-right">
-                            <div>
-                              <span className={`font-semibold num ${concluido ? 'text-emerald-600' : 'text-violet-700'}`}>
-                                {fmt(inv.aportado)}
-                              </span>
-                              <span className="text-gray-400 text-xs ml-1 num">/ {fmt(meta)}</span>
-                            </div>
-                            {metaPrevista !== meta && metaPrevista > 0 && (
-                              <div className="text-xs text-violet-400 num">prev. {fmt(metaPrevista)}</div>
-                            )}
-                          </div>
+                          {concluido ? (
+                            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100/70 rounded-full px-2 py-0.5 shrink-0">✓ Meta</span>
+                          ) : (
+                            <span className={`text-[11px] font-bold num rounded-full px-2 py-0.5 shrink-0 ${
+                              pct >= 80 ? 'text-amber-600 bg-amber-100/70' : 'text-violet-600 bg-violet-100/70'
+                            }`}>{pct}%</span>
+                          )}
                         </div>
-                        <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+
+                        {/* Progress bar */}
+                        <div className="w-full bg-gray-200 rounded-full h-1.5 mb-2.5 overflow-hidden">
                           <div
-                            className={`h-2 rounded-full transition-[width] duration-400 ease-smooth ${concluido ? 'bg-gradient-to-r from-emerald-500 to-green-500' : 'bg-gradient-to-r from-violet-400 to-violet-600'}`}
+                            className={`h-full rounded-full transition-[width] duration-500 ease-smooth ${
+                              concluido
+                                ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
+                                : pct >= 80
+                                ? 'bg-gradient-to-r from-amber-400 to-amber-500'
+                                : 'bg-gradient-to-r from-violet-400 to-violet-500'
+                            }`}
                             style={{ width: `${progresso}%` }}
                           />
+                        </div>
+
+                        {/* Aportado / meta */}
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className={`text-base font-bold num ${concluido ? 'text-emerald-600' : 'text-gray-800'}`}>
+                            {fmt(inv.aportado)}
+                          </span>
+                          <div className="text-right">
+                            <span className="text-xs text-gray-400 num">meta {fmt(meta)}</span>
+                            {metaPrevista !== meta && metaPrevista > 0 && (
+                              <span className="block text-[10px] text-gray-300 num">prev. {fmt(metaPrevista)}</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )
                   })}
+
+                  {/* Total row */}
                   {investimentos.length > 0 && (
-                    <div className="border-t border-gray-100 pt-2.5">
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-500 font-medium">Total aportado</span>
-                        <span className="font-bold text-violet-700 num">{fmt(totalInvestido)}</span>
-                      </div>
-                      {resumoCaixa.saldoPrevisto !== resumoCaixa.sobraLiquida && (
-                        <div className="flex justify-between items-center text-xs mt-1">
-                          <span className="text-violet-400">Meta total prevista</span>
-                          <span className="text-violet-500 font-medium num">
-                            {fmt(investimentos.reduce((a, i) => a + (resumoCaixa.saldoPrevisto > 0 ? resumoCaixa.saldoPrevisto * i.percentual / 100 : 0), 0))}
-                          </span>
-                        </div>
-                      )}
+                    <div className="flex items-center justify-between px-1 pt-1">
+                      <span className="text-xs text-gray-400 font-medium">Total aportado</span>
+                      <span className="text-sm font-bold text-violet-700 num">{fmt(totalInvestido)}</span>
                     </div>
                   )}
                 </div>
