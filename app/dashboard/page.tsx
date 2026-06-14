@@ -535,16 +535,10 @@ export default function Dashboard() {
 
       {/* ── Compact sticky header ── */}
       <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 px-4 md:px-6 lg:px-8 z-[10]">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center mb-2 pr-20">
           <div>
             <p className="text-[11px] font-medium text-gray-400 leading-none">{saudacao}</p>
             <h1 className="text-lg font-bold text-gray-900 leading-tight mt-0.5">Dashboard</h1>
-          </div>
-          <div className="text-right">
-            <p className="text-[10px] text-gray-400 uppercase tracking-wide leading-none">Período</p>
-            <p className="text-xs font-semibold text-gray-600 mt-0.5 capitalize">
-              {format(mesAtual, "MMM 'de' yyyy", { locale: ptBR })}
-            </p>
           </div>
         </div>
         <MonthSelector
