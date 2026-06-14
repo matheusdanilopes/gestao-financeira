@@ -6,7 +6,7 @@ import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { SwipeableItem } from '@/components/SwipeableItem'
-import { Trash2, X, ShoppingBag, Lock, WifiOff, SlidersHorizontal, ChevronDown } from 'lucide-react'
+import { Trash2, X, ShoppingBag, Lock, WifiOff, SlidersHorizontal, Calendar, Search } from 'lucide-react'
 import MonthSelector from '@/components/MonthSelector'
 import EmptyState from '@/components/EmptyState'
 import { addMonths, subMonths, format, startOfMonth, isToday, isYesterday, parseISO } from 'date-fns'
@@ -14,6 +14,7 @@ import { ptBR } from 'date-fns/locale'
 import { log, numericOnly, formatBRL } from '@/lib/logger'
 import { useMes } from '@/components/MesProvider'
 import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
+import FilterSelect from '@/components/FilterSelect'
 import { calcularProjetoFatura } from '@/lib/fatura'
 
 type Compra = {
@@ -104,7 +105,7 @@ export default function ComprasPage() {
   const [filtroDescricao, setFiltroDescricao] = useState('')
   const filtroDescricaoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [filtroValorMin, setFiltroValorMin] = useState('')
-  const [filtroDia, setFiltroDia] = useState('')
+  const [filtroData, setFiltroData] = useState('')
   const [filtroCategoria, setFiltroCategoria] = useState('')
   const [filtroParcelamento, setFiltroParcelamento] = useState<'' | 'avista' | 'parcelado'>('')
   const [categorias, setCategorias] = useState<string[]>(CATEGORIAS_PADRAO)
@@ -164,7 +165,8 @@ export default function ComprasPage() {
       setFiltroCartao(importCartao as CartaoValido)
     }
     if (importDia) {
-      setFiltroDia(importDia)
+      const mes = importMes || format(mesAtual, 'yyyy-MM')
+      setFiltroData(`${mes}-${importDia.padStart(2, '0')}`)
       setFiltrosExpandidos(true)
     }
     if (importMes) {
@@ -295,7 +297,7 @@ export default function ComprasPage() {
     refetch()
   }
 
-  const filtrosAtivos = !!filtroResponsavel || !!filtroCartao || !!filtroDescricao || !!filtroValorMin || !!filtroDia || !!filtroCategoria || !!filtroParcelamento
+  const filtrosAtivos = !!filtroResponsavel || !!filtroCartao || !!filtroDescricao || !!filtroValorMin || !!filtroData || !!filtroCategoria || !!filtroParcelamento
 
   function handleFiltroDescricaoChange(value: string) {
     setFiltroDescricaoInput(value)
@@ -309,7 +311,7 @@ export default function ComprasPage() {
     setFiltroDescricaoInput('')
     setFiltroDescricao('')
     setFiltroValorMin('')
-    setFiltroDia('')
+    setFiltroData('')
     setFiltroCategoria('')
     setFiltroParcelamento('')
   }
@@ -317,13 +319,12 @@ export default function ComprasPage() {
   const comprasFiltradas = useMemo(() => {
     return compras.filter((c) => {
       const dataStr = dataEfetiva(c)
-      const diaCompra = dataStr ? Number(dataStr.substring(8, 10)) : null
       return (
         (!filtroResponsavel || c.responsavel === filtroResponsavel) &&
         (!filtroCartao || c.cartao === filtroCartao) &&
         (!filtroDescricao || c.descricao.toLowerCase().includes(filtroDescricao.toLowerCase())) &&
         (!filtroValorMin || c.valor >= Number(filtroValorMin)) &&
-        (!filtroDia || diaCompra === Number(filtroDia)) &&
+        (!filtroData || dataStr === filtroData) &&
         (!filtroCategoria || c.categoria === filtroCategoria) &&
         (!filtroParcelamento ||
           (filtroParcelamento === 'avista' && (c.total_parcelas === null || c.total_parcelas <= 1)) ||
@@ -331,7 +332,7 @@ export default function ComprasPage() {
         )
       )
     })
-  }, [compras, filtroResponsavel, filtroCartao, filtroDescricao, filtroValorMin, filtroDia, filtroCategoria, filtroParcelamento])
+  }, [compras, filtroResponsavel, filtroCartao, filtroDescricao, filtroValorMin, filtroData, filtroCategoria, filtroParcelamento])
 
   const grupos = useMemo(() => {
     const map = new Map<string, Compra[]>()
@@ -346,12 +347,11 @@ export default function ComprasPage() {
   const comprasSemFiltroResponsavel = useMemo(() => {
     return compras.filter((c) => {
       const dataStr = dataEfetiva(c)
-      const diaCompra = dataStr ? Number(dataStr.substring(8, 10)) : null
       return (
         (!filtroCartao || c.cartao === filtroCartao) &&
         (!filtroDescricao || c.descricao.toLowerCase().includes(filtroDescricao.toLowerCase())) &&
         (!filtroValorMin || c.valor >= Number(filtroValorMin)) &&
-        (!filtroDia || diaCompra === Number(filtroDia)) &&
+        (!filtroData || dataStr === filtroData) &&
         (!filtroCategoria || c.categoria === filtroCategoria) &&
         (!filtroParcelamento ||
           (filtroParcelamento === 'avista' && (c.total_parcelas === null || c.total_parcelas <= 1)) ||
@@ -359,7 +359,7 @@ export default function ComprasPage() {
         )
       )
     })
-  }, [compras, filtroCartao, filtroDescricao, filtroValorMin, filtroDia, filtroCategoria, filtroParcelamento])
+  }, [compras, filtroCartao, filtroDescricao, filtroValorMin, filtroData, filtroCategoria, filtroParcelamento])
 
   const total = useMemo(() => comprasSemFiltroResponsavel.reduce((acc, c) => acc + c.valor, 0), [comprasSemFiltroResponsavel])
   const totalMatheus = useMemo(() => comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Matheus').reduce((acc, c) => acc + c.valor, 0), [comprasSemFiltroResponsavel])
@@ -418,97 +418,115 @@ export default function ComprasPage() {
         />
       </div>
 
-      {/* Filtros: chips de cartão + toggle de filtros secundários na mesma linha */}
-      <div className="flex items-center gap-2 mb-2">
-        <div className="flex gap-1 flex-1">
-          {([
-            ['', 'Todos'],
-            ['nubank', cartaoLabels.nubank],
-            ['cartao1', cartaoLabels.cartao1],
-            ['cartao2', cartaoLabels.cartao2],
-          ] as [string, string][]).map(([val, label]) => (
-            <button
-              key={val}
-              onClick={() => setFiltroCartao(val as '' | 'nubank' | 'cartao1' | 'cartao2')}
-              className={`flex-1 py-1.5 text-[11px] font-semibold rounded-xl transition-all active:scale-95 truncate ${
-                filtroCartao === val
-                  ? val === '' ? 'bg-gray-800 text-white shadow-sm' : getCartaoColors(val, cartaoLabels).chip + ' shadow-sm'
-                  : 'bg-white border border-gray-200 text-gray-400'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <button
-          onClick={() => setFiltrosExpandidos(v => !v)}
-          className={`shrink-0 flex items-center gap-1 py-1.5 px-2.5 rounded-xl border text-[11px] font-semibold transition-all active:scale-[0.97] ${
-            filtrosAtivos
-              ? 'bg-primary-50 border-primary-200 text-primary-600'
-              : 'bg-white border-gray-200 text-gray-500'
-          }`}
-        >
-          <SlidersHorizontal className="w-3.5 h-3.5" />
-          {filtrosAtivos ? 'Ativos' : 'Filtros'}
-          <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${filtrosExpandidos ? 'rotate-180' : ''}`} />
-        </button>
-      </div>
-
-      {filtrosExpandidos && (
-        <div className="bg-white rounded-xl border border-gray-100 px-3 pb-3 pt-2.5 grid grid-cols-2 gap-2 mb-2">
-          <input
-            type="text"
-            className="bg-gray-50 border border-transparent rounded-lg p-2 text-sm col-span-2 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
-            placeholder="Buscar por descrição…"
-            value={filtroDescricaoInput}
-            onChange={(e) => handleFiltroDescricaoChange(e.target.value)}
-          />
-          <select
-            className="bg-gray-50 border border-transparent rounded-lg p-2 text-sm col-span-2 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
-            value={filtroCategoria}
-            onChange={(e) => setFiltroCategoria(e.target.value)}
-          >
-            <option value="">Categoria (todas)</option>
-            {categorias.map(cat => (
-              <option key={cat} value={cat}>{cat}</option>
+      {/* Filtros: container dark com chips de cartão + campos de filtro */}
+      <div className="bg-gray-800 rounded-2xl p-3 mb-3 space-y-2.5">
+        {/* Tab chips + botão Filtros */}
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1 flex-1 min-w-0">
+            {([
+              ['', 'Todos'],
+              ['nubank', cartaoLabels.nubank],
+              ['cartao1', cartaoLabels.cartao1],
+              ['cartao2', cartaoLabels.cartao2],
+            ] as [string, string][]).map(([val, label]) => (
+              <button
+                key={val}
+                onClick={() => setFiltroCartao(val as '' | 'nubank' | 'cartao1' | 'cartao2')}
+                className={`flex-1 min-w-0 py-1.5 text-[11px] font-semibold rounded-xl transition-all active:scale-95 truncate ${
+                  filtroCartao === val
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                {label}
+              </button>
             ))}
-          </select>
-          <select
-            className="bg-gray-50 border border-transparent rounded-lg p-2 text-sm col-span-2 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
-            value={filtroParcelamento}
-            onChange={(e) => setFiltroParcelamento(e.target.value as '' | 'avista' | 'parcelado')}
+          </div>
+          <button
+            onClick={() => setFiltrosExpandidos(v => !v)}
+            className={`shrink-0 flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-[11px] font-semibold transition-all active:scale-[0.97] ${
+              filtrosAtivos
+                ? 'bg-primary-500/30 text-primary-300'
+                : 'bg-gray-700 text-gray-300'
+            }`}
           >
-            <option value="">Parcelamento (todos)</option>
-            <option value="avista">À vista</option>
-            <option value="parcelado">Parcelado</option>
-          </select>
-          <input
-            type="text"
-            inputMode="decimal"
-            className="bg-gray-50 border border-transparent rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
-            placeholder="Valor mínimo"
-            value={filtroValorMin}
-            onChange={(e) => setFiltroValorMin(numericOnly(e.target.value))}
-          />
-          <input
-            type="number"
-            min="1"
-            max="31"
-            className="bg-gray-50 border border-transparent rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
-            placeholder="Dia"
-            value={filtroDia}
-            onChange={(e) => setFiltroDia(e.target.value)}
-          />
-          {filtrosAtivos && (
-            <button
-              onClick={limparFiltros}
-              className="col-span-2 text-xs text-red-500 hover:text-red-700 py-1 font-semibold transition-colors"
-            >
-              Limpar filtros
-            </button>
-          )}
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            Filtros
+          </button>
         </div>
-      )}
+
+        {filtrosExpandidos && (
+          <div className="space-y-2">
+            {/* Busca */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <input
+                type="text"
+                className="w-full bg-gray-700 border border-transparent rounded-xl pl-9 pr-3 py-2.5 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+                placeholder="Buscar por descrição..."
+                value={filtroDescricaoInput}
+                onChange={(e) => handleFiltroDescricaoChange(e.target.value)}
+              />
+            </div>
+
+            {/* Categoria */}
+            <FilterSelect
+              value={filtroCategoria}
+              onChange={v => setFiltroCategoria(v)}
+              options={[
+                { value: '', label: 'Categoria (todas)' },
+                ...categorias.map(cat => ({ value: cat, label: cat })),
+              ]}
+            />
+
+            {/* Parcelamento */}
+            <FilterSelect
+              value={filtroParcelamento}
+              onChange={v => setFiltroParcelamento(v as '' | 'avista' | 'parcelado')}
+              options={[
+                { value: '',          label: 'Parcelamento (todos)' },
+                { value: 'avista',    label: 'À vista'              },
+                { value: 'parcelado', label: 'Parcelado'            },
+              ]}
+            />
+
+            {/* Valor mínimo + Data */}
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="text"
+                inputMode="decimal"
+                className="bg-gray-700 border border-transparent rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+                placeholder="Valor mínimo"
+                value={filtroValorMin}
+                onChange={(e) => setFiltroValorMin(numericOnly(e.target.value))}
+              />
+              <div className="relative">
+                <input
+                  type="date"
+                  className="w-full bg-gray-700 border border-transparent rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow appearance-none"
+                  value={filtroData}
+                  onChange={(e) => setFiltroData(e.target.value)}
+                />
+                {!filtroData && (
+                  <div className="absolute inset-0 flex items-center gap-1.5 px-3 pointer-events-none">
+                    <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
+                    <span className="text-sm text-gray-400">Data</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {filtrosAtivos && (
+              <button
+                onClick={limparFiltros}
+                className="w-full text-xs text-red-400 hover:text-red-300 py-1 font-semibold transition-colors"
+              >
+                Limpar filtros
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Resumo / Filtro de responsável — compacto */}
       <div className="grid grid-cols-3 gap-1.5 mb-3">
