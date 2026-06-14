@@ -295,9 +295,17 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
     setModalAberto('editar')
   }
 
+  const [filtroStatus, setFiltroStatus] = useState<'' | 'recebido' | 'pendente'>('')
+
   const totalPrevisto = useMemo(() => itens.reduce((acc, i) => acc + i.valor_previsto, 0), [itens])
   const totalRecebido = itens.reduce((acc, i) => acc + totalRecebidoItem(i), 0)
   const percentual = totalPrevisto > 0 ? Math.min((totalRecebido / totalPrevisto) * 100, 100) : 0
+
+  const itensFiltrados = useMemo(() => {
+    if (filtroStatus === 'recebido') return itens.filter(i => totalRecebidoItem(i) >= i.valor_previsto)
+    if (filtroStatus === 'pendente') return itens.filter(i => totalRecebidoItem(i) < i.valor_previsto)
+    return itens
+  }, [itens, filtroStatus, recebimentos])
 
   return (
     <div className="space-y-3">
@@ -332,6 +340,26 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
             />
           </div>
         </div>
+
+        {/* Filtros compactos */}
+        <div className="flex gap-1.5 pt-3 border-t border-gray-100">
+          {(['', 'recebido', 'pendente'] as const).map((f) => {
+            const label = f === '' ? 'Todos' : f === 'recebido' ? 'Recebidas' : 'Pendentes'
+            return (
+              <button
+                key={f}
+                onClick={() => setFiltroStatus(f)}
+                className={`text-xs px-3 py-1 rounded-full font-medium transition-all duration-150 active:scale-95 ${
+                  filtroStatus === f
+                    ? 'bg-gray-800 text-white'
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                }`}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* Banner offline */}
@@ -354,13 +382,22 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
 
       {/* Lista */}
       <div className="bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden divide-y divide-gray-100">
-        {itens.length === 0 ? (
-          <div className="py-12 flex flex-col items-center gap-2 text-gray-300">
-            <TrendingUp className="w-10 h-10" />
-            <p className="text-sm">Nenhuma receita cadastrada</p>
+        {itensFiltrados.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-14 gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center">
+              <TrendingUp className="w-6 h-6 text-emerald-300" strokeWidth={1.5} />
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-medium text-gray-500">
+                {filtroStatus ? 'Nenhum item neste filtro' : 'Nenhuma receita cadastrada'}
+              </p>
+              {!filtroStatus && (
+                <p className="text-xs text-gray-400 mt-0.5">Toque em + Adicionar para começar</p>
+              )}
+            </div>
           </div>
         ) : (
-          itens.map((item) => {
+          itensFiltrados.map((item) => {
             const recebido = totalRecebidoItem(item)
             const progresso = item.valor_previsto > 0 ? Math.min((recebido / item.valor_previsto) * 100, 100) : 0
             const concluido = recebido > 0 && recebido >= item.valor_previsto
