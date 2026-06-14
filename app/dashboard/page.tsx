@@ -1014,10 +1014,10 @@ export default function Dashboard() {
                             <span className="text-sm font-semibold text-gray-700 truncate">{inv.descricao}</span>
                           </div>
                           {concluido ? (
-                            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100/70 rounded-full px-2 py-0.5 shrink-0">✓ Meta</span>
+                            <span className="text-[10px] font-bold text-white bg-emerald-500 rounded-full px-2 py-0.5 shrink-0">✓ Meta</span>
                           ) : (
-                            <span className={`text-[11px] font-bold num rounded-full px-2 py-0.5 shrink-0 ${
-                              pct >= 80 ? 'text-amber-600 bg-amber-100/70' : 'text-violet-600 bg-violet-100/70'
+                            <span className={`text-[11px] font-bold num text-white rounded-full px-2 py-0.5 shrink-0 ${
+                              pct >= 80 ? 'bg-amber-400' : 'bg-violet-500'
                             }`}>{pct}%</span>
                           )}
                         </div>
