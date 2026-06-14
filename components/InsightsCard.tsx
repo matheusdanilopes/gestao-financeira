@@ -33,10 +33,10 @@ function InsightRow({ item }: { item: InsightItem }) {
 
   return (
     <div
-      className={`flex rounded-2xl bg-white border border-gray-100
+      className={`flex rounded-2xl bg-white dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700/60
                   shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden
                   ${isClickable
-                    ? 'cursor-pointer transition-all duration-200 ease-smooth hover:shadow-[0_2px_10px_rgba(0,0,0,0.07)] hover:border-gray-200 active:scale-[0.99]'
+                    ? 'cursor-pointer transition-all duration-200 ease-smooth hover:shadow-[0_2px_10px_rgba(0,0,0,0.07)] hover:border-gray-200 dark:hover:border-gray-600 active:scale-[0.99]'
                     : ''}`}
       onClick={isClickable ? handleClick : undefined}
       role={isClickable ? 'button' : undefined}
@@ -50,17 +50,17 @@ function InsightRow({ item }: { item: InsightItem }) {
         {/* Title row */}
         <div className="flex items-start gap-2.5">
           <span className="text-[17px] leading-none shrink-0 mt-px">{item.icone}</span>
-          <p className="text-sm font-semibold text-gray-800 leading-snug flex-1">
+          <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 leading-snug flex-1">
             {item.titulo}
           </p>
           {isClickable && (
-            <ArrowRight className="w-3.5 h-3.5 text-gray-300 shrink-0 mt-0.5" />
+            <ArrowRight className="w-3.5 h-3.5 text-gray-300 dark:text-gray-500 shrink-0 mt-0.5" />
           )}
         </div>
 
         {/* Metric detail */}
         {item.detalhe && (
-          <p className="text-xs text-gray-400 leading-snug mt-1.5 ml-[27px]">
+          <p className="text-xs text-gray-500 dark:text-gray-300 leading-snug mt-1.5 ml-[27px]">
             {item.detalhe}
           </p>
         )}
