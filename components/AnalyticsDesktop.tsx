@@ -45,7 +45,7 @@ ChartJS.register(
 // ── Chart option builder (dark-aware) ────────────────────────────────────────
 
 function buildTrendOptions(isDark: boolean): ChartOptions<'line'> {
-  const txt  = isDark ? '#6b7280' : '#9ca3af'
+  const txt  = isDark ? '#9ca3af' : '#6b7280'
   const grid = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'
   return {
     responsive: true,
@@ -111,7 +111,7 @@ function buildDonutOptions(isDark: boolean): ChartOptions<'doughnut'> {
 }
 
 function buildBarOptions(isDark: boolean): ChartOptions<'bar'> {
-  const txt  = isDark ? '#6b7280' : '#9ca3af'
+  const txt  = isDark ? '#9ca3af' : '#6b7280'
   const grid = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'
   return {
     responsive: true,
@@ -126,7 +126,7 @@ function buildBarOptions(isDark: boolean): ChartOptions<'bar'> {
           pointStyle: 'circle',
           boxHeight: 6,
           padding: 16,
-          color: isDark ? '#6b7280' : '#9ca3af',
+          color: isDark ? '#9ca3af' : '#6b7280',
         },
       },
       tooltip: {

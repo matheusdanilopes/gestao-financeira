@@ -20,7 +20,7 @@ import { supabase } from '@/lib/supabaseClient'
 import type { ScriptableLineSegmentContext, TooltipItem, Plugin } from 'chart.js'
 import { useIsDark } from '@/lib/useIsDark'
 import { makeCrosshairPlugin } from '@/lib/chartPlugins'
-import { CHART_ANIMATION, tooltipCfg, yScaleCfg, xScaleCfg, legendCfg } from '@/lib/chartTheme'
+import { CHART_ANIMATION, tooltipCfg, legendCfg, axisColors } from '@/lib/chartTheme'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler)
 
@@ -200,6 +200,7 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
   }, [dados, isDark])
 
   const options = useMemo(() => {
+    const { txt, grid } = axisColors(isDark)
     return {
       responsive: true,
       maintainAspectRatio: false,
@@ -225,8 +226,21 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
         },
       },
       scales: {
-        y: yScaleCfg(isDark, { callback: (v) => formatBRL(Number(v)) }),
-        x: xScaleCfg(isDark),
+        y: {
+          ticks: {
+            callback: (v: number | string) => formatBRL(Number(v)),
+            font: { size: 10 },
+            maxTicksLimit: 5,
+            color: txt,
+          },
+          grid: { color: grid, lineWidth: 1 },
+          border: { display: false },
+        },
+        x: {
+          ticks: { font: { size: 11 }, color: txt, padding: 8 },
+          grid: { display: false },
+          border: { display: false },
+        },
       },
     }
   }, [isDark, dados])

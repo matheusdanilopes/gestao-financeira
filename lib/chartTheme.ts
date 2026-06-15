@@ -22,45 +22,11 @@ export function tooltipCfg(isDark: boolean) {
   }
 }
 
-/** Dark-aware Y-axis configuration */
-export function yScaleCfg(
-  isDark: boolean,
-  opts?: {
-    callback?: (v: number | string) => string | number | (string | number)[]
-    maxTicksLimit?: number
-    min?: number
-    max?: number
-  },
-) {
-  const txt  = isDark ? '#6b7280' : '#9ca3af'
-  const grid = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'
+/** Returns the standard axis text and grid colours for the current theme. */
+export function axisColors(isDark: boolean) {
   return {
-    ...(opts?.min  !== undefined ? { min: opts.min }  : {}),
-    ...(opts?.max  !== undefined ? { max: opts.max }  : {}),
-    ticks: {
-      ...(opts?.callback ? { callback: opts.callback } : {}),
-      font: { size: 10 },
-      maxTicksLimit: opts?.maxTicksLimit ?? 5,
-      color: txt,
-    },
-    grid: { color: grid, lineWidth: 1 },
-    border: { display: false },
-  }
-}
-
-/** Dark-aware X-axis configuration */
-export function xScaleCfg(
-  isDark: boolean,
-  opts?: { fontSize?: number; padding?: number },
-) {
-  return {
-    ticks: {
-      font: { size: opts?.fontSize ?? 11 },
-      color: isDark ? '#6b7280' : '#9ca3af',
-      padding: opts?.padding ?? 8,
-    },
-    grid: { display: false },
-    border: { display: false },
+    txt:  isDark ? '#9ca3af' : '#6b7280',
+    grid: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
   }
 }
 
@@ -74,7 +40,7 @@ export function legendCfg(isDark: boolean) {
       boxHeight: 2,
       padding: 20,
       usePointStyle: false,
-      color: isDark ? '#6b7280' : '#9ca3af',
+      color: isDark ? '#9ca3af' : '#6b7280',
     },
   }
 }

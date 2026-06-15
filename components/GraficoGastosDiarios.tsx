@@ -478,7 +478,7 @@ export default function GraficoGastosDiarios({
   // options depends only on isDark — series data is read via seriesRef in
   // callbacks, so filter changes don't rebuild options or trigger re-animation.
   const options = useMemo(() => {
-    const txt  = isDark ? '#6b7280' : '#9ca3af'
+    const txt  = isDark ? '#9ca3af' : '#6b7280'
     const grid = isDark ? 'rgba(255,255,255,0.035)' : 'rgba(0,0,0,0.035)'
 
     return {

@@ -16,7 +16,7 @@ import { AlertCircle, BarChart3 } from 'lucide-react'
 import { formatBRL } from '@/lib/logger'
 import { supabase } from '@/lib/supabaseClient'
 import { useIsDark } from '@/lib/useIsDark'
-import { CHART_ANIMATION, tooltipCfg, yScaleCfg, xScaleCfg } from '@/lib/chartTheme'
+import { CHART_ANIMATION, tooltipCfg, axisColors } from '@/lib/chartTheme'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend)
 
@@ -198,6 +198,7 @@ export default function GraficoCategoriasDespesas({ mesAtual }: Props) {
   }, [dados, isDark])
 
   const options = useMemo(() => {
+    const { txt, grid } = axisColors(isDark)
     return {
       responsive: true,
       maintainAspectRatio: false,
@@ -241,14 +242,20 @@ export default function GraficoCategoriasDespesas({ mesAtual }: Props) {
         },
       },
       scales: {
-        y: yScaleCfg(isDark, { callback: (v) => formatBRL(Number(v)) }),
-        x: {
-          ...xScaleCfg(isDark, { fontSize: 10, padding: 5 }),
+        y: {
           ticks: {
-            ...xScaleCfg(isDark, { fontSize: 10, padding: 5 }).ticks,
-            maxRotation: 30,
-            minRotation: 0,
+            callback: (v: number | string) => formatBRL(Number(v)),
+            font: { size: 10 },
+            maxTicksLimit: 5,
+            color: txt,
           },
+          grid: { color: grid, lineWidth: 1 },
+          border: { display: false },
+        },
+        x: {
+          ticks: { font: { size: 10 }, color: txt, padding: 5, maxRotation: 30, minRotation: 0 },
+          grid: { display: false },
+          border: { display: false },
         },
       },
     }
