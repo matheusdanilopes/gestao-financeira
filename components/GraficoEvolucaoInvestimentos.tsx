@@ -20,6 +20,7 @@ import { supabase } from '@/lib/supabaseClient'
 import type { TooltipItem, Plugin } from 'chart.js'
 import { useIsDark } from '@/lib/useIsDark'
 import { makeCrosshairPlugin } from '@/lib/chartPlugins'
+import { CHART_ANIMATION, tooltipCfg, yScaleCfg, xScaleCfg, legendCfg } from '@/lib/chartTheme'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler)
 
@@ -201,69 +202,49 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual }: Props) {
           data: dados.realizado,
           borderColor: rgba(VIOLET),
           backgroundColor: 'transparent', // filled by gradientPlugin
-          borderWidth: 2.5,
-          tension: 0.42,
+          borderWidth: 2,
+          tension: 0.45,
           fill: true,
-          pointRadius: 3,
-          pointHoverRadius: 10,
-          pointHitRadius: 24,
+          pointRadius: 0,
+          pointHoverRadius: 7,
+          pointHitRadius: 28,
           pointBackgroundColor: rgba(VIOLET),
           pointBorderColor: pBorder,
           pointBorderWidth: 2,
-          pointHoverBorderWidth: 2.5,
+          pointHoverBorderWidth: 2,
         },
         {
           label: 'Meta',
           data: dados.meta,
-          borderColor: rgba(TEAL, 0.85),
+          borderColor: rgba(TEAL, 0.80),
           backgroundColor: 'transparent', // filled by gradientPlugin
           borderWidth: 1.5,
           borderDash: [6, 4],
-          tension: 0.42,
+          tension: 0.45,
           fill: true,
           spanGaps: true,
-          pointRadius: 2,
-          pointHoverRadius: 7,
-          pointHitRadius: 24,
+          pointRadius: 0,
+          pointHoverRadius: 6,
+          pointHitRadius: 28,
           pointBackgroundColor: rgba(TEAL),
           pointBorderColor: pBorder,
           pointBorderWidth: 1.5,
-          pointHoverBorderWidth: 2,
+          pointHoverBorderWidth: 1.5,
         },
       ],
     }
   }, [dados, isDark])
 
   const options = useMemo(() => {
-    const txt  = isDark ? '#9ca3af' : '#6b7280'
-    const grid = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.045)'
-    const tbg  = isDark ? 'rgba(15,23,42,0.97)'   : 'rgba(15,23,42,0.93)'
-
     return {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index' as const, intersect: false },
-      animation: { duration: 350, easing: 'easeOutQuart' as const },
+      animation: CHART_ANIMATION,
       plugins: {
-        legend: {
-          position: 'bottom' as const,
-          labels: {
-            font: { size: 12 },
-            boxWidth: 28,
-            boxHeight: 3,
-            padding: 24,
-            color: txt,
-            usePointStyle: false,
-          },
-        },
+        legend: legendCfg(isDark),
         tooltip: {
-          backgroundColor: tbg,
-          titleColor: '#f1f5f9',
-          bodyColor: '#94a3b8',
-          padding: { top: 10, right: 16, bottom: 10, left: 16 },
-          cornerRadius: 12,
-          borderColor: 'rgba(255,255,255,0.08)',
-          borderWidth: 1,
+          ...tooltipCfg(isDark),
           boxWidth: 8,
           boxHeight: 8,
           usePointStyle: false,
@@ -274,41 +255,31 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual }: Props) {
         },
       },
       scales: {
-        y: {
-          ticks: {
-            callback: (v: number | string) => formatBRL(Number(v)),
-            font: { size: 10 },
-            maxTicksLimit: 5,
-            color: txt,
-          },
-          grid: { color: grid, lineWidth: 1 },
-          border: { display: false, dash: [4, 4] },
-        },
-        x: {
-          ticks: { font: { size: 11 }, color: txt, padding: 8 },
-          grid: { display: false },
-          border: { display: false },
-        },
+        y: yScaleCfg(isDark, { callback: (v) => formatBRL(Number(v)) }),
+        x: xScaleCfg(isDark),
       },
     }
   }, [isDark])
 
   if (carregando) {
     return (
-      <div className="h-56 animate-pulse">
-        <div className="h-full flex flex-col gap-2 pt-2 pb-6">
-          <div className="flex-1 flex items-end gap-1 px-2">
-            {[30, 50, 42, 65, 55, 70].map((h, i) => (
-              <div
-                key={i}
-                className="flex-1 rounded-t-lg bg-gray-100 dark:bg-white/[0.05]"
-                style={{ height: `${h}%` }}
-              />
-            ))}
+      <div className="h-56 animate-pulse flex flex-col justify-between pt-3 pb-2 px-2">
+        <div className="flex flex-col justify-between h-[calc(100%-28px)]">
+          {[0,1,2,3,4].map(i => (
+            <div key={i} className="flex items-center gap-2">
+              <div className="h-2.5 rounded-full bg-gray-100 dark:bg-white/[0.05]" style={{ width: 32 + i * 4 }} />
+              <div className="flex-1 h-px bg-gray-100 dark:bg-white/[0.04]" />
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-5 justify-center mt-2">
+          <div className="flex items-center gap-1.5">
+            <div className="h-0.5 w-5 bg-violet-200 dark:bg-violet-900/40 rounded-full" />
+            <div className="h-2 w-14 bg-gray-100 dark:bg-white/[0.05] rounded-full" />
           </div>
-          <div className="flex gap-4 justify-center">
-            <div className="h-2 w-16 bg-gray-100 dark:bg-white/[0.05] rounded-full" />
-            <div className="h-2 w-16 bg-gray-100 dark:bg-white/[0.05] rounded-full" />
+          <div className="flex items-center gap-1.5">
+            <div className="h-0.5 w-5 bg-teal-200 dark:bg-teal-900/40 rounded-full" />
+            <div className="h-2 w-10 bg-gray-100 dark:bg-white/[0.05] rounded-full" />
           </div>
         </div>
       </div>

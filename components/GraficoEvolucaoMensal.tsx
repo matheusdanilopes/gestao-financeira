@@ -20,6 +20,7 @@ import { supabase } from '@/lib/supabaseClient'
 import type { ScriptableLineSegmentContext, TooltipItem, Plugin } from 'chart.js'
 import { useIsDark } from '@/lib/useIsDark'
 import { makeCrosshairPlugin } from '@/lib/chartPlugins'
+import { CHART_ANIMATION, tooltipCfg, yScaleCfg, xScaleCfg, legendCfg } from '@/lib/chartTheme'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler)
 
@@ -168,16 +169,16 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
       data,
       borderColor: rgb(PALETTE[pi]),
       backgroundColor: 'transparent', // overwritten by gradientPlugin each draw
-      borderWidth: 2.5,
-      tension: 0.42,
+      borderWidth: 2,
+      tension: 0.45,
       fill: true,
       pointRadius: 0,
-      pointHoverRadius: 9,
-      pointHitRadius: 24,
+      pointHoverRadius: 7,
+      pointHitRadius: 28,
       pointBackgroundColor: rgb(PALETTE[pi]),
       pointBorderColor: pBorder,
-      pointBorderWidth: 2.5,
-      pointHoverBorderWidth: 2.5,
+      pointBorderWidth: 2,
+      pointHoverBorderWidth: 2,
       // Segments from currentMonthIndex onward → dashed + lighter (forecast)
       ...(cmi >= 0 ? {
         segment: {
@@ -199,81 +200,59 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
   }, [dados, isDark])
 
   const options = useMemo(() => {
-    const txt  = isDark ? '#9ca3af' : '#6b7280'
-    const grid = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.045)'
-    const tbg  = isDark ? 'rgba(15,23,42,0.97)'   : 'rgba(15,23,42,0.93)'
-
     return {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index' as const, intersect: false },
-      animation: { duration: 350, easing: 'easeOutQuart' as const },
+      animation: CHART_ANIMATION,
       plugins: {
-        legend: {
-          position: 'bottom' as const,
-          labels: {
-            font: { size: 12 },
-            boxWidth: 28,
-            boxHeight: 3,
-            padding: 24,
-            color: txt,
-            usePointStyle: false,
-          },
-        },
+        legend: legendCfg(isDark),
         tooltip: {
-          backgroundColor: tbg,
-          titleColor: '#f1f5f9',
-          bodyColor:  '#94a3b8',
-          padding: { top: 10, right: 16, bottom: 10, left: 16 },
-          cornerRadius: 12,
-          borderColor: 'rgba(255,255,255,0.08)',
-          borderWidth: 1,
+          ...tooltipCfg(isDark),
           boxWidth: 8,
           boxHeight: 8,
           usePointStyle: true,
           callbacks: {
             title: (items: TooltipItem<'line'>[]) => items[0]?.label ?? '',
-            label: (ctx: TooltipItem<'line'>) => `  ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y ?? 0)}`,
+            label: (ctx: TooltipItem<'line'>) => {
+              const total = (dados?.receitas ?? []).reduce((s, v) => s + v, 0) +
+                            (dados?.despesas ?? []).reduce((s, v) => s + v, 0)
+              const pct = total > 0 ? ((ctx.parsed.y ?? 0) / total * 100).toFixed(1) : null
+              const suffix = pct ? ` (${pct}%)` : ''
+              return `  ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y ?? 0)}${suffix}`
+            },
           },
         },
       },
       scales: {
-        y: {
-          ticks: {
-            callback: (v: number | string) => formatBRL(Number(v)),
-            font: { size: 10 },
-            maxTicksLimit: 5,
-            color: txt,
-          },
-          grid: { color: grid, lineWidth: 1 },
-          border: { display: false, dash: [4, 4] },
-        },
-        x: {
-          ticks: { font: { size: 11 }, color: txt, padding: 8 },
-          grid: { display: false },
-          border: { display: false },
-        },
+        y: yScaleCfg(isDark, { callback: (v) => formatBRL(Number(v)) }),
+        x: xScaleCfg(isDark),
       },
     }
-  }, [isDark])
+  }, [isDark, dados])
 
   /* ── loading ── */
   if (carregando) {
     return (
-      <div className="h-56 md:h-64 lg:h-72 animate-pulse">
-        <div className="h-full flex flex-col gap-2 pt-2 pb-6">
-          <div className="flex-1 flex items-end gap-1 px-2">
-            {[45, 68, 55, 75, 60, 82].map((h, i) => (
-              <div
-                key={i}
-                className="flex-1 rounded-t-lg bg-gray-100 dark:bg-white/[0.05]"
-                style={{ height: `${h}%` }}
-              />
-            ))}
+      <div className="h-56 md:h-64 lg:h-72 animate-pulse flex flex-col justify-between pt-3 pb-2 px-2">
+        {/* Y-axis ticks */}
+        <div className="flex flex-col justify-between h-[calc(100%-28px)] gap-0">
+          {[0,1,2,3,4].map(i => (
+            <div key={i} className="flex items-center gap-2">
+              <div className="h-2.5 rounded-full bg-gray-100 dark:bg-white/[0.05]" style={{ width: 36 + i * 4 }} />
+              <div className="flex-1 h-px bg-gray-100 dark:bg-white/[0.04]" />
+            </div>
+          ))}
+        </div>
+        {/* Legend placeholders */}
+        <div className="flex gap-5 justify-center mt-2">
+          <div className="flex items-center gap-1.5">
+            <div className="h-0.5 w-5 bg-emerald-200 dark:bg-emerald-900/40 rounded-full" />
+            <div className="h-2 w-12 bg-gray-100 dark:bg-white/[0.05] rounded-full" />
           </div>
-          <div className="flex gap-4 justify-center">
-            <div className="h-2 w-16 bg-gray-100 dark:bg-white/[0.05] rounded-full" />
-            <div className="h-2 w-16 bg-gray-100 dark:bg-white/[0.05] rounded-full" />
+          <div className="flex items-center gap-1.5">
+            <div className="h-0.5 w-5 bg-red-200 dark:bg-red-900/40 rounded-full" />
+            <div className="h-2 w-12 bg-gray-100 dark:bg-white/[0.05] rounded-full" />
           </div>
         </div>
       </div>
@@ -307,13 +286,13 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
       </div>
 
       {showHint && (
-        <p className="flex items-center justify-center gap-5 text-[11px] text-gray-400 mt-3">
+        <p className="flex items-center justify-center gap-5 text-[11px] text-gray-400 dark:text-gray-500 mt-3">
           <span className="flex items-center gap-1.5">
-            <span className="inline-block w-6 h-0.5 rounded-full bg-gray-400" />
+            <span className="inline-block w-5 h-0.5 rounded-full bg-current" />
             Realizado
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="inline-block w-5 border-t border-dashed border-gray-400" />
+            <span className="inline-block w-5 border-t border-dashed border-current" />
             Previsto
           </span>
         </p>

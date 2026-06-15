@@ -16,6 +16,7 @@ import { AlertCircle, BarChart3 } from 'lucide-react'
 import { formatBRL } from '@/lib/logger'
 import { supabase } from '@/lib/supabaseClient'
 import { useIsDark } from '@/lib/useIsDark'
+import { CHART_ANIMATION, tooltipCfg, yScaleCfg, xScaleCfg } from '@/lib/chartTheme'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend)
 
@@ -163,13 +164,15 @@ export default function GraficoCategoriasDespesas({ mesAtual }: Props) {
         {
           label: 'Previsto',
           data: cats.map(c => c.previsto),
-          backgroundColor: rgba([148, 163, 184], isDark ? 0.28 : 0.30),
-          hoverBackgroundColor: rgba([148, 163, 184], isDark ? 0.45 : 0.45),
-          borderColor: rgba([148, 163, 184], isDark ? 0.55 : 0.50),
+          backgroundColor: rgba([148, 163, 184], isDark ? 0.22 : 0.25),
+          hoverBackgroundColor: rgba([148, 163, 184], isDark ? 0.38 : 0.38),
+          borderColor: rgba([148, 163, 184], isDark ? 0.40 : 0.35),
           borderWidth: 1,
-          borderRadius: 5,
+          borderRadius: 6,
           borderSkipped: 'bottom' as const,
-          maxBarThickness: 32,
+          maxBarThickness: 28,
+          barPercentage: 0.80,
+          categoryPercentage: 0.72,
         },
         {
           label: 'Pago',
@@ -184,34 +187,26 @@ export default function GraficoCategoriasDespesas({ mesAtual }: Props) {
               ? rgba(OVER_BUDGET_COLOR, 1)
               : rgba(PALETTE[i % PALETTE.length], 1)
           ),
-          borderRadius: 6,
+          borderRadius: 7,
           borderSkipped: 'bottom' as const,
-          maxBarThickness: 32,
+          maxBarThickness: 28,
+          barPercentage: 0.80,
+          categoryPercentage: 0.72,
         },
       ],
     }
   }, [dados, isDark])
 
   const options = useMemo(() => {
-    const txt  = isDark ? '#9ca3af' : '#6b7280'
-    const grid = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'
-    const tbg  = isDark ? 'rgba(15,23,42,0.97)' : 'rgba(15,23,42,0.93)'
-
     return {
       responsive: true,
       maintainAspectRatio: false,
-      animation: { duration: 430, easing: 'easeOutQuart' as const },
+      animation: CHART_ANIMATION,
       interaction: { mode: 'index' as const, intersect: false },
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: tbg,
-          titleColor: '#f1f5f9',
-          bodyColor: '#94a3b8',
-          padding: { top: 10, right: 16, bottom: 12, left: 16 },
-          cornerRadius: 12,
-          borderColor: 'rgba(255,255,255,0.08)',
-          borderWidth: 1,
+          ...tooltipCfg(isDark),
           callbacks: {
             title: (items: TooltipItem<'bar'>[]) =>
               dados?.categorias[items[0]?.dataIndex ?? 0]?.label ?? (items[0]?.label ?? ''),
@@ -231,6 +226,8 @@ export default function GraficoCategoriasDespesas({ mesAtual }: Props) {
                 linhas.push(`  Diferença: ${sinal}${formatBRL(diff)}`)
                 linhas.push(`  Variação: ${sinal}${pct.toFixed(1)}%`)
               }
+              if (cat.previsto > 0)
+                linhas.push(`  % do previsto: ${cat.previsto > 0 ? ((cat.pago / cat.previsto) * 100).toFixed(0) : '—'}%`)
               if (cat.contagem > 0)
                 linhas.push(`  Itens pagos: ${cat.contagem}`)
               return linhas
@@ -244,20 +241,14 @@ export default function GraficoCategoriasDespesas({ mesAtual }: Props) {
         },
       },
       scales: {
-        y: {
-          ticks: {
-            callback: (v: number | string) => formatBRL(Number(v)),
-            font: { size: 10 },
-            maxTicksLimit: 5,
-            color: txt,
-          },
-          grid: { color: grid, lineWidth: 1 },
-          border: { display: false, dash: [4, 4] },
-        },
+        y: yScaleCfg(isDark, { callback: (v) => formatBRL(Number(v)) }),
         x: {
-          ticks: { font: { size: 10 }, color: txt, padding: 5, maxRotation: 35, minRotation: 0 },
-          grid: { display: false },
-          border: { display: false },
+          ...xScaleCfg(isDark, { fontSize: 10, padding: 5 }),
+          ticks: {
+            ...xScaleCfg(isDark, { fontSize: 10, padding: 5 }).ticks,
+            maxRotation: 30,
+            minRotation: 0,
+          },
         },
       },
     }
@@ -265,16 +256,26 @@ export default function GraficoCategoriasDespesas({ mesAtual }: Props) {
 
   if (carregando && !dados) {
     return (
-      <div className="h-64 animate-pulse flex items-end gap-2 px-1 pb-4">
-        {[65, 45, 80, 55, 35, 70, 50, 60, 40, 75, 30, 55].map((h, i) => (
-          <div key={i} className="flex-1 flex flex-col gap-1 items-center">
-            <div
-              className="w-full rounded-t-lg bg-gray-100 dark:bg-white/[0.05]"
-              style={{ height: `${h}%` }}
-            />
-            <div className="h-1.5 w-3/4 rounded-full bg-gray-100 dark:bg-white/[0.05]" />
-          </div>
-        ))}
+      <div className="h-64 animate-pulse flex flex-col justify-end gap-1.5 px-1 pb-6">
+        <div className="flex items-end gap-1.5 flex-1">
+          {[62, 40, 78, 52, 33, 68, 48, 58, 38, 72, 28, 50].map((h, i) => (
+            <div key={i} className="flex-1 flex flex-col gap-0.5 items-center">
+              <div
+                className="w-full rounded-md bg-gray-100 dark:bg-white/[0.05]"
+                style={{ height: `${h}%` }}
+              />
+              <div
+                className="w-full rounded-md bg-gray-50 dark:bg-white/[0.03]"
+                style={{ height: `${Math.max(h * 0.6, 12)}%` }}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-1 justify-center">
+          {[0,1,2,3,4,5].map(i => (
+            <div key={i} className="h-1.5 w-6 rounded-full bg-gray-100 dark:bg-white/[0.05]" />
+          ))}
+        </div>
       </div>
     )
   }

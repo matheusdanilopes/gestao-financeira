@@ -26,6 +26,8 @@ import {
   defaultDateTo,
   CAT_COLORS,
 } from '@/lib/useAnalyticsData'
+import { useIsDark } from '@/lib/useIsDark'
+import { CHART_ANIMATION, tooltipCfg } from '@/lib/chartTheme'
 
 ChartJS.register(
   CategoryScale,
@@ -40,120 +42,120 @@ ChartJS.register(
   Filler
 )
 
-// ── Chart option objects ──────────────────────────────────────────────────────
+// ── Chart option builder (dark-aware) ────────────────────────────────────────
 
-const baseTooltip = {
-  backgroundColor: 'rgba(15,23,42,0.97)',
-  titleColor: '#f1f5f9',
-  bodyColor: '#94a3b8',
-  padding: { top: 10, right: 14, bottom: 10, left: 14 },
-  cornerRadius: 12,
-  borderColor: 'rgba(255,255,255,0.08)',
-  borderWidth: 1,
-  displayColors: false,
-}
-
-const trendOptions: ChartOptions<'line'> = {
-  responsive: true,
-  maintainAspectRatio: false,
-  interaction: { mode: 'index', intersect: false },
-  animation: { duration: 400, easing: 'easeOutQuart' },
-  plugins: {
-    legend: { display: false },
-    tooltip: {
-      ...baseTooltip,
-      callbacks: {
-        label: (ctx) =>
-          `  R$ ${(ctx.parsed.y ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-      },
-    },
-  },
-  scales: {
-    x: {
-      grid: { display: false },
-      ticks: { font: { size: 11 }, color: '#6b7280', padding: 6 },
-      border: { display: false },
-    },
-    y: {
-      grid: { color: 'rgba(0,0,0,0.045)', lineWidth: 1 },
-      border: { display: false, dash: [4, 4] },
-      ticks: {
-        callback: (v) =>
-          Number(v) >= 1000 ? `R$${(Number(v) / 1000).toFixed(0)}k` : `R$${v}`,
-        font: { size: 10 },
-        color: '#9ca3af',
-        maxTicksLimit: 5,
-        padding: 6,
-      },
-    },
-  },
-}
-
-const donutOptions: ChartOptions<'doughnut'> = {
-  responsive: true,
-  maintainAspectRatio: false,
-  cutout: '72%',
-  animation: { duration: 500, easing: 'easeOutQuart' },
-  plugins: {
-    legend: { display: false },
-    tooltip: {
-      ...baseTooltip,
-      displayColors: true,
-      boxWidth: 8,
-      boxHeight: 8,
-      callbacks: {
-        label: (ctx) => {
-          const total = (ctx.dataset.data as number[]).reduce((a, b) => a + b, 0)
-          const pct = total > 0 ? ((ctx.parsed / total) * 100).toFixed(1) : '0'
-          return `  R$ ${ctx.parsed.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (${pct}%)`
+function buildTrendOptions(isDark: boolean): ChartOptions<'line'> {
+  const txt  = isDark ? '#6b7280' : '#9ca3af'
+  const grid = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    animation: CHART_ANIMATION,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        ...tooltipCfg(isDark),
+        displayColors: false,
+        callbacks: {
+          label: (ctx) =>
+            `  R$ ${(ctx.parsed.y ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
         },
       },
     },
-  },
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: { font: { size: 11 }, color: txt, padding: 6 },
+        border: { display: false },
+      },
+      y: {
+        grid: { color: grid, lineWidth: 1 },
+        border: { display: false },
+        ticks: {
+          callback: (v) =>
+            Number(v) >= 1000 ? `R$${(Number(v) / 1000).toFixed(0)}k` : `R$${v}`,
+          font: { size: 10 },
+          color: txt,
+          maxTicksLimit: 5,
+          padding: 6,
+        },
+      },
+    },
+  }
 }
 
-const barBaseOptions: ChartOptions<'bar'> = {
-  responsive: true,
-  maintainAspectRatio: false,
-  animation: { duration: 430, easing: 'easeOutQuart' },
-  plugins: {
-    legend: {
-      position: 'top',
-      labels: {
-        font: { size: 11 },
-        usePointStyle: true,
-        pointStyle: 'circle',
-        boxHeight: 6,
-        padding: 16,
-        color: '#6b7280',
+function buildDonutOptions(isDark: boolean): ChartOptions<'doughnut'> {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: '72%',
+    animation: { duration: 500, easing: 'easeOutQuart' },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        ...tooltipCfg(isDark),
+        displayColors: true,
+        boxWidth: 8,
+        boxHeight: 8,
+        callbacks: {
+          label: (ctx) => {
+            const total = (ctx.dataset.data as number[]).reduce((a, b) => a + b, 0)
+            const pct = total > 0 ? ((ctx.parsed / total) * 100).toFixed(1) : '0'
+            return `  R$ ${ctx.parsed.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (${pct}%)`
+          },
+        },
       },
     },
-    tooltip: {
-      ...baseTooltip,
-      displayColors: true,
-      boxWidth: 8,
-      boxHeight: 8,
-      callbacks: {
-        label: (ctx) =>
-          `  R$ ${(ctx.parsed.y ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+  }
+}
+
+function buildBarOptions(isDark: boolean): ChartOptions<'bar'> {
+  const txt  = isDark ? '#6b7280' : '#9ca3af'
+  const grid = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: CHART_ANIMATION,
+    plugins: {
+      legend: {
+        position: 'top',
+        labels: {
+          font: { size: 11 },
+          usePointStyle: true,
+          pointStyle: 'circle',
+          boxHeight: 6,
+          padding: 16,
+          color: isDark ? '#6b7280' : '#9ca3af',
+        },
+      },
+      tooltip: {
+        ...tooltipCfg(isDark),
+        displayColors: true,
+        boxWidth: 8,
+        boxHeight: 8,
+        callbacks: {
+          label: (ctx) =>
+            `  R$ ${(ctx.parsed.y ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+        },
       },
     },
-  },
-  scales: {
-    x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#6b7280', padding: 4 }, border: { display: false } },
-    y: {
-      grid: { color: 'rgba(0,0,0,0.045)', lineWidth: 1 },
-      border: { display: false, dash: [4, 4] },
-      ticks: {
-        callback: (v) =>
-          Number(v) >= 1000 ? `R$${(Number(v) / 1000).toFixed(0)}k` : `R$${v}`,
-        font: { size: 10 },
-        color: '#9ca3af',
-        maxTicksLimit: 5,
-        padding: 6,
+    scales: {
+      x: { grid: { display: false }, ticks: { font: { size: 10 }, color: txt, padding: 4 }, border: { display: false } },
+      y: {
+        grid: { color: grid, lineWidth: 1 },
+        border: { display: false },
+        ticks: {
+          callback: (v) =>
+            Number(v) >= 1000 ? `R$${(Number(v) / 1000).toFixed(0)}k` : `R$${v}`,
+          font: { size: 10 },
+          color: txt,
+          maxTicksLimit: 5,
+          padding: 6,
+        },
       },
     },
-  },
+  }
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -189,6 +191,7 @@ function ChartCard({ title, children, className = '' }: { title: string; childre
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function AnalyticsDesktop() {
+  const { isDark } = useIsDark()
   const [dateFrom, setDateFrom] = useState(defaultDateFrom)
   const [dateTo, setDateTo] = useState(defaultDateTo)
   const [selectedCats, setSelectedCats] = useState<string[]>([])
@@ -244,6 +247,11 @@ export default function AnalyticsDesktop() {
   // month input value format: 'yyyy-MM'
   const toMonthInput = (d: string) => d.slice(0, 7)
   const fromMonthInput = (v: string) => v + '-01'
+
+  // ── Dark-aware chart options ───────────────────────────────────────────────
+  const trendOptions  = useMemo(() => buildTrendOptions(isDark),  [isDark])
+  const donutOptions  = useMemo(() => buildDonutOptions(isDark),  [isDark])
+  const barBaseOptions = useMemo(() => buildBarOptions(isDark),   [isDark])
 
   // ── Skeletons ─────────────────────────────────────────────────────────────
   const showSkeleton = loading && rows.length === 0
