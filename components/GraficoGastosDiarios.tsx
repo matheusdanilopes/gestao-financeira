@@ -20,6 +20,7 @@ import { supabase } from '@/lib/supabaseClient'
 import type { Plugin } from 'chart.js'
 import { useIsDark } from '@/lib/useIsDark'
 import { makeCrosshairPlugin } from '@/lib/chartPlugins'
+import { CHART_ANIMATION } from '@/lib/chartTheme'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler)
 
@@ -351,13 +352,13 @@ export default function GraficoGastosDiarios({
       data: [] as number[],
       borderColor: rgb(1),
       backgroundColor: 'transparent',
-      borderWidth: 2.5,
+      borderWidth: 2,
       cubicInterpolationMode: 'monotone' as const,
-      tension: 0.4,
+      tension: 0.42,
       fill: true,
       pointRadius: 0,
-      pointHoverRadius: 5,
-      pointHitRadius: 28,
+      pointHoverRadius: 6,
+      pointHitRadius: 30,
       pointBackgroundColor: rgb(1),
       pointBorderColor: pBorder,
       pointBorderWidth: 2,
@@ -478,13 +479,13 @@ export default function GraficoGastosDiarios({
   // callbacks, so filter changes don't rebuild options or trigger re-animation.
   const options = useMemo(() => {
     const txt  = isDark ? '#9ca3af' : '#6b7280'
-    const grid = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'
+    const grid = isDark ? 'rgba(255,255,255,0.035)' : 'rgba(0,0,0,0.035)'
 
     return {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index' as const, intersect: false },
-      animation: { duration: 350, easing: 'easeOutQuart' as const },
+      animation: CHART_ANIMATION,
       plugins: {
         legend: { display: false },
         tooltip: {

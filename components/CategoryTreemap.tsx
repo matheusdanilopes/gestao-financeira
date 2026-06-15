@@ -252,19 +252,18 @@ export default function CategoryTreemap({ compras: comprasProp, mesAtual, loadin
 
   if (loading) {
     return (
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-card mb-4">
+      <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-white/[0.06] shadow-card mb-4">
         <div className="px-4 pt-3 pb-2 flex items-center justify-between">
-          <div className="h-3 w-24 bg-gray-200 rounded-full animate-pulse" />
-          <div className="h-6 w-28 bg-gray-100 rounded-xl animate-pulse" />
+          <div className="h-3 w-24 bg-gray-200 dark:bg-white/[0.08] rounded-full animate-pulse" />
+          <div className="h-6 w-28 bg-gray-100 dark:bg-white/[0.05] rounded-xl animate-pulse" />
         </div>
-        {/* Skeleton que imita blocos de treemap */}
         <div className="mx-3 mb-3 grid grid-cols-12 gap-1.5 animate-pulse" style={{ height: TREEMAP_H }}>
-          <div className="col-span-5 bg-gray-200 rounded-xl" />
-          <div className="col-span-3 bg-gray-100 rounded-xl" />
-          <div className="col-span-4 bg-gray-200 rounded-xl" />
-          <div className="col-span-4 bg-gray-100 rounded-xl" />
-          <div className="col-span-5 bg-gray-200 rounded-xl" />
-          <div className="col-span-3 bg-gray-100 rounded-xl" />
+          <div className="col-span-5 bg-gray-200 dark:bg-white/[0.08] rounded-xl" />
+          <div className="col-span-3 bg-gray-100 dark:bg-white/[0.05] rounded-xl" />
+          <div className="col-span-4 bg-gray-200 dark:bg-white/[0.08] rounded-xl" />
+          <div className="col-span-4 bg-gray-100 dark:bg-white/[0.05] rounded-xl" />
+          <div className="col-span-5 bg-gray-200 dark:bg-white/[0.08] rounded-xl" />
+          <div className="col-span-3 bg-gray-100 dark:bg-white/[0.05] rounded-xl" />
         </div>
       </div>
     )
@@ -273,22 +272,22 @@ export default function CategoryTreemap({ compras: comprasProp, mesAtual, loadin
   if (!compras.length) return null
 
   return (
-    <div className="bg-white rounded-3xl border border-gray-100 shadow-card mb-4 overflow-hidden">
+    <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-white/[0.06] shadow-card mb-4 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-3 pb-2">
         <div className="flex items-center gap-1.5">
-          <LayoutGrid className="w-3.5 h-3.5 text-gray-400" />
-          <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest">
+          <LayoutGrid className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
+          <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
             Categorias da Fatura
           </span>
         </div>
-        <div className="flex rounded-xl overflow-hidden border border-gray-200 dark:border-white/10">
+        <div className="flex rounded-xl overflow-hidden border border-gray-200 dark:border-white/[0.1]">
           <button
             onClick={() => setMode('value')}
             className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold transition-colors ${
               mode === 'value'
                 ? 'bg-primary-600 text-white'
-                : 'bg-white text-gray-400 hover:text-gray-600'
+                : 'bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
             }`}
           >
             <TrendingUp className="w-3 h-3" />
@@ -299,7 +298,7 @@ export default function CategoryTreemap({ compras: comprasProp, mesAtual, loadin
             className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold transition-colors ${
               mode === 'count'
                 ? 'bg-primary-600 text-white'
-                : 'bg-white text-gray-400 hover:text-gray-600'
+                : 'bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
             }`}
           >
             <Hash className="w-3 h-3" />
@@ -391,35 +390,35 @@ export default function CategoryTreemap({ compras: comprasProp, mesAtual, loadin
             />
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between mb-2.5">
-                <p className="text-sm font-bold text-gray-900 truncate pr-1">{selected.label}</p>
+                <p className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate pr-1">{selected.label}</p>
                 <button
                   onClick={() => setSelected(null)}
-                  className="p-0.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-black/[0.06] transition-colors shrink-0"
+                  className="p-0.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-black/[0.06] dark:hover:bg-white/[0.08] transition-colors shrink-0"
                   aria-label="Fechar detalhe"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
               <div className="grid grid-cols-2 gap-1.5">
-                <div className="bg-white/70 rounded-xl p-2.5">
-                  <p className="text-[9px] text-gray-400 font-semibold uppercase tracking-wide leading-tight">Total</p>
-                  <p className="text-xs font-bold text-gray-900 num mt-1 whitespace-nowrap">
+                <div className="bg-white/70 dark:bg-white/[0.08] rounded-xl p-2.5">
+                  <p className="text-[9px] text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wide leading-tight">Total</p>
+                  <p className="text-xs font-bold text-gray-900 dark:text-gray-100 num mt-1 whitespace-nowrap">
                     {formatBRL(selected.valor)}
                   </p>
                 </div>
-                <div className="bg-white/70 rounded-xl p-2.5">
-                  <p className="text-[9px] text-gray-400 font-semibold uppercase tracking-wide leading-tight">Compras</p>
-                  <p className="text-xs font-bold text-gray-900 mt-1">{selected.contagem}×</p>
+                <div className="bg-white/70 dark:bg-white/[0.08] rounded-xl p-2.5">
+                  <p className="text-[9px] text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wide leading-tight">Compras</p>
+                  <p className="text-xs font-bold text-gray-900 dark:text-gray-100 mt-1">{selected.contagem}×</p>
                 </div>
-                <div className="bg-white/70 rounded-xl p-2.5">
-                  <p className="text-[9px] text-gray-400 font-semibold uppercase tracking-wide leading-tight">Ticket médio</p>
-                  <p className="text-xs font-bold text-gray-900 num mt-1 whitespace-nowrap">
+                <div className="bg-white/70 dark:bg-white/[0.08] rounded-xl p-2.5">
+                  <p className="text-[9px] text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wide leading-tight">Ticket médio</p>
+                  <p className="text-xs font-bold text-gray-900 dark:text-gray-100 num mt-1 whitespace-nowrap">
                     {formatBRL(selected.valor / selected.contagem)}
                   </p>
                 </div>
-                <div className="bg-white/70 rounded-xl p-2.5">
-                  <p className="text-[9px] text-gray-400 font-semibold uppercase tracking-wide leading-tight">% fatura</p>
-                  <p className="text-xs font-bold text-gray-900 mt-1">
+                <div className="bg-white/70 dark:bg-white/[0.08] rounded-xl p-2.5">
+                  <p className="text-[9px] text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wide leading-tight">% fatura</p>
+                  <p className="text-xs font-bold text-gray-900 dark:text-gray-100 mt-1">
                     {selected.pct.toFixed(1)}%
                   </p>
                 </div>

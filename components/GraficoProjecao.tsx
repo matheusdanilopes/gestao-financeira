@@ -20,6 +20,7 @@ import { formatBRL } from '@/lib/logger'
 import type { TooltipItem, ActiveElement, ChartEvent, Plugin } from 'chart.js'
 import { useIsDark } from '@/lib/useIsDark'
 import { makeCrosshairPlugin } from '@/lib/chartPlugins'
+import { CHART_ANIMATION, tooltipCfg, legendCfg, axisColors } from '@/lib/chartTheme'
 
 interface GradientChart {
   ctx: CanvasRenderingContext2D
@@ -161,19 +162,19 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
     ) => ({
       label,
       data,
-      borderColor: rgba(color, 0.82),
+      borderColor: rgba(color, 0.75),
       backgroundColor: 'transparent',
       borderWidth: 1.5,
       ...(dash ? { borderDash: dash } : {}),
-      tension: 0.42,
+      tension: 0.45,
       fill: false,
-      pointRadius: 2.5,
-      pointHoverRadius: 7,
-      pointHitRadius: 20,
+      pointRadius: 0,
+      pointHoverRadius: 6,
+      pointHitRadius: 24,
       pointBackgroundColor: rgba(color),
       pointBorderColor: pBorder,
       pointBorderWidth: 1.5,
-      pointHoverBorderWidth: 2,
+      pointHoverBorderWidth: 1.5,
     })
 
     return {
@@ -185,15 +186,15 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
           borderColor: rgba(C.violet),
           backgroundColor: 'transparent', // filled by gradientPlugin
           borderWidth: 2.5,
-          tension: 0.42,
+          tension: 0.45,
           fill: true,
-          pointRadius: 4,
-          pointHoverRadius: 10,
-          pointHitRadius: 24,
+          pointRadius: 0,
+          pointHoverRadius: 8,
+          pointHitRadius: 28,
           pointBackgroundColor: rgba(C.violet),
           pointBorderColor: pBorder,
           pointBorderWidth: 2,
-          pointHoverBorderWidth: 2.5,
+          pointHoverBorderWidth: 2,
         },
         mkSecondary('Matheus',  dados.matheus,  C.blue),
         mkSecondary('Jeniffer', dados.jeniffer, C.pink),
@@ -203,35 +204,16 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
   }, [dados, isDark])
 
   const options = useMemo(() => {
-    const txt  = isDark ? '#9ca3af' : '#6b7280'
-    const grid = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.045)'
-    const tbg  = isDark ? 'rgba(15,23,42,0.97)'   : 'rgba(15,23,42,0.93)'
-
+    const { txt, grid } = axisColors(isDark)
     return {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index' as const, intersect: false },
-      animation: { duration: 350, easing: 'easeOutQuart' as const },
+      animation: CHART_ANIMATION,
       plugins: {
-        legend: {
-          position: 'bottom' as const,
-          labels: {
-            font: { size: 12 },
-            boxWidth: 28,
-            boxHeight: 3,
-            padding: 24,
-            color: txt,
-            usePointStyle: false,
-          },
-        },
+        legend: legendCfg(isDark),
         tooltip: {
-          backgroundColor: tbg,
-          titleColor: '#f1f5f9',
-          bodyColor: '#94a3b8',
-          padding: { top: 10, right: 16, bottom: 10, left: 16 },
-          cornerRadius: 12,
-          borderColor: 'rgba(255,255,255,0.08)',
-          borderWidth: 1,
+          ...tooltipCfg(isDark),
           boxWidth: 8,
           boxHeight: 8,
           usePointStyle: false,
@@ -250,7 +232,7 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
             color: txt,
           },
           grid: { color: grid, lineWidth: 1 },
-          border: { display: false, dash: [4, 4] },
+          border: { display: false },
         },
         x: {
           ticks: { font: { size: 11 }, color: txt, padding: 8 },
@@ -286,19 +268,27 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
 
   if (carregando) {
     return (
-      <div className="h-56 md:h-64 lg:h-72 animate-pulse">
-        {/* Skeleton de gráfico de linhas */}
-        <div className="h-full flex flex-col gap-2 pt-2 pb-6">
-          <div className="flex-1 flex items-end gap-1 px-2">
-            {[55, 72, 48, 80, 63, 90].map((h, i) => (
-              <div
-                key={i}
-                className="flex-1 rounded-t-lg bg-gray-100 dark:bg-white/[0.05]"
-                style={{ height: `${h}%` }}
-              />
-            ))}
-          </div>
-          <div className="h-2 bg-gray-100 dark:bg-white/[0.05] rounded-full mx-2" />
+      <div className="h-56 md:h-64 lg:h-72 animate-pulse flex flex-col justify-between pt-3 pb-2 px-2">
+        <div className="flex flex-col justify-between h-[calc(100%-36px)]">
+          {[0,1,2,3,4].map(i => (
+            <div key={i} className="flex items-center gap-2">
+              <div className="h-2.5 rounded-full bg-gray-100 dark:bg-white/[0.05]" style={{ width: 38 + i * 5 }} />
+              <div className="flex-1 h-px bg-gray-100 dark:bg-white/[0.04]" />
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-4 justify-center mt-2 flex-wrap">
+          {[
+            { w: 'w-10', c: 'bg-violet-200 dark:bg-violet-900/40' },
+            { w: 'w-14', c: 'bg-blue-200 dark:bg-blue-900/40' },
+            { w: 'w-14', c: 'bg-pink-200 dark:bg-pink-900/40' },
+            { w: 'w-16', c: 'bg-amber-200 dark:bg-amber-900/40' },
+          ].map((item, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <div className={`h-0.5 w-5 rounded-full ${item.c}`} />
+              <div className={`h-2 ${item.w} bg-gray-100 dark:bg-white/[0.05] rounded-full`} />
+            </div>
+          ))}
         </div>
       </div>
     )
