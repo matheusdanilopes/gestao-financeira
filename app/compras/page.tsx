@@ -681,7 +681,7 @@ export default function ComprasPage() {
                                 : recentlyImported
                                   ? 'bg-green-50/60 dark:bg-green-900/10'
                                   : 'bg-white'
-                          } ${canInteract ? 'cursor-pointer active:bg-gray-50 hover:bg-gray-50/50' : 'cursor-default'}`}
+                          } ${canInteract ? 'cursor-pointer active:bg-gray-50 dark:active:bg-white/[0.06] hover:bg-gray-50/50 dark:hover:bg-white/[0.06]' : 'cursor-default'}`}
                           onClick={() => { if (canInteract) abrirEditar(c) }}
                           role={canInteract ? 'button' : undefined}
                           aria-label={canInteract ? `Editar ${c.descricao}` : undefined}

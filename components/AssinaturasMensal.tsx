@@ -575,7 +575,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                     disabled={!isOnline}
                   >
                     <div
-                      className={`px-4 py-3.5 flex items-center gap-3 transition-colors ${!item.ativa ? 'opacity-50' : ''} ${isOnline ? 'cursor-pointer active:bg-gray-50 hover:bg-gray-50/50' : ''}`}
+                      className={`px-4 py-3.5 flex items-center gap-3 transition-colors ${!item.ativa ? 'opacity-50' : ''} ${isOnline ? 'cursor-pointer active:bg-gray-50 dark:active:bg-white/[0.06] hover:bg-gray-50/50 dark:hover:bg-white/[0.06]' : ''}`}
                       onClick={() => { if (isOnline) abrirEditar(item) }}
                       role={isOnline ? 'button' : undefined}
                       tabIndex={isOnline ? 0 : undefined}

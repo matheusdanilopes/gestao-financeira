@@ -413,7 +413,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
                 disabled={!isOnline}
               >
                 <div
-                  className={`px-4 py-3 transition-colors ${concluido ? 'bg-green-100/50 dark:bg-green-900/25' : 'bg-white'} ${isOnline ? 'cursor-pointer active:bg-gray-50 hover:bg-gray-50/50' : ''}`}
+                  className={`px-4 py-3 transition-colors ${concluido ? 'bg-green-100/50 dark:bg-green-900/25' : 'bg-white'} ${isOnline ? 'cursor-pointer active:bg-gray-50 dark:active:bg-white/[0.06] hover:bg-gray-50/50 dark:hover:bg-white/[0.06]' : ''}`}
                   onClick={() => { if (isOnline) abrirEditar(item) }}
                   role={isOnline ? 'button' : undefined}
                   tabIndex={isOnline ? 0 : undefined}
