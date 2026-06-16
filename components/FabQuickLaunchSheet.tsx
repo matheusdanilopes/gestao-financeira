@@ -19,7 +19,7 @@ type AIStatus = 'idle' | 'uploading' | 'done' | 'error'
 const PRIORIDADES = [
   { value: 'alta'  as const, label: 'Alta',  active: 'bg-red-100 text-red-600 ring-red-300'     },
   { value: 'media' as const, label: 'Média', active: 'bg-amber-100 text-amber-600 ring-amber-300' },
-  { value: 'baixa' as const, label: 'Baixa', active: 'bg-slate-100 text-slate-600 ring-slate-300'  },
+  { value: 'baixa' as const, label: 'Baixa', active: 'bg-gray-100 text-gray-600 ring-gray-300'  },
 ]
 
 const CATEGORIAS = ['Eletrônicos', 'Casa', 'Moda', 'Viagem', 'Lazer', 'Esporte', 'Saúde', 'Educação', 'Outros']
