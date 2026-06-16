@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo, useState, useCallback, useEffect } from 'react'
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths, addMonths, parseISO } from 'date-fns'
@@ -113,6 +113,10 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
   const [previewImport, setPreviewImport] = useState<{ itens: ItemPlanejamento[]; mesOrigem: string } | null>(null)
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null)
   const [successId, setSuccessId] = useState<string | null>(null)
+  const [exitingIds, setExitingIds] = useState<Set<string>>(new Set())
+  const [newItemId, setNewItemId] = useState<string | null>(null)
+  const [highlightId, setHighlightId] = useState<string | null>(null)
+  const pendingNewRef = useRef<string | null>(null)
 
   const mesRefStr = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
 
@@ -130,7 +134,15 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     cacheKey: `checklist:${mesRefStr}`,
     tables: ['planejamento'],
     fetcher: fetcherItens,
-    onData: (data: unknown) => setItens(data as ItemPlanejamento[]),
+    onData: (data: unknown) => {
+      setItens(data as ItemPlanejamento[])
+      if (pendingNewRef.current) {
+        const id = pendingNewRef.current
+        pendingNewRef.current = null
+        setNewItemId(id)
+        setTimeout(() => setNewItemId(null), 400)
+      }
+    },
     pollInterval: 45_000,
   })
 
@@ -150,6 +162,8 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     setValorReal('')
     setDataPagamento('')
     setItens(prev => prev.map(i => i.id === id ? { ...i, pago: true, valor_real: valorNumerico, data_pagamento: dpagamento } : i))
+    setHighlightId(id)
+    setTimeout(() => setHighlightId(null), 500)
 
     const { error } = await supabase
       .from('planejamento')
@@ -222,13 +236,19 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     const item = itens.find(i => i.id === id)
 
     setModalAberto(null)
-    setItens(prev => prev.filter(i => i.id !== id))
+    setExitingIds(prev => new Set(prev).add(id))
+    const removeTimer = setTimeout(() => {
+      setItens(prev => prev.filter(i => i.id !== id))
+      setExitingIds(prev => { const s = new Set(prev); s.delete(id); return s })
+    }, 300)
 
     const { error } = await supabase.from('planejamento').delete().eq('id', id)
     if (!error) {
       log('excluir', 'planejamento', `Excluído: ${item ? removerPrefixoCartao(item.item) : id}`)
       showToast('Item excluído')
     } else {
+      clearTimeout(removeTimer)
+      setExitingIds(prev => { const s = new Set(prev); s.delete(id); return s })
       if (item) setItens(prev => [...prev, item])
       showToast('Erro ao excluir', 'erro')
     }
@@ -282,8 +302,9 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
       data_vencimento: formData.data_vencimento || null,
       data_pagamento: null,
     }
-    const { error } = await supabase.from('planejamento').insert([novoItem])
+    const { data: insertData, error } = await supabase.from('planejamento').insert([novoItem]).select()
     if (!error) {
+      if (insertData?.[0]) pendingNewRef.current = insertData[0].id
       setModalAberto(null)
       setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', tipo_cartao: '', valor_previsto: '', data_vencimento: '' })
       refetch()
@@ -425,7 +446,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-2 px-4 py-2.5 rounded-2xl shadow-float text-sm font-medium ${
+        <div className={`toast-enter fixed top-4 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-2 px-4 py-2.5 rounded-2xl shadow-float text-sm font-medium ${
           toast.tipo === 'ok' ? 'bg-gray-900 text-white' : 'bg-red-600 text-white'
         }`}>
           {toast.tipo === 'ok' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
@@ -609,11 +630,11 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
                         disabled={!isOnline}
                       >
                         <div
-                          className={`px-4 py-3 transition-colors border-l-4 ${
+                          className={`px-4 py-3 transition-[background-color,color,opacity] duration-200 border-l-4 ${
                             item.responsavel === 'Jeniffer'
                               ? 'border-l-pink-400'
                               : 'border-l-blue-400'
-                          } ${item.pago ? 'bg-gray-50/60 dark:bg-white/[0.04]' : 'bg-white'} ${isOnline ? 'cursor-pointer active:bg-gray-50 dark:active:bg-white/[0.06] hover:bg-gray-50/50 dark:hover:bg-white/[0.06]' : ''}`}
+                          } ${item.pago ? 'bg-gray-50/60 dark:bg-white/[0.04]' : 'bg-white'} ${isOnline ? 'cursor-pointer active:bg-gray-50 dark:active:bg-white/[0.06] hover:bg-gray-50/50 dark:hover:bg-white/[0.06]' : ''} ${exitingIds.has(item.id) ? 'item-exit' : newItemId === item.id ? 'item-new' : ''} ${highlightId === item.id ? 'state-highlight' : ''}`}
                           onClick={() => { if (isOnline) abrirModalEditar(item) }}
                           role={isOnline ? 'button' : undefined}
                           tabIndex={isOnline ? 0 : undefined}
@@ -626,7 +647,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
 
                             {/* Info */}
                             <div className="flex-1 min-w-0">
-                              <p className={`text-sm font-medium truncate ${item.pago ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
+                              <p className={`text-sm font-medium truncate transition-colors duration-200 ${item.pago ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
                                 {removerPrefixoCartao(item.item)}
                               </p>
                               <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">

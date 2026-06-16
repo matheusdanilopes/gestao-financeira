@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths } from 'date-fns'
@@ -66,6 +66,9 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
 
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null)
   const [importando, setImportando] = useState(false)
+  const [exitingIds, setExitingIds] = useState<Set<string>>(new Set())
+  const [newItemId, setNewItemId] = useState<string | null>(null)
+  const pendingNewRef = useRef<string | null>(null)
 
   const mesRefStr = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
 
@@ -103,6 +106,12 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
       const d = raw as { itens: ItemReceita[]; recebimentos: Record<string, Recebimento[]> }
       setItens(d.itens)
       setRecebimentos(d.recebimentos)
+      if (pendingNewRef.current) {
+        const id = pendingNewRef.current
+        pendingNewRef.current = null
+        setNewItemId(id)
+        setTimeout(() => setNewItemId(null), 400)
+      }
     },
     pollInterval: 45_000,
   })
@@ -190,13 +199,21 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
 
   async function excluir(id: string) {
     const item = itens.find(i => i.id === id)
-    setItens(prev => prev.filter(i => i.id !== id))
     setModalAberto(null)
+
+    setExitingIds(prev => new Set(prev).add(id))
+    const removeTimer = setTimeout(() => {
+      setItens(prev => prev.filter(i => i.id !== id))
+      setExitingIds(prev => { const s = new Set(prev); s.delete(id); return s })
+    }, 300)
+
     const { error } = await supabase.from('planejamento').delete().eq('id', id)
     if (!error) {
       log('excluir', 'receitas', `Excluída: ${item ? paraNomeExibicao(item.item) : id}`)
       refetch()
     } else {
+      clearTimeout(removeTimer)
+      setExitingIds(prev => { const s = new Set(prev); s.delete(id); return s })
       if (item) setItens(prev => [...prev, item].sort((a, b) => a.item.localeCompare(b.item)))
       showToast('Erro ao excluir receita', 'erro')
     }
@@ -211,13 +228,14 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
     }
     if (modalAberto === 'adicionar') {
       const mesRef = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
-      await supabase.from('planejamento').insert([{
+      const { data: insertData } = await supabase.from('planejamento').insert([{
         ...payload,
         categoria: 'Extra',
         mes_referencia: mesRef,
         pago: false,
         valor_real: null,
-      }])
+      }]).select()
+      if (insertData?.[0]) pendingNewRef.current = insertData[0].id
       log('inserir', 'receitas', `Nova receita: ${formData.item} — ${formatBRL(valor)}`, valor)
     } else if (itemSelecionado) {
       await supabase.from('planejamento').update(payload).eq('id', itemSelecionado.id)
@@ -335,8 +353,9 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
           </div>
           <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
             <div
-              className="h-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-[width] duration-700 ease-smooth"
-              style={{ width: `${percentual}%` }}
+              key={Math.round(percentual)}
+              className="h-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 bar-enter"
+              style={{ '--bar-w': `${percentual}%` } as React.CSSProperties}
             />
           </div>
         </div>
@@ -413,7 +432,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
                 disabled={!isOnline}
               >
                 <div
-                  className={`px-4 py-3 transition-colors ${concluido ? 'bg-green-100/50 dark:bg-green-900/25' : 'bg-white'} ${isOnline ? 'cursor-pointer active:bg-gray-50 dark:active:bg-white/[0.06] hover:bg-gray-50/50 dark:hover:bg-white/[0.06]' : ''}`}
+                  className={`px-4 py-3 transition-[background-color,color,opacity] duration-200 ${concluido ? 'bg-green-100/50 dark:bg-green-900/25' : 'bg-white'} ${isOnline ? 'cursor-pointer active:bg-gray-50 dark:active:bg-white/[0.06] hover:bg-gray-50/50 dark:hover:bg-white/[0.06]' : ''} ${exitingIds.has(item.id) ? 'item-exit' : newItemId === item.id ? 'item-new' : ''}`}
                   onClick={() => { if (isOnline) abrirEditar(item) }}
                   role={isOnline ? 'button' : undefined}
                   tabIndex={isOnline ? 0 : undefined}
@@ -476,7 +495,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
                   <div className="mt-2 ml-4">
                     <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
                       <div
-                        className={`h-1.5 rounded-full transition-[width] duration-400 ${
+                        className={`h-1.5 rounded-full transition-[width] duration-500 ease-smooth ${
                           concluido ? 'bg-green-500' : parcial ? 'bg-yellow-400' : 'bg-gray-200'
                         }`}
                         style={{ width: `${progresso}%` }}
@@ -492,7 +511,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed bottom-24 left-1/2 -translate-x-1/2 px-5 py-2.5 rounded-2xl shadow-float text-sm font-semibold text-white z-[60] ${
+        <div className={`toast-enter fixed bottom-24 left-1/2 -translate-x-1/2 px-5 py-2.5 rounded-2xl shadow-float text-sm font-semibold text-white z-[60] ${
           toast.tipo === 'ok' ? 'bg-gray-900' : 'bg-red-500'
         }`}>
           {toast.msg}

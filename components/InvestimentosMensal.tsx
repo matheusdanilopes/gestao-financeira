@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths } from 'date-fns'
@@ -69,6 +69,9 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
   const [importando, setImportando] = useState(false)
 
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null)
+  const [exitingIds, setExitingIds] = useState<Set<string>>(new Set())
+  const [newItemId, setNewItemId] = useState<string | null>(null)
+  const pendingNewRef = useRef<string | null>(null)
 
   const mesRefStr = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
 
@@ -104,6 +107,12 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
       const d = raw as { itens: Investimento[]; aportes: Record<string, Aporte[]> }
       setItens(d.itens)
       setAportes(d.aportes)
+      if (pendingNewRef.current) {
+        const id = pendingNewRef.current
+        pendingNewRef.current = null
+        setNewItemId(id)
+        setTimeout(() => setNewItemId(null), 400)
+      }
     },
     pollInterval: 45_000,
   })
@@ -177,10 +186,11 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
     const mesRef = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
 
     if (modalAberto === 'adicionar') {
-      const { error } = await supabase.from('investimentos').insert([{
+      const { data: insertData, error } = await supabase.from('investimentos').insert([{
         descricao: formData.descricao.trim(), percentual: pct, mes_referencia: mesRef,
-      }])
+      }]).select()
       if (error) { showToast('Erro ao adicionar', 'erro'); return }
+      if (insertData?.[0]) pendingNewRef.current = insertData[0].id
       log('inserir', 'investimentos', `Novo investimento: ${formData.descricao.trim()} — ${pct}%`)
       showToast('Investimento adicionado!')
     } else if (itemSelecionado) {
@@ -198,11 +208,25 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
 
   async function excluir(id: string) {
     const item = itens.find(i => i.id === id)
+    fecharModal()
+
+    setExitingIds(prev => new Set(prev).add(id))
+    const removeTimer = setTimeout(() => {
+      setItens(prev => prev.filter(i => i.id !== id))
+      setExitingIds(prev => { const s = new Set(prev); s.delete(id); return s })
+    }, 300)
+
     const { error } = await supabase.from('investimentos').delete().eq('id', id)
     if (!error) {
       log('excluir', 'investimentos', `Excluído: ${item?.descricao ?? id}`)
-      fecharModal(); refetch(); showToast('Excluído')
-    } else showToast('Erro ao excluir', 'erro')
+      refetch()
+      showToast('Excluído')
+    } else {
+      clearTimeout(removeTimer)
+      setExitingIds(prev => { const s = new Set(prev); s.delete(id); return s })
+      if (item) setItens(prev => [...prev, item])
+      showToast('Erro ao excluir', 'erro')
+    }
   }
 
   function abrirEditar(item: Investimento) {
@@ -326,7 +350,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-medium shadow-float ${
+        <div className={`toast-enter fixed top-4 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-medium shadow-float ${
           toast.tipo === 'ok' ? 'bg-gray-900 text-white' : 'bg-red-500 text-white'
         }`}>
           {toast.msg}
@@ -373,8 +397,9 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
           </div>
           <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
             <div
-              className="h-1.5 rounded-full bg-gradient-to-r from-violet-500 to-violet-600 transition-[width] duration-700 ease-smooth"
-              style={{ width: `${progressoGeralPct}%` }}
+              key={Math.round(progressoGeralPct)}
+              className="h-1.5 rounded-full bg-gradient-to-r from-violet-500 to-violet-600 bar-enter"
+              style={{ '--bar-w': `${progressoGeralPct}%` } as React.CSSProperties}
             />
           </div>
           <div className="flex justify-between text-[10px] text-gray-400 mt-1.5 tabular-nums">
@@ -455,7 +480,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
                 disabled={!isOnline}
               >
                 <div
-                  className={`px-4 py-3 ${concluido ? 'bg-green-50/40 dark:bg-green-900/20' : ''} ${isOnline ? 'cursor-pointer active:bg-gray-50 dark:active:bg-white/[0.06] hover:bg-gray-50/50 dark:hover:bg-white/[0.06]' : ''}`}
+                  className={`px-4 py-3 transition-[background-color,color,opacity] duration-200 ${concluido ? 'bg-green-50/40 dark:bg-green-900/20' : ''} ${isOnline ? 'cursor-pointer active:bg-gray-50 dark:active:bg-white/[0.06] hover:bg-gray-50/50 dark:hover:bg-white/[0.06]' : ''} ${exitingIds.has(item.id) ? 'item-exit' : newItemId === item.id ? 'item-new' : ''}`}
                   onClick={() => { if (isOnline) abrirEditar(item) }}
                   role={isOnline ? 'button' : undefined}
                   tabIndex={isOnline ? 0 : undefined}
@@ -520,7 +545,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
                   <div className="pl-5">
                     <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
                       <div
-                        className={`h-1.5 rounded-full transition-[width] duration-400 ${concluido ? 'bg-green-500' : 'bg-violet-400'}`}
+                        className={`h-1.5 rounded-full transition-[width] duration-500 ease-smooth ${concluido ? 'bg-green-500' : 'bg-violet-400'}`}
                         style={{ width: `${progresso}%` }}
                       />
                     </div>
