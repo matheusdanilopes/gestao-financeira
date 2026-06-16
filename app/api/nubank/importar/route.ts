@@ -8,7 +8,7 @@ import {
 } from '@/lib/csvparser'
 import { categorizarTransacoes, ResultadoCategorizar } from '@/lib/categorizarTransacoes'
 import { notificarImportacao } from '@/lib/pushImportacao'
-import { conciliarTransacao } from '@/lib/conciliacao'
+import { conciliarTransacao, conciliarEstorno } from '@/lib/conciliacao'
 
 export const maxDuration = 300
 
@@ -58,6 +58,9 @@ async function salvarTransacoes(
   transacoes: TransacaoNubank[],
   cartao: string = 'nubank'
 ) {
+  const transacoesNormais = transacoes.filter(t => !t.is_estorno)
+  const estornos = transacoes.filter(t => t.is_estorno)
+
   let novosMatheus = 0
   let novosJeniffer = 0
   let totalValor = 0
@@ -67,12 +70,14 @@ async function salvarTransacoes(
   let duplicatasIgnoradas = 0
   let conciliados = 0
   let conflitos = 0
+  let estornosAplicados = 0
+  let estornosRegistrados = 0
 
   const mesesNoArquivo = [...new Set(transacoes.map(t => t.projeto_fatura))].sort()
   const faturaStats: Record<string, StatsFatura> = {}
   for (const f of mesesNoArquivo) faturaStats[f] = { noCSV: 0, inseridas: 0, ignoradas: 0, totalNoBanco: 0 }
 
-  for (const item of transacoes) {
+  for (const item of transacoesNormais) {
     const stats = faturaStats[item.projeto_fatura]
     stats.noCSV++
 
@@ -94,11 +99,9 @@ async function salvarTransacoes(
         }
         break
       case 'conciliado':
-        // API não atualiza valor — este caso não deve ocorrer (conciliarTransacao retorna 'ignorado' para API)
         conciliados++
         break
       case 'conflito':
-        // Conflito de valor: registrado com status CONFLITO_VALOR, notificação criada
         conflitos++
         purchaseDates.push(item.data_compra)
         stats.inseridas++
@@ -111,6 +114,12 @@ async function salvarTransacoes(
         stats.ignoradas++
         break
     }
+  }
+
+  for (const estorno of estornos) {
+    const resultado = await conciliarEstorno(supabase, estorno)
+    if (resultado.acao === 'aplicado')   estornosAplicados++
+    if (resultado.acao === 'registrado') estornosRegistrados++
   }
 
   for (const fatura of mesesNoArquivo) {
@@ -135,6 +144,8 @@ async function salvarTransacoes(
     resumoPorFatura: faturaStats,
     hashesImportados,
     purchaseDates,
+    estornosAplicados,
+    estornosRegistrados,
   }
 }
 
@@ -237,7 +248,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (transacoes.length === 0) {
-      const msg = 'Nenhuma transação válida encontrada. Verifique o formato e se os valores são positivos.'
+      const msg = 'Nenhuma transação válida encontrada. Verifique o formato do CSV.'
       await registrarLog(`ERRO: ${msg}`)
       await notificarImportacao(supabase, 'erro', undefined, undefined, cartao)
       return NextResponse.json({ success: false, error: msg }, { status: 422 })
@@ -294,6 +305,8 @@ export async function POST(req: NextRequest) {
       purchaseDates,
       projetoFaturas: importacaoPublica.mesesReprocessados,
       importTs,
+      estornosAplicados: importacaoPublica.estornosAplicados,
+      estornosRegistrados: importacaoPublica.estornosRegistrados,
     })
 
     return NextResponse.json({
