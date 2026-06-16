@@ -34,6 +34,10 @@ export interface ContextoImportacao {
   projetoFaturas?: string[]
   /** Timestamp (Date.now()) do início da importação — identifica compras recém-importadas na tela. */
   importTs?: number
+  /** Estornos vinculados a uma compra original (status ESTORNADO aplicado). */
+  estornosAplicados?: number
+  /** Estornos sem compra original encontrada (registrados isoladamente). */
+  estornosRegistrados?: number
 }
 
 /**
@@ -85,11 +89,17 @@ export async function notificarImportacao(
   if (tipo === 'sucesso') {
     const temNovas = (novas ?? 0) > 0
     const temConflitos = (conflitos ?? 0) > 0
+    const estornosAplicados = contexto?.estornosAplicados ?? 0
+    const estornosRegistrados = contexto?.estornosRegistrados ?? 0
+    const temEstornos = estornosAplicados > 0 || estornosRegistrados > 0
 
     if (temNovas) {
       const n = novas!
       title = `${nome} — novas compras`
       body = `${n} nova${n !== 1 ? 's compras foram' : ' compra foi'} importada${n !== 1 ? 's' : ''} com sucesso.`
+    } else if (temEstornos) {
+      title = `${nome} — estorno detectado`
+      body = 'Nenhuma compra nova.'
     } else {
       title = `${nome} — importação concluída`
       body = 'Nenhuma compra nova foi encontrada.'
@@ -98,6 +108,13 @@ export async function notificarImportacao(
     if (temConflitos) {
       const c = conflitos!
       body += ` ${c} conflito${c !== 1 ? 's' : ''} de valor ${c !== 1 ? 'precisam' : 'precisa'} de revisão.`
+    }
+
+    if (estornosAplicados > 0) {
+      body += ` ${estornosAplicados} estorno${estornosAplicados !== 1 ? 's aplicados' : ' aplicado'}.`
+    }
+    if (estornosRegistrados > 0) {
+      body += ` ${estornosRegistrados} estorno${estornosRegistrados !== 1 ? 's sem' : ' sem'} compra correspondente.`
     }
   } else {
     title = `${nome} — importação não concluída`

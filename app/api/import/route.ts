@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
 import { processarCSV } from '@/lib/csvparser'
 import { notificarImportacao } from '@/lib/pushImportacao'
-import { conciliarTransacao } from '@/lib/conciliacao'
+import { conciliarTransacao, conciliarEstorno } from '@/lib/conciliacao'
 
 export async function POST(req: NextRequest) {
   const { supabase, unauthorized } = await requireAuth(req)
@@ -25,7 +25,10 @@ export async function POST(req: NextRequest) {
     const csvText = await file.text()
     const transacoes = processarCSV(csvText, diaVencimento, ajusteFechamento)
 
-    if (transacoes.length === 0) {
+    const transacoesNormais = transacoes.filter(t => !t.is_estorno)
+    const estornos = transacoes.filter(t => t.is_estorno)
+
+    if (transacoesNormais.length === 0 && estornos.length === 0) {
       return NextResponse.json({
         success: false,
         error: 'Nenhuma transacao valida. Verifique se e um CSV do Nubank.',
@@ -41,6 +44,8 @@ export async function POST(req: NextRequest) {
     let duplicatasIgnoradas = 0
     let conciliados = 0
     let conflitos = 0
+    let estornosAplicados = 0
+    let estornosRegistrados = 0
     const importTs = Date.now()
     const purchaseDates: string[] = []
 
@@ -48,7 +53,7 @@ export async function POST(req: NextRequest) {
     const faturaStats: Record<string, StatsFatura> = {}
     for (const f of mesesNoArquivo) faturaStats[f] = { noCSV: 0, inseridas: 0, ignoradas: 0, totalNoBanco: 0 }
 
-    for (const item of transacoes) {
+    for (const item of transacoesNormais) {
       const stats = faturaStats[item.projeto_fatura]
       stats.noCSV++
 
@@ -87,6 +92,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    for (const estorno of estornos) {
+      const resultado = await conciliarEstorno(supabase, estorno)
+      if (resultado.acao === 'aplicado')   estornosAplicados++
+      if (resultado.acao === 'registrado') estornosRegistrados++
+    }
+
     for (const fatura of mesesNoArquivo) {
       const { count } = await supabase
         .from('transacoes_nubank')
@@ -99,6 +110,8 @@ export async function POST(req: NextRequest) {
       purchaseDates,
       projetoFaturas: mesesNoArquivo,
       importTs,
+      estornosAplicados,
+      estornosRegistrados,
     })
 
     return NextResponse.json({
@@ -113,6 +126,9 @@ export async function POST(req: NextRequest) {
       total: totalValor.toFixed(2),
       mesesReprocessados: mesesNoArquivo,
       resumoPorFatura: faturaStats,
+      estornos: estornos.length,
+      estornosAplicados,
+      estornosRegistrados,
     })
   } catch (error) {
     console.error('[import] Excecao:', error instanceof Error ? error.message : 'unknown')

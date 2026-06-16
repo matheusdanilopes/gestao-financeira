@@ -112,7 +112,9 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       supabase
         .from('transacoes_nubank')
         .select('descricao, valor, cartao, projeto_fatura')
-        .eq('projeto_fatura', nextMesRefStr),
+        .eq('projeto_fatura', nextMesRefStr)
+        .neq('status', 'ESTORNO')
+        .neq('status', 'ESTORNADO'),
       supabase.from('planejamento').select('item').eq('mes_referencia', mesRefStr),
       supabase.from('assinaturas_historico').select('*').order('vigente_desde', { ascending: true }),
     ])

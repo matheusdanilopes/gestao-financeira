@@ -25,6 +25,7 @@ export interface TransacaoNubank {
   parcela_atual: number | null
   total_parcelas: number | null
   cartao?: string
+  is_estorno: boolean
   /** Índice de ocorrência dentro do lote importado (1-based). Usado para deduplição;
    *  não é persistido no banco. */
   occurrence_index?: number
@@ -32,7 +33,7 @@ export interface TransacaoNubank {
 
 function parseValorMonetario(valorRaw: number | string | null | undefined): number | null {
   if (typeof valorRaw === 'number') {
-    return Number.isFinite(valorRaw) && valorRaw > 0 ? valorRaw : null
+    return Number.isFinite(valorRaw) && valorRaw !== 0 ? valorRaw : null
   }
 
   const valorStr = String(valorRaw ?? '')
@@ -62,7 +63,7 @@ function parseValorMonetario(valorRaw: number | string | null | undefined): numb
   }
 
   const valor = Number(normalizado)
-  if (!Number.isFinite(valor) || valor <= 0) return null
+  if (!Number.isFinite(valor) || valor === 0) return null
   return valor
 }
 
@@ -99,6 +100,22 @@ function gerarHashLinha(
   // primeira ocorrência é idêntico ao formato antigo (retrocompatibilidade total).
   const occurrenceSuffix = occurrenceIndex > 1 ? `|${occurrenceIndex}` : ''
   const hashString = `${dataISO}|${descricaoHash}|${valorHash}${cartaoSuffix}${occurrenceSuffix}`
+  return createHash('sha256').update(hashString).digest('hex')
+}
+
+function isPagamentoFatura(descricao: string): boolean {
+  const lower = descricao.toLowerCase()
+  return /^pagamento\b/.test(lower)
+}
+
+function gerarHashLinhaEstorno(
+  dataISO: string,
+  descricao: string,
+  valor: number,
+  cartao?: string,
+): string {
+  const cartaoSuffix = cartao && cartao !== 'nubank' ? `|${cartao}` : ''
+  const hashString = `${dataISO}|${normalizarDescricaoParaHash(descricao)}|${valor.toFixed(2)}${cartaoSuffix}|estorno`
   return createHash('sha256').update(hashString).digest('hex')
 }
 
@@ -160,30 +177,41 @@ export function processarCSV(
       continue
     }
 
-    // Valor: desconsidera valores negativos (estornos/entradas) e zeros
+    // Valor: captura positivos (compras) e negativos (estornos); descarta zeros
     const valorRaw = primeiroValorPreenchido(row.amount, row.valor, row.Valor) ?? '0'
     const valorBruto = parseValorMonetario(valorRaw)
     if (valorBruto === null) continue
-    const valor = parseFloat(valorBruto.toFixed(2))
+
+    const isEstorno = valorBruto < 0
+    const valor = parseFloat(Math.abs(valorBruto).toFixed(2))
+
+    // Pagamento de fatura (ex.: "Pagamento recebido") deve ser ignorado
+    if (isEstorno && isPagamentoFatura(descricao)) continue
 
     // Calcula projeto_fatura com a lógica de ciclo de vencimento
     const dataCompra = new Date(dataISO + 'T12:00:00') // meio-dia para evitar problemas de fuso
     let projetoFatura = calcularProjetoFatura(dataCompra, diaVencimento, ajusteFechamento)
 
-    // Conta ocorrências desta combinação dentro do lote para gerar hash único por linha
-    const occurrenceKey = `${dataISO}|${normalizarDescricaoParaHash(descricao)}|${valor.toFixed(2)}`
-    const occurrenceIndex = (occurrenceCounts.get(occurrenceKey) ?? 0) + 1
-    occurrenceCounts.set(occurrenceKey, occurrenceIndex)
+    let hash_linha: string
+    let parcela_atual: number | null = null
+    let total_parcelas: number | null = null
+    let occurrenceIndex = 1
 
-    const hash_linha = gerarHashLinha(dataISO, descricao, valor, cartao, occurrenceIndex)
+    if (isEstorno) {
+      hash_linha = gerarHashLinhaEstorno(dataISO, descricao, valor, cartao)
+    } else {
+      // Conta ocorrências desta combinação dentro do lote para gerar hash único por linha
+      const occurrenceKey = `${dataISO}|${normalizarDescricaoParaHash(descricao)}|${valor.toFixed(2)}`
+      occurrenceIndex = (occurrenceCounts.get(occurrenceKey) ?? 0) + 1
+      occurrenceCounts.set(occurrenceKey, occurrenceIndex)
+      hash_linha = gerarHashLinha(dataISO, descricao, valor, cartao, occurrenceIndex)
 
-    // Identificação de parcelas no formato X/Y
-    let parcela_atual = null
-    let total_parcelas = null
-    const parcelaMatch = descricao.match(/(\d+)\/(\d+)/)
-    if (parcelaMatch) {
-      parcela_atual = parseInt(parcelaMatch[1])
-      total_parcelas = parseInt(parcelaMatch[2])
+      // Identificação de parcelas no formato X/Y (apenas para compras normais)
+      const parcelaMatch = descricao.match(/(\d+)\/(\d+)/)
+      if (parcelaMatch) {
+        parcela_atual = parseInt(parcelaMatch[1])
+        total_parcelas = parseInt(parcelaMatch[2])
+      }
     }
 
     transacoes.push({
@@ -196,6 +224,7 @@ export function processarCSV(
       parcela_atual,
       total_parcelas,
       cartao,
+      is_estorno: isEstorno,
       occurrence_index: occurrenceIndex,
     })
   }
@@ -239,7 +268,11 @@ export function processarTransacoesJSON(
     const valorRaw = primeiroValorPreenchido(row.amount, row.valor) ?? '0'
     const valorBruto = parseValorMonetario(valorRaw)
     if (valorBruto === null) continue
-    const valor = parseFloat(valorBruto.toFixed(2))
+
+    const isEstorno = valorBruto < 0
+    const valor = parseFloat(Math.abs(valorBruto).toFixed(2))
+
+    if (isEstorno && isPagamentoFatura(descricao)) continue
 
     const responsavel: 'Matheus' | 'Jeniffer' =
       descricao.toLowerCase().includes('jeniffer') ? 'Jeniffer' : 'Matheus'
@@ -247,18 +280,24 @@ export function processarTransacoesJSON(
     const dataCompra = new Date(dataISO + 'T12:00:00')
     let projetoFatura = calcularProjetoFatura(dataCompra, diaVencimento, ajusteFechamento)
 
-    const occurrenceKey = `${dataISO}|${normalizarDescricaoParaHash(descricao)}|${valor.toFixed(2)}`
-    const occurrenceIndex = (occurrenceCounts.get(occurrenceKey) ?? 0) + 1
-    occurrenceCounts.set(occurrenceKey, occurrenceIndex)
+    let hash_linha: string
+    let parcela_atual: number | null = null
+    let total_parcelas: number | null = null
+    let occurrenceIndex = 1
 
-    const hash_linha = gerarHashLinha(dataISO, descricao, valor, cartao, occurrenceIndex)
+    if (isEstorno) {
+      hash_linha = gerarHashLinhaEstorno(dataISO, descricao, valor, cartao)
+    } else {
+      const occurrenceKey = `${dataISO}|${normalizarDescricaoParaHash(descricao)}|${valor.toFixed(2)}`
+      occurrenceIndex = (occurrenceCounts.get(occurrenceKey) ?? 0) + 1
+      occurrenceCounts.set(occurrenceKey, occurrenceIndex)
+      hash_linha = gerarHashLinha(dataISO, descricao, valor, cartao, occurrenceIndex)
 
-    let parcela_atual = null
-    let total_parcelas = null
-    const parcelaMatch = descricao.match(/(\d+)\/(\d+)/)
-    if (parcelaMatch) {
-      parcela_atual = parseInt(parcelaMatch[1])
-      total_parcelas = parseInt(parcelaMatch[2])
+      const parcelaMatch = descricao.match(/(\d+)\/(\d+)/)
+      if (parcelaMatch) {
+        parcela_atual = parseInt(parcelaMatch[1])
+        total_parcelas = parseInt(parcelaMatch[2])
+      }
     }
 
     result.push({
@@ -271,6 +310,7 @@ export function processarTransacoesJSON(
       parcela_atual,
       total_parcelas,
       cartao,
+      is_estorno: isEstorno,
       occurrence_index: occurrenceIndex,
     })
   }

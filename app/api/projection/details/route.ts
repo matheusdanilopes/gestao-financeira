@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
         const filtrarResponsavel = serie === 'Matheus' || serie === 'Jeniffer'
         const resultados = await Promise.all(
           cartoesEFaturas.map(([cartao, fatura]) => {
-            let q = supabase.from('transacoes_nubank').select('*').eq('cartao', cartao).eq('projeto_fatura', fatura)
+            let q = supabase.from('transacoes_nubank').select('*').eq('cartao', cartao).eq('projeto_fatura', fatura).neq('status', 'ESTORNO').neq('status', 'ESTORNADO')
             if (filtrarResponsavel) q = q.eq('responsavel', serie)
             return q
           })

@@ -14,7 +14,7 @@ export async function prefetchSaldo(mes: Date) {
   const mesRefFatura = format(startOfMonth(addMonths(mes, 1)), 'yyyy-MM-dd')
 
   const [{ data: transacoesFatura }, { data: planejamento }] = await Promise.all([
-    supabase.from('transacoes_nubank').select('valor, responsavel, cartao').eq('projeto_fatura', mesRefFatura),
+    supabase.from('transacoes_nubank').select('valor, responsavel, cartao').eq('projeto_fatura', mesRefFatura).neq('status', 'ESTORNO').neq('status', 'ESTORNADO'),
     supabase.from('planejamento').select('*').eq('mes_referencia', mesRef),
   ])
 
