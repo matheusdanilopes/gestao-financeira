@@ -123,10 +123,15 @@ export async function conciliarEstorno(
     return { acao: 'ignorado', inseriu: false }
   }
 
-  // 2. Busca transação original: remove prefixo "Estorno de", janela ±30 dias, valor ±R$0,05
-  const descOriginal = normalizarDescricaoParaHash(
-    estorno.descricao.replace(/^estorno\s+de\s+/i, '').trim()
-  )
+  // 2. Busca transação original: normaliza descrição do estorno para extrair nome do lojista.
+  //    NuBank usa dois formatos: "Estorno de Loja X" e "Estorno de compra (Loja X 2x de 12x)".
+  const descNorm = estorno.descricao
+    .replace(/^estorno\s+de\s+compra\s*\(/i, '') // "Estorno de compra (Loja..." → "Loja..."
+    .replace(/^estorno\s+de\s+/i, '')             // "Estorno de Loja..." → "Loja..."
+    .replace(/\s*\d+x\s+de\s+\d+x\s*\)?$/i, '')  // remove sufixo de parcela "2x de 12x)"
+    .replace(/\)$/, '')                            // remove parêntese final residual
+    .trim()
+  const descOriginal = normalizarDescricaoParaHash(descNorm)
   const dataInicio = adicionarDias(estorno.data_compra, -30)
   const dataFim    = adicionarDias(estorno.data_compra, 30)
 
