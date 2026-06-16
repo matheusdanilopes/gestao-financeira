@@ -613,7 +613,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
                             item.responsavel === 'Jeniffer'
                               ? 'border-l-pink-400'
                               : 'border-l-blue-400'
-                          } ${item.pago ? 'bg-gray-50/60' : 'bg-white'} ${isOnline ? 'cursor-pointer active:bg-gray-50 hover:bg-gray-50/50' : ''}`}
+                          } ${item.pago ? 'bg-gray-50/60 dark:bg-white/[0.04]' : 'bg-white'} ${isOnline ? 'cursor-pointer active:bg-gray-50 hover:bg-gray-50/50' : ''}`}
                           onClick={() => { if (isOnline) abrirModalEditar(item) }}
                           role={isOnline ? 'button' : undefined}
                           tabIndex={isOnline ? 0 : undefined}
