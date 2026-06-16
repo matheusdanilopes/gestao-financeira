@@ -124,11 +124,11 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     { data: assinaturasData },
     { data: maxFaturaRowData },
   ] = await Promise.all([
-    supabase.from('transacoes_nubank').select('valor, responsavel, descricao').eq('projeto_fatura', mesRefFatura).eq('cartao', 'nubank'),
+    supabase.from('transacoes_nubank').select('valor, responsavel, descricao').eq('projeto_fatura', mesRefFatura).eq('cartao', 'nubank').neq('status', 'ESTORNO').neq('status', 'ESTORNADO'),
     supabase.from('planejamento').select('item, responsavel, valor_previsto, pago, valor_real').eq('mes_referencia', mesRef),
     supabase.from('investimentos').select('id, descricao, percentual').eq('mes_referencia', mesRef).order('created_at', { ascending: true }),
-    supabase.from('transacoes_nubank').select('valor, responsavel').eq('cartao', 'cartao1').eq('projeto_fatura', mesRefFatura),
-    supabase.from('transacoes_nubank').select('valor, responsavel').eq('cartao', 'cartao2').eq('projeto_fatura', mesRefFatura),
+    supabase.from('transacoes_nubank').select('valor, responsavel').eq('cartao', 'cartao1').eq('projeto_fatura', mesRefFatura).neq('status', 'ESTORNO').neq('status', 'ESTORNADO'),
+    supabase.from('transacoes_nubank').select('valor, responsavel').eq('cartao', 'cartao2').eq('projeto_fatura', mesRefFatura).neq('status', 'ESTORNO').neq('status', 'ESTORNADO'),
     supabase.from('configuracoes').select('chave, valor').in('chave', ['dia_vencimento', 'ajuste_fechamento']),
     supabase.from('faturas').select('data_fechamento').eq('cartao', 'nubank').eq('mes_referencia', mesRefFatura).limit(1),
     supabase.from('assinaturas').select('nome, valor, responsavel, ativa').eq('cartao', 'nubank'),
@@ -197,6 +197,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
         .from('transacoes_nubank')
         .select('projeto_fatura, descricao, valor, responsavel, parcela_atual, total_parcelas')
         .eq('cartao', 'nubank').eq('projeto_fatura', maxFaturaRowData[0].projeto_fatura)
+        .neq('status', 'ESTORNO').neq('status', 'ESTORNADO')
 
       const contratos = new Map<string, { fatura: Date; atual: number; total: number; valor: number; responsavel: string }>()
 

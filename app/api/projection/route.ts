@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
 
     const transacoesResults = await Promise.all(
       cartoesEFaturas.map(([cartao, fatura]) =>
-        supabase.from('transacoes_nubank').select('*').eq('cartao', cartao).eq('projeto_fatura', fatura)
+        supabase.from('transacoes_nubank').select('*').eq('cartao', cartao).eq('projeto_fatura', fatura).neq('status', 'ESTORNO').neq('status', 'ESTORNADO')
       )
     )
     const transacoesUltimaFatura = transacoesResults.flatMap(r => r.data || [])

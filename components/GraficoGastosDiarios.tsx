@@ -241,6 +241,8 @@ export default function GraficoGastosDiarios({
         .from('transacoes_nubank')
         .select('valor, data_compra, responsavel, cartao, descricao, parcela_atual, total_parcelas')
         .eq('projeto_fatura', mesRefFatura)
+        .neq('status', 'ESTORNO')
+        .neq('status', 'ESTORNADO')
       const { data, error: err } = txResult
 
       if (err) {
@@ -250,6 +252,8 @@ export default function GraficoGastosDiarios({
             .from('transacoes_nubank')
             .select('valor, data, responsavel, cartao, descricao, parcela_atual, total_parcelas')
             .eq('projeto_fatura', mesRefFatura)
+            .neq('status', 'ESTORNO')
+            .neq('status', 'ESTORNADO')
           if (legacyErr) throw legacyErr
           setRawData(
             (legacyData ?? []).map(
