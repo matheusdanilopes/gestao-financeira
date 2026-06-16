@@ -9,7 +9,8 @@ function adicionarDias(dataISO: string, dias: number): string {
 }
 
 export type OrigemImportacao = 'csv' | 'api'
-export type AcaoConciliacao = 'conciliado' | 'ignorado' | 'inserido' | 'conflito'
+export type AcaoConciliacao = 'conciliado' | 'ignorado' | 'inserido' | 'conflito' | 'estorno'
+export type AcaoEstorno = 'aplicado' | 'registrado' | 'ignorado'
 
 export interface ResultadoConciliacao {
   acao: AcaoConciliacao
@@ -105,6 +106,76 @@ async function criarNotificacaoConflito(
 function buildPayload(item: TransacaoNubank, extra: Record<string, unknown>): Record<string, unknown> {
   const { occurrence_index: _oi, ...base } = item as TransacaoNubank & { occurrence_index?: number }
   return { ...base, ...extra }
+}
+
+export async function conciliarEstorno(
+  supabase: SupabaseClient,
+  estorno: TransacaoNubank
+): Promise<{ acao: AcaoEstorno; inseriu: boolean }> {
+  // 1. Hash dedup — evita reprocessar o mesmo estorno em reimportação
+  const { count: hashCount } = await supabase
+    .from('transacoes_nubank')
+    .select('*', { count: 'exact', head: true })
+    .eq('hash_linha', estorno.hash_linha)
+
+  if ((hashCount ?? 0) > 0) {
+    console.log(`[conciliacao] estorno ignorado (hash duplicado) hash=${estorno.hash_linha.slice(0, 12)} desc="${estorno.descricao}"`)
+    return { acao: 'ignorado', inseriu: false }
+  }
+
+  // 2. Busca transação original: remove prefixo "Estorno de", janela ±30 dias, valor ±R$0,05
+  const descOriginal = normalizarDescricaoParaHash(
+    estorno.descricao.replace(/^estorno\s+de\s+/i, '').trim()
+  )
+  const dataInicio = adicionarDias(estorno.data_compra, -30)
+  const dataFim    = adicionarDias(estorno.data_compra, 30)
+
+  const { data: candidates, error: candidatesError } = await supabase
+    .from('transacoes_nubank')
+    .select('id, descricao, valor, data_compra, status')
+    .gte('data_compra', dataInicio)
+    .lte('data_compra', dataFim)
+    .in('status', ['PENDENTE', 'CONCILIADO'])
+
+  // Fallback para coluna 'data' (schema antigo)
+  const rows = candidatesError?.message?.includes('data_compra')
+    ? await supabase
+        .from('transacoes_nubank')
+        .select('id, descricao, valor, data, status')
+        .gte('data', dataInicio)
+        .lte('data', dataFim)
+        .in('status', ['PENDENTE', 'CONCILIADO'])
+        .then(r => (r.data ?? []).map(x => ({ ...x, data_compra: x.data })))
+    : (candidates ?? [])
+
+  const original = rows.find(c =>
+    normalizarDescricaoParaHash(c.descricao) === descOriginal &&
+    Math.abs(c.valor - estorno.valor) <= 0.05
+  )
+
+  // 3. Insere registro do estorno
+  const { occurrence_index: _oi, ...base } = estorno as TransacaoNubank & { occurrence_index?: number }
+  const payload: Record<string, unknown> = {
+    ...base,
+    status: 'ESTORNO',
+    is_estorno: true,
+    conciliacao_ref: original?.id ?? null,
+  }
+  const { ok } = await inserirRegistro(supabase, payload)
+  if (!ok) return { acao: 'ignorado', inseriu: false }
+
+  // 4. Marca original como ESTORNADO se encontrado
+  if (original) {
+    await supabase
+      .from('transacoes_nubank')
+      .update({ status: 'ESTORNADO' })
+      .eq('id', original.id)
+    console.log(`[conciliacao] estorno aplicado → original id=${original.id} desc="${original.descricao}"`)
+    return { acao: 'aplicado', inseriu: true }
+  }
+
+  console.log(`[conciliacao] estorno registrado sem match desc="${estorno.descricao}" data=${estorno.data_compra}`)
+  return { acao: 'registrado', inseriu: true }
 }
 
 export async function conciliarTransacao(

@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/serverAuth'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
 import { processarCSV, TransacaoNubank } from '@/lib/csvparser'
 import { notificarImportacao } from '@/lib/pushImportacao'
+import { conciliarEstorno } from '@/lib/conciliacao'
 
 const CARTOES_VALIDOS = ['cartao1', 'cartao2'] as const
 type CartaoValido = typeof CARTOES_VALIDOS[number]
@@ -117,7 +118,10 @@ export async function POST(req: NextRequest) {
     const csvText = await file.text()
     const transacoes = processarCSV(csvText, diaVencimento, ajusteFechamento, cartao, responsavelPadrao)
 
-    if (transacoes.length === 0) {
+    const transacoesNormais = transacoes.filter(t => !t.is_estorno)
+    const estornos = transacoes.filter(t => t.is_estorno)
+
+    if (transacoesNormais.length === 0 && estornos.length === 0) {
       return NextResponse.json({
         success: false,
         error: 'Nenhuma transação válida. Verifique se o CSV está no formato correto (date, title, amount).',
@@ -131,6 +135,8 @@ export async function POST(req: NextRequest) {
     let totalValor = 0
     let verdadeiramenteNovas = 0
     let duplicatasIgnoradas = 0
+    let estornosAplicados = 0
+    let estornosRegistrados = 0
     const importTs = Date.now()
     const purchaseDates: string[] = []
 
@@ -138,7 +144,7 @@ export async function POST(req: NextRequest) {
     const faturaStats: Record<string, StatsFatura> = {}
     for (const f of mesesNoArquivo) faturaStats[f] = { noCSV: 0, inseridas: 0, ignoradas: 0, totalNoBanco: 0 }
 
-    for (const item of transacoes) {
+    for (const item of transacoesNormais) {
       const stats = faturaStats[item.projeto_fatura]
       stats.noCSV++
 
@@ -147,7 +153,7 @@ export async function POST(req: NextRequest) {
 
       const qtdNoBanco = await contarNoBanco(supabase, item, dataInicio, dataFim, cartao)
 
-      const qtdNoCsv = transacoes.filter(x =>
+      const qtdNoCsv = transacoesNormais.filter(x =>
         x.descricao === item.descricao &&
         x.valor === item.valor &&
         x.data_compra === item.data_compra
@@ -170,6 +176,12 @@ export async function POST(req: NextRequest) {
         duplicatasIgnoradas++
         stats.ignoradas++
       }
+    }
+
+    for (const estorno of estornos) {
+      const resultado = await conciliarEstorno(supabase, estorno)
+      if (resultado.acao === 'aplicado')   estornosAplicados++
+      if (resultado.acao === 'registrado') estornosRegistrados++
     }
 
     for (const fatura of mesesNoArquivo) {
@@ -197,6 +209,9 @@ export async function POST(req: NextRequest) {
       total: totalValor.toFixed(2),
       mesesReprocessados: mesesNoArquivo,
       resumoPorFatura: faturaStats,
+      estornos: estornos.length,
+      estornosAplicados,
+      estornosRegistrados,
     })
   } catch (error) {
     console.error('[import/cartao] Exceção:', error)

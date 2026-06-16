@@ -337,3 +337,12 @@ INSERT INTO assinaturas_historico (assinatura_id, valor, vigente_desde, criado_e
 SELECT id, valor, COALESCE(created_at::date, '2000-01-01'), COALESCE(created_at, NOW())
 FROM assinaturas
 ON CONFLICT DO NOTHING;
+
+-- 19. Suporte a estornos/chargebacks importados via CSV
+-- Novos valores de status: 'ESTORNO' (registro do estorno) e 'ESTORNADO' (compra original cancelada)
+-- status completo: PENDENTE | CONCILIADO | CONFLITO_VALOR | ESTORNO | ESTORNADO
+ALTER TABLE transacoes_nubank
+  ADD COLUMN IF NOT EXISTS is_estorno BOOLEAN NOT NULL DEFAULT FALSE;
+
+CREATE INDEX IF NOT EXISTS idx_transacoes_is_estorno
+  ON transacoes_nubank(is_estorno) WHERE is_estorno = TRUE;
