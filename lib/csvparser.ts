@@ -33,7 +33,7 @@ export interface TransacaoNubank {
 
 function parseValorMonetario(valorRaw: number | string | null | undefined): number | null {
   if (typeof valorRaw === 'number') {
-    return Number.isFinite(valorRaw) && valorRaw > 0 ? valorRaw : null
+    return Number.isFinite(valorRaw) && valorRaw !== 0 ? valorRaw : null
   }
 
   const valorStr = String(valorRaw ?? '')
