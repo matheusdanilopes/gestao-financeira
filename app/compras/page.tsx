@@ -29,6 +29,8 @@ type Compra = {
   categoria: string | null
   cartao?: string
   created_at?: string
+  status?: string | null
+  is_estorno?: boolean | null
 }
 
 type FormEditar = {
@@ -361,9 +363,10 @@ export default function ComprasPage() {
     })
   }, [compras, filtroCartao, filtroDescricao, filtroValorMin, filtroData, filtroCategoria, filtroParcelamento])
 
-  const total = useMemo(() => comprasSemFiltroResponsavel.reduce((acc, c) => acc + c.valor, 0), [comprasSemFiltroResponsavel])
-  const totalMatheus = useMemo(() => comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Matheus').reduce((acc, c) => acc + c.valor, 0), [comprasSemFiltroResponsavel])
-  const totalJeniffer = useMemo(() => comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Jeniffer').reduce((acc, c) => acc + c.valor, 0), [comprasSemFiltroResponsavel])
+  const semEstorno = useMemo(() => comprasSemFiltroResponsavel.filter(c => c.status !== 'ESTORNO' && c.status !== 'ESTORNADO'), [comprasSemFiltroResponsavel])
+  const total = useMemo(() => semEstorno.reduce((acc, c) => acc + c.valor, 0), [semEstorno])
+  const totalMatheus = useMemo(() => semEstorno.filter(c => c.responsavel === 'Matheus').reduce((acc, c) => acc + c.valor, 0), [semEstorno])
+  const totalJeniffer = useMemo(() => semEstorno.filter(c => c.responsavel === 'Jeniffer').reduce((acc, c) => acc + c.valor, 0), [semEstorno])
 
   // Hash da primeira compra importada na lista visível (para scroll e ref)
   const firstImportedHash = useMemo(() => {
@@ -632,7 +635,7 @@ export default function ComprasPage() {
       ) : (
         <div className="space-y-3">
           {grupos.map(([dateKey, items]) => {
-            const subtotal = items.reduce((acc, c) => acc + c.valor, 0)
+            const subtotal = items.filter(c => c.status !== 'ESTORNO' && c.status !== 'ESTORNADO').reduce((acc, c) => acc + c.valor, 0)
             return (
               <div key={dateKey} className="bg-white rounded-3xl border border-gray-100 shadow-card overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
@@ -648,7 +651,13 @@ export default function ComprasPage() {
                   {items.map((c) => {
                     const isParcelado = c.parcela_atual && c.total_parcelas
                     const canInteract = !faturaFechada && isOnline
-                    const borderColor = getCartaoBorderColor(c.cartao, cartaoLabels)
+                    const isEstorno   = c.status === 'ESTORNO'
+                    const isEstornado = c.status === 'ESTORNADO'
+                    const borderColor = isEstorno
+                      ? 'border-l-orange-400'
+                      : isEstornado
+                        ? 'border-l-gray-300'
+                        : getCartaoBorderColor(c.cartao, cartaoLabels)
                     const recentlyImported = isRecentlyImported(c)
                     const isFirst = c.hash_linha === firstImportedHash
                     const metaParts = [
@@ -665,9 +674,13 @@ export default function ComprasPage() {
                         <div
                           ref={isFirst ? firstImportedRef : undefined}
                           className={`px-4 py-3.5 flex items-center gap-3 border-l-4 ${borderColor} transition-colors ${
-                            recentlyImported
-                              ? 'bg-green-50/60 dark:bg-green-900/10'
-                              : 'bg-white'
+                            isEstornado
+                              ? 'bg-gray-50/80 opacity-60'
+                              : isEstorno
+                                ? 'bg-orange-50/40'
+                                : recentlyImported
+                                  ? 'bg-green-50/60 dark:bg-green-900/10'
+                                  : 'bg-white'
                           } ${canInteract ? 'cursor-pointer active:bg-gray-50 hover:bg-gray-50/50' : 'cursor-default'}`}
                           onClick={() => { if (canInteract) abrirEditar(c) }}
                           role={canInteract ? 'button' : undefined}
@@ -676,7 +689,7 @@ export default function ComprasPage() {
                           onKeyDown={canInteract ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirEditar(c) } } : undefined}
                         >
                           <div className="flex-1 min-w-0">
-                            <p className="text-[15px] font-semibold text-gray-900 leading-snug truncate">
+                            <p className={`text-[15px] font-semibold leading-snug truncate ${isEstornado ? 'line-through text-gray-400' : 'text-gray-900'}`}>
                               {c.descricao}
                             </p>
                             {metaParts.length > 0 && (
@@ -686,8 +699,20 @@ export default function ComprasPage() {
                             )}
                           </div>
                           <div className="text-right shrink-0 flex flex-col items-end gap-1">
-                            <p className="text-[15px] font-bold text-gray-900 num">{formatBRL(c.valor)}</p>
-                            {recentlyImported && (
+                            <p className={`text-[15px] font-bold num ${isEstorno ? 'text-orange-500' : isEstornado ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+                              {isEstorno ? `+${formatBRL(c.valor)}` : formatBRL(c.valor)}
+                            </p>
+                            {isEstorno && (
+                              <span className="text-[9px] font-bold text-orange-700 bg-orange-100 px-1.5 py-0.5 rounded-full leading-none">
+                                Estorno
+                              </span>
+                            )}
+                            {isEstornado && (
+                              <span className="text-[9px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full leading-none">
+                                Estornada
+                              </span>
+                            )}
+                            {!isEstorno && !isEstornado && recentlyImported && (
                               <span className="text-[9px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full leading-none">
                                 Nova
                               </span>
