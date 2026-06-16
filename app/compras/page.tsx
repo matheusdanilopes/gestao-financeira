@@ -675,9 +675,9 @@ export default function ComprasPage() {
                           ref={isFirst ? firstImportedRef : undefined}
                           className={`px-4 py-3.5 flex items-center gap-3 border-l-4 ${borderColor} transition-colors ${
                             isEstornado
-                              ? 'bg-gray-50/80 opacity-60'
+                              ? 'bg-gray-50/80 dark:bg-gray-800/50 opacity-60'
                               : isEstorno
-                                ? 'bg-orange-50/40'
+                                ? 'bg-orange-50/40 dark:bg-orange-900/20'
                                 : recentlyImported
                                   ? 'bg-green-50/60 dark:bg-green-900/10'
                                   : 'bg-white'
