@@ -1150,17 +1150,18 @@ export default function ListaMercadoPage() {
         <div className="bg-white mt-2 rounded-2xl mx-4 overflow-hidden shadow-card border border-gray-100">
           {/* Pendentes */}
           {pendentes.map((item, idx) => (
-            <ItemRow
-              key={item.id}
-              item={item}
-              mostraHint={idx === 0 && !hintVisto}
-              onToggle={handleToggle}
-              onAlterarQtd={handleQtd}
-              onEditarNome={editarNome}
-              onExcluir={handleExcluir}
-              onAbrirPreco={setItemPreco}
-              onAbrirConfirmarCompra={setItemConfirmando}
-            />
+            <div key={item.id} className="list-item-enter" style={{ animationDelay: `${Math.min(idx, 10) * 30}ms` }}>
+              <ItemRow
+                item={item}
+                mostraHint={idx === 0 && !hintVisto}
+                onToggle={handleToggle}
+                onAlterarQtd={handleQtd}
+                onEditarNome={editarNome}
+                onExcluir={handleExcluir}
+                onAbrirPreco={setItemPreco}
+                onAbrirConfirmarCompra={setItemConfirmando}
+              />
+            </div>
           ))}
 
           {/* Comprados */}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useCallback, useEffect } from 'react'
+import React, { useMemo, useState, useCallback, useEffect } from 'react'
 import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths, addMonths, parseISO } from 'date-fns'
@@ -112,6 +112,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
   const [importandoMesAnterior, setImportandoMesAnterior] = useState(false)
   const [previewImport, setPreviewImport] = useState<{ itens: ItemPlanejamento[]; mesOrigem: string } | null>(null)
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null)
+  const [successId, setSuccessId] = useState<string | null>(null)
 
   const mesRefStr = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
 
@@ -157,6 +158,8 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
 
     if (!error) {
       log('pagar', 'planejamento', `Pago: ${item ? removerPrefixoCartao(item.item) : id} — ${formatBRL(valorNumerico)}`, valorNumerico)
+      setSuccessId(id)
+      setTimeout(() => setSuccessId(null), 400)
       if (diff > 0.01) {
         showToast(`Diferença de ${formatarMoeda(diff)} em relação ao previsto`, 'erro')
       } else {
@@ -494,8 +497,9 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
           </div>
           <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
             <div
-              className="h-1.5 rounded-full bg-gradient-to-r from-primary-500 to-primary-600 transition-[width] duration-700 ease-smooth"
-              style={{ width: `${percentualPago}%` }}
+              key={percentualPago}
+              className="h-1.5 rounded-full bg-gradient-to-r from-primary-500 to-primary-600 bar-enter"
+              style={{ '--bar-w': `${percentualPago}%` } as React.CSSProperties}
             />
           </div>
         </div>
@@ -561,13 +565,13 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
         </div>
       ) : (
         <div className="space-y-3">
-          {gruposPorCategoria.map(({ categoria, itens: grupoItens }) => {
+          {gruposPorCategoria.map(({ categoria, itens: grupoItens }, catIdx) => {
             const subtotalGrupo = grupoItens.reduce((acc, i) => acc + i.valor_previsto, 0)
             const pendentesGrupo = grupoItens.filter(i => !i.pago).length
             const pagosGrupo = grupoItens.filter(i => i.pago).length
             const pctGrupo = grupoItens.length > 0 ? (pagosGrupo / grupoItens.length) * 100 : 0
             return (
-              <div key={categoria} className="bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden">
+              <div key={categoria} className="bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden list-item-enter" style={{ animationDelay: `${Math.min(catIdx, 6) * 45}ms` }}>
                 {/* Cabeçalho do grupo */}
                 <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
                   <div className="flex items-center gap-2">
@@ -668,7 +672,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
                                 ) : (
                                   <button
                                     onClick={() => { setItemSelecionado(item); setModalAberto('desfazer') }}
-                                    className="p-1.5 rounded-lg text-amber-500 hover:bg-amber-50 transition"
+                                    className={`p-1.5 rounded-lg text-amber-500 hover:bg-amber-50 transition ${successId === item.id ? 'btn-success' : ''}`}
                                     title="Desfazer pagamento"
                                   >
                                     <RotateCcw className="w-4 h-4" />

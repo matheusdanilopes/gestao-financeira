@@ -407,6 +407,56 @@ button, a, [role="button"] {
 .fab-sheet-overlay { animation: fab-sheet-overlay-in  0.22s ease; }
 .fab-form-enter    { animation: fab-form-enter         0.20s ease; }
 
+/* ─── Animações modernas ─────────────────────────────────────────────────── */
+
+/* Revelação de conteúdo após skeleton */
+@keyframes content-reveal {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.content-enter { animation: content-reveal 0.20s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* Item de lista — stagger via animationDelay inline */
+@keyframes list-item-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.list-item-enter {
+  animation: list-item-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Barra de progresso cresce de 0 → --bar-w ao montar */
+@keyframes bar-grow {
+  from { width: 0%; }
+  to   { width: var(--bar-w, 0%); }
+}
+.bar-enter { animation: bar-grow 0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* Cross-fade de conteúdo ao trocar aba */
+@keyframes tab-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.tab-content-enter { animation: tab-fade-in 0.18s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* Troca de valor monetário — desliza para cima ao sair, desce ao entrar */
+@keyframes value-swap {
+  0%   { opacity: 1; transform: translateY(0); }
+  35%  { opacity: 0; transform: translateY(-5px); }
+  65%  { opacity: 0; transform: translateY(5px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.value-update { animation: value-swap 0.28s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* Micro-bounce de confirmação em botões de ação */
+@keyframes btn-success {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(0.92); }
+  70%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+.btn-success { animation: btn-success 0.32s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
 /* ─── Redução de motion para acessibilidade e bateria ───────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *,
