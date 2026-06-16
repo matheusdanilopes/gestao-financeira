@@ -33,6 +33,7 @@ export type NotificacaoTipo =
   | 'receber'
   // Conciliação
   | 'conciliacao_conflito'
+  | 'estorno_aplicado'
   // IA
   | 'ia_processamento_concluido'
   | 'ia_falha'
@@ -363,6 +364,17 @@ export const NOTIFICACAO_META: Record<string, NotificacaoMeta> = {
     exigeInteracao: true,
     rotulo: 'Conciliação',
   },
+  estorno_aplicado: {
+    rota: '/compras',
+    grupo: 'conciliacao',
+    corIcone: 'text-orange-500',
+    corBorda: 'border-l-orange-400',
+    corFundo: 'bg-orange-50/60 dark:bg-orange-900/10',
+    pushTag: 'estorno',
+    autoFechar: true,
+    exigeInteracao: false,
+    rotulo: 'Estorno',
+  },
 
   // ── IA ─────────────────────────────────────────────────────────────────────
   ia_processamento_concluido: {
@@ -421,7 +433,7 @@ export const ROTA_PARA_ACOES: Record<string, string[]> = {
   '/wishlist':      ['wishlist_novo_item', 'wishlist_item_ia', 'wishlist_item_concluido'],
   '/contas':        ['conta_vencendo', 'conta_atrasada', 'pagar'],
   '/importar':      ['importacao_iniciada', 'importacao_processando'],
-  '/compras':       ['categorizacao_concluida', 'pedido_criado', 'pedido_pendente', 'pedido_cancelado', 'pedido_concluido', 'importacao_concluida'],
+  '/compras':       ['categorizacao_concluida', 'pedido_criado', 'pedido_pendente', 'pedido_cancelado', 'pedido_concluido', 'importacao_concluida', 'estorno_aplicado'],
   '/dashboard':     ['aporte'],
   '/receitas':      ['receber'],
   '/lista-mercado': ['lista_compra_finalizada', 'lista_sincronizacao', 'lista_item_compartilhado', 'lista_item_adicionado'],

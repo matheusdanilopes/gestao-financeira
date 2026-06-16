@@ -164,12 +164,25 @@ export async function conciliarEstorno(
   const { ok } = await inserirRegistro(supabase, payload)
   if (!ok) return { acao: 'ignorado', inseriu: false }
 
-  // 4. Marca original como ESTORNADO se encontrado
+  // 4. Marca original como ESTORNADO se encontrado e cria notificação in-app
   if (original) {
     await supabase
       .from('transacoes_nubank')
       .update({ status: 'ESTORNADO' })
       .eq('id', original.id)
+    await supabase.from('notificacoes').insert({
+      de_usuario: 'sistema',
+      nome_usuario: 'Sistema',
+      acao: 'estorno_aplicado',
+      descricao: `Estorno detectado em "${original.descricao}": ${formatBRL(estorno.valor)} devolvido.`,
+      valor: estorno.valor,
+      metadata: {
+        original_id: original.id,
+        descricao: original.descricao,
+        valor: estorno.valor,
+        data_compra: estorno.data_compra,
+      },
+    })
     console.log(`[conciliacao] estorno aplicado → original id=${original.id} desc="${original.descricao}"`)
     return { acao: 'aplicado', inseriu: true }
   }

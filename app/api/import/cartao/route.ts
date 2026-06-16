@@ -197,6 +197,8 @@ export async function POST(req: NextRequest) {
       purchaseDates,
       projetoFaturas: mesesNoArquivo,
       importTs,
+      estornosAplicados,
+      estornosRegistrados,
     })
 
     return NextResponse.json({
