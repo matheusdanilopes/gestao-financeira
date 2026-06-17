@@ -13,4 +13,5 @@ export interface InsightsResponse {
   insights: InsightItem[]
   updatedAt: string
   source?: 'ai' | 'fallback'
+  fallbackReason?: string
 }

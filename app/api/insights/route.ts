@@ -142,13 +142,16 @@ export async function GET(req: NextRequest) {
     // Try Gemini first; fall back to rule-based insights on any failure
     let insights: InsightItem[]
     let source: 'ai' | 'fallback' = 'ai'
+    let fallbackReason: string | undefined
     try {
       const payload = serializeInsightsCompact(metrics)
       insights = await callGemini(payload, certificate.indiceConfiabilidade, prevTitles)
     } catch (geminiErr) {
-      console.error('[insights] Gemini falhou, usando fallback:', String(geminiErr))
+      const reason = String(geminiErr instanceof Error ? geminiErr.message : geminiErr)
+      console.error('[insights] Gemini falhou, usando fallback:', reason)
       insights = generateFallbackInsights(metrics)
       source = 'fallback'
+      fallbackReason = reason
     }
 
     console.log(`[insights] gerado via ${source}: ${insights.length} itens`)
@@ -157,6 +160,7 @@ export async function GET(req: NextRequest) {
       insights,
       updatedAt: new Date().toISOString(),
       source,
+      ...(fallbackReason ? { fallbackReason } : {}),
     }
 
     return NextResponse.json(response, {
