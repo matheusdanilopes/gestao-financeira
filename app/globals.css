@@ -614,3 +614,19 @@ button, a, [role="button"] {
 .insight-new-flash {
   animation: insight-new-flash 1.5s ease-out;
 }
+
+/* ─── Insights carousel — slide vertical infinito ────────────────────────── */
+@keyframes carousel-out-up {
+  from { transform: translateY(0);     opacity: 1; }
+  to   { transform: translateY(-115%); opacity: 0; }
+}
+@keyframes carousel-in-up {
+  from { transform: translateY(115%);  opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+.carousel-out-up {
+  animation: carousel-out-up 0.48s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+.carousel-in-up {
+  animation: carousel-in-up  0.48s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
