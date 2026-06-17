@@ -79,32 +79,42 @@ export async function POST(req: NextRequest) {
     porResponsavel.set(t.responsavel, lista)
   }
 
-  function calcResumo(lista: Transacao[]): { totalGasto: number; topCategoria: string } {
+  function primeiroNome(usuario: string): string {
+    if (usuario.toLowerCase().includes('matheus')) return 'Matheus'
+    if (usuario.toLowerCase().includes('jeniffer') || usuario.toLowerCase().includes('jennifer')) return 'Jeniffer'
+    return usuario.split('@')[0]
+  }
+
+  function brl(val: number): string {
+    return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  }
+
+  function calcResumo(lista: Transacao[]): { totalGasto: number; topCategoria: string; topValor: number; totalTransacoes: number } {
     const totalGasto = lista.reduce((acc, t) => acc + t.valor, 0)
+    const totalTransacoes = lista.length
     const porCategoria = new Map<string, number>()
     for (const t of lista) {
-      porCategoria.set(t.categoria, (porCategoria.get(t.categoria) ?? 0) + t.valor)
+      if (t.categoria) porCategoria.set(t.categoria, (porCategoria.get(t.categoria) ?? 0) + t.valor)
     }
     let topCategoria = ''
     let topValor = -Infinity
     for (const [cat, val] of porCategoria) {
-      if (val > topValor) {
-        topValor = val
-        topCategoria = cat
-      }
+      if (val > topValor) { topValor = val; topCategoria = cat }
     }
-    return { totalGasto, topCategoria }
+    return { totalGasto, topCategoria, topValor, totalTransacoes }
   }
 
   const notificacoes = (subscriptions as PushSubscriptionRow[]).flatMap(sub => {
     const lista = porResponsavel.get(sub.usuario)
     if (!lista?.length) return []
-    const { totalGasto, topCategoria } = calcResumo(lista)
+    const { totalGasto, topCategoria, topValor, totalTransacoes } = calcResumo(lista)
+    const nome = primeiroNome(sub.usuario)
+    const topInfo = topCategoria ? ` · ${topCategoria}: ${brl(topValor)}` : ''
     return [{
       sub,
       msg: {
-        title: '📊 Resumo semanal',
-        body: `Você gastou R$ ${totalGasto.toFixed(2)} esta semana. Principal: ${topCategoria}`,
+        title: `${nome}, você gastou ${brl(totalGasto)} essa semana`,
+        body: `${totalTransacoes} compra${totalTransacoes !== 1 ? 's' : ''} registrada${totalTransacoes !== 1 ? 's' : ''}${topInfo}. Toque para ver o detalhamento.`,
         url: '/compras',
         tag: 'resumo-semanal',
         requireInteraction: false,
