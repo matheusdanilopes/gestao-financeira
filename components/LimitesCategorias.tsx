@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { format, startOfMonth } from 'date-fns'
+import { format, startOfMonth, addMonths } from 'date-fns'
 import { Target } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { formatBRL } from '@/lib/logger'
@@ -26,14 +26,18 @@ export default function LimitesCategorias({ mesAtual }: Props) {
     async function carregar() {
       setCarregando(true)
 
-      const mesRef = format(startOfMonth(mesAtual), 'yyyy-MM-dd')
+      // NuBank transactions for a given planning month appear on the next month's invoice
+      const projetoFatura = format(startOfMonth(addMonths(mesAtual, 1)), 'yyyy-MM-dd')
 
-      const [configRes, { data: planejamentoData }] = await Promise.all([
+      const [configRes, { data: transacoes }] = await Promise.all([
         fetch('/api/configuracoes'),
         supabase
-          .from('planejamento')
-          .select('item, categoria, valor_previsto, valor_real, pago')
-          .eq('mes_referencia', mesRef),
+          .from('transacoes_nubank')
+          .select('categoria, valor')
+          .eq('projeto_fatura', projetoFatura)
+          .not('categoria', 'is', null)
+          .neq('status', 'ESTORNO')
+          .neq('status', 'ESTORNADO'),
       ])
 
       if (cancelado) return
@@ -41,7 +45,6 @@ export default function LimitesCategorias({ mesAtual }: Props) {
       const configJson = await configRes.json()
       const configs: Array<{ chave: string; valor: string }> = configJson.configuracoes ?? []
 
-      // Build limits map from configuracoes
       const limitesMap: Record<string, number> = {}
       for (const c of configs) {
         if (c.chave.startsWith('limite_cat_')) {
@@ -53,30 +56,12 @@ export default function LimitesCategorias({ mesAtual }: Props) {
         }
       }
 
-      // Mirror GraficoCategoriasDespesas: use valor_real for paid items,
-      // valor_previsto for unpaid — this avoids zero when pago flag lags
-      const pagoMap: Record<string, number> = {}
-      const prevMap: Record<string, number> = {}
-      for (const row of (planejamentoData ?? [])) {
-        const item = String(row.item ?? '')
-        if (item === 'Receita Total' || item.startsWith('[RECEITA]')) continue
-
-        const cat = (row.categoria as string | null) || 'Outros'
-        const pv = Number(row.valor_previsto ?? 0)
-        const vr = Number(row.valor_real ?? 0)
-
-        if (pv > 0) prevMap[cat] = (prevMap[cat] ?? 0) + pv
-        if (row.pago && vr > 0) pagoMap[cat] = (pagoMap[cat] ?? 0) + vr
-      }
-
-      // gasto = valor pago se existir, caso contrário valor previsto (para itens ainda não pagos)
       const gastosMap: Record<string, number> = {}
-      const allCats = new Set([...Object.keys(pagoMap), ...Object.keys(prevMap)])
-      for (const cat of allCats) {
-        gastosMap[cat] = pagoMap[cat] ?? prevMap[cat] ?? 0
+      for (const row of (transacoes ?? [])) {
+        const cat = row.categoria as string | null
+        if (cat) gastosMap[cat] = (gastosMap[cat] ?? 0) + Number(row.valor ?? 0)
       }
 
-      // Only show categories that have a limit set
       const result: CategoriaLimite[] = Object.entries(limitesMap).map(([categoria, limite]) => ({
         categoria,
         limite,
