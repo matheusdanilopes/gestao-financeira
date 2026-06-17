@@ -32,10 +32,8 @@ export default function LimitesCategorias({ mesAtual }: Props) {
         fetch('/api/configuracoes'),
         supabase
           .from('planejamento')
-          .select('categoria, valor_real, pago')
-          .eq('mes_referencia', mesRef)
-          .eq('pago', true)
-          .not('categoria', 'is', null),
+          .select('item, categoria, valor_previsto, valor_real, pago')
+          .eq('mes_referencia', mesRef),
       ])
 
       if (cancelado) return
@@ -55,13 +53,27 @@ export default function LimitesCategorias({ mesAtual }: Props) {
         }
       }
 
-      // Sum valor_real by categoria from planejamento where pago = true
-      const gastosMap: Record<string, number> = {}
+      // Mirror GraficoCategoriasDespesas: use valor_real for paid items,
+      // valor_previsto for unpaid — this avoids zero when pago flag lags
+      const pagoMap: Record<string, number> = {}
+      const prevMap: Record<string, number> = {}
       for (const row of (planejamentoData ?? [])) {
-        const cat = row.categoria as string | null
-        if (cat && row.valor_real != null) {
-          gastosMap[cat] = (gastosMap[cat] ?? 0) + (row.valor_real as number)
-        }
+        const item = String(row.item ?? '')
+        if (item === 'Receita Total' || item.startsWith('[RECEITA]')) continue
+
+        const cat = (row.categoria as string | null) || 'Outros'
+        const pv = Number(row.valor_previsto ?? 0)
+        const vr = Number(row.valor_real ?? 0)
+
+        if (pv > 0) prevMap[cat] = (prevMap[cat] ?? 0) + pv
+        if (row.pago && vr > 0) pagoMap[cat] = (pagoMap[cat] ?? 0) + vr
+      }
+
+      // gasto = valor pago se existir, caso contrário valor previsto (para itens ainda não pagos)
+      const gastosMap: Record<string, number> = {}
+      const allCats = new Set([...Object.keys(pagoMap), ...Object.keys(prevMap)])
+      for (const cat of allCats) {
+        gastosMap[cat] = pagoMap[cat] ?? prevMap[cat] ?? 0
       }
 
       // Only show categories that have a limit set

@@ -1127,6 +1127,8 @@ export default function Dashboard() {
               />
             </div>
 
+            <LimitesCategorias mesAtual={mesAtual} />
+
             <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
               <div className="flex items-center gap-2 mb-1">
                 <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center">
@@ -1140,8 +1142,6 @@ export default function Dashboard() {
               <p className="text-xs text-gray-400 mb-4 ml-10">Maior → menor · Toque para detalhes</p>
               <GraficoCategoriasDespesas mesAtual={mesAtual} />
             </div>
-
-            <LimitesCategorias mesAtual={mesAtual} />
 
             <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
               <div className="flex items-center gap-2 mb-1">
