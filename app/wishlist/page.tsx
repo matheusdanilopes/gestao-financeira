@@ -616,6 +616,7 @@ function WishlistCard({
   mostraHint,
   highlighted,
   usuarioAtual,
+  sobraLiquida,
   onEditar,
   onRealizar,
   onExcluir,
@@ -626,6 +627,7 @@ function WishlistCard({
   mostraHint: boolean
   highlighted?: boolean
   usuarioAtual: string | null
+  sobraLiquida: number
   onEditar: (item: WishlistItem) => void
   onRealizar: (id: string) => unknown
   onExcluir: (id: string) => unknown
@@ -693,7 +695,8 @@ function WishlistCard({
         {/* Footer — separate from click button */}
         <div className="border-t border-gray-50 px-4 py-2.5 flex items-center justify-between">
           {/* Left: valor + link + data */}
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <div className="flex items-center gap-2">
             {item.valor_estimado != null && (
               <span className="text-xs font-bold text-gray-800 num">
                 {formatBRL(item.valor_estimado)}
@@ -713,6 +716,12 @@ function WishlistCard({
             <span className="text-[10px] text-gray-400 whitespace-nowrap">
               {formatarTempoRelativo(item.created_at)}
             </span>
+            </div>
+            {item.valor_estimado != null && item.valor_estimado > 0 && sobraLiquida > 0 && (
+              <p className="text-[10px] text-gray-400 mt-0.5">
+                ~{Math.ceil(item.valor_estimado / sobraLiquida)} meses para poupar
+              </p>
+            )}
           </div>
 
           {/* Right: camera + retry + avatar + star + realizar */}
@@ -1079,6 +1088,14 @@ function WishlistContent() {
     return () => window.removeEventListener('wishlist:open-add', handler)
   }, [])
 
+  const [sobraLiquida, setSobraLiquida] = useState(0)
+  useEffect(() => {
+    fetch('/api/resumo/sobra-mensal')
+      .then(res => res.ok ? res.json() as Promise<{ sobraLiquida: number }> : null)
+      .then(json => { if (json) setSobraLiquida(json.sobraLiquida) })
+      .catch(() => {})
+  }, [])
+
   const categoriasUsadas = [...new Set(ativos.map(i => i.categoria).filter(Boolean) as string[])]
   const totalAtivos = ativos.reduce((s, i) => s + (i.valor_estimado ?? 0), 0)
 
@@ -1412,6 +1429,7 @@ function WishlistContent() {
                     mostraHint={idx === 0 && !hintVisto}
                     highlighted={highlightId === item.id}
                     usuarioAtual={usuarioAtual}
+                    sobraLiquida={sobraLiquida}
                     onEditar={abrirEditar}
                     onRealizar={handleRealizar}
                     onExcluir={handleExcluir}

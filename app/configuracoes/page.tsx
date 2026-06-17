@@ -202,6 +202,7 @@ export default function ConfiguracoesPage() {
   // --- Categorias ---
   const [categorias, setCategorias] = useState<string[]>(CATEGORIAS_PADRAO)
   const [categoriasUso, setCategoriasUso] = useState<Record<string, number>>({})
+  const [categoriaLimites, setCategoriaLimites] = useState<Record<string, string>>({})
   const [novaCategoria, setNovaCategoria] = useState('')
   const [editandoCategoria, setEditandoCategoria] = useState<string | null>(null)
   const [novoNomeCategoria, setNovoNomeCategoria] = useState('')
@@ -268,6 +269,15 @@ export default function ConfiguracoesPage() {
     setAjusteFechamentoC2(parseInt(get('ajuste_fechamento_cartao2', '0')))
     setCategorias(parseCategoriasConfig(get('categorias_compras', '')))
     setNotificacoesVencimentoAtivas(get('notificacoes_vencimento_ativas', 'true') === 'true')
+
+    const limites: Record<string, string> = {}
+    for (const c of configs) {
+      if (c.chave.startsWith('limite_cat_')) {
+        const catName = c.chave.slice('limite_cat_'.length)
+        limites[catName] = c.valor
+      }
+    }
+    setCategoriaLimites(limites)
   }
 
   async function carregarFaturas() {
@@ -1211,6 +1221,26 @@ export default function ConfiguracoesPage() {
                       <p className="text-xs text-gray-400 mt-0.5">
                         {emUso > 0 ? `${emUso} uso${emUso > 1 ? 's' : ''} em compras e assinaturas` : 'Sem usos registrados'}
                       </p>
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        <span className="text-[10px] text-gray-400">Limite/mês:</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="Sem limite"
+                          value={categoriaLimites[categoria] ?? ''}
+                          onChange={(e) => setCategoriaLimites(prev => ({ ...prev, [categoria]: e.target.value }))}
+                          onBlur={async (e) => {
+                            const val = e.target.value.trim()
+                            await fetch('/api/configuracoes', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ configuracoes: [{ chave: `limite_cat_${categoria}`, valor: val || '0' }] }),
+                            })
+                          }}
+                          className="w-24 bg-gray-50 border border-gray-200 rounded-xl px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary-400 transition-shadow"
+                        />
+                      </div>
                     </div>
                   )}
 

@@ -3,6 +3,14 @@
     {
       "path": "/api/notificacoes/vencimento",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/notificacoes/resumo-semanal",
+      "schedule": "0 9 * * 1"
+    },
+    {
+      "path": "/api/manutencao/limpeza",
+      "schedule": "0 3 1 * *"
     }
   ]
 }

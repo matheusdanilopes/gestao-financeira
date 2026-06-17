@@ -2,6 +2,7 @@
 
 import MonthSelector from '@/components/MonthSelector'
 import AssinaturasMensal from '@/components/AssinaturasMensal'
+import SugestoesAssinaturas from '@/components/SugestoesAssinaturas'
 import { useMes } from '@/components/MesProvider'
 
 export default function AssinaturasPage() {
@@ -15,6 +16,7 @@ export default function AssinaturasPage() {
       </div>
 
       <div className="page-content">
+        <SugestoesAssinaturas />
         <AssinaturasMensal mesSelecionado={mesAtual} />
       </div>
     </div>
