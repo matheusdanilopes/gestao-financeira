@@ -72,7 +72,7 @@ async function callGemini(compactPayload: string, confiabilidade: number, prevTi
 
   const body = JSON.stringify({
     contents: [{ role: 'user', parts: [{ text: buildPrompt(compactPayload, confiabilidade, prevTitles) }] }],
-    generationConfig: { maxOutputTokens: 2048, temperature: 0.5 },
+    generationConfig: { maxOutputTokens: 8192, temperature: 0.5, responseMimeType: 'application/json' },
   })
 
   // Retry on transient errors (503, 502) with exponential backoff
