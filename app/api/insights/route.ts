@@ -18,6 +18,7 @@ const CATEGORIA_ACTION: Record<string, { label: string; route: string }> = {
   orcamento:     { label: 'Ver planejamento',  route: '/financas?tab=despesas' },
   investimentos: { label: 'Ver investimentos', route: '/investimentos' },
   assinaturas:   { label: 'Ver assinaturas',   route: '/assinaturas' },
+  poupanca:      { label: 'Ver finanças',      route: '/financas' },
 }
 
 const buildPrompt = (payload: string, confiabilidade: number) =>
@@ -34,7 +35,7 @@ Gere EXATAMENTE 4 insights em JSON. Responda APENAS com o array JSON, sem texto 
     "detalhe": "<métrica com valor real em R$, máx 85 chars>",
     "recomendacao": "<ação concreta e específica, máx 85 chars>",
     "nivel": "<alerta|positivo|info|sugestao>",
-    "categoria": "<gastos|orcamento|investimentos|assinaturas>"
+    "categoria": "<gastos|orcamento|investimentos|assinaturas|poupanca>"
   }
 ]
 
@@ -42,15 +43,19 @@ Glossário dos campos:
 - "totalMes": total do mês = faturas cartão + despesas fixas (o que o dashboard chama de "Gastos")
 - "gasto": apenas as faturas de cartão (subset de totalMes)
 - "orc[0]": total das despesas fixas planejadas | "orc[1]": já pago | "orc[2]": em aberto
+- "renda": renda mensal configurada | "sobra": renda - totalMes | "poupPct": % da renda poupada
+- "assinsCats": top categorias de assinaturas [[categoria, R$], ...]
 
 Regras:
 - Ao responder "total de despesas" use sempre "totalMes", não "gasto" isolado.
 - nivel "alerta": risco financeiro real. "positivo": conquista ou economia. "info": dado neutro. "sugestao": oportunidade de melhora.
-- "categoria": classifique a área do insight — "gastos" (transações/compras), "orcamento" (planejamento/vencimentos), "investimentos" (aportes/carteira), "assinaturas" (serviços recorrentes).
+- "categoria": classifique — "gastos" (compras/transações), "orcamento" (planejamento/vencimentos), "investimentos" (aportes/carteira), "assinaturas" (serviços recorrentes), "poupanca" (sobra/taxa de poupança).
 - Priorize: desvios de gastos vs histórico, categoria com maior crescimento, aderência ao orçamento, tendência de 3 meses.
 - Se "vencidos" não vazio: priorize alerta de despesas em atraso com os itens específicos.
 - Se "venc7d" não vazio: destaque vencimentos nos próximos 7 dias.
 - Se "dia" < 15 e % pago do orçamento for baixo (orc[1]/orc[0]): não trate como alerta — é início do mês.
+- Se "renda" e "sobra" presentes: inclua 1 insight sobre taxa de poupança ("poupPct"), usando categoria "poupanca".
+- Equilíbrio obrigatório: máximo 2 insights com nivel "alerta" — inclua sempre ≥1 "positivo" ou "info", salvo situação financeira criticamente negativa (sobra < 0 e vencidos > 0 simultaneamente).
 - Use valores reais dos dados — nunca invente números.`
 
 async function callGemini(compactPayload: string, confiabilidade: number): Promise<InsightItem[]> {
@@ -139,6 +144,7 @@ export async function GET(req: NextRequest) {
     const response: InsightsResponse = {
       insights,
       updatedAt: new Date().toISOString(),
+      source,
     }
 
     return NextResponse.json(response, {

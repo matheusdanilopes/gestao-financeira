@@ -100,6 +100,9 @@ export interface FinancialInsightsContext {
   mediaMensalHistorica: number
   tendencia: 'alta' | 'baixa' | 'estavel'
   tendenciaPct: number
+  rendaMensal?: number
+  sobraLiquida?: number
+  taxaPoupanca?: number
 }
 
 export type TelaAtual =

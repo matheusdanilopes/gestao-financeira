@@ -209,6 +209,13 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
       ? ((totalMesAtual - totalGastosAnterior) / totalGastosAnterior) * 100
       : 0
 
+  const rendaConfig = data.configuracoes.find(c => c.chave === 'renda_mensal')
+  const rendaMensal = rendaConfig ? (parseFloat(rendaConfig.valor) || undefined) : undefined
+  const sobraLiquida = rendaMensal !== undefined ? rendaMensal - totalMesAtual : undefined
+  const taxaPoupanca = rendaMensal && rendaMensal > 0
+    ? ((sobraLiquida ?? 0) / rendaMensal) * 100
+    : undefined
+
   const diaAtual = hoje.getDate()
   const hojeStr = format(hoje, 'yyyy-MM-dd')
   const em7diasStr = format(addDays(hoje, 7), 'yyyy-MM-dd')
@@ -303,6 +310,9 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
     mediaMensalHistorica,
     tendencia,
     tendenciaPct,
+    rendaMensal,
+    sobraLiquida,
+    taxaPoupanca,
   }
 }
 
@@ -341,10 +351,11 @@ const signPct2 = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
 export function generateFallbackInsights(ins: FinancialInsightsContext): InsightItem[] {
   const items: InsightItem[] = []
 
-  // 1 — Gastos do mês vs histórico
-  if (ins.totalGastos > 0) {
+  // 1 — Gastos do mês vs histórico (usa totalMes = cartão + planejamento, igual ao dashboard)
+  const totalMes = ins.totalGastos + ins.totalOrcado
+  if (totalMes > 0) {
     const vsH = ins.mediaMensalHistorica > 0
-      ? ((ins.totalGastos - ins.mediaMensalHistorica) / ins.mediaMensalHistorica) * 100
+      ? ((totalMes - ins.mediaMensalHistorica) / ins.mediaMensalHistorica) * 100
       : ins.variacaoGastos
     const alto = vsH > 10
     const baixo = vsH < -5
@@ -356,8 +367,8 @@ export function generateFallbackInsights(ins: FinancialInsightsContext): Insight
         ? `Gastos ${signPct2(vsH)} abaixo do padrão`
         : `Gastos dentro do padrão em ${ins.mesAtual}`,
       detalhe: ins.mediaMensalHistorica > 0
-        ? `${fmtR2(ins.totalGastos)} este mês vs média de ${fmtR2(ins.mediaMensalHistorica)}/mês`
-        : `${fmtR2(ins.totalGastos)} este mês vs ${fmtR2(ins.totalGastosAnterior)} em ${ins.mesAnterior}`,
+        ? `${fmtR2(totalMes)} este mês vs média de ${fmtR2(ins.mediaMensalHistorica)}/mês`
+        : `${fmtR2(totalMes)} este mês vs ${fmtR2(ins.totalGastosAnterior)} em ${ins.mesAnterior}`,
       recomendacao: alto
         ? `Identifique os gastos extras e avalie o que pode ser cortado`
         : baixo
@@ -459,8 +470,26 @@ export function generateFallbackInsights(ins: FinancialInsightsContext): Insight
     })
   }
 
-  // 4 — Tendência ou maior compra
-  if (ins.mediaMensalHistorica > 0) {
+  // 4 — Taxa de poupança (quando renda configurada) ou tendência histórica
+  if (ins.rendaMensal !== undefined && ins.sobraLiquida !== undefined) {
+    const taxa = ins.taxaPoupanca ?? 0
+    items.push({
+      icone: taxa >= 20 ? '💰' : taxa < 0 ? '🚨' : '📊',
+      titulo: taxa >= 20
+        ? `Taxa de poupança: ${taxa.toFixed(0)}% da renda`
+        : taxa < 0
+        ? `Gastos ${Math.abs(taxa).toFixed(0)}% acima da renda`
+        : `${taxa.toFixed(0)}% da renda poupada`,
+      detalhe: `Sobra: ${fmtR2(ins.sobraLiquida)} de ${fmtR2(ins.rendaMensal)} de renda mensal`,
+      recomendacao: taxa >= 20
+        ? `Ótima margem! Considere aportar a sobra em investimentos`
+        : taxa < 0
+        ? `Revise gastos urgente — você está gastando mais do que ganha`
+        : `Reduza gastos variáveis para elevar a taxa de poupança`,
+      nivel: taxa >= 20 ? 'positivo' : taxa < 5 ? 'alerta' : 'info',
+      action: { label: 'Ver finanças', route: '/financas' },
+    })
+  } else if (ins.mediaMensalHistorica > 0) {
     const isAlta = ins.tendencia === 'alta'
     const isBaixa = ins.tendencia === 'baixa'
     items.push({
@@ -550,6 +579,18 @@ export function serializeInsightsCompact(ins: FinancialInsightsContext): string 
       ? 'estavel'
       : `${ins.tendencia} ${ins.tendenciaPct > 0 ? '+' : ''}${Math.round(ins.tendenciaPct * 10) / 10}%`
   }
+
+  if (ins.rendaMensal) {
+    payload.renda = r2(ins.rendaMensal)
+    if (ins.sobraLiquida !== undefined) payload.sobra = r2(ins.sobraLiquida)
+    if (ins.taxaPoupanca !== undefined) payload.poupPct = Math.round(ins.taxaPoupanca * 10) / 10
+  }
+
+  const assinsCats = Object.entries(ins.assinaturasPorCategoria)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+  if (assinsCats.length > 0 && ins.assinaturasAtivas > 0)
+    payload.assinsCats = assinsCats.map(([cat, val]) => [cat, r2(val)])
 
   return JSON.stringify(payload)
 }
