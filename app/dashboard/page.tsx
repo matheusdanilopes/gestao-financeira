@@ -640,7 +640,7 @@ export default function Dashboard() {
                     </div>
                     <div>
                       <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide leading-none">Receita</p>
-                      <p className="text-sm font-bold text-emerald-700 num mt-0.5">{fmt(resumoCaixa.receitaTotal)}</p>
+                      <p key={resumoCaixa.receitaTotal} className="text-sm font-bold text-emerald-700 num mt-0.5 value-update">{fmt(resumoCaixa.receitaTotal)}</p>
                     </div>
                   </div>
                   <div className="bg-red-50 border border-red-100 rounded-2xl p-3 flex items-center gap-2.5">
@@ -649,7 +649,7 @@ export default function Dashboard() {
                     </div>
                     <div>
                       <p className="text-[10px] font-semibold text-red-500 uppercase tracking-wide leading-none">Gastos</p>
-                      <p className="text-sm font-bold text-red-600 num mt-0.5">{fmt(resumoCaixa.totalGastos)}</p>
+                      <p key={resumoCaixa.totalGastos} className="text-sm font-bold text-red-600 num mt-0.5 value-update">{fmt(resumoCaixa.totalGastos)}</p>
                     </div>
                   </div>
                 </div>
