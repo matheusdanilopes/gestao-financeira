@@ -28,6 +28,7 @@ export interface InsightsState {
   status: InsightsStatus
   refreshFailed: boolean
   changedIndices: number[]
+  source: 'ai' | 'fallback' | null
   refresh: () => void
 }
 
@@ -78,6 +79,7 @@ export function useInsights(): InsightsState {
   const [status, setStatus] = useState<InsightsStatus>('loading')
   const [refreshFailed, setRefreshFailed] = useState(false)
   const [changedIndices, setChangedIndices] = useState<number[]>([])
+  const [source, setSource] = useState<'ai' | 'fallback' | null>(null)
 
   const channelRef = useRef<RealtimeChannel | null>(null)
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -144,6 +146,7 @@ export function useInsights(): InsightsState {
       setInsights(data.insights)
       prevInsightsRef.current = data.insights
       setUpdatedAt(new Date(data.updatedAt))
+      setSource(data.source ?? null)
       setStatus('fresh')
       setRefreshFailed(false)
       lastFetchRef.current = Date.now()
@@ -193,6 +196,7 @@ export function useInsights(): InsightsState {
       setInsights(cached.insights)
       prevInsightsRef.current = cached.insights
       setUpdatedAt(new Date(cached.updatedAt))
+      setSource(cached.source ?? null)
       setStatus('updating')
     }
 
@@ -224,5 +228,5 @@ export function useInsights(): InsightsState {
     }
   }, [fetchInsights, scheduleDebounced])
 
-  return { insights, updatedAt, status, refreshFailed, changedIndices, refresh }
+  return { insights, updatedAt, status, refreshFailed, changedIndices, source, refresh }
 }

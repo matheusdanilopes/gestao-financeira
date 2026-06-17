@@ -188,12 +188,13 @@ function formatUpdatedAt(date: Date): string {
 }
 
 export default function InsightsCard() {
-  const { insights, updatedAt, status, refreshFailed, changedIndices, refresh } = useInsights()
+  const { insights, updatedAt, status, refreshFailed, changedIndices, source, refresh } = useInsights()
 
   const isLoading  = status === 'loading'
   const isUpdating = status === 'updating'
   const isError    = status === 'error'
   const hasContent = insights.length > 0
+  const isFallback = source === 'fallback'
 
   return (
     <div className={`relative bg-white dark:bg-gray-900 rounded-3xl shadow-card border transition-colors duration-300 p-4 overflow-hidden
@@ -209,8 +210,11 @@ export default function InsightsCard() {
       {/* Header */}
       <div className="flex items-center justify-between mb-3.5">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-violet-50 dark:bg-violet-900/40 flex items-center justify-center shrink-0">
-            <Sparkles className="w-4 h-4 text-violet-500 dark:text-violet-400" />
+          <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0
+                          ${isFallback
+                            ? 'bg-amber-50 dark:bg-amber-900/30'
+                            : 'bg-violet-50 dark:bg-violet-900/40'}`}>
+            <Sparkles className={`w-4 h-4 ${isFallback ? 'text-amber-500 dark:text-amber-400' : 'text-violet-500 dark:text-violet-400'}`} />
           </div>
           <div>
             <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 leading-none">
@@ -220,6 +224,11 @@ export default function InsightsCard() {
               <p className="text-[10px] text-violet-400 mt-0.5 flex items-center gap-1">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
                 Recalculando…
+              </p>
+            ) : isFallback ? (
+              <p className="text-[10px] text-amber-500 dark:text-amber-400 mt-0.5 flex items-center gap-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400" />
+                Modo offline — IA indisponível
               </p>
             ) : (
               <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
