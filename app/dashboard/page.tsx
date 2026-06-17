@@ -47,6 +47,12 @@ import { InfoPopover } from '@/components/InfoPopover'
 const DrawerDetalhes = dynamic(() => import('@/components/DrawerDetalhes'), { ssr: false })
 const PeriodSelectorSheet = dynamic(() => import('@/components/PeriodSelectorSheet'), { ssr: false })
 const InsightsCard = dynamic(() => import('@/components/InsightsCard'), { ssr: false })
+const LimitesCategorias = dynamic(() => import('@/components/LimitesCategorias'), { ssr: false })
+
+const GraficoAnual = dynamic(() => import('@/components/GraficoAnual'), {
+  ssr: false,
+  loading: () => <div className="h-64 skeleton rounded-2xl" />,
+})
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { usePrefetchPages } from '@/lib/usePrefetchPages'
 import { formatBRL as fmt } from '@/lib/logger'
@@ -1135,6 +1141,8 @@ export default function Dashboard() {
               <GraficoCategoriasDespesas mesAtual={mesAtual} />
             </div>
 
+            <LimitesCategorias mesAtual={mesAtual} />
+
             <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
               <div className="flex items-center gap-2 mb-1">
                 <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center">
@@ -1185,6 +1193,19 @@ export default function Dashboard() {
               </div>
               <p className="text-xs text-gray-400 mb-4 ml-10">Últimos 6 meses · Realizado vs. Meta</p>
               <GraficoEvolucaoInvestimentos mesAtual={mesAtual} />
+            </div>
+
+            <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center">
+                  <BarChart3 className="w-4 h-4 text-emerald-600" />
+                </div>
+                <h2 className="text-base font-semibold text-gray-800">
+                  Visão Anual {new Date().getFullYear()}
+                </h2>
+              </div>
+              <p className="text-xs text-gray-400 mb-4 ml-10">Receitas, despesas e saldo mês a mês</p>
+              <GraficoAnual ano={mesAtual.getFullYear()} />
             </div>
 
           </div>
