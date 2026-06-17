@@ -39,11 +39,11 @@ export async function GET(req: NextRequest) {
   // Busca assinaturas existentes para evitar sugerir o que já está cadastrado
   const { data: assinaturasExistentes } = await supabase
     .from('assinaturas')
-    .select('nome')
+    .select('nome, cartao')
     .eq('ativa', true)
 
-  const nomesExistentes = new Set(
-    (assinaturasExistentes ?? []).map((a: { nome: string }) => normalizar(a.nome))
+  const assinaturasAtivas: { nome: string; cartao: string }[] = (assinaturasExistentes ?? []).map(
+    (a: { nome: string; cartao: string }) => ({ nome: a.nome.toLowerCase(), cartao: a.cartao })
   )
 
   // Agrupa por (descrição normalizada + responsável) e mês
@@ -94,8 +94,11 @@ export async function GET(req: NextRequest) {
   for (const [, g] of grupos) {
     if (g.meses.size < MIN_MESES_CONSECUTIVOS) continue
 
-    const norm = normalizar(g.descricao)
-    if (nomesExistentes.has(norm)) continue
+    const descLower = g.descricao.toLowerCase()
+    const jaExiste = assinaturasAtivas.some(
+      (a) => a.cartao === g.cartao && descLower.includes(a.nome)
+    )
+    if (jaExiste) continue
 
     const valorMedio = g.valores.reduce((a, b) => a + b, 0) / g.valores.length
     const valorMin = Math.min(...g.valores)
