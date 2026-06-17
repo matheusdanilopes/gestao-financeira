@@ -21,9 +21,13 @@ const CATEGORIA_ACTION: Record<string, { label: string; route: string }> = {
   poupanca:      { label: 'Ver finanças',      route: '/financas' },
 }
 
-const buildPrompt = (payload: string, confiabilidade: number) =>
+const buildPrompt = (payload: string, confiabilidade: number, prevTitles: string[]) =>
   `Você é analista financeiro do casal Matheus (M) e Jeniffer (J).
-
+${prevTitles.length > 0 ? `
+ANTI-REPETIÇÃO OBRIGATÓRIA: A análise anterior já continha estes títulos:
+${prevTitles.map((t, i) => `  ${i + 1}. "${t}"`).join('\n')}
+Você DEVE gerar insights com ângulos COMPLETAMENTE diferentes — não repita o mesmo título, a mesma métrica nem a mesma recomendação. Explore dimensões que não foram cobertas anteriormente.
+` : ''}
 Dados financeiros auditados (confiabilidade: ${confiabilidade}% | campo "dia" = dia atual do mês):
 ${payload}
 
@@ -58,7 +62,7 @@ Regras:
 - Equilíbrio obrigatório: máximo 2 insights com nivel "alerta" — inclua sempre ≥1 "positivo" ou "info", salvo situação financeira criticamente negativa (sobra < 0 e vencidos > 0 simultaneamente).
 - Use valores reais dos dados — nunca invente números.`
 
-async function callGemini(compactPayload: string, confiabilidade: number): Promise<InsightItem[]> {
+async function callGemini(compactPayload: string, confiabilidade: number, prevTitles: string[]): Promise<InsightItem[]> {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) throw new Error('GEMINI_API_KEY não configurada')
 
@@ -66,8 +70,8 @@ async function callGemini(compactPayload: string, confiabilidade: number): Promi
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: buildPrompt(compactPayload, confiabilidade) }] }],
-      generationConfig: { maxOutputTokens: 1024, temperature: 0.3 },
+      contents: [{ role: 'user', parts: [{ text: buildPrompt(compactPayload, confiabilidade, prevTitles) }] }],
+      generationConfig: { maxOutputTokens: 1024, temperature: 0.5 },
     }),
   })
 
@@ -118,6 +122,10 @@ export async function GET(req: NextRequest) {
   const fresh = req.nextUrl.searchParams.get('fresh') === 'true'
   if (fresh) clearEnrichedDataCache(user.id)
 
+  // ?prev=title1||title2||... — titles from the previous render, used to avoid repetition
+  const prevRaw = req.nextUrl.searchParams.get('prev') ?? ''
+  const prevTitles = prevRaw ? prevRaw.split('||').filter(Boolean).slice(0, 4) : []
+
   try {
     const rawData = await fetchEnrichedData(user.id)
 
@@ -132,7 +140,7 @@ export async function GET(req: NextRequest) {
     let source: 'ai' | 'fallback' = 'ai'
     try {
       const payload = serializeInsightsCompact(metrics)
-      insights = await callGemini(payload, certificate.indiceConfiabilidade)
+      insights = await callGemini(payload, certificate.indiceConfiabilidade, prevTitles)
     } catch (geminiErr) {
       console.error('[insights] Gemini falhou, usando fallback:', String(geminiErr))
       insights = generateFallbackInsights(metrics)

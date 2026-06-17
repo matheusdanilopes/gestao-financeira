@@ -112,7 +112,13 @@ export function useInsights(): InsightsState {
     const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
 
     try {
-      const url = fresh ? '/api/insights?fresh=true' : '/api/insights'
+      const prevTitles = prevInsightsRef.current.map(i => i.titulo)
+      const prevParam = prevTitles.length > 0
+        ? `prev=${encodeURIComponent(prevTitles.join('||'))}`
+        : ''
+      const url = fresh
+        ? `/api/insights?fresh=true${prevParam ? `&${prevParam}` : ''}`
+        : `/api/insights${prevParam ? `?${prevParam}` : ''}`
       const res = await fetch(url, {
         credentials: 'include',
         signal: controller.signal,
