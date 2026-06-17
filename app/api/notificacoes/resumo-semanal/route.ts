@@ -50,17 +50,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, skipped: 'notificacoes_desativadas' })
   }
 
-  const hoje       = startOfDay(new Date())
-  const seteDiasAtras = subDays(hoje, 7)
-  const hojeStr       = format(hoje, 'yyyy-MM-dd')
-  const seteDiasStr   = format(seteDiasAtras, 'yyyy-MM-dd')
+  const hoje            = startOfDay(new Date())
+  const seteDiasAtras   = subDays(hoje, 7)
+  const quatorzeAtras   = subDays(hoje, 14)
+  const hojeStr         = format(hoje, 'yyyy-MM-dd')
+  const seteDiasStr     = format(seteDiasAtras, 'yyyy-MM-dd')
+  const quatorzeStr     = format(quatorzeAtras, 'yyyy-MM-dd')
 
-  const [{ data: transacoes }, { data: subscriptions }] = await Promise.all([
+  const [{ data: transacoes }, { data: transacoesAnterior }, { data: subscriptions }] = await Promise.all([
     supabase
       .from('transacoes_nubank')
       .select('valor, responsavel, categoria')
       .gte('data_compra', seteDiasStr)
       .lt('data_compra', hojeStr)
+      .not('status', 'in', '("ESTORNO","ESTORNADO")'),
+    supabase
+      .from('transacoes_nubank')
+      .select('valor, responsavel')
+      .gte('data_compra', quatorzeStr)
+      .lt('data_compra', seteDiasStr)
       .not('status', 'in', '("ESTORNO","ESTORNADO")'),
     supabase
       .from('push_subscriptions')
@@ -71,12 +79,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, enviados: 0 })
   }
 
-  // Group by responsavel
+  // Group current week by responsavel
   const porResponsavel = new Map<string, Transacao[]>()
   for (const t of transacoes as Transacao[]) {
     const lista = porResponsavel.get(t.responsavel) ?? []
     lista.push(t)
     porResponsavel.set(t.responsavel, lista)
+  }
+
+  // Group previous week totals by responsavel
+  const totalAnteriorPorResponsavel = new Map<string, number>()
+  for (const t of (transacoesAnterior ?? []) as { valor: number; responsavel: string }[]) {
+    totalAnteriorPorResponsavel.set(t.responsavel, (totalAnteriorPorResponsavel.get(t.responsavel) ?? 0) + t.valor)
   }
 
   function primeiroNome(usuario: string): string {
@@ -104,17 +118,28 @@ export async function POST(req: NextRequest) {
     return { totalGasto, topCategoria, topValor, totalTransacoes }
   }
 
+  function tendencia(atual: number, anterior: number): string {
+    if (anterior === 0) return ''
+    const diff = ((atual - anterior) / anterior) * 100
+    if (Math.abs(diff) < 3) return 'Igual à semana passada'
+    const sinal = diff > 0 ? '↑' : '↓'
+    return `${sinal} ${Math.abs(diff).toFixed(0)}% vs semana passada`
+  }
+
   const notificacoes = (subscriptions as PushSubscriptionRow[]).flatMap(sub => {
     const lista = porResponsavel.get(sub.usuario)
     if (!lista?.length) return []
     const { totalGasto, topCategoria, topValor, totalTransacoes } = calcResumo(lista)
+    const anterior = totalAnteriorPorResponsavel.get(sub.usuario) ?? 0
     const nome = primeiroNome(sub.usuario)
-    const topInfo = topCategoria ? ` · ${topCategoria}: ${brl(topValor)}` : ''
+    const trend = tendencia(totalGasto, anterior)
+    const topInfo = topCategoria ? `${topCategoria} foi o maior gasto (${brl(topValor)})` : ''
+    const partes = [trend, topInfo, `${totalTransacoes} compra${totalTransacoes !== 1 ? 's' : ''} no total`].filter(Boolean)
     return [{
       sub,
       msg: {
-        title: `${nome}, você gastou ${brl(totalGasto)} essa semana`,
-        body: `${totalTransacoes} compra${totalTransacoes !== 1 ? 's' : ''} registrada${totalTransacoes !== 1 ? 's' : ''}${topInfo}. Toque para ver o detalhamento.`,
+        title: `${nome}, sua semana custou ${brl(totalGasto)}`,
+        body: partes.join(' · '),
         url: '/compras',
         tag: 'resumo-semanal',
         requireInteraction: false,
