@@ -584,3 +584,23 @@ button, a, [role="button"] {
 .animate-wishlist-highlight {
   animation: wishlist-highlight 1.6s ease-out 0.2s 2;
 }
+
+/* ─── Insights Card animations ───────────────────────────────────────────── */
+
+/* Ambient glow breathes slowly */
+@keyframes insight-glow {
+  0%, 100% { opacity: 0.45; transform: scale(1);    }
+  50%       { opacity: 0.80; transform: scale(1.25); }
+}
+.insight-glow-pulse {
+  animation: insight-glow 3.5s ease-in-out infinite;
+}
+
+/* Emoji icon gently floats up-down — stagger via animationDelay */
+@keyframes insight-float {
+  0%, 100% { transform: translateY(0px);  }
+  50%       { transform: translateY(-3px); }
+}
+.insight-float {
+  animation: insight-float 2.8s ease-in-out infinite;
+}

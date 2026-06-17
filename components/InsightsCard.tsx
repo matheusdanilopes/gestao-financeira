@@ -7,13 +7,47 @@ import { useRouter } from 'next/navigation'
 import { useInsights } from '@/lib/useInsights'
 import type { InsightItem } from '@/lib/insightsTypes'
 
+// Colored left accent bar
 const NIVEL_BAR: Record<InsightItem['nivel'], string> = {
   alerta:   'bg-amber-400',
-  positivo: 'bg-emerald-400',
+  positivo: 'bg-emerald-500',
   info:     'bg-blue-400',
-  sugestao: 'bg-violet-400',
+  sugestao: 'bg-violet-500',
 }
 
+// Solid colored circle behind the emoji
+const NIVEL_ICON_BG: Record<InsightItem['nivel'], string> = {
+  alerta:   'bg-amber-400 text-white',
+  positivo: 'bg-emerald-500 text-white',
+  info:     'bg-blue-500 text-white',
+  sugestao: 'bg-violet-500 text-white',
+}
+
+// Ambient glow circle (blurred) — the main "alive" effect
+const NIVEL_GLOW: Record<InsightItem['nivel'], string> = {
+  alerta:   'bg-amber-300/50 dark:bg-amber-500/20',
+  positivo: 'bg-emerald-300/50 dark:bg-emerald-500/20',
+  info:     'bg-blue-300/50 dark:bg-blue-500/20',
+  sugestao: 'bg-violet-300/50 dark:bg-violet-500/20',
+}
+
+// Small level badge
+const NIVEL_BADGE: Record<InsightItem['nivel'], { cls: string; label: string }> = {
+  alerta:   { cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300',    label: 'Atenção' },
+  positivo: { cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300', label: 'Positivo' },
+  info:     { cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300',        label: 'Info' },
+  sugestao: { cls: 'bg-violet-100 text-violet-700 dark:bg-violet-900/60 dark:text-violet-300', label: 'Dica' },
+}
+
+// Color for highlighted numeric values inside detalhe text
+const NIVEL_VALUE: Record<InsightItem['nivel'], string> = {
+  alerta:   'text-amber-600 dark:text-amber-400 font-semibold',
+  positivo: 'text-emerald-600 dark:text-emerald-400 font-semibold',
+  info:     'text-blue-600 dark:text-blue-400 font-semibold',
+  sugestao: 'text-violet-600 dark:text-violet-400 font-semibold',
+}
+
+// Recommendation line color
 const NIVEL_REC: Record<InsightItem['nivel'], string> = {
   alerta:   'text-amber-600 dark:text-amber-400',
   positivo: 'text-emerald-600 dark:text-emerald-400',
@@ -21,98 +55,98 @@ const NIVEL_REC: Record<InsightItem['nivel'], string> = {
   sugestao: 'text-violet-600 dark:text-violet-400',
 }
 
-const NIVEL_COLORS: Record<InsightItem['nivel'], {
-  bg: string; border: string; icon: string; pill: string; hover: string
-}> = {
-  alerta: {
-    bg:     'bg-amber-50 dark:bg-amber-950/20',
-    border: 'border-amber-100 dark:border-amber-900/40',
-    icon:   'bg-amber-100 dark:bg-amber-900/40',
-    pill:   'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
-    hover:  'hover:border-amber-200 dark:hover:border-amber-800/60 hover:shadow-[0_2px_10px_rgba(245,158,11,0.12)]',
-  },
-  positivo: {
-    bg:     'bg-emerald-50 dark:bg-emerald-950/20',
-    border: 'border-emerald-100 dark:border-emerald-900/40',
-    icon:   'bg-emerald-100 dark:bg-emerald-900/40',
-    pill:   'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400',
-    hover:  'hover:border-emerald-200 dark:hover:border-emerald-800/60 hover:shadow-[0_2px_10px_rgba(16,185,129,0.12)]',
-  },
-  info: {
-    bg:     'bg-blue-50 dark:bg-blue-950/20',
-    border: 'border-blue-100 dark:border-blue-900/40',
-    icon:   'bg-blue-100 dark:bg-blue-900/40',
-    pill:   'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
-    hover:  'hover:border-blue-200 dark:hover:border-blue-800/60 hover:shadow-[0_2px_10px_rgba(59,130,246,0.12)]',
-  },
-  sugestao: {
-    bg:     'bg-violet-50 dark:bg-violet-950/20',
-    border: 'border-violet-100 dark:border-violet-900/40',
-    icon:   'bg-violet-100 dark:bg-violet-900/40',
-    pill:   'bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400',
-    hover:  'hover:border-violet-200 dark:hover:border-violet-800/60 hover:shadow-[0_2px_10px_rgba(139,92,246,0.12)]',
-  },
+// Action pill
+const NIVEL_PILL: Record<InsightItem['nivel'], string> = {
+  alerta:   'bg-amber-50 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60',
+  positivo: 'bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60',
+  info:     'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60',
+  sugestao: 'bg-violet-50 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800/60',
+}
+
+// Highlights R$ amounts and percentages inside the detalhe string
+function DetalheHighlight({ text, colorClass }: { text: string; colorClass: string }) {
+  const parts = text.split(/(R\$\s*[\d.,]+(?:\/mês)?|[+-]?\d+(?:[,.]\d+)?%)/g)
+  return (
+    <>
+      {parts.map((part, i) =>
+        /R\$|%/.test(part)
+          ? <span key={i} className={colorClass}>{part}</span>
+          : <span key={i}>{part}</span>
+      )}
+    </>
+  )
 }
 
 function InsightRow({ item, index }: { item: InsightItem; index: number }) {
-  const colors = NIVEL_COLORS[item.nivel]
+  const badge = NIVEL_BADGE[item.nivel]
   const router = useRouter()
   const isClickable = !!item.action
 
-  const handleClick = () => {
-    if (item.action) router.push(item.action.route)
-  }
-
   return (
     <div
-      className={`list-item-enter flex rounded-2xl ${colors.bg} ${colors.border} border overflow-hidden
+      className={`list-item-enter relative rounded-2xl bg-white dark:bg-gray-800/70
+                  border border-gray-100 dark:border-gray-700/50 overflow-hidden
                   transition-all duration-200
                   ${isClickable
-                    ? `cursor-pointer ${colors.hover} active:scale-[0.99]`
+                    ? 'cursor-pointer hover:shadow-card-md hover:border-gray-200 dark:hover:border-gray-600 active:scale-[0.99]'
                     : ''}`}
       style={{ animationDelay: `${index * 70}ms` }}
-      onClick={isClickable ? handleClick : undefined}
+      onClick={isClickable ? () => router.push(item.action!.route) : undefined}
       role={isClickable ? 'button' : undefined}
       tabIndex={isClickable ? 0 : undefined}
-      onKeyDown={isClickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick() } } : undefined}
+      onKeyDown={isClickable ? (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(item.action!.route) }
+      } : undefined}
     >
-      {/* Left accent bar */}
-      <div className={`w-1 shrink-0 ${NIVEL_BAR[item.nivel]}`} />
+      {/* Ambient glow — breathes slowly */}
+      <div className={`absolute -top-8 -left-8 w-28 h-28 rounded-full blur-2xl pointer-events-none insight-glow-pulse ${NIVEL_GLOW[item.nivel]}`} />
 
-      <div className="flex-1 px-3.5 py-3 min-w-0">
-        {/* Title row */}
-        <div className="flex items-start gap-2.5">
-          <span className={`w-7 h-7 rounded-xl shrink-0 flex items-center justify-center text-base leading-none ${colors.icon}`}>
-            {item.icone}
-          </span>
-          <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 leading-snug flex-1">
-            {item.titulo}
-          </p>
+      {/* Left accent bar */}
+      <div className={`absolute top-0 left-0 bottom-0 w-[3px] ${NIVEL_BAR[item.nivel]}`} />
+
+      {/* Content */}
+      <div className="relative flex gap-3 pl-5 pr-4 py-3.5 min-w-0">
+
+        {/* Large solid-color emoji circle — floats gently, phase offset per card */}
+        <div
+          className={`w-11 h-11 rounded-2xl shrink-0 flex items-center justify-center text-xl leading-none shadow-sm insight-float ${NIVEL_ICON_BG[item.nivel]}`}
+          style={{ animationDelay: `${index * 0.4}s` }}
+        >
+          {item.icone}
         </div>
 
-        {/* Metric detail */}
-        {item.detalhe && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 leading-snug mt-1.5 ml-[37px]">
-            {item.detalhe}
-          </p>
-        )}
+        <div className="flex-1 min-w-0">
+          {/* Badge chip */}
+          <span className={`inline-block text-[9px] font-bold uppercase tracking-widest px-1.5 py-px rounded-md mb-0.5 ${badge.cls}`}>
+            {badge.label}
+          </span>
 
-        {/* Recommendation */}
-        {item.recomendacao && (
-          <p className={`text-[11px] leading-snug mt-1 ml-[37px] font-medium ${NIVEL_REC[item.nivel]}`}>
-            {item.recomendacao}
+          {/* Title */}
+          <p className="text-[13px] font-bold text-gray-800 dark:text-gray-100 leading-snug">
+            {item.titulo}
           </p>
-        )}
 
-        {/* Action pill */}
-        {item.action && (
-          <div className="mt-2 ml-[37px]">
-            <span className={`inline-flex items-center gap-1 text-[10px] font-semibold rounded-full px-2.5 py-1 ${colors.pill}`}>
-              {item.action.label}
-              <ArrowRight className="w-3 h-3" />
+          {/* Metric detail with highlighted numbers */}
+          {item.detalhe && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 leading-snug mt-1">
+              <DetalheHighlight text={item.detalhe} colorClass={NIVEL_VALUE[item.nivel]} />
+            </p>
+          )}
+
+          {/* Recommendation with arrow prefix */}
+          {item.recomendacao && (
+            <p className={`text-[11px] mt-1 font-medium ${NIVEL_REC[item.nivel]}`}>
+              → {item.recomendacao}
+            </p>
+          )}
+
+          {/* Action pill */}
+          {item.action && (
+            <span className={`inline-flex items-center gap-1 mt-2 text-[10px] font-bold rounded-full px-3 py-1 ${NIVEL_PILL[item.nivel]}`}>
+              {item.action.label} <ArrowRight className="w-3 h-3" />
             </span>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   )
@@ -120,16 +154,17 @@ function InsightRow({ item, index }: { item: InsightItem; index: number }) {
 
 function SkeletonRow() {
   return (
-    <div className="flex rounded-2xl bg-gray-50 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-700/40 overflow-hidden">
-      <div className="w-1 shrink-0 bg-gray-200 dark:bg-gray-700" />
-      <div className="flex-1 px-3.5 py-3 space-y-2">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-xl skeleton shrink-0" />
-          <div className="h-4 skeleton rounded-lg w-3/5" />
+    <div className="flex rounded-2xl bg-white dark:bg-gray-800/70 border border-gray-100 dark:border-gray-700/50 overflow-hidden">
+      <div className="w-[3px] shrink-0 bg-gray-200 dark:bg-gray-700" />
+      <div className="flex flex-1 gap-3 pl-5 pr-4 py-3.5">
+        <div className="w-11 h-11 rounded-2xl skeleton shrink-0" />
+        <div className="flex-1 space-y-1.5 pt-0.5">
+          <div className="h-3 w-14 skeleton rounded-md" />
+          <div className="h-4 skeleton rounded-lg w-3/4" />
+          <div className="h-3 skeleton rounded-lg w-full" />
+          <div className="h-3 skeleton rounded-lg w-2/3" />
+          <div className="h-5 w-24 skeleton rounded-full mt-1" />
         </div>
-        <div className="ml-[37px] h-3 skeleton rounded-lg w-4/5" />
-        <div className="ml-[37px] h-3 skeleton rounded-lg w-2/5" />
-        <div className="ml-[37px] mt-1 h-5 w-24 skeleton rounded-full" />
       </div>
     </div>
   )
@@ -157,7 +192,7 @@ export default function InsightsCard() {
                        ? 'border-violet-200 dark:border-violet-800/60'
                        : 'border-gray-100 dark:border-gray-800'}`}>
 
-      {/* Top progress bar when updating */}
+      {/* Scanning shimmer bar while recalculating */}
       {isUpdating && (
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-violet-400 to-transparent animate-pulse" />
       )}
@@ -173,7 +208,7 @@ export default function InsightsCard() {
               Insights por IA
             </h2>
             {isUpdating ? (
-              <p className="text-[10px] text-violet-400 dark:text-violet-400 mt-0.5 flex items-center gap-1">
+              <p className="text-[10px] text-violet-400 mt-0.5 flex items-center gap-1">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
                 Recalculando…
               </p>
