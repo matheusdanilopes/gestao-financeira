@@ -77,7 +77,7 @@ function DetalheHighlight({ text, colorClass }: { text: string; colorClass: stri
   )
 }
 
-function InsightRow({ item, index }: { item: InsightItem; index: number }) {
+function InsightRow({ item, index, isNew }: { item: InsightItem; index: number; isNew: boolean }) {
   const badge = NIVEL_BADGE[item.nivel]
   const router = useRouter()
   const isClickable = !!item.action
@@ -87,6 +87,7 @@ function InsightRow({ item, index }: { item: InsightItem; index: number }) {
       className={`list-item-enter relative rounded-2xl bg-white dark:bg-gray-800/70
                   border border-gray-100 dark:border-gray-700/50 overflow-hidden
                   transition-all duration-200
+                  ${isNew ? 'insight-new-flash' : ''}
                   ${isClickable
                     ? 'cursor-pointer hover:shadow-card-md hover:border-gray-200 dark:hover:border-gray-600 active:scale-[0.99]'
                     : ''}`}
@@ -100,6 +101,14 @@ function InsightRow({ item, index }: { item: InsightItem; index: number }) {
     >
       {/* Ambient glow — breathes slowly */}
       <div className={`absolute -top-8 -left-8 w-28 h-28 rounded-full blur-2xl pointer-events-none insight-glow-pulse ${NIVEL_GLOW[item.nivel]}`} />
+
+      {/* "NOVO" badge — visible for 6s when content changed */}
+      {isNew && (
+        <span className="absolute top-2 right-2 z-10 text-[9px] font-black uppercase tracking-widest
+                         px-1.5 py-px rounded-full bg-violet-500 text-white badge-fade-in">
+          Novo
+        </span>
+      )}
 
       {/* Left accent bar */}
       <div className={`absolute top-0 left-0 bottom-0 w-[3px] ${NIVEL_BAR[item.nivel]}`} />
@@ -179,7 +188,7 @@ function formatUpdatedAt(date: Date): string {
 }
 
 export default function InsightsCard() {
-  const { insights, updatedAt, status, refreshFailed, refresh } = useInsights()
+  const { insights, updatedAt, status, refreshFailed, changedIndices, refresh } = useInsights()
 
   const isLoading  = status === 'loading'
   const isUpdating = status === 'updating'
@@ -263,7 +272,9 @@ export default function InsightsCard() {
             </button>
           </div>
         ) : hasContent ? (
-          insights.map((item, i) => <InsightRow key={i} item={item} index={i} />)
+          insights.map((item, i) => (
+            <InsightRow key={i} item={item} index={i} isNew={changedIndices.includes(i)} />
+          ))
         ) : (
           <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-6 text-balance">
             Nenhum dado disponível para análise

@@ -604,3 +604,13 @@ button, a, [role="button"] {
 .insight-float {
   animation: insight-float 2.8s ease-in-out infinite;
 }
+
+/* Pulso de borda violeta quando um insight mudou de conteúdo */
+@keyframes insight-new-flash {
+  0%   { box-shadow: 0 0 0 0   rgba(139, 92, 246, 0.55); }
+  40%  { box-shadow: 0 0 0 8px rgba(139, 92, 246, 0.12); }
+  100% { box-shadow: 0 0 0 0   rgba(139, 92, 246, 0); }
+}
+.insight-new-flash {
+  animation: insight-new-flash 1.5s ease-out;
+}
