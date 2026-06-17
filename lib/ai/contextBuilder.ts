@@ -44,11 +44,13 @@ export async function fetchEnrichedData(userId: string, force = false): Promise<
   const limite = format(startOfMonth(subMonths(new Date(), 24)), 'yyyy-MM-dd')
 
   const [r1, r2, r3, r4, r5] = await Promise.all([
-    // Transactions (last 24 months)
+    // Transactions (last 24 months) — exclude reversed purchases and reversal entries
     supabase
       .from('transacoes_nubank')
       .select('descricao,valor,responsavel,categoria,projeto_fatura,data,cartao,parcela_atual,total_parcelas')
       .gte('projeto_fatura', limite)
+      .neq('status', 'ESTORNO')
+      .neq('status', 'ESTORNADO')
       .order('projeto_fatura', { ascending: false }),
 
     // Planning/budgets
