@@ -92,6 +92,23 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
   const [itemSelecionado, setItemSelecionado] = useState<Assinatura | null>(null)
   const [formData, setFormData] = useState(FORM_VAZIO)
 
+  // Escuta eventos de pré-preenchimento via sugestões de recorrências
+  useEffect(() => {
+    function handleSugestao(e: Event) {
+      const { nome, valor, cartao, responsavel } = (e as CustomEvent).detail ?? {}
+      setFormData({
+        ...FORM_VAZIO,
+        nome: nome ?? '',
+        valor: valor ? String(valor.toFixed(2)) : '',
+        cartao: cartao || 'nubank',
+        responsavel: responsavel || 'Matheus',
+      })
+      setModalAberto('adicionar')
+    }
+    window.addEventListener('assinaturas:pre-preencher', handleSugestao)
+    return () => window.removeEventListener('assinaturas:pre-preencher', handleSugestao)
+  }, [])
+
   const [filtroCartao, setFiltroCartao] = useState('todos')
   const [filtroResponsavel, setFiltroResponsavel] = useState('')
   const [filtroDescricao, setFiltroDescricao] = useState('')

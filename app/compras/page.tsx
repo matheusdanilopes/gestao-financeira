@@ -6,7 +6,7 @@ import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { SwipeableItem } from '@/components/SwipeableItem'
-import { Trash2, X, ShoppingBag, Lock, WifiOff, SlidersHorizontal, Calendar, Search } from 'lucide-react'
+import { Trash2, X, ShoppingBag, Lock, WifiOff, SlidersHorizontal, Calendar, Search, Download } from 'lucide-react'
 import MonthSelector from '@/components/MonthSelector'
 import EmptyState from '@/components/EmptyState'
 import { addMonths, subMonths, format, startOfMonth, isToday, isYesterday, parseISO } from 'date-fns'
@@ -220,6 +220,19 @@ export default function ComprasPage() {
     })
   }
 
+  async function exportarCsv() {
+    const mes = format(startOfMonth(mesAtual), 'yyyy-MM')
+    const res = await fetch(`/api/export/mensal?mes=${mes}`)
+    if (!res.ok) { showToast('Erro ao exportar', 'erro'); return }
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `transacoes-${mes}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   async function verificarFaturaFechada() {
     const mesRef = format(startOfMonth(mesGlobal), 'yyyy-MM-dd')
     const { data } = await supabase
@@ -414,6 +427,15 @@ export default function ComprasPage() {
       <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 z-[10]">
         <div className="flex items-center justify-between mb-3">
           <h1 className="text-xl font-bold text-gray-900">Compras</h1>
+          <button
+            onClick={exportarCsv}
+            title="Exportar CSV"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200
+                       text-gray-600 text-xs font-semibold transition-colors active:scale-[0.97]"
+          >
+            <Download className="w-3.5 h-3.5" strokeWidth={2} />
+            Exportar
+          </button>
         </div>
         <MonthSelector
           value={mesGlobal}
