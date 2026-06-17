@@ -518,7 +518,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
           </div>
           <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
             <div
-              key={percentualPago}
+              key={Math.round(percentualPago)}
               className="h-1.5 rounded-full bg-gradient-to-r from-primary-500 to-primary-600 bar-enter"
               style={{ '--bar-w': `${percentualPago}%` } as React.CSSProperties}
             />
@@ -592,7 +592,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
             const pagosGrupo = grupoItens.filter(i => i.pago).length
             const pctGrupo = grupoItens.length > 0 ? (pagosGrupo / grupoItens.length) * 100 : 0
             return (
-              <div key={categoria} className="bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden list-item-enter" style={{ animationDelay: `${Math.min(catIdx, 6) * 45}ms` }}>
+              <div key={categoria} className="bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden list-item-enter" style={{ animationDelay: `${Math.min(catIdx, 4) * 35}ms` }}>
                 {/* Cabeçalho do grupo */}
                 <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
                   <div className="flex items-center gap-2">

@@ -1150,7 +1150,7 @@ export default function ListaMercadoPage() {
         <div className="bg-white mt-2 rounded-2xl mx-4 overflow-hidden shadow-card border border-gray-100">
           {/* Pendentes */}
           {pendentes.map((item, idx) => (
-            <div key={item.id} className="list-item-enter" style={{ animationDelay: `${Math.min(idx, 10) * 30}ms` }}>
+            <div key={item.id} className="list-item-enter" style={{ animationDelay: `${Math.min(idx, 5) * 25}ms` }}>
               <ItemRow
                 item={item}
                 mostraHint={idx === 0 && !hintVisto}

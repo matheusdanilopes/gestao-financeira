@@ -637,7 +637,7 @@ export default function ComprasPage() {
           {grupos.map(([dateKey, items], groupIdx) => {
             const subtotal = items.filter(c => c.status !== 'ESTORNO' && c.status !== 'ESTORNADO').reduce((acc, c) => acc + c.valor, 0)
             return (
-              <div key={dateKey} className="bg-white rounded-3xl border border-gray-100 shadow-card overflow-hidden list-item-enter" style={{ animationDelay: `${Math.min(groupIdx, 5) * 50}ms` }}>
+              <div key={dateKey} className="bg-white rounded-3xl border border-gray-100 shadow-card overflow-hidden list-item-enter" style={{ animationDelay: `${Math.min(groupIdx, 3) * 40}ms` }}>
                 <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
                   <span className="text-xs font-semibold text-gray-500 capitalize">
                     {formatarCabecalhoData(dateKey)}
