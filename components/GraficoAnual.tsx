@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Chart } from 'react-chartjs-2'
-import type { ChartData } from 'chart.js'
+import type { ChartData, TooltipItem } from 'chart.js'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -183,8 +183,8 @@ export default function GraficoAnual({ ano }: Props) {
         boxWidth: 8,
         boxHeight: 8,
         callbacks: {
-          label: (ctx: { dataset: { label?: string }; parsed: { y: number } }) =>
-            `  ${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
+          label: (ctx: TooltipItem<'bar'>) =>
+            `  ${ctx.dataset.label}: ${(ctx.parsed.y ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
         },
       },
     },
