@@ -226,7 +226,7 @@ export default function ImportarPage() {
   const handleDragLeave = useCallback(() => setArrastando(false), [])
 
   return (
-    <div className="min-h-screen bg-gray-50 page-content page-bottom-safe">
+    <div className="min-h-screen bg-gray-50 page-content page-bottom-safe page-enter">
       <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 z-10">
         <h1 className="text-xl font-bold text-gray-900 mb-0.5">Importar CSV</h1>
         <p className="text-sm text-gray-400">Selecione o cartão e faça upload do arquivo</p>

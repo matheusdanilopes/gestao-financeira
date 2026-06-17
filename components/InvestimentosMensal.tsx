@@ -186,24 +186,61 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
     const mesRef = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
 
     if (modalAberto === 'adicionar') {
+      const tempId = `temp-${Date.now()}`
+      const itemOtimista: Investimento = {
+        id: tempId,
+        descricao: formData.descricao.trim(),
+        percentual: pct,
+        mes_referencia: mesRef,
+        created_at: new Date().toISOString(),
+      }
+
+      // Feedback imediato: fecha modal e adiciona item otimisticamente
+      fecharModal()
+      setItens(prev => [...prev, itemOtimista])
+      setNewItemId(tempId)
+      setTimeout(() => setNewItemId(null), 400)
+      showToast('Investimento adicionado!')
+
       const { data: insertData, error } = await supabase.from('investimentos').insert([{
         descricao: formData.descricao.trim(), percentual: pct, mes_referencia: mesRef,
       }]).select()
-      if (error) { showToast('Erro ao adicionar', 'erro'); return }
-      if (insertData?.[0]) pendingNewRef.current = insertData[0].id
-      log('inserir', 'investimentos', `Novo investimento: ${formData.descricao.trim()} — ${pct}%`)
-      showToast('Investimento adicionado!')
+      if (!error) {
+        const realId = insertData?.[0]?.id
+        if (realId) {
+          setItens(prev => prev.map(i => i.id === tempId
+            ? { ...itemOtimista, id: realId, created_at: insertData[0].created_at }
+            : i
+          ))
+        }
+        log('inserir', 'investimentos', `Novo investimento: ${formData.descricao.trim()} — ${pct}%`)
+      } else {
+        setItens(prev => prev.filter(i => i.id !== tempId))
+        showToast('Erro ao adicionar', 'erro')
+      }
     } else if (itemSelecionado) {
+      const id = itemSelecionado.id
+      const originalItem = itemSelecionado
+
+      // Feedback imediato: fecha modal e atualiza otimisticamente
+      fecharModal()
+      setItens(prev => prev.map(i => i.id === id
+        ? { ...i, descricao: formData.descricao.trim(), percentual: pct }
+        : i
+      ))
+      showToast('Atualizado!')
+
       const { error } = await supabase.from('investimentos')
         .update({ descricao: formData.descricao.trim(), percentual: pct })
-        .eq('id', itemSelecionado.id)
-      if (error) { showToast('Erro ao salvar', 'erro'); return }
-      log('editar', 'investimentos', `Editado: ${formData.descricao.trim()} — ${pct}%`)
-      showToast('Atualizado!')
+        .eq('id', id)
+      if (!error) {
+        log('editar', 'investimentos', `Editado: ${formData.descricao.trim()} — ${pct}%`)
+      } else {
+        // Reverte em caso de erro
+        setItens(prev => prev.map(i => i.id === id ? originalItem : i))
+        showToast('Erro ao salvar', 'erro')
+      }
     }
-
-    fecharModal()
-    refetch()
   }
 
   async function excluir(id: string) {

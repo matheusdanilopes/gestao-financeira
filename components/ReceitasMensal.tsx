@@ -228,6 +228,26 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
     }
     if (modalAberto === 'adicionar') {
       const mesRef = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
+      const tempId = `temp-${Date.now()}`
+      const itemOtimista: ItemReceita = {
+        id: tempId,
+        item: paraNomeInterno(formData.item),
+        responsavel: formData.responsavel,
+        valor_previsto: valor,
+        valor_real: null,
+        pago: false,
+        mes_referencia: mesRef,
+      }
+
+      // Feedback imediato: fecha modal e adiciona item otimisticamente
+      setModalAberto(null)
+      setItemSelecionado(null)
+      setFormData({ item: '', responsavel: 'Matheus', valor_previsto: '' })
+      setItens(prev => [...prev, itemOtimista])
+      setNewItemId(tempId)
+      setTimeout(() => setNewItemId(null), 400)
+
+      // Persiste em background
       const { data: insertData } = await supabase.from('planejamento').insert([{
         ...payload,
         categoria: 'Extra',
@@ -235,16 +255,31 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
         pago: false,
         valor_real: null,
       }]).select()
-      if (insertData?.[0]) pendingNewRef.current = insertData[0].id
+      if (insertData?.[0]) {
+        const realId = insertData[0].id
+        setItens(prev => prev.map(i => i.id === tempId ? { ...itemOtimista, id: realId } : i))
+      }
       log('inserir', 'receitas', `Nova receita: ${formData.item} — ${formatBRL(valor)}`, valor)
+
     } else if (itemSelecionado) {
-      await supabase.from('planejamento').update(payload).eq('id', itemSelecionado.id)
-      log('editar', 'receitas', `Editada: ${formData.item} — ${formatBRL(valor)}`, valor, itemSelecionado.valor_previsto)
+      const id = itemSelecionado.id
+      const originalItem = itemSelecionado
+
+      // Feedback imediato: fecha modal e atualiza lista sem aguardar servidor
+      setModalAberto(null)
+      setItemSelecionado(null)
+      setFormData({ item: '', responsavel: 'Matheus', valor_previsto: '' })
+      setItens(prev => prev.map(i => i.id === id ? { ...i, ...payload } : i))
+
+      const { error } = await supabase.from('planejamento').update(payload).eq('id', id)
+      if (!error) {
+        log('editar', 'receitas', `Editada: ${formData.item} — ${formatBRL(valor)}`, valor, originalItem.valor_previsto)
+      } else {
+        // Reverte em caso de erro
+        setItens(prev => prev.map(i => i.id === id ? originalItem : i))
+        showToast('Erro ao editar receita', 'erro')
+      }
     }
-    setModalAberto(null)
-    setItemSelecionado(null)
-    setFormData({ item: '', responsavel: 'Matheus', valor_previsto: '' })
-    refetch()
   }
 
   async function importarMesAnterior() {
