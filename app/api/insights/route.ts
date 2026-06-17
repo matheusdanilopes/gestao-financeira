@@ -18,11 +18,16 @@ const CATEGORIA_ACTION: Record<string, { label: string; route: string }> = {
   orcamento:     { label: 'Ver planejamento',  route: '/financas?tab=despesas' },
   investimentos: { label: 'Ver investimentos', route: '/investimentos' },
   assinaturas:   { label: 'Ver assinaturas',   route: '/assinaturas' },
+  poupanca:      { label: 'Ver finanças',      route: '/financas' },
 }
 
-const buildPrompt = (payload: string, confiabilidade: number) =>
+const buildPrompt = (payload: string, confiabilidade: number, prevTitles: string[]) =>
   `Você é analista financeiro do casal Matheus (M) e Jeniffer (J).
-
+${prevTitles.length > 0 ? `
+ANTI-REPETIÇÃO OBRIGATÓRIA: A análise anterior já continha estes títulos:
+${prevTitles.map((t, i) => `  ${i + 1}. "${t}"`).join('\n')}
+Você DEVE gerar insights com ângulos COMPLETAMENTE diferentes — não repita o mesmo título, a mesma métrica nem a mesma recomendação. Explore dimensões que não foram cobertas anteriormente.
+` : ''}
 Dados financeiros auditados (confiabilidade: ${confiabilidade}% | campo "dia" = dia atual do mês):
 ${payload}
 
@@ -34,75 +39,125 @@ Gere EXATAMENTE 4 insights em JSON. Responda APENAS com o array JSON, sem texto 
     "detalhe": "<métrica com valor real em R$, máx 85 chars>",
     "recomendacao": "<ação concreta e específica, máx 85 chars>",
     "nivel": "<alerta|positivo|info|sugestao>",
-    "categoria": "<gastos|orcamento|investimentos|assinaturas>"
+    "categoria": "<gastos|orcamento|investimentos|assinaturas|poupanca>"
   }
 ]
 
 Glossário dos campos:
-- "totalMes": total do mês = faturas cartão + despesas fixas (o que o dashboard chama de "Gastos")
-- "gasto": apenas as faturas de cartão (subset de totalMes)
+- "gasto": faturas de cartão de crédito — exatamente o que a tela "Compras" exibe
+- "mediaCartao": média histórica de 6 meses de compras no cartão (compare "gasto" contra este)
+- "totalMes": total do mês = faturas cartão + despesas fixas (visão holística de gastos)
+- "media6m": média histórica combinada (cartão + fixas) — compare "totalMes" contra este
 - "orc[0]": total das despesas fixas planejadas | "orc[1]": já pago | "orc[2]": em aberto
+- "renda": renda mensal configurada | "sobra": renda - totalMes | "poupPct": % da renda poupada
+- "assinsCats": top categorias de assinaturas [[categoria, R$], ...]
 
 Regras:
-- Ao responder "total de despesas" use sempre "totalMes", não "gasto" isolado.
+- CRÍTICO: insights com categoria "gastos" devem referenciar "gasto" (cartão) e comparar contra "mediaCartao" — NUNCA use "totalMes" para insights de categoria "gastos", pois o valor não baterá com a tela "Compras" que o usuário vai ver ao clicar.
+- Para visão holística (sobra, taxa de poupança), use "totalMes" e "renda".
+- Ao falar de "total de despesas do mês" sem contexto específico, use "totalMes".
 - nivel "alerta": risco financeiro real. "positivo": conquista ou economia. "info": dado neutro. "sugestao": oportunidade de melhora.
-- "categoria": classifique a área do insight — "gastos" (transações/compras), "orcamento" (planejamento/vencimentos), "investimentos" (aportes/carteira), "assinaturas" (serviços recorrentes).
+- "categoria": classifique — "gastos" (compras/transações), "orcamento" (planejamento/vencimentos), "investimentos" (aportes/carteira), "assinaturas" (serviços recorrentes), "poupanca" (sobra/taxa de poupança).
 - Priorize: desvios de gastos vs histórico, categoria com maior crescimento, aderência ao orçamento, tendência de 3 meses.
 - Se "vencidos" não vazio: priorize alerta de despesas em atraso com os itens específicos.
 - Se "venc7d" não vazio: destaque vencimentos nos próximos 7 dias.
 - Se "dia" < 15 e % pago do orçamento for baixo (orc[1]/orc[0]): não trate como alerta — é início do mês.
+- Se "renda" e "sobra" presentes: inclua 1 insight sobre taxa de poupança ("poupPct"), usando categoria "poupanca".
+- Equilíbrio obrigatório: máximo 2 insights com nivel "alerta" — inclua sempre ≥1 "positivo" ou "info", salvo situação financeira criticamente negativa (sobra < 0 e vencidos > 0 simultaneamente).
 - Use valores reais dos dados — nunca invente números.`
 
-async function callGemini(compactPayload: string, confiabilidade: number): Promise<InsightItem[]> {
+async function callGemini(compactPayload: string, confiabilidade: number, prevTitles: string[]): Promise<InsightItem[]> {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) throw new Error('GEMINI_API_KEY não configurada')
 
-  const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: buildPrompt(compactPayload, confiabilidade) }] }],
-      generationConfig: { maxOutputTokens: 1024, temperature: 0.3 },
-    }),
+  const body = JSON.stringify({
+    contents: [{ role: 'user', parts: [{ text: buildPrompt(compactPayload, confiabilidade, prevTitles) }] }],
+    generationConfig: { maxOutputTokens: 8192, temperature: 0.5, responseMimeType: 'application/json' },
   })
 
-  if (!res.ok) {
-    const text = await res.text()
-    console.error(`[insights] Gemini ${res.status}:`, text.slice(0, 500))
-    if (res.status === 429) throw new Error('QUOTA_429')
-    throw new Error(`Gemini ${res.status}: ${text.slice(0, 200)}`)
-  }
+  // Retry on transient errors (503, 502) with exponential backoff
+  const MAX_RETRIES = 2
+  let lastError: Error | null = null
 
-  const data = await res.json()
-  const raw: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '[]'
-
-  // Gemini may prepend prose ("Aqui estão os insights:\n[...]") or wrap in
-  // markdown fences. Extract the first complete [...] block via bracket depth
-  // so trailing bracketed content (citations, footnotes) is not included.
-  const start = raw.indexOf('[')
-  if (start === -1) throw new Error(`JSON array not found in Gemini response: ${raw.slice(0, 100)}`)
-  let depth = 0
-  let end = -1
-  for (let i = start; i < raw.length; i++) {
-    if (raw[i] === '[') depth++
-    else if (raw[i] === ']') { depth--; if (depth === 0) { end = i; break } }
-  }
-  if (end === -1) throw new Error(`Unclosed JSON array in Gemini response: ${raw.slice(0, 100)}`)
-  const parsed: Array<Record<string, string>> = JSON.parse(raw.slice(start, end + 1))
-
-  return parsed.slice(0, 4).map(item => {
-    const action = CATEGORIA_ACTION[String(item.categoria ?? '')]
-    return {
-      icone: String(item.icone ?? '📊'),
-      titulo: String(item.titulo ?? '').slice(0, 60),
-      detalhe: String(item.detalhe ?? item.texto ?? '').slice(0, 100),
-      recomendacao: String(item.recomendacao ?? '').slice(0, 100),
-      nivel: (['alerta', 'positivo', 'info', 'sugestao'].includes(item.nivel)
-        ? item.nivel
-        : 'info') as InsightItem['nivel'],
-      ...(action ? { action } : {}),
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      await new Promise(r => setTimeout(r, attempt * 1500))
     }
-  })
+
+    const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    })
+
+    if (res.ok) {
+      const data = await res.json()
+      const finishReason: string = data.candidates?.[0]?.finishReason ?? 'UNKNOWN'
+      const raw: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+      console.log(`[insights] Gemini ok (finishReason=${finishReason}, chars=${raw.length}):`, raw.slice(0, 400))
+
+      if (!raw) throw new Error('Gemini retornou resposta vazia')
+
+      // Strip markdown code fences (model sometimes wraps output in ```json...```)
+      const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+
+      const start = cleaned.indexOf('[')
+      if (start === -1) throw new Error(`JSON array not found: ${raw.slice(0, 100)}`)
+
+      // Use string-aware bracket counter to find the matching closing bracket
+      let depth = 0, end = -1, inString = false, escaped = false
+      for (let i = start; i < cleaned.length; i++) {
+        const ch = cleaned[i]
+        if (escaped) { escaped = false; continue }
+        if (ch === '\\' && inString) { escaped = true; continue }
+        if (ch === '"') { inString = !inString; continue }
+        if (inString) continue
+        if (ch === '[') depth++
+        else if (ch === ']') { depth--; if (depth === 0) { end = i; break } }
+      }
+
+      if (end === -1) {
+        // Fallback: try lastIndexOf (handles truncated responses where bracket counter fails)
+        const lastClose = cleaned.lastIndexOf(']')
+        if (lastClose > start) {
+          end = lastClose
+          console.warn('[insights] bracket counter failed, using lastIndexOf fallback')
+        } else {
+          throw new Error(`Unclosed JSON array (finishReason=${finishReason}): ${raw.slice(0, 150)}`)
+        }
+      }
+
+      const parsed: Array<Record<string, string>> = JSON.parse(cleaned.slice(start, end + 1))
+
+      return parsed.slice(0, 4).map(item => {
+        const action = CATEGORIA_ACTION[String(item.categoria ?? '')]
+        return {
+          icone: String(item.icone ?? '📊'),
+          titulo: String(item.titulo ?? '').slice(0, 60),
+          detalhe: String(item.detalhe ?? item.texto ?? '').slice(0, 100),
+          recomendacao: String(item.recomendacao ?? '').slice(0, 100),
+          nivel: (['alerta', 'positivo', 'info', 'sugestao'].includes(item.nivel)
+            ? item.nivel
+            : 'info') as InsightItem['nivel'],
+          ...(action ? { action } : {}),
+        }
+      })
+    }
+
+    const text = await res.text()
+    console.error(`[insights] Gemini ${res.status} (tentativa ${attempt + 1}):`, text.slice(0, 500))
+
+    if (res.status === 429) throw new Error('QUOTA_429')
+    // Don't retry on definitive errors
+    if (res.status === 400 || res.status === 403 || res.status === 404) {
+      throw new Error(`Gemini ${res.status}: ${text.slice(0, 200)}`)
+    }
+
+    lastError = new Error(`Gemini ${res.status}: ${text.slice(0, 200)}`)
+    // 502/503/504 → retry
+  }
+
+  throw lastError ?? new Error('Gemini: falha após retentativas')
 }
 
 export async function GET(req: NextRequest) {
@@ -112,6 +167,10 @@ export async function GET(req: NextRequest) {
   // ?fresh=true bypasses the 5-min cache (used after realtime events)
   const fresh = req.nextUrl.searchParams.get('fresh') === 'true'
   if (fresh) clearEnrichedDataCache(user.id)
+
+  // ?prev=title1||title2||... — titles from the previous render, used to avoid repetition
+  const prevRaw = req.nextUrl.searchParams.get('prev') ?? ''
+  const prevTitles = prevRaw ? prevRaw.split('||').filter(Boolean).slice(0, 4) : []
 
   try {
     const rawData = await fetchEnrichedData(user.id)
@@ -125,13 +184,16 @@ export async function GET(req: NextRequest) {
     // Try Gemini first; fall back to rule-based insights on any failure
     let insights: InsightItem[]
     let source: 'ai' | 'fallback' = 'ai'
+    let fallbackReason: string | undefined
     try {
       const payload = serializeInsightsCompact(metrics)
-      insights = await callGemini(payload, certificate.indiceConfiabilidade)
+      insights = await callGemini(payload, certificate.indiceConfiabilidade, prevTitles)
     } catch (geminiErr) {
-      console.error('[insights] Gemini falhou, usando fallback:', String(geminiErr))
+      const reason = String(geminiErr instanceof Error ? geminiErr.message : geminiErr)
+      console.error('[insights] Gemini falhou, usando fallback:', reason)
       insights = generateFallbackInsights(metrics)
       source = 'fallback'
+      fallbackReason = reason
     }
 
     console.log(`[insights] gerado via ${source}: ${insights.length} itens`)
@@ -139,6 +201,8 @@ export async function GET(req: NextRequest) {
     const response: InsightsResponse = {
       insights,
       updatedAt: new Date().toISOString(),
+      source,
+      ...(fallbackReason ? { fallbackReason } : {}),
     }
 
     return NextResponse.json(response, {

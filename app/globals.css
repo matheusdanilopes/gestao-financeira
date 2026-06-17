@@ -584,3 +584,33 @@ button, a, [role="button"] {
 .animate-wishlist-highlight {
   animation: wishlist-highlight 1.6s ease-out 0.2s 2;
 }
+
+/* ─── Insights Card animations ───────────────────────────────────────────── */
+
+/* Ambient glow breathes slowly */
+@keyframes insight-glow {
+  0%, 100% { opacity: 0.45; transform: scale(1);    }
+  50%       { opacity: 0.80; transform: scale(1.25); }
+}
+.insight-glow-pulse {
+  animation: insight-glow 3.5s ease-in-out infinite;
+}
+
+/* Emoji icon gently floats up-down — stagger via animationDelay */
+@keyframes insight-float {
+  0%, 100% { transform: translateY(0px);  }
+  50%       { transform: translateY(-3px); }
+}
+.insight-float {
+  animation: insight-float 2.8s ease-in-out infinite;
+}
+
+/* Pulso de borda violeta quando um insight mudou de conteúdo */
+@keyframes insight-new-flash {
+  0%   { box-shadow: 0 0 0 0   rgba(139, 92, 246, 0.55); }
+  40%  { box-shadow: 0 0 0 8px rgba(139, 92, 246, 0.12); }
+  100% { box-shadow: 0 0 0 0   rgba(139, 92, 246, 0); }
+}
+.insight-new-flash {
+  animation: insight-new-flash 1.5s ease-out;
+}

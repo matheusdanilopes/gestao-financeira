@@ -196,9 +196,12 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
     return planTotalByCalMes[format(subMonths(new Date(year, month - 1, 2), 1), 'yyyy-MM')] ?? 0
   }
 
+  // Card-only previous month total (matches what "Compras" tab shows for that month).
+  const totalCartaoAnterior = sumValor(txAnterior)
+
   // Combined previous month total (card fatura + fixed planned expenses).
   // If a month has no card charges, the plan total alone is used.
-  const totalGastosAnterior = sumValor(txAnterior) + planForBilling(mesFaturaAnterior)
+  const totalGastosAnterior = totalCartaoAnterior + planForBilling(mesFaturaAnterior)
 
   // Variance uses combined totals (card + plan) so it matches what the
   // dashboard shows as "Gastos" for each month.
@@ -208,6 +211,13 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
     : totalGastosAnterior > 0
       ? ((totalMesAtual - totalGastosAnterior) / totalGastosAnterior) * 100
       : 0
+
+  const rendaConfig = data.configuracoes.find(c => c.chave === 'renda_mensal')
+  const rendaMensal = rendaConfig ? (parseFloat(rendaConfig.valor) || undefined) : undefined
+  const sobraLiquida = rendaMensal !== undefined ? rendaMensal - totalMesAtual : undefined
+  const taxaPoupanca = rendaMensal && rendaMensal > 0
+    ? ((sobraLiquida ?? 0) / rendaMensal) * 100
+    : undefined
 
   const diaAtual = hoje.getDate()
   const hojeStr = format(hoje, 'yyyy-MM-dd')
@@ -265,12 +275,30 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
       ? valoresMeses6ComDados.reduce((s, v) => s + v, 0) / valoresMeses6ComDados.length
       : 0
 
+  // Card-only historical average: matches what "Compras" tab shows — no planning items.
+  // Used for spending comparisons so the numbers align with what the user sees.
+  const cartaoMeses6 = meses6.map(m => sumValor(byMes[m] ?? []))
+  const valoresCartaoComDados = cartaoMeses6.filter(v => v > 0)
+  const mediaCartaoHistorica =
+    valoresCartaoComDados.length > 0
+      ? valoresCartaoComDados.reduce((s, v) => s + v, 0) / valoresCartaoComDados.length
+      : 0
+
   // Trend: last 3 months vs 3 months before (combined card + plan)
+  // Average only over months with actual data; require ≥2 months per group to
+  // avoid misleading percentages when the app has little historical data
+  // (e.g. only 1 month in the older group would make the average 3× too low,
+  // producing a false +100% signal).
   const u3 = meses6.slice(0, 3).map(m => sumValor(byMes[m] ?? []) + planForBilling(m))
   const a3 = meses6.slice(3, 6).map(m => sumValor(byMes[m] ?? []) + planForBilling(m))
-  const mediaU3 = u3.reduce((s, v) => s + v, 0) / 3
-  const mediaA3 = a3.reduce((s, v) => s + v, 0) / 3
-  const tendenciaPct = mediaA3 > 0 ? ((mediaU3 - mediaA3) / mediaA3) * 100 : 0
+  const u3Dados = u3.filter(v => v > 0)
+  const a3Dados = a3.filter(v => v > 0)
+  const mediaU3 = u3Dados.length > 0 ? u3Dados.reduce((s, v) => s + v, 0) / u3Dados.length : 0
+  const mediaA3 = a3Dados.length > 0 ? a3Dados.reduce((s, v) => s + v, 0) / a3Dados.length : 0
+  const tendenciaPct =
+    u3Dados.length >= 2 && a3Dados.length >= 2 && mediaA3 > 0
+      ? ((mediaU3 - mediaA3) / mediaA3) * 100
+      : 0
   const tendencia =
     Math.abs(tendenciaPct) < 5 ? 'estavel' : tendenciaPct > 0 ? 'alta' : 'baixa'
 
@@ -301,8 +329,13 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
     totalAportesHistorico,
     aportesRecentes,
     mediaMensalHistorica,
+    mediaCartaoHistorica,
+    totalCartaoAnterior,
     tendencia,
     tendenciaPct,
+    rendaMensal,
+    sobraLiquida,
+    taxaPoupanca,
   }
 }
 
@@ -341,23 +374,26 @@ const signPct2 = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
 export function generateFallbackInsights(ins: FinancialInsightsContext): InsightItem[] {
   const items: InsightItem[] = []
 
-  // 1 — Gastos do mês vs histórico
+  // 1 — Compras no cartão vs histórico de cartão (alinha com o que "Compras" exibe)
+  //     Não inclui despesas fixas do planejamento para evitar confusão de valores.
   if (ins.totalGastos > 0) {
-    const vsH = ins.mediaMensalHistorica > 0
-      ? ((ins.totalGastos - ins.mediaMensalHistorica) / ins.mediaMensalHistorica) * 100
-      : ins.variacaoGastos
+    const vsH = ins.mediaCartaoHistorica > 0
+      ? ((ins.totalGastos - ins.mediaCartaoHistorica) / ins.mediaCartaoHistorica) * 100
+      : ins.totalCartaoAnterior > 0
+      ? ((ins.totalGastos - ins.totalCartaoAnterior) / ins.totalCartaoAnterior) * 100
+      : 0
     const alto = vsH > 10
     const baixo = vsH < -5
     items.push({
       icone: alto ? '⚠️' : baixo ? '✅' : '📊',
       titulo: alto
-        ? `Gastos ${signPct2(vsH)} acima do padrão`
+        ? `Compras no cartão ${signPct2(vsH)} acima do padrão`
         : baixo
-        ? `Gastos ${signPct2(vsH)} abaixo do padrão`
-        : `Gastos dentro do padrão em ${ins.mesAtual}`,
-      detalhe: ins.mediaMensalHistorica > 0
-        ? `${fmtR2(ins.totalGastos)} este mês vs média de ${fmtR2(ins.mediaMensalHistorica)}/mês`
-        : `${fmtR2(ins.totalGastos)} este mês vs ${fmtR2(ins.totalGastosAnterior)} em ${ins.mesAnterior}`,
+        ? `Compras no cartão ${signPct2(vsH)} abaixo do padrão`
+        : `Compras no cartão dentro do padrão`,
+      detalhe: ins.mediaCartaoHistorica > 0
+        ? `${fmtR2(ins.totalGastos)} em compras vs média de ${fmtR2(ins.mediaCartaoHistorica)}/mês`
+        : `${fmtR2(ins.totalGastos)} em compras vs ${fmtR2(ins.totalCartaoAnterior)} em ${ins.mesAnterior}`,
       recomendacao: alto
         ? `Identifique os gastos extras e avalie o que pode ser cortado`
         : baixo
@@ -459,8 +495,26 @@ export function generateFallbackInsights(ins: FinancialInsightsContext): Insight
     })
   }
 
-  // 4 — Tendência ou maior compra
-  if (ins.mediaMensalHistorica > 0) {
+  // 4 — Taxa de poupança (quando renda configurada) ou tendência histórica
+  if (ins.rendaMensal !== undefined && ins.sobraLiquida !== undefined) {
+    const taxa = ins.taxaPoupanca ?? 0
+    items.push({
+      icone: taxa >= 20 ? '💰' : taxa < 0 ? '🚨' : '📊',
+      titulo: taxa >= 20
+        ? `Taxa de poupança: ${taxa.toFixed(0)}% da renda`
+        : taxa < 0
+        ? `Gastos ${Math.abs(taxa).toFixed(0)}% acima da renda`
+        : `${taxa.toFixed(0)}% da renda poupada`,
+      detalhe: `Sobra: ${fmtR2(ins.sobraLiquida)} de ${fmtR2(ins.rendaMensal)} de renda mensal`,
+      recomendacao: taxa >= 20
+        ? `Ótima margem! Considere aportar a sobra em investimentos`
+        : taxa < 0
+        ? `Revise gastos urgente — você está gastando mais do que ganha`
+        : `Reduza gastos variáveis para elevar a taxa de poupança`,
+      nivel: taxa >= 20 ? 'positivo' : taxa < 5 ? 'alerta' : 'info',
+      action: { label: 'Ver finanças', route: '/financas' },
+    })
+  } else if (ins.mediaMensalHistorica > 0) {
     const isAlta = ins.tendencia === 'alta'
     const isBaixa = ins.tendencia === 'baixa'
     items.push({
@@ -544,12 +598,27 @@ export function serializeInsightsCompact(ins: FinancialInsightsContext): string 
   if (invTotal > 0)
     payload.invRec = r2(invTotal)
 
+  if (ins.mediaCartaoHistorica > 0)
+    payload.mediaCartao = r2(ins.mediaCartaoHistorica)
+
   if (ins.mediaMensalHistorica > 0) {
     payload.media6m = r2(ins.mediaMensalHistorica)
     payload.tend = ins.tendencia === 'estavel'
       ? 'estavel'
       : `${ins.tendencia} ${ins.tendenciaPct > 0 ? '+' : ''}${Math.round(ins.tendenciaPct * 10) / 10}%`
   }
+
+  if (ins.rendaMensal) {
+    payload.renda = r2(ins.rendaMensal)
+    if (ins.sobraLiquida !== undefined) payload.sobra = r2(ins.sobraLiquida)
+    if (ins.taxaPoupanca !== undefined) payload.poupPct = Math.round(ins.taxaPoupanca * 10) / 10
+  }
+
+  const assinsCats = Object.entries(ins.assinaturasPorCategoria)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+  if (assinsCats.length > 0 && ins.assinaturasAtivas > 0)
+    payload.assinsCats = assinsCats.map(([cat, val]) => [cat, r2(val)])
 
   return JSON.stringify(payload)
 }
