@@ -92,13 +92,22 @@ async function callGemini(compactPayload: string, confiabilidade: number, prevTi
 
     if (res.ok) {
       const data = await res.json()
-      const raw: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '[]'
+      const finishReason: string = data.candidates?.[0]?.finishReason ?? 'UNKNOWN'
+      const raw: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+      console.log(`[insights] Gemini ok (finishReason=${finishReason}, chars=${raw.length}):`, raw.slice(0, 400))
 
-      const start = raw.indexOf('[')
-      if (start === -1) throw new Error(`JSON array not found in Gemini response: ${raw.slice(0, 100)}`)
+      if (!raw) throw new Error('Gemini retornou resposta vazia')
+
+      // Strip markdown code fences (model sometimes wraps output in ```json...```)
+      const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+
+      const start = cleaned.indexOf('[')
+      if (start === -1) throw new Error(`JSON array not found: ${raw.slice(0, 100)}`)
+
+      // Use string-aware bracket counter to find the matching closing bracket
       let depth = 0, end = -1, inString = false, escaped = false
-      for (let i = start; i < raw.length; i++) {
-        const ch = raw[i]
+      for (let i = start; i < cleaned.length; i++) {
+        const ch = cleaned[i]
         if (escaped) { escaped = false; continue }
         if (ch === '\\' && inString) { escaped = true; continue }
         if (ch === '"') { inString = !inString; continue }
@@ -106,8 +115,19 @@ async function callGemini(compactPayload: string, confiabilidade: number, prevTi
         if (ch === '[') depth++
         else if (ch === ']') { depth--; if (depth === 0) { end = i; break } }
       }
-      if (end === -1) throw new Error(`Unclosed JSON array in Gemini response: ${raw.slice(0, 100)}`)
-      const parsed: Array<Record<string, string>> = JSON.parse(raw.slice(start, end + 1))
+
+      if (end === -1) {
+        // Fallback: try lastIndexOf (handles truncated responses where bracket counter fails)
+        const lastClose = cleaned.lastIndexOf(']')
+        if (lastClose > start) {
+          end = lastClose
+          console.warn('[insights] bracket counter failed, using lastIndexOf fallback')
+        } else {
+          throw new Error(`Unclosed JSON array (finishReason=${finishReason}): ${raw.slice(0, 150)}`)
+        }
+      }
+
+      const parsed: Array<Record<string, string>> = JSON.parse(cleaned.slice(start, end + 1))
 
       return parsed.slice(0, 4).map(item => {
         const action = CATEGORIA_ACTION[String(item.categoria ?? '')]
