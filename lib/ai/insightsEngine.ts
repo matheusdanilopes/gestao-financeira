@@ -285,11 +285,20 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
       : 0
 
   // Trend: last 3 months vs 3 months before (combined card + plan)
+  // Average only over months with actual data; require ≥2 months per group to
+  // avoid misleading percentages when the app has little historical data
+  // (e.g. only 1 month in the older group would make the average 3× too low,
+  // producing a false +100% signal).
   const u3 = meses6.slice(0, 3).map(m => sumValor(byMes[m] ?? []) + planForBilling(m))
   const a3 = meses6.slice(3, 6).map(m => sumValor(byMes[m] ?? []) + planForBilling(m))
-  const mediaU3 = u3.reduce((s, v) => s + v, 0) / 3
-  const mediaA3 = a3.reduce((s, v) => s + v, 0) / 3
-  const tendenciaPct = mediaA3 > 0 ? ((mediaU3 - mediaA3) / mediaA3) * 100 : 0
+  const u3Dados = u3.filter(v => v > 0)
+  const a3Dados = a3.filter(v => v > 0)
+  const mediaU3 = u3Dados.length > 0 ? u3Dados.reduce((s, v) => s + v, 0) / u3Dados.length : 0
+  const mediaA3 = a3Dados.length > 0 ? a3Dados.reduce((s, v) => s + v, 0) / a3Dados.length : 0
+  const tendenciaPct =
+    u3Dados.length >= 2 && a3Dados.length >= 2 && mediaA3 > 0
+      ? ((mediaU3 - mediaA3) / mediaA3) * 100
+      : 0
   const tendencia =
     Math.abs(tendenciaPct) < 5 ? 'estavel' : tendenciaPct > 0 ? 'alta' : 'baixa'
 
