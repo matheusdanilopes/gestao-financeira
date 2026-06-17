@@ -27,10 +27,12 @@ export async function GET(req: NextRequest) {
 
   const { data: transacoes, error } = await supabase
     .from('transacoes_nubank')
-    .select('descricao, valor, responsavel, cartao, projeto_fatura, status')
+    .select('descricao, valor, responsavel, cartao, projeto_fatura, status, parcela_atual, total_parcelas')
     .gte('projeto_fatura', inicio)
     .not('status', 'eq', 'ESTORNO')
     .not('status', 'eq', 'ESTORNADO')
+    // Exclui parcelamentos: transações com mais de 1 parcela não são recorrências
+    .or('total_parcelas.is.null,total_parcelas.lte.1')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
@@ -54,8 +56,17 @@ export async function GET(req: NextRequest) {
   }
   const grupos = new Map<string, Grupo>()
 
+  // Regex para detectar parcelamentos na descrição (fallback caso colunas não estejam preenchidas)
+  const RE_PARCELA = /\b\d{1,2}\s*\/\s*\d{2,}\b|\bparcela\s*\d/i
+
   for (const t of transacoes ?? []) {
     if (!t.descricao || !t.projeto_fatura) continue
+
+    // Descarta parcelamentos explícitos via colunas
+    if (t.total_parcelas && Number(t.total_parcelas) > 1) continue
+    // Descarta parcelamentos detectados na descrição (ex: "SAMSUNG 3/12", "Parcela 2")
+    if (RE_PARCELA.test(t.descricao as string)) continue
+
     const norm = normalizar(t.descricao as string)
     if (norm.length < 3) continue
 

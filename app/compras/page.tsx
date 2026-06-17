@@ -425,13 +425,13 @@ export default function ComprasPage() {
       )}
 
       <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 z-[10]">
-        <div className="flex items-center justify-between mb-3">
-          <h1 className="text-xl font-bold text-gray-900">Compras</h1>
+        <div className="flex items-center gap-3 mb-3 pr-12 lg:pr-0">
+          <h1 className="text-xl font-bold text-gray-900 flex-1">Compras</h1>
           <button
             onClick={exportarCsv}
             title="Exportar CSV"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200
-                       text-gray-600 text-xs font-semibold transition-colors active:scale-[0.97]"
+                       text-gray-600 text-xs font-semibold transition-colors active:scale-[0.97] shrink-0"
           >
             <Download className="w-3.5 h-3.5" strokeWidth={2} />
             Exportar
