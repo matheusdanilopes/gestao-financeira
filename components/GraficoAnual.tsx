@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Bar } from 'react-chartjs-2'
+import { Chart } from 'react-chartjs-2'
+import type { ChartData } from 'chart.js'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -230,7 +231,7 @@ export default function GraficoAnual({ ano }: Props) {
   return (
     <div>
       <div className="h-64">
-        <Bar data={chartData} options={options} />
+        <Chart type="bar" data={chartData as ChartData<'bar'>} options={options} />
       </div>
 
       <div className="grid grid-cols-3 gap-3 mt-4">
