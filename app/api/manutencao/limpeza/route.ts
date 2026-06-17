@@ -23,14 +23,12 @@ export async function POST(req: NextRequest) {
   const [{ count: logsCount }, { count: messagesCount }] = await Promise.all([
     supabase
       .from('activity_logs')
-      .delete()
-      .lt('created_at', seisMesesAtras)
-      .select('*', { count: 'exact', head: true }),
+      .delete({ count: 'exact' })
+      .lt('created_at', seisMesesAtras),
     supabase
       .from('messages')
-      .delete()
-      .lt('created_at', umAnoAtras)
-      .select('*', { count: 'exact', head: true }),
+      .delete({ count: 'exact' })
+      .lt('created_at', umAnoAtras),
   ])
 
   return NextResponse.json({
