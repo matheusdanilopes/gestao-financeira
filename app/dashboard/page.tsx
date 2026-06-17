@@ -46,7 +46,22 @@ import { InfoPopover } from '@/components/InfoPopover'
 
 const DrawerDetalhes = dynamic(() => import('@/components/DrawerDetalhes'), { ssr: false })
 const PeriodSelectorSheet = dynamic(() => import('@/components/PeriodSelectorSheet'), { ssr: false })
-const InsightsCard = dynamic(() => import('@/components/InsightsCard'), { ssr: false })
+const InsightsCard = dynamic(() => import('@/components/InsightsCard'), {
+  ssr: false,
+  loading: () => (
+    <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 animate-pulse">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-8 h-8 bg-gray-100 rounded-xl shrink-0" />
+        <div className="h-4 bg-gray-100 rounded-full w-32" />
+        <div className="ml-auto h-5 bg-gray-100 rounded-full w-14" />
+      </div>
+      <div className="space-y-3">
+        <div className="h-[88px] bg-gray-100 rounded-2xl" />
+        <div className="h-[88px] bg-gray-100 rounded-2xl" />
+      </div>
+    </div>
+  ),
+})
 const LimitesCategorias = dynamic(() => import('@/components/LimitesCategorias'), { ssr: false })
 
 const GraficoAnual = dynamic(() => import('@/components/GraficoAnual'), {

@@ -230,9 +230,9 @@ body.theme-transition {
   to   { opacity: 1; }
 }
 
-.modal-sheet  { animation: modal-slide-up 0.28s cubic-bezier(0.34, 1.56, 0.64, 1); }
-.modal-center { animation: modal-fade-in  0.22s ease; }
-.modal-overlay { animation: overlay-in   0.2s ease; }
+.modal-sheet  { animation: modal-slide-up 0.28s cubic-bezier(0.34, 1.56, 0.64, 1); will-change: transform; }
+.modal-center { animation: modal-fade-in  0.22s ease; will-change: opacity, transform; }
+.modal-overlay { animation: overlay-in   0.2s ease; will-change: opacity; }
 
 /* ─── Scroll performático em containers ─────────────────────────────────── */
 /* Promove scroll para GPU — reduz jank em listas longas no mobile */
@@ -243,6 +243,7 @@ body.theme-transition {
 [class*="overflow-x-"] {
   -webkit-overflow-scrolling: touch;
 }
+
 
 /* ─── Scrollbar ───────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar       { width: 5px; height: 5px; }
@@ -319,7 +320,10 @@ button, a, [role="button"] {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.page-enter { animation: fade-up 0.12s ease; }
+.page-enter {
+  animation: fade-up 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
 
 /* ─── Dashboard badge (Previsão / Histórico) ─────────────────────────────── */
 @keyframes badge-fade-in {
@@ -403,8 +407,8 @@ button, a, [role="button"] {
   from { opacity: 0; transform: translateX(12px); }
   to   { opacity: 1; transform: translateX(0);    }
 }
-.fab-sheet         { animation: fab-sheet-in          0.34s cubic-bezier(0.34, 1.56, 0.64, 1); }
-.fab-sheet-overlay { animation: fab-sheet-overlay-in  0.22s ease; }
+.fab-sheet         { animation: fab-sheet-in          0.34s cubic-bezier(0.34, 1.56, 0.64, 1); will-change: transform; }
+.fab-sheet-overlay { animation: fab-sheet-overlay-in  0.22s ease; will-change: opacity; }
 .fab-form-enter    { animation: fab-form-enter         0.20s ease; }
 
 /* ─── Animações modernas ─────────────────────────────────────────────────── */
@@ -483,6 +487,20 @@ button, a, [role="button"] {
   100% { background-color: transparent; }
 }
 .state-highlight { animation: state-highlight 0.45s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* ─── GPU layer para elementos que animam frequentemente ────────────────── */
+/* Cria uma camada compositor dedicada para esses elementos, evitando que
+   animações rasterizem novamente o conteúdo ao redor a cada frame. */
+.modal-sheet,
+.fab-sheet,
+.fab-premium {
+  transform: translateZ(0);
+}
+
+/* ─── Smooth scroll no documento ─────────────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+}
 
 /* ─── Redução de motion para acessibilidade e bateria ───────────────────── */
 @media (prefers-reduced-motion: reduce) {

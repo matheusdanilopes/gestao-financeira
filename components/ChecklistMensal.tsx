@@ -270,14 +270,20 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
       valor_previsto: valor,
       data_vencimento: formData.data_vencimento || null,
     }
-    const { error } = await supabase.from('planejamento').update(updates).eq('id', itemSelecionado.id)
+    const id = itemSelecionado.id
+    const originalItem = itemSelecionado
+
+    // Feedback imediato: fecha modal e atualiza lista sem aguardar resposta do servidor
+    setModalAberto(null)
+    setItemSelecionado(null)
+    setItens(prev => prev.map(i => i.id === id ? { ...i, ...updates } : i))
+
+    const { error } = await supabase.from('planejamento').update(updates).eq('id', id)
     if (!error) {
-      setModalAberto(null)
-      setItemSelecionado(null)
-      refetch()
-      log('editar', 'planejamento', `Editado: ${formData.item} — ${formatBRL(valor)}`, valor, itemSelecionado.valor_previsto)
+      log('editar', 'planejamento', `Editado: ${formData.item} — ${formatBRL(valor)}`, valor, originalItem.valor_previsto)
     } else {
-      console.error('[editarItem] Supabase error:', error)
+      // Reverte em caso de erro
+      setItens(prev => prev.map(i => i.id === id ? originalItem : i))
       showToast(error.message || 'Erro ao editar', 'erro')
     }
   }
@@ -302,14 +308,36 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
       data_vencimento: formData.data_vencimento || null,
       data_pagamento: null,
     }
+
+    // Feedback imediato: fecha modal e adiciona item otimisticamente
+    const tempId = `temp-${Date.now()}`
+    const itemOtimista: ItemPlanejamento = {
+      ...novoItem,
+      id: tempId,
+      created_at: null,
+      parcela_atual: null,
+      total_parcelas: null,
+    }
+    setModalAberto(null)
+    setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', tipo_cartao: '', valor_previsto: '', data_vencimento: '' })
+    setItens(prev => [...prev, itemOtimista])
+    setNewItemId(tempId)
+    setTimeout(() => setNewItemId(null), 400)
+
+    // Persiste em background
     const { data: insertData, error } = await supabase.from('planejamento').insert([novoItem]).select()
     if (!error) {
-      if (insertData?.[0]) pendingNewRef.current = insertData[0].id
-      setModalAberto(null)
-      setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', tipo_cartao: '', valor_previsto: '', data_vencimento: '' })
-      refetch()
+      const realId = insertData?.[0]?.id
+      if (realId) {
+        setItens(prev => prev.map(i => i.id === tempId
+          ? { ...itemOtimista, id: realId, created_at: insertData[0].created_at ?? null }
+          : i
+        ))
+      }
       log('inserir', 'planejamento', `Novo item: ${formData.item} — ${formatBRL(valor)}`, valor)
     } else {
+      // Reverte em caso de erro
+      setItens(prev => prev.filter(i => i.id !== tempId))
       showToast('Erro ao adicionar', 'erro')
     }
   }
