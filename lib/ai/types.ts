@@ -98,6 +98,8 @@ export interface FinancialInsightsContext {
   totalAportesHistorico: number
   aportesRecentes: Array<{ descricao: string; valor: number; data: string }>
   mediaMensalHistorica: number
+  mediaCartaoHistorica: number
+  totalCartaoAnterior: number
   tendencia: 'alta' | 'baixa' | 'estavel'
   tendenciaPct: number
   rendaMensal?: number

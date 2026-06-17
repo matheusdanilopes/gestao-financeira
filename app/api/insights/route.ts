@@ -44,14 +44,18 @@ Gere EXATAMENTE 4 insights em JSON. Responda APENAS com o array JSON, sem texto 
 ]
 
 Glossário dos campos:
-- "totalMes": total do mês = faturas cartão + despesas fixas (o que o dashboard chama de "Gastos")
-- "gasto": apenas as faturas de cartão (subset de totalMes)
+- "gasto": faturas de cartão de crédito — exatamente o que a tela "Compras" exibe
+- "mediaCartao": média histórica de 6 meses de compras no cartão (compare "gasto" contra este)
+- "totalMes": total do mês = faturas cartão + despesas fixas (visão holística de gastos)
+- "media6m": média histórica combinada (cartão + fixas) — compare "totalMes" contra este
 - "orc[0]": total das despesas fixas planejadas | "orc[1]": já pago | "orc[2]": em aberto
 - "renda": renda mensal configurada | "sobra": renda - totalMes | "poupPct": % da renda poupada
 - "assinsCats": top categorias de assinaturas [[categoria, R$], ...]
 
 Regras:
-- Ao responder "total de despesas" use sempre "totalMes", não "gasto" isolado.
+- CRÍTICO: insights com categoria "gastos" devem referenciar "gasto" (cartão) e comparar contra "mediaCartao" — NUNCA use "totalMes" para insights de categoria "gastos", pois o valor não baterá com a tela "Compras" que o usuário vai ver ao clicar.
+- Para visão holística (sobra, taxa de poupança), use "totalMes" e "renda".
+- Ao falar de "total de despesas do mês" sem contexto específico, use "totalMes".
 - nivel "alerta": risco financeiro real. "positivo": conquista ou economia. "info": dado neutro. "sugestao": oportunidade de melhora.
 - "categoria": classifique — "gastos" (compras/transações), "orcamento" (planejamento/vencimentos), "investimentos" (aportes/carteira), "assinaturas" (serviços recorrentes), "poupanca" (sobra/taxa de poupança).
 - Priorize: desvios de gastos vs histórico, categoria com maior crescimento, aderência ao orçamento, tendência de 3 meses.

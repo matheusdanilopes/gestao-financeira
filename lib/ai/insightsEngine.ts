@@ -196,9 +196,12 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
     return planTotalByCalMes[format(subMonths(new Date(year, month - 1, 2), 1), 'yyyy-MM')] ?? 0
   }
 
+  // Card-only previous month total (matches what "Compras" tab shows for that month).
+  const totalCartaoAnterior = sumValor(txAnterior)
+
   // Combined previous month total (card fatura + fixed planned expenses).
   // If a month has no card charges, the plan total alone is used.
-  const totalGastosAnterior = sumValor(txAnterior) + planForBilling(mesFaturaAnterior)
+  const totalGastosAnterior = totalCartaoAnterior + planForBilling(mesFaturaAnterior)
 
   // Variance uses combined totals (card + plan) so it matches what the
   // dashboard shows as "Gastos" for each month.
@@ -272,6 +275,15 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
       ? valoresMeses6ComDados.reduce((s, v) => s + v, 0) / valoresMeses6ComDados.length
       : 0
 
+  // Card-only historical average: matches what "Compras" tab shows — no planning items.
+  // Used for spending comparisons so the numbers align with what the user sees.
+  const cartaoMeses6 = meses6.map(m => sumValor(byMes[m] ?? []))
+  const valoresCartaoComDados = cartaoMeses6.filter(v => v > 0)
+  const mediaCartaoHistorica =
+    valoresCartaoComDados.length > 0
+      ? valoresCartaoComDados.reduce((s, v) => s + v, 0) / valoresCartaoComDados.length
+      : 0
+
   // Trend: last 3 months vs 3 months before (combined card + plan)
   const u3 = meses6.slice(0, 3).map(m => sumValor(byMes[m] ?? []) + planForBilling(m))
   const a3 = meses6.slice(3, 6).map(m => sumValor(byMes[m] ?? []) + planForBilling(m))
@@ -308,6 +320,8 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
     totalAportesHistorico,
     aportesRecentes,
     mediaMensalHistorica,
+    mediaCartaoHistorica,
+    totalCartaoAnterior,
     tendencia,
     tendenciaPct,
     rendaMensal,
@@ -351,24 +365,26 @@ const signPct2 = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
 export function generateFallbackInsights(ins: FinancialInsightsContext): InsightItem[] {
   const items: InsightItem[] = []
 
-  // 1 — Gastos do mês vs histórico (usa totalMes = cartão + planejamento, igual ao dashboard)
-  const totalMes = ins.totalGastos + ins.totalOrcado
-  if (totalMes > 0) {
-    const vsH = ins.mediaMensalHistorica > 0
-      ? ((totalMes - ins.mediaMensalHistorica) / ins.mediaMensalHistorica) * 100
-      : ins.variacaoGastos
+  // 1 — Compras no cartão vs histórico de cartão (alinha com o que "Compras" exibe)
+  //     Não inclui despesas fixas do planejamento para evitar confusão de valores.
+  if (ins.totalGastos > 0) {
+    const vsH = ins.mediaCartaoHistorica > 0
+      ? ((ins.totalGastos - ins.mediaCartaoHistorica) / ins.mediaCartaoHistorica) * 100
+      : ins.totalCartaoAnterior > 0
+      ? ((ins.totalGastos - ins.totalCartaoAnterior) / ins.totalCartaoAnterior) * 100
+      : 0
     const alto = vsH > 10
     const baixo = vsH < -5
     items.push({
       icone: alto ? '⚠️' : baixo ? '✅' : '📊',
       titulo: alto
-        ? `Gastos ${signPct2(vsH)} acima do padrão`
+        ? `Compras no cartão ${signPct2(vsH)} acima do padrão`
         : baixo
-        ? `Gastos ${signPct2(vsH)} abaixo do padrão`
-        : `Gastos dentro do padrão em ${ins.mesAtual}`,
-      detalhe: ins.mediaMensalHistorica > 0
-        ? `${fmtR2(totalMes)} este mês vs média de ${fmtR2(ins.mediaMensalHistorica)}/mês`
-        : `${fmtR2(totalMes)} este mês vs ${fmtR2(ins.totalGastosAnterior)} em ${ins.mesAnterior}`,
+        ? `Compras no cartão ${signPct2(vsH)} abaixo do padrão`
+        : `Compras no cartão dentro do padrão`,
+      detalhe: ins.mediaCartaoHistorica > 0
+        ? `${fmtR2(ins.totalGastos)} em compras vs média de ${fmtR2(ins.mediaCartaoHistorica)}/mês`
+        : `${fmtR2(ins.totalGastos)} em compras vs ${fmtR2(ins.totalCartaoAnterior)} em ${ins.mesAnterior}`,
       recomendacao: alto
         ? `Identifique os gastos extras e avalie o que pode ser cortado`
         : baixo
@@ -572,6 +588,9 @@ export function serializeInsightsCompact(ins: FinancialInsightsContext): string 
 
   if (invTotal > 0)
     payload.invRec = r2(invTotal)
+
+  if (ins.mediaCartaoHistorica > 0)
+    payload.mediaCartao = r2(ins.mediaCartaoHistorica)
 
   if (ins.mediaMensalHistorica > 0) {
     payload.media6m = r2(ins.mediaMensalHistorica)
