@@ -70,52 +70,70 @@ async function callGemini(compactPayload: string, confiabilidade: number, prevTi
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) throw new Error('GEMINI_API_KEY não configurada')
 
-  const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: buildPrompt(compactPayload, confiabilidade, prevTitles) }] }],
-      generationConfig: { maxOutputTokens: 1024, temperature: 0.5 },
-    }),
+  const body = JSON.stringify({
+    contents: [{ role: 'user', parts: [{ text: buildPrompt(compactPayload, confiabilidade, prevTitles) }] }],
+    generationConfig: { maxOutputTokens: 1024, temperature: 0.5 },
   })
 
-  if (!res.ok) {
-    const text = await res.text()
-    console.error(`[insights] Gemini ${res.status}:`, text.slice(0, 500))
-    if (res.status === 429) throw new Error('QUOTA_429')
-    throw new Error(`Gemini ${res.status}: ${text.slice(0, 200)}`)
-  }
+  // Retry on transient errors (503, 502) with exponential backoff
+  const MAX_RETRIES = 2
+  let lastError: Error | null = null
 
-  const data = await res.json()
-  const raw: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '[]'
-
-  // Gemini may prepend prose ("Aqui estão os insights:\n[...]") or wrap in
-  // markdown fences. Extract the first complete [...] block via bracket depth
-  // so trailing bracketed content (citations, footnotes) is not included.
-  const start = raw.indexOf('[')
-  if (start === -1) throw new Error(`JSON array not found in Gemini response: ${raw.slice(0, 100)}`)
-  let depth = 0
-  let end = -1
-  for (let i = start; i < raw.length; i++) {
-    if (raw[i] === '[') depth++
-    else if (raw[i] === ']') { depth--; if (depth === 0) { end = i; break } }
-  }
-  if (end === -1) throw new Error(`Unclosed JSON array in Gemini response: ${raw.slice(0, 100)}`)
-  const parsed: Array<Record<string, string>> = JSON.parse(raw.slice(start, end + 1))
-
-  return parsed.slice(0, 4).map(item => {
-    const action = CATEGORIA_ACTION[String(item.categoria ?? '')]
-    return {
-      icone: String(item.icone ?? '📊'),
-      titulo: String(item.titulo ?? '').slice(0, 60),
-      detalhe: String(item.detalhe ?? item.texto ?? '').slice(0, 100),
-      recomendacao: String(item.recomendacao ?? '').slice(0, 100),
-      nivel: (['alerta', 'positivo', 'info', 'sugestao'].includes(item.nivel)
-        ? item.nivel
-        : 'info') as InsightItem['nivel'],
-      ...(action ? { action } : {}),
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      await new Promise(r => setTimeout(r, attempt * 1500))
     }
-  })
+
+    const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    })
+
+    if (res.ok) {
+      const data = await res.json()
+      const raw: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '[]'
+
+      const start = raw.indexOf('[')
+      if (start === -1) throw new Error(`JSON array not found in Gemini response: ${raw.slice(0, 100)}`)
+      let depth = 0
+      let end = -1
+      for (let i = start; i < raw.length; i++) {
+        if (raw[i] === '[') depth++
+        else if (raw[i] === ']') { depth--; if (depth === 0) { end = i; break } }
+      }
+      if (end === -1) throw new Error(`Unclosed JSON array in Gemini response: ${raw.slice(0, 100)}`)
+      const parsed: Array<Record<string, string>> = JSON.parse(raw.slice(start, end + 1))
+
+      return parsed.slice(0, 4).map(item => {
+        const action = CATEGORIA_ACTION[String(item.categoria ?? '')]
+        return {
+          icone: String(item.icone ?? '📊'),
+          titulo: String(item.titulo ?? '').slice(0, 60),
+          detalhe: String(item.detalhe ?? item.texto ?? '').slice(0, 100),
+          recomendacao: String(item.recomendacao ?? '').slice(0, 100),
+          nivel: (['alerta', 'positivo', 'info', 'sugestao'].includes(item.nivel)
+            ? item.nivel
+            : 'info') as InsightItem['nivel'],
+          ...(action ? { action } : {}),
+        }
+      })
+    }
+
+    const text = await res.text()
+    console.error(`[insights] Gemini ${res.status} (tentativa ${attempt + 1}):`, text.slice(0, 500))
+
+    if (res.status === 429) throw new Error('QUOTA_429')
+    // Don't retry on definitive errors
+    if (res.status === 400 || res.status === 403 || res.status === 404) {
+      throw new Error(`Gemini ${res.status}: ${text.slice(0, 200)}`)
+    }
+
+    lastError = new Error(`Gemini ${res.status}: ${text.slice(0, 200)}`)
+    // 502/503/504 → retry
+  }
+
+  throw lastError ?? new Error('Gemini: falha após retentativas')
 }
 
 export async function GET(req: NextRequest) {

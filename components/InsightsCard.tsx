@@ -239,6 +239,8 @@ export default function InsightsCard() {
                     ? 'Acesso negado — verifique a chave (403)'
                     : fallbackReason?.includes('400')
                     ? 'Requisição inválida (400)'
+                    : fallbackReason?.includes('503') || fallbackReason?.includes('502')
+                    ? 'Serviço da IA temporariamente indisponível'
                     : fallbackReason
                     ? `IA: ${fallbackReason.slice(0, 35)}`
                     : 'Modo offline — IA indisponível'}
