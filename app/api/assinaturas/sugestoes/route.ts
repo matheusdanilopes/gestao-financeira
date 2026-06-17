@@ -3,6 +3,9 @@ import { requireAuth } from '@/lib/serverAuth'
 import { format, subMonths, startOfMonth } from 'date-fns'
 
 const MIN_MESES_CONSECUTIVOS = 3
+// Assinaturas têm valor estável. Acima desse limite de variação (relativa ao valor médio)
+// o gasto é considerado consumo recorrente (ex: supermercado, posto) e não uma assinatura.
+const MAX_VARIACAO_PERCENTUAL = 30
 
 function normalizar(s: string): string {
   return s
@@ -104,6 +107,9 @@ export async function GET(req: NextRequest) {
     const valorMin = Math.min(...g.valores)
     const valorMax = Math.max(...g.valores)
     const variacaoPercentual = valorMedio > 0 ? ((valorMax - valorMin) / valorMedio) * 100 : 0
+
+    // Descarta gastos com valor muito variável (ex: supermercado, restaurante)
+    if (variacaoPercentual > MAX_VARIACAO_PERCENTUAL) continue
 
     sugestoes.push({
       descricao: g.descricao,
