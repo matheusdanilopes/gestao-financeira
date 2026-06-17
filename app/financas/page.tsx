@@ -318,17 +318,23 @@ function FinancasContent() {
 
       <div className="page-content">
         {abaAtual === 'despesas' && (
-          <ChecklistMensal mesSelecionado={mesAtual} />
+          <div key="despesas" className="tab-content-enter">
+            <ChecklistMensal mesSelecionado={mesAtual} />
+          </div>
         )}
         {abaAtual === 'receitas' && (
-          <ReceitasMensal mesSelecionado={mesAtual} />
+          <div key="receitas" className="tab-content-enter">
+            <ReceitasMensal mesSelecionado={mesAtual} />
+          </div>
         )}
         {abaAtual === 'investimentos' && (
-          carregandoInvest ? (
-            <SkeletonInvestimentos />
-          ) : (
-            <InvestimentosMensal mesSelecionado={mesAtual} saldo={saldo} saldoPrevisto={saldoPrevisto} />
-          )
+          <div key="investimentos" className="tab-content-enter">
+            {carregandoInvest ? (
+              <SkeletonInvestimentos />
+            ) : (
+              <InvestimentosMensal mesSelecionado={mesAtual} saldo={saldo} saldoPrevisto={saldoPrevisto} />
+            )}
+          </div>
         )}
       </div>
     </div>

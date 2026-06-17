@@ -16,9 +16,9 @@ import { useOnline } from '@/lib/useOnline'
 // ── Constantes ────────────────────────────────────────────────────────────────
 
 const PRIORIDADE = {
-  alta:  { label: 'Alta',  bg: 'bg-red-50',    text: 'text-red-600',   dot: 'bg-red-400',   borderColor: '#f87171' },
-  media: { label: 'Média', bg: 'bg-amber-50',  text: 'text-amber-600', dot: 'bg-amber-400', borderColor: '#fbbf24' },
-  baixa: { label: 'Baixa', bg: 'bg-slate-100', text: 'text-slate-500', dot: 'bg-slate-400', borderColor: '#e2e8f0' },
+  alta:  { label: 'Alta',  bg: 'bg-red-50',   text: 'text-red-600',   dot: 'bg-red-400',   borderClass: 'border-l-red-400' },
+  media: { label: 'Média', bg: 'bg-amber-50', text: 'text-amber-600', dot: 'bg-amber-400', borderClass: 'border-l-amber-400' },
+  baixa: { label: 'Baixa', bg: 'bg-gray-100', text: 'text-gray-500',  dot: 'bg-slate-400', borderClass: 'border-l-slate-300 dark:border-l-slate-600' },
 } as const
 
 type Prioridade = keyof typeof PRIORIDADE
@@ -638,14 +638,13 @@ function WishlistCard({
     <SwipeableItem onDelete={() => onExcluir(item.id)} requireConfirmation>
       <div
         id={`wishlist-item-${item.id}`}
-        className={`rounded-2xl shadow-card border border-gray-100 overflow-hidden bg-white border-l-4${highlighted ? ' animate-wishlist-highlight' : ''}`}
-        style={{ borderLeftColor: cfg.borderColor }}
+        className={`rounded-2xl shadow-card border border-gray-100 overflow-hidden bg-white border-l-4 ${cfg.borderClass}${highlighted ? ' animate-wishlist-highlight' : ''}`}
       >
         {/* Clickable card body */}
         <button
           type="button"
           onClick={() => onEditar(item)}
-          className="w-full text-left px-4 pt-4 pb-3 active:bg-gray-50/80 transition-colors duration-150
+          className="w-full text-left px-4 pt-4 pb-3 active:bg-gray-50/80 dark:active:bg-white/[0.06] transition-colors duration-150
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-inset"
         >
           {/* Emoji + nome */}

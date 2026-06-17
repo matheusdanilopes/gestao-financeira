@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths, subMonths, isSameMonth } from 'date-fns'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
@@ -567,7 +567,7 @@ export default function Dashboard() {
       <div className="page-content">
 
         {/* ── Resumo tab ── */}
-        <div className={`space-y-4${aba !== 'resumo' ? ' hidden' : ''}`}>
+        <div key={`resumo-${aba}`} className={aba === 'resumo' ? 'tab-content-enter space-y-4' : 'hidden'}>
 
           {/* ── 1. Hero Card — visão financeira consolidada ── */}
           <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-5">
@@ -582,7 +582,7 @@ export default function Dashboard() {
                 <div className="h-2 bg-gray-100 rounded-full w-full" />
               </div>
             ) : (
-              <>
+              <div className="content-enter">
                 {/* Label + badge */}
                 <div className="flex items-start justify-between mb-3">
                   <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1">
@@ -602,7 +602,7 @@ export default function Dashboard() {
 
                 {/* Main balance value */}
                 <div className="mb-4">
-                  <p className={`text-4xl lg:text-5xl font-bold num value-tight ${heroColor}`}>
+                  <p key={heroSaldo} className={`text-4xl lg:text-5xl font-bold num value-tight value-update ${heroColor}`}>
                     {fmt(heroSaldo)}
                   </p>
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1.5">
@@ -658,8 +658,9 @@ export default function Dashboard() {
                   </div>
                   <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
                     <div
-                      className={`h-2 rounded-full transition-[width] duration-500 ease-smooth ${comprometimentoBarColor}`}
-                      style={{ width: `${Math.min(resumoCaixa.percentualComprometimento, 100)}%` }}
+                      key={resumoCaixa.percentualComprometimento}
+                      className={`h-2 rounded-full bar-enter ${comprometimentoBarColor}`}
+                      style={{ '--bar-w': `${Math.min(resumoCaixa.percentualComprometimento, 100)}%` } as React.CSSProperties}
                     />
                   </div>
                   <div className="flex justify-between mt-1">
@@ -669,7 +670,7 @@ export default function Dashboard() {
                     <span className="text-[10px] text-gray-300">100%</span>
                   </div>
                 </div>
-              </>
+              </div>
             )}
           </div>
 
@@ -682,13 +683,13 @@ export default function Dashboard() {
                   <div className="h-5 bg-gray-100 rounded w-full" />
                 </div>
               ) : (
-                <>
+                <div className="content-enter">
                   <div className="flex items-center gap-1 mb-1.5">
                     <Wallet className="w-3 h-3 text-gray-400" />
                     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Fixas</p>
                   </div>
-                  <p className="text-sm font-bold text-gray-700 num">{fmt(resumoCaixa.contasFixas)}</p>
-                </>
+                  <p key={resumoCaixa.contasFixas} className="text-sm font-bold text-gray-700 num value-update">{fmt(resumoCaixa.contasFixas)}</p>
+                </div>
               )}
             </div>
 
@@ -699,16 +700,16 @@ export default function Dashboard() {
                   <div className="h-5 bg-gray-100 rounded w-full" />
                 </div>
               ) : (
-                <>
+                <div className="content-enter">
                   <div className="flex items-center gap-1 mb-1.5">
                     <CreditCard className="w-3 h-3 text-gray-400" />
                     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Fatura</p>
                   </div>
-                  <p className="text-sm font-bold text-gray-700 num">{fmt(resumoCaixa.fatura)}</p>
+                  <p key={resumoCaixa.fatura} className="text-sm font-bold text-gray-700 num value-update">{fmt(resumoCaixa.fatura)}</p>
                   {resumoCaixa.faturaEhPrevisto && (
                     <p className="text-[10px] text-amber-600 font-medium mt-0.5">estimado</p>
                   )}
-                </>
+                </div>
               )}
             </div>
 
@@ -719,13 +720,13 @@ export default function Dashboard() {
                   <div className="h-5 bg-gray-100 rounded w-full" />
                 </div>
               ) : (
-                <>
+                <div className="content-enter">
                   <div className="flex items-center gap-1 mb-1.5">
                     <PiggyBank className="w-3 h-3 text-violet-400" />
                     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Investido</p>
                   </div>
-                  <p className="text-sm font-bold text-violet-700 num">{fmt(totalInvestido)}</p>
-                </>
+                  <p key={totalInvestido} className="text-sm font-bold text-violet-700 num value-update">{fmt(totalInvestido)}</p>
+                </div>
               )}
             </div>
           </div>
@@ -767,7 +768,7 @@ export default function Dashboard() {
                 </div>
               </div>
             ) : (
-              <>
+              <div className="content-enter">
                 {/* NuBank total */}
                 <div className="mb-3 pb-3 border-b border-gray-100">
                   <div className="flex items-baseline justify-between">
@@ -815,7 +816,7 @@ export default function Dashboard() {
                         </div>
                       )}
                       <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden mb-0.5">
-                        <div className="h-full bg-blue-400 rounded-full transition-[width] duration-400 ease-smooth" style={{ width: `${fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100) : 0}%` }} />
+                        <div key={fatura.matheusAtual} className="h-full bg-blue-400 rounded-full bar-enter" style={{ '--bar-w': `${fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100) : 0}%` } as React.CSSProperties} />
                       </div>
                       <p className="text-right text-[10px] text-gray-400 num mb-2">{fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100).toFixed(0) : 0}%</p>
                       <div className={`rounded-lg px-2.5 py-1.5 ${
@@ -866,7 +867,7 @@ export default function Dashboard() {
                         </div>
                       )}
                       <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden mb-0.5">
-                        <div className="h-full bg-pink-400 rounded-full transition-[width] duration-400 ease-smooth" style={{ width: `${fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100) : 0}%` }} />
+                        <div key={fatura.jenifferAtual} className="h-full bg-pink-400 rounded-full bar-enter" style={{ '--bar-w': `${fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100) : 0}%` } as React.CSSProperties} />
                       </div>
                       <p className="text-right text-[10px] text-gray-400 num mb-2">{fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100).toFixed(0) : 0}%</p>
                       <div className={`rounded-lg px-2.5 py-1.5 ${
@@ -907,7 +908,7 @@ export default function Dashboard() {
                                   <p className="text-[10px] text-gray-400 num mt-0.5">de {fmt(card.previsto)}</p>
                                 </div>
                                 <div className={`h-1 rounded-full overflow-hidden mb-0.5 ${isMatheus ? 'bg-blue-100' : 'bg-pink-100'}`}>
-                                  <div className={`h-full rounded-full transition-[width] duration-400 ease-smooth ${isMatheus ? 'bg-blue-400' : 'bg-pink-400'}`} style={{ width: `${pct}%` }} />
+                                  <div key={`${i}-${card.atual}`} className={`h-full rounded-full bar-enter ${isMatheus ? 'bg-blue-400' : 'bg-pink-400'}`} style={{ '--bar-w': `${pct}%` } as React.CSSProperties} />
                                 </div>
                                 <div className={`rounded-md px-1.5 py-1 mt-1.5 ${
                                   sobra < 0 ? 'bg-red-50 text-red-600' : isWarning ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-700'
@@ -937,7 +938,7 @@ export default function Dashboard() {
                               <p className="text-[10px] text-gray-400 num mt-0.5">de {fmt(matheusTotalPrevisto)}</p>
                             </div>
                             <div className="h-1 bg-blue-100 rounded-full overflow-hidden mb-0.5">
-                              <div className="h-full bg-blue-400 rounded-full transition-[width] duration-400 ease-smooth" style={{ width: `${matheusPct}%` }} />
+                              <div key={matheusTotalAtual} className="h-full bg-blue-400 rounded-full bar-enter" style={{ '--bar-w': `${matheusPct}%` } as React.CSSProperties} />
                             </div>
                             <div className={`rounded-lg px-2 py-1 mt-1.5 ${matheusRestante < 0 ? 'bg-red-50 text-red-600' : matheusResumoWarning ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-700'}`}>
                               <div className="flex items-center gap-0.5 text-[10px] font-medium">{matheusRestante < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso</> : matheusResumoWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção</> : '✓ Restante'}</div>
@@ -957,7 +958,7 @@ export default function Dashboard() {
                               <p className="text-[10px] text-gray-400 num mt-0.5">de {fmt(jenifferTotalPrevisto)}</p>
                             </div>
                             <div className="h-1 bg-pink-100 rounded-full overflow-hidden mb-0.5">
-                              <div className="h-full bg-pink-400 rounded-full transition-[width] duration-400 ease-smooth" style={{ width: `${jenifferPct}%` }} />
+                              <div key={jenifferTotalAtual} className="h-full bg-pink-400 rounded-full bar-enter" style={{ '--bar-w': `${jenifferPct}%` } as React.CSSProperties} />
                             </div>
                             <div className={`rounded-lg px-2 py-1 mt-1.5 ${jenifferRestante < 0 ? 'bg-red-50 text-red-600' : jenifferResumoWarning ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-700'}`}>
                               <div className="flex items-center gap-0.5 text-[10px] font-medium">{jenifferRestante < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso</> : jenifferResumoWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção</> : '✓ Restante'}</div>
@@ -969,7 +970,7 @@ export default function Dashboard() {
                     </div>
                   )
                 })()}
-              </>
+              </div>
             )}
           </div>
 
@@ -999,7 +1000,7 @@ export default function Dashboard() {
                   <div className="h-20 bg-gray-100 rounded-2xl" />
                 </div>
               ) : (
-                <div className="space-y-2.5">
+                <div className="content-enter space-y-2.5">
                   {investimentos.map((inv) => {
                     const meta = resumoCaixa.sobraLiquida > 0 ? resumoCaixa.sobraLiquida * inv.percentual / 100 : 0
                     const metaPrevista = resumoCaixa.saldoPrevisto > 0 ? resumoCaixa.saldoPrevisto * inv.percentual / 100 : 0
@@ -1026,14 +1027,15 @@ export default function Dashboard() {
                         {/* Progress bar */}
                         <div className="w-full bg-gray-200 rounded-full h-1.5 mb-2.5 overflow-hidden">
                           <div
-                            className={`h-full rounded-full transition-[width] duration-500 ease-smooth ${
+                            key={`${inv.id}-${inv.aportado}`}
+                            className={`h-full rounded-full bar-enter ${
                               concluido
                                 ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
                                 : pct >= 80
                                 ? 'bg-gradient-to-r from-amber-400 to-amber-500'
                                 : 'bg-gradient-to-r from-violet-400 to-violet-500'
                             }`}
-                            style={{ width: `${progresso}%` }}
+                            style={{ '--bar-w': `${progresso}%` } as React.CSSProperties}
                           />
                         </div>
 
@@ -1069,7 +1071,7 @@ export default function Dashboard() {
 
         {/* ── Gráficos tab ── */}
         {graficosAbertos && (
-          <div className={`space-y-4 lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0 lg:items-start${aba !== 'graficos' ? ' hidden' : ''}`}>
+          <div key={`graficos-${aba}`} className={aba === 'graficos' ? 'tab-content-enter space-y-4 lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0 lg:items-start' : 'hidden'}>
 
             <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
               <div className="flex items-center gap-2 mb-1">

@@ -21,6 +21,7 @@ export function SwipeableItem({
   const [translateX, setTranslateX] = useState(0)
   const [animating, setAnimating] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [pastThreshold, setPastThreshold] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const onDeleteRef = useRef(onDelete)
   const requireConfirmationRef = useRef(requireConfirmation)
@@ -58,6 +59,7 @@ export function SwipeableItem({
       currentDx = Math.max(dx, -SWIPE_REVEAL_WIDTH * 1.5)
       setTranslateX(currentDx)
       setAnimating(false)
+      setPastThreshold(currentDx <= SWIPE_DELETE_THRESHOLD)
     }
 
     function onTouchEnd() {
@@ -66,6 +68,7 @@ export function SwipeableItem({
       active = false
       direction = null
       if (!wasHorizontal) return
+      setPastThreshold(false)
       setAnimating(true)
       if (currentDx <= SWIPE_DELETE_THRESHOLD) {
         if (requireConfirmationRef.current) {
@@ -82,6 +85,7 @@ export function SwipeableItem({
       active = false
       direction = null
       currentDx = 0
+      setPastThreshold(false)
       setAnimating(true)
       setTranslateX(0)
     }
@@ -122,7 +126,14 @@ export function SwipeableItem({
             borderRadius: revealProgress > 0.05 ? '0 0.75rem 0.75rem 0' : '0',
           }}
         >
-          <Trash2 className="w-5 h-5 text-white" strokeWidth={2} />
+          <Trash2
+            className="w-5 h-5 text-white"
+            strokeWidth={2}
+            style={{
+              transform: pastThreshold ? 'scale(1.25)' : 'scale(1)',
+              transition: 'transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            }}
+          />
         </div>
         <div
           style={{
