@@ -314,22 +314,30 @@ export default function CategoryTreemap({ compras: comprasProp, mesAtual, loadin
         style={{ height: TREEMAP_H }}
       >
         {cW > 0 &&
-          blocks.map(block => {
+          blocks.map((block, index) => {
             // Dimension-based thresholds — more reliable than area alone
             const showName = block.w >= 36 && block.h >= 26
             const showValue = block.w >= 52 && block.h >= 40
             const isSelected = selected?.label === block.label
 
             return (
-              <button
-                key={block.label}
-                onClick={() => setSelected(isSelected ? null : block)}
-                className="absolute overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              // Wrapper: posicionamento + animação de entrada em cascade
+              // O button dentro cuida do transform interativo sem conflito de propriedade
+              <div
+                key={`${block.label}-${mode}`}
+                className="absolute"
                 style={{
                   left: block.x,
                   top: block.y,
                   width: block.w,
                   height: block.h,
+                  animation: `treemap-block-in 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) ${index * 35}ms backwards`,
+                }}
+              >
+              <button
+                onClick={() => setSelected(isSelected ? null : block)}
+                className="absolute inset-0 overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                style={{
                   borderRadius: 10,
                   backgroundColor: block.color,
                   transform: isSelected ? 'scale(0.97)' : 'scale(1)',
@@ -373,6 +381,7 @@ export default function CategoryTreemap({ compras: comprasProp, mesAtual, loadin
                   <div className="absolute inset-0 pointer-events-none rounded-[10px] ring-2 ring-white" />
                 )}
               </button>
+              </div>
             )
           })}
       </div>

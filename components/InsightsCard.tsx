@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect, useRef } from 'react'
 import { Sparkles, RefreshCw, Clock, ArrowRight } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -161,6 +162,102 @@ function InsightRow({ item, index, isNew }: { item: InsightItem; index: number; 
   )
 }
 
+const DISPLAY_MS    = 3800  // tempo que cada insight fica visível após a entrada
+const TRANSITION_MS = 480   // deve coincidir com a duração da animação CSS
+
+function InsightsCarousel({ insights, changedIndices }: { insights: InsightItem[]; changedIndices: number[] }) {
+  const [activeIdx, setActiveIdx] = useState(0)
+  const [nextIdx,   setNextIdx]   = useState<number | null>(null)
+  const [phase,     setPhase]     = useState<'idle' | 'animating'>('idle')
+  const innerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Reseta ao início quando os insights são substituídos (ex: refresh da IA)
+  const insightsKey = insights.map(i => i.titulo).join('|')
+  useEffect(() => {
+    if (innerTimerRef.current) clearTimeout(innerTimerRef.current)
+    setActiveIdx(0)
+    setNextIdx(null)
+    setPhase('idle')
+  }, [insightsKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Agenda a próxima transição sempre que activeIdx muda ou volta para 'idle'
+  useEffect(() => {
+    if (insights.length <= 1) return
+
+    const outerTimer = setTimeout(() => {
+      const n = (activeIdx + 1) % insights.length
+      setNextIdx(n)
+      setPhase('animating')
+
+      innerTimerRef.current = setTimeout(() => {
+        setActiveIdx(n)
+        setNextIdx(null)
+        setPhase('idle')
+      }, TRANSITION_MS)
+    }, DISPLAY_MS)
+
+    return () => {
+      clearTimeout(outerTimer)
+      if (innerTimerRef.current) clearTimeout(innerTimerRef.current)
+    }
+  }, [activeIdx, insights.length]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isAnimating = phase === 'animating'
+  const displayIdx  = isAnimating && nextIdx !== null ? nextIdx : activeIdx
+
+  function jumpTo(i: number) {
+    if (innerTimerRef.current) clearTimeout(innerTimerRef.current)
+    setActiveIdx(i)
+    setNextIdx(null)
+    setPhase('idle')
+  }
+
+  return (
+    <div>
+      {/* Container do slide — overflow hidden impede que o item entrante apareça fora da área */}
+      <div className="relative overflow-hidden">
+        {/* Item saindo: absolutamente posicionado, anima para cima */}
+        {isAnimating && (
+          <div className="absolute inset-x-0 top-0 z-10 carousel-out-up pointer-events-none">
+            <InsightRow
+              item={insights[activeIdx]}
+              index={activeIdx}
+              isNew={changedIndices.includes(activeIdx)}
+            />
+          </div>
+        )}
+
+        {/* Item entrando (ou atual em idle): no fluxo normal — define a altura do container */}
+        <div className={isAnimating ? 'carousel-in-up' : undefined}>
+          <InsightRow
+            item={insights[displayIdx]}
+            index={displayIdx}
+            isNew={changedIndices.includes(displayIdx)}
+          />
+        </div>
+      </div>
+
+      {/* Indicadores de posição — pill alongada no ativo, dot nos demais */}
+      {insights.length > 1 && (
+        <div className="flex justify-center items-center gap-1.5 mt-3">
+          {insights.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => jumpTo(i)}
+              aria-label={`Insight ${i + 1}`}
+              className={`rounded-full transition-all duration-300 ${
+                i === displayIdx
+                  ? 'w-3.5 h-1.5 bg-violet-500'
+                  : 'w-1.5 h-1.5 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
+              }`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function SkeletonRow() {
   return (
     <div className="flex rounded-2xl bg-white dark:bg-gray-800/70 border border-gray-100 dark:border-gray-700/50 overflow-hidden">
@@ -274,14 +371,9 @@ export default function InsightsCard() {
       </div>
 
       {/* Content */}
-      <div className={`space-y-2 ${hasContent ? 'content-enter' : ''}`}>
+      <div className={hasContent ? 'content-enter' : ''}>
         {isLoading && !hasContent ? (
-          <>
-            <SkeletonRow />
-            <SkeletonRow />
-            <SkeletonRow />
-            <SkeletonRow />
-          </>
+          <SkeletonRow />
         ) : isError && !hasContent ? (
           <div className="flex flex-col items-center gap-3 py-6">
             <div className="w-10 h-10 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center">
@@ -302,9 +394,7 @@ export default function InsightsCard() {
             </button>
           </div>
         ) : hasContent ? (
-          insights.map((item, i) => (
-            <InsightRow key={i} item={item} index={i} isNew={changedIndices.includes(i)} />
-          ))
+          <InsightsCarousel insights={insights} changedIndices={changedIndices} />
         ) : (
           <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-6 text-balance">
             Nenhum dado disponível para análise
