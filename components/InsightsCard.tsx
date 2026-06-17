@@ -236,6 +236,11 @@ export default function InsightsCard() {
                   ? 'Modelo de IA não encontrado'
                   : 'Modo offline — IA indisponível'}
               </p>
+            ) : source === 'ai' ? (
+              <p className="text-[10px] text-emerald-500 dark:text-emerald-400 mt-0.5 flex items-center gap-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                Gerado por IA
+              </p>
             ) : (
               <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
                 Baseado nas suas movimentações
