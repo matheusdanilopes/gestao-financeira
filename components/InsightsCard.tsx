@@ -226,15 +226,23 @@ export default function InsightsCard() {
                 Recalculando…
               </p>
             ) : isFallback ? (
-              <p className="text-[10px] text-amber-500 dark:text-amber-400 mt-0.5 flex items-center gap-1" title={fallbackReason ?? undefined}>
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400" />
-                {fallbackReason?.startsWith('GEMINI_API_KEY')
-                  ? 'Chave de IA não configurada'
-                  : fallbackReason?.startsWith('QUOTA_429')
-                  ? 'Quota da IA esgotada'
-                  : fallbackReason?.includes('404')
-                  ? 'Modelo de IA não encontrado'
-                  : 'Modo offline — IA indisponível'}
+              <p className="text-[10px] text-amber-500 dark:text-amber-400 mt-0.5 flex items-center gap-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                <span className="truncate">
+                  {fallbackReason?.startsWith('GEMINI_API_KEY')
+                    ? 'Chave de IA não configurada'
+                    : fallbackReason?.startsWith('QUOTA_429')
+                    ? 'Quota da IA esgotada'
+                    : fallbackReason?.includes('404')
+                    ? 'Modelo não encontrado (404)'
+                    : fallbackReason?.includes('403')
+                    ? 'Acesso negado — verifique a chave (403)'
+                    : fallbackReason?.includes('400')
+                    ? 'Requisição inválida (400)'
+                    : fallbackReason
+                    ? `IA: ${fallbackReason.slice(0, 35)}`
+                    : 'Modo offline — IA indisponível'}
+                </span>
               </p>
             ) : source === 'ai' ? (
               <p className="text-[10px] text-emerald-500 dark:text-emerald-400 mt-0.5 flex items-center gap-1">
