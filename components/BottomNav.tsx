@@ -318,19 +318,23 @@ export default memo(function BottomNav() {
       setIsCheckingSession(false)
     })
 
-    // Fallback: se não houver sessão (usuário deslogado), garante que o nav
-    // não fique invisível para sempre aguardando um evento que não virá.
-    const timeout = setTimeout(() => {
-      if (isMounted && !_sessionResolved) {
-        _sessionResolved = true
-        setIsCheckingSession(false)
-      }
-    }, 800)
+    // Fallback: agenda timeout só se onAuthStateChange ainda não resolveu
+    // (ex: usuário deslogado). Evita agendamento desnecessário quando a sessão
+    // já foi lida de forma síncrona do storage.
+    let timeout: ReturnType<typeof setTimeout> | undefined
+    if (!_sessionResolved) {
+      timeout = setTimeout(() => {
+        if (isMounted && !_sessionResolved) {
+          _sessionResolved = true
+          setIsCheckingSession(false)
+        }
+      }, 800)
+    }
 
     return () => {
       isMounted = false
-      authListener.subscription.unsubscribe()
-      clearTimeout(timeout)
+      authListener?.subscription?.unsubscribe()
+      if (timeout) clearTimeout(timeout)
     }
   }, [])
 

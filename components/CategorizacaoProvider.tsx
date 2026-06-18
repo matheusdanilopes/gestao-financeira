@@ -130,8 +130,8 @@ export function CategorizacaoProvider({ children }: { children: React.ReactNode 
     }
 
     if ('requestIdleCallback' in window) {
-      const id = requestIdleCallback(verificarStatus, { timeout: 5000 })
-      return () => { cancelled = true; cancelIdleCallback(id); stopPolling() }
+      const id = window.requestIdleCallback(verificarStatus, { timeout: 5000 })
+      return () => { cancelled = true; window.cancelIdleCallback(id); stopPolling() }
     } else {
       const id = setTimeout(verificarStatus, MOUNT_CHECK_DELAY_MS)
       return () => { cancelled = true; clearTimeout(id); stopPolling() }
