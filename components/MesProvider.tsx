@@ -71,7 +71,7 @@ export function MesProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Atrasa a verificação para não competir com o fetch crítico do dashboard
-    const timer = setTimeout(calcularMesInicial, 300)
+    const timer = setTimeout(calcularMesInicial, 2000)
     return () => clearTimeout(timer)
   }, [])
 

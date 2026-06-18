@@ -197,9 +197,10 @@ export default memo(function NotificacoesBell() {
         setUsuarioEmail('demo@demo.com')
         return
       }
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user?.email) return
-      setUsuarioEmail(user.email)
+      // getSession() lê do storage local sem round-trip de rede
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user?.email) return
+      setUsuarioEmail(session.user.email)
       // Não aguarda — notificações chegam de forma assíncrona sem bloquear renderização
       void carregarNotificacoes(user.email)
       registrarServiceWorker(user.email)
