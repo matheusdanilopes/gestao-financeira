@@ -135,27 +135,37 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const mesRefFatura = format(startOfMonth(addMonths(mes, 1)), 'yyyy-MM-dd')
 
   const [
-    { data: transacoesFatura },
+    { data: todasTransacoesFatura },
     { data: planejamento },
     { data: invData },
-    { data: transacoesC1 },
-    { data: transacoesC2 },
     { data: nubankConfigs },
     { data: faturaRegistradaData },
     { data: assinaturasData },
     { data: maxFaturaRowData },
   ] = await Promise.all([
-    supabase.from('transacoes_nubank').select('valor, responsavel, descricao').eq('projeto_fatura', mesRefFatura).eq('cartao', 'nubank').neq('status', 'ESTORNO').neq('status', 'ESTORNADO'),
+    // Busca todas as transações do período em uma única query e separa por cartão no cliente
+    supabase.from('transacoes_nubank').select('valor, responsavel, descricao, cartao').eq('projeto_fatura', mesRefFatura).neq('status', 'ESTORNO').neq('status', 'ESTORNADO'),
     supabase.from('planejamento').select('item, responsavel, valor_previsto, pago, valor_real').eq('mes_referencia', mesRef),
-    supabase.from('investimentos').select('id, descricao, percentual').eq('mes_referencia', mesRef).order('created_at', { ascending: true }),
-    supabase.from('transacoes_nubank').select('valor, responsavel').eq('cartao', 'cartao1').eq('projeto_fatura', mesRefFatura).neq('status', 'ESTORNO').neq('status', 'ESTORNADO'),
-    supabase.from('transacoes_nubank').select('valor, responsavel').eq('cartao', 'cartao2').eq('projeto_fatura', mesRefFatura).neq('status', 'ESTORNO').neq('status', 'ESTORNADO'),
+    // Busca aportes embutidos para eliminar a query sequencial posterior
+    supabase.from('investimentos').select('id, descricao, percentual, investimentos_aportes(valor)').eq('mes_referencia', mesRef).order('created_at', { ascending: true }),
     supabase.from('configuracoes').select('chave, valor').in('chave', ['dia_vencimento', 'ajuste_fechamento']),
     supabase.from('faturas').select('data_fechamento').eq('cartao', 'nubank').eq('mes_referencia', mesRefFatura).limit(1),
     supabase.from('assinaturas').select('nome, valor, responsavel, ativa').eq('cartao', 'nubank'),
     supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'nubank')
       .lte('projeto_fatura', mesRefFatura).order('projeto_fatura', { ascending: false }).limit(1),
   ])
+
+  // Separa transações por cartão (filtro feito no cliente para evitar 3 queries paralelas)
+  const transacoesFatura = todasTransacoesFatura?.filter(t => t.cartao === 'nubank') ?? []
+  const transacoesC1 = todasTransacoesFatura?.filter(t => t.cartao === 'cartao1') ?? []
+  const transacoesC2 = todasTransacoesFatura?.filter(t => t.cartao === 'cartao2') ?? []
+
+  // Monta mapa de aportes a partir dos dados embutidos (sem query sequencial adicional)
+  const aportadoMap: Record<string, number> = {}
+  for (const inv of (invData || [])) {
+    const aportes = (inv as { investimentos_aportes?: { valor: number }[] }).investimentos_aportes ?? []
+    aportadoMap[inv.id] = aportes.reduce((s, a) => s + a.valor, 0)
+  }
 
   const diaVencNubank = parseInt(nubankConfigs?.find((c: { chave: string; valor: string }) => c.chave === 'dia_vencimento')?.valor || '10')
   const ajusteNubank  = parseInt(nubankConfigs?.find((c: { chave: string; valor: string }) => c.chave === 'ajuste_fechamento')?.valor || '0')
@@ -344,16 +354,6 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
       })
   const divergentesMatheus  = calcDivergente('Matheus')
   const divergentesJeniffer = calcDivergente('Jeniffer')
-
-  const ids = (invData || []).map(i => i.id)
-  const aportadoMap: Record<string, number> = {}
-  if (ids.length > 0) {
-    const { data: aportesData } = await supabase
-      .from('investimentos_aportes').select('investimento_id, valor').in('investimento_id', ids)
-    for (const a of (aportesData || [])) {
-      aportadoMap[a.investimento_id] = (aportadoMap[a.investimento_id] || 0) + a.valor
-    }
-  }
 
   return {
     fatura: {
