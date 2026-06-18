@@ -202,8 +202,8 @@ export default memo(function NotificacoesBell() {
       if (!session?.user?.email) return
       setUsuarioEmail(session.user.email)
       // Não aguarda — notificações chegam de forma assíncrona sem bloquear renderização
-      void carregarNotificacoes(user.email)
-      registrarServiceWorker(user.email)
+      void carregarNotificacoes(session.user.email)
+      registrarServiceWorker(session.user.email)
     }
     init()
   }, [carregarNotificacoes])
