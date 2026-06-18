@@ -70,7 +70,9 @@ export function MesProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    calcularMesInicial()
+    // Atrasa a verificação para não competir com o fetch crítico do dashboard
+    const timer = setTimeout(calcularMesInicial, 300)
+    return () => clearTimeout(timer)
   }, [])
 
   const setMesAtual = useCallback((mes: Date) => {

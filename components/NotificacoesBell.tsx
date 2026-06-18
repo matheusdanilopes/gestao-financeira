@@ -200,7 +200,8 @@ export default memo(function NotificacoesBell() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user?.email) return
       setUsuarioEmail(user.email)
-      await carregarNotificacoes(user.email)
+      // Não aguarda — notificações chegam de forma assíncrona sem bloquear renderização
+      void carregarNotificacoes(user.email)
       registrarServiceWorker(user.email)
     }
     init()
