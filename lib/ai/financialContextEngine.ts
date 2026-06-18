@@ -283,10 +283,10 @@ function buildAssinaturasLayer(data: EnrichedData, m: FinancialInsightsContext):
 function buildInsightsLayer(m: FinancialInsightsContext): string {
   const alerts: string[] = []
 
-  if (m.mediaMensalHistorica > 0) {
-    const vsH = ((m.totalGastos - m.mediaMensalHistorica) / m.mediaMensalHistorica) * 100
-    if (vsH > 10) alerts.push(`⚠️ Gastos ${pct(vsH)} acima da média histórica`)
-    else if (vsH < -5) alerts.push(`✅ Gastos ${pct(vsH)} abaixo da média histórica — bom controle`)
+  if (m.mediaCartaoHistorica > 0) {
+    const vsH = ((m.totalGastos - m.mediaCartaoHistorica) / m.mediaCartaoHistorica) * 100
+    if (vsH > 10) alerts.push(`⚠️ Compras no cartão ${pct(vsH)} acima da média histórica`)
+    else if (vsH < -5) alerts.push(`✅ Compras no cartão ${pct(vsH)} abaixo da média histórica — bom controle`)
   }
 
   if (m.itensVencidos.length > 0) {
