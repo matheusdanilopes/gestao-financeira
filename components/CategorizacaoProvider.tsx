@@ -51,7 +51,6 @@ export function CategorizacaoProvider({ children }: { children: React.ReactNode 
   const [categorizando, setCategorizando] = useState(false)
   const [categorizadoMsg, setCategorizadoMsg] = useState<string | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const mountCheckRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pollStartRef = useRef(0)
   const categorizandoRef = useRef(false)
 
@@ -106,13 +105,18 @@ export function CategorizacaoProvider({ children }: { children: React.ReactNode 
   }, [stopPolling, startPolling])
 
   // Ao montar: verifica se há job em andamento ou recém-concluído.
-  // O check é diferido para não competir com o fetch inicial das páginas.
+  // Usa requestIdleCallback para disparar apenas quando o browser está ocioso,
+  // evitando competição com o fetch inicial das páginas.
   useEffect(() => {
-    mountCheckRef.current = setTimeout(async () => {
+    let cancelled = false
+
+    async function verificarStatus() {
+      if (cancelled) return
       try {
         const res = await fetch('/api/categorizar/status')
-        if (!res.ok) return
+        if (!res.ok || cancelled) return
         const job: JobStatus = await res.json()
+        if (cancelled) return
         if (job.status === 'running') {
           setCategorizando(true)
           startPolling()
@@ -123,11 +127,14 @@ export function CategorizacaoProvider({ children }: { children: React.ReactNode 
           }
         }
       } catch { /* silencioso */ }
-    }, MOUNT_CHECK_DELAY_MS)
+    }
 
-    return () => {
-      if (mountCheckRef.current !== null) clearTimeout(mountCheckRef.current)
-      stopPolling()
+    if ('requestIdleCallback' in window) {
+      const id = window.requestIdleCallback(verificarStatus, { timeout: 5000 })
+      return () => { cancelled = true; window.cancelIdleCallback(id); stopPolling() }
+    } else {
+      const id = setTimeout(verificarStatus, MOUNT_CHECK_DELAY_MS)
+      return () => { cancelled = true; clearTimeout(id); stopPolling() }
     }
   }, [startPolling, stopPolling])
 
