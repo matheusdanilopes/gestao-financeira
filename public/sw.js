@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gestao-financeira-v13'
+const CACHE_NAME = 'gestao-financeira-v14'
 
 const OFFLINE_HTML = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Carregando…</title><script>setTimeout(function(){location.reload()},4000)<\/script></head><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0"><p>Reconectando…</p></body></html>'
 const OFFLINE_RESPONSE = () => new Response(OFFLINE_HTML, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
@@ -90,7 +90,7 @@ const PRECACHE_ROUTES = [
   '/configuracoes',
 ]
 
-const NAVIGATION_TIMEOUT_MS = 10000
+const NAVIGATION_TIMEOUT_MS = 4000
 
 function fetchWithTimeout(request, timeoutMs) {
   return new Promise((resolve, reject) => {
