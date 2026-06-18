@@ -286,7 +286,7 @@ function buildInsightsLayer(m: FinancialInsightsContext): string {
   if (m.mediaCartaoHistorica > 0) {
     const vsH = ((m.totalGastos - m.mediaCartaoHistorica) / m.mediaCartaoHistorica) * 100
     if (vsH > 10) alerts.push(`⚠️ Compras no cartão ${pct(vsH)} acima da média histórica`)
-    else if (vsH < -5) alerts.push(`✅ Compras no cartão ${pct(vsH)} abaixo da média histórica — bom controle`)
+    else if (vsH < -5 && m.diaAtual >= 20) alerts.push(`✅ Compras no cartão ${pct(vsH)} abaixo da média histórica — bom controle`)
   }
 
   if (m.itensVencidos.length > 0) {
