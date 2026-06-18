@@ -51,6 +51,7 @@ Glossário dos campos:
 - "orc[0]": total das despesas fixas planejadas | "orc[1]": já pago | "orc[2]": em aberto
 - "renda": renda mensal configurada | "sobra": renda - totalMes | "poupPct": % da renda poupada
 - "assinsCats": top categorias de assinaturas [[categoria, R$], ...]
+- "invRec": total em aportes de investimentos feitos no mês atual (ausente = nenhum aporte este mês)
 
 Regras:
 - CRÍTICO: insights com categoria "gastos" devem referenciar "gasto" (cartão) e comparar contra "mediaCartao" — NUNCA use "totalMes" para insights de categoria "gastos", pois o valor não baterá com a tela "Compras" que o usuário vai ver ao clicar.
