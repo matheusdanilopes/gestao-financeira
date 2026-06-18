@@ -248,9 +248,15 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
     .slice(0, 5)
     .map(p => ({ item: p.item, valor: p.valor_previsto, vencimento: p.data_vencimento! }))
 
-  // Investments
+  // Investments — only contributions made in the current calendar month are
+  // included in aportesRecentes so that invRec in the compact payload is only
+  // present when the user actually invested this month. Historical aportes
+  // caused the AI to falsely report investment activity.
   const totalAportesHistorico = data.aportes.reduce((s, a) => s + a.valor, 0)
-  const aportesRecentes = [...data.aportes]
+  const aportesDoMes = data.aportes.filter(
+    a => (a.data_aporte ?? '').substring(0, 7) === mesCalendario
+  )
+  const aportesRecentes = [...aportesDoMes]
     .sort((a, b) => (b.data_aporte ?? '').localeCompare(a.data_aporte ?? ''))
     .slice(0, 5)
     .map(a => {

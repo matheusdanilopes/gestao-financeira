@@ -51,6 +51,7 @@ Glossário dos campos:
 - "orc[0]": total das despesas fixas planejadas | "orc[1]": já pago | "orc[2]": em aberto
 - "renda": renda mensal configurada | "sobra": renda - totalMes | "poupPct": % da renda poupada
 - "assinsCats": top categorias de assinaturas [[categoria, R$], ...]
+- "invRec": total em aportes de investimentos feitos no mês atual (ausente = nenhum aporte este mês)
 
 Regras:
 - CRÍTICO: insights com categoria "gastos" devem referenciar "gasto" (cartão) e comparar contra "mediaCartao" — NUNCA use "totalMes" para insights de categoria "gastos", pois o valor não baterá com a tela "Compras" que o usuário vai ver ao clicar.
@@ -72,16 +73,18 @@ async function callGemini(compactPayload: string, confiabilidade: number, prevTi
 
   const body = JSON.stringify({
     contents: [{ role: 'user', parts: [{ text: buildPrompt(compactPayload, confiabilidade, prevTitles) }] }],
+    // 8192 kept intentionally: lower values caused truncation errors on longer responses
     generationConfig: { maxOutputTokens: 8192, temperature: 0.5, responseMimeType: 'application/json' },
   })
 
-  // Retry on transient errors (503, 502) with exponential backoff
+  // 2 retries give Gemini extra chances on 503/502; delays kept short (800ms) so
+  // total server time stays within the 55s client timeout budget
   const MAX_RETRIES = 2
   let lastError: Error | null = null
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     if (attempt > 0) {
-      await new Promise(r => setTimeout(r, attempt * 1500))
+      await new Promise(r => setTimeout(r, attempt * 800))
     }
 
     const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
