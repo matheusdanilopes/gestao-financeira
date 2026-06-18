@@ -73,16 +73,17 @@ async function callGemini(compactPayload: string, confiabilidade: number, prevTi
 
   const body = JSON.stringify({
     contents: [{ role: 'user', parts: [{ text: buildPrompt(compactPayload, confiabilidade, prevTitles) }] }],
-    generationConfig: { maxOutputTokens: 8192, temperature: 0.5, responseMimeType: 'application/json' },
+    // 1024 tokens is ~4× the actual output size for 4 insights — high values slow down the API
+    generationConfig: { maxOutputTokens: 1024, temperature: 0.5, responseMimeType: 'application/json' },
   })
 
-  // Retry on transient errors (503, 502) with exponential backoff
-  const MAX_RETRIES = 2
+  // Retry only once: 2 retries × ~15s each can exceed the 55s client fetch timeout
+  const MAX_RETRIES = 1
   let lastError: Error | null = null
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     if (attempt > 0) {
-      await new Promise(r => setTimeout(r, attempt * 1500))
+      await new Promise(r => setTimeout(r, attempt * 800))
     }
 
     const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {

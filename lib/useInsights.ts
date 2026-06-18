@@ -36,7 +36,7 @@ export interface InsightsState {
 const CACHE_KEY = 'insights:dashboard'
 const DEBOUNCE_MS = 5_000
 const COOLDOWN_MS = 90_000
-const FETCH_TIMEOUT_MS = 30_000
+const FETCH_TIMEOUT_MS = 55_000
 const MAX_CACHE_AGE_MS = 12 * 60 * 60 * 1000  // 12 horas
 const NEW_BADGE_DURATION_MS = 6_000
 
@@ -132,6 +132,11 @@ export function useInsights(): InsightsState {
       if (!res.ok) {
         setStatus(prev => prev === 'loading' ? 'error' : 'fresh')
         setRefreshFailed(true)
+        // Evict stale cache so the next page load retries from scratch instead
+        // of serving indefinitely-old data when fresh=true refresh failed.
+        if (fresh) {
+          try { localStorage.removeItem(CACHE_KEY) } catch { /* noop */ }
+        }
         return
       }
 
@@ -166,6 +171,9 @@ export function useInsights(): InsightsState {
       if (!isMountedRef.current) return
       setStatus(prev => prev === 'loading' ? 'error' : 'fresh')
       if (background) setRefreshFailed(true)
+      if (fresh) {
+        try { localStorage.removeItem(CACHE_KEY) } catch { /* noop */ }
+      }
     } finally {
       clearTimeout(timeoutId)
       isFetchingRef.current = false
