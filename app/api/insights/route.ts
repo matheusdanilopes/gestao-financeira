@@ -44,25 +44,39 @@ Gere EXATAMENTE 4 insights em JSON. Responda APENAS com o array JSON, sem texto 
 ]
 
 Glossário dos campos:
-- "gasto": faturas de cartão de crédito — exatamente o que a tela "Compras" exibe
-- "mediaCartao": média histórica de 6 meses de compras no cartão (compare "gasto" contra este)
+- "mes"/"ant": rótulos do mês atual e anterior
+- "dia": dia atual do mês (1–31)
+- "gasto": faturas de cartão de crédito — exatamente o que a tela "Compras" exibe (SOMENTE cartão)
+- "prev": total do mês anterior = cartão + despesas fixas (mesma base que "totalMes")
+- "varPct": variação % de "totalMes" vs "prev" — ATENÇÃO: se "dia" < 20, o mês atual está incompleto; "varPct" negativo pode ser falso e não indica economia real
 - "totalMes": total do mês = faturas cartão + despesas fixas (visão holística de gastos)
+- "mediaCartao": média histórica de 6 meses de compras no cartão (compare "gasto" contra este)
 - "media6m": média histórica combinada (cartão + fixas) — compare "totalMes" contra este
-- "orc[0]": total das despesas fixas planejadas | "orc[1]": já pago | "orc[2]": em aberto
-- "renda": renda mensal configurada | "sobra": renda - totalMes | "poupPct": % da renda poupada
+- "M"/"J": gastos no cartão por Matheus e Jeniffer INDIVIDUALMENTE — apenas cartão, NÃO incluem despesas fixas; use só para comparação entre pessoas, nunca como total de gastos
+- "cats": top categorias de cartão — cada item: [nome, R$, % de "gasto", variação%?]; % é sobre "gasto" (cartão), NÃO sobre "totalMes"
+- "maiores": maiores compras no cartão — cada item: [descrição, R$, categoria]
+- "parc": compras parceladas no cartão — [quantidade, total]; ausente = nenhum parcelamento ativo
+- "assins": assinaturas ativas — [quantidade, total mensal]; ausente = nenhuma assinatura
 - "assinsCats": top categorias de assinaturas [[categoria, R$], ...]
+- "orc[0]": total das despesas fixas planejadas | "orc[1]": já pago | "orc[2]": em aberto
+- "vencidos": despesas fixas vencidas e não pagas — [[nome, R$, data_vencimento], ...]; SEMPRE urgente, independente do "dia"
+- "venc7d": despesas fixas com vencimento nos próximos 7 dias — [[nome, R$, data_vencimento], ...]
+- "renda": renda mensal configurada | "sobra": renda - totalMes | "poupPct": % da renda poupada
 - "invRec": total em aportes de investimentos feitos no mês atual (ausente = nenhum aporte este mês)
+- "tend": tendência de gastos dos últimos 3 meses — 'estavel' ou ex: 'alta +12.3%' / 'baixa -8.0%'
 
 Regras:
 - CRÍTICO: insights com categoria "gastos" devem referenciar "gasto" (cartão) e comparar contra "mediaCartao" — NUNCA use "totalMes" para insights de categoria "gastos", pois o valor não baterá com a tela "Compras" que o usuário vai ver ao clicar.
+- CRÍTICO: "invRec" ausente significa zero aportes este mês — NUNCA mencione investimentos recentes se "invRec" não estiver nos dados.
 - Para visão holística (sobra, taxa de poupança), use "totalMes" e "renda".
 - Ao falar de "total de despesas do mês" sem contexto específico, use "totalMes".
 - nivel "alerta": risco financeiro real. "positivo": conquista ou economia. "info": dado neutro. "sugestao": oportunidade de melhora.
 - "categoria": classifique — "gastos" (compras/transações), "orcamento" (planejamento/vencimentos), "investimentos" (aportes/carteira), "assinaturas" (serviços recorrentes), "poupanca" (sobra/taxa de poupança).
 - Priorize: desvios de gastos vs histórico, categoria com maior crescimento, aderência ao orçamento, tendência de 3 meses.
-- Se "vencidos" não vazio: priorize alerta de despesas em atraso com os itens específicos.
+- Se "vencidos" não vazio: priorize alerta de despesas em atraso com os itens específicos — isso é SEMPRE urgente, mesmo que "dia" seja pequeno.
 - Se "venc7d" não vazio: destaque vencimentos nos próximos 7 dias.
-- Se "dia" < 15 e % pago do orçamento for baixo (orc[1]/orc[0]): não trate como alerta — é início do mês.
+- Se "dia" < 15 e orc[1]/orc[0] for baixo: não trate como alerta de inadimplência — é início do mês e ainda há tempo para pagar. Esta exceção NÃO se aplica a "vencidos" (itens já vencidos são urgentes em qualquer "dia").
+- Se "varPct" negativo e "dia" < 20: NÃO interprete como economia — o mês está incompleto. Compare "gasto" vs "mediaCartao" para avaliar o cartão.
 - Se "renda" e "sobra" presentes: inclua 1 insight sobre taxa de poupança ("poupPct"), usando categoria "poupanca".
 - Equilíbrio obrigatório: máximo 2 insights com nivel "alerta" — inclua sempre ≥1 "positivo" ou "info", salvo situação financeira criticamente negativa (sobra < 0 e vencidos > 0 simultaneamente).
 - Use valores reais dos dados — nunca invente números.`
