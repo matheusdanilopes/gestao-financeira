@@ -73,12 +73,13 @@ async function callGemini(compactPayload: string, confiabilidade: number, prevTi
 
   const body = JSON.stringify({
     contents: [{ role: 'user', parts: [{ text: buildPrompt(compactPayload, confiabilidade, prevTitles) }] }],
-    // 1024 tokens is ~4× the actual output size for 4 insights — high values slow down the API
-    generationConfig: { maxOutputTokens: 1024, temperature: 0.5, responseMimeType: 'application/json' },
+    // 8192 kept intentionally: lower values caused truncation errors on longer responses
+    generationConfig: { maxOutputTokens: 8192, temperature: 0.5, responseMimeType: 'application/json' },
   })
 
-  // Retry only once: 2 retries × ~15s each can exceed the 55s client fetch timeout
-  const MAX_RETRIES = 1
+  // 2 retries give Gemini extra chances on 503/502; delays kept short (800ms) so
+  // total server time stays within the 55s client timeout budget
+  const MAX_RETRIES = 2
   let lastError: Error | null = null
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
