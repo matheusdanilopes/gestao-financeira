@@ -308,37 +308,29 @@ export default memo(function BottomNav() {
 
     let isMounted = true
 
-    async function carregarSessao() {
-      try {
-        const { data } = await supabase.auth.getSession()
-        if (isMounted) {
-          _cachedSession = data.session
-          _sessionResolved = true
-          setSession(data.session)
-          setIsCheckingSession(false)
-        }
-      } catch {
-        // Falha de rede (ex: offline no wakeup do iOS): resolve com sessão em cache.
-        // BottomNav renderiza; o client-side lida com sessão expirada se necessário.
-        if (isMounted) {
-          _sessionResolved = true
-          setIsCheckingSession(false)
-        }
-      }
-    }
-
-    carregarSessao()
-
+    // onAuthStateChange dispara com INITIAL_SESSION imediatamente ao ler a sessão
+    // do storage — elimina o round-trip separado de getSession().
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      if (!isMounted) return
       _cachedSession = currentSession
       _sessionResolved = true
       setSession(currentSession)
       setIsCheckingSession(false)
     })
 
+    // Fallback: se não houver sessão (usuário deslogado), garante que o nav
+    // não fique invisível para sempre aguardando um evento que não virá.
+    const timeout = setTimeout(() => {
+      if (isMounted && !_sessionResolved) {
+        _sessionResolved = true
+        setIsCheckingSession(false)
+      }
+    }, 800)
+
     return () => {
       isMounted = false
       authListener.subscription.unsubscribe()
+      clearTimeout(timeout)
     }
   }, [])
 
