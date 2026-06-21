@@ -72,7 +72,7 @@ import { useGlobalSync } from '@/lib/useGlobalSync'
 import { usePrefetchPages } from '@/lib/usePrefetchPages'
 import { formatBRL as fmt } from '@/lib/logger'
 
-const NUBANK_ITEMS = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto'])
+const NUBANK_ITEMS = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto', 'NuBank Conjunto'])
 
 interface CartaoItem {
   nome: string
@@ -90,9 +90,11 @@ interface FaturaState {
   jenifferPrevisto: number
   jenifferProjecaoParcelas: number
   conjuntoAtual: number
+  conjuntoPrevisto: number
   conjuntoProjecaoParcelas: number
   sobraMatheus: number
   sobraJeniffer: number
+  sobraConjunto: number
   cartao1Items: CartaoItem[]
   cartao2Items: CartaoItem[]
   cartao1AtualMatheus: number
@@ -184,6 +186,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const jenifferPrevisto =
     (planejamento?.find(p => p.item === 'NuBank Jeniffer')?.valor_previsto || 0) +
     (planejamento?.find(p => p.item === 'NuBank Jeniffer Conjunto')?.valor_previsto || 0)
+  const conjuntoPrevisto = planejamento?.find(p => p.item === 'NuBank Conjunto')?.valor_previsto || 0
 
   const toCartaoItem = (p: { item: string; responsavel: string | null; valor_previsto: number | null; valor_real: number | null }, prefixo: string): CartaoItem => ({
     nome: p.item.replace(prefixo, '').trim(),
@@ -218,7 +221,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     })
     .reduce((acc, p) => acc + (p.valor_previsto || 0), 0)
 
-  const nuBankPrevisto = matheusPrevisto + jenifferPrevisto
+  const nuBankPrevisto = matheusPrevisto + jenifferPrevisto + conjuntoPrevisto
   const faturaEhPrevisto = totalRealizado === 0
 
   let matheusProjecaoParcelas = 0
@@ -283,6 +286,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const nubankMatheusRow = planejamento?.find(p => p.item === 'NuBank Matheus')
   const nubankJenifferRow = planejamento?.find(p => p.item === 'NuBank Jeniffer')
   const nubankJenifferConjRow = planejamento?.find(p => p.item === 'NuBank Jeniffer Conjunto')
+  const nubankConjuntoRow = planejamento?.find(p => p.item === 'NuBank Conjunto')
 
   const nubankMatheusEfetivo = nubankMatheusRow?.pago
     ? (nubankMatheusRow.valor_real ?? nubankMatheusRow.valor_previsto)
@@ -309,7 +313,9 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const cartao2TemDados = cartao2TotalAtual > 0 || cartao2PaidRows.length > 0
   const temLancamentosEfetivos = nubankTemDados || cartao1TemDados || cartao2TemDados
 
-  const conjuntoEfetivo = !nubankMatheusRow?.pago && !jenifferNubankPago ? conjuntoAtual : 0
+  const conjuntoEfetivo = nubankConjuntoRow?.pago
+    ? (nubankConjuntoRow.valor_real ?? conjuntoPrevisto)
+    : conjuntoAtual > 0 ? conjuntoAtual : conjuntoPrevisto
   const faturaEfetiva = nubankMatheusEfetivo + nubankJenifferEfetivo + conjuntoEfetivo + cartao1Efetivo + cartao2Efetivo
   const saldoPrevisto = receitaTotal - totalPlanejado
 
@@ -365,9 +371,10 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     fatura: {
       totalRealizado, matheusAtual, matheusPrevisto, matheusProjecaoParcelas,
       jenifferAtual, jenifferPrevisto, jenifferProjecaoParcelas,
-      conjuntoAtual, conjuntoProjecaoParcelas,
+      conjuntoAtual, conjuntoPrevisto, conjuntoProjecaoParcelas,
       sobraMatheus: matheusPrevisto - matheusAtual - matheusProjecaoParcelas - assinNaoPagaMatheus,
       sobraJeniffer: jenifferPrevisto - jenifferAtual - jenifferProjecaoParcelas - assinNaoPagaJeniffer,
+      sobraConjunto: conjuntoPrevisto - conjuntoAtual - conjuntoProjecaoParcelas,
       cartao1Items: cartao1PlanejamentoItems,
       cartao2Items: cartao2PlanejamentoItems,
       cartao1AtualMatheus: cartao1TotalMatheus, cartao1AtualJeniffer: cartao1TotalJeniffer,
@@ -393,8 +400,8 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
 const FATURA_INICIAL: FaturaState = {
   totalRealizado: 0, matheusAtual: 0, matheusPrevisto: 0, matheusProjecaoParcelas: 0,
   jenifferAtual: 0, jenifferPrevisto: 0, jenifferProjecaoParcelas: 0,
-  conjuntoAtual: 0, conjuntoProjecaoParcelas: 0,
-  sobraMatheus: 0, sobraJeniffer: 0, cartao1Items: [], cartao2Items: [],
+  conjuntoAtual: 0, conjuntoPrevisto: 0, conjuntoProjecaoParcelas: 0,
+  sobraMatheus: 0, sobraJeniffer: 0, sobraConjunto: 0, cartao1Items: [], cartao2Items: [],
   cartao1AtualMatheus: 0, cartao1AtualJeniffer: 0, cartao2AtualMatheus: 0, cartao2AtualJeniffer: 0,
   cartao1Previsto: 0, cartao2Previsto: 0, cartao1Nome: 'Cartão 1', cartao2Nome: 'Cartão 2',
 }
@@ -912,22 +919,41 @@ export default function Dashboard() {
                 </div>
 
                 {/* Conjunto NuBank */}
-                {fatura.conjuntoAtual > 0 && (
+                {(fatura.conjuntoAtual > 0 || fatura.conjuntoPrevisto > 0) && (
                   <div className="mt-3 bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
                     <div className="h-[3px] bg-purple-300 opacity-70" />
                     <div className="p-3.5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" />
-                          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Conjunto</p>
-                        </div>
-                        <p className="text-lg font-bold text-gray-900 num">{fmt(fatura.conjuntoAtual)}</p>
+                      <div className="flex items-center gap-1.5 mb-2.5">
+                        <div className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" />
+                        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Conjunto</p>
+                      </div>
+                      <div className="mb-2">
+                        <p className="text-lg font-bold text-gray-900 num truncate">{fmt(fatura.conjuntoAtual)}</p>
+                        {fatura.conjuntoPrevisto > 0 && (
+                          <p className="text-[10px] text-gray-400 num mt-0.5">de {fmt(fatura.conjuntoPrevisto)}</p>
+                        )}
                       </div>
                       {fatura.conjuntoProjecaoParcelas > 0 && (
-                        <div className="flex justify-between items-center gap-1 mt-1.5 text-[10px]">
+                        <div className="flex justify-between items-center gap-1 mb-1 text-[10px]">
                           <span className="text-gray-400 whitespace-nowrap shrink-0">Parc. prev.</span>
                           <span className="font-medium text-orange-600 num whitespace-nowrap">− {fmt(fatura.conjuntoProjecaoParcelas)}</span>
                         </div>
+                      )}
+                      {fatura.conjuntoPrevisto > 0 && (
+                        <>
+                          <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden mb-0.5">
+                            <div key={fatura.conjuntoAtual} className="h-full bg-purple-400 rounded-full bar-enter" style={{ '--bar-w': `${fatura.conjuntoPrevisto > 0 ? Math.min(100, (fatura.conjuntoAtual / fatura.conjuntoPrevisto) * 100) : 0}%` } as React.CSSProperties} />
+                          </div>
+                          <p className="text-right text-[10px] text-gray-400 num mb-2">{fatura.conjuntoPrevisto > 0 ? Math.min(100, (fatura.conjuntoAtual / fatura.conjuntoPrevisto) * 100).toFixed(0) : 0}%</p>
+                          <div className={`rounded-lg px-2.5 py-1.5 ${
+                            fatura.sobraConjunto < 0 ? 'bg-red-50 text-red-600' : fatura.conjuntoPrevisto > 0 && (fatura.sobraConjunto / fatura.conjuntoPrevisto) * 100 <= 10 ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-700'
+                          }`}>
+                            <div className="flex items-center gap-1 text-[10px] font-medium">
+                              {fatura.sobraConjunto < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso</> : fatura.conjuntoPrevisto > 0 && (fatura.sobraConjunto / fatura.conjuntoPrevisto) * 100 <= 10 ? <><AlertTriangle className="w-3 h-3" /> Atenção</> : '✓ Restante'}
+                            </div>
+                            <p className="text-sm font-bold num mt-0.5">{fmt(Math.abs(fatura.sobraConjunto))}</p>
+                          </div>
+                        </>
                       )}
                     </div>
                   </div>

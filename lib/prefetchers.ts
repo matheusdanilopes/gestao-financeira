@@ -5,7 +5,7 @@
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths } from 'date-fns'
 
-const NUBANK_ITEMS = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto'])
+const NUBANK_ITEMS = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto', 'NuBank Conjunto'])
 
 /** Mirrors calcularSaldo() in app/financas/page.tsx — cacheKey: investimentos-saldo:YYYY-MM */
 export async function prefetchSaldo(mes: Date) {
@@ -43,7 +43,8 @@ export async function prefetchSaldo(mes: Date) {
   const jenifferPrevisto =
     (plan.find(p => p.item === 'NuBank Jeniffer')?.valor_previsto || 0) +
     (plan.find(p => p.item === 'NuBank Jeniffer Conjunto')?.valor_previsto || 0)
-  const nuBankPrevisto   = matheusPrevisto + jenifferPrevisto
+  const conjuntoPrevisto = plan.find(p => p.item === 'NuBank Conjunto')?.valor_previsto || 0
+  const nuBankPrevisto   = matheusPrevisto + jenifferPrevisto + conjuntoPrevisto
 
   const cartao1PrevTotal = plan.filter(p => p.item.startsWith('[CARTAO1]')).reduce((a, p) => a + (p.valor_previsto || 0), 0)
   const cartao2PrevTotal = plan.filter(p => p.item.startsWith('[CARTAO2]')).reduce((a, p) => a + (p.valor_previsto || 0), 0)
@@ -51,6 +52,7 @@ export async function prefetchSaldo(mes: Date) {
   const nubankMatheusRow      = plan.find(p => p.item === 'NuBank Matheus')
   const nubankJenifferRow     = plan.find(p => p.item === 'NuBank Jeniffer')
   const nubankJenifferConjRow = plan.find(p => p.item === 'NuBank Jeniffer Conjunto')
+  const nubankConjuntoRow     = plan.find(p => p.item === 'NuBank Conjunto')
 
   type TxRow = { responsavel: string; valor: number }
   const matheusAtual = (txNubank as TxRow[]).filter(t => t.responsavel === 'Matheus').reduce((a, t) => a + t.valor, 0)
@@ -79,7 +81,9 @@ export async function prefetchSaldo(mes: Date) {
     ? cartao2PaidRows.reduce((s, p) => s + (p.valor_real ?? p.valor_previsto), 0)
     : totalC2Atual > 0 ? totalC2Atual : cartao2PrevTotal
 
-  const conjuntoEfetivo = !nubankMatheusRow?.pago && !jenifferNubankPago ? conjuntoAtual : 0
+  const conjuntoEfetivo = nubankConjuntoRow?.pago
+    ? (nubankConjuntoRow.valor_real ?? conjuntoPrevisto)
+    : conjuntoAtual > 0 ? conjuntoAtual : conjuntoPrevisto
   const faturaEfetiva = nubankMatheusEfetivo + nubankJenifferEfetivo + conjuntoEfetivo + cartao1Efetivo + cartao2Efetivo
   const totalGastos   = contasFixas + faturaEfetiva
 
