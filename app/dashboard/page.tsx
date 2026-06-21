@@ -72,7 +72,11 @@ import { useGlobalSync } from '@/lib/useGlobalSync'
 import { usePrefetchPages } from '@/lib/usePrefetchPages'
 import { formatBRL as fmt } from '@/lib/logger'
 
-const NUBANK_ITEMS = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto', 'NuBank Conjunto'])
+function isNuBankItem(item: string): boolean {
+  const lower = item.toLowerCase()
+  return lower === 'nubank matheus' || lower === 'nubank jeniffer' ||
+         lower === 'nubank jeniffer conjunto' || lower === 'nubank conjunto'
+}
 
 interface CartaoItem {
   nome: string
@@ -183,11 +187,11 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const jenifferAtual = transacoesFatura?.filter(t => t.responsavel === 'Jeniffer').reduce((acc, t) => acc + t.valor, 0) || 0
   const conjuntoAtual = transacoesFatura?.filter(t => t.responsavel === 'Conjunto').reduce((acc, t) => acc + t.valor, 0) || 0
 
-  const matheusPrevisto = planejamento?.find(p => p.item === 'NuBank Matheus')?.valor_previsto || 0
+  const matheusPrevisto = planejamento?.find(p => p.item.toLowerCase() === 'nubank matheus')?.valor_previsto || 0
   const jenifferPrevisto =
-    (planejamento?.find(p => p.item === 'NuBank Jeniffer')?.valor_previsto || 0) +
-    (planejamento?.find(p => p.item === 'NuBank Jeniffer Conjunto')?.valor_previsto || 0)
-  const conjuntoPrevisto = planejamento?.find(p => p.item === 'NuBank Conjunto')?.valor_previsto || 0
+    (planejamento?.find(p => p.item.toLowerCase() === 'nubank jeniffer')?.valor_previsto || 0) +
+    (planejamento?.find(p => p.item.toLowerCase() === 'nubank jeniffer conjunto')?.valor_previsto || 0)
+  const conjuntoPrevisto = planejamento?.find(p => p.item.toLowerCase() === 'nubank conjunto')?.valor_previsto || 0
 
   const toCartaoItem = (p: { item: string; responsavel: string | null; valor_previsto: number | null; valor_real: number | null }, prefixo: string): CartaoItem => ({
     nome: p.item.replace(prefixo, '').trim(),
@@ -284,10 +288,10 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const cartao1PrevTotal = cartao1PlanejamentoItems.reduce((s, i) => s + i.previsto, 0)
   const cartao2PrevTotal = cartao2PlanejamentoItems.reduce((s, i) => s + i.previsto, 0)
 
-  const nubankMatheusRow = planejamento?.find(p => p.item === 'NuBank Matheus')
-  const nubankJenifferRow = planejamento?.find(p => p.item === 'NuBank Jeniffer')
-  const nubankJenifferConjRow = planejamento?.find(p => p.item === 'NuBank Jeniffer Conjunto')
-  const nubankConjuntoRow = planejamento?.find(p => p.item === 'NuBank Conjunto')
+  const nubankMatheusRow = planejamento?.find(p => p.item.toLowerCase() === 'nubank matheus')
+  const nubankJenifferRow = planejamento?.find(p => p.item.toLowerCase() === 'nubank jeniffer')
+  const nubankJenifferConjRow = planejamento?.find(p => p.item.toLowerCase() === 'nubank jeniffer conjunto')
+  const nubankConjuntoRow = planejamento?.find(p => p.item.toLowerCase() === 'nubank conjunto')
 
   const nubankMatheusEfetivo = nubankMatheusRow?.pago
     ? (nubankMatheusRow.valor_real ?? nubankMatheusRow.valor_previsto)
@@ -328,7 +332,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const contasFixasAtual = despesasItems
     .filter(p => {
       const item = typeof p.item === 'string' ? p.item : ''
-      return !NUBANK_ITEMS.has(item) && !item.startsWith('[CARTAO1]') && !item.startsWith('[CARTAO2]')
+      return !isNuBankItem(item) && !item.startsWith('[CARTAO1]') && !item.startsWith('[CARTAO2]')
     })
     .reduce((acc, p) => acc + (p.pago ? (p.valor_real ?? p.valor_previsto) : p.valor_previsto), 0)
 

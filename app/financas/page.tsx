@@ -145,7 +145,11 @@ import { useDataSync } from '@/lib/useDataSync'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths } from 'date-fns'
 
-const NUBANK_ITEMS = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto'])
+function isNuBankItem(item: string): boolean {
+  const lower = item.toLowerCase()
+  return lower === 'nubank matheus' || lower === 'nubank jeniffer' ||
+         lower === 'nubank jeniffer conjunto' || lower === 'nubank conjunto'
+}
 
 type Tab = 'despesas' | 'receitas' | 'investimentos'
 
@@ -176,17 +180,18 @@ async function calcularSaldo(mes: Date): Promise<SaldoData> {
   for (const p of (planejamento || [])) {
     const item = typeof p.item === 'string' ? p.item : ''
     if (item.startsWith('[RECEITA]') || item === 'Receita Total' ||
-        NUBANK_ITEMS.has(item) || item.startsWith('[CARTAO1]') || item.startsWith('[CARTAO2]')) continue
+        isNuBankItem(item) || item.startsWith('[CARTAO1]') || item.startsWith('[CARTAO2]')) continue
     const prev = p.valor_previsto || 0
     contasFixas += p.pago ? (p.valor_real ?? prev) : prev
     contasFixasPrevisto += prev
   }
 
-  const matheusPrevisto = planejamento?.find(p => p.item === 'NuBank Matheus')?.valor_previsto || 0
+  const matheusPrevisto = planejamento?.find(p => p.item.toLowerCase() === 'nubank matheus')?.valor_previsto || 0
   const jenifferPrevisto =
-    (planejamento?.find(p => p.item === 'NuBank Jeniffer')?.valor_previsto || 0) +
-    (planejamento?.find(p => p.item === 'NuBank Jeniffer Conjunto')?.valor_previsto || 0)
-  const nuBankPrevisto = matheusPrevisto + jenifferPrevisto
+    (planejamento?.find(p => p.item.toLowerCase() === 'nubank jeniffer')?.valor_previsto || 0) +
+    (planejamento?.find(p => p.item.toLowerCase() === 'nubank jeniffer conjunto')?.valor_previsto || 0)
+  const conjuntoPrevisto = planejamento?.find(p => p.item.toLowerCase() === 'nubank conjunto')?.valor_previsto || 0
+  const nuBankPrevisto = matheusPrevisto + jenifferPrevisto + conjuntoPrevisto
 
   const cartao1PrevTotal = (planejamento || [])
     .filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO1]'))
@@ -195,12 +200,14 @@ async function calcularSaldo(mes: Date): Promise<SaldoData> {
     .filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]'))
     .reduce((acc, p) => acc + (p.valor_previsto || 0), 0)
 
-  const nubankMatheusRow = planejamento?.find(p => p.item === 'NuBank Matheus')
-  const nubankJenifferRow = planejamento?.find(p => p.item === 'NuBank Jeniffer')
-  const nubankJenifferConjRow = planejamento?.find(p => p.item === 'NuBank Jeniffer Conjunto')
+  const nubankMatheusRow = planejamento?.find(p => p.item.toLowerCase() === 'nubank matheus')
+  const nubankJenifferRow = planejamento?.find(p => p.item.toLowerCase() === 'nubank jeniffer')
+  const nubankJenifferConjRow = planejamento?.find(p => p.item.toLowerCase() === 'nubank jeniffer conjunto')
+  const nubankConjuntoRow = planejamento?.find(p => p.item.toLowerCase() === 'nubank conjunto')
 
   const matheusAtual = txNubank.filter(t => t.responsavel === 'Matheus').reduce((acc, t) => acc + t.valor, 0)
   const jenifferAtual = txNubank.filter(t => t.responsavel === 'Jeniffer').reduce((acc, t) => acc + t.valor, 0)
+  const conjuntoAtual = txNubank.filter(t => t.responsavel === 'Conjunto').reduce((acc, t) => acc + t.valor, 0)
   const totalC1Atual = txC1.reduce((acc, t) => acc + t.valor, 0)
   const totalC2Atual = txC2.reduce((acc, t) => acc + t.valor, 0)
 
@@ -224,7 +231,10 @@ async function calcularSaldo(mes: Date): Promise<SaldoData> {
     ? cartao2PaidRows.reduce((s, p) => s + (p.valor_real ?? p.valor_previsto), 0)
     : totalC2Atual > 0 ? totalC2Atual : cartao2PrevTotal
 
-  const faturaEfetiva = nubankMatheusEfetivo + nubankJenifferEfetivo + cartao1Efetivo + cartao2Efetivo
+  const conjuntoEfetivo = nubankConjuntoRow?.pago
+    ? (nubankConjuntoRow.valor_real ?? conjuntoPrevisto)
+    : conjuntoAtual > 0 ? conjuntoAtual : conjuntoPrevisto
+  const faturaEfetiva = nubankMatheusEfetivo + nubankJenifferEfetivo + conjuntoEfetivo + cartao1Efetivo + cartao2Efetivo
   const totalGastos = contasFixas + faturaEfetiva
 
   return {

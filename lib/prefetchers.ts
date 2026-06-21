@@ -5,7 +5,11 @@
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths } from 'date-fns'
 
-const NUBANK_ITEMS = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto', 'NuBank Conjunto'])
+function isNuBankItem(item: string): boolean {
+  const lower = item.toLowerCase()
+  return lower === 'nubank matheus' || lower === 'nubank jeniffer' ||
+         lower === 'nubank jeniffer conjunto' || lower === 'nubank conjunto'
+}
 
 /** Mirrors calcularSaldo() in app/financas/page.tsx — cacheKey: investimentos-saldo:YYYY-MM */
 export async function prefetchSaldo(mes: Date) {
@@ -33,26 +37,26 @@ export async function prefetchSaldo(mes: Date) {
   for (const p of plan) {
     const { item } = p
     if (item.startsWith('[RECEITA]') || item === 'Receita Total' ||
-        NUBANK_ITEMS.has(item) || item.startsWith('[CARTAO1]') || item.startsWith('[CARTAO2]')) continue
+        isNuBankItem(item) || item.startsWith('[CARTAO1]') || item.startsWith('[CARTAO2]')) continue
     const prev = p.valor_previsto || 0
     contasFixas += p.pago ? (p.valor_real ?? prev) : prev
     contasFixasPrevisto += prev
   }
 
-  const matheusPrevisto  = plan.find(p => p.item === 'NuBank Matheus')?.valor_previsto || 0
+  const matheusPrevisto  = plan.find(p => p.item.toLowerCase() === 'nubank matheus')?.valor_previsto || 0
   const jenifferPrevisto =
-    (plan.find(p => p.item === 'NuBank Jeniffer')?.valor_previsto || 0) +
-    (plan.find(p => p.item === 'NuBank Jeniffer Conjunto')?.valor_previsto || 0)
-  const conjuntoPrevisto = plan.find(p => p.item === 'NuBank Conjunto')?.valor_previsto || 0
+    (plan.find(p => p.item.toLowerCase() === 'nubank jeniffer')?.valor_previsto || 0) +
+    (plan.find(p => p.item.toLowerCase() === 'nubank jeniffer conjunto')?.valor_previsto || 0)
+  const conjuntoPrevisto = plan.find(p => p.item.toLowerCase() === 'nubank conjunto')?.valor_previsto || 0
   const nuBankPrevisto   = matheusPrevisto + jenifferPrevisto + conjuntoPrevisto
 
   const cartao1PrevTotal = plan.filter(p => p.item.startsWith('[CARTAO1]')).reduce((a, p) => a + (p.valor_previsto || 0), 0)
   const cartao2PrevTotal = plan.filter(p => p.item.startsWith('[CARTAO2]')).reduce((a, p) => a + (p.valor_previsto || 0), 0)
 
-  const nubankMatheusRow      = plan.find(p => p.item === 'NuBank Matheus')
-  const nubankJenifferRow     = plan.find(p => p.item === 'NuBank Jeniffer')
-  const nubankJenifferConjRow = plan.find(p => p.item === 'NuBank Jeniffer Conjunto')
-  const nubankConjuntoRow     = plan.find(p => p.item === 'NuBank Conjunto')
+  const nubankMatheusRow      = plan.find(p => p.item.toLowerCase() === 'nubank matheus')
+  const nubankJenifferRow     = plan.find(p => p.item.toLowerCase() === 'nubank jeniffer')
+  const nubankJenifferConjRow = plan.find(p => p.item.toLowerCase() === 'nubank jeniffer conjunto')
+  const nubankConjuntoRow     = plan.find(p => p.item.toLowerCase() === 'nubank conjunto')
 
   type TxRow = { responsavel: string; valor: number }
   const matheusAtual = (txNubank as TxRow[]).filter(t => t.responsavel === 'Matheus').reduce((a, t) => a + t.valor, 0)
