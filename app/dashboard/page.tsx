@@ -92,6 +92,7 @@ interface FaturaState {
   conjuntoAtual: number
   conjuntoPrevisto: number
   conjuntoProjecaoParcelas: number
+  conjuntoItemExiste: boolean
   sobraMatheus: number
   sobraJeniffer: number
   sobraConjunto: number
@@ -372,6 +373,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
       totalRealizado, matheusAtual, matheusPrevisto, matheusProjecaoParcelas,
       jenifferAtual, jenifferPrevisto, jenifferProjecaoParcelas,
       conjuntoAtual, conjuntoPrevisto, conjuntoProjecaoParcelas,
+      conjuntoItemExiste: !!nubankConjuntoRow,
       sobraMatheus: matheusPrevisto - matheusAtual - matheusProjecaoParcelas - assinNaoPagaMatheus,
       sobraJeniffer: jenifferPrevisto - jenifferAtual - jenifferProjecaoParcelas - assinNaoPagaJeniffer,
       sobraConjunto: conjuntoPrevisto - conjuntoAtual - conjuntoProjecaoParcelas,
@@ -401,6 +403,7 @@ const FATURA_INICIAL: FaturaState = {
   totalRealizado: 0, matheusAtual: 0, matheusPrevisto: 0, matheusProjecaoParcelas: 0,
   jenifferAtual: 0, jenifferPrevisto: 0, jenifferProjecaoParcelas: 0,
   conjuntoAtual: 0, conjuntoPrevisto: 0, conjuntoProjecaoParcelas: 0,
+  conjuntoItemExiste: false,
   sobraMatheus: 0, sobraJeniffer: 0, sobraConjunto: 0, cartao1Items: [], cartao2Items: [],
   cartao1AtualMatheus: 0, cartao1AtualJeniffer: 0, cartao2AtualMatheus: 0, cartao2AtualJeniffer: 0,
   cartao1Previsto: 0, cartao2Previsto: 0, cartao1Nome: 'Cartão 1', cartao2Nome: 'Cartão 2',
@@ -919,7 +922,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Conjunto NuBank */}
-                {(fatura.conjuntoAtual > 0 || fatura.conjuntoPrevisto > 0) && (
+                {(fatura.conjuntoAtual > 0 || fatura.conjuntoPrevisto > 0 || fatura.conjuntoItemExiste) && (
                   <div className="mt-3 bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
                     <div className="h-[3px] bg-purple-300 opacity-70" />
                     <div className="p-3.5">
