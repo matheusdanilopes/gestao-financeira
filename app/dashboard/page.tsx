@@ -89,6 +89,8 @@ interface FaturaState {
   jenifferAtual: number
   jenifferPrevisto: number
   jenifferProjecaoParcelas: number
+  conjuntoAtual: number
+  conjuntoProjecaoParcelas: number
   sobraMatheus: number
   sobraJeniffer: number
   cartao1Items: CartaoItem[]
@@ -176,6 +178,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const totalRealizado = transacoesFatura?.reduce((acc, t) => acc + t.valor, 0) || 0
   const matheusAtual = transacoesFatura?.filter(t => t.responsavel === 'Matheus').reduce((acc, t) => acc + t.valor, 0) || 0
   const jenifferAtual = transacoesFatura?.filter(t => t.responsavel === 'Jeniffer').reduce((acc, t) => acc + t.valor, 0) || 0
+  const conjuntoAtual = transacoesFatura?.filter(t => t.responsavel === 'Conjunto').reduce((acc, t) => acc + t.valor, 0) || 0
 
   const matheusPrevisto = planejamento?.find(p => p.item === 'NuBank Matheus')?.valor_previsto || 0
   const jenifferPrevisto =
@@ -220,6 +223,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
 
   let matheusProjecaoParcelas = 0
   let jenifferProjecaoParcelas = 0
+  let conjuntoProjecaoParcelas = 0
   if (faturaEhPrevisto) {
     const mesProjecao = startOfMonth(addMonths(mes, 1))
 
@@ -265,6 +269,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
         if (parcelaNoMes >= 1 && parcelaNoMes <= total) {
           if (responsavel === 'Matheus') matheusProjecaoParcelas += valor
           if (responsavel === 'Jeniffer') jenifferProjecaoParcelas += valor
+          if (responsavel === 'Conjunto') conjuntoProjecaoParcelas += valor
         }
       }
     }
@@ -304,7 +309,8 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const cartao2TemDados = cartao2TotalAtual > 0 || cartao2PaidRows.length > 0
   const temLancamentosEfetivos = nubankTemDados || cartao1TemDados || cartao2TemDados
 
-  const faturaEfetiva = nubankMatheusEfetivo + nubankJenifferEfetivo + cartao1Efetivo + cartao2Efetivo
+  const conjuntoEfetivo = !nubankMatheusRow?.pago && !jenifferNubankPago ? conjuntoAtual : 0
+  const faturaEfetiva = nubankMatheusEfetivo + nubankJenifferEfetivo + conjuntoEfetivo + cartao1Efetivo + cartao2Efetivo
   const saldoPrevisto = receitaTotal - totalPlanejado
 
   const despesasItems = (planejamento || []).filter(p => {
@@ -359,6 +365,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     fatura: {
       totalRealizado, matheusAtual, matheusPrevisto, matheusProjecaoParcelas,
       jenifferAtual, jenifferPrevisto, jenifferProjecaoParcelas,
+      conjuntoAtual, conjuntoProjecaoParcelas,
       sobraMatheus: matheusPrevisto - matheusAtual - matheusProjecaoParcelas - assinNaoPagaMatheus,
       sobraJeniffer: jenifferPrevisto - jenifferAtual - jenifferProjecaoParcelas - assinNaoPagaJeniffer,
       cartao1Items: cartao1PlanejamentoItems,
@@ -386,6 +393,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
 const FATURA_INICIAL: FaturaState = {
   totalRealizado: 0, matheusAtual: 0, matheusPrevisto: 0, matheusProjecaoParcelas: 0,
   jenifferAtual: 0, jenifferPrevisto: 0, jenifferProjecaoParcelas: 0,
+  conjuntoAtual: 0, conjuntoProjecaoParcelas: 0,
   sobraMatheus: 0, sobraJeniffer: 0, cartao1Items: [], cartao2Items: [],
   cartao1AtualMatheus: 0, cartao1AtualJeniffer: 0, cartao2AtualMatheus: 0, cartao2AtualJeniffer: 0,
   cartao1Previsto: 0, cartao2Previsto: 0, cartao1Nome: 'Cartão 1', cartao2Nome: 'Cartão 2',
@@ -902,6 +910,28 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
+
+                {/* Conjunto NuBank */}
+                {fatura.conjuntoAtual > 0 && (
+                  <div className="mt-3 bg-purple-50 border border-purple-100 rounded-2xl overflow-hidden">
+                    <div className="h-[3px] bg-purple-300 opacity-70" />
+                    <div className="p-3.5">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" />
+                          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Conjunto</p>
+                        </div>
+                        <p className="text-lg font-bold text-gray-900 num">{fmt(fatura.conjuntoAtual)}</p>
+                      </div>
+                      {fatura.conjuntoProjecaoParcelas > 0 && (
+                        <div className="flex justify-between items-center gap-1 mt-1 text-[10px]">
+                          <span className="text-gray-400 whitespace-nowrap shrink-0">Parc. prev.</span>
+                          <span className="font-medium text-orange-600 num whitespace-nowrap">− {fmt(fatura.conjuntoProjecaoParcelas)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Outros cartões */}
                 {cartaoExtrasData && (() => {

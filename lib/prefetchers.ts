@@ -55,6 +55,7 @@ export async function prefetchSaldo(mes: Date) {
   type TxRow = { responsavel: string; valor: number }
   const matheusAtual = (txNubank as TxRow[]).filter(t => t.responsavel === 'Matheus').reduce((a, t) => a + t.valor, 0)
   const jenifferAtual = (txNubank as TxRow[]).filter(t => t.responsavel === 'Jeniffer').reduce((a, t) => a + t.valor, 0)
+  const conjuntoAtual = (txNubank as TxRow[]).filter(t => t.responsavel === 'Conjunto').reduce((a, t) => a + t.valor, 0)
   const totalC1Atual  = (txC1 as TxRow[]).reduce((a, t) => a + t.valor, 0)
   const totalC2Atual  = (txC2 as TxRow[]).reduce((a, t) => a + t.valor, 0)
 
@@ -78,7 +79,8 @@ export async function prefetchSaldo(mes: Date) {
     ? cartao2PaidRows.reduce((s, p) => s + (p.valor_real ?? p.valor_previsto), 0)
     : totalC2Atual > 0 ? totalC2Atual : cartao2PrevTotal
 
-  const faturaEfetiva = nubankMatheusEfetivo + nubankJenifferEfetivo + cartao1Efetivo + cartao2Efetivo
+  const conjuntoEfetivo = !nubankMatheusRow?.pago && !jenifferNubankPago ? conjuntoAtual : 0
+  const faturaEfetiva = nubankMatheusEfetivo + nubankJenifferEfetivo + conjuntoEfetivo + cartao1Efetivo + cartao2Efetivo
   const totalGastos   = contasFixas + faturaEfetiva
 
   return {
