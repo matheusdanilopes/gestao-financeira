@@ -367,6 +367,7 @@ export default function ComprasPage() {
   const total = useMemo(() => semEstorno.reduce((acc, c) => acc + c.valor, 0), [semEstorno])
   const totalMatheus = useMemo(() => semEstorno.filter(c => c.responsavel === 'Matheus').reduce((acc, c) => acc + c.valor, 0), [semEstorno])
   const totalJeniffer = useMemo(() => semEstorno.filter(c => c.responsavel === 'Jeniffer').reduce((acc, c) => acc + c.valor, 0), [semEstorno])
+  const totalConjunto = useMemo(() => semEstorno.filter(c => c.responsavel === 'Conjunto').reduce((acc, c) => acc + c.valor, 0), [semEstorno])
 
   // Hash da primeira compra importada na lista visível (para scroll e ref)
   const firstImportedHash = useMemo(() => {
@@ -532,7 +533,7 @@ export default function ComprasPage() {
       </div>
 
       {/* Resumo / Filtro de responsável — compacto */}
-      <div className="grid grid-cols-3 gap-1.5 mb-3">
+      <div className="flex flex-col gap-1.5 mb-3">
         <button
           onClick={() => setFiltroResponsavel('')}
           className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
@@ -545,30 +546,44 @@ export default function ComprasPage() {
           <p className={`text-xs font-bold num leading-tight ${filtroResponsavel === '' ? 'text-primary-700' : 'text-gray-700'}`}>{formatBRL(total)}</p>
           <p className={`text-[9px] mt-0.5 ${filtroResponsavel === '' ? 'text-primary-400' : 'text-gray-400'}`}>{comprasSemFiltroResponsavel.length} itens</p>
         </button>
-        <button
-          onClick={() => setFiltroResponsavel(filtroResponsavel === 'Matheus' ? '' : 'Matheus')}
-          className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
-            filtroResponsavel === 'Matheus'
-              ? 'bg-blue-50 border-blue-200'
-              : 'bg-white border-gray-100'
-          }`}
-        >
-          <p className={`text-[11px] font-medium mb-0.5 ${filtroResponsavel === 'Matheus' ? 'text-blue-500' : 'text-gray-400'}`}>Matheus</p>
-          <p className={`text-xs font-bold num leading-tight ${filtroResponsavel === 'Matheus' ? 'text-blue-700' : 'text-gray-700'}`}>{formatBRL(totalMatheus)}</p>
-          <p className={`text-[9px] mt-0.5 ${filtroResponsavel === 'Matheus' ? 'text-blue-400' : 'text-gray-400'}`}>{comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Matheus').length}x</p>
-        </button>
-        <button
-          onClick={() => setFiltroResponsavel(filtroResponsavel === 'Jeniffer' ? '' : 'Jeniffer')}
-          className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
-            filtroResponsavel === 'Jeniffer'
-              ? 'bg-pink-50 border-pink-200'
-              : 'bg-white border-gray-100'
-          }`}
-        >
-          <p className={`text-[11px] font-medium mb-0.5 ${filtroResponsavel === 'Jeniffer' ? 'text-pink-500' : 'text-gray-400'}`}>Jeniffer</p>
-          <p className={`text-xs font-bold num leading-tight ${filtroResponsavel === 'Jeniffer' ? 'text-pink-600' : 'text-gray-700'}`}>{formatBRL(totalJeniffer)}</p>
-          <p className={`text-[9px] mt-0.5 ${filtroResponsavel === 'Jeniffer' ? 'text-pink-400' : 'text-gray-400'}`}>{comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Jeniffer').length}x</p>
-        </button>
+        <div className="grid grid-cols-3 gap-1.5">
+          <button
+            onClick={() => setFiltroResponsavel(filtroResponsavel === 'Matheus' ? '' : 'Matheus')}
+            className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
+              filtroResponsavel === 'Matheus'
+                ? 'bg-blue-50 border-blue-200'
+                : 'bg-white border-gray-100'
+            }`}
+          >
+            <p className={`text-[11px] font-medium mb-0.5 ${filtroResponsavel === 'Matheus' ? 'text-blue-500' : 'text-gray-400'}`}>Matheus</p>
+            <p className={`text-xs font-bold num leading-tight ${filtroResponsavel === 'Matheus' ? 'text-blue-700' : 'text-gray-700'}`}>{formatBRL(totalMatheus)}</p>
+            <p className={`text-[9px] mt-0.5 ${filtroResponsavel === 'Matheus' ? 'text-blue-400' : 'text-gray-400'}`}>{comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Matheus').length}x</p>
+          </button>
+          <button
+            onClick={() => setFiltroResponsavel(filtroResponsavel === 'Jeniffer' ? '' : 'Jeniffer')}
+            className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
+              filtroResponsavel === 'Jeniffer'
+                ? 'bg-pink-50 border-pink-200'
+                : 'bg-white border-gray-100'
+            }`}
+          >
+            <p className={`text-[11px] font-medium mb-0.5 ${filtroResponsavel === 'Jeniffer' ? 'text-pink-500' : 'text-gray-400'}`}>Jeniffer</p>
+            <p className={`text-xs font-bold num leading-tight ${filtroResponsavel === 'Jeniffer' ? 'text-pink-600' : 'text-gray-700'}`}>{formatBRL(totalJeniffer)}</p>
+            <p className={`text-[9px] mt-0.5 ${filtroResponsavel === 'Jeniffer' ? 'text-pink-400' : 'text-gray-400'}`}>{comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Jeniffer').length}x</p>
+          </button>
+          <button
+            onClick={() => setFiltroResponsavel(filtroResponsavel === 'Conjunto' ? '' : 'Conjunto')}
+            className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
+              filtroResponsavel === 'Conjunto'
+                ? 'bg-purple-50 border-purple-200'
+                : 'bg-white border-gray-100'
+            }`}
+          >
+            <p className={`text-[11px] font-medium mb-0.5 ${filtroResponsavel === 'Conjunto' ? 'text-purple-500' : 'text-gray-400'}`}>Conjunto</p>
+            <p className={`text-xs font-bold num leading-tight ${filtroResponsavel === 'Conjunto' ? 'text-purple-700' : 'text-gray-700'}`}>{formatBRL(totalConjunto)}</p>
+            <p className={`text-[9px] mt-0.5 ${filtroResponsavel === 'Conjunto' ? 'text-purple-400' : 'text-gray-400'}`}>{comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Conjunto').length}x</p>
+          </button>
+        </div>
       </div>
 
       {/* Banner de contexto de importação */}
@@ -765,7 +780,7 @@ export default function ComprasPage() {
               <div>
                 <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Responsável</label>
                 <div className="flex gap-2">
-                  {['Matheus', 'Jeniffer'].map((r) => (
+                  {(['Matheus', 'Jeniffer', 'Conjunto'] as const).map((r) => (
                     <button
                       key={r}
                       type="button"
@@ -774,7 +789,9 @@ export default function ComprasPage() {
                         formEditar.responsavel === r
                           ? r === 'Matheus'
                             ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                            : 'bg-pink-500 text-white border-pink-500 shadow-sm'
+                            : r === 'Jeniffer'
+                              ? 'bg-pink-500 text-white border-pink-500 shadow-sm'
+                              : 'bg-purple-600 text-white border-purple-600 shadow-sm'
                           : 'bg-white text-gray-500 border-gray-200'
                       }`}
                     >
