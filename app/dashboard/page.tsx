@@ -146,7 +146,6 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const [
     { data: todasTransacoesFatura },
     { data: planejamento },
-    { data: planejamentoFatura },
     { data: invData },
     { data: nubankConfigs },
     { data: faturaRegistradaData },
@@ -156,8 +155,6 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     // Busca todas as transações do período em uma única query e separa por cartão no cliente
     supabase.from('transacoes_nubank').select('valor, responsavel, descricao, cartao').eq('projeto_fatura', mesRefFatura).neq('status', 'ESTORNO').neq('status', 'ESTORNADO'),
     supabase.from('planejamento').select('item, responsavel, valor_previsto, pago, valor_real').eq('mes_referencia', mesRef),
-    // Fallback: itens NuBank criados no mês da fatura (em vez do mês corrente)
-    supabase.from('planejamento').select('item, responsavel, valor_previsto, pago, valor_real').eq('mes_referencia', mesRefFatura).ilike('item', 'nubank%'),
     // Busca aportes embutidos para eliminar a query sequencial posterior
     supabase.from('investimentos').select('id, descricao, percentual, investimentos_aportes(valor)').eq('mes_referencia', mesRef).order('created_at', { ascending: true }),
     supabase.from('configuracoes').select('chave, valor').in('chave', ['dia_vencimento', 'ajuste_fechamento']),
@@ -167,10 +164,8 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
       .lte('projeto_fatura', mesRefFatura).order('projeto_fatura', { ascending: false }).limit(1),
   ])
 
-  // Helper: procura item NuBank no mês corrente; se não encontrar, tenta no mês da fatura
   function findNuBank(name: string) {
-    return (planejamento?.find(p => p.item.toLowerCase() === name))
-        ?? (planejamentoFatura?.find(p => p.item.toLowerCase() === name))
+    return planejamento?.find(p => p.item.toLowerCase() === name)
   }
 
   // Separa transações por cartão (filtro feito no cliente para evitar 3 queries paralelas)

@@ -17,10 +17,9 @@ export async function prefetchSaldo(mes: Date) {
   const mesRef = format(primeiroDia, 'yyyy-MM-dd')
   const mesRefFatura = format(startOfMonth(addMonths(mes, 1)), 'yyyy-MM-dd')
 
-  const [{ data: transacoesFatura }, { data: planejamento }, { data: planejamentoFatura }] = await Promise.all([
+  const [{ data: transacoesFatura }, { data: planejamento }] = await Promise.all([
     supabase.from('transacoes_nubank').select('valor, responsavel, cartao').eq('projeto_fatura', mesRefFatura).neq('status', 'ESTORNO').neq('status', 'ESTORNADO'),
     supabase.from('planejamento').select('*').eq('mes_referencia', mesRef),
-    supabase.from('planejamento').select('item, responsavel, valor_previsto, pago, valor_real').eq('mes_referencia', mesRefFatura).ilike('item', 'nubank%'),
   ])
 
   const txNubank = (transacoesFatura || []).filter((t: { cartao: string }) => !t.cartao || t.cartao === 'nubank')
@@ -29,10 +28,9 @@ export async function prefetchSaldo(mes: Date) {
 
   type PlanRow = { item: string; valor_previsto: number; valor_real: number | null; pago: boolean; responsavel?: string }
   const plan = (planejamento || []) as PlanRow[]
-  const planF = (planejamentoFatura || []) as PlanRow[]
 
   function findNuBank(name: string): PlanRow | undefined {
-    return plan.find(p => p.item.toLowerCase() === name) ?? planF.find(p => p.item.toLowerCase() === name)
+    return plan.find(p => p.item.toLowerCase() === name)
   }
 
   const receitaBase   = plan.find(p => p.item === 'Receita Total')?.valor_previsto || 0

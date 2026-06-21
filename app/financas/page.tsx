@@ -160,15 +160,13 @@ async function calcularSaldo(mes: Date): Promise<SaldoData> {
   const mesRef = format(primeiroDia, 'yyyy-MM-dd')
   const mesRefFatura = format(startOfMonth(addMonths(mes, 1)), 'yyyy-MM-dd')
 
-  const [{ data: transacoesFatura }, { data: planejamento }, { data: planejamentoFatura }] = await Promise.all([
+  const [{ data: transacoesFatura }, { data: planejamento }] = await Promise.all([
     supabase.from('transacoes_nubank').select('valor, responsavel, cartao').eq('projeto_fatura', mesRefFatura).neq('status', 'ESTORNO').neq('status', 'ESTORNADO'),
     supabase.from('planejamento').select('*').eq('mes_referencia', mesRef),
-    supabase.from('planejamento').select('item, responsavel, valor_previsto, pago, valor_real').eq('mes_referencia', mesRefFatura).ilike('item', 'nubank%'),
   ])
 
   function findNuBank(name: string) {
-    return (planejamento?.find((p: { item: string }) => p.item.toLowerCase() === name))
-        ?? (planejamentoFatura?.find((p: { item: string }) => p.item.toLowerCase() === name))
+    return planejamento?.find((p: { item: string }) => p.item.toLowerCase() === name)
   }
 
   const txNubank = (transacoesFatura || []).filter(t => !t.cartao || t.cartao === 'nubank')
