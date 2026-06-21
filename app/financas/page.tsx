@@ -146,7 +146,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths } from 'date-fns'
 
 function isNuBankItem(item: string): boolean {
-  const lower = item.toLowerCase()
+  const lower = item.trim().toLowerCase()
   return lower === 'nubank matheus' || lower === 'nubank jeniffer' ||
          lower === 'nubank jeniffer conjunto' || lower === 'nubank conjunto'
 }
@@ -166,7 +166,7 @@ async function calcularSaldo(mes: Date): Promise<SaldoData> {
   ])
 
   function findNuBank(name: string) {
-    return planejamento?.find((p: { item: string }) => p.item.toLowerCase() === name)
+    return planejamento?.find((p: { item: string }) => p.item.trim().toLowerCase() === name)
   }
 
   const txNubank = (transacoesFatura || []).filter(t => !t.cartao || t.cartao === 'nubank')

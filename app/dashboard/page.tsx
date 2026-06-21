@@ -73,7 +73,7 @@ import { usePrefetchPages } from '@/lib/usePrefetchPages'
 import { formatBRL as fmt } from '@/lib/logger'
 
 function isNuBankItem(item: string): boolean {
-  const lower = item.toLowerCase()
+  const lower = item.trim().toLowerCase()
   return lower === 'nubank matheus' || lower === 'nubank jeniffer' ||
          lower === 'nubank jeniffer conjunto' || lower === 'nubank conjunto'
 }
@@ -165,7 +165,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   ])
 
   function findNuBank(name: string) {
-    return planejamento?.find(p => p.item.toLowerCase() === name)
+    return planejamento?.find(p => p.item.trim().toLowerCase() === name)
   }
 
   // Separa transações por cartão (filtro feito no cliente para evitar 3 queries paralelas)

@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths } from 'date-fns'
 
 function isNuBankItem(item: string): boolean {
-  const lower = item.toLowerCase()
+  const lower = item.trim().toLowerCase()
   return lower === 'nubank matheus' || lower === 'nubank jeniffer' ||
          lower === 'nubank jeniffer conjunto' || lower === 'nubank conjunto'
 }
@@ -30,7 +30,7 @@ export async function prefetchSaldo(mes: Date) {
   const plan = (planejamento || []) as PlanRow[]
 
   function findNuBank(name: string): PlanRow | undefined {
-    return plan.find(p => p.item.toLowerCase() === name)
+    return plan.find(p => p.item.trim().toLowerCase() === name)
   }
 
   const receitaBase   = plan.find(p => p.item === 'Receita Total')?.valor_previsto || 0
