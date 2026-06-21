@@ -186,8 +186,10 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
   }
 
   function responsavelNuBank(item: string): string | null {
-    if (item.startsWith('NuBank Matheus')) return 'Matheus'
-    if (item.startsWith('NuBank Jeniffer')) return 'Jeniffer'
+    const lower = item.toLowerCase()
+    if (lower.startsWith('nubank matheus')) return 'Matheus'
+    if (lower.startsWith('nubank jeniffer')) return 'Jeniffer'
+    if (lower.startsWith('nubank conjunto')) return 'Conjunto'
     return null
   }
 

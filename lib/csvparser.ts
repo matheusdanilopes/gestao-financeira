@@ -19,7 +19,7 @@ export interface TransacaoNubank {
   data_compra: string
   descricao: string
   valor: number
-  responsavel: 'Matheus' | 'Jeniffer'
+  responsavel: 'Matheus' | 'Jeniffer' | 'Conjunto'
   projeto_fatura: string
   hash_linha: string
   parcela_atual: number | null
@@ -129,7 +129,7 @@ export function processarCSV(
   diaVencimento: number = 10,
   ajusteFechamento: number = 0,
   cartao: string = 'nubank',
-  responsavelPadrao?: 'Matheus' | 'Jeniffer'
+  responsavelPadrao?: 'Matheus' | 'Jeniffer' | 'Conjunto'
 ): TransacaoNubank[] {
   // Remove BOM UTF-8 nos dois formatos possíveis (UTF-8 puro ou lido como Latin-1)
   const csvLimpo = csvText
@@ -159,7 +159,7 @@ export function processarCSV(
     const descricao = sanitizar(
       String(primeiroValorPreenchido(row.title, row.descricao, row['Descrição'], row.Descricao) ?? '')
     )
-    const responsavel: 'Matheus' | 'Jeniffer' =
+    const responsavel: 'Matheus' | 'Jeniffer' | 'Conjunto' =
       responsavelPadrao ??
       (descricao.toLowerCase().includes('jeniffer') ? 'Jeniffer' : 'Matheus')
 
@@ -274,7 +274,7 @@ export function processarTransacoesJSON(
 
     if (isEstorno && isPagamentoFatura(descricao)) continue
 
-    const responsavel: 'Matheus' | 'Jeniffer' =
+    const responsavel: 'Matheus' | 'Jeniffer' | 'Conjunto' =
       descricao.toLowerCase().includes('jeniffer') ? 'Jeniffer' : 'Matheus'
 
     const dataCompra = new Date(dataISO + 'T12:00:00')
