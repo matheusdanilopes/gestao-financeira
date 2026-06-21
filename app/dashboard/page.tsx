@@ -913,10 +913,10 @@ export default function Dashboard() {
 
                 {/* Conjunto NuBank */}
                 {fatura.conjuntoAtual > 0 && (
-                  <div className="mt-3 bg-purple-50 border border-purple-100 rounded-2xl overflow-hidden">
+                  <div className="mt-3 bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
                     <div className="h-[3px] bg-purple-300 opacity-70" />
                     <div className="p-3.5">
-                      <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
                           <div className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" />
                           <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Conjunto</p>
@@ -924,7 +924,7 @@ export default function Dashboard() {
                         <p className="text-lg font-bold text-gray-900 num">{fmt(fatura.conjuntoAtual)}</p>
                       </div>
                       {fatura.conjuntoProjecaoParcelas > 0 && (
-                        <div className="flex justify-between items-center gap-1 mt-1 text-[10px]">
+                        <div className="flex justify-between items-center gap-1 mt-1.5 text-[10px]">
                           <span className="text-gray-400 whitespace-nowrap shrink-0">Parc. prev.</span>
                           <span className="font-medium text-orange-600 num whitespace-nowrap">− {fmt(fatura.conjuntoProjecaoParcelas)}</span>
                         </div>
