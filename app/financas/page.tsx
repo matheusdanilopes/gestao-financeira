@@ -160,10 +160,16 @@ async function calcularSaldo(mes: Date): Promise<SaldoData> {
   const mesRef = format(primeiroDia, 'yyyy-MM-dd')
   const mesRefFatura = format(startOfMonth(addMonths(mes, 1)), 'yyyy-MM-dd')
 
-  const [{ data: transacoesFatura }, { data: planejamento }] = await Promise.all([
+  const [{ data: transacoesFatura }, { data: planejamento }, { data: planejamentoFatura }] = await Promise.all([
     supabase.from('transacoes_nubank').select('valor, responsavel, cartao').eq('projeto_fatura', mesRefFatura).neq('status', 'ESTORNO').neq('status', 'ESTORNADO'),
     supabase.from('planejamento').select('*').eq('mes_referencia', mesRef),
+    supabase.from('planejamento').select('item, responsavel, valor_previsto, pago, valor_real').eq('mes_referencia', mesRefFatura).ilike('item', 'nubank%'),
   ])
+
+  function findNuBank(name: string) {
+    return (planejamento?.find((p: { item: string }) => p.item.toLowerCase() === name))
+        ?? (planejamentoFatura?.find((p: { item: string }) => p.item.toLowerCase() === name))
+  }
 
   const txNubank = (transacoesFatura || []).filter(t => !t.cartao || t.cartao === 'nubank')
   const txC1 = (transacoesFatura || []).filter(t => t.cartao === 'cartao1')
@@ -186,11 +192,11 @@ async function calcularSaldo(mes: Date): Promise<SaldoData> {
     contasFixasPrevisto += prev
   }
 
-  const matheusPrevisto = planejamento?.find(p => p.item.toLowerCase() === 'nubank matheus')?.valor_previsto || 0
+  const matheusPrevisto = findNuBank('nubank matheus')?.valor_previsto || 0
   const jenifferPrevisto =
-    (planejamento?.find(p => p.item.toLowerCase() === 'nubank jeniffer')?.valor_previsto || 0) +
-    (planejamento?.find(p => p.item.toLowerCase() === 'nubank jeniffer conjunto')?.valor_previsto || 0)
-  const conjuntoPrevisto = planejamento?.find(p => p.item.toLowerCase() === 'nubank conjunto')?.valor_previsto || 0
+    (findNuBank('nubank jeniffer')?.valor_previsto || 0) +
+    (findNuBank('nubank jeniffer conjunto')?.valor_previsto || 0)
+  const conjuntoPrevisto = findNuBank('nubank conjunto')?.valor_previsto || 0
   const nuBankPrevisto = matheusPrevisto + jenifferPrevisto + conjuntoPrevisto
 
   const cartao1PrevTotal = (planejamento || [])
@@ -200,10 +206,10 @@ async function calcularSaldo(mes: Date): Promise<SaldoData> {
     .filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]'))
     .reduce((acc, p) => acc + (p.valor_previsto || 0), 0)
 
-  const nubankMatheusRow = planejamento?.find(p => p.item.toLowerCase() === 'nubank matheus')
-  const nubankJenifferRow = planejamento?.find(p => p.item.toLowerCase() === 'nubank jeniffer')
-  const nubankJenifferConjRow = planejamento?.find(p => p.item.toLowerCase() === 'nubank jeniffer conjunto')
-  const nubankConjuntoRow = planejamento?.find(p => p.item.toLowerCase() === 'nubank conjunto')
+  const nubankMatheusRow = findNuBank('nubank matheus')
+  const nubankJenifferRow = findNuBank('nubank jeniffer')
+  const nubankJenifferConjRow = findNuBank('nubank jeniffer conjunto')
+  const nubankConjuntoRow = findNuBank('nubank conjunto')
 
   const matheusAtual = txNubank.filter(t => t.responsavel === 'Matheus').reduce((acc, t) => acc + t.valor, 0)
   const jenifferAtual = txNubank.filter(t => t.responsavel === 'Jeniffer').reduce((acc, t) => acc + t.valor, 0)

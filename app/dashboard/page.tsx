@@ -146,6 +146,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const [
     { data: todasTransacoesFatura },
     { data: planejamento },
+    { data: planejamentoFatura },
     { data: invData },
     { data: nubankConfigs },
     { data: faturaRegistradaData },
@@ -155,6 +156,8 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     // Busca todas as transações do período em uma única query e separa por cartão no cliente
     supabase.from('transacoes_nubank').select('valor, responsavel, descricao, cartao').eq('projeto_fatura', mesRefFatura).neq('status', 'ESTORNO').neq('status', 'ESTORNADO'),
     supabase.from('planejamento').select('item, responsavel, valor_previsto, pago, valor_real').eq('mes_referencia', mesRef),
+    // Fallback: itens NuBank criados no mês da fatura (em vez do mês corrente)
+    supabase.from('planejamento').select('item, responsavel, valor_previsto, pago, valor_real').eq('mes_referencia', mesRefFatura).ilike('item', 'nubank%'),
     // Busca aportes embutidos para eliminar a query sequencial posterior
     supabase.from('investimentos').select('id, descricao, percentual, investimentos_aportes(valor)').eq('mes_referencia', mesRef).order('created_at', { ascending: true }),
     supabase.from('configuracoes').select('chave, valor').in('chave', ['dia_vencimento', 'ajuste_fechamento']),
@@ -163,6 +166,12 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'nubank')
       .lte('projeto_fatura', mesRefFatura).order('projeto_fatura', { ascending: false }).limit(1),
   ])
+
+  // Helper: procura item NuBank no mês corrente; se não encontrar, tenta no mês da fatura
+  function findNuBank(name: string) {
+    return (planejamento?.find(p => p.item.toLowerCase() === name))
+        ?? (planejamentoFatura?.find(p => p.item.toLowerCase() === name))
+  }
 
   // Separa transações por cartão (filtro feito no cliente para evitar 3 queries paralelas)
   const transacoesFatura = todasTransacoesFatura?.filter(t => t.cartao === 'nubank') ?? []
@@ -187,11 +196,11 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const jenifferAtual = transacoesFatura?.filter(t => t.responsavel === 'Jeniffer').reduce((acc, t) => acc + t.valor, 0) || 0
   const conjuntoAtual = transacoesFatura?.filter(t => t.responsavel === 'Conjunto').reduce((acc, t) => acc + t.valor, 0) || 0
 
-  const matheusPrevisto = planejamento?.find(p => p.item.toLowerCase() === 'nubank matheus')?.valor_previsto || 0
+  const matheusPrevisto = findNuBank('nubank matheus')?.valor_previsto || 0
   const jenifferPrevisto =
-    (planejamento?.find(p => p.item.toLowerCase() === 'nubank jeniffer')?.valor_previsto || 0) +
-    (planejamento?.find(p => p.item.toLowerCase() === 'nubank jeniffer conjunto')?.valor_previsto || 0)
-  const conjuntoPrevisto = planejamento?.find(p => p.item.toLowerCase() === 'nubank conjunto')?.valor_previsto || 0
+    (findNuBank('nubank jeniffer')?.valor_previsto || 0) +
+    (findNuBank('nubank jeniffer conjunto')?.valor_previsto || 0)
+  const conjuntoPrevisto = findNuBank('nubank conjunto')?.valor_previsto || 0
 
   const toCartaoItem = (p: { item: string; responsavel: string | null; valor_previsto: number | null; valor_real: number | null }, prefixo: string): CartaoItem => ({
     nome: p.item.replace(prefixo, '').trim(),
@@ -288,10 +297,10 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const cartao1PrevTotal = cartao1PlanejamentoItems.reduce((s, i) => s + i.previsto, 0)
   const cartao2PrevTotal = cartao2PlanejamentoItems.reduce((s, i) => s + i.previsto, 0)
 
-  const nubankMatheusRow = planejamento?.find(p => p.item.toLowerCase() === 'nubank matheus')
-  const nubankJenifferRow = planejamento?.find(p => p.item.toLowerCase() === 'nubank jeniffer')
-  const nubankJenifferConjRow = planejamento?.find(p => p.item.toLowerCase() === 'nubank jeniffer conjunto')
-  const nubankConjuntoRow = planejamento?.find(p => p.item.toLowerCase() === 'nubank conjunto')
+  const nubankMatheusRow = findNuBank('nubank matheus')
+  const nubankJenifferRow = findNuBank('nubank jeniffer')
+  const nubankJenifferConjRow = findNuBank('nubank jeniffer conjunto')
+  const nubankConjuntoRow = findNuBank('nubank conjunto')
 
   const nubankMatheusEfetivo = nubankMatheusRow?.pago
     ? (nubankMatheusRow.valor_real ?? nubankMatheusRow.valor_previsto)
