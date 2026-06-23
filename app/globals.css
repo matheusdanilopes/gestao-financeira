@@ -211,7 +211,6 @@ body.theme-transition {
 /* Quebra de linha equilibrada em títulos e textos curtos (evita órfãs). */
 .text-balance { text-wrap: balance; }
 /* Realce de números/valores: tracking levemente negativo + tabular. */
-.value-tight { letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
 /* Feedback de toque universal: micro-escala ao pressionar. */
 .tap-scale { transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .tap-scale:active { transform: scale(0.96); }
@@ -577,7 +576,7 @@ html {
   outline: none;
 }
 .input-base:focus {
-  border-color: #0e9e6e;
+  border-color: var(--color-primary);
   box-shadow: 0 0 0 3px rgba(14, 158, 110, 0.12);
 }
 .dark .input-base {
@@ -586,7 +585,7 @@ html {
   color: var(--color-text);
 }
 .dark .input-base:focus {
-  border-color: #3ce0a0;
+  border-color: var(--color-primary);
   box-shadow: 0 0 0 3px rgba(60, 224, 160, 0.18);
 }
 

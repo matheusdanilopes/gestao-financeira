@@ -24,7 +24,7 @@ import ClientShell from '@/components/ClientShell'
 export const viewport: Viewport = {
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#0e9e6e' },
-    { media: '(prefers-color-scheme: dark)',  color: '#0f172a' },
+    { media: '(prefers-color-scheme: dark)',  color: '#101216' },
   ],
   width: 'device-width',
   initialScale: 1,
