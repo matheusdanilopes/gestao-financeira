@@ -1,11 +1,19 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter } from 'next/font/google'
+import { Hanken_Grotesk, Space_Grotesk } from 'next/font/google'
 import './globals.css'
 import { ThemeProvider } from '@/components/ThemeProvider'
 
-const inter = Inter({
+const hanken = Hanken_Grotesk({
   subsets: ['latin'],
-  variable: '--font-inter',
+  weight: ['400', '500', '600', '700', '800'],
+  variable: '--font-sans',
+  display: 'swap',
+})
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-num',
   display: 'swap',
 })
 import { MesProvider } from '@/components/MesProvider'
@@ -15,7 +23,7 @@ import ClientShell from '@/components/ClientShell'
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#4f46e5' },
+    { media: '(prefers-color-scheme: light)', color: '#0e9e6e' },
     { media: '(prefers-color-scheme: dark)',  color: '#0f172a' },
   ],
   width: 'device-width',
@@ -107,7 +115,7 @@ export default function RootLayout({
         <link rel="apple-touch-startup-image" media="screen and (device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (prefers-color-scheme: dark)" href="/splash-2048x2732.png" />
         <link rel="apple-touch-startup-image" media="screen and (device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (prefers-color-scheme: light)" href="/splash-light-2048x2732.png" />
       </head>
-      <body className={`${inter.variable} font-sans antialiased`}>
+      <body className={`${hanken.variable} ${spaceGrotesk.variable} font-sans antialiased`}>
         <ThemeProvider>
           <RefreshProvider>
             <MesProvider>

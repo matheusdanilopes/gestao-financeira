@@ -1,4 +1,16 @@
 /** @type {import('tailwindcss').Config} */
+// ───────────────────────────────────────────────────────────────
+// tailwind.config.js — SUBSTITUA O ARQUIVO INTEIRO POR ESTE.
+//
+// Mudanças-chave vs. o atual:
+//  • fontFamily.sans → Hanken Grotesk (var --font-sans); adicionado fontFamily.num → Space Grotesk
+//  • colors.primary → escala VERDE-MENTA autoral (substitui o indigo genérico).
+//    Como o app usa primary-600 / primary-50 etc. em todo lugar, isso já
+//    re-tinge botões, FAB, badges e acentos sem tocar nos componentes.
+//  • matheus / jeniffer refinados para os tons usados no redesign.
+//  • boxShadow muito mais suave (a "cara de IA" vem de sombras pesadas;
+//    aqui priorizamos hairlines de 1px — ver globals tokens).
+// ───────────────────────────────────────────────────────────────
 module.exports = {
   darkMode: 'class',
   content: [
@@ -9,37 +21,40 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['var(--font-inter)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // use em valores monetários: className="font-num" (a classe .num em globals já aponta pra cá)
+        num:  ['var(--font-num)', 'ui-monospace', 'monospace'],
       },
       colors: {
+        // Verde-menta autoral — substitui o indigo. Light usa 600 (#0e9e6e),
+        // dark usa o tom mais claro/vibrante via tokens (#3ce0a0).
         primary: {
-          50:  '#eef2ff',
-          100: '#e0e7ff',
-          200: '#c7d2fe',
-          400: '#818cf8',
-          500: '#6366f1',
-          600: '#4f46e5',
-          700: '#4338ca',
-          900: '#1e1b4b',
+          50:  '#ecfdf5',
+          100: '#d1fae5',
+          200: '#a7f3d0',
+          400: '#34d39a',
+          500: '#16b07c',
+          600: '#0e9e6e',
+          700: '#0b7d57',
+          900: '#053d2b',
         },
         matheus: {
-          light: '#dbeafe',
-          DEFAULT: '#1d4ed8',
+          light: '#dbe6ff',
+          DEFAULT: '#3b6fe0',
           dark: '#1e3a8a',
         },
         jeniffer: {
-          light: '#fce7f3',
-          DEFAULT: '#be185d',
+          light: '#fbe1ee',
+          DEFAULT: '#d85c97',
           dark: '#831843',
         },
       },
       boxShadow: {
-        // Sombras em base slate (16,24,40) — leitura mais sofisticada e fria que
-        // o preto puro, com camadas (contato + ambiente) para profundidade real.
-        'card':       '0 1px 2px rgba(16,24,40,0.04), 0 4px 12px rgba(16,24,40,0.05)',
-        'card-md':    '0 2px 4px rgba(16,24,40,0.05), 0 8px 24px rgba(16,24,40,0.08)',
-        'card-hover': '0 4px 8px rgba(16,24,40,0.06), 0 16px 32px rgba(16,24,40,0.10)',
-        'float':      '0 8px 16px rgba(16,24,40,0.08), 0 24px 48px rgba(16,24,40,0.16)',
+        // Sombras suavizadas — peso visual mora nas hairlines (--color-border).
+        'card':       '0 1px 2px rgba(16,24,40,0.03), 0 1px 3px rgba(16,24,40,0.04)',
+        'card-md':    '0 1px 3px rgba(16,24,40,0.04), 0 4px 12px rgba(16,24,40,0.05)',
+        'card-hover': '0 2px 6px rgba(16,24,40,0.05), 0 10px 24px rgba(16,24,40,0.07)',
+        'float':      '0 6px 16px rgba(16,24,40,0.07), 0 18px 40px rgba(16,24,40,0.12)',
       },
       borderRadius: {
         '3xl': '1.5rem',
@@ -50,7 +65,6 @@ module.exports = {
       },
       transitionTimingFunction: {
         'spring': 'cubic-bezier(0.34, 1.56, 0.64, 1)',
-        // Curva de saída suave (emphasized decelerate) p/ transições de estado/valor
         'smooth': 'cubic-bezier(0.16, 1, 0.3, 1)',
       },
       transitionDuration: {

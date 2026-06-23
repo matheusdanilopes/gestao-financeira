@@ -5,16 +5,16 @@
 
 /* ─── Design tokens (light) ──────────────────────────────────────────────── */
 :root {
-  --color-bg:          #f8fafc;
+  --color-bg:          #f4f5f1;
   --color-surface:     #ffffff;
-  --color-surface-2:   #f1f5f9;
-  --color-border:      rgba(0, 0, 0, 0.06);
-  --color-text:        #0f172a;
-  --color-muted:       #64748b;
-  --color-primary:     #4f46e5;
-  --color-primary-50:  #eef2ff;
-  --shadow-sm: 0 1px 2px rgba(16,24,40,0.04), 0 4px 12px rgba(16,24,40,0.05);
-  --shadow-md: 0 2px 4px rgba(16,24,40,0.05), 0 8px 24px rgba(16,24,40,0.08);
+  --color-surface-2:   #f0f2ec;
+  --color-border:      rgba(18, 20, 24, 0.07);
+  --color-text:        #15171c;
+  --color-muted:       #717784;
+  --color-primary:     #0e9e6e;
+  --color-primary-50:  #ecfdf5;
+  --shadow-sm: 0 1px 2px rgba(16,24,40,0.03), 0 1px 3px rgba(16,24,40,0.04);
+  --shadow-md: 0 1px 3px rgba(16,24,40,0.04), 0 4px 12px rgba(16,24,40,0.05);
 
   /* ─── Z-index scale ─────────────────────────────────────────────────────── */
   --z-base:    0;
@@ -32,14 +32,14 @@
 /* ─── Design tokens (dark) ───────────────────────────────────────────────── */
 .dark {
   color-scheme: dark;
-  --color-bg:          #0f172a;
-  --color-surface:     #1e293b;
-  --color-surface-2:   #334155;
+  --color-bg:          #101216;
+  --color-surface:     #181b21;
+  --color-surface-2:   #20242c;
   --color-border:      rgba(255, 255, 255, 0.08);
-  --color-text:        #f1f5f9;
-  --color-muted:       #94a3b8;
-  --color-primary:     #818cf8;
-  --color-primary-50:  #1e1b4b;
+  --color-text:        #eceef2;
+  --color-muted:       #878e9c;
+  --color-primary:     #3ce0a0;
+  --color-primary-50:  #0c2a20;
   --shadow-sm: 0 2px 8px rgba(0,0,0,0.30), 0 1px 2px rgba(0,0,0,0.20);
   --shadow-md: 0 4px 16px rgba(0,0,0,0.40), 0 2px 4px rgba(0,0,0,0.20);
 }
@@ -100,7 +100,7 @@ body.theme-transition {
 .dark .bg-violet-50       { background-color: #2e1065 !important; }
 .dark .bg-violet-100      { background-color: #3b0764 !important; }
 .dark .bg-primary-50      { background-color: var(--color-primary-50) !important; }
-.dark .bg-primary-100     { background-color: #312e81 !important; }
+.dark .bg-primary-100     { background-color: #0c3a2a !important; }
 
 /* Texto neutro */
 .dark .text-gray-900 { color: #f1f5f9 !important; }
@@ -132,7 +132,7 @@ body.theme-transition {
 .dark .text-yellow-500  { color: #fde68a !important; }
 .dark .text-violet-700  { color: #c4b5fd !important; }
 .dark .text-violet-600  { color: #a78bfa !important; }
-.dark .text-primary-700 { color: #a5b4fc !important; }
+.dark .text-primary-700 { color: #6ee7b7 !important; }
 .dark .text-primary-600 { color: var(--color-primary) !important; }
 
 /* Bordas */
@@ -143,7 +143,7 @@ body.theme-transition {
 .dark .border-blue-100  { border-color: #1e3a8a !important; }
 .dark .border-blue-500  { border-color: #3b82f6 !important; }
 .dark .border-pink-100  { border-color: #500724 !important; }
-.dark .border-primary-100 { border-color: #312e81 !important; }
+.dark .border-primary-100 { border-color: #0c3a2a !important; }
 .dark .border-t         { border-color: var(--color-border) !important; }
 
 /* Inputs */
@@ -167,7 +167,7 @@ body.theme-transition {
   padding-bottom: var(--safe-bottom);
 }
 .dark [data-bottom-nav='true'] {
-  background: rgba(15, 23, 42, 0.92);
+  background: rgba(16, 18, 22, 0.92);
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.50);
 }
@@ -255,7 +255,13 @@ body.theme-transition {
 .dark ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
 
 /* ─── Utility: números tabulares para valores monetários ─────────────────── */
-.num { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
+.num,
+.value-tight {
+  font-family: var(--font-num), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+  letter-spacing: -0.01em;
+}
 
 /* ─── Utility: skeleton pulse aprimorado ─────────────────────────────────── */
 .skeleton {
@@ -275,12 +281,12 @@ body.theme-transition {
 
 /* ─── Sticky header — dark mode safe ────────────────────────────────────── */
 .sticky-header {
-  background-color: rgba(248, 250, 252, 0.95);
+  background-color: rgba(244, 245, 241, 0.95);
   backdrop-filter: blur(12px) saturate(160%);
   -webkit-backdrop-filter: blur(12px) saturate(160%);
 }
 .dark .sticky-header {
-  background-color: rgba(15, 23, 42, 0.96);
+  background-color: rgba(16, 18, 22, 0.96);
 }
 /* top-0 + sticky-header → absorve o notch do iOS (black-translucent).
    Seletores sem top-0 (ex: barra inferior do chat) não recebem esse padding. */
@@ -352,10 +358,10 @@ button, a, [role="button"] {
 
 /* ─── FAB Premium ─────────────────────────────────────────────────────────── */
 .fab-premium {
-  background: linear-gradient(145deg, #6366f1 0%, #4f46e5 55%, #4338ca 100%);
+  background: linear-gradient(145deg, #34d39a 0%, #16b07c 55%, #0e9e6e 100%);
   box-shadow:
-    0 6px 24px rgba(79, 70, 229, 0.50),
-    0 3px 10px rgba(79, 70, 229, 0.30),
+    0 6px 24px rgba(14, 158, 110, 0.45),
+    0 3px 10px rgba(14, 158, 110, 0.28),
     0 1px 3px rgba(0, 0, 0, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.22),
     inset 0 -1px 0 rgba(0, 0, 0, 0.10);
@@ -368,8 +374,8 @@ button, a, [role="button"] {
 .fab-premium:active {
   transform: translateY(2px) scale(0.91);
   box-shadow:
-    0 2px 12px rgba(79, 70, 229, 0.35),
-    0 1px 4px rgba(79, 70, 229, 0.18),
+    0 2px 12px rgba(14, 158, 110, 0.35),
+    0 1px 4px rgba(14, 158, 110, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
     inset 0 2px 4px rgba(0, 0, 0, 0.12);
 }
@@ -382,10 +388,10 @@ button, a, [role="button"] {
     inset 0 -1px 0 rgba(0, 0, 0, 0.15);
 }
 .dark .fab-premium {
-  background: linear-gradient(145deg, #818cf8 0%, #6366f1 55%, #4f46e5 100%);
+  background: linear-gradient(145deg, #3ce0a0 0%, #16b07c 55%, #0e9e6e 100%);
   box-shadow:
-    0 6px 24px rgba(99, 102, 241, 0.55),
-    0 3px 10px rgba(99, 102, 241, 0.35),
+    0 6px 24px rgba(60, 224, 160, 0.50),
+    0 3px 10px rgba(60, 224, 160, 0.32),
     0 1px 3px rgba(0, 0, 0, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.18),
     inset 0 -1px 0 rgba(0, 0, 0, 0.20);
@@ -550,7 +556,7 @@ html {
     0 1px 4px rgba(0, 0, 0, 0.06);
 }
 .dark .subtotal-bar {
-  background: rgba(30, 41, 59, 0.93);
+  background: rgba(24, 27, 33, 0.93);
   border: 1px solid rgba(255, 255, 255, 0.07);
   box-shadow:
     0 -1px 0 rgba(0, 0, 0, 0.20),
@@ -571,8 +577,8 @@ html {
   outline: none;
 }
 .input-base:focus {
-  border-color: #818cf8;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+  border-color: #0e9e6e;
+  box-shadow: 0 0 0 3px rgba(14, 158, 110, 0.12);
 }
 .dark .input-base {
   background: var(--color-surface-2);
@@ -580,8 +586,8 @@ html {
   color: var(--color-text);
 }
 .dark .input-base:focus {
-  border-color: #818cf8;
-  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.18);
+  border-color: #3ce0a0;
+  box-shadow: 0 0 0 3px rgba(60, 224, 160, 0.18);
 }
 
 /* ─── Camera OCR scan line ───────────────────────────────────────────────── */
