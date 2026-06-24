@@ -793,8 +793,10 @@ export default function Dashboard() {
               {dataFechamentoNubank && !carregando && (() => {
                 const d = new Date(dataFechamentoNubank + 'T12:00:00')
                 return (
-                  <div className="shrink-0 bg-gray-100 rounded-full px-3 py-1.5">
-                    <p className="text-xs font-medium text-gray-500 num">fecha {format(d, 'dd/MM')}</p>
+                  <div className="shrink-0 bg-gray-100 dark:bg-white/15 rounded-xl px-3 py-1.5 text-center">
+                    <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-300 uppercase tracking-wide leading-none">Fecha</p>
+                    <p className="text-sm font-bold text-gray-800 dark:text-white num leading-snug mt-0.5">{format(d, 'dd/MM')}</p>
+                    <p className="text-[10px] text-gray-500 dark:text-gray-300 leading-none mt-0.5">{format(d, 'EEEE', { locale: ptBR }).replace(/^\w/, c => c.toUpperCase())}</p>
                   </div>
                 )
               })()}
