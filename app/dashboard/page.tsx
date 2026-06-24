@@ -546,10 +546,10 @@ export default function Dashboard() {
     const c1Total = fatura.cartao1AtualMatheus + fatura.cartao1AtualJeniffer
     const c2Total = fatura.cartao2AtualMatheus + fatura.cartao2AtualJeniffer
     const outrosCards = [
-      ...(c1M.length > 0 ? [{ label: `${fatura.cartao1Nome} · Matheus`, responsavel: 'Matheus', atual: fatura.cartao1AtualMatheus, previsto: c1M.reduce((s, i) => s + i.previsto, 0) }] : []),
-      ...(c1J.length > 0 ? [{ label: `${fatura.cartao1Nome} · Jeniffer`, responsavel: 'Jeniffer', atual: fatura.cartao1AtualJeniffer, previsto: c1J.reduce((s, i) => s + i.previsto, 0) }] : []),
-      ...(c2M.length > 0 ? [{ label: `${fatura.cartao2Nome} · Matheus`, responsavel: 'Matheus', atual: fatura.cartao2AtualMatheus, previsto: c2M.reduce((s, i) => s + i.previsto, 0) }] : []),
-      ...(c2J.length > 0 ? [{ label: `${fatura.cartao2Nome} · Jeniffer`, responsavel: 'Jeniffer', atual: fatura.cartao2AtualJeniffer, previsto: c2J.reduce((s, i) => s + i.previsto, 0) }] : []),
+      ...(c1M.length > 0 ? [{ label: fatura.cartao1Nome, responsavel: 'Matheus', atual: fatura.cartao1AtualMatheus, previsto: c1M.reduce((s, i) => s + i.previsto, 0) }] : []),
+      ...(c1J.length > 0 ? [{ label: fatura.cartao1Nome, responsavel: 'Jeniffer', atual: fatura.cartao1AtualJeniffer, previsto: c1J.reduce((s, i) => s + i.previsto, 0) }] : []),
+      ...(c2M.length > 0 ? [{ label: fatura.cartao2Nome, responsavel: 'Matheus', atual: fatura.cartao2AtualMatheus, previsto: c2M.reduce((s, i) => s + i.previsto, 0) }] : []),
+      ...(c2J.length > 0 ? [{ label: fatura.cartao2Nome, responsavel: 'Jeniffer', atual: fatura.cartao2AtualJeniffer, previsto: c2J.reduce((s, i) => s + i.previsto, 0) }] : []),
     ].filter(c => c.atual > 0 || c.previsto > 0)
     const matheusCardsAtual = outrosCards.filter(c => c.responsavel === 'Matheus').reduce((s, c) => s + c.atual, 0)
     const matheusCardsPrevisto = outrosCards.filter(c => c.responsavel === 'Matheus').reduce((s, c) => s + c.previsto, 0)
@@ -967,13 +967,13 @@ export default function Dashboard() {
                         {outrosCards.map((card, i) => {
                           const isMatheus = card.responsavel === 'Matheus'
                           return (
-                            <div key={i} className="flex items-center justify-between">
-                              <div className="flex items-center gap-1.5">
+                            <div key={i} className="flex items-center justify-between py-2.5 px-3 bg-gray-50 dark:bg-white/5 rounded-xl">
+                              <div className="flex items-center gap-2">
                                 <div className={`w-2 h-2 rounded-full shrink-0 ${isMatheus ? 'bg-blue-500' : 'bg-pink-500'}`} />
-                                <span className="text-sm text-gray-700">{card.label}</span>
+                                <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{card.label}</span>
                               </div>
-                              <span className="text-sm font-medium text-gray-700 num">
-                                {fmt(card.atual)} / {card.previsto > 0 ? card.previsto.toLocaleString('pt-BR') : '–'}
+                              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 num">
+                                {fmt(card.atual)} <span className="font-normal text-gray-400">/ {card.previsto > 0 ? card.previsto.toLocaleString('pt-BR') : '–'}</span>
                               </span>
                             </div>
                           )
