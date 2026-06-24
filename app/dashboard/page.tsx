@@ -546,10 +546,10 @@ export default function Dashboard() {
     const c1Total = fatura.cartao1AtualMatheus + fatura.cartao1AtualJeniffer
     const c2Total = fatura.cartao2AtualMatheus + fatura.cartao2AtualJeniffer
     const outrosCards = [
-      ...(c1M.length > 0 ? [{ label: c1M.map(i => i.nome).join(' / '), responsavel: 'Matheus', atual: c1Total, previsto: c1M.reduce((s, i) => s + i.previsto, 0) }] : []),
-      ...(c1J.length > 0 ? [{ label: c1J.map(i => i.nome).join(' / '), responsavel: 'Jeniffer', atual: c1Total, previsto: c1J.reduce((s, i) => s + i.previsto, 0) }] : []),
-      ...(c2M.length > 0 ? [{ label: c2M.map(i => i.nome).join(' / '), responsavel: 'Matheus', atual: c2Total, previsto: c2M.reduce((s, i) => s + i.previsto, 0) }] : []),
-      ...(c2J.length > 0 ? [{ label: c2J.map(i => i.nome).join(' / '), responsavel: 'Jeniffer', atual: c2Total, previsto: c2J.reduce((s, i) => s + i.previsto, 0) }] : []),
+      ...(c1M.length > 0 ? [{ label: `${fatura.cartao1Nome} · Matheus`, responsavel: 'Matheus', atual: fatura.cartao1AtualMatheus, previsto: c1M.reduce((s, i) => s + i.previsto, 0) }] : []),
+      ...(c1J.length > 0 ? [{ label: `${fatura.cartao1Nome} · Jeniffer`, responsavel: 'Jeniffer', atual: fatura.cartao1AtualJeniffer, previsto: c1J.reduce((s, i) => s + i.previsto, 0) }] : []),
+      ...(c2M.length > 0 ? [{ label: `${fatura.cartao2Nome} · Matheus`, responsavel: 'Matheus', atual: fatura.cartao2AtualMatheus, previsto: c2M.reduce((s, i) => s + i.previsto, 0) }] : []),
+      ...(c2J.length > 0 ? [{ label: `${fatura.cartao2Nome} · Jeniffer`, responsavel: 'Jeniffer', atual: fatura.cartao2AtualJeniffer, previsto: c2J.reduce((s, i) => s + i.previsto, 0) }] : []),
     ].filter(c => c.atual > 0 || c.previsto > 0)
     const matheusCardsAtual = outrosCards.filter(c => c.responsavel === 'Matheus').reduce((s, c) => s + c.atual, 0)
     const matheusCardsPrevisto = outrosCards.filter(c => c.responsavel === 'Matheus').reduce((s, c) => s + c.previsto, 0)
@@ -793,14 +793,8 @@ export default function Dashboard() {
               {dataFechamentoNubank && !carregando && (() => {
                 const d = new Date(dataFechamentoNubank + 'T12:00:00')
                 return (
-                  <div className="shrink-0 bg-primary-50 border border-primary-100 rounded-xl px-2.5 py-1.5 text-right">
-                    <p className="text-[10px] font-medium text-primary-400 uppercase tracking-wider leading-none">Fecha</p>
-                    <p className="text-xs font-bold text-primary-700 num leading-snug mt-0.5">
-                      {format(d, 'dd/MM')}
-                    </p>
-                    <p className="text-[10px] text-primary-400 capitalize leading-none mt-0.5">
-                      {format(d, 'EEEE', { locale: ptBR })}
-                    </p>
+                  <div className="shrink-0 bg-gray-100 rounded-full px-3 py-1.5">
+                    <p className="text-xs font-medium text-gray-500 num">fecha {format(d, 'dd/MM')}</p>
                   </div>
                 )
               })()}
@@ -816,246 +810,193 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="content-enter">
-                {/* NuBank total */}
-                <div className="mb-3 pb-3 border-b border-gray-100">
-                  <div className="flex items-baseline justify-between">
-                    <p className="text-3xl font-bold text-gray-900 num">{fmt(fatura.totalRealizado)}</p>
-                    <span className="text-xs text-gray-400">total atual</span>
+                {/* Total */}
+                <div className="mb-4">
+                  {(() => {
+                    const totalStr = fmt(fatura.totalRealizado)
+                    const commaIdx = totalStr.lastIndexOf(',')
+                    const intPart = commaIdx >= 0 ? totalStr.slice(0, commaIdx) : totalStr
+                    const decPart = commaIdx >= 0 ? totalStr.slice(commaIdx) : ''
+                    return (
+                      <p className="text-4xl font-bold text-gray-900 num">
+                        {intPart}<span className="text-gray-300">{decPart}</span>
+                      </p>
+                    )
+                  })()}
+                </div>
+
+                {/* Matheus NuBank */}
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                      <span className="text-sm font-semibold text-gray-800">Matheus</span>
+                    </div>
+                    <span className="text-sm font-medium text-gray-700 num">
+                      {fmt(fatura.matheusAtual)} / {fatura.matheusPrevisto > 0 ? fatura.matheusPrevisto.toLocaleString('pt-BR') : '–'}
+                    </span>
+                  </div>
+                  <div className="h-2.5 bg-blue-100 rounded-full overflow-hidden mb-1">
+                    <div key={fatura.matheusAtual} className="h-full bg-blue-500 rounded-full bar-enter" style={{ '--bar-w': `${fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100) : 0}%` } as React.CSSProperties} />
+                  </div>
+                  <div className="flex items-center justify-between mb-2">
+                    {fatura.matheusProjecaoParcelas > 0 ? (
+                      <span className="text-[11px] text-orange-500 font-medium">parc. prev. − {fmt(fatura.matheusProjecaoParcelas)}</span>
+                    ) : (
+                      <span className="text-[11px] text-gray-400">{matheusSobraWarning ? 'limite quase no teto' : ''}</span>
+                    )}
+                    <span className="text-[11px] text-gray-400 num">{fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100).toFixed(0) : 0}%</span>
+                  </div>
+                  {assinaturasNaopagas.matheus > 0 && (
+                    <div className="flex justify-between text-[11px] gap-1 mb-1.5 text-indigo-500">
+                      <span>Assinaturas</span>
+                      <span className="font-medium num">{fmt(assinaturasNaopagas.matheus)}</span>
+                    </div>
+                  )}
+                  {assinaturasDivergentes.matheus.length > 0 && (
+                    <div className="mb-1.5">
+                      {assinaturasDivergentes.matheus.map((d) => (
+                        <div key={d.nome} className="flex justify-between text-[11px] gap-1 text-amber-600">
+                          <span className="truncate shrink" title={d.nome}>⚠ {d.nome}</span>
+                          <span className="font-medium num shrink-0 whitespace-nowrap">{d.diff > 0 ? '+' : ''}{fmt(d.diff)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
+                    fatura.sobraMatheus < 0 ? 'bg-red-100 text-red-600' : matheusSobraWarning ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-700'
+                  }`}>
+                    {fatura.sobraMatheus < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso {fmt(Math.abs(fatura.sobraMatheus))}</> : matheusSobraWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção {fmt(Math.abs(fatura.sobraMatheus))}</> : <>✓ Restante {fmt(Math.abs(fatura.sobraMatheus))}</>}
                   </div>
                 </div>
 
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">NuBank</p>
-                <div className="grid grid-cols-2 gap-3">
-                  {/* Matheus NuBank */}
-                  <div className="bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
-                    <div className="h-[3px] bg-blue-300 opacity-70" />
-                    <div className="p-3.5">
-                      <div className="flex items-center gap-1.5 mb-2.5">
-                        <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
-                        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Matheus</p>
-                      </div>
-                      <div className="mb-2">
-                        <p className="text-lg font-bold text-gray-900 num truncate">{fmt(fatura.matheusAtual)}</p>
-                        <p className="text-[10px] text-gray-400 num mt-0.5">de {fmt(fatura.matheusPrevisto)}</p>
-                      </div>
-                      {assinaturasNaopagas.matheus > 0 && (
-                        <div className="flex justify-between text-[10px] gap-1 mb-1 text-indigo-500">
-                          <span>Assinaturas</span>
-                          <span className="font-medium num">{fmt(assinaturasNaopagas.matheus)}</span>
-                        </div>
-                      )}
-                      {assinaturasDivergentes.matheus.length > 0 && (
-                        <div className="mb-1">
-                          {assinaturasDivergentes.matheus.map((d) => (
-                            <div key={d.nome} className="flex justify-between text-[10px] gap-1 text-amber-600">
-                              <span className="truncate shrink" title={d.nome}>⚠ {d.nome}</span>
-                              <span className="font-medium num shrink-0 whitespace-nowrap">
-                                {d.diff > 0 ? '+' : ''}{fmt(d.diff)}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {fatura.matheusProjecaoParcelas > 0 && (
-                        <div className="flex justify-between items-center gap-1 mb-1 text-[10px]">
-                          <span className="text-gray-400 whitespace-nowrap shrink-0">Parc. prev.</span>
-                          <span className="font-medium text-orange-600 num whitespace-nowrap">− {fmt(fatura.matheusProjecaoParcelas)}</span>
-                        </div>
-                      )}
-                      <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden mb-0.5">
-                        <div key={fatura.matheusAtual} className="h-full bg-blue-400 rounded-full bar-enter" style={{ '--bar-w': `${fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100) : 0}%` } as React.CSSProperties} />
-                      </div>
-                      <p className="text-right text-[10px] text-gray-400 num mb-2">{fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100).toFixed(0) : 0}%</p>
-                      <div className={`rounded-lg px-2.5 py-1.5 ${
-                        fatura.sobraMatheus < 0 ? 'bg-red-50 text-red-600' : matheusSobraWarning ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-700'
-                      }`}>
-                        <div className="flex items-center gap-1 text-[10px] font-medium">
-                          {fatura.sobraMatheus < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso</> : matheusSobraWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção</> : '✓ Restante'}
-                        </div>
-                        <p className="text-sm font-bold num mt-0.5">{fmt(Math.abs(fatura.sobraMatheus))}</p>
-                      </div>
-                    </div>
-                  </div>
+                <div className="border-t border-gray-100 my-3" />
 
-                  {/* Jeniffer NuBank */}
-                  <div className="bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
-                    <div className="h-[3px] bg-pink-300 opacity-70" />
-                    <div className="p-3.5">
-                      <div className="flex items-center gap-1.5 mb-2.5">
-                        <div className="w-1.5 h-1.5 rounded-full bg-pink-400 shrink-0" />
-                        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Jeniffer</p>
-                      </div>
-                      <div className="mb-2">
-                        <p className="text-lg font-bold text-gray-900 num truncate">{fmt(fatura.jenifferAtual)}</p>
-                        <p className="text-[10px] text-gray-400 num mt-0.5">de {fmt(fatura.jenifferPrevisto)}</p>
-                      </div>
-                      {assinaturasNaopagas.jeniffer > 0 && (
-                        <div className="flex justify-between text-[10px] gap-1 mb-1 text-indigo-500">
-                          <span>Assinaturas</span>
-                          <span className="font-medium num">{fmt(assinaturasNaopagas.jeniffer)}</span>
-                        </div>
-                      )}
-                      {assinaturasDivergentes.jeniffer.length > 0 && (
-                        <div className="mb-1">
-                          {assinaturasDivergentes.jeniffer.map((d) => (
-                            <div key={d.nome} className="flex justify-between text-[10px] gap-1 text-amber-600">
-                              <span className="truncate shrink" title={d.nome}>⚠ {d.nome}</span>
-                              <span className="font-medium num shrink-0 whitespace-nowrap">
-                                {d.diff > 0 ? '+' : ''}{fmt(d.diff)}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {fatura.jenifferProjecaoParcelas > 0 && (
-                        <div className="flex justify-between items-center gap-1 mb-1 text-[10px]">
-                          <span className="text-gray-400 whitespace-nowrap shrink-0">Parc. prev.</span>
-                          <span className="font-medium text-orange-600 num whitespace-nowrap">− {fmt(fatura.jenifferProjecaoParcelas)}</span>
-                        </div>
-                      )}
-                      <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden mb-0.5">
-                        <div key={fatura.jenifferAtual} className="h-full bg-pink-400 rounded-full bar-enter" style={{ '--bar-w': `${fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100) : 0}%` } as React.CSSProperties} />
-                      </div>
-                      <p className="text-right text-[10px] text-gray-400 num mb-2">{fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100).toFixed(0) : 0}%</p>
-                      <div className={`rounded-lg px-2.5 py-1.5 ${
-                        fatura.sobraJeniffer < 0 ? 'bg-red-50 text-red-600' : jenifferSobraWarning ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-700'
-                      }`}>
-                        <div className="flex items-center gap-1 text-[10px] font-medium">
-                          {fatura.sobraJeniffer < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso</> : jenifferSobraWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção</> : '✓ Restante'}
-                        </div>
-                        <p className="text-sm font-bold num mt-0.5">{fmt(Math.abs(fatura.sobraJeniffer))}</p>
-                      </div>
+                {/* Jeniffer NuBank */}
+                <div className="mb-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full bg-pink-500 shrink-0" />
+                      <span className="text-sm font-semibold text-gray-800">Jeniffer</span>
                     </div>
+                    <span className="text-sm font-medium text-gray-700 num">
+                      {fmt(fatura.jenifferAtual)} / {fatura.jenifferPrevisto > 0 ? fatura.jenifferPrevisto.toLocaleString('pt-BR') : '–'}
+                    </span>
+                  </div>
+                  <div className="h-2.5 bg-pink-100 rounded-full overflow-hidden mb-1">
+                    <div key={fatura.jenifferAtual} className="h-full bg-pink-500 rounded-full bar-enter" style={{ '--bar-w': `${fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100) : 0}%` } as React.CSSProperties} />
+                  </div>
+                  <div className="flex items-center justify-between mb-2">
+                    {fatura.jenifferProjecaoParcelas > 0 ? (
+                      <span className="text-[11px] text-orange-500 font-medium">parc. prev. − {fmt(fatura.jenifferProjecaoParcelas)}</span>
+                    ) : (
+                      <span className="text-[11px] text-gray-400">{jenifferSobraWarning ? 'limite quase no teto' : ''}</span>
+                    )}
+                    <span className="text-[11px] text-gray-400 num">{fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100).toFixed(0) : 0}%</span>
+                  </div>
+                  {assinaturasNaopagas.jeniffer > 0 && (
+                    <div className="flex justify-between text-[11px] gap-1 mb-1.5 text-indigo-500">
+                      <span>Assinaturas</span>
+                      <span className="font-medium num">{fmt(assinaturasNaopagas.jeniffer)}</span>
+                    </div>
+                  )}
+                  {assinaturasDivergentes.jeniffer.length > 0 && (
+                    <div className="mb-1.5">
+                      {assinaturasDivergentes.jeniffer.map((d) => (
+                        <div key={d.nome} className="flex justify-between text-[11px] gap-1 text-amber-600">
+                          <span className="truncate shrink" title={d.nome}>⚠ {d.nome}</span>
+                          <span className="font-medium num shrink-0 whitespace-nowrap">{d.diff > 0 ? '+' : ''}{fmt(d.diff)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
+                    fatura.sobraJeniffer < 0 ? 'bg-red-100 text-red-600' : jenifferSobraWarning ? 'bg-amber-100 text-amber-600' : 'bg-pink-100 text-pink-700'
+                  }`}>
+                    {fatura.sobraJeniffer < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso {fmt(Math.abs(fatura.sobraJeniffer))}</> : jenifferSobraWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção {fmt(Math.abs(fatura.sobraJeniffer))}</> : <>✓ Restante {fmt(Math.abs(fatura.sobraJeniffer))}</>}
                   </div>
                 </div>
 
                 {/* Conjunto NuBank */}
                 {(fatura.conjuntoAtual > 0 || fatura.conjuntoPrevisto > 0 || fatura.conjuntoItemExiste) && (
-                  <div className="mt-3 bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
-                    <div className="h-[3px] bg-purple-300 opacity-70" />
-                    <div className="p-3.5">
-                      <div className="flex items-center gap-1.5 mb-2.5">
-                        <div className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" />
-                        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Conjunto</p>
-                      </div>
-                      <div className="mb-2">
-                        <p className="text-lg font-bold text-gray-900 num truncate">{fmt(fatura.conjuntoAtual)}</p>
+                  <>
+                    <div className="border-t border-gray-100 my-3" />
+                    <div className="mb-3">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
+                          <span className="text-sm font-semibold text-gray-800">Conjunto</span>
+                        </div>
                         {fatura.conjuntoPrevisto > 0 && (
-                          <p className="text-[10px] text-gray-400 num mt-0.5">de {fmt(fatura.conjuntoPrevisto)}</p>
+                          <span className="text-sm font-medium text-gray-700 num">
+                            {fmt(fatura.conjuntoAtual)} / {fatura.conjuntoPrevisto.toLocaleString('pt-BR')}
+                          </span>
                         )}
                       </div>
-                      {fatura.conjuntoProjecaoParcelas > 0 && (
-                        <div className="flex justify-between items-center gap-1 mb-1 text-[10px]">
-                          <span className="text-gray-400 whitespace-nowrap shrink-0">Parc. prev.</span>
-                          <span className="font-medium text-orange-600 num whitespace-nowrap">− {fmt(fatura.conjuntoProjecaoParcelas)}</span>
-                        </div>
-                      )}
                       {fatura.conjuntoPrevisto > 0 && (
                         <>
-                          <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden mb-0.5">
-                            <div key={fatura.conjuntoAtual} className="h-full bg-purple-400 rounded-full bar-enter" style={{ '--bar-w': `${fatura.conjuntoPrevisto > 0 ? Math.min(100, (fatura.conjuntoAtual / fatura.conjuntoPrevisto) * 100) : 0}%` } as React.CSSProperties} />
+                          <div className="h-2.5 bg-purple-100 rounded-full overflow-hidden mb-1">
+                            <div key={fatura.conjuntoAtual} className="h-full bg-purple-500 rounded-full bar-enter" style={{ '--bar-w': `${Math.min(100, (fatura.conjuntoAtual / fatura.conjuntoPrevisto) * 100)}%` } as React.CSSProperties} />
                           </div>
-                          <p className="text-right text-[10px] text-gray-400 num mb-2">{fatura.conjuntoPrevisto > 0 ? Math.min(100, (fatura.conjuntoAtual / fatura.conjuntoPrevisto) * 100).toFixed(0) : 0}%</p>
-                          <div className={`rounded-lg px-2.5 py-1.5 ${
-                            fatura.sobraConjunto < 0 ? 'bg-red-50 text-red-600' : fatura.conjuntoPrevisto > 0 && (fatura.sobraConjunto / fatura.conjuntoPrevisto) * 100 <= 10 ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-700'
+                          <div className="flex items-center justify-between mb-2">
+                            {fatura.conjuntoProjecaoParcelas > 0 ? (
+                              <span className="text-[11px] text-orange-500 font-medium">parc. prev. − {fmt(fatura.conjuntoProjecaoParcelas)}</span>
+                            ) : <span />}
+                            <span className="text-[11px] text-gray-400 num">{Math.min(100, (fatura.conjuntoAtual / fatura.conjuntoPrevisto) * 100).toFixed(0)}%</span>
+                          </div>
+                          <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
+                            fatura.sobraConjunto < 0 ? 'bg-red-100 text-red-600' : (fatura.sobraConjunto / fatura.conjuntoPrevisto) * 100 <= 10 ? 'bg-amber-100 text-amber-600' : 'bg-purple-100 text-purple-700'
                           }`}>
-                            <div className="flex items-center gap-1 text-[10px] font-medium">
-                              {fatura.sobraConjunto < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso</> : fatura.conjuntoPrevisto > 0 && (fatura.sobraConjunto / fatura.conjuntoPrevisto) * 100 <= 10 ? <><AlertTriangle className="w-3 h-3" /> Atenção</> : '✓ Restante'}
-                            </div>
-                            <p className="text-sm font-bold num mt-0.5">{fmt(Math.abs(fatura.sobraConjunto))}</p>
+                            {fatura.sobraConjunto < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso {fmt(Math.abs(fatura.sobraConjunto))}</> : (fatura.sobraConjunto / fatura.conjuntoPrevisto) * 100 <= 10 ? <><AlertTriangle className="w-3 h-3" /> Atenção {fmt(Math.abs(fatura.sobraConjunto))}</> : <>✓ Restante {fmt(Math.abs(fatura.sobraConjunto))}</>}
                           </div>
                         </>
                       )}
                     </div>
-                  </div>
+                  </>
                 )}
 
                 {/* Outros cartões */}
                 {cartaoExtrasData && (() => {
-                  const { outrosCards, matheusTotalPrevisto, matheusTotalAtual, matheusRestante, matheusPct, matheusResumoWarning, jenifferTotalPrevisto, jenifferTotalAtual, jenifferRestante, jenifferPct, jenifferResumoWarning } = cartaoExtrasData
+                  const { outrosCards, matheusTotalPrevisto, matheusTotalAtual, jenifferTotalPrevisto, jenifferTotalAtual } = cartaoExtrasData
                   return (
-                    <div className="mt-4 pt-4 border-t border-gray-100 opacity-80">
+                    <>
+                      <div className="border-t border-gray-100 mt-4 mb-3" />
                       <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Outros cartões</p>
-                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                      <div className="space-y-2 mb-4">
                         {outrosCards.map((card, i) => {
-                          const sobra = Math.round((card.previsto - card.atual) * 100) / 100
-                          const pct = card.previsto > 0 ? Math.min(100, (card.atual / card.previsto) * 100) : 0
-                          const pctRestante = card.previsto > 0 ? (sobra / card.previsto) * 100 : 100
-                          const isWarning = sobra >= 0 && pctRestante <= 10
                           const isMatheus = card.responsavel === 'Matheus'
                           return (
-                            <div key={i} className="bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
-                              <div className={`h-[2px] opacity-60 ${isMatheus ? 'bg-blue-300' : 'bg-pink-300'}`} />
-                              <div className="p-2.5">
-                                <div className="flex items-center gap-1 mb-1.5">
-                                  <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isMatheus ? 'bg-blue-400' : 'bg-pink-400'}`} />
-                                  <p className="font-semibold text-[11px] text-gray-500 truncate">{card.label}</p>
-                                </div>
-                                <div className="mb-1.5">
-                                  <p className="text-sm font-bold text-gray-900 num truncate">{fmt(card.atual)}</p>
-                                  <p className="text-[10px] text-gray-400 num mt-0.5">de {fmt(card.previsto)}</p>
-                                </div>
-                                <div className={`h-1 rounded-full overflow-hidden mb-0.5 ${isMatheus ? 'bg-blue-100' : 'bg-pink-100'}`}>
-                                  <div key={`${i}-${card.atual}`} className={`h-full rounded-full bar-enter ${isMatheus ? 'bg-blue-400' : 'bg-pink-400'}`} style={{ '--bar-w': `${pct}%` } as React.CSSProperties} />
-                                </div>
-                                <div className={`rounded-md px-1.5 py-1 mt-1.5 ${
-                                  sobra < 0 ? 'bg-red-50 text-red-600' : isWarning ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-700'
-                                }`}>
-                                  <div className="flex items-center gap-0.5 text-[10px] font-medium">
-                                    {sobra < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso</> : isWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção</> : '✓ Restante'}
-                                  </div>
-                                  <p className="text-xs font-bold num mt-0.5">{fmt(Math.abs(sobra))}</p>
-                                </div>
+                            <div key={i} className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <div className={`w-2 h-2 rounded-full shrink-0 ${isMatheus ? 'bg-blue-500' : 'bg-pink-500'}`} />
+                                <span className="text-sm text-gray-700">{card.label}</span>
                               </div>
+                              <span className="text-sm font-medium text-gray-700 num">
+                                {fmt(card.atual)} / {card.previsto > 0 ? card.previsto.toLocaleString('pt-BR') : '–'}
+                              </span>
                             </div>
                           )
                         })}
                       </div>
-
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-3 mb-2">Resumo por pessoa</p>
                       <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
-                          <div className="h-[2px] bg-blue-300 opacity-60" />
-                          <div className="p-2.5">
-                            <div className="flex items-center gap-1 mb-1.5">
-                              <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
-                              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Matheus</p>
-                            </div>
-                            <div className="mb-1.5">
-                              <p className="text-sm font-bold text-gray-900 num truncate">{fmt(matheusTotalAtual)}</p>
-                              <p className="text-[10px] text-gray-400 num mt-0.5">de {fmt(matheusTotalPrevisto)}</p>
-                            </div>
-                            <div className="h-1 bg-blue-100 rounded-full overflow-hidden mb-0.5">
-                              <div key={matheusTotalAtual} className="h-full bg-blue-400 rounded-full bar-enter" style={{ '--bar-w': `${matheusPct}%` } as React.CSSProperties} />
-                            </div>
-                            <div className={`rounded-lg px-2 py-1 mt-1.5 ${matheusRestante < 0 ? 'bg-red-50 text-red-600' : matheusResumoWarning ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-700'}`}>
-                              <div className="flex items-center gap-0.5 text-[10px] font-medium">{matheusRestante < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso</> : matheusResumoWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção</> : '✓ Restante'}</div>
-                              <p className="text-xs font-bold num mt-0.5">{fmt(Math.abs(matheusRestante))}</p>
-                            </div>
+                        <div className="bg-blue-50 rounded-2xl p-3">
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                            <span className="text-[11px] font-semibold text-blue-600">Matheus total</span>
                           </div>
+                          <p className="text-xl font-bold text-gray-900 num">{fmt(matheusTotalAtual)}</p>
+                          <p className="text-[11px] text-gray-400 num mt-0.5">de {fmt(matheusTotalPrevisto)}</p>
                         </div>
-                        <div className="bg-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
-                          <div className="h-[2px] bg-pink-300 opacity-60" />
-                          <div className="p-2.5">
-                            <div className="flex items-center gap-1 mb-1.5">
-                              <div className="w-1.5 h-1.5 rounded-full bg-pink-400 shrink-0" />
-                              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Jeniffer</p>
-                            </div>
-                            <div className="mb-1.5">
-                              <p className="text-sm font-bold text-gray-900 num truncate">{fmt(jenifferTotalAtual)}</p>
-                              <p className="text-[10px] text-gray-400 num mt-0.5">de {fmt(jenifferTotalPrevisto)}</p>
-                            </div>
-                            <div className="h-1 bg-pink-100 rounded-full overflow-hidden mb-0.5">
-                              <div key={jenifferTotalAtual} className="h-full bg-pink-400 rounded-full bar-enter" style={{ '--bar-w': `${jenifferPct}%` } as React.CSSProperties} />
-                            </div>
-                            <div className={`rounded-lg px-2 py-1 mt-1.5 ${jenifferRestante < 0 ? 'bg-red-50 text-red-600' : jenifferResumoWarning ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-700'}`}>
-                              <div className="flex items-center gap-0.5 text-[10px] font-medium">{jenifferRestante < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso</> : jenifferResumoWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção</> : '✓ Restante'}</div>
-                              <p className="text-xs font-bold num mt-0.5">{fmt(Math.abs(jenifferRestante))}</p>
-                            </div>
+                        <div className="bg-pink-50 rounded-2xl p-3">
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <div className="w-2 h-2 rounded-full bg-pink-500 shrink-0" />
+                            <span className="text-[11px] font-semibold text-pink-600">Jeniffer total</span>
                           </div>
+                          <p className="text-xl font-bold text-gray-900 num">{fmt(jenifferTotalAtual)}</p>
+                          <p className="text-[11px] text-gray-400 num mt-0.5">de {fmt(jenifferTotalPrevisto)}</p>
                         </div>
                       </div>
-                    </div>
+                    </>
                   )
                 })()}
               </div>
