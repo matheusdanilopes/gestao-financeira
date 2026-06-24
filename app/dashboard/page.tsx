@@ -837,7 +837,7 @@ export default function Dashboard() {
                       {fmt(fatura.matheusAtual)} / {fatura.matheusPrevisto > 0 ? fatura.matheusPrevisto.toLocaleString('pt-BR') : '–'}
                     </span>
                   </div>
-                  <div className="h-2.5 bg-blue-100 rounded-full overflow-hidden mb-1">
+                  <div className="h-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-full overflow-hidden mb-1">
                     <div key={fatura.matheusAtual} className="h-full bg-blue-500 rounded-full bar-enter" style={{ '--bar-w': `${fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100) : 0}%` } as React.CSSProperties} />
                   </div>
                   <div className="flex items-center justify-between mb-2">
@@ -865,7 +865,7 @@ export default function Dashboard() {
                     </div>
                   )}
                   <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
-                    fatura.sobraMatheus < 0 ? 'bg-red-100 text-red-600' : matheusSobraWarning ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-700'
+                    fatura.sobraMatheus < 0 ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' : matheusSobraWarning ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
                   }`}>
                     {fatura.sobraMatheus < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso {fmt(Math.abs(fatura.sobraMatheus))}</> : matheusSobraWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção {fmt(Math.abs(fatura.sobraMatheus))}</> : <>✓ Restante {fmt(Math.abs(fatura.sobraMatheus))}</>}
                   </div>
@@ -884,7 +884,7 @@ export default function Dashboard() {
                       {fmt(fatura.jenifferAtual)} / {fatura.jenifferPrevisto > 0 ? fatura.jenifferPrevisto.toLocaleString('pt-BR') : '–'}
                     </span>
                   </div>
-                  <div className="h-2.5 bg-pink-100 rounded-full overflow-hidden mb-1">
+                  <div className="h-2.5 bg-pink-100 dark:bg-pink-900/30 rounded-full overflow-hidden mb-1">
                     <div key={fatura.jenifferAtual} className="h-full bg-pink-500 rounded-full bar-enter" style={{ '--bar-w': `${fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100) : 0}%` } as React.CSSProperties} />
                   </div>
                   <div className="flex items-center justify-between mb-2">
@@ -912,7 +912,7 @@ export default function Dashboard() {
                     </div>
                   )}
                   <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
-                    fatura.sobraJeniffer < 0 ? 'bg-red-100 text-red-600' : jenifferSobraWarning ? 'bg-amber-100 text-amber-600' : 'bg-pink-100 text-pink-700'
+                    fatura.sobraJeniffer < 0 ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' : jenifferSobraWarning ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' : 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300'
                   }`}>
                     {fatura.sobraJeniffer < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso {fmt(Math.abs(fatura.sobraJeniffer))}</> : jenifferSobraWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção {fmt(Math.abs(fatura.sobraJeniffer))}</> : <>✓ Restante {fmt(Math.abs(fatura.sobraJeniffer))}</>}
                   </div>
@@ -936,7 +936,7 @@ export default function Dashboard() {
                       </div>
                       {fatura.conjuntoPrevisto > 0 && (
                         <>
-                          <div className="h-2.5 bg-purple-100 rounded-full overflow-hidden mb-1">
+                          <div className="h-2.5 bg-purple-100 dark:bg-purple-900/30 rounded-full overflow-hidden mb-1">
                             <div key={fatura.conjuntoAtual} className="h-full bg-purple-500 rounded-full bar-enter" style={{ '--bar-w': `${Math.min(100, (fatura.conjuntoAtual / fatura.conjuntoPrevisto) * 100)}%` } as React.CSSProperties} />
                           </div>
                           <div className="flex items-center justify-between mb-2">
@@ -946,7 +946,7 @@ export default function Dashboard() {
                             <span className="text-[11px] text-gray-400 num">{Math.min(100, (fatura.conjuntoAtual / fatura.conjuntoPrevisto) * 100).toFixed(0)}%</span>
                           </div>
                           <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
-                            fatura.sobraConjunto < 0 ? 'bg-red-100 text-red-600' : (fatura.sobraConjunto / fatura.conjuntoPrevisto) * 100 <= 10 ? 'bg-amber-100 text-amber-600' : 'bg-purple-100 text-purple-700'
+                            fatura.sobraConjunto < 0 ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' : (fatura.sobraConjunto / fatura.conjuntoPrevisto) * 100 <= 10 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
                           }`}>
                             {fatura.sobraConjunto < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso {fmt(Math.abs(fatura.sobraConjunto))}</> : (fatura.sobraConjunto / fatura.conjuntoPrevisto) * 100 <= 10 ? <><AlertTriangle className="w-3 h-3" /> Atenção {fmt(Math.abs(fatura.sobraConjunto))}</> : <>✓ Restante {fmt(Math.abs(fatura.sobraConjunto))}</>}
                           </div>
