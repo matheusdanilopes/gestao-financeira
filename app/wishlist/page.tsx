@@ -5,6 +5,8 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { Heart, Plus, Check, ExternalLink, X, Search, RotateCcw, ChevronDown, Camera, Loader2 } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
 import { SwipeableItem } from '@/components/SwipeableItem'
+import { RealizarButton } from '@/components/RealizarButton'
+import { fireWishlistConfetti } from '@/lib/confetti'
 import { useWishlist, type WishlistItem } from '@/lib/useWishlist'
 import { supabase } from '@/lib/supabaseClient'
 import { formatBRL } from '@/lib/logger'
@@ -615,6 +617,7 @@ function WishlistCard({
   item,
   mostraHint,
   highlighted,
+  isExiting,
   usuarioAtual,
   sobraLiquida,
   onEditar,
@@ -626,10 +629,11 @@ function WishlistCard({
   item: WishlistItem
   mostraHint: boolean
   highlighted?: boolean
+  isExiting?: boolean
   usuarioAtual: string | null
   sobraLiquida: number
   onEditar: (item: WishlistItem) => void
-  onRealizar: (id: string) => unknown
+  onRealizar: (id: string, e: React.MouseEvent<HTMLButtonElement>) => unknown
   onExcluir: (id: string) => unknown
   onFavoritar: (id: string) => unknown
   onPatch: (id: string, campos: Partial<WishlistItem>) => void
@@ -640,7 +644,7 @@ function WishlistCard({
     <SwipeableItem onDelete={() => onExcluir(item.id)} requireConfirmation>
       <div
         id={`wishlist-item-${item.id}`}
-        className={`rounded-2xl shadow-card border border-gray-100 overflow-hidden bg-white border-l-4 ${cfg.borderClass}${highlighted ? ' animate-wishlist-highlight' : ''}`}
+        className={`rounded-2xl shadow-card border border-gray-100 overflow-hidden bg-white border-l-4 ${cfg.borderClass}${highlighted ? ' animate-wishlist-highlight' : ''}${isExiting ? ' card-realize-exit' : ''}`}
       >
         {/* Clickable card body */}
         <button
@@ -746,16 +750,10 @@ function WishlistCard({
                     {nomeCurto(item.criado_por)[0]}
                   </span>
             )}
-            <button
-              type="button"
-              onClick={() => onRealizar(item.id)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-50 text-emerald-600
-                         text-xs font-bold hover:bg-emerald-100 transition-colors active:scale-95"
-              aria-label="Marcar como realizado"
-            >
-              <Check className="w-3.5 h-3.5" strokeWidth={2.5} />
-              Realizar
-            </button>
+            <RealizarButton
+              onRealizar={(e) => onRealizar(item.id, e)}
+              disabled={isExiting}
+            />
           </div>
         </div>
 
@@ -1055,6 +1053,7 @@ function WishlistContent() {
   const [filtroCategoria, setFiltroCategoria] = useState<string | null>(null)
   const [filtroUsuario, setFiltroUsuario] = useState<string | null>(null)
   const [activeToast, setActiveToast] = useState<ToastAtivo | null>(null)
+  const [exitingId, setExitingId] = useState<string | null>(null)
   const [hintVisto, setHintVisto] = useState(true)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -1183,14 +1182,21 @@ function WishlistContent() {
     fecharModal()
   }
 
-  async function handleRealizar(id: string) {
+  async function handleRealizar(id: string, e: React.MouseEvent<HTMLButtonElement>) {
     clearToastTimer()
     const item = ativos.find(i => i.id === id)
+    if (!item) return
+
+    void fireWishlistConfetti(e.clientX, e.clientY)
+
+    setExitingId(id)
+    await new Promise<void>(resolve => setTimeout(resolve, 920))
+
     await marcarRealizado(id)
-    if (item) {
-      setActiveToast({ kind: 'realizou', id, nome: item.nome })
-      toastTimerRef.current = setTimeout(() => setActiveToast(null), 4000)
-    }
+    setExitingId(null)
+
+    setActiveToast({ kind: 'realizou', id, nome: item.nome })
+    toastTimerRef.current = setTimeout(() => setActiveToast(null), 4000)
   }
 
   function handleExcluir(id: string) {
@@ -1430,6 +1436,7 @@ function WishlistContent() {
                     highlighted={highlightId === item.id}
                     usuarioAtual={usuarioAtual}
                     sobraLiquida={sobraLiquida}
+                    isExiting={exitingId === item.id}
                     onEditar={abrirEditar}
                     onRealizar={handleRealizar}
                     onExcluir={handleExcluir}
