@@ -441,6 +441,13 @@ export default function Dashboard() {
   const [aba, setAba] = useState<'resumo' | 'graficos'>('resumo')
   const [graficosAbertos, setGraficosAbertos] = useState(false)
   const [visaoGastosDiarios, setVisaoGastosDiarios] = useState<'valor' | 'burndown'>('valor')
+  const [emailUsuario, setEmailUsuario] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setEmailUsuario(user?.email ?? null)
+    })
+  }, [])
 
   const handleSetAba = useCallback((novaAba: 'resumo' | 'graficos') => {
     setAba(novaAba)
@@ -494,6 +501,8 @@ export default function Dashboard() {
   usePrefetchPages(mesAtual, isOnline)
 
   const carregando = status === 'loading'
+
+  const isMatheus = !emailUsuario || emailUsuario.toLowerCase().includes('matheus')
 
   const comprometimentoColor = useMemo(() =>
     resumoCaixa.percentualComprometimento > 90 ? 'text-red-600' :
@@ -828,104 +837,114 @@ export default function Dashboard() {
                   })()}
                 </div>
 
-                {/* Matheus NuBank */}
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-                      <span className="text-sm font-semibold text-gray-800">Matheus</span>
-                    </div>
-                    <span className="text-sm font-medium text-gray-700 num">
-                      {fmt(fatura.matheusAtual)} / {fatura.matheusPrevisto > 0 ? fatura.matheusPrevisto.toLocaleString('pt-BR') : '–'}
-                    </span>
-                  </div>
-                  <div className="h-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-full overflow-hidden mb-1">
-                    <div key={fatura.matheusAtual} className="h-full bg-blue-500 rounded-full bar-enter" style={{ '--bar-w': `${fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100) : 0}%` } as React.CSSProperties} />
-                  </div>
-                  <div className="flex items-center justify-between mb-2">
-                    {fatura.matheusProjecaoParcelas > 0 ? (
-                      <span className="text-[11px] text-orange-500 font-medium">parc. prev. − {fmt(fatura.matheusProjecaoParcelas)}</span>
-                    ) : (
-                      <span className="text-[11px] text-gray-400">{matheusSobraWarning ? 'limite quase no teto' : ''}</span>
-                    )}
-                    <span className="text-[11px] text-gray-400 num">{fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100).toFixed(0) : 0}%</span>
-                  </div>
-                  {assinaturasNaopagas.matheus > 0 && (
-                    <div className="flex justify-between text-[11px] gap-1 mb-1.5 text-indigo-500">
-                      <span>Assinaturas</span>
-                      <span className="font-medium num">{fmt(assinaturasNaopagas.matheus)}</span>
-                    </div>
-                  )}
-                  {assinaturasDivergentes.matheus.length > 0 && (
-                    <div className="mb-1.5">
-                      {assinaturasDivergentes.matheus.map((d) => (
-                        <div key={d.nome} className="flex justify-between text-[11px] gap-1 text-amber-600">
-                          <span className="truncate shrink" title={d.nome}>⚠ {d.nome}</span>
-                          <span className="font-medium num shrink-0 whitespace-nowrap">{d.diff > 0 ? '+' : ''}{fmt(d.diff)}</span>
+                {/* Blocos Matheus / Jeniffer — ordem conforme usuário logado */}
+                {(() => {
+                  const matheusBlock = (
+                    <div key="matheus" className="mb-2">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                          <span className="text-sm font-semibold text-gray-800">Matheus</span>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                  <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
-                    fatura.sobraMatheus < 0 ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' : matheusSobraWarning ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                  }`}>
-                    {fatura.sobraMatheus < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso {fmt(Math.abs(fatura.sobraMatheus))}</> : matheusSobraWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção {fmt(Math.abs(fatura.sobraMatheus))}</> : <>✓ Restante {fmt(Math.abs(fatura.sobraMatheus))}</>}
-                  </div>
-                </div>
-
-                <div className="border-t border-gray-100 my-3" />
-
-                {/* Jeniffer NuBank */}
-                <div className="mb-3">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full bg-pink-500 shrink-0" />
-                      <span className="text-sm font-semibold text-gray-800">Jeniffer</span>
-                    </div>
-                    <span className="text-sm font-medium text-gray-700 num">
-                      {fmt(fatura.jenifferAtual)} / {fatura.jenifferPrevisto > 0 ? fatura.jenifferPrevisto.toLocaleString('pt-BR') : '–'}
-                    </span>
-                  </div>
-                  <div className="h-2.5 bg-pink-100 dark:bg-pink-900/30 rounded-full overflow-hidden mb-1">
-                    <div key={fatura.jenifferAtual} className="h-full bg-pink-500 rounded-full bar-enter" style={{ '--bar-w': `${fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100) : 0}%` } as React.CSSProperties} />
-                  </div>
-                  <div className="flex items-center justify-between mb-2">
-                    {fatura.jenifferProjecaoParcelas > 0 ? (
-                      <span className="text-[11px] text-orange-500 font-medium">parc. prev. − {fmt(fatura.jenifferProjecaoParcelas)}</span>
-                    ) : (
-                      <span className="text-[11px] text-gray-400">{jenifferSobraWarning ? 'limite quase no teto' : ''}</span>
-                    )}
-                    <span className="text-[11px] text-gray-400 num">{fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100).toFixed(0) : 0}%</span>
-                  </div>
-                  {assinaturasNaopagas.jeniffer > 0 && (
-                    <div className="flex justify-between text-[11px] gap-1 mb-1.5 text-indigo-500">
-                      <span>Assinaturas</span>
-                      <span className="font-medium num">{fmt(assinaturasNaopagas.jeniffer)}</span>
-                    </div>
-                  )}
-                  {assinaturasDivergentes.jeniffer.length > 0 && (
-                    <div className="mb-1.5">
-                      {assinaturasDivergentes.jeniffer.map((d) => (
-                        <div key={d.nome} className="flex justify-between text-[11px] gap-1 text-amber-600">
-                          <span className="truncate shrink" title={d.nome}>⚠ {d.nome}</span>
-                          <span className="font-medium num shrink-0 whitespace-nowrap">{d.diff > 0 ? '+' : ''}{fmt(d.diff)}</span>
+                        <span className="text-sm font-medium text-gray-700 num">
+                          {fmt(fatura.matheusAtual)} / {fatura.matheusPrevisto > 0 ? fatura.matheusPrevisto.toLocaleString('pt-BR') : '–'}
+                        </span>
+                      </div>
+                      <div className="h-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-full overflow-hidden mb-0.5">
+                        <div key={fatura.matheusAtual} className="h-full bg-blue-500 rounded-full bar-enter" style={{ '--bar-w': `${fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100) : 0}%` } as React.CSSProperties} />
+                      </div>
+                      <div className="flex items-center justify-between mb-1">
+                        {fatura.matheusProjecaoParcelas > 0 ? (
+                          <span className="text-[11px] text-orange-500 font-medium">parc. prev. − {fmt(fatura.matheusProjecaoParcelas)}</span>
+                        ) : (
+                          <span className="text-[11px] text-gray-400">{matheusSobraWarning ? 'limite quase no teto' : ''}</span>
+                        )}
+                        <span className="text-[11px] text-gray-400 num">{fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100).toFixed(0) : 0}%</span>
+                      </div>
+                      {assinaturasDivergentes.matheus.length > 0 && (
+                        <div className="mb-1">
+                          {assinaturasDivergentes.matheus.map((d) => (
+                            <div key={d.nome} className="flex justify-between text-[11px] gap-1 text-amber-600">
+                              <span className="truncate shrink" title={d.nome}>⚠ {d.nome}</span>
+                              <span className="font-medium num shrink-0 whitespace-nowrap">{d.diff > 0 ? '+' : ''}{fmt(d.diff)}</span>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      )}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
+                          fatura.sobraMatheus < 0 ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' : matheusSobraWarning ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                        }`}>
+                          {fatura.sobraMatheus < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso {fmt(Math.abs(fatura.sobraMatheus))}</> : matheusSobraWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção {fmt(Math.abs(fatura.sobraMatheus))}</> : <>✓ Restante {fmt(Math.abs(fatura.sobraMatheus))}</>}
+                        </div>
+                        {assinaturasNaopagas.matheus > 0 && (
+                          <span className="text-[11px] text-indigo-500 num shrink-0">Assin. {fmt(assinaturasNaopagas.matheus)}</span>
+                        )}
+                      </div>
                     </div>
-                  )}
-                  <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
-                    fatura.sobraJeniffer < 0 ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' : jenifferSobraWarning ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' : 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300'
-                  }`}>
-                    {fatura.sobraJeniffer < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso {fmt(Math.abs(fatura.sobraJeniffer))}</> : jenifferSobraWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção {fmt(Math.abs(fatura.sobraJeniffer))}</> : <>✓ Restante {fmt(Math.abs(fatura.sobraJeniffer))}</>}
-                  </div>
-                </div>
+                  )
+
+                  const jenifferBlock = (
+                    <div key="jeniffer" className="mb-2">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2 h-2 rounded-full bg-pink-500 shrink-0" />
+                          <span className="text-sm font-semibold text-gray-800">Jeniffer</span>
+                        </div>
+                        <span className="text-sm font-medium text-gray-700 num">
+                          {fmt(fatura.jenifferAtual)} / {fatura.jenifferPrevisto > 0 ? fatura.jenifferPrevisto.toLocaleString('pt-BR') : '–'}
+                        </span>
+                      </div>
+                      <div className="h-2.5 bg-pink-100 dark:bg-pink-900/30 rounded-full overflow-hidden mb-0.5">
+                        <div key={fatura.jenifferAtual} className="h-full bg-pink-500 rounded-full bar-enter" style={{ '--bar-w': `${fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100) : 0}%` } as React.CSSProperties} />
+                      </div>
+                      <div className="flex items-center justify-between mb-1">
+                        {fatura.jenifferProjecaoParcelas > 0 ? (
+                          <span className="text-[11px] text-orange-500 font-medium">parc. prev. − {fmt(fatura.jenifferProjecaoParcelas)}</span>
+                        ) : (
+                          <span className="text-[11px] text-gray-400">{jenifferSobraWarning ? 'limite quase no teto' : ''}</span>
+                        )}
+                        <span className="text-[11px] text-gray-400 num">{fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100).toFixed(0) : 0}%</span>
+                      </div>
+                      {assinaturasDivergentes.jeniffer.length > 0 && (
+                        <div className="mb-1">
+                          {assinaturasDivergentes.jeniffer.map((d) => (
+                            <div key={d.nome} className="flex justify-between text-[11px] gap-1 text-amber-600">
+                              <span className="truncate shrink" title={d.nome}>⚠ {d.nome}</span>
+                              <span className="font-medium num shrink-0 whitespace-nowrap">{d.diff > 0 ? '+' : ''}{fmt(d.diff)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
+                          fatura.sobraJeniffer < 0 ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' : jenifferSobraWarning ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' : 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300'
+                        }`}>
+                          {fatura.sobraJeniffer < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso {fmt(Math.abs(fatura.sobraJeniffer))}</> : jenifferSobraWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção {fmt(Math.abs(fatura.sobraJeniffer))}</> : <>✓ Restante {fmt(Math.abs(fatura.sobraJeniffer))}</>}
+                        </div>
+                        {assinaturasNaopagas.jeniffer > 0 && (
+                          <span className="text-[11px] text-indigo-500 num shrink-0">Assin. {fmt(assinaturasNaopagas.jeniffer)}</span>
+                        )}
+                      </div>
+                    </div>
+                  )
+
+                  const [primeiro, segundo] = isMatheus ? [matheusBlock, jenifferBlock] : [jenifferBlock, matheusBlock]
+                  return (
+                    <>
+                      {primeiro}
+                      <div className="border-t border-gray-100 my-2" />
+                      {segundo}
+                    </>
+                  )
+                })()}
 
                 {/* Conjunto NuBank */}
                 {(fatura.conjuntoAtual > 0 || fatura.conjuntoPrevisto > 0 || fatura.conjuntoItemExiste) && (
                   <>
-                    <div className="border-t border-gray-100 my-3" />
-                    <div className="mb-3">
-                      <div className="flex items-center justify-between mb-1.5">
+                    <div className="border-t border-gray-100 my-2" />
+                    <div className="mb-2">
+                      <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-1.5">
                           <div className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
                           <span className="text-sm font-semibold text-gray-800">Conjunto</span>
@@ -938,10 +957,10 @@ export default function Dashboard() {
                       </div>
                       {fatura.conjuntoPrevisto > 0 && (
                         <>
-                          <div className="h-2.5 bg-purple-100 dark:bg-purple-900/30 rounded-full overflow-hidden mb-1">
+                          <div className="h-2.5 bg-purple-100 dark:bg-purple-900/30 rounded-full overflow-hidden mb-0.5">
                             <div key={fatura.conjuntoAtual} className="h-full bg-purple-500 rounded-full bar-enter" style={{ '--bar-w': `${Math.min(100, (fatura.conjuntoAtual / fatura.conjuntoPrevisto) * 100)}%` } as React.CSSProperties} />
                           </div>
-                          <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center justify-between mb-1">
                             {fatura.conjuntoProjecaoParcelas > 0 ? (
                               <span className="text-[11px] text-orange-500 font-medium">parc. prev. − {fmt(fatura.conjuntoProjecaoParcelas)}</span>
                             ) : <span />}
