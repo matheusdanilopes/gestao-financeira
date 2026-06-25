@@ -1190,7 +1190,7 @@ function WishlistContent() {
     void fireWishlistConfetti(e.clientX, e.clientY)
 
     setExitingId(id)
-    await new Promise<void>(resolve => setTimeout(resolve, 440))
+    await new Promise<void>(resolve => setTimeout(resolve, 920))
 
     await marcarRealizado(id)
     setExitingId(null)
