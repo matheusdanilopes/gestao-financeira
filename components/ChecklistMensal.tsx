@@ -436,7 +436,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
       categoria: itemEdit.categoria ?? 'Fixa',
       tipo_cartao: tipoCartaoPorItem(itemEdit.item ?? ''),
       valor_previsto: (itemEdit.valor_previsto ?? 0).toString(),
-      data_vencimento: itemEdit.data_vencimento ?? '',
+      data_vencimento: itemEdit.data_vencimento ?? format(startOfMonth(mesSelecionado), 'yyyy-MM-dd'),
     })
     setModalAberto('editar')
   }
