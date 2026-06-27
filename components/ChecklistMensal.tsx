@@ -74,6 +74,19 @@ function formatarMoeda(v: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
 }
 
+function moverVencimentoParaMes(dataVencimento: string | null | undefined, novoMes: Date): string | null {
+  if (!dataVencimento) return null
+  try {
+    const dia = parseISO(dataVencimento).getDate()
+    const ano = novoMes.getFullYear()
+    const mes = novoMes.getMonth()
+    const diasNoMes = new Date(ano, mes + 1, 0).getDate()
+    return format(new Date(ano, mes, Math.min(dia, diasNoMes)), 'yyyy-MM-dd')
+  } catch {
+    return null
+  }
+}
+
 function tipoCartaoPorItem(item: string): '' | 'cartao1' | 'cartao2' {
   if (item.startsWith(PREFIXO_CARTAO_1)) return 'cartao1'
   if (item.startsWith(PREFIXO_CARTAO_2)) return 'cartao2'
@@ -382,7 +395,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
       const idsExistentes = (existentes || []).map(i => i.id)
 
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const novosItens = previewImport.itens.map(({ id, mes_referencia, pago, valor_real, data_pagamento, created_at, parcela_atual, total_parcelas, ...resto }) => ({
+      const novosItens = previewImport.itens.map(({ id, mes_referencia, pago, valor_real, data_pagamento, created_at, parcela_atual, total_parcelas, data_vencimento, ...resto }) => ({
         ...resto,
         mes_referencia: mesAtualStr,
         pago: false,
@@ -390,6 +403,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
         data_pagamento: null,
         parcela_atual: parcela_atual ? parcela_atual + 1 : null,
         total_parcelas: total_parcelas ?? null,
+        data_vencimento: moverVencimentoParaMes(data_vencimento, mesSelecionado),
       }))
 
       if (novosItens.length > 0) {
@@ -589,7 +603,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
       {isOnline && (
         <PageActionButtons
           onAdd={() => {
-            setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', tipo_cartao: '', valor_previsto: '', data_vencimento: '' })
+            setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', tipo_cartao: '', valor_previsto: '', data_vencimento: format(startOfMonth(mesSelecionado), 'yyyy-MM-dd') })
             setModalAberto('adicionar')
           }}
           onImport={abrirModalImportar}
