@@ -666,7 +666,7 @@ export default function FabQuickLaunchSheet({ onClose }: { onClose: () => void }
         className="fixed bottom-0 left-0 right-0 z-[200] fab-sheet"
         style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}
       >
-        <div className="bg-white dark:bg-gray-900 rounded-t-[28px] shadow-2xl mx-auto max-w-lg overflow-hidden">
+        <div className="bg-white dark:bg-gray-900 rounded-t-3xl shadow-2xl mx-auto max-w-lg overflow-hidden">
           {/* Drag handle */}
           <div className="flex justify-center pt-3 pb-1">
             <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-700" />

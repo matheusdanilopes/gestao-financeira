@@ -212,7 +212,7 @@ function DeleteConfirmSheet({
     >
       {/* Sheet */}
       <div
-        className="w-full bg-white dark:bg-gray-900 rounded-t-2xl shadow-2xl"
+        className="w-full bg-white dark:bg-gray-900 rounded-t-3xl shadow-2xl"
         style={{
           transform: visible ? 'translateY(0)' : 'translateY(100%)',
           transition: `transform ${ANIM_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`,
@@ -221,7 +221,7 @@ function DeleteConfirmSheet({
       >
         {/* Handle bar */}
         <div className="flex justify-center pt-3 pb-1" aria-hidden="true">
-          <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-600" />
+          <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-700" />
         </div>
 
         {/* Body */}

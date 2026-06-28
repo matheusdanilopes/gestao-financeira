@@ -64,7 +64,7 @@ export function InfoPopover({ texto }: InfoPopoverProps) {
       {aberto && (
         <div
           ref={popRef}
-          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 350 }}
           className="w-64 animate-in
                      bg-gray-900 dark:bg-gray-950
                      text-white text-sm rounded-2xl

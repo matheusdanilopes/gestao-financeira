@@ -430,7 +430,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-white rounded-2xl shadow-card border border-gray-100 p-4 text-center">
           <div className="flex items-center justify-center gap-1.5 mb-1.5">
-            <Repeat className="w-3.5 h-3.5 text-primary-500" />
+            <Repeat className="w-3.5 h-3.5 text-primary-500 dark:text-primary-400" />
             <p className="text-xs text-gray-400 font-medium">Total ativo/mês</p>
           </div>
           <p className="text-xl font-bold text-primary-700 num leading-none">R$ {totalAtivo.toFixed(2)}</p>
@@ -449,11 +449,11 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
           onClick={() => setFiltroResponsavel('')}
           className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
             filtroResponsavel === ''
-              ? 'bg-primary-50 border-primary-200'
+              ? 'bg-primary-50 border-primary-200 dark:border-primary-800'
               : 'bg-white border-gray-100'
           }`}
         >
-          <p className={`text-[11px] font-medium mb-0.5 ${filtroResponsavel === '' ? 'text-primary-500' : 'text-gray-400'}`}>Total</p>
+          <p className={`text-[11px] font-medium mb-0.5 ${filtroResponsavel === '' ? 'text-primary-500 dark:text-primary-400' : 'text-gray-400'}`}>Total</p>
           <p className={`text-xs font-bold num leading-tight ${filtroResponsavel === '' ? 'text-primary-700' : 'text-gray-700'}`}>{formatBRL(totalAtivo)}</p>
           <p className={`text-[9px] mt-0.5 ${filtroResponsavel === '' ? 'text-primary-400' : 'text-gray-400'}`}>{countPorResponsavel['']} ativa(s)</p>
         </button>
@@ -461,7 +461,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
           onClick={() => setFiltroResponsavel(filtroResponsavel === 'Matheus' ? '' : 'Matheus')}
           className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
             filtroResponsavel === 'Matheus'
-              ? 'bg-blue-50 border-blue-200'
+              ? 'bg-blue-50 border-blue-200 dark:border-blue-800'
               : 'bg-white border-gray-100'
           }`}
         >
@@ -473,11 +473,11 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
           onClick={() => setFiltroResponsavel(filtroResponsavel === 'Jeniffer' ? '' : 'Jeniffer')}
           className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
             filtroResponsavel === 'Jeniffer'
-              ? 'bg-pink-50 border-pink-200'
+              ? 'bg-pink-50 border-pink-200 dark:border-pink-800'
               : 'bg-white border-gray-100'
           }`}
         >
-          <p className={`text-[11px] font-medium mb-0.5 ${filtroResponsavel === 'Jeniffer' ? 'text-pink-500' : 'text-gray-400'}`}>Jeniffer</p>
+          <p className={`text-[11px] font-medium mb-0.5 ${filtroResponsavel === 'Jeniffer' ? 'text-pink-500 dark:text-pink-400' : 'text-gray-400'}`}>Jeniffer</p>
           <p className={`text-xs font-bold num leading-tight ${filtroResponsavel === 'Jeniffer' ? 'text-pink-600' : 'text-gray-700'}`}>{formatBRL(totalJeniffer)}</p>
           <p className={`text-[9px] mt-0.5 ${filtroResponsavel === 'Jeniffer' ? 'text-pink-400' : 'text-gray-400'}`}>{countPorResponsavel.Jeniffer} ativa(s)</p>
         </button>
@@ -489,7 +489,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
           <button
             onClick={verificarNaFatura}
             disabled={verificando}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-primary-200 bg-primary-50 text-primary-700 text-sm font-semibold hover:bg-primary-100 transition-all active:scale-[0.98] disabled:opacity-60"
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-primary-200 dark:border-primary-800 bg-primary-50 text-primary-700 text-sm font-semibold hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-all active:scale-[0.98] disabled:opacity-60"
           >
             <Search className={`w-4 h-4 ${verificando ? 'animate-pulse' : ''}`} />
             {verificando ? 'Verificando…' : 'Verificar cobranças'}

@@ -66,8 +66,8 @@ function FinancasMenuPopover({ onClose }: { onClose: () => void }) {
             href={`/financas?tab=${tab}`}
             onClick={onClose}
             prefetch={true}
-            className={`flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50
-                        active:bg-gray-100 transition-colors duration-150
+            className={`flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800
+                        active:bg-gray-100 dark:active:bg-gray-700 transition-colors duration-150
                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
                         ${i < opcoes.length - 1 ? 'border-b border-gray-100' : ''}`}
           >
@@ -84,8 +84,8 @@ function FinancasMenuPopover({ onClose }: { onClose: () => void }) {
 
 function CartaoMenuPopover({ onClose }: { onClose: () => void }) {
   const opcoes = [
-    { href: '/compras',      label: 'Compras',      Icon: ShoppingCart, cor: 'text-orange-500', bg: 'bg-orange-50' },
-    { href: '/assinaturas',  label: 'Assinaturas',  Icon: RepeatIcon,   cor: 'text-indigo-600', bg: 'bg-indigo-50' },
+    { href: '/compras',     label: 'Compras',     Icon: ShoppingCart, cor: 'text-orange-500 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+    { href: '/assinaturas', label: 'Assinaturas', Icon: RepeatIcon,   cor: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-900/20'  },
   ]
 
   return (
@@ -97,8 +97,8 @@ function CartaoMenuPopover({ onClose }: { onClose: () => void }) {
             href={href}
             onClick={onClose}
             prefetch={true}
-            className={`flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50
-                        active:bg-gray-100 transition-colors duration-150
+            className={`flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800
+                        active:bg-gray-100 dark:active:bg-gray-700 transition-colors duration-150
                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
                         ${i < opcoes.length - 1 ? 'border-b border-gray-100' : ''}`}
           >
@@ -116,10 +116,10 @@ function CartaoMenuPopover({ onClose }: { onClose: () => void }) {
 
 function ExtrasMenuPopover({ onClose }: { onClose: () => void }) {
   const opcoes = [
-    { href: '/wishlist',      label: 'Wishlist',      Icon: Heart,             cor: 'text-pink-500',    bg: 'bg-pink-50'    },
-    { href: '/lista-mercado', label: 'Lista Mercado', Icon: ShoppingBasket,    cor: 'text-green-600',   bg: 'bg-green-50'   },
-    { href: '/chat',          label: 'IA Assistant',  Icon: MessageCircle,     cor: 'text-primary-600', bg: 'bg-primary-50' },
-    { href: '/configuracoes', label: 'Configurações', Icon: SlidersHorizontal, cor: 'text-gray-600',    bg: 'bg-gray-100'   },
+    { href: '/wishlist',      label: 'Wishlist',      Icon: Heart,             cor: 'text-pink-500 dark:text-pink-400',    bg: 'bg-pink-50'    },
+    { href: '/lista-mercado', label: 'Lista Mercado', Icon: ShoppingBasket,    cor: 'text-green-600',                      bg: 'bg-green-50'   },
+    { href: '/chat',          label: 'IA Assistant',  Icon: MessageCircle,     cor: 'text-primary-600',                    bg: 'bg-primary-50' },
+    { href: '/configuracoes', label: 'Configurações', Icon: SlidersHorizontal, cor: 'text-gray-600',                       bg: 'bg-gray-100'   },
   ]
 
   return (
@@ -131,8 +131,8 @@ function ExtrasMenuPopover({ onClose }: { onClose: () => void }) {
             href={href}
             onClick={onClose}
             prefetch={true}
-            className={`flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50
-                        active:bg-gray-100 transition-colors duration-150
+            className={`flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800
+                        active:bg-gray-100 dark:active:bg-gray-700 transition-colors duration-150
                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
                         ${i < opcoes.length - 1 ? 'border-b border-gray-100' : ''}`}
           >

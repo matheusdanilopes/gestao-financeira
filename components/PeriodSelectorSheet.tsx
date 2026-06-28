@@ -301,7 +301,7 @@ export default function PeriodSelectorSheet({
             {actions}
             {/* drag handle at the bottom */}
             <div className="flex justify-center pb-3 pt-1">
-              <div className="w-9 h-1 rounded-full bg-gray-200 dark:bg-gray-700" />
+              <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-700" />
             </div>
           </div>
         )}
