@@ -5,9 +5,15 @@ import { format, startOfMonth, addMonths } from 'date-fns'
 import { Target } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { formatBRL } from '@/lib/logger'
+import FilterSelect from '@/components/FilterSelect'
+
+type FiltroResponsavel = 'todos' | 'Matheus' | 'Jeniffer' | 'Conjunto'
+type FiltroCartao      = 'todos' | 'nubank'  | 'cartao1'  | 'cartao2'
 
 interface Props {
   mesAtual: Date
+  cartao1Nome?: string
+  cartao2Nome?: string
 }
 
 interface CategoriaLimite {
@@ -16,9 +22,19 @@ interface CategoriaLimite {
   gasto: number
 }
 
-export default function LimitesCategorias({ mesAtual }: Props) {
-  const [itens, setItens] = useState<CategoriaLimite[]>([])
-  const [carregando, setCarregando] = useState(true)
+interface TransacaoRaw {
+  categoria: string | null
+  valor: number
+  responsavel: string | null
+  cartao: string | null
+}
+
+export default function LimitesCategorias({ mesAtual, cartao1Nome = 'Cartão 1', cartao2Nome = 'Cartão 2' }: Props) {
+  const [rawData, setRawData]         = useState<TransacaoRaw[]>([])
+  const [limitesMap, setLimitesMap]   = useState<Record<string, number>>({})
+  const [carregando, setCarregando]   = useState(true)
+  const [filtroResp, setFiltroResp]   = useState<FiltroResponsavel>('todos')
+  const [filtroCartao, setFiltroCartao] = useState<FiltroCartao>('todos')
 
   useEffect(() => {
     let cancelado = false
@@ -33,7 +49,7 @@ export default function LimitesCategorias({ mesAtual }: Props) {
         fetch('/api/configuracoes'),
         supabase
           .from('transacoes_nubank')
-          .select('categoria, valor')
+          .select('categoria, valor, responsavel, cartao')
           .eq('projeto_fatura', projetoFatura)
           .not('categoria', 'is', null)
           .neq('status', 'ESTORNO')
@@ -45,31 +61,20 @@ export default function LimitesCategorias({ mesAtual }: Props) {
       const configJson = await configRes.json()
       const configs: Array<{ chave: string; valor: string }> = configJson.configuracoes ?? []
 
-      const limitesMap: Record<string, number> = {}
+      const lMap: Record<string, number> = {}
       for (const c of configs) {
         if (c.chave.startsWith('limite_cat_')) {
           const catName = c.chave.slice('limite_cat_'.length)
           const val = parseFloat(c.valor)
           if (!isNaN(val) && val > 0) {
-            limitesMap[catName] = val
+            lMap[catName] = val
           }
         }
       }
 
-      const gastosMap: Record<string, number> = {}
-      for (const row of (transacoes ?? [])) {
-        const cat = row.categoria as string | null
-        if (cat) gastosMap[cat] = (gastosMap[cat] ?? 0) + Number(row.valor ?? 0)
-      }
-
-      const result: CategoriaLimite[] = Object.entries(limitesMap).map(([categoria, limite]) => ({
-        categoria,
-        limite,
-        gasto: gastosMap[categoria] ?? 0,
-      }))
-
       if (!cancelado) {
-        setItens(result)
+        setLimitesMap(lMap)
+        setRawData((transacoes ?? []) as TransacaoRaw[])
         setCarregando(false)
       }
     }
@@ -78,16 +83,52 @@ export default function LimitesCategorias({ mesAtual }: Props) {
     return () => { cancelado = true }
   }, [mesAtual])
 
+  const itens: CategoriaLimite[] = Object.entries(limitesMap).map(([categoria, limite]) => {
+    const gasto = rawData
+      .filter(row => {
+        if (row.categoria !== categoria) return false
+        if (filtroResp !== 'todos' && row.responsavel !== filtroResp) return false
+        if (filtroCartao !== 'todos' && row.cartao !== filtroCartao) return false
+        return true
+      })
+      .reduce((s, row) => s + Number(row.valor ?? 0), 0)
+    return { categoria, limite, gasto }
+  })
+
   if (carregando || itens.length === 0) return null
 
   return (
     <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-center gap-2 mb-3">
         <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center">
           <Target className="w-4 h-4 text-amber-600" />
         </div>
         <h2 className="text-base font-semibold text-gray-800">Limites de Orçamento</h2>
       </div>
+
+      <div className="flex gap-2 mb-4">
+        <FilterSelect
+          value={filtroResp}
+          onChange={v => setFiltroResp(v as FiltroResponsavel)}
+          options={[
+            { value: 'todos',    label: 'Todos'    },
+            { value: 'Matheus',  label: 'Matheus'  },
+            { value: 'Jeniffer', label: 'Jeniffer' },
+            { value: 'Conjunto', label: 'Conjunto' },
+          ]}
+        />
+        <FilterSelect
+          value={filtroCartao}
+          onChange={v => setFiltroCartao(v as FiltroCartao)}
+          options={[
+            { value: 'todos',   label: 'Todos os cartões' },
+            { value: 'nubank',  label: 'NuBank'           },
+            { value: 'cartao1', label: cartao1Nome        },
+            { value: 'cartao2', label: cartao2Nome        },
+          ]}
+        />
+      </div>
+
       <div className="space-y-4">
         {itens.map(({ categoria, limite, gasto }) => {
           const pct = limite > 0 ? (gasto / limite) * 100 : 0

@@ -1172,7 +1172,7 @@ export default function Dashboard() {
               />
             </div>
 
-            <LimitesCategorias mesAtual={mesAtual} />
+            <LimitesCategorias mesAtual={mesAtual} cartao1Nome={fatura.cartao1Nome} cartao2Nome={fatura.cartao2Nome} />
 
             <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
               <div className="flex items-center gap-2 mb-1">
