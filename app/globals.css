@@ -119,6 +119,7 @@ body.theme-transition {
 .dark .text-pink-800    { color: #fbcfe8 !important; }
 .dark .text-pink-700    { color: #f9a8d4 !important; }
 .dark .text-pink-600    { color: #f472b6 !important; }
+.dark .text-pink-500    { color: #f472b6 !important; }
 .dark .text-pink-400    { color: #f9a8d4 !important; }
 .dark .text-red-600     { color: #fca5a5 !important; }
 .dark .text-red-500     { color: #fca5a5 !important; }
@@ -126,6 +127,8 @@ body.theme-transition {
 .dark .text-green-700   { color: #86efac !important; }
 .dark .text-green-600   { color: #4ade80 !important; }
 .dark .text-emerald-700 { color: #6ee7b7 !important; }
+.dark .text-emerald-600 { color: #34d399 !important; }
+.dark .text-emerald-500 { color: #6ee7b7 !important; }
 .dark .text-teal-700    { color: #5eead4 !important; }
 .dark .text-amber-700   { color: #fcd34d !important; }
 .dark .text-amber-600   { color: #fbbf24 !important; }
@@ -134,6 +137,8 @@ body.theme-transition {
 .dark .text-violet-600  { color: #a78bfa !important; }
 .dark .text-primary-700 { color: #a5b4fc !important; }
 .dark .text-primary-600 { color: var(--color-primary) !important; }
+.dark .text-primary-500 { color: #818cf8 !important; }
+.dark .text-primary-400 { color: #a5b4fc !important; }
 
 /* Bordas */
 .dark .border-gray-50   { border-color: var(--color-surface) !important; }
@@ -144,7 +149,19 @@ body.theme-transition {
 .dark .border-blue-500  { border-color: #3b82f6 !important; }
 .dark .border-pink-100  { border-color: #500724 !important; }
 .dark .border-primary-100 { border-color: #312e81 !important; }
+.dark .border-primary-200 { border-color: #4338ca !important; }
+.dark .border-blue-200    { border-color: #1d4ed8 !important; }
+.dark .border-pink-200    { border-color: #9d174d !important; }
 .dark .border-t         { border-color: var(--color-border) !important; }
+
+/* Estados interativos — hover/active não cobertos por pseudo-classes do Tailwind + .dark */
+.dark .hover\:bg-gray-50:hover   { background-color: var(--color-bg) !important; }
+.dark .hover\:bg-gray-100:hover  { background-color: var(--color-surface-2) !important; }
+.dark .hover\:bg-gray-200:hover  { background-color: #475569 !important; }
+.dark .active\:bg-gray-50:active  { background-color: var(--color-bg) !important; }
+.dark .active\:bg-gray-100:active { background-color: var(--color-surface-2) !important; }
+.dark .hover\:bg-primary-50:hover  { background-color: var(--color-primary-50) !important; }
+.dark .hover\:bg-primary-100:hover { background-color: #312e81 !important; }
 
 /* Inputs */
 .dark input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
