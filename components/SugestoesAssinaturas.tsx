@@ -70,7 +70,7 @@ export default function SugestoesAssinaturas({ onAdicionarAssinatura: _onAdicion
       <button
         type="button"
         onClick={() => setExpandido((v: boolean) => !v)}
-        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-amber-100/60 transition-colors"
+        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-amber-100/60 dark:hover:bg-amber-900/30 transition-colors"
       >
         <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center flex-none">
           <Lightbulb className="w-4 h-4 text-amber-600" strokeWidth={2} />
