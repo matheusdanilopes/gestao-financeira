@@ -161,7 +161,7 @@ export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }:
       <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 rounded-t-3xl shadow-float z-[200] max-h-[84vh] overflow-y-auto modal-sheet">
         {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-1 sticky top-0 bg-white dark:bg-gray-900 z-10">
-          <div className="w-9 h-1 rounded-full bg-gray-200 dark:bg-gray-700" />
+          <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-700" />
         </div>
 
         {/* Cabeçalho fixo */}
