@@ -4,11 +4,12 @@ import { useState, useRef, useEffect, useCallback, type FormEvent } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft, Plus, Minus, Check, Pencil, MoreHorizontal, Crown, Heart,
-  Trash2, X,
+  Trash2, X, ChevronRight,
 } from 'lucide-react'
+import Link from 'next/link'
 import ModalPortal from '@/components/ModalPortal'
 import { SwipeableItem } from '@/components/SwipeableItem'
-import { useItensLista, type ItemListaCompras } from '@/lib/useListasCompras'
+import { useItensLista, useSublistasLista, type ItemListaCompras, type ListaComMeta } from '@/lib/useListasCompras'
 import { supabase } from '@/lib/supabaseClient'
 import { formatBRL } from '@/lib/logger'
 
@@ -604,6 +605,227 @@ function InputAdicionarItem({
   )
 }
 
+// ── Input Criar Sublista ──────────────────────────────────────────────────────
+
+function InputCriarSublista({ onCriar }: { onCriar: (nome: string) => Promise<unknown> }) {
+  const [valor, setValor] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    const nome = valor.trim()
+    if (!nome || loading) return
+    setLoading(true)
+    try {
+      await onCriar(nome)
+      setValor('')
+    } catch { /* noop */ } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex items-center gap-2">
+      <input
+        type="text"
+        value={valor}
+        onChange={e => setValor(e.target.value)}
+        placeholder="Nome da sublista…"
+        className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5
+                   placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-400
+                   focus:border-transparent transition-all"
+        maxLength={80}
+      />
+      <button
+        type="submit"
+        disabled={!valor.trim() || loading}
+        className="w-10 h-10 flex items-center justify-center bg-amber-500 text-white
+                   rounded-xl disabled:opacity-40 active:scale-95 transition-all flex-none"
+        aria-label="Criar sublista"
+      >
+        <Plus className="w-5 h-5" strokeWidth={2.5} />
+      </button>
+    </form>
+  )
+}
+
+// ── Sublista Card ─────────────────────────────────────────────────────────────
+
+function SublistaCard({
+  sublista,
+  onAcoes,
+}: {
+  sublista: ListaComMeta
+  onAcoes: (sublista: ListaComMeta) => void
+}) {
+  const temPrevisto = sublista.totalPrevisto > 0
+  const temPago = sublista.totalPago > 0
+
+  return (
+    <SwipeableItem onDelete={() => onAcoes(sublista)} requireConfirmation={false} disabled={false}>
+      <div className="relative bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden">
+        <Link href={`/listas-compras/${sublista.id}`} className="block p-4 pr-12">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center flex-none">
+              <Crown className="w-4 h-4 text-amber-500" strokeWidth={1.8} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-bold text-gray-800 truncate">{sublista.nome}</h3>
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                {sublista.totalItens === 0 ? (
+                  <span className="text-[11px] text-gray-400">Vazia</span>
+                ) : sublista.totalPendentes > 0 ? (
+                  <span className="text-[11px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                    {sublista.totalPendentes} {sublista.totalPendentes === 1 ? 'pendente' : 'pendentes'}
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                    <Check className="w-2.5 h-2.5" strokeWidth={3} />
+                    Concluída
+                  </span>
+                )}
+              </div>
+              {(temPrevisto || temPago) && (
+                <div className="flex items-center gap-3 mt-1 flex-wrap">
+                  {temPrevisto && (
+                    <span className="text-[11px] text-gray-400">
+                      Prev: <span className="font-semibold text-gray-600 num">{formatBRL(sublista.totalPrevisto)}</span>
+                    </span>
+                  )}
+                  {temPago && (
+                    <span className="text-[11px] text-gray-400">
+                      Pago: <span className="font-semibold text-green-600 num">{formatBRL(sublista.totalPago)}</span>
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </Link>
+        <button
+          type="button"
+          onClick={e => { e.stopPropagation(); onAcoes(sublista) }}
+          className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-xl
+                     flex items-center justify-center text-gray-400 hover:bg-gray-100
+                     transition-colors active:scale-90"
+          aria-label="Ações da sublista"
+        >
+          <MoreHorizontal className="w-4 h-4" strokeWidth={2} />
+        </button>
+      </div>
+    </SwipeableItem>
+  )
+}
+
+// ── Bottom Sheet Ações Sublista ───────────────────────────────────────────────
+
+function BottomSheetAcoesSublista({
+  sublista,
+  onClose,
+  onRenomear,
+  onExcluir,
+}: {
+  sublista: ListaComMeta
+  onClose: () => void
+  onRenomear: (id: string, nome: string) => Promise<void>
+  onExcluir: (id: string) => Promise<void>
+}) {
+  const [renomeando, setRenomeando] = useState(false)
+  const [nomeLocal, setNomeLocal] = useState(sublista.nome)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (renomeando) setTimeout(() => inputRef.current?.focus(), 50)
+  }, [renomeando])
+
+  async function confirmarRenomear() {
+    const nome = nomeLocal.trim()
+    if (!nome || nome === sublista.nome) { setRenomeando(false); return }
+    await onRenomear(sublista.id, nome)
+    onClose()
+  }
+
+  async function handleExcluir() {
+    await onExcluir(sublista.id)
+    onClose()
+  }
+
+  return (
+    <ModalPortal>
+      <div
+        className="fixed inset-0 z-[200] flex items-end modal-overlay"
+        style={{ background: 'rgba(0,0,0,0.45)' }}
+        onClick={e => e.target === e.currentTarget && onClose()}
+      >
+        <div className="w-full bg-white rounded-t-3xl shadow-2xl px-5 pt-2 pb-10 modal-sheet">
+          <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-4" />
+          <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Sublista</p>
+          <p className="text-base font-bold text-gray-900 mb-5 truncate">{sublista.nome}</p>
+
+          {renomeando ? (
+            <div className="mb-4">
+              <input
+                ref={inputRef}
+                type="text"
+                value={nomeLocal}
+                onChange={e => setNomeLocal(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') confirmarRenomear()
+                  if (e.key === 'Escape') setRenomeando(false)
+                }}
+                className="w-full text-sm border border-amber-400 rounded-xl px-3.5 py-2.5
+                           focus:outline-none focus:ring-2 focus:ring-amber-400"
+                maxLength={80}
+              />
+              <div className="flex gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setRenomeando(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmarRenomear}
+                  className="flex-1 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-semibold"
+                >
+                  Salvar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <button
+                type="button"
+                onClick={() => setRenomeando(true)}
+                className="flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl hover:bg-gray-50
+                           text-gray-700 text-sm font-semibold transition-colors active:bg-gray-100"
+              >
+                <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center">
+                  <Pencil className="w-4 h-4 text-gray-600" strokeWidth={1.8} />
+                </div>
+                Renomear
+              </button>
+              <button
+                type="button"
+                onClick={handleExcluir}
+                className="flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl hover:bg-red-50
+                           text-red-600 text-sm font-semibold transition-colors active:bg-red-100"
+              >
+                <div className="w-8 h-8 rounded-xl bg-red-50 flex items-center justify-center">
+                  <Trash2 className="w-4 h-4 text-red-500" strokeWidth={1.8} />
+                </div>
+                Excluir sublista
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </ModalPortal>
+  )
+}
+
 // ── Página principal ──────────────────────────────────────────────────────────
 
 export default function DetalheListaPage() {
@@ -612,24 +834,49 @@ export default function DetalheListaPage() {
   const id = params.id as string
 
   const {
-    pendentes, comprados, totalPrevisto, totalPago,
+    pendentes, comprados,
+    totalPrevisto: totalPrevItens, totalPago: totalPagoItens,
     adicionarItem, editarItem, alterarQuantidade,
     marcarComprado, desmarcarComprado,
     excluirItem, moverParaWishlist,
   } = useItensLista(id)
 
-  const [listaNome, setListaNome] = useState<string>('')
+  const {
+    sublistas, criarSublista, renomearSublista, excluirSublista,
+    totalPrevisto: totalPrevSubs, totalPago: totalPagoSubs,
+  } = useSublistasLista(id)
+
+  const [breadcrumbs, setBreadcrumbs] = useState<{ id: string; nome: string }[]>([])
   const [emailAtual, setEmailAtual] = useState<string | null>(null)
   const [usuariosConhecidos, setUsuariosConhecidos] = useState<string[]>([])
   const [itemCheckbox, setItemCheckbox] = useState<ItemListaCompras | null>(null)
   const [itemEdicao, setItemEdicao] = useState<ItemListaCompras | null>(null)
+  const [sublistaAcoes, setSublistaAcoes] = useState<ListaComMeta | null>(null)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
   const fecharToast = useCallback(() => setToastMsg(null), [])
 
-  // Busca nome da lista, email e usuários conhecidos (mercado + wishlist)
+  // Busca cadeia de ancestrais (até 3 níveis) + usuários conhecidos
   useEffect(() => {
-    supabase.from('listas_compras').select('nome').eq('id', id).single()
-      .then(({ data }) => data && setListaNome(data.nome))
+    type AncestorRow = {
+      id: string; nome: string; parent_id: string | null
+      parent?: { id: string; nome: string; parent_id: string | null
+        grandparent?: { id: string; nome: string; parent_id: string | null }
+      } | null
+    }
+    supabase
+      .from('listas_compras')
+      .select('id, nome, parent_id, parent:listas_compras!parent_id(id, nome, parent_id, grandparent:listas_compras!parent_id(id, nome, parent_id))')
+      .eq('id', id)
+      .single()
+      .then(({ data }) => {
+        if (!data) return
+        const row = data as unknown as AncestorRow
+        const chain: { id: string; nome: string }[] = []
+        if (row.parent?.grandparent) chain.push({ id: row.parent.grandparent.id, nome: row.parent.grandparent.nome })
+        if (row.parent) chain.push({ id: row.parent.id, nome: row.parent.nome })
+        chain.push({ id: row.id, nome: row.nome })
+        setBreadcrumbs(chain)
+      })
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       const email = session?.user?.email ?? null
@@ -651,6 +898,23 @@ export default function DetalheListaPage() {
     })
   }, [id])
 
+  const depth = breadcrumbs.length > 0 ? breadcrumbs.length - 1 : 0
+  const listaNome = breadcrumbs[breadcrumbs.length - 1]?.nome ?? ''
+  const canAddSublistas = depth < 3
+
+  // Totais: se há sublistas, agrega delas; senão usa os itens diretos
+  const totalPrevisto = sublistas.length > 0 ? totalPrevSubs + totalPrevItens : totalPrevItens
+  const totalPago = sublistas.length > 0 ? totalPagoSubs + totalPagoItens : totalPagoItens
+  const temTotais = totalPrevisto > 0 || totalPago > 0
+
+  function handleBack() {
+    if (depth > 0 && breadcrumbs.length >= 2) {
+      router.push(`/listas-compras/${breadcrumbs[breadcrumbs.length - 2].id}`)
+    } else {
+      router.push('/listas-compras')
+    }
+  }
+
   async function handleCheckbox(item: ItemListaCompras) {
     if (item.status === 'comprado') {
       await desmarcarComprado(item.id)
@@ -670,7 +934,7 @@ export default function DetalheListaPage() {
     setToastMsg('Item movido para a Wishlist')
   }
 
-  const temTotais = totalPrevisto > 0 || totalPago > 0
+  const isEmpty = pendentes.length === 0 && comprados.length === 0 && sublistas.length === 0
 
   return (
     <div className="min-h-screen pb-40 page-enter">
@@ -679,7 +943,7 @@ export default function DetalheListaPage() {
         <div className="flex items-center gap-3 mb-3">
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={handleBack}
             className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center
                        text-gray-600 hover:bg-gray-200 active:scale-90 transition-all flex-none"
             aria-label="Voltar"
@@ -687,6 +951,24 @@ export default function DetalheListaPage() {
             <ArrowLeft className="w-4 h-4" strokeWidth={2.5} />
           </button>
           <div className="flex-1 min-w-0">
+            {/* Breadcrumb: mostra ancestrais quando em sublista */}
+            {breadcrumbs.length > 1 && (
+              <div className="flex items-center gap-1 mb-0.5 overflow-hidden">
+                {breadcrumbs.slice(0, -1).map((crumb, i) => (
+                  <span key={crumb.id} className="flex items-center gap-1 min-w-0">
+                    {i > 0 && <ChevronRight className="w-3 h-3 text-gray-300 flex-none" strokeWidth={2} />}
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/listas-compras/${crumb.id}`)}
+                      className="text-[11px] font-medium text-gray-400 truncate hover:text-amber-600 transition-colors"
+                    >
+                      {crumb.nome}
+                    </button>
+                  </span>
+                ))}
+                <ChevronRight className="w-3 h-3 text-gray-300 flex-none" strokeWidth={2} />
+              </div>
+            )}
             <h1 className="text-lg font-bold text-gray-900 leading-none truncate">
               {listaNome || '…'}
             </h1>
@@ -712,8 +994,36 @@ export default function DetalheListaPage() {
         <InputAdicionarItem onAdicionar={adicionarItem} emailAtual={emailAtual} />
       </div>
 
-      {/* Estado vazio */}
-      {pendentes.length === 0 && comprados.length === 0 && (
+      {/* Seção Sublistas — visível quando permitido criar sublistas (depth < 3) */}
+      {canAddSublistas && (
+        <div className="px-4 pt-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Sublistas</p>
+          </div>
+          <div className="mb-3">
+            <InputCriarSublista onCriar={criarSublista} />
+          </div>
+          {sublistas.length > 0 && (
+            <div className="space-y-2 mb-4">
+              {sublistas.map(sub => (
+                <SublistaCard key={sub.id} sublista={sub} onAcoes={(s) => setSublistaAcoes(s)} />
+              ))}
+            </div>
+          )}
+          {sublistas.length === 0 && (pendentes.length > 0 || comprados.length > 0) && null}
+          {sublistas.length === 0 && pendentes.length === 0 && comprados.length === 0 && (
+            <p className="text-xs text-gray-400 text-center py-2 mb-4">
+              Nenhuma sublista ainda
+            </p>
+          )}
+          {(pendentes.length > 0 || comprados.length > 0) && (
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Itens diretos</p>
+          )}
+        </div>
+      )}
+
+      {/* Estado vazio total */}
+      {isEmpty && !canAddSublistas && (
         <div className="flex flex-col items-center justify-center py-16 text-center px-8">
           <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center mb-4">
             <Crown className="w-8 h-8 text-amber-400" strokeWidth={1.5} />
@@ -722,10 +1032,11 @@ export default function DetalheListaPage() {
           <p className="text-xs text-gray-400 mt-1">Adicione o primeiro item acima</p>
         </div>
       )}
+      {isEmpty && canAddSublistas && null}
 
-      {/* Lista plana: pendentes primeiro, comprados ao final */}
+      {/* Lista plana de itens: pendentes primeiro, comprados ao final */}
       {(pendentes.length > 0 || comprados.length > 0) && (
-        <div className="mt-2 divide-y divide-gray-50">
+        <div className={`divide-y divide-gray-50 ${canAddSublistas ? '' : 'mt-2'}`}>
           {pendentes.map(item => (
             <ItemRow
               key={item.id}
@@ -767,6 +1078,16 @@ export default function DetalheListaPage() {
           onSalvar={editarItem}
           onMoverWishlist={handleMoverWishlist}
           onExcluir={excluirItem}
+        />
+      )}
+
+      {/* Modal ações sublista */}
+      {sublistaAcoes && (
+        <BottomSheetAcoesSublista
+          sublista={sublistaAcoes}
+          onClose={() => setSublistaAcoes(null)}
+          onRenomear={renomearSublista}
+          onExcluir={excluirSublista}
         />
       )}
 

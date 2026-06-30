@@ -229,7 +229,11 @@ function ListaCard({
                 {lista.nome}
               </h3>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
-                {lista.totalItens === 0 ? (
+                {lista.totalSublistas > 0 ? (
+                  <span className="text-[11px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                    {lista.totalSublistas} {lista.totalSublistas === 1 ? 'sublista' : 'sublistas'}
+                  </span>
+                ) : lista.totalItens === 0 ? (
                   <span className="text-[11px] text-gray-400">Vazia</span>
                 ) : lista.totalPendentes > 0 ? (
                   <span className="text-[11px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
