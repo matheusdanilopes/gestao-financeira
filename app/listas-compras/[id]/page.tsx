@@ -643,9 +643,11 @@ function InputCriarSublista({ onCriar }: { onCriar: (nome: string) => Promise<un
         type="button"
         onClick={abrir}
         className="flex items-center gap-2 w-full px-4 py-3 rounded-2xl
-                   border border-dashed border-amber-200 bg-amber-50/50
-                   text-amber-600 text-sm font-medium
-                   hover:bg-amber-50 active:scale-[0.98] transition-all"
+                   border border-dashed border-amber-300 dark:border-amber-700
+                   bg-amber-50/40 dark:bg-amber-900/20
+                   text-amber-600 dark:text-amber-400 text-sm font-medium
+                   hover:bg-amber-100/60 dark:hover:bg-amber-900/30
+                   active:scale-[0.98] transition-all"
       >
         <Plus className="w-4 h-4 flex-none" strokeWidth={2.5} />
         Adicionar sublista
@@ -662,16 +664,19 @@ function InputCriarSublista({ onCriar }: { onCriar: (nome: string) => Promise<un
         onChange={e => setValor(e.target.value)}
         onKeyDown={e => e.key === 'Escape' && fechar()}
         placeholder="Nome da sublista…"
-        className="flex-1 text-sm bg-white border border-amber-300 rounded-xl px-3.5 py-2.5
-                   placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-400
+        className="flex-1 text-sm bg-white dark:bg-gray-800
+                   border border-amber-300 dark:border-amber-700 rounded-xl px-3.5 py-2.5
+                   placeholder-gray-400 dark:placeholder-gray-500
+                   text-gray-900 dark:text-gray-100
+                   focus:outline-none focus:ring-2 focus:ring-amber-400
                    focus:border-transparent transition-all"
         maxLength={80}
       />
       <button
         type="button"
         onClick={fechar}
-        className="w-10 h-10 flex items-center justify-center text-gray-400
-                   hover:bg-gray-100 rounded-xl transition-all flex-none"
+        className="w-10 h-10 flex items-center justify-center text-gray-400 dark:text-gray-500
+                   hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all flex-none"
         aria-label="Cancelar"
       >
         <X className="w-4 h-4" strokeWidth={2.5} />
@@ -703,23 +708,23 @@ function SublistaCard({
 
   return (
     <SwipeableItem onDelete={() => onAcoes(sublista)} requireConfirmation={false} disabled={false}>
-      <div className="relative bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden">
+      <div className="relative bg-white dark:bg-gray-800 rounded-2xl border border-amber-100 dark:border-amber-800/50 shadow-sm overflow-hidden">
         <Link href={`/listas-compras/${sublista.id}`} className="block p-4 pr-12">
           <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center flex-none">
-              <Crown className="w-4 h-4 text-amber-500" strokeWidth={1.8} />
+            <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-900/40 flex items-center justify-center flex-none">
+              <Crown className="w-4 h-4 text-amber-500 dark:text-amber-400" strokeWidth={1.8} />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-bold text-gray-800 truncate">{sublista.nome}</h3>
+              <h3 className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">{sublista.nome}</h3>
               <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                 {sublista.totalItens === 0 ? (
-                  <span className="text-[11px] text-gray-400">Vazia</span>
+                  <span className="text-[11px] text-gray-400 dark:text-gray-500">Vazia</span>
                 ) : sublista.totalPendentes > 0 ? (
-                  <span className="text-[11px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                  <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/40 px-2 py-0.5 rounded-full">
                     {sublista.totalPendentes} {sublista.totalPendentes === 1 ? 'pendente' : 'pendentes'}
                   </span>
                 ) : (
-                  <span className="text-[11px] font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                  <span className="text-[11px] font-semibold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-2 py-0.5 rounded-full flex items-center gap-0.5">
                     <Check className="w-2.5 h-2.5" strokeWidth={3} />
                     Concluída
                   </span>
@@ -728,13 +733,13 @@ function SublistaCard({
               {(temPrevisto || temPago) && (
                 <div className="flex items-center gap-3 mt-1 flex-wrap">
                   {temPrevisto && (
-                    <span className="text-[11px] text-gray-400">
-                      Prev: <span className="font-semibold text-gray-600 num">{formatBRL(sublista.totalPrevisto)}</span>
+                    <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                      Prev: <span className="font-semibold text-gray-600 dark:text-gray-300 num">{formatBRL(sublista.totalPrevisto)}</span>
                     </span>
                   )}
                   {temPago && (
-                    <span className="text-[11px] text-gray-400">
-                      Pago: <span className="font-semibold text-green-600 num">{formatBRL(sublista.totalPago)}</span>
+                    <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                      Pago: <span className="font-semibold text-green-600 dark:text-green-400 num">{formatBRL(sublista.totalPago)}</span>
                     </span>
                   )}
                 </div>
@@ -746,7 +751,8 @@ function SublistaCard({
           type="button"
           onClick={e => { e.stopPropagation(); onAcoes(sublista) }}
           className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-xl
-                     flex items-center justify-center text-gray-400 hover:bg-gray-100
+                     flex items-center justify-center text-gray-400 dark:text-gray-500
+                     hover:bg-gray-100 dark:hover:bg-gray-700
                      transition-colors active:scale-90"
           aria-label="Ações da sublista"
         >
