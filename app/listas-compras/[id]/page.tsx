@@ -847,6 +847,7 @@ export default function DetalheListaPage() {
   } = useSublistasLista(id)
 
   const [breadcrumbs, setBreadcrumbs] = useState<{ id: string; nome: string }[]>([])
+  const [parentId, setParentId] = useState<string | null>(null)
   const [emailAtual, setEmailAtual] = useState<string | null>(null)
   const [usuariosConhecidos, setUsuariosConhecidos] = useState<string[]>([])
   const [itemCheckbox, setItemCheckbox] = useState<ItemListaCompras | null>(null)
@@ -855,28 +856,32 @@ export default function DetalheListaPage() {
   const [toastMsg, setToastMsg] = useState<string | null>(null)
   const fecharToast = useCallback(() => setToastMsg(null), [])
 
-  // Busca cadeia de ancestrais (até 3 níveis) + usuários conhecidos
+  // Busca cadeia de ancestrais com queries simples sequenciais (até 4 níveis)
   useEffect(() => {
-    type AncestorRow = {
-      id: string; nome: string; parent_id: string | null
-      parent?: { id: string; nome: string; parent_id: string | null
-        grandparent?: { id: string; nome: string; parent_id: string | null }
-      } | null
+    setBreadcrumbs([])
+    setParentId(null)
+
+    async function fetchChain() {
+      const chain: { id: string; nome: string }[] = []
+      let currentId: string | null = id
+
+      for (let i = 0; i < 4 && currentId; i++) {
+        const { data } = await supabase
+          .from('listas_compras')
+          .select('id, nome, parent_id')
+          .eq('id', currentId)
+          .single()
+        if (!data) break
+        const row = data as { id: string; nome: string; parent_id: string | null }
+        chain.unshift({ id: row.id, nome: row.nome })
+        if (i === 0) setParentId(row.parent_id)
+        currentId = row.parent_id
+      }
+
+      setBreadcrumbs(chain)
     }
-    supabase
-      .from('listas_compras')
-      .select('id, nome, parent_id, parent:listas_compras!parent_id(id, nome, parent_id, grandparent:listas_compras!parent_id(id, nome, parent_id))')
-      .eq('id', id)
-      .single()
-      .then(({ data }) => {
-        if (!data) return
-        const row = data as unknown as AncestorRow
-        const chain: { id: string; nome: string }[] = []
-        if (row.parent?.grandparent) chain.push({ id: row.parent.grandparent.id, nome: row.parent.grandparent.nome })
-        if (row.parent) chain.push({ id: row.parent.id, nome: row.parent.nome })
-        chain.push({ id: row.id, nome: row.nome })
-        setBreadcrumbs(chain)
-      })
+
+    fetchChain()
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       const email = session?.user?.email ?? null
@@ -908,8 +913,8 @@ export default function DetalheListaPage() {
   const temTotais = totalPrevisto > 0 || totalPago > 0
 
   function handleBack() {
-    if (depth > 0 && breadcrumbs.length >= 2) {
-      router.push(`/listas-compras/${breadcrumbs[breadcrumbs.length - 2].id}`)
+    if (parentId) {
+      router.push(`/listas-compras/${parentId}`)
     } else {
       router.push('/listas-compras')
     }
