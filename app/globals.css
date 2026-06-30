@@ -48,8 +48,9 @@
 body {
   background-color: var(--color-bg);
   color: var(--color-text);
-  /* overscroll-contain elimina o bounce lag no iOS/Android e evita scroll-chaining */
-  overscroll-behavior: contain;
+  /* overscroll-x contain evita scroll-chaining horizontal (SwipeableItem) sem bloquear
+     o pull-to-refresh vertical nativo do iOS Safari */
+  overscroll-behavior-x: contain;
   /* Evita reflows por seleção de texto durante scroll */
   -webkit-tap-highlight-color: transparent;
   /* Renderização tipográfica premium — suaviza traços e ativa kerning/ligaduras

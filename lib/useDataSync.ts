@@ -262,11 +262,17 @@ export function useDataSync({
         isOnlineRef.current = true
         setIsOnline(true)
       }
-      if (isOnlineRef.current) doFetch()
+      if (isOnlineRef.current) {
+        doFetch()
+        // Reconecta o canal Realtime — iOS fecha WebSockets silenciosamente
+        // ao suspender o app em background; setupRealtime() remove o canal
+        // antigo antes de criar um novo, então é seguro chamar aqui.
+        setupRealtime()
+      }
     }
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
-  }, [doFetch])
+  }, [doFetch, setupRealtime])
 
   // ── Inicialização principal ────────────────────────────────────
   useEffect(() => {
