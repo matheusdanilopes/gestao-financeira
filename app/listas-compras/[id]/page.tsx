@@ -711,29 +711,35 @@ export default function DetalheListaPage() {
           </div>
         </div>
         <InputAdicionarItem onAdicionar={adicionarItem} emailAtual={emailAtual} />
+      </div>
 
-        {/* Tabs */}
-        {(pendentes.length > 0 || comprados.length > 0) && (
-          <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mt-3">
+      {/* Tabs — só exibe quando há itens */}
+      {(pendentes.length > 0 || comprados.length > 0) && (
+        <div className="px-4 pt-3 pb-1">
+          <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl">
             <button
               type="button"
               onClick={() => setAba('aberto')}
               className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-150
-                          ${aba === 'aberto' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                          ${aba === 'aberto'
+                            ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
             >
-              Em aberto{pendentes.length > 0 ? ` (${pendentes.length})` : ''}
+              Pendentes{pendentes.length > 0 ? ` (${pendentes.length})` : ''}
             </button>
             <button
               type="button"
               onClick={() => setAba('concluidos')}
               className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-150
-                          ${aba === 'concluidos' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                          ${aba === 'concluidos'
+                            ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
             >
-              Concluídos{comprados.length > 0 ? ` (${comprados.length})` : ''}
+              Concluídas{comprados.length > 0 ? ` (${comprados.length})` : ''}
             </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Estado vazio */}
       {pendentes.length === 0 && comprados.length === 0 && (
