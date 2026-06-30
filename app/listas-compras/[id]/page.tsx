@@ -709,7 +709,9 @@ function SublistaCard({
   return (
     <SwipeableItem onDelete={() => onAcoes(sublista)} requireConfirmation={false} disabled={false}>
       <div className="relative bg-white dark:bg-gray-800 rounded-2xl border border-amber-100 dark:border-amber-800/50 shadow-sm overflow-hidden">
-        <Link href={`/listas-compras/${sublista.id}`} className="block p-4 pr-12">
+        {/* Link cobre o card inteiro */}
+        <Link href={`/listas-compras/${sublista.id}`} className="absolute inset-0 z-0" aria-label={sublista.nome} />
+        <div className="relative z-10 p-4 pr-12 pointer-events-none">
           <div className="flex items-start gap-3">
             <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-900/40 flex items-center justify-center flex-none">
               <Crown className="w-4 h-4 text-amber-500 dark:text-amber-400" strokeWidth={1.8} />
@@ -746,11 +748,12 @@ function SublistaCard({
               )}
             </div>
           </div>
-        </Link>
+        </div>
+        {/* Botão ··· acima do Link overlay */}
         <button
           type="button"
           onClick={e => { e.stopPropagation(); onAcoes(sublista) }}
-          className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-xl
+          className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-xl
                      flex items-center justify-center text-gray-400 dark:text-gray-500
                      hover:bg-gray-100 dark:hover:bg-gray-700
                      transition-colors active:scale-90"
@@ -777,6 +780,7 @@ function BottomSheetAcoesSublista({
   onExcluir: (id: string) => Promise<void>
 }) {
   const [renomeando, setRenomeando] = useState(false)
+  const [confirmarExclusao, setConfirmarExclusao] = useState(false)
   const [nomeLocal, setNomeLocal] = useState(sublista.nome)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -808,7 +812,28 @@ function BottomSheetAcoesSublista({
           <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Sublista</p>
           <p className="text-base font-bold text-gray-900 mb-5 truncate">{sublista.nome}</p>
 
-          {renomeando ? (
+          {confirmarExclusao ? (
+            <div className="rounded-2xl bg-red-50 p-4">
+              <p className="text-sm font-bold text-gray-900 mb-1">Excluir "{sublista.nome}"?</p>
+              <p className="text-xs text-gray-500 mb-4">Essa ação não pode ser desfeita.</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmarExclusao(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExcluir}
+                  className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold"
+                >
+                  Excluir
+                </button>
+              </div>
+            </div>
+          ) : renomeando ? (
             <div className="mb-4">
               <input
                 ref={inputRef}
@@ -855,7 +880,7 @@ function BottomSheetAcoesSublista({
               </button>
               <button
                 type="button"
-                onClick={handleExcluir}
+                onClick={() => setConfirmarExclusao(true)}
                 className="flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl hover:bg-red-50
                            text-red-600 text-sm font-semibold transition-colors active:bg-red-100"
               >
