@@ -608,8 +608,20 @@ function InputAdicionarItem({
 // ── Input Criar Sublista ──────────────────────────────────────────────────────
 
 function InputCriarSublista({ onCriar }: { onCriar: (nome: string) => Promise<unknown> }) {
+  const [aberto, setAberto] = useState(false)
   const [valor, setValor] = useState('')
   const [loading, setLoading] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  function abrir() {
+    setAberto(true)
+    setTimeout(() => inputRef.current?.focus(), 40)
+  }
+
+  function fechar() {
+    setAberto(false)
+    setValor('')
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -619,23 +631,51 @@ function InputCriarSublista({ onCriar }: { onCriar: (nome: string) => Promise<un
     try {
       await onCriar(nome)
       setValor('')
+      inputRef.current?.focus()
     } catch { /* noop */ } finally {
       setLoading(false)
     }
   }
 
+  if (!aberto) {
+    return (
+      <button
+        type="button"
+        onClick={abrir}
+        className="flex items-center gap-2 w-full px-4 py-3 rounded-2xl
+                   border border-dashed border-amber-200 bg-amber-50/50
+                   text-amber-600 text-sm font-medium
+                   hover:bg-amber-50 active:scale-[0.98] transition-all"
+      >
+        <Plus className="w-4 h-4 flex-none" strokeWidth={2.5} />
+        Adicionar sublista
+      </button>
+    )
+  }
+
   return (
     <form onSubmit={handleSubmit} className="flex items-center gap-2">
       <input
+        ref={inputRef}
         type="text"
         value={valor}
         onChange={e => setValor(e.target.value)}
+        onKeyDown={e => e.key === 'Escape' && fechar()}
         placeholder="Nome da sublista…"
-        className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5
+        className="flex-1 text-sm bg-white border border-amber-300 rounded-xl px-3.5 py-2.5
                    placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-400
                    focus:border-transparent transition-all"
         maxLength={80}
       />
+      <button
+        type="button"
+        onClick={fechar}
+        className="w-10 h-10 flex items-center justify-center text-gray-400
+                   hover:bg-gray-100 rounded-xl transition-all flex-none"
+        aria-label="Cancelar"
+      >
+        <X className="w-4 h-4" strokeWidth={2.5} />
+      </button>
       <button
         type="submit"
         disabled={!valor.trim() || loading}
@@ -1003,29 +1043,23 @@ export default function DetalheListaPage() {
         <InputAdicionarItem onAdicionar={adicionarItem} emailAtual={emailAtual} />
       </div>
 
-      {/* Seção Sublistas — visível quando permitido criar sublistas (depth < 3) */}
+      {/* Seção Sublistas — visível quando depth < 3 */}
       {canAddSublistas && (
         <div className="px-4 pt-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Sublistas</p>
-          </div>
-          <div className="mb-3">
+          {sublistas.length > 0 && (
+            <>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Sublistas</p>
+              <div className="space-y-2 mb-3">
+                {sublistas.map(sub => (
+                  <SublistaCard key={sub.id} sublista={sub} onAcoes={(s) => setSublistaAcoes(s)} />
+                ))}
+              </div>
+            </>
+          )}
+          <div className="mb-4">
             <InputCriarSublista onCriar={criarSublista} />
           </div>
-          {sublistas.length > 0 && (
-            <div className="space-y-2 mb-4">
-              {sublistas.map(sub => (
-                <SublistaCard key={sub.id} sublista={sub} onAcoes={(s) => setSublistaAcoes(s)} />
-              ))}
-            </div>
-          )}
-          {sublistas.length === 0 && (pendentes.length > 0 || comprados.length > 0) && null}
-          {sublistas.length === 0 && pendentes.length === 0 && comprados.length === 0 && (
-            <p className="text-xs text-gray-400 text-center py-2 mb-4">
-              Nenhuma sublista ainda
-            </p>
-          )}
-          {(pendentes.length > 0 || comprados.length > 0) && (
+          {sublistas.length > 0 && (pendentes.length > 0 || comprados.length > 0) && (
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Itens diretos</p>
           )}
         </div>
