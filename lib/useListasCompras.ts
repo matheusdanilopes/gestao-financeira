@@ -9,6 +9,7 @@ export type ListaCompras = {
   nome: string
   status: 'ativa' | 'arquivada'
   criado_por: string | null
+  parent_id: string | null
   created_at: string
   updated_at: string
 }
@@ -18,6 +19,7 @@ export type ListaComMeta = ListaCompras & {
   totalPendentes: number
   totalPrevisto: number
   totalPago: number
+  totalSublistas: number
 }
 
 export type ItemListaCompras = {
@@ -51,11 +53,12 @@ async function getUsuario(): Promise<string | null> {
   }
 }
 
-// ── useListasCompras — gerencia a lista de listas (tela Minhas Listas) ─────────
+// ── useListasCompras — gerencia a lista de listas raiz (tela Minhas Listas) ────
 
 export function useListasCompras() {
   const [listas, setListas] = useState<ListaCompras[]>([])
   const [itensMeta, setItensMeta] = useState<ItemMeta[]>([])
+  const [sublistasMeta, setSublistasMeta] = useState<{ id: string; parent_id: string }[]>([])
   const listasRef = useRef<ListaCompras[]>([])
   useEffect(() => { listasRef.current = listas }, [listas])
 
@@ -63,22 +66,29 @@ export function useListasCompras() {
     cacheKey: 'listas-compras',
     tables: ['listas_compras', 'listas_compras_itens'],
     fetcher: async () => {
-      const [listasResult, itensResult] = await Promise.all([
-        supabase.from('listas_compras').select('*').order('created_at', { ascending: false }),
+      const [listasResult, itensResult, sublistasResult] = await Promise.all([
+        supabase.from('listas_compras').select('*').is('parent_id', null).order('created_at', { ascending: false }),
         supabase.from('listas_compras_itens').select('lista_id, preco_previsto, preco_pago, status, quantidade'),
+        supabase.from('listas_compras').select('id, parent_id').not('parent_id', 'is', null),
       ])
       if (listasResult.error) throw listasResult.error
-      return { listas: listasResult.data ?? [], itens: itensResult.data ?? [] }
+      return {
+        listas: listasResult.data ?? [],
+        itens: itensResult.data ?? [],
+        sublistas: sublistasResult.data ?? [],
+      }
     },
     onData: (data: unknown) => {
-      const d = data as { listas: ListaCompras[]; itens: ItemMeta[] }
+      const d = data as { listas: ListaCompras[]; itens: ItemMeta[]; sublistas: { id: string; parent_id: string }[] }
       setListas(d.listas)
       setItensMeta(d.itens)
+      setSublistasMeta(d.sublistas)
     },
   })
 
   const listasComMeta: ListaComMeta[] = listas.map(lista => {
     const itens = itensMeta.filter(i => i.lista_id === lista.id)
+    const totalSublistas = sublistasMeta.filter(s => s.parent_id === lista.id).length
     return {
       ...lista,
       totalItens: itens.length,
@@ -87,6 +97,7 @@ export function useListasCompras() {
       totalPago: itens
         .filter(i => i.status === 'comprado')
         .reduce((s, i) => s + (i.preco_pago ?? 0) * i.quantidade, 0),
+      totalSublistas,
     }
   })
 
@@ -97,7 +108,7 @@ export function useListasCompras() {
     const criado_por = await getUsuario()
     const tempId = crypto.randomUUID()
     const now = new Date().toISOString()
-    const tempLista: ListaCompras = { id: tempId, nome: nome.trim(), status: 'ativa', criado_por, created_at: now, updated_at: now }
+    const tempLista: ListaCompras = { id: tempId, nome: nome.trim(), status: 'ativa', criado_por, parent_id: null, created_at: now, updated_at: now }
     setListas(prev => [tempLista, ...prev])
 
     const { data, error } = await supabase
@@ -164,6 +175,96 @@ export function useListasCompras() {
   }, [])
 
   return { ativas, arquivadas, criarLista, renomearLista, arquivarLista, desarquivarLista, excluirLista }
+}
+
+// ── useSublistasLista — gerencia sublistas filhas de uma lista (tela Detalhe) ──
+
+export function useSublistasLista(parentId: string) {
+  const [sublistas, setSublistas] = useState<ListaCompras[]>([])
+  const [itensMeta, setItensMeta] = useState<ItemMeta[]>([])
+  const sublistasRef = useRef<ListaCompras[]>([])
+  useEffect(() => { sublistasRef.current = sublistas }, [sublistas])
+
+  useGlobalSync({
+    cacheKey: `sublistas-${parentId}`,
+    tables: ['listas_compras', 'listas_compras_itens'],
+    fetcher: async () => {
+      const [sublistasResult, itensResult] = await Promise.all([
+        supabase.from('listas_compras').select('*').eq('parent_id', parentId).order('created_at', { ascending: true }),
+        supabase.from('listas_compras_itens').select('lista_id, preco_previsto, preco_pago, status, quantidade'),
+      ])
+      if (sublistasResult.error) throw sublistasResult.error
+      return { sublistas: sublistasResult.data ?? [], itens: itensResult.data ?? [] }
+    },
+    onData: (data: unknown) => {
+      const d = data as { sublistas: ListaCompras[]; itens: ItemMeta[] }
+      setSublistas(d.sublistas)
+      setItensMeta(d.itens)
+    },
+  })
+
+  const sublistasComMeta: ListaComMeta[] = sublistas.map(sub => {
+    const itens = itensMeta.filter(i => i.lista_id === sub.id)
+    return {
+      ...sub,
+      totalItens: itens.length,
+      totalPendentes: itens.filter(i => i.status === 'pendente').length,
+      totalPrevisto: itens.reduce((s, i) => s + (i.preco_previsto ?? 0) * i.quantidade, 0),
+      totalPago: itens
+        .filter(i => i.status === 'comprado')
+        .reduce((s, i) => s + (i.preco_pago ?? 0) * i.quantidade, 0),
+      totalSublistas: 0,
+    }
+  })
+
+  const criarSublista = useCallback(async (nome: string) => {
+    const criado_por = await getUsuario()
+    const tempId = crypto.randomUUID()
+    const now = new Date().toISOString()
+    const tempSub: ListaCompras = { id: tempId, nome: nome.trim(), status: 'ativa', criado_por, parent_id: parentId, created_at: now, updated_at: now }
+    setSublistas(prev => [...prev, tempSub])
+
+    const { data, error } = await supabase
+      .from('listas_compras')
+      .insert([{ nome: nome.trim(), criado_por, parent_id: parentId }])
+      .select()
+      .single()
+
+    if (error) {
+      setSublistas(prev => prev.filter(s => s.id !== tempId))
+      throw error
+    }
+    setSublistas(prev => prev.map(s => s.id === tempId ? (data as ListaCompras) : s))
+    return data as ListaCompras
+  }, [parentId])
+
+  const renomearSublista = useCallback(async (id: string, nome: string) => {
+    const snapshot = sublistasRef.current
+    setSublistas(prev => prev.map(s => s.id === id ? { ...s, nome: nome.trim() } : s))
+    const { error } = await supabase
+      .from('listas_compras')
+      .update({ nome: nome.trim(), updated_at: new Date().toISOString() })
+      .eq('id', id)
+    if (error) {
+      setSublistas(snapshot)
+      throw error
+    }
+  }, [])
+
+  const excluirSublista = useCallback(async (id: string) => {
+    const snapshot = sublistasRef.current
+    setSublistas(prev => prev.filter(s => s.id !== id))
+    const { error } = await supabase.from('listas_compras').delete().eq('id', id)
+    if (error) {
+      setSublistas(snapshot)
+      throw error
+    }
+  }, [])
+
+  const totalPrevisto = sublistasComMeta.reduce((s, sub) => s + sub.totalPrevisto, 0)
+  const totalPago = sublistasComMeta.reduce((s, sub) => s + sub.totalPago, 0)
+
+  return { sublistas: sublistasComMeta, totalPrevisto, totalPago, criarSublista, renomearSublista, excluirSublista }
 }
 
 // ── useItensLista — gerencia itens de uma lista específica (tela Detalhe) ─────

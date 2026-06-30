@@ -4,11 +4,12 @@ import { useState, useRef, useEffect, useCallback, type FormEvent } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft, Plus, Minus, Check, Pencil, MoreHorizontal, Crown, Heart,
-  Trash2, X,
+  Trash2, X, ChevronRight,
 } from 'lucide-react'
+import Link from 'next/link'
 import ModalPortal from '@/components/ModalPortal'
 import { SwipeableItem } from '@/components/SwipeableItem'
-import { useItensLista, type ItemListaCompras } from '@/lib/useListasCompras'
+import { useItensLista, useSublistasLista, type ItemListaCompras, type ListaComMeta } from '@/lib/useListasCompras'
 import { supabase } from '@/lib/supabaseClient'
 import { formatBRL } from '@/lib/logger'
 
@@ -604,6 +605,298 @@ function InputAdicionarItem({
   )
 }
 
+// ── Input Criar Sublista ──────────────────────────────────────────────────────
+
+function InputCriarSublista({ onCriar }: { onCriar: (nome: string) => Promise<unknown> }) {
+  const [aberto, setAberto] = useState(false)
+  const [valor, setValor] = useState('')
+  const [loading, setLoading] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  function abrir() {
+    setAberto(true)
+    setTimeout(() => inputRef.current?.focus(), 40)
+  }
+
+  function fechar() {
+    setAberto(false)
+    setValor('')
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    const nome = valor.trim()
+    if (!nome || loading) return
+    setLoading(true)
+    try {
+      await onCriar(nome)
+      setValor('')
+      inputRef.current?.focus()
+    } catch { /* noop */ } finally {
+      setLoading(false)
+    }
+  }
+
+  if (!aberto) {
+    return (
+      <button
+        type="button"
+        onClick={abrir}
+        className="flex items-center gap-2 w-full px-4 py-3 rounded-2xl
+                   border border-dashed border-amber-300 dark:border-amber-700
+                   bg-amber-50/40 dark:bg-amber-900/20
+                   text-amber-600 dark:text-amber-400 text-sm font-medium
+                   hover:bg-amber-100/60 dark:hover:bg-amber-900/30
+                   active:scale-[0.98] transition-all"
+      >
+        <Plus className="w-4 h-4 flex-none" strokeWidth={2.5} />
+        Adicionar sublista
+      </button>
+    )
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex items-center gap-2">
+      <input
+        ref={inputRef}
+        type="text"
+        value={valor}
+        onChange={e => setValor(e.target.value)}
+        onKeyDown={e => e.key === 'Escape' && fechar()}
+        placeholder="Nome da sublista…"
+        className="flex-1 text-sm bg-white dark:bg-gray-800
+                   border border-amber-300 dark:border-amber-700 rounded-xl px-3.5 py-2.5
+                   placeholder-gray-400 dark:placeholder-gray-500
+                   text-gray-900 dark:text-gray-100
+                   focus:outline-none focus:ring-2 focus:ring-amber-400
+                   focus:border-transparent transition-all"
+        maxLength={80}
+      />
+      <button
+        type="button"
+        onClick={fechar}
+        className="w-10 h-10 flex items-center justify-center text-gray-400 dark:text-gray-500
+                   hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all flex-none"
+        aria-label="Cancelar"
+      >
+        <X className="w-4 h-4" strokeWidth={2.5} />
+      </button>
+      <button
+        type="submit"
+        disabled={!valor.trim() || loading}
+        className="w-10 h-10 flex items-center justify-center bg-amber-500 text-white
+                   rounded-xl disabled:opacity-40 active:scale-95 transition-all flex-none"
+        aria-label="Criar sublista"
+      >
+        <Plus className="w-5 h-5" strokeWidth={2.5} />
+      </button>
+    </form>
+  )
+}
+
+// ── Sublista Card ─────────────────────────────────────────────────────────────
+
+function SublistaCard({
+  sublista,
+  onAcoes,
+}: {
+  sublista: ListaComMeta
+  onAcoes: (sublista: ListaComMeta) => void
+}) {
+  const temPrevisto = sublista.totalPrevisto > 0
+  const temPago = sublista.totalPago > 0
+
+  return (
+    <SwipeableItem onDelete={() => onAcoes(sublista)} requireConfirmation={false} disabled={false}>
+      <div className="relative bg-white dark:bg-gray-800 rounded-2xl border border-amber-100 dark:border-amber-800/50 shadow-sm overflow-hidden">
+        {/* Link cobre o card inteiro */}
+        <Link href={`/listas-compras/${sublista.id}`} className="absolute inset-0 z-0" aria-label={sublista.nome} />
+        <div className="relative z-10 p-4 pr-12 pointer-events-none">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-900/40 flex items-center justify-center flex-none">
+              <Crown className="w-4 h-4 text-amber-500 dark:text-amber-400" strokeWidth={1.8} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">{sublista.nome}</h3>
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                {sublista.totalItens === 0 ? (
+                  <span className="text-[11px] text-gray-400 dark:text-gray-500">Vazia</span>
+                ) : sublista.totalPendentes > 0 ? (
+                  <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/40 px-2 py-0.5 rounded-full">
+                    {sublista.totalPendentes} {sublista.totalPendentes === 1 ? 'pendente' : 'pendentes'}
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-semibold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                    <Check className="w-2.5 h-2.5" strokeWidth={3} />
+                    Concluída
+                  </span>
+                )}
+              </div>
+              {(temPrevisto || temPago) && (
+                <div className="flex items-center gap-3 mt-1 flex-wrap">
+                  {temPrevisto && (
+                    <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                      Prev: <span className="font-semibold text-gray-600 dark:text-gray-300 num">{formatBRL(sublista.totalPrevisto)}</span>
+                    </span>
+                  )}
+                  {temPago && (
+                    <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                      Pago: <span className="font-semibold text-green-600 dark:text-green-400 num">{formatBRL(sublista.totalPago)}</span>
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        {/* Botão ··· acima do Link overlay */}
+        <button
+          type="button"
+          onClick={e => { e.stopPropagation(); onAcoes(sublista) }}
+          className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-xl
+                     flex items-center justify-center text-gray-400 dark:text-gray-500
+                     hover:bg-gray-100 dark:hover:bg-gray-700
+                     transition-colors active:scale-90"
+          aria-label="Ações da sublista"
+        >
+          <MoreHorizontal className="w-4 h-4" strokeWidth={2} />
+        </button>
+      </div>
+    </SwipeableItem>
+  )
+}
+
+// ── Bottom Sheet Ações Sublista ───────────────────────────────────────────────
+
+function BottomSheetAcoesSublista({
+  sublista,
+  onClose,
+  onRenomear,
+  onExcluir,
+}: {
+  sublista: ListaComMeta
+  onClose: () => void
+  onRenomear: (id: string, nome: string) => Promise<void>
+  onExcluir: (id: string) => Promise<void>
+}) {
+  const [renomeando, setRenomeando] = useState(false)
+  const [confirmarExclusao, setConfirmarExclusao] = useState(false)
+  const [nomeLocal, setNomeLocal] = useState(sublista.nome)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (renomeando) setTimeout(() => inputRef.current?.focus(), 50)
+  }, [renomeando])
+
+  async function confirmarRenomear() {
+    const nome = nomeLocal.trim()
+    if (!nome || nome === sublista.nome) { setRenomeando(false); return }
+    await onRenomear(sublista.id, nome)
+    onClose()
+  }
+
+  async function handleExcluir() {
+    await onExcluir(sublista.id)
+    onClose()
+  }
+
+  return (
+    <ModalPortal>
+      <div
+        className="fixed inset-0 z-[200] flex items-end modal-overlay"
+        style={{ background: 'rgba(0,0,0,0.45)' }}
+        onClick={e => e.target === e.currentTarget && onClose()}
+      >
+        <div className="w-full bg-white rounded-t-3xl shadow-2xl px-5 pt-2 pb-10 modal-sheet">
+          <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-4" />
+          <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Sublista</p>
+          <p className="text-base font-bold text-gray-900 mb-5 truncate">{sublista.nome}</p>
+
+          {confirmarExclusao ? (
+            <div className="rounded-2xl bg-red-50 p-4">
+              <p className="text-sm font-bold text-gray-900 mb-1">Excluir "{sublista.nome}"?</p>
+              <p className="text-xs text-gray-500 mb-4">Essa ação não pode ser desfeita.</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmarExclusao(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExcluir}
+                  className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold"
+                >
+                  Excluir
+                </button>
+              </div>
+            </div>
+          ) : renomeando ? (
+            <div className="mb-4">
+              <input
+                ref={inputRef}
+                type="text"
+                value={nomeLocal}
+                onChange={e => setNomeLocal(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') confirmarRenomear()
+                  if (e.key === 'Escape') setRenomeando(false)
+                }}
+                className="w-full text-sm border border-amber-400 rounded-xl px-3.5 py-2.5
+                           focus:outline-none focus:ring-2 focus:ring-amber-400"
+                maxLength={80}
+              />
+              <div className="flex gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setRenomeando(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmarRenomear}
+                  className="flex-1 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-semibold"
+                >
+                  Salvar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <button
+                type="button"
+                onClick={() => setRenomeando(true)}
+                className="flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl hover:bg-gray-50
+                           text-gray-700 text-sm font-semibold transition-colors active:bg-gray-100"
+              >
+                <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center">
+                  <Pencil className="w-4 h-4 text-gray-600" strokeWidth={1.8} />
+                </div>
+                Renomear
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmarExclusao(true)}
+                className="flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl hover:bg-red-50
+                           text-red-600 text-sm font-semibold transition-colors active:bg-red-100"
+              >
+                <div className="w-8 h-8 rounded-xl bg-red-50 flex items-center justify-center">
+                  <Trash2 className="w-4 h-4 text-red-500" strokeWidth={1.8} />
+                </div>
+                Excluir sublista
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </ModalPortal>
+  )
+}
+
 // ── Página principal ──────────────────────────────────────────────────────────
 
 export default function DetalheListaPage() {
@@ -612,24 +905,54 @@ export default function DetalheListaPage() {
   const id = params.id as string
 
   const {
-    pendentes, comprados, totalPrevisto, totalPago,
+    pendentes, comprados,
+    totalPrevisto: totalPrevItens, totalPago: totalPagoItens,
     adicionarItem, editarItem, alterarQuantidade,
     marcarComprado, desmarcarComprado,
     excluirItem, moverParaWishlist,
   } = useItensLista(id)
 
-  const [listaNome, setListaNome] = useState<string>('')
+  const {
+    sublistas, criarSublista, renomearSublista, excluirSublista,
+    totalPrevisto: totalPrevSubs, totalPago: totalPagoSubs,
+  } = useSublistasLista(id)
+
+  const [breadcrumbs, setBreadcrumbs] = useState<{ id: string; nome: string }[]>([])
+  const [parentId, setParentId] = useState<string | null>(null)
   const [emailAtual, setEmailAtual] = useState<string | null>(null)
   const [usuariosConhecidos, setUsuariosConhecidos] = useState<string[]>([])
   const [itemCheckbox, setItemCheckbox] = useState<ItemListaCompras | null>(null)
   const [itemEdicao, setItemEdicao] = useState<ItemListaCompras | null>(null)
+  const [sublistaAcoes, setSublistaAcoes] = useState<ListaComMeta | null>(null)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
   const fecharToast = useCallback(() => setToastMsg(null), [])
 
-  // Busca nome da lista, email e usuários conhecidos (mercado + wishlist)
+  // Busca cadeia de ancestrais com queries simples sequenciais (até 4 níveis)
   useEffect(() => {
-    supabase.from('listas_compras').select('nome').eq('id', id).single()
-      .then(({ data }) => data && setListaNome(data.nome))
+    setBreadcrumbs([])
+    setParentId(null)
+
+    async function fetchChain() {
+      const chain: { id: string; nome: string }[] = []
+      let currentId: string | null = id
+
+      for (let i = 0; i < 4 && currentId; i++) {
+        const { data } = await supabase
+          .from('listas_compras')
+          .select('id, nome, parent_id')
+          .eq('id', currentId)
+          .single()
+        if (!data) break
+        const row = data as { id: string; nome: string; parent_id: string | null }
+        chain.unshift({ id: row.id, nome: row.nome })
+        if (i === 0) setParentId(row.parent_id)
+        currentId = row.parent_id
+      }
+
+      setBreadcrumbs(chain)
+    }
+
+    fetchChain()
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       const email = session?.user?.email ?? null
@@ -651,6 +974,23 @@ export default function DetalheListaPage() {
     })
   }, [id])
 
+  const depth = breadcrumbs.length > 0 ? breadcrumbs.length - 1 : 0
+  const listaNome = breadcrumbs[breadcrumbs.length - 1]?.nome ?? ''
+  const canAddSublistas = depth < 3
+
+  // Totais: se há sublistas, agrega delas; senão usa os itens diretos
+  const totalPrevisto = sublistas.length > 0 ? totalPrevSubs + totalPrevItens : totalPrevItens
+  const totalPago = sublistas.length > 0 ? totalPagoSubs + totalPagoItens : totalPagoItens
+  const temTotais = totalPrevisto > 0 || totalPago > 0
+
+  function handleBack() {
+    if (parentId) {
+      router.push(`/listas-compras/${parentId}`)
+    } else {
+      router.push('/listas-compras')
+    }
+  }
+
   async function handleCheckbox(item: ItemListaCompras) {
     if (item.status === 'comprado') {
       await desmarcarComprado(item.id)
@@ -670,7 +1010,7 @@ export default function DetalheListaPage() {
     setToastMsg('Item movido para a Wishlist')
   }
 
-  const temTotais = totalPrevisto > 0 || totalPago > 0
+  const isEmpty = pendentes.length === 0 && comprados.length === 0 && sublistas.length === 0
 
   return (
     <div className="min-h-screen pb-40 page-enter">
@@ -679,7 +1019,7 @@ export default function DetalheListaPage() {
         <div className="flex items-center gap-3 mb-3">
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={handleBack}
             className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center
                        text-gray-600 hover:bg-gray-200 active:scale-90 transition-all flex-none"
             aria-label="Voltar"
@@ -687,9 +1027,31 @@ export default function DetalheListaPage() {
             <ArrowLeft className="w-4 h-4" strokeWidth={2.5} />
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-bold text-gray-900 leading-none truncate">
-              {listaNome || '…'}
-            </h1>
+            {/* Breadcrumb completo: sempre visível, mostra todo o caminho até o nó atual */}
+            <div className="flex items-center gap-1 flex-wrap">
+              {breadcrumbs.map((crumb, i) => {
+                const isCurrent = i === breadcrumbs.length - 1
+                return (
+                  <span key={crumb.id} className="flex items-center gap-1">
+                    {i > 0 && <ChevronRight className="w-3 h-3 text-gray-300 flex-none" strokeWidth={2.5} />}
+                    {isCurrent ? (
+                      <span className="text-lg font-bold text-gray-900 leading-tight">{crumb.nome}</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/listas-compras/${crumb.id}`)}
+                        className="text-sm font-medium text-gray-400 hover:text-amber-600 transition-colors truncate max-w-24"
+                      >
+                        {crumb.nome}
+                      </button>
+                    )}
+                  </span>
+                )
+              })}
+              {breadcrumbs.length === 0 && (
+                <span className="text-lg font-bold text-gray-900">…</span>
+              )}
+            </div>
             {temTotais && (
               <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                 {totalPrevisto > 0 && (
@@ -712,8 +1074,30 @@ export default function DetalheListaPage() {
         <InputAdicionarItem onAdicionar={adicionarItem} emailAtual={emailAtual} />
       </div>
 
-      {/* Estado vazio */}
-      {pendentes.length === 0 && comprados.length === 0 && (
+      {/* Seção Sublistas — visível quando depth < 3 */}
+      {canAddSublistas && (
+        <div className="px-4 pt-4">
+          {sublistas.length > 0 && (
+            <>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Sublistas</p>
+              <div className="space-y-2 mb-3">
+                {sublistas.map(sub => (
+                  <SublistaCard key={sub.id} sublista={sub} onAcoes={(s) => setSublistaAcoes(s)} />
+                ))}
+              </div>
+            </>
+          )}
+          <div className="mb-4">
+            <InputCriarSublista onCriar={criarSublista} />
+          </div>
+          {sublistas.length > 0 && (pendentes.length > 0 || comprados.length > 0) && (
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Itens diretos</p>
+          )}
+        </div>
+      )}
+
+      {/* Estado vazio total */}
+      {isEmpty && !canAddSublistas && (
         <div className="flex flex-col items-center justify-center py-16 text-center px-8">
           <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center mb-4">
             <Crown className="w-8 h-8 text-amber-400" strokeWidth={1.5} />
@@ -722,10 +1106,11 @@ export default function DetalheListaPage() {
           <p className="text-xs text-gray-400 mt-1">Adicione o primeiro item acima</p>
         </div>
       )}
+      {isEmpty && canAddSublistas && null}
 
-      {/* Lista plana: pendentes primeiro, comprados ao final */}
+      {/* Lista plana de itens: pendentes primeiro, comprados ao final */}
       {(pendentes.length > 0 || comprados.length > 0) && (
-        <div className="mt-2 divide-y divide-gray-50">
+        <div className={`divide-y divide-gray-50 ${canAddSublistas ? '' : 'mt-2'}`}>
           {pendentes.map(item => (
             <ItemRow
               key={item.id}
@@ -767,6 +1152,16 @@ export default function DetalheListaPage() {
           onSalvar={editarItem}
           onMoverWishlist={handleMoverWishlist}
           onExcluir={excluirItem}
+        />
+      )}
+
+      {/* Modal ações sublista */}
+      {sublistaAcoes && (
+        <BottomSheetAcoesSublista
+          sublista={sublistaAcoes}
+          onClose={() => setSublistaAcoes(null)}
+          onRenomear={renomearSublista}
+          onExcluir={excluirSublista}
         />
       )}
 
