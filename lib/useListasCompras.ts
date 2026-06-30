@@ -14,6 +14,7 @@ export type ListaCompras = {
 }
 
 export type ListaComMeta = ListaCompras & {
+  totalItens: number
   totalPendentes: number
   totalPrevisto: number
   totalPago: number
@@ -80,6 +81,7 @@ export function useListasCompras() {
     const itens = itensMeta.filter(i => i.lista_id === lista.id)
     return {
       ...lista,
+      totalItens: itens.length,
       totalPendentes: itens.filter(i => i.status === 'pendente').length,
       totalPrevisto: itens.reduce((s, i) => s + (i.preco_previsto ?? 0) * i.quantidade, 0),
       totalPago: itens

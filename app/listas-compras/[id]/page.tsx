@@ -621,32 +621,34 @@ export default function DetalheListaPage() {
   const [listaNome, setListaNome] = useState<string>('')
   const [emailAtual, setEmailAtual] = useState<string | null>(null)
   const [usuariosConhecidos, setUsuariosConhecidos] = useState<string[]>([])
+  const [aba, setAba] = useState<'aberto' | 'concluidos'>('aberto')
   const [itemCheckbox, setItemCheckbox] = useState<ItemListaCompras | null>(null)
   const [itemEdicao, setItemEdicao] = useState<ItemListaCompras | null>(null)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
   const fecharToast = useCallback(() => setToastMsg(null), [])
 
-  // Busca nome da lista, email do usuário e usuários conhecidos
+  // Busca nome da lista, email e usuários conhecidos (mercado + wishlist)
   useEffect(() => {
     supabase.from('listas_compras').select('nome').eq('id', id).single()
       .then(({ data }) => data && setListaNome(data.nome))
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       const email = session?.user?.email ?? null
       setEmailAtual(email)
 
-      // Busca todos os criadores conhecidos (mesmo padrão da Wishlist)
-      supabase
-        .from('lista_mercado_itens')
-        .select('criado_por')
-        .not('criado_por', 'is', null)
-        .then(({ data: rows }) => {
-          const extras = (rows ?? [])
-            .map((r: { criado_por: string | null }) => r.criado_por)
-            .filter((e): e is string => e !== null)
-          const todos = [...new Set([...(email ? [email] : []), ...extras])]
-          setUsuariosConhecidos(todos)
-        })
+      const [mercadoResult, wishlistResult] = await Promise.all([
+        supabase.from('lista_mercado_itens').select('criado_por').not('criado_por', 'is', null),
+        supabase.from('wishlist_items').select('criado_por').not('criado_por', 'is', null),
+      ])
+      const extrair = (rows: { criado_por: string | null }[] | null) =>
+        (rows ?? []).map(r => r.criado_por).filter((e): e is string => e !== null)
+
+      const todos = [...new Set([
+        ...(email ? [email] : []),
+        ...extrair(mercadoResult.data),
+        ...extrair(wishlistResult.data),
+      ])]
+      setUsuariosConhecidos(todos)
     })
   }, [id])
 
@@ -709,6 +711,28 @@ export default function DetalheListaPage() {
           </div>
         </div>
         <InputAdicionarItem onAdicionar={adicionarItem} emailAtual={emailAtual} />
+
+        {/* Tabs */}
+        {(pendentes.length > 0 || comprados.length > 0) && (
+          <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mt-3">
+            <button
+              type="button"
+              onClick={() => setAba('aberto')}
+              className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-150
+                          ${aba === 'aberto' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Em aberto{pendentes.length > 0 ? ` (${pendentes.length})` : ''}
+            </button>
+            <button
+              type="button"
+              onClick={() => setAba('concluidos')}
+              className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-150
+                          ${aba === 'concluidos' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Concluídos{comprados.length > 0 ? ` (${comprados.length})` : ''}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Estado vazio */}
@@ -722,15 +746,16 @@ export default function DetalheListaPage() {
         </div>
       )}
 
-      {/* Itens pendentes */}
-      {pendentes.length > 0 && (
-        <div className="mt-2">
-          <div className="px-4 py-2">
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-              Pendentes · {pendentes.length}
-            </span>
+      {/* Itens em aberto */}
+      {aba === 'aberto' && (
+        pendentes.length === 0 && comprados.length > 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center px-8">
+            <Check className="w-10 h-10 text-green-400 mb-3" strokeWidth={1.5} />
+            <p className="text-sm font-semibold text-gray-500">Tudo comprado!</p>
+            <p className="text-xs text-gray-400 mt-1">Veja os itens na aba Concluídos</p>
           </div>
-          <div className="divide-y divide-gray-50">
+        ) : (
+          <div className="mt-2 divide-y divide-gray-50">
             {pendentes.map(item => (
               <ItemRow
                 key={item.id}
@@ -742,18 +767,17 @@ export default function DetalheListaPage() {
               />
             ))}
           </div>
-        </div>
+        )
       )}
 
-      {/* Itens comprados */}
-      {comprados.length > 0 && (
-        <div className="mt-4">
-          <div className="px-4 py-2">
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-              Comprados · {comprados.length}
-            </span>
+      {/* Itens concluídos */}
+      {aba === 'concluidos' && (
+        comprados.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center px-8">
+            <p className="text-sm font-semibold text-gray-500">Nenhum item concluído</p>
           </div>
-          <div className="divide-y divide-gray-50">
+        ) : (
+          <div className="mt-2 divide-y divide-gray-50">
             {comprados.map(item => (
               <ItemRow
                 key={item.id}
@@ -765,7 +789,7 @@ export default function DetalheListaPage() {
               />
             ))}
           </div>
-        </div>
+        )
       )}
 
       {/* Modal preço pago */}
