@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { SlidersHorizontal, ChevronRight, Sparkles, Heart, ShoppingBasket, RepeatIcon, Activity } from 'lucide-react'
+import { SlidersHorizontal, ChevronRight, Sparkles, Heart, ShoppingBasket, RepeatIcon, Activity, Crown } from 'lucide-react'
 
 const grupos = [
   {
@@ -39,6 +39,16 @@ const grupos = [
         iconBg:      'bg-emerald-100',
         iconColor:   'text-emerald-600',
         Icon:        ShoppingBasket,
+        badge:       null,
+        badgeColor:  '',
+      },
+      {
+        href:        '/listas-compras',
+        label:       'Listas da Princesa',
+        description: 'Crie listas por nome, controle gastos previstos e realizados',
+        iconBg:      'bg-amber-100',
+        iconColor:   'text-amber-600',
+        Icon:        Crown,
         badge:       null,
         badgeColor:  '',
       },
