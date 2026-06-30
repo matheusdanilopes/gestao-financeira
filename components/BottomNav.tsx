@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Receipt, TrendingUp, ShoppingCart, MessageCircle,
   SlidersHorizontal, PiggyBank, Sparkles, BarChart3, Plus, MoreHorizontal, Wallet, CreditCard, RepeatIcon,
-  Heart, ShoppingBasket, WifiOff,
+  Heart, ShoppingBasket, WifiOff, ClipboardList,
 } from 'lucide-react'
 import { memo, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
@@ -19,7 +19,7 @@ import FabQuickLaunchSheet from '@/components/FabQuickLaunchSheet'
 const ROTAS_COM_MENU = [
   '/dashboard', '/contas', '/receitas', '/investimentos', '/assinaturas',
   '/compras', '/chat', '/configuracoes', '/importar', '/financas', '/extras',
-  '/wishlist', '/lista-mercado', '/lista-mercado/historico',
+  '/wishlist', '/lista-mercado', '/lista-mercado/historico', '/listas-compras',
 ]
 
 // Rotas acessíveis sem conexão (têm cache/operações locais)
@@ -27,7 +27,7 @@ const ROTAS_OFFLINE = ['/dashboard', '/lista-mercado']
 
 const ROTAS_FINANCAS = ['/financas', '/contas', '/receitas', '/investimentos']
 const ROTAS_CARTAO   = ['/compras', '/assinaturas']
-const ROTAS_EXTRAS   = ['/extras', '/chat', '/configuracoes', '/wishlist', '/lista-mercado']
+const ROTAS_EXTRAS   = ['/extras', '/chat', '/configuracoes', '/wishlist', '/lista-mercado', '/listas-compras']
 
 const desktopItems = [
   { href: '/dashboard',     label: 'Dashboard',    icon: LayoutDashboard,   desktopOnly: false },
@@ -37,7 +37,8 @@ const desktopItems = [
   { href: '/compras',       label: 'Compras',       icon: ShoppingCart,      desktopOnly: false },
   { href: '/assinaturas',   label: 'Assinaturas',   icon: RepeatIcon,        desktopOnly: false },
   { href: '/wishlist',      label: 'Wishlist',      icon: Heart,             desktopOnly: false },
-  { href: '/lista-mercado', label: 'Mercado',       icon: ShoppingBasket,    desktopOnly: false },
+  { href: '/lista-mercado',  label: 'Mercado',        icon: ShoppingBasket,    desktopOnly: false },
+  { href: '/listas-compras', label: 'Listas',        icon: ClipboardList,     desktopOnly: false },
   { href: '/chat',          label: 'IA',            icon: MessageCircle,     desktopOnly: false },
   { href: '/configuracoes', label: 'Config',        icon: SlidersHorizontal, desktopOnly: false },
   { href: '/analytics',     label: 'Analytics',     icon: BarChart3,         desktopOnly: true  },
@@ -117,7 +118,8 @@ function CartaoMenuPopover({ onClose }: { onClose: () => void }) {
 function ExtrasMenuPopover({ onClose }: { onClose: () => void }) {
   const opcoes = [
     { href: '/wishlist',      label: 'Wishlist',      Icon: Heart,             cor: 'text-pink-500 dark:text-pink-400',    bg: 'bg-pink-50'    },
-    { href: '/lista-mercado', label: 'Lista Mercado', Icon: ShoppingBasket,    cor: 'text-green-600',                      bg: 'bg-green-50'   },
+    { href: '/lista-mercado',  label: 'Lista Mercado',   Icon: ShoppingBasket,    cor: 'text-green-600',  bg: 'bg-green-50'   },
+    { href: '/listas-compras', label: 'Listas Compras', Icon: ClipboardList,     cor: 'text-blue-600',   bg: 'bg-blue-50'    },
     { href: '/chat',          label: 'IA Assistant',  Icon: MessageCircle,     cor: 'text-primary-600',                    bg: 'bg-primary-50' },
     { href: '/configuracoes', label: 'Configurações', Icon: SlidersHorizontal, cor: 'text-gray-600',                       bg: 'bg-gray-100'   },
   ]
