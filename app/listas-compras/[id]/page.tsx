@@ -951,27 +951,31 @@ export default function DetalheListaPage() {
             <ArrowLeft className="w-4 h-4" strokeWidth={2.5} />
           </button>
           <div className="flex-1 min-w-0">
-            {/* Breadcrumb: mostra ancestrais quando em sublista */}
-            {breadcrumbs.length > 1 && (
-              <div className="flex items-center gap-1 mb-0.5 overflow-hidden">
-                {breadcrumbs.slice(0, -1).map((crumb, i) => (
-                  <span key={crumb.id} className="flex items-center gap-1 min-w-0">
-                    {i > 0 && <ChevronRight className="w-3 h-3 text-gray-300 flex-none" strokeWidth={2} />}
-                    <button
-                      type="button"
-                      onClick={() => router.push(`/listas-compras/${crumb.id}`)}
-                      className="text-[11px] font-medium text-gray-400 truncate hover:text-amber-600 transition-colors"
-                    >
-                      {crumb.nome}
-                    </button>
+            {/* Breadcrumb completo: sempre visível, mostra todo o caminho até o nó atual */}
+            <div className="flex items-center gap-1 flex-wrap">
+              {breadcrumbs.map((crumb, i) => {
+                const isCurrent = i === breadcrumbs.length - 1
+                return (
+                  <span key={crumb.id} className="flex items-center gap-1">
+                    {i > 0 && <ChevronRight className="w-3 h-3 text-gray-300 flex-none" strokeWidth={2.5} />}
+                    {isCurrent ? (
+                      <span className="text-lg font-bold text-gray-900 leading-tight">{crumb.nome}</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/listas-compras/${crumb.id}`)}
+                        className="text-sm font-medium text-gray-400 hover:text-amber-600 transition-colors truncate max-w-24"
+                      >
+                        {crumb.nome}
+                      </button>
+                    )}
                   </span>
-                ))}
-                <ChevronRight className="w-3 h-3 text-gray-300 flex-none" strokeWidth={2} />
-              </div>
-            )}
-            <h1 className="text-lg font-bold text-gray-900 leading-none truncate">
-              {listaNome || '…'}
-            </h1>
+                )
+              })}
+              {breadcrumbs.length === 0 && (
+                <span className="text-lg font-bold text-gray-900">…</span>
+              )}
+            </div>
             {temTotais && (
               <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                 {totalPrevisto > 0 && (
