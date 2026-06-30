@@ -37,10 +37,16 @@ function emailHash(s: string): number {
 
 function corUsuario(email: string | null): string {
   if (!email) return 'bg-gray-100 text-gray-500'
+  if (email === 'conjunto') return 'bg-purple-100 text-purple-700'
   const e = email.toLowerCase()
   if (e.includes('matheus')) return 'bg-matheus-light text-matheus'
   if (e.includes('jeniffer') || e.includes('jennifer')) return 'bg-jeniffer-light text-jeniffer'
   return USER_PALETTE[emailHash(email) % USER_PALETTE.length]
+}
+
+function labelPessoa(email: string): string {
+  if (email === 'conjunto') return 'Conjunto'
+  return nomeCurto(email)
 }
 
 function parsearPreco(s: string): number | null {
@@ -176,12 +182,14 @@ function BottomSheetPrecoPago({
 
 function BottomSheetEditarItem({
   item,
+  usuariosConhecidos,
   onClose,
   onSalvar,
   onMoverWishlist,
   onExcluir,
 }: {
   item: ItemListaCompras
+  usuariosConhecidos: string[]
   onClose: () => void
   onSalvar: (id: string, campos: Partial<ItemListaCompras>) => void
   onMoverWishlist: (id: string) => Promise<void>
@@ -189,7 +197,7 @@ function BottomSheetEditarItem({
 }) {
   const [nome, setNome] = useState(item.nome)
   const [quantidade, setQuantidade] = useState(item.quantidade)
-  const [pessoa, setPessoa] = useState(item.pessoa ?? '')
+  const [pessoa, setPessoa] = useState<string | null>(item.pessoa ?? null)
   const [precoPrevisto, setPrecoPrevisto] = useState(
     item.preco_previsto != null ? String(item.preco_previsto).replace('.', ',') : ''
   )
@@ -202,7 +210,7 @@ function BottomSheetEditarItem({
     const campos: Partial<ItemListaCompras> = {
       nome: nome.trim() || item.nome,
       quantidade,
-      pessoa: pessoa.trim() || null,
+      pessoa: pessoa || null,
       preco_previsto: parsearPreco(precoPrevisto),
       preco_pago: parsearPreco(precoPago),
     }
@@ -281,25 +289,62 @@ function BottomSheetEditarItem({
             </div>
 
             {/* Pessoa */}
-            <div>
-              <label className="text-xs font-semibold text-gray-500 mb-1.5 block">
-                Pessoa <span className="font-normal text-gray-400">(opcional)</span>
-              </label>
-              <input
-                type="email"
-                inputMode="email"
-                value={pessoa}
-                onChange={e => setPessoa(e.target.value)}
-                placeholder="email@exemplo.com"
-                className="w-full text-sm border border-gray-200 rounded-xl px-3.5 py-2.5
-                           focus:outline-none focus:ring-2 focus:ring-primary-400 placeholder-gray-300"
-              />
-              {pessoa && (
-                <span className={`inline-block mt-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${corUsuario(pessoa)}`}>
-                  {nomeCurto(pessoa)}
-                </span>
-              )}
-            </div>
+            {usuariosConhecidos.length > 0 && (
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-2 block">
+                  Pessoa <span className="font-normal text-gray-400">(opcional)</span>
+                </label>
+                <div className="flex gap-2 flex-wrap">
+                  {usuariosConhecidos.map(email => {
+                    const ativo = pessoa === email
+                    const cor = corUsuario(email)
+                    return (
+                      <button
+                        key={email}
+                        type="button"
+                        onClick={() => setPessoa(ativo ? null : email)}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all
+                                    ${ativo
+                                      ? `${cor} ring-2 ring-inset ring-current`
+                                      : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}
+                      >
+                        <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-none
+                                         ${ativo ? 'bg-white/40' : cor}`}>
+                          {ativo
+                            ? <Check className="w-3.5 h-3.5" strokeWidth={3} />
+                            : labelPessoa(email)[0]
+                          }
+                        </span>
+                        <span className="text-sm font-semibold">{labelPessoa(email)}</span>
+                      </button>
+                    )
+                  })}
+                  {/* Conjunto */}
+                  {(() => {
+                    const ativo = pessoa === 'conjunto'
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => setPessoa(ativo ? null : 'conjunto')}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all
+                                    ${ativo
+                                      ? 'bg-purple-100 text-purple-700 ring-2 ring-inset ring-current'
+                                      : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}
+                      >
+                        <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-none
+                                         ${ativo ? 'bg-white/40' : 'bg-purple-100 text-purple-700'}`}>
+                          {ativo
+                            ? <Check className="w-3.5 h-3.5" strokeWidth={3} />
+                            : <Heart className="w-3.5 h-3.5" fill="currentColor" strokeWidth={0} />
+                          }
+                        </span>
+                        <span className="text-sm font-semibold">Conjunto</span>
+                      </button>
+                    )
+                  })()}
+                </div>
+              </div>
+            )}
 
             {/* Preços */}
             <div className="grid grid-cols-2 gap-3">
@@ -575,18 +620,34 @@ export default function DetalheListaPage() {
 
   const [listaNome, setListaNome] = useState<string>('')
   const [emailAtual, setEmailAtual] = useState<string | null>(null)
+  const [usuariosConhecidos, setUsuariosConhecidos] = useState<string[]>([])
   const [itemCheckbox, setItemCheckbox] = useState<ItemListaCompras | null>(null)
   const [itemEdicao, setItemEdicao] = useState<ItemListaCompras | null>(null)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
   const fecharToast = useCallback(() => setToastMsg(null), [])
 
-  // Busca nome da lista e email do usuário
+  // Busca nome da lista, email do usuário e usuários conhecidos
   useEffect(() => {
     supabase.from('listas_compras').select('nome').eq('id', id).single()
       .then(({ data }) => data && setListaNome(data.nome))
 
-    supabase.auth.getSession()
-      .then(({ data: { session } }) => setEmailAtual(session?.user?.email ?? null))
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const email = session?.user?.email ?? null
+      setEmailAtual(email)
+
+      // Busca todos os criadores conhecidos (mesmo padrão da Wishlist)
+      supabase
+        .from('lista_mercado_itens')
+        .select('criado_por')
+        .not('criado_por', 'is', null)
+        .then(({ data: rows }) => {
+          const extras = (rows ?? [])
+            .map((r: { criado_por: string | null }) => r.criado_por)
+            .filter((e): e is string => e !== null)
+          const todos = [...new Set([...(email ? [email] : []), ...extras])]
+          setUsuariosConhecidos(todos)
+        })
+    })
   }, [id])
 
   async function handleCheckbox(item: ItemListaCompras) {
@@ -720,6 +781,7 @@ export default function DetalheListaPage() {
       {itemEdicao && (
         <BottomSheetEditarItem
           item={itemEdicao}
+          usuariosConhecidos={usuariosConhecidos}
           onClose={() => setItemEdicao(null)}
           onSalvar={editarItem}
           onMoverWishlist={handleMoverWishlist}
