@@ -621,7 +621,6 @@ export default function DetalheListaPage() {
   const [listaNome, setListaNome] = useState<string>('')
   const [emailAtual, setEmailAtual] = useState<string | null>(null)
   const [usuariosConhecidos, setUsuariosConhecidos] = useState<string[]>([])
-  const [aba, setAba] = useState<'aberto' | 'concluidos'>('aberto')
   const [itemCheckbox, setItemCheckbox] = useState<ItemListaCompras | null>(null)
   const [itemEdicao, setItemEdicao] = useState<ItemListaCompras | null>(null)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
@@ -713,34 +712,6 @@ export default function DetalheListaPage() {
         <InputAdicionarItem onAdicionar={adicionarItem} emailAtual={emailAtual} />
       </div>
 
-      {/* Tabs — só exibe quando há itens */}
-      {(pendentes.length > 0 || comprados.length > 0) && (
-        <div className="px-4 pt-3 pb-1">
-          <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl">
-            <button
-              type="button"
-              onClick={() => setAba('aberto')}
-              className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-150
-                          ${aba === 'aberto'
-                            ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
-            >
-              Pendentes{pendentes.length > 0 ? ` (${pendentes.length})` : ''}
-            </button>
-            <button
-              type="button"
-              onClick={() => setAba('concluidos')}
-              className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-150
-                          ${aba === 'concluidos'
-                            ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
-            >
-              Concluídas{comprados.length > 0 ? ` (${comprados.length})` : ''}
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Estado vazio */}
       {pendentes.length === 0 && comprados.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-center px-8">
@@ -752,50 +723,30 @@ export default function DetalheListaPage() {
         </div>
       )}
 
-      {/* Itens em aberto */}
-      {aba === 'aberto' && (
-        pendentes.length === 0 && comprados.length > 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center px-8">
-            <Check className="w-10 h-10 text-green-400 mb-3" strokeWidth={1.5} />
-            <p className="text-sm font-semibold text-gray-500">Tudo comprado!</p>
-            <p className="text-xs text-gray-400 mt-1">Veja os itens na aba Concluídos</p>
-          </div>
-        ) : (
-          <div className="mt-2 divide-y divide-gray-50">
-            {pendentes.map(item => (
-              <ItemRow
-                key={item.id}
-                item={item}
-                onCheckbox={handleCheckbox}
-                onAlterarQtd={alterarQuantidade}
-                onAcoes={setItemEdicao}
-                onExcluir={excluirItem}
-              />
-            ))}
-          </div>
-        )
-      )}
-
-      {/* Itens concluídos */}
-      {aba === 'concluidos' && (
-        comprados.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center px-8">
-            <p className="text-sm font-semibold text-gray-500">Nenhum item concluído</p>
-          </div>
-        ) : (
-          <div className="mt-2 divide-y divide-gray-50">
-            {comprados.map(item => (
-              <ItemRow
-                key={item.id}
-                item={item}
-                onCheckbox={handleCheckbox}
-                onAlterarQtd={alterarQuantidade}
-                onAcoes={setItemEdicao}
-                onExcluir={excluirItem}
-              />
-            ))}
-          </div>
-        )
+      {/* Lista plana: pendentes primeiro, comprados ao final */}
+      {(pendentes.length > 0 || comprados.length > 0) && (
+        <div className="mt-2 divide-y divide-gray-50">
+          {pendentes.map(item => (
+            <ItemRow
+              key={item.id}
+              item={item}
+              onCheckbox={handleCheckbox}
+              onAlterarQtd={alterarQuantidade}
+              onAcoes={setItemEdicao}
+              onExcluir={excluirItem}
+            />
+          ))}
+          {comprados.map(item => (
+            <ItemRow
+              key={item.id}
+              item={item}
+              onCheckbox={handleCheckbox}
+              onAlterarQtd={alterarQuantidade}
+              onAcoes={setItemEdicao}
+              onExcluir={excluirItem}
+            />
+          ))}
+        </div>
       )}
 
       {/* Modal preço pago */}

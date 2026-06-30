@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, type FormEvent } from 'react'
 import Link from 'next/link'
 import {
-  ClipboardList, Plus, Archive, ArchiveRestore, Trash2, ChevronDown, ChevronUp,
+  ClipboardList, Plus, Archive, ArchiveRestore, Trash2,
   MoreHorizontal, Check, Pencil, ShoppingBag,
 } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
@@ -278,7 +278,7 @@ function ListaCard({
 
 export default function ListasComprasPage() {
   const { ativas, arquivadas, criarLista, renomearLista, arquivarLista, desarquivarLista, excluirLista } = useListasCompras()
-  const [mostrarArquivadas, setMostrarArquivadas] = useState(false)
+  const [aba, setAba] = useState<'pendentes' | 'concluidas'>('pendentes')
   const [listaAcoes, setListaAcoes] = useState<ListaComMeta | null>(null)
 
   return (
@@ -296,50 +296,69 @@ export default function ListasComprasPage() {
               {arquivadas.length > 0 && ` · ${arquivadas.length} arquivada${arquivadas.length > 1 ? 's' : ''}`}
             </p>
           </div>
-          {arquivadas.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setMostrarArquivadas(v => !v)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-100 text-xs
-                         font-semibold text-gray-600 hover:bg-gray-200 transition-colors"
-              aria-label={mostrarArquivadas ? 'Ocultar arquivadas' : 'Ver arquivadas'}
-            >
-              <Archive className="w-3 h-3" strokeWidth={2} />
-              <span>{arquivadas.length}</span>
-              {mostrarArquivadas
-                ? <ChevronUp className="w-3 h-3" strokeWidth={2.5} />
-                : <ChevronDown className="w-3 h-3" strokeWidth={2.5} />
-              }
-            </button>
-          )}
         </div>
         <InputNovaLista onCriar={criarLista} />
       </div>
 
-      {/* Listas ativas */}
-      <div className="px-4 pt-4 space-y-3">
-        {ativas.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mb-4">
-              <ClipboardList className="w-8 h-8 text-blue-400" strokeWidth={1.5} />
-            </div>
-            <p className="text-sm font-semibold text-gray-500">Nenhuma lista ainda</p>
-            <p className="text-xs text-gray-400 mt-1">Crie sua primeira lista acima</p>
-          </div>
-        )}
-        {ativas.map(lista => (
-          <ListaCard
-            key={lista.id}
-            lista={lista}
-            onAcoes={setListaAcoes}
-          />
-        ))}
+      {/* Tabs */}
+      <div className="px-4 pt-3 pb-1">
+        <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl">
+          <button
+            type="button"
+            onClick={() => setAba('pendentes')}
+            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-150
+                        ${aba === 'pendentes'
+                          ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                          : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
+          >
+            Pendentes{ativas.length > 0 ? ` (${ativas.length})` : ''}
+          </button>
+          <button
+            type="button"
+            onClick={() => setAba('concluidas')}
+            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-150
+                        ${aba === 'concluidas'
+                          ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                          : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
+          >
+            Arquivadas{arquivadas.length > 0 ? ` (${arquivadas.length})` : ''}
+          </button>
+        </div>
       </div>
 
+      {/* Listas ativas */}
+      {aba === 'pendentes' && (
+        <div className="px-4 pt-3 space-y-3">
+          {ativas.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mb-4">
+                <ClipboardList className="w-8 h-8 text-blue-400" strokeWidth={1.5} />
+              </div>
+              <p className="text-sm font-semibold text-gray-500">Nenhuma lista ainda</p>
+              <p className="text-xs text-gray-400 mt-1">Crie sua primeira lista acima</p>
+            </div>
+          )}
+          {ativas.map(lista => (
+            <ListaCard
+              key={lista.id}
+              lista={lista}
+              onAcoes={setListaAcoes}
+            />
+          ))}
+        </div>
+      )}
+
       {/* Listas arquivadas */}
-      {mostrarArquivadas && arquivadas.length > 0 && (
-        <div className="px-4 pt-6 space-y-3">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Arquivadas</p>
+      {aba === 'concluidas' && (
+        <div className="px-4 pt-3 space-y-3">
+          {arquivadas.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
+                <Archive className="w-8 h-8 text-gray-400" strokeWidth={1.5} />
+              </div>
+              <p className="text-sm font-semibold text-gray-500">Nenhuma lista arquivada</p>
+            </div>
+          )}
           {arquivadas.map(lista => (
             <ListaCard
               key={lista.id}
