@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, type FormEvent } from 'react'
 import Link from 'next/link'
 import {
-  ClipboardList, Plus, Archive, ArchiveRestore, Trash2,
+  Crown, Plus, Archive, ArchiveRestore, Trash2,
   MoreHorizontal, Check, Pencil, ShoppingBag,
 } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
@@ -218,10 +218,10 @@ function ListaCard({
         <Link href={`/listas-compras/${lista.id}`} className="block p-4 pr-12">
           <div className="flex items-start gap-3">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-none
-                            ${lista.status === 'arquivada' ? 'bg-gray-100' : 'bg-blue-50'}`}>
+                            ${lista.status === 'arquivada' ? 'bg-gray-100' : 'bg-amber-50'}`}>
               {lista.status === 'arquivada'
                 ? <Archive className="w-5 h-5 text-gray-400" strokeWidth={1.8} />
-                : <ShoppingBag className="w-5 h-5 text-blue-600" strokeWidth={1.8} />
+                : <ShoppingBag className="w-5 h-5 text-amber-600" strokeWidth={1.8} />
               }
             </div>
             <div className="flex-1 min-w-0">
@@ -232,7 +232,7 @@ function ListaCard({
                 {lista.totalItens === 0 ? (
                   <span className="text-[11px] text-gray-400">Vazia</span>
                 ) : lista.totalPendentes > 0 ? (
-                  <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                  <span className="text-[11px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
                     {lista.totalPendentes} {lista.totalPendentes === 1 ? 'pendente' : 'pendentes'}
                   </span>
                 ) : (
@@ -286,11 +286,11 @@ export default function ListasComprasPage() {
       {/* Header sticky */}
       <div className="sticky top-0 z-10 sticky-header border-b border-gray-100 px-4 pt-4 pb-3">
         <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center flex-none">
-            <ClipboardList className="w-5 h-5 text-blue-600" strokeWidth={1.8} />
+          <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center flex-none">
+            <Crown className="w-5 h-5 text-amber-600" strokeWidth={1.8} />
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-bold text-gray-900 leading-none">Minhas Listas</h1>
+            <h1 className="text-lg font-bold text-gray-900 leading-none">Listas da Princesa</h1>
             <p className="text-xs text-gray-400 mt-0.5">
               {ativas.length} {ativas.length === 1 ? 'lista ativa' : 'listas ativas'}
               {arquivadas.length > 0 && ` · ${arquivadas.length} arquivada${arquivadas.length > 1 ? 's' : ''}`}
@@ -331,8 +331,8 @@ export default function ListasComprasPage() {
         <div className="px-4 pt-3 space-y-3">
           {ativas.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mb-4">
-                <ClipboardList className="w-8 h-8 text-blue-400" strokeWidth={1.5} />
+              <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center mb-4">
+                <Crown className="w-8 h-8 text-amber-400" strokeWidth={1.5} />
               </div>
               <p className="text-sm font-semibold text-gray-500">Nenhuma lista ainda</p>
               <p className="text-xs text-gray-400 mt-1">Crie sua primeira lista acima</p>

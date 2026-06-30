@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Receipt, TrendingUp, ShoppingCart, MessageCircle,
   SlidersHorizontal, PiggyBank, Sparkles, BarChart3, Plus, MoreHorizontal, Wallet, CreditCard, RepeatIcon,
-  Heart, ShoppingBasket, WifiOff, ClipboardList,
+  Heart, ShoppingBasket, WifiOff, Crown,
 } from 'lucide-react'
 import { memo, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
@@ -38,7 +38,7 @@ const desktopItems = [
   { href: '/assinaturas',   label: 'Assinaturas',   icon: RepeatIcon,        desktopOnly: false },
   { href: '/wishlist',      label: 'Wishlist',      icon: Heart,             desktopOnly: false },
   { href: '/lista-mercado',  label: 'Mercado',        icon: ShoppingBasket,    desktopOnly: false },
-  { href: '/listas-compras', label: 'Listas',        icon: ClipboardList,     desktopOnly: false },
+  { href: '/listas-compras', label: 'Princesa',       icon: Crown,             desktopOnly: false },
   { href: '/chat',          label: 'IA',            icon: MessageCircle,     desktopOnly: false },
   { href: '/configuracoes', label: 'Config',        icon: SlidersHorizontal, desktopOnly: false },
   { href: '/analytics',     label: 'Analytics',     icon: BarChart3,         desktopOnly: true  },
@@ -119,7 +119,7 @@ function ExtrasMenuPopover({ onClose }: { onClose: () => void }) {
   const opcoes = [
     { href: '/wishlist',      label: 'Wishlist',      Icon: Heart,             cor: 'text-pink-500 dark:text-pink-400',    bg: 'bg-pink-50'    },
     { href: '/lista-mercado',  label: 'Lista Mercado',   Icon: ShoppingBasket,    cor: 'text-green-600',  bg: 'bg-green-50'   },
-    { href: '/listas-compras', label: 'Listas Compras', Icon: ClipboardList,     cor: 'text-blue-600',   bg: 'bg-blue-50'    },
+    { href: '/listas-compras', label: 'Listas da Princesa', Icon: Crown,         cor: 'text-amber-600',  bg: 'bg-amber-50'   },
     { href: '/chat',          label: 'IA Assistant',  Icon: MessageCircle,     cor: 'text-primary-600',                    bg: 'bg-primary-50' },
     { href: '/configuracoes', label: 'Configurações', Icon: SlidersHorizontal, cor: 'text-gray-600',                       bg: 'bg-gray-100'   },
   ]

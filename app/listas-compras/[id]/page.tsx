@@ -3,8 +3,8 @@
 import { useState, useRef, useEffect, useCallback, type FormEvent } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
-  ArrowLeft, Plus, Minus, Check, Pencil, MoreHorizontal, ShoppingCart, Heart,
-  Trash2, ClipboardList, X,
+  ArrowLeft, Plus, Minus, Check, Pencil, MoreHorizontal, Crown, Heart,
+  Trash2, X,
 } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
 import { SwipeableItem } from '@/components/SwipeableItem'
@@ -705,8 +705,8 @@ export default function DetalheListaPage() {
               </div>
             )}
           </div>
-          <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center flex-none">
-            <ShoppingCart className="w-5 h-5 text-blue-600" strokeWidth={1.8} />
+          <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center flex-none">
+            <Crown className="w-5 h-5 text-amber-600" strokeWidth={1.8} />
           </div>
         </div>
         <InputAdicionarItem onAdicionar={adicionarItem} emailAtual={emailAtual} />
@@ -715,8 +715,8 @@ export default function DetalheListaPage() {
       {/* Estado vazio */}
       {pendentes.length === 0 && comprados.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-center px-8">
-          <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mb-4">
-            <ClipboardList className="w-8 h-8 text-blue-400" strokeWidth={1.5} />
+          <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center mb-4">
+            <Crown className="w-8 h-8 text-amber-400" strokeWidth={1.5} />
           </div>
           <p className="text-sm font-semibold text-gray-500">Lista vazia</p>
           <p className="text-xs text-gray-400 mt-1">Adicione o primeiro item acima</p>

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { SlidersHorizontal, ChevronRight, Sparkles, Heart, ShoppingBasket, RepeatIcon, Activity, ClipboardList } from 'lucide-react'
+import { SlidersHorizontal, ChevronRight, Sparkles, Heart, ShoppingBasket, RepeatIcon, Activity, Crown } from 'lucide-react'
 
 const grupos = [
   {
@@ -44,11 +44,11 @@ const grupos = [
       },
       {
         href:        '/listas-compras',
-        label:       'Listas de Compras',
+        label:       'Listas da Princesa',
         description: 'Crie listas por nome, controle gastos previstos e realizados',
-        iconBg:      'bg-blue-100',
-        iconColor:   'text-blue-600',
-        Icon:        ClipboardList,
+        iconBg:      'bg-amber-100',
+        iconColor:   'text-amber-600',
+        Icon:        Crown,
         badge:       null,
         badgeColor:  '',
       },
