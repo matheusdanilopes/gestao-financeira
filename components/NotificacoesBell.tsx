@@ -24,6 +24,9 @@ interface ConflictMetadata {
   valor_novo: number
   descricao: string
   data_compra: string
+  resolucao?: 'aprovar' | 'recusar'
+  original_antes?: { status: string; valor: number; valor_final: number | null }
+  conflito_snapshot?: Record<string, unknown>
 }
 
 interface WishlistMetadata {
@@ -177,6 +180,7 @@ export default memo(function NotificacoesBell() {
   const [iosNaoInstalado, setIosNaoInstalado] = useState(false)
   const [erroPush, setErroPush] = useState<string | null>(null)
   const [resolvendo, setResolvendo] = useState<Record<string, boolean>>({})
+  const [erroConflito, setErroConflito] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const naoLidas = notificacoes.filter(n => !n.lida).length
@@ -324,8 +328,9 @@ export default memo(function NotificacoesBell() {
     fecharPushPorIds(ids)
   }
 
-  async function resolverConflito(notificacao_id: string, acao: 'aprovar' | 'recusar') {
+  async function resolverConflito(notificacao_id: string, acao: 'aprovar' | 'recusar' | 'desfazer') {
     setResolvendo(prev => ({ ...prev, [notificacao_id]: true }))
+    setErroConflito(null)
     try {
       const res = await fetch('/api/conciliacao/resolver', {
         method: 'POST',
@@ -333,9 +338,18 @@ export default memo(function NotificacoesBell() {
         body: JSON.stringify({ notificacao_id, acao }),
       })
       if (res.ok) {
-        setNotificacoes(prev => prev.map(n => n.id === notificacao_id ? { ...n, lida: true } : n))
-        fecharPushPorIds([notificacao_id])
+        if (acao === 'desfazer') {
+          setNotificacoes(prev => prev.map(n => n.id === notificacao_id ? { ...n, lida: false } : n))
+        } else {
+          setNotificacoes(prev => prev.map(n => n.id === notificacao_id ? { ...n, lida: true } : n))
+          fecharPushPorIds([notificacao_id])
+        }
+      } else {
+        const data = await res.json().catch(() => null)
+        setErroConflito(data?.error ?? 'Não foi possível concluir a ação.')
       }
+    } catch {
+      setErroConflito('Não foi possível concluir a ação. Verifique sua conexão.')
     } finally {
       setResolvendo(prev => ({ ...prev, [notificacao_id]: false }))
     }
@@ -444,6 +458,20 @@ export default memo(function NotificacoesBell() {
             </div>
           )}
 
+          {/* Erro ao resolver/desfazer conflito */}
+          {erroConflito && (
+            <div className="px-4 py-3 bg-red-50 dark:bg-red-900/20 border-b border-red-100 dark:border-red-900/40 flex items-start justify-between gap-2">
+              <p className="text-xs text-red-700 dark:text-red-300">{erroConflito}</p>
+              <button
+                onClick={() => setErroConflito(null)}
+                className="flex-shrink-0 text-red-400 hover:text-red-600"
+                aria-label="Fechar aviso"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {/* Erro ao registrar push */}
           {erroPush && (
             <div className="px-4 py-3 bg-red-50 dark:bg-red-900/20 border-b border-red-100 dark:border-red-900/40">
@@ -534,6 +562,23 @@ export default memo(function NotificacoesBell() {
                           >
                             <ThumbsDown className="w-3 h-3" />
                             Recusar
+                          </button>
+                        </div>
+                      )}
+                      {isConflito && n.lida && (n.metadata as ConflictMetadata)?.resolucao && (
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); resolverConflito(n.id, 'desfazer') }}
+                            disabled={emResolucao}
+                            className="flex items-center gap-1.5 px-3 py-1.5
+                                       bg-gray-100 dark:bg-gray-800
+                                       hover:bg-gray-200 dark:hover:bg-gray-700
+                                       text-gray-700 dark:text-gray-300
+                                       text-xs font-semibold rounded-xl transition-colors
+                                       disabled:opacity-50 active:scale-95"
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                            Desfazer
                           </button>
                         </div>
                       )}
