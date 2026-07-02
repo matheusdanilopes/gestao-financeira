@@ -346,3 +346,17 @@ ALTER TABLE transacoes_nubank
 
 CREATE INDEX IF NOT EXISTS idx_transacoes_is_estorno
   ON transacoes_nubank(is_estorno) WHERE is_estorno = TRUE;
+
+-- 22. Conciliação de conflitos: evita re-notificação da mesma compra e permite desfazer decisão
+
+-- Garante no banco que só pode existir 1 conflito NÃO resolvido por transação original.
+-- Além de reforçar a checagem feita em lib/conciliacao.ts, protege contra corrida entre
+-- duas importações concorrentes gerando conflitos duplicados para o mesmo par.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_transacoes_conciliacao_ref_pendente
+  ON transacoes_nubank(conciliacao_ref)
+  WHERE status = 'CONFLITO_VALOR';
+
+-- Auditoria de quem/quando resolveu um conflito (exibido/usado para permitir "desfazer").
+ALTER TABLE notificacoes
+  ADD COLUMN IF NOT EXISTS resolvido_em  TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS resolvido_por TEXT;

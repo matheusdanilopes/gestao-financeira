@@ -260,7 +260,20 @@ export async function conciliarTransacao(
       return { acao: 'inserido', inseriu: ok }
     }
 
-    // Entre R$0,05 e R$2,00 → CONFLITO_VALOR + notificação para aprovação
+    // Entre R$0,05 e R$2,00 → só cria um novo conflito se não existir um pendente para este original.
+    // Evita reabrir alerta a cada reimportação da mesma compra (valor "pendente" do Nubank varia até fechar fatura).
+    const { data: conflitoExistente } = await supabase
+      .from('transacoes_nubank')
+      .select('id')
+      .eq('conciliacao_ref', match.id)
+      .eq('status', 'CONFLITO_VALOR')
+      .maybeSingle()
+
+    if (conflitoExistente) {
+      console.log(`[conciliacao] conflito já pendente para original=${match.id}, ignorando nova linha desc="${item.descricao}"`)
+      return { acao: 'ignorado', inseriu: false }
+    }
+
     const payload = buildPayload(item, { status: 'CONFLITO_VALOR', conciliacao_ref: match.id })
     const { id: conflito_id, ok } = await inserirRegistro(supabase, payload)
     if (!ok) return { acao: 'ignorado', inseriu: false }
