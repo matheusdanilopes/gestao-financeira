@@ -57,13 +57,20 @@ function formatarCabecalhoData(dateKey: string): string {
   }
 }
 
+// Postgres/PostgREST às vezes devolve timestamp sem offset de fuso; sem 'Z'/±hh:mm,
+// o JS interpretaria a string como horário local (errado), então assumimos UTC.
+function parseTimestamp(ts: string): Date {
+  const temFuso = /Z$|[+-]\d{2}:?\d{2}$/.test(ts)
+  return new Date(temFuso ? ts : `${ts}Z`)
+}
+
 function formatarHoraInclusao(c: Compra, dateKey: string): string {
   if (!c.created_at) return ''
   try {
-    const criadoEm = new Date(c.created_at)
+    const criadoEm = parseTimestamp(c.created_at)
     if (!isToday(parseISO(dateKey))) return format(criadoEm, 'HH:mm')
 
-    const diffMin = Math.floor((Date.now() - criadoEm.getTime()) / 60000)
+    const diffMin = Math.max(0, Math.floor((Date.now() - criadoEm.getTime()) / 60000))
     if (diffMin < 1) return 'agora'
     if (diffMin < 60) return `há ${diffMin} min`
     const diffHoras = Math.floor(diffMin / 60)
@@ -200,7 +207,7 @@ export default function ComprasPage() {
     if (!importTs || !c.created_at) return false
     const ts = parseInt(importTs, 10)
     if (isNaN(ts)) return false
-    const createdAt = new Date(c.created_at).getTime()
+    const createdAt = parseTimestamp(c.created_at).getTime()
     // Janela: 5 min antes do ts (transações inseridas antes do push) até 15 min depois (importações longas)
     return createdAt >= ts - 5 * 60 * 1000 && createdAt <= ts + 15 * 60 * 1000
   }, [importTs])
