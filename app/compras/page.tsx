@@ -57,10 +57,17 @@ function formatarCabecalhoData(dateKey: string): string {
   }
 }
 
-function formatarHoraInclusao(c: Compra): string {
+function formatarHoraInclusao(c: Compra, dateKey: string): string {
   if (!c.created_at) return ''
   try {
-    return format(new Date(c.created_at), 'HH:mm')
+    const criadoEm = new Date(c.created_at)
+    if (!isToday(parseISO(dateKey))) return format(criadoEm, 'HH:mm')
+
+    const diffMin = Math.floor((Date.now() - criadoEm.getTime()) / 60000)
+    if (diffMin < 1) return 'agora'
+    if (diffMin < 60) return `há ${diffMin} min`
+    const diffHoras = Math.floor(diffMin / 60)
+    return `há ${diffHoras} ${diffHoras === 1 ? 'hora' : 'horas'}`
   } catch {
     return ''
   }
@@ -692,7 +699,7 @@ export default function ComprasPage() {
                       isParcelado ? `${c.parcela_atual}/${c.total_parcelas}x` : null,
                       c.categoria || null,
                     ].filter(Boolean) as string[]
-                    const horaInclusao = formatarHoraInclusao(c)
+                    const horaInclusao = formatarHoraInclusao(c, dateKey)
                     return (
                       <SwipeableItem
                         key={c.hash_linha}
