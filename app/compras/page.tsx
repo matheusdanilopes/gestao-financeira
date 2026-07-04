@@ -745,7 +745,7 @@ export default function ComprasPage() {
                               {isEstorno ? `+${formatBRL(c.valor)}` : formatBRL(c.valor)}
                             </p>
                             {horaInclusao && (
-                              <span className="text-[10px] text-gray-400 leading-none">
+                              <span className="text-[10px] font-medium text-gray-500 dark:text-gray-300 leading-none">
                                 {horaInclusao}
                               </span>
                             )}
