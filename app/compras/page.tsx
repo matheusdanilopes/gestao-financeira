@@ -57,6 +57,15 @@ function formatarCabecalhoData(dateKey: string): string {
   }
 }
 
+function formatarHoraInclusao(c: Compra): string {
+  if (!c.created_at) return ''
+  try {
+    return format(new Date(c.created_at), 'HH:mm')
+  } catch {
+    return ''
+  }
+}
+
 function dataParaInput(dataStr: string | null): string {
   if (!dataStr) return format(new Date(), 'yyyy-MM-dd')
   return dataStr.toString().substring(0, 10)
@@ -680,6 +689,7 @@ export default function ComprasPage() {
                       isParcelado ? `${c.parcela_atual}/${c.total_parcelas}x` : null,
                       c.categoria || null,
                     ].filter(Boolean) as string[]
+                    const horaInclusao = formatarHoraInclusao(c)
                     return (
                       <SwipeableItem
                         key={c.hash_linha}
@@ -717,6 +727,11 @@ export default function ComprasPage() {
                             <p className={`text-[15px] font-bold num ${isEstorno ? 'text-orange-500' : isEstornado ? 'line-through text-gray-400' : 'text-gray-900'}`}>
                               {isEstorno ? `+${formatBRL(c.valor)}` : formatBRL(c.valor)}
                             </p>
+                            {horaInclusao && (
+                              <span className="text-[10px] text-gray-400 leading-none">
+                                {horaInclusao}
+                              </span>
+                            )}
                             {isEstorno && (
                               <span className="text-[9px] font-bold text-orange-700 bg-orange-100 px-1.5 py-0.5 rounded-full leading-none">
                                 Estorno
