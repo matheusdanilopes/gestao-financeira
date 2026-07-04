@@ -57,6 +57,29 @@ function formatarCabecalhoData(dateKey: string): string {
   }
 }
 
+// Postgres/PostgREST às vezes devolve timestamp sem offset de fuso; sem 'Z'/±hh:mm,
+// o JS interpretaria a string como horário local (errado), então assumimos UTC.
+function parseTimestamp(ts: string): Date {
+  const temFuso = /Z$|[+-]\d{2}:?\d{2}$/.test(ts)
+  return new Date(temFuso ? ts : `${ts}Z`)
+}
+
+function formatarHoraInclusao(c: Compra, dateKey: string): string {
+  if (!c.created_at) return ''
+  try {
+    const criadoEm = parseTimestamp(c.created_at)
+    if (!isToday(parseISO(dateKey))) return format(criadoEm, 'HH:mm')
+
+    const diffMin = Math.max(0, Math.floor((Date.now() - criadoEm.getTime()) / 60000))
+    if (diffMin < 1) return 'agora'
+    if (diffMin < 60) return `há ${diffMin} min`
+    const diffHoras = Math.floor(diffMin / 60)
+    return `há ${diffHoras} ${diffHoras === 1 ? 'hora' : 'horas'}`
+  } catch {
+    return ''
+  }
+}
+
 function dataParaInput(dataStr: string | null): string {
   if (!dataStr) return format(new Date(), 'yyyy-MM-dd')
   return dataStr.toString().substring(0, 10)
@@ -184,7 +207,7 @@ export default function ComprasPage() {
     if (!importTs || !c.created_at) return false
     const ts = parseInt(importTs, 10)
     if (isNaN(ts)) return false
-    const createdAt = new Date(c.created_at).getTime()
+    const createdAt = parseTimestamp(c.created_at).getTime()
     // Janela: 5 min antes do ts (transações inseridas antes do push) até 15 min depois (importações longas)
     return createdAt >= ts - 5 * 60 * 1000 && createdAt <= ts + 15 * 60 * 1000
   }, [importTs])
@@ -342,6 +365,9 @@ export default function ComprasPage() {
       const key = dataEfetiva(c) || 'sem-data'
       if (!map.has(key)) map.set(key, [])
       map.get(key)!.push(c)
+    }
+    for (const items of map.values()) {
+      items.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
     }
     return Array.from(map.entries()).sort(([a], [b]) => b.localeCompare(a))
   }, [comprasFiltradas])
@@ -680,6 +706,7 @@ export default function ComprasPage() {
                       isParcelado ? `${c.parcela_atual}/${c.total_parcelas}x` : null,
                       c.categoria || null,
                     ].filter(Boolean) as string[]
+                    const horaInclusao = formatarHoraInclusao(c, dateKey)
                     return (
                       <SwipeableItem
                         key={c.hash_linha}
@@ -717,6 +744,11 @@ export default function ComprasPage() {
                             <p className={`text-[15px] font-bold num ${isEstorno ? 'text-orange-500' : isEstornado ? 'line-through text-gray-400' : 'text-gray-900'}`}>
                               {isEstorno ? `+${formatBRL(c.valor)}` : formatBRL(c.valor)}
                             </p>
+                            {horaInclusao && (
+                              <span className="text-[10px] font-medium text-gray-500 dark:text-gray-300 leading-none">
+                                {horaInclusao}
+                              </span>
+                            )}
                             {isEstorno && (
                               <span className="text-[9px] font-bold text-orange-700 bg-orange-100 px-1.5 py-0.5 rounded-full leading-none">
                                 Estorno
