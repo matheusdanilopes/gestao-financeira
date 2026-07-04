@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { criarSupabaseServer } from './supabaseServer'
+import { criarSupabaseService } from './supabaseService'
 
 export type AuthedResult =
   | { user: { id: string; email?: string }; supabase: ReturnType<typeof criarSupabaseServer>; unauthorized: null }
@@ -65,4 +66,49 @@ export async function requireShoppingListAuth(req: NextRequest): Promise<Shoppin
 
   // API key não configurada → fallback para sessão Supabase
   return requireAuth(req)
+}
+
+/**
+ * Para o webhook da Pluggy: valida um segredo compartilhado enviado em um
+ * header customizado (configurado no cadastro do webhook no dashboard da
+ * Pluggy — não há esquema de assinatura HMAC documentado). Diferente de
+ * `requireCronSecret`, aqui a ausência da env var **rejeita** a requisição:
+ * não existe chamador legado dependendo dessa rota estar aberta.
+ */
+export function requirePluggyWebhookSecret(req: NextRequest): NextResponse | null {
+  const secret = process.env.PLUGGY_WEBHOOK_SECRET
+  if (!secret) {
+    return NextResponse.json({ error: 'PLUGGY_WEBHOOK_SECRET não configurado no servidor' }, { status: 401 })
+  }
+  const header = req.headers.get('x-webhook-secret') ?? ''
+  if (header === secret) return null
+  return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+}
+
+export type PluggySyncAuthResult =
+  | { supabase: ReturnType<typeof criarSupabaseService>; via: 'cron'; unauthorized: null }
+  | { supabase: ReturnType<typeof criarSupabaseServer>; via: 'session'; unauthorized: null }
+  | { supabase: null; via: null; unauthorized: NextResponse }
+
+/**
+ * Autenticação da rota /api/pluggy/sync: aceita o CRON_SECRET (cron do Vercel
+ * ou o fire-and-forget disparado pelo webhook) OU sessão de usuário (botão
+ * "Sincronizar agora" manual). O caminho via CRON_SECRET usa o cliente com
+ * service role, pois essas requisições não têm cookies de sessão e as
+ * tabelas envolvidas têm RLS `auth.role() = 'authenticated'`.
+ */
+export async function requirePluggySyncAuth(req: NextRequest): Promise<PluggySyncAuthResult> {
+  const secret = process.env.CRON_SECRET
+  if (secret) {
+    const authHeader = req.headers.get('authorization') ?? ''
+    if (authHeader === `Bearer ${secret}`) {
+      return { supabase: criarSupabaseService(), via: 'cron', unauthorized: null }
+    }
+  }
+
+  const authed = await requireAuth(req)
+  if (authed.unauthorized) {
+    return { supabase: null, via: null, unauthorized: authed.unauthorized }
+  }
+  return { supabase: authed.supabase, via: 'session', unauthorized: null }
 }

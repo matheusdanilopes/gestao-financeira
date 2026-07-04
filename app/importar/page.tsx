@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import ModalPortal from '@/components/ModalPortal'
+import PluggyNubankSync from '@/components/PluggyNubankSync'
 import { Upload, CheckCircle2, XCircle, Sparkles, Clock, AlertCircle, ShieldCheck, Trash2, Code2, Copy, Check, X } from 'lucide-react'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
 import { supabase } from '@/lib/supabaseClient'
@@ -312,6 +313,8 @@ export default function ImportarPage() {
           <p>Parcelas detectadas pelo padrão <span className="font-mono bg-amber-100 px-1 rounded">X/Y</span> na descrição (ex: 2/12).</p>
         </div>
       )}
+
+      {cartaoSelecionado === 'nubank' && <PluggyNubankSync />}
 
       {/* Erro de importação com causa e ação */}
       {erro && (

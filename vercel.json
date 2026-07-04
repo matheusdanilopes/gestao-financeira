@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/pluggy/sync",
+      "schedule": "0 8 * * *"
+    },
+    {
       "path": "/api/notificacoes/vencimento",
       "schedule": "0 9 * * *"
     },
