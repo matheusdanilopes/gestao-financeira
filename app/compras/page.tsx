@@ -352,6 +352,9 @@ export default function ComprasPage() {
       if (!map.has(key)) map.set(key, [])
       map.get(key)!.push(c)
     }
+    for (const items of map.values()) {
+      items.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+    }
     return Array.from(map.entries()).sort(([a], [b]) => b.localeCompare(a))
   }, [comprasFiltradas])
 
