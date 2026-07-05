@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/serverAuth'
 import { processarCSV } from '@/lib/csvparser'
 import { notificarImportacao } from '@/lib/pushImportacao'
 import { conciliarTransacao, conciliarEstorno } from '@/lib/conciliacao'
+import { validarDivergenciaFatura } from '@/lib/validacaoFatura'
 
 export async function POST(req: NextRequest) {
   const { supabase, unauthorized } = await requireAuth(req)
@@ -105,6 +106,8 @@ export async function POST(req: NextRequest) {
         .eq('projeto_fatura', fatura)
       faturaStats[fatura].totalNoBanco = count ?? 0
     }
+
+    await validarDivergenciaFatura(supabase, faturaStats, 'nubank')
 
     await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, conflitos, 'nubank', undefined, {
       purchaseDates,

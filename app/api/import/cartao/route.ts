@@ -4,6 +4,7 @@ import { criarSupabaseServer } from '@/lib/supabaseServer'
 import { processarCSV, TransacaoNubank } from '@/lib/csvparser'
 import { notificarImportacao } from '@/lib/pushImportacao'
 import { conciliarEstorno } from '@/lib/conciliacao'
+import { validarDivergenciaFatura } from '@/lib/validacaoFatura'
 
 const CARTOES_VALIDOS = ['cartao1', 'cartao2'] as const
 type CartaoValido = typeof CARTOES_VALIDOS[number]
@@ -192,6 +193,8 @@ export async function POST(req: NextRequest) {
         .eq('cartao', cartao)
       faturaStats[fatura].totalNoBanco = count ?? 0
     }
+
+    await validarDivergenciaFatura(supabase, faturaStats, cartao, nomeCartao)
 
     await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, undefined, cartao, nomeCartao, {
       purchaseDates,
