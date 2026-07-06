@@ -162,6 +162,7 @@ export default function ComprasPage() {
   const firstImportedRef = useRef<HTMLDivElement | null>(null)
   const hasScrolled = useRef(false)
   const hasScrolledHighlight = useRef(false)
+  const [highlightTimedOut, setHighlightTimedOut] = useState(false)
 
   const mesAtualKey = format(startOfMonth(mesAtual), 'yyyy-MM')
   const mesRefStr = format(startOfMonth(mesAtual), 'yyyy-MM-dd')
@@ -192,11 +193,25 @@ export default function ComprasPage() {
   // Executado apenas uma vez na montagem para não sobrescrever escolhas do usuário.
   useEffect(() => {
     if (importContextApplied.current) return
-    if (!importCartao && !importDia && !importMes) return
+    if (!importCartao && !importDia && !importMes && !highlightParam) return
     importContextApplied.current = true
 
     if (importCartao && (CARTOES_VALIDOS as readonly string[]).includes(importCartao)) {
       setFiltroCartao(importCartao as CartaoValido)
+    }
+    // Deep link de destaque (fatura_divergencia): reseta filtros "não relacionados"
+    // que podem ter ficado ativos de uma navegação anterior na mesma sessão e
+    // esconderiam silenciosamente a transação alvo. Não mexe em filtroCartao
+    // (setado acima) nem impede o bloco de importDia abaixo de sobrescrever
+    // filtroData quando aplicável.
+    if (highlightParam) {
+      setFiltroResponsavel('')
+      setFiltroDescricaoInput('')
+      setFiltroDescricao('')
+      setFiltroValorMin('')
+      setFiltroCategoria('')
+      setFiltroParcelamento('')
+      setFiltroData('')
     }
     if (importDia) {
       const mes = importMes || format(mesAtual, 'yyyy-MM')
@@ -209,7 +224,7 @@ export default function ComprasPage() {
       const targetMesGlobal = subMonths(targetMesAtual, 1)
       setMesAtual(targetMesGlobal)
     }
-  }, [importCartao, importDia, importMes, setMesAtual]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [importCartao, importDia, importMes, highlightParam, setMesAtual]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Compras recém-importadas: criadas dentro de uma janela de ±10 min em torno do importTs.
   const isRecentlyImported = useCallback((c: Compra): boolean => {
@@ -427,19 +442,59 @@ export default function ComprasPage() {
     return () => clearTimeout(timer)
   }, [firstImportedHash, loading])
 
-  // Scroll até a transação excedente apontada pela notificação de divergência de fatura
+  // Entre os ids de destaque (notificação de fatura_divergencia), o primeiro que já
+  // está presente entre as transações atualmente renderizadas/filtradas. Recalcula
+  // sempre que `grupos` muda (nova página de dados chega, filtro muda), permitindo
+  // re-tentativa automática sem depender do status de loading (evita a corrida com
+  // cache stale-while-revalidate do useDataSync).
+  const highlightTargetId = useMemo(() => {
+    if (highlightIds.length === 0) return null
+    const idsPresentes = new Set<string>()
+    for (const [, items] of grupos) {
+      for (const c of items) idsPresentes.add(c.id)
+    }
+    return highlightIds.find(id => idsPresentes.has(id)) ?? null
+  }, [grupos, highlightIds])
+
+  // Prazo para desistir de aguardar a transação de destaque aparecer (filtro
+  // residual escondendo a linha, ou o id realmente não está nesta tela/mês).
   useEffect(() => {
-    if (highlightIds.length === 0 || hasScrolledHighlight.current || loading) return
+    if (highlightIds.length === 0) return
+    const timer = setTimeout(() => setHighlightTimedOut(true), 8_000)
+    return () => clearTimeout(timer)
+  }, [highlightIds])
+
+  // Scroll até a transação excedente apontada pela notificação de divergência de
+  // fatura. Data-driven: só finaliza quando `highlightTargetId` confirma que o id
+  // está entre os dados/filtro atuais E o elemento já está no DOM (pós-commit),
+  // ou quando o prazo de espera (highlightTimedOut) se esgota.
+  useEffect(() => {
+    if (highlightIds.length === 0 || hasScrolledHighlight.current) return
+    const elem = highlightTargetId ? document.getElementById(`compra-${highlightTargetId}`) : null
+    if (!elem && !highlightTimedOut) return // ainda não apareceu; espera novo render
+
     hasScrolledHighlight.current = true
-    const timer = setTimeout(() => {
-      document.getElementById(`compra-${highlightIds[0]}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+
+    const scrollTimer = setTimeout(() => {
+      if (elem) {
+        elem.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      } else {
+        showToast('Transação não encontrada', 'erro')
+      }
+    }, 400)
+
+    // Só limpa a URL rápido se desistimos sem achar nada; se achou, espera a
+    // animação .animate-fatura-highlight (≈3.4s) terminar antes de remover o
+    // parâmetro, para não cortar o destaque visual pela metade.
+    const cleanupTimer = setTimeout(() => {
       const params = new URLSearchParams(window.location.search)
       params.delete('highlight')
       const query = params.toString()
       router.replace(query ? `/compras?${query}` : '/compras', { scroll: false })
-    }, 400)
-    return () => clearTimeout(timer)
-  }, [highlightIds, loading]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, elem ? 3_800 : 400)
+
+    return () => { clearTimeout(scrollTimer); clearTimeout(cleanupTimer) }
+  }, [highlightIds, highlightTargetId, highlightTimedOut]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Troca de mês: recarrega dados laterais (compras já cobertas pelo useDataSync)
   useEffect(() => {
