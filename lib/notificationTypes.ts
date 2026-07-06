@@ -145,6 +145,9 @@ export const NOTIFICACAO_META: Record<string, NotificacaoMeta> = {
       const params = new URLSearchParams()
       params.set('cartao', String(meta.cartao))
       if (meta.mes_referencia) params.set('mes', String(meta.mes_referencia).substring(0, 7))
+      if (Array.isArray(meta.transacao_ids) && meta.transacao_ids.length > 0) {
+        params.set('highlight', meta.transacao_ids.join(','))
+      }
       return `/compras?${params.toString()}`
     },
     grupo: 'importacao',

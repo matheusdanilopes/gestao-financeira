@@ -409,14 +409,13 @@ export default function ImportarPage() {
                   const label = new Date(fatura + 'T12:00:00')
                     .toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })
                     .replace(/^\w/, c => c.toUpperCase())
-                  const diferenca = stats.totalNoBanco - stats.noCSV
-                  const divergente = diferenca !== 0
+                  const temExcesso = stats.totalNoBanco > stats.noCSV
                   return (
-                    <div key={fatura} className={`rounded-2xl p-3 text-xs space-y-2 ${divergente ? 'bg-amber-50 border border-amber-200' : 'bg-gray-50 border border-gray-100'}`}>
+                    <div key={fatura} className={`rounded-2xl p-3 text-xs space-y-2 ${temExcesso ? 'bg-amber-50 border border-amber-200' : 'bg-gray-50 border border-gray-100'}`}>
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-gray-700">{label}</span>
-                        {divergente
-                          ? <span className="text-amber-600 font-semibold">{diferenca > 0 ? 'Banco > CSV' : 'Banco < CSV'}</span>
+                        {temExcesso
+                          ? <span className="text-amber-600 font-semibold">Banco &gt; CSV</span>
                           : <span className="text-green-600 font-semibold">OK</span>
                         }
                       </div>
@@ -434,7 +433,7 @@ export default function ImportarPage() {
                           <p className="text-gray-400 mt-0.5">ignoradas</p>
                         </div>
                         <div>
-                          <p className={`font-bold num ${divergente ? 'text-amber-700' : 'text-gray-700'}`}>{stats.totalNoBanco}</p>
+                          <p className={`font-bold num ${temExcesso ? 'text-amber-700' : 'text-gray-700'}`}>{stats.totalNoBanco}</p>
                           <p className="text-gray-400 mt-0.5">no banco</p>
                         </div>
                       </div>

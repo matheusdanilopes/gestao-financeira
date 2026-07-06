@@ -194,7 +194,7 @@ export async function POST(req: NextRequest) {
       faturaStats[fatura].totalNoBanco = count ?? 0
     }
 
-    await validarDivergenciaFatura(supabase, faturaStats, cartao, nomeCartao)
+    await validarDivergenciaFatura(supabase, faturaStats, transacoesNormais, cartao, nomeCartao)
 
     await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, undefined, cartao, nomeCartao, {
       purchaseDates,

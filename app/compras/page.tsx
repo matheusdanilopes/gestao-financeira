@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 import { useGlobalSync } from '@/lib/useGlobalSync'
@@ -18,6 +18,7 @@ import FilterSelect from '@/components/FilterSelect'
 import { calcularProjetoFatura } from '@/lib/fatura'
 
 type Compra = {
+  id: string
   hash_linha: string
   data_compra: string | null
   data: string | null
@@ -112,6 +113,7 @@ const CARTOES_VALIDOS = ['nubank', 'cartao1', 'cartao2'] as const
 type CartaoValido = typeof CARTOES_VALIDOS[number]
 
 export default function ComprasPage() {
+  const router = useRouter()
   const { mesAtual: mesGlobal, setMesAtual } = useMes()
   const mesAtual = addMonths(mesGlobal, 1)
   const isMesAtual = format(mesAtual, 'yyyy-MM') === format(addMonths(new Date(), 1), 'yyyy-MM')
@@ -122,6 +124,12 @@ export default function ComprasPage() {
   const importDia = searchParams.get('dia')
   const importMes = searchParams.get('mes')   // YYYY-MM
   const importTs = searchParams.get('ts')     // Date.now() do momento da importação
+  // ids de transações excedentes (notificação de divergência de fatura) a destacar
+  const highlightParam = searchParams.get('highlight')
+  const highlightIds = useMemo(
+    () => (highlightParam ? highlightParam.split(',').filter(Boolean) : []),
+    [highlightParam]
+  )
 
   const [compras, setCompras] = useState<Compra[]>([])
   const [filtroResponsavel, setFiltroResponsavel] = useState('')
@@ -153,6 +161,7 @@ export default function ComprasPage() {
   // Ref para o primeiro item importado (usado no auto-scroll)
   const firstImportedRef = useRef<HTMLDivElement | null>(null)
   const hasScrolled = useRef(false)
+  const hasScrolledHighlight = useRef(false)
 
   const mesAtualKey = format(startOfMonth(mesAtual), 'yyyy-MM')
   const mesRefStr = format(startOfMonth(mesAtual), 'yyyy-MM-dd')
@@ -417,6 +426,20 @@ export default function ComprasPage() {
     }, 400)
     return () => clearTimeout(timer)
   }, [firstImportedHash, loading])
+
+  // Scroll até a transação excedente apontada pela notificação de divergência de fatura
+  useEffect(() => {
+    if (highlightIds.length === 0 || hasScrolledHighlight.current || loading) return
+    hasScrolledHighlight.current = true
+    const timer = setTimeout(() => {
+      document.getElementById(`compra-${highlightIds[0]}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      const params = new URLSearchParams(window.location.search)
+      params.delete('highlight')
+      const query = params.toString()
+      router.replace(query ? `/compras?${query}` : '/compras', { scroll: false })
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [highlightIds, loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Troca de mês: recarrega dados laterais (compras já cobertas pelo useDataSync)
   useEffect(() => {
@@ -701,6 +724,7 @@ export default function ComprasPage() {
                         : getCartaoBorderColor(c.cartao, cartaoLabels)
                     const recentlyImported = isRecentlyImported(c)
                     const isFirst = c.hash_linha === firstImportedHash
+                    const isHighlighted = highlightIds.includes(c.id)
                     const metaParts = [
                       c.responsavel,
                       isParcelado ? `${c.parcela_atual}/${c.total_parcelas}x` : null,
@@ -714,8 +738,9 @@ export default function ComprasPage() {
                         disabled={!canInteract}
                       >
                         <div
+                          id={`compra-${c.id}`}
                           ref={isFirst ? firstImportedRef : undefined}
-                          className={`px-4 py-3.5 flex items-center gap-3 border-l-4 ${borderColor} transition-colors ${
+                          className={`px-4 py-3.5 flex items-center gap-3 border-l-4 ${borderColor} transition-colors ${isHighlighted ? ' animate-fatura-highlight' : ''} ${
                             isEstornado
                               ? 'bg-gray-50/80 dark:bg-gray-800/50 opacity-60'
                               : isEstorno

@@ -132,7 +132,7 @@ async function salvarTransacoes(
     faturaStats[fatura].totalNoBanco = count ?? 0
   }
 
-  await validarDivergenciaFatura(supabase, faturaStats, cartao)
+  await validarDivergenciaFatura(supabase, faturaStats, transacoesNormais, cartao)
 
   return {
     totalLidas: transacoes.length,
