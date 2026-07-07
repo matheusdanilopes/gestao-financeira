@@ -549,7 +549,8 @@ html {
   .animate-pulse,
   .animate-spin,
   .animate-scan-line,
-  .animate-wishlist-highlight {
+  .animate-wishlist-highlight,
+  .animate-fatura-highlight {
     animation: none !important;
   }
 }
@@ -636,6 +637,15 @@ html {
 }
 .animate-wishlist-highlight {
   animation: wishlist-highlight 1.6s ease-out 0.2s 2;
+}
+
+@keyframes fatura-highlight {
+  0%   { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.55); }
+  60%  { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0.15); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+.animate-fatura-highlight {
+  animation: fatura-highlight 1.6s ease-out 0.2s 2;
 }
 
 /* ─── Insights Card animations ───────────────────────────────────────────── */

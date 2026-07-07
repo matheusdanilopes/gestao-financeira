@@ -8,6 +8,7 @@ export type NotificacaoTipo =
   | 'importacao_concluida'
   | 'importacao_erro'
   | 'categorizacao_concluida'
+  | 'fatura_divergencia'
   // Wishlist
   | 'wishlist_novo_item'
   | 'wishlist_item_ia'
@@ -136,6 +137,27 @@ export const NOTIFICACAO_META: Record<string, NotificacaoMeta> = {
     autoFechar: true,
     exigeInteracao: false,
     rotulo: 'Categorização',
+  },
+  fatura_divergencia: {
+    rota: '/compras',
+    rotaFn: (meta) => {
+      if (!meta?.cartao) return '/compras'
+      const params = new URLSearchParams()
+      params.set('cartao', String(meta.cartao))
+      if (meta.mes_referencia) params.set('mes', String(meta.mes_referencia).substring(0, 7))
+      if (Array.isArray(meta.transacao_ids) && meta.transacao_ids.length > 0) {
+        params.set('highlight', meta.transacao_ids.join(','))
+      }
+      return `/compras?${params.toString()}`
+    },
+    grupo: 'importacao',
+    corIcone: 'text-amber-500',
+    corBorda: 'border-l-amber-400',
+    corFundo: 'bg-amber-50/40 dark:bg-amber-900/10',
+    pushTag: 'fatura-divergencia',
+    autoFechar: false,
+    exigeInteracao: true,
+    rotulo: 'Verificação de fatura',
   },
 
   // ── Wishlist ─────────────────────────────────────────────────────────────────
@@ -433,7 +455,7 @@ export const ROTA_PARA_ACOES: Record<string, string[]> = {
   '/wishlist':      ['wishlist_novo_item', 'wishlist_item_ia', 'wishlist_item_concluido'],
   '/contas':        ['conta_vencendo', 'conta_atrasada', 'pagar'],
   '/importar':      ['importacao_iniciada', 'importacao_processando'],
-  '/compras':       ['categorizacao_concluida', 'pedido_criado', 'pedido_pendente', 'pedido_cancelado', 'pedido_concluido', 'importacao_concluida', 'estorno_aplicado'],
+  '/compras':       ['categorizacao_concluida', 'pedido_criado', 'pedido_pendente', 'pedido_cancelado', 'pedido_concluido', 'importacao_concluida', 'estorno_aplicado', 'fatura_divergencia'],
   '/dashboard':     ['aporte'],
   '/receitas':      ['receber'],
   '/lista-mercado': ['lista_compra_finalizada', 'lista_sincronizacao', 'lista_item_compartilhado', 'lista_item_adicionado'],

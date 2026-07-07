@@ -22,7 +22,7 @@ const LABELS_PADRAO: Record<string, string> = {
   cartao2: 'Cartão 2',
 }
 
-function labelCartao(cartao: string, nomeCartao?: string): string {
+export function labelCartao(cartao: string, nomeCartao?: string): string {
   return nomeCartao || LABELS_PADRAO[cartao] || cartao
 }
 

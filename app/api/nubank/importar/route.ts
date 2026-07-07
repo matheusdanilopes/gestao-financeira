@@ -9,6 +9,7 @@ import {
 import { categorizarTransacoes, ResultadoCategorizar } from '@/lib/categorizarTransacoes'
 import { notificarImportacao } from '@/lib/pushImportacao'
 import { conciliarTransacao, conciliarEstorno } from '@/lib/conciliacao'
+import { validarDivergenciaFatura } from '@/lib/validacaoFatura'
 
 export const maxDuration = 300
 
@@ -130,6 +131,8 @@ async function salvarTransacoes(
       .eq('cartao', cartao)
     faturaStats[fatura].totalNoBanco = count ?? 0
   }
+
+  await validarDivergenciaFatura(supabase, faturaStats, transacoesNormais, cartao)
 
   return {
     totalLidas: transacoes.length,

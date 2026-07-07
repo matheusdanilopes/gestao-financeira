@@ -94,6 +94,7 @@ const ICONES_ACAO: Record<string, ComponentType<{ className?: string }>> = {
   importacao_concluida:         CheckCircle2,
   importacao_erro:              XCircle,
   categorizacao_concluida:      Sparkles,
+  fatura_divergencia:           AlertTriangle,
   wishlist_novo_item:           Heart,
   wishlist_item_ia:             Sparkles,
   wishlist_item_concluido:      Heart,
