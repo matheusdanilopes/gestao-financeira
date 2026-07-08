@@ -5,7 +5,13 @@ import { buildChatContext } from '@/lib/ai/financialContextEngine'
 import { buildSystemPrompt } from '@/lib/ai/prompts'
 import type { TelaAtual } from '@/lib/ai/types'
 
-const GEMINI_MODEL = 'gemini-3-flash-preview'
+// The retry loop below can take up to ~58s in the worst case (backoff +
+// timeouts on repeated 503s) — without this, the route falls back to the
+// platform default, which is too short and would let a slow retry get
+// killed mid-flight (surfacing as a non-JSON "erro de conexão" to the user).
+export const maxDuration = 60
+
+const GEMINI_MODEL = 'gemini-2.5-flash'
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
 const WINDOW_SIZE = 15
