@@ -3,7 +3,7 @@ import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
 
 const LOTE = 20
 const DELAY_ENTRE_LOTES_MS = 5000
-const GEMINI_MODEL = 'gemini-3-flash-preview'
+const GEMINI_MODEL = 'gemini-2.5-flash'
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 const CONFIANCA_PADRAO_IA = 0.85
 

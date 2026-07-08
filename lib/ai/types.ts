@@ -24,6 +24,19 @@ export interface Planejamento {
   total_parcelas: number | null
   data_vencimento?: string | null
   data_pagamento?: string | null
+  // Used by receitas ([RECEITA] items): valor_real = actual amount received,
+  // pago = whether it has been (fully) received.
+  valor_real?: number | null
+  pago?: boolean | null
+}
+
+export interface Estorno {
+  descricao: string
+  valor: number
+  data: string
+  cartao?: string
+  projeto_fatura: string
+  status: string
 }
 
 export interface Assinatura {
@@ -62,6 +75,7 @@ export interface EnrichedData {
   investimentos: Investimento[]
   aportes: AporteInvestimento[]
   configuracoes: Configuracao[]
+  estornos: Estorno[]
   ts: number
 }
 

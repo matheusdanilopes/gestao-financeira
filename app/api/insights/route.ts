@@ -7,12 +7,17 @@ import type { InsightItem, InsightsResponse } from '@/lib/insightsTypes'
 
 export type { InsightItem, InsightsResponse }
 
-const GEMINI_MODEL = 'gemini-3-flash-preview'
+// Retries below (up to 3 attempts with backoff on 502/503) can take longer
+// than the platform default — the client already budgets up to 55s for this
+// route (see FETCH_TIMEOUT_MS in lib/useInsights.ts).
+export const maxDuration = 60
+
+const GEMINI_MODEL = 'gemini-2.5-flash'
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
 // Single user message that combines role + data + output instruction.
 // Mirrors the pattern used by the chat route (no systemInstruction, no responseSchema)
-// to stay compatible with all gemini-3-flash-preview versions.
+// to stay compatible with all gemini-2.5-flash versions.
 const CATEGORIA_ACTION: Record<string, { label: string; route: string }> = {
   gastos:        { label: 'Ver compras',       route: '/compras' },
   orcamento:     { label: 'Ver planejamento',  route: '/financas?tab=despesas' },

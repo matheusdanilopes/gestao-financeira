@@ -5,7 +5,13 @@ import { buildChatContext } from '@/lib/ai/financialContextEngine'
 import { buildSystemPrompt } from '@/lib/ai/prompts'
 import type { TelaAtual } from '@/lib/ai/types'
 
-const GEMINI_MODEL = 'gemini-3-flash-preview'
+// The retry loop below can take up to ~58s in the worst case (backoff +
+// timeouts on repeated 503s) — without this, the route falls back to the
+// platform default, which is too short and would let a slow retry get
+// killed mid-flight (surfacing as a non-JSON "erro de conexão" to the user).
+export const maxDuration = 60
+
+const GEMINI_MODEL = 'gemini-2.5-flash'
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
 const WINDOW_SIZE = 15
@@ -30,28 +36,82 @@ async function geminiChat(
     })),
   ]
 
-  const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents,
-      generationConfig: { maxOutputTokens: 8192, temperature: 0.6 },
-    }),
+  const body = JSON.stringify({
+    contents,
+    generationConfig: { maxOutputTokens: 8192, temperature: 0.6 },
   })
 
-  if (!res.ok) {
-    const body = await res.text()
+  // Gemini occasionally returns transient 502/503 ("model overloaded") under
+  // load — the preview model used here is especially prone to this. Without a
+  // retry, a single blip surfaces to the user as "não consegui responder
+  // agora" even though the very next attempt would have worked. Google's own
+  // guidance for UNAVAILABLE/503 is exponential backoff, so retries grow
+  // 1.5s → 3s → 6s instead of the flat delay used for other transient errors.
+  const MAX_RETRIES = 3
+  const ATTEMPT_TIMEOUT_MS = 12_000
+  let lastError: Error | null = null
+  let lastStatusOverloaded = false
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      const delay = lastStatusOverloaded ? 1500 * 2 ** (attempt - 1) : attempt * 800
+      await new Promise(r => setTimeout(r, delay))
+    }
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), ATTEMPT_TIMEOUT_MS)
+
+    let res: Response
+    try {
+      res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        signal: controller.signal,
+      })
+    } catch (err) {
+      // Timeout/abort or network failure — retry like a transient server error
+      // instead of letting the platform-level function timeout kill the whole
+      // request (which returns a non-JSON page the client can't parse).
+      lastError = err instanceof Error ? err : new Error('Falha de rede ao chamar o Gemini')
+      lastStatusOverloaded = false
+      continue
+    } finally {
+      clearTimeout(timeoutId)
+    }
+
+    if (res.ok) {
+      const data = await res.json()
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+      if (text) return text
+      // Empty text with no thrown error (e.g. safety block, MAX_TOKENS with no
+      // content yet) — treat as a failure worth retrying instead of silently
+      // returning a blank assistant bubble.
+      lastError = new Error(`Gemini retornou resposta vazia (finishReason=${data.candidates?.[0]?.finishReason ?? 'UNKNOWN'})`)
+      lastStatusOverloaded = false
+      continue
+    }
+
+    const text = await res.text()
     if (res.status === 429) {
-      const retryMatch = body.match(/"retryDelay":\s*"(\d+)s"/)
+      const retryMatch = text.match(/"retryDelay":\s*"(\d+)s"/)
       const segundos = retryMatch ? parseInt(retryMatch[1]) : null
-      const diaria = body.includes('GenerateRequestsPerDayPerProjectPerModel')
+      const diaria = text.includes('GenerateRequestsPerDayPerProjectPerModel')
       throw Object.assign(new Error('QUOTA_429'), { diaria, segundos })
     }
-    throw new Error(body)
+    // Don't retry on definitive client errors — only transient server errors
+    if (res.status === 400 || res.status === 403 || res.status === 404) {
+      throw new Error(text)
+    }
+    lastError = new Error(text)
+    lastStatusOverloaded = res.status === 503 || res.status === 502 || res.status === 504
+    // 502/503/504 → retry
   }
 
-  const data = await res.json()
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+  if (lastStatusOverloaded) {
+    throw Object.assign(new Error('MODEL_OVERLOADED'), { cause: lastError })
+  }
+  throw lastError ?? new Error('Gemini: falha após retentativas')
 }
 
 // ─── Conversation Management ──────────────────────────────────────────────────
@@ -253,6 +313,9 @@ export async function POST(req: NextRequest) {
         diaria: e.diaria ?? false,
         segundos: e.segundos ?? null,
       }, { status: 429 })
+    }
+    if (err instanceof Error && err.message === 'MODEL_OVERLOADED') {
+      return NextResponse.json({ errorCode: 'MODEL_OVERLOADED' }, { status: 503 })
     }
     return NextResponse.json({ error: 'Erro interno no servidor' }, { status: 500 })
   }

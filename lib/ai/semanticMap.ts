@@ -20,19 +20,25 @@ Campos:
     Ex: parcela_atual=2, total_parcelas=6 = 2ª parcela de 6
 Métrica principal: SUM(valor) GROUP BY projeto_fatura = gasto total da fatura do mês
 
-TABELA: planejamento (Despesas Planejadas / Orçamento Mensal)
+TABELA: planejamento (Despesas Planejadas / Orçamento Mensal + Receitas)
 Descrição: Registro de contas e despesas previstas por mês. Serve como orçamento.
            Cada item representa uma conta ou gasto planejado.
+           IMPORTANTE: itens cujo "item" começa com o prefixo "[RECEITA] " NÃO são
+           despesas — são entradas de renda (salário, freelance, etc.) e usam campos
+           próprios (valor_real, pago) em vez de data_pagamento.
 Campos:
-  - item: descrição (ex: "Aluguel", "Energia elétrica", "Parcela carro")
-  - valor_previsto: valor estimado/previsto
+  - item: descrição (ex: "Aluguel", "Energia elétrica", "Parcela carro", "[RECEITA] Salário")
+  - valor_previsto: valor estimado/previsto (para receitas: valor esperado)
   - mes_referencia: mês de referência (YYYY-MM-01)
-  - responsavel: quem deve pagar (pode ser null = compartilhado)
-  - data_vencimento: data de vencimento
-  - data_pagamento: quando foi pago (NULL = ainda não pago / em aberto)
+  - responsavel: quem deve pagar/recebe (pode ser null = compartilhado)
+  - data_vencimento: data de vencimento (despesas)
+  - data_pagamento: quando foi pago (NULL = ainda não pago / em aberto) — despesas
+  - valor_real: valor efetivamente recebido — apenas em itens [RECEITA]
+  - pago: já foi recebido? (true/false) — apenas em itens [RECEITA]
   - parcela_atual / total_parcelas: se for despesa parcelada
-Métrica principal: SUM(valor_previsto) = total orçado
+Métrica principal: SUM(valor_previsto) EXCLUINDO itens [RECEITA]* = total orçado (despesas)
                    data_pagamento IS NULL = despesas ainda não pagas (em aberto)
+                   SUM(valor_previsto) SOMENTE itens [RECEITA]* = total de receitas do mês
 
 TABELA: assinaturas (Serviços Recorrentes Mensais)
 Descrição: Catálogo de serviços com cobrança mensal automática no cartão.
@@ -75,9 +81,21 @@ Campos relevantes:
 TABELA: faturas (Datas de Fechamento de Faturas)
 Descrição: Registra a data real de fechamento de cada fatura por cartão e mês.
 
+ESTORNOS (dentro de transacoes_nubank, status ESTORNO/ESTORNADO)
+Descrição: Quando uma compra é cancelada/devolvida, a compra original recebe
+           status ESTORNADO e um novo lançamento com status ESTORNO é criado.
+           Ambos já são excluídos do total da fatura mostrado neste contexto —
+           os valores de fatura que você recebe já são líquidos de estorno.
+           Uma seção "Estornos" (quando presente) informa quais compras foram
+           estornadas recentemente, apenas para você poder explicar a diferença
+           se o usuário perguntar por que uma compra específica não está mais
+           na fatura ou por que o valor ficou menor que o esperado.
+
 RELAÇÕES ENTRE ENTIDADES:
 - Uma fatura mensal (projeto_fatura) agrega múltiplas transacoes_nubank
 - Um investimento pode ter múltiplos aportes (investimentos_aportes)
 - Assinaturas aparecem como transações recorrentes em transacoes_nubank
 - O planejamento é o orçamento que contrasta com os gastos reais (transacoes_nubank)
+- Receitas ([RECEITA]* em planejamento) são a contrapartida de renda — nunca some
+  receitas junto com despesas ao calcular "total gasto"
 `

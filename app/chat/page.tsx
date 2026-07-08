@@ -11,6 +11,7 @@ import NotificacoesBell from '@/components/NotificacoesBell'
 import { supabase } from '@/lib/supabaseClient'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { useInsights } from '@/lib/useInsights'
 
 interface Mensagem {
   id: string
@@ -159,7 +160,7 @@ function newId() {
 /* Indicador de "pensando" com 3 dots staggered */
 const ThinkingIndicator = memo(function ThinkingIndicator() {
   return (
-    <div className="flex gap-2.5 items-end">
+    <div className="list-item-enter flex gap-2.5 items-end">
       {/* Avatar da IA */}
       <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-sm">
         <Sparkles className="w-3.5 h-3.5 text-white" />
@@ -192,7 +193,15 @@ const ThinkingIndicator = memo(function ThinkingIndicator() {
   )
 })
 
+// Turns a real, data-driven insight headline into a chat suggestion the user
+// can tap — keeps the empty-state suggestions grounded in their own numbers
+// instead of a fixed generic list.
+function sugestoesDinamicas(insights: { titulo: string; icone: string }[]) {
+  return insights.slice(0, 4).map(i => ({ texto: `Me explique: ${i.titulo}`, emoji: i.icone }))
+}
+
 export default function ChatPage() {
+  const { insights: insightsUsuario } = useInsights()
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
   const [input, setInput] = useState('')
   const [carregando, setCarregando] = useState(false)
@@ -256,7 +265,9 @@ export default function ChatPage() {
   }, [carregarHistorico])
 
   useEffect(() => {
-    if (shouldScrollRef.current) {
+    // Nunca rola a tela de boas-vindas (sem mensagens) — só faz sentido
+    // acompanhar o fim da conversa quando já existe conteúdo.
+    if (shouldScrollRef.current && (mensagens.length > 0 || carregando)) {
       fimRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
   }, [mensagens, carregando])
@@ -359,6 +370,8 @@ export default function ChatPage() {
           : data.segundos
             ? `Muitas requisições em pouco tempo. Aguarde ${data.segundos} segundos e tente novamente.`
             : 'Muitas requisições em pouco tempo. Aguarde um momento e tente novamente.'
+      } else if (data.errorCode === 'MODEL_OVERLOADED') {
+        content = 'O serviço de IA está com alta demanda no momento. Aguarde alguns segundos e tente novamente — já tentamos algumas vezes automaticamente.'
       } else if (data.error?.includes('GEMINI_API_KEY')) {
         content = 'A chave GEMINI_API_KEY não está configurada no Vercel.\n\nAdicione a variável de ambiente e faça um novo deploy.'
       } else {
@@ -421,9 +434,10 @@ export default function ChatPage() {
 
   const ultimaMensagemAI = mensagens.length > 0 && mensagens[mensagens.length - 1].role === 'assistant'
   const followupChips = FOLLOWUPS.slice(0, 4)
+  const insightsDinamicas = sugestoesDinamicas(insightsUsuario)
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 pb-16">
+    <div className="fixed inset-0 flex flex-col bg-gray-50 dark:bg-gray-900 pb-16">
 
       {/* Drawer overlay */}
       {drawerAberto && (
@@ -670,20 +684,33 @@ export default function ChatPage() {
               <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">Baseado nos seus dados financeiros</span>
             </div>
 
-            {/* Sugestões primárias em grid 2x2 */}
+            {/* Sugestões primárias em grid 2x2 — dinâmicas quando há insights reais do usuário */}
             <div className="w-full grid grid-cols-2 gap-2.5">
-              {SUGESTOES_PRIMARIAS.map(({ texto, icon: Icon }) => (
-                <button
-                  key={texto}
-                  onClick={() => enviar(texto)}
-                  className="card-3d text-left bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-4 py-3.5 hover:border-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 dark:hover:border-primary-700 transition-colors shadow-card group"
-                >
-                  <div className="w-7 h-7 rounded-xl bg-primary-50 dark:bg-primary-900/40 flex items-center justify-center mb-2.5 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/60 transition-colors">
-                    <Icon className="w-4 h-4 text-primary-500 dark:text-primary-400" />
-                  </div>
-                  <p className="text-xs text-gray-600 dark:text-gray-400 leading-snug font-medium">{texto}</p>
-                </button>
-              ))}
+              {insightsDinamicas.length >= 2
+                ? insightsDinamicas.map(({ texto, emoji }) => (
+                    <button
+                      key={texto}
+                      onClick={() => enviar(texto)}
+                      className="card-3d text-left bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-4 py-3.5 hover:border-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 dark:hover:border-primary-700 transition-colors shadow-card group"
+                    >
+                      <div className="w-7 h-7 rounded-xl bg-primary-50 dark:bg-primary-900/40 flex items-center justify-center mb-2.5 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/60 transition-colors text-sm leading-none">
+                        {emoji}
+                      </div>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 leading-snug font-medium">{texto}</p>
+                    </button>
+                  ))
+                : SUGESTOES_PRIMARIAS.map(({ texto, icon: Icon }) => (
+                    <button
+                      key={texto}
+                      onClick={() => enviar(texto)}
+                      className="card-3d text-left bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-4 py-3.5 hover:border-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 dark:hover:border-primary-700 transition-colors shadow-card group"
+                    >
+                      <div className="w-7 h-7 rounded-xl bg-primary-50 dark:bg-primary-900/40 flex items-center justify-center mb-2.5 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/60 transition-colors">
+                        <Icon className="w-4 h-4 text-primary-500 dark:text-primary-400" />
+                      </div>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 leading-snug font-medium">{texto}</p>
+                    </button>
+                  ))}
             </div>
 
             {/* Chips secundários */}
@@ -710,7 +737,7 @@ export default function ChatPage() {
             )}
 
             {mensagens.map((m) => (
-              <div key={m.id} className={`flex gap-2.5 ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'} items-end`}>
+              <div key={m.id} className={`list-item-enter flex gap-2.5 ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'} items-end`}>
                 {/* Avatar */}
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ${
                   m.role === 'user'
