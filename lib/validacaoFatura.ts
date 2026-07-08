@@ -45,20 +45,42 @@ export async function validarDivergenciaFatura(
   const nome = labelCartao(cartao, nomeCartao)
 
   for (const [mesReferencia, stats] of Object.entries(faturaStats)) {
-    if (stats.totalNoBanco <= stats.noCSV) continue
+    if (stats.totalNoBanco <= stats.noCSV) {
+      // Sem divergência agora (resolvida por uma reimportação ou nunca existiu de fato) —
+      // marca como lida qualquer notificação antiga não lida para não deixar o usuário
+      // preso olhando um alerta que não reflete mais o estado real dos dados.
+      await supabase
+        .from('notificacoes')
+        .update({ lida: true })
+        .eq('acao', 'fatura_divergencia')
+        .eq('lida', false)
+        .contains('metadata', { cartao, mes_referencia: mesReferencia })
+      continue
+    }
 
     try {
       const { data: existente } = await supabase
         .from('notificacoes')
-        .select('id')
+        .select('id, metadata')
         .eq('acao', 'fatura_divergencia')
         .eq('lida', false)
         .contains('metadata', { cartao, mes_referencia: mesReferencia })
         .maybeSingle()
 
-      if (existente) {
-        console.log(`[validacaoFatura] divergência já notificada (não lida) cartao=${cartao} mes=${mesReferencia}`)
+      const metadataExistente = existente?.metadata as Record<string, unknown> | undefined
+      const mesmaDivergencia =
+        metadataExistente?.quantidade_arquivo === stats.noCSV &&
+        metadataExistente?.quantidade_banco === stats.totalNoBanco
+
+      if (existente && mesmaDivergencia) {
+        console.log(`[validacaoFatura] divergência já notificada (não lida, sem mudança) cartao=${cartao} mes=${mesReferencia}`)
         continue
+      }
+
+      if (existente && !mesmaDivergencia) {
+        // Situação mudou desde a última notificação (números diferentes, ou a lógica de
+        // detecção foi corrigida) — marca a antiga como lida e gera uma nova, atualizada.
+        await supabase.from('notificacoes').update({ lida: true }).eq('id', existente.id)
       }
 
       const diferenca = stats.totalNoBanco - stats.noCSV
