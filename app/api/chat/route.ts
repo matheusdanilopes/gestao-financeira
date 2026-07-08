@@ -35,16 +35,21 @@ async function geminiChat(
     generationConfig: { maxOutputTokens: 8192, temperature: 0.6 },
   })
 
-  // Gemini occasionally returns transient 502/503 under load. Without a retry,
-  // a single blip surfaces to the user as "não consegui responder agora" even
-  // though the very next attempt would have worked — mirrors /api/insights.
-  const MAX_RETRIES = 2
-  const ATTEMPT_TIMEOUT_MS = 15_000
+  // Gemini occasionally returns transient 502/503 ("model overloaded") under
+  // load — the preview model used here is especially prone to this. Without a
+  // retry, a single blip surfaces to the user as "não consegui responder
+  // agora" even though the very next attempt would have worked. Google's own
+  // guidance for UNAVAILABLE/503 is exponential backoff, so retries grow
+  // 1.5s → 3s → 6s instead of the flat delay used for other transient errors.
+  const MAX_RETRIES = 3
+  const ATTEMPT_TIMEOUT_MS = 12_000
   let lastError: Error | null = null
+  let lastStatusOverloaded = false
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     if (attempt > 0) {
-      await new Promise(r => setTimeout(r, attempt * 800))
+      const delay = lastStatusOverloaded ? 1500 * 2 ** (attempt - 1) : attempt * 800
+      await new Promise(r => setTimeout(r, delay))
     }
 
     const controller = new AbortController()
@@ -63,6 +68,7 @@ async function geminiChat(
       // instead of letting the platform-level function timeout kill the whole
       // request (which returns a non-JSON page the client can't parse).
       lastError = err instanceof Error ? err : new Error('Falha de rede ao chamar o Gemini')
+      lastStatusOverloaded = false
       continue
     } finally {
       clearTimeout(timeoutId)
@@ -76,6 +82,7 @@ async function geminiChat(
       // content yet) — treat as a failure worth retrying instead of silently
       // returning a blank assistant bubble.
       lastError = new Error(`Gemini retornou resposta vazia (finishReason=${data.candidates?.[0]?.finishReason ?? 'UNKNOWN'})`)
+      lastStatusOverloaded = false
       continue
     }
 
@@ -91,9 +98,13 @@ async function geminiChat(
       throw new Error(text)
     }
     lastError = new Error(text)
+    lastStatusOverloaded = res.status === 503 || res.status === 502 || res.status === 504
     // 502/503/504 → retry
   }
 
+  if (lastStatusOverloaded) {
+    throw Object.assign(new Error('MODEL_OVERLOADED'), { cause: lastError })
+  }
   throw lastError ?? new Error('Gemini: falha após retentativas')
 }
 
@@ -296,6 +307,9 @@ export async function POST(req: NextRequest) {
         diaria: e.diaria ?? false,
         segundos: e.segundos ?? null,
       }, { status: 429 })
+    }
+    if (err instanceof Error && err.message === 'MODEL_OVERLOADED') {
+      return NextResponse.json({ errorCode: 'MODEL_OVERLOADED' }, { status: 503 })
     }
     return NextResponse.json({ error: 'Erro interno no servidor' }, { status: 500 })
   }

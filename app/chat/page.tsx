@@ -370,6 +370,8 @@ export default function ChatPage() {
           : data.segundos
             ? `Muitas requisições em pouco tempo. Aguarde ${data.segundos} segundos e tente novamente.`
             : 'Muitas requisições em pouco tempo. Aguarde um momento e tente novamente.'
+      } else if (data.errorCode === 'MODEL_OVERLOADED') {
+        content = 'O serviço de IA está com alta demanda no momento. Aguarde alguns segundos e tente novamente — já tentamos algumas vezes automaticamente.'
       } else if (data.error?.includes('GEMINI_API_KEY')) {
         content = 'A chave GEMINI_API_KEY não está configurada no Vercel.\n\nAdicione a variável de ambiente e faça um novo deploy.'
       } else {
