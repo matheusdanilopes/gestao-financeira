@@ -265,7 +265,9 @@ export default function ChatPage() {
   }, [carregarHistorico])
 
   useEffect(() => {
-    if (shouldScrollRef.current) {
+    // Nunca rola a tela de boas-vindas (sem mensagens) — só faz sentido
+    // acompanhar o fim da conversa quando já existe conteúdo.
+    if (shouldScrollRef.current && (mensagens.length > 0 || carregando)) {
       fimRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
   }, [mensagens, carregando])
@@ -433,7 +435,7 @@ export default function ChatPage() {
   const insightsDinamicas = sugestoesDinamicas(insightsUsuario)
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 pb-16">
+    <div className="fixed inset-0 flex flex-col bg-gray-50 dark:bg-gray-900 pb-16">
 
       {/* Drawer overlay */}
       {drawerAberto && (
