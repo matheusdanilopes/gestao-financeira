@@ -30,28 +30,71 @@ async function geminiChat(
     })),
   ]
 
-  const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents,
-      generationConfig: { maxOutputTokens: 8192, temperature: 0.6 },
-    }),
+  const body = JSON.stringify({
+    contents,
+    generationConfig: { maxOutputTokens: 8192, temperature: 0.6 },
   })
 
-  if (!res.ok) {
-    const body = await res.text()
+  // Gemini occasionally returns transient 502/503 under load. Without a retry,
+  // a single blip surfaces to the user as "não consegui responder agora" even
+  // though the very next attempt would have worked — mirrors /api/insights.
+  const MAX_RETRIES = 2
+  const ATTEMPT_TIMEOUT_MS = 15_000
+  let lastError: Error | null = null
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      await new Promise(r => setTimeout(r, attempt * 800))
+    }
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), ATTEMPT_TIMEOUT_MS)
+
+    let res: Response
+    try {
+      res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        signal: controller.signal,
+      })
+    } catch (err) {
+      // Timeout/abort or network failure — retry like a transient server error
+      // instead of letting the platform-level function timeout kill the whole
+      // request (which returns a non-JSON page the client can't parse).
+      lastError = err instanceof Error ? err : new Error('Falha de rede ao chamar o Gemini')
+      continue
+    } finally {
+      clearTimeout(timeoutId)
+    }
+
+    if (res.ok) {
+      const data = await res.json()
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+      if (text) return text
+      // Empty text with no thrown error (e.g. safety block, MAX_TOKENS with no
+      // content yet) — treat as a failure worth retrying instead of silently
+      // returning a blank assistant bubble.
+      lastError = new Error(`Gemini retornou resposta vazia (finishReason=${data.candidates?.[0]?.finishReason ?? 'UNKNOWN'})`)
+      continue
+    }
+
+    const text = await res.text()
     if (res.status === 429) {
-      const retryMatch = body.match(/"retryDelay":\s*"(\d+)s"/)
+      const retryMatch = text.match(/"retryDelay":\s*"(\d+)s"/)
       const segundos = retryMatch ? parseInt(retryMatch[1]) : null
-      const diaria = body.includes('GenerateRequestsPerDayPerProjectPerModel')
+      const diaria = text.includes('GenerateRequestsPerDayPerProjectPerModel')
       throw Object.assign(new Error('QUOTA_429'), { diaria, segundos })
     }
-    throw new Error(body)
+    // Don't retry on definitive client errors — only transient server errors
+    if (res.status === 400 || res.status === 403 || res.status === 404) {
+      throw new Error(text)
+    }
+    lastError = new Error(text)
+    // 502/503/504 → retry
   }
 
-  const data = await res.json()
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+  throw lastError ?? new Error('Gemini: falha após retentativas')
 }
 
 // ─── Conversation Management ──────────────────────────────────────────────────
