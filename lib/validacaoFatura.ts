@@ -62,6 +62,7 @@ export async function validarDivergenciaFatura(
         .select('id, hash_linha, descricao, valor, data_compra')
         .eq('projeto_fatura', mesReferencia)
         .eq('cartao', cartao)
+        .eq('is_estorno', false)
 
       let linhas: LinhaBanco[] = linhasBanco ?? []
 
@@ -73,6 +74,7 @@ export async function validarDivergenciaFatura(
           .select('id, hash_linha, descricao, valor, data')
           .eq('projeto_fatura', mesReferencia)
           .eq('cartao', cartao)
+          .eq('is_estorno', false)
         if (erroLegado) {
           console.error(`[validacaoFatura] erro ao buscar linhas do banco (legado) cartao=${cartao} mes=${mesReferencia}:`, erroLegado)
         }

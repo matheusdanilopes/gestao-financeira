@@ -104,6 +104,8 @@ export async function POST(req: NextRequest) {
         .from('transacoes_nubank')
         .select('*', { count: 'exact', head: true })
         .eq('projeto_fatura', fatura)
+        .eq('cartao', 'nubank')
+        .eq('is_estorno', false)
       faturaStats[fatura].totalNoBanco = count ?? 0
     }
 
