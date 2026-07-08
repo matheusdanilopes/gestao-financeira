@@ -57,11 +57,29 @@ export async function validarDivergenciaFatura(
       const diferenca = stats.totalNoBanco - stats.noCSV
       const mesLabel = mesReferencia.substring(0, 7)
 
-      const { data: linhasBanco } = await supabase
+      const { data: linhasBanco, error: linhasBancoError } = await supabase
         .from('transacoes_nubank')
         .select('id, hash_linha, descricao, valor, data_compra')
         .eq('projeto_fatura', mesReferencia)
         .eq('cartao', cartao)
+
+      let linhas: LinhaBanco[] = linhasBanco ?? []
+
+      // Fallback para schema legado (coluna 'data' em vez de 'data_compra'),
+      // mesmo padrão usado em lib/conciliacao.ts e app/api/import/cartao/route.ts.
+      if (linhasBancoError?.message?.includes('data_compra')) {
+        const { data: linhasBancoLegado, error: erroLegado } = await supabase
+          .from('transacoes_nubank')
+          .select('id, hash_linha, descricao, valor, data')
+          .eq('projeto_fatura', mesReferencia)
+          .eq('cartao', cartao)
+        if (erroLegado) {
+          console.error(`[validacaoFatura] erro ao buscar linhas do banco (legado) cartao=${cartao} mes=${mesReferencia}:`, erroLegado)
+        }
+        linhas = (linhasBancoLegado ?? []).map((r: Record<string, unknown>) => ({ ...r, data_compra: r.data }) as LinhaBanco)
+      } else if (linhasBancoError) {
+        console.error(`[validacaoFatura] erro ao buscar linhas do banco cartao=${cartao} mes=${mesReferencia}:`, linhasBancoError)
+      }
 
       const hashesArquivo = new Set(
         transacoesArquivo
@@ -69,7 +87,7 @@ export async function validarDivergenciaFatura(
           .map(t => t.hash_linha)
       )
 
-      const excedentes: LinhaBanco[] = (linhasBanco ?? []).filter(
+      const excedentes: LinhaBanco[] = linhas.filter(
         (r: LinhaBanco) => !hashesArquivo.has(r.hash_linha)
       )
 
