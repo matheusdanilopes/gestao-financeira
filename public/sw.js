@@ -1,4 +1,10 @@
-const CACHE_NAME = 'gestao-financeira-v15'
+const CACHE_NAME = 'gestao-financeira-v16'
+// Cache separado e permanente para ícones/splash screens (Add to Home Screen do iOS).
+// Nunca é apagado em bumps de CACHE_NAME — só esses assets mudam de conteúdo (raro),
+// nunca de nome de arquivo. Misturar com CACHE_NAME fazia o activate() apagar os ícones
+// a cada deploy, criando uma janela em que uma falha de rede podia fazer o iOS capturar
+// um ícone/splash quebrado ao recriar o atalho na tela de início.
+const STATIC_CACHE_NAME = 'gestao-financeira-static-v1'
 
 const OFFLINE_HTML = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Carregando…</title><script>setTimeout(function(){location.reload()},4000)<\/script></head><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0"><p>Reconectando…</p></body></html>'
 const OFFLINE_RESPONSE = () => new Response(OFFLINE_HTML, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
@@ -91,6 +97,37 @@ const PRECACHE_ROUTES = [
   '/listas-compras',
 ]
 
+// Ícones/splash screens usados pelo iOS para o atalho "Adicionar à Tela de Início".
+// Pré-cacheados no install para nunca depender de uma busca de rede no momento em
+// que o iOS captura o ícone/splash do app.
+const PRECACHE_STATIC = [
+  '/apple-touch-icon.png',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/splash-1125x2436.png',
+  '/splash-1170x2532.png',
+  '/splash-1179x2556.png',
+  '/splash-1242x2208.png',
+  '/splash-1284x2778.png',
+  '/splash-1290x2796.png',
+  '/splash-1536x2048.png',
+  '/splash-2048x2732.png',
+  '/splash-640x1136.png',
+  '/splash-750x1334.png',
+  '/splash-828x1792.png',
+  '/splash-light-1125x2436.png',
+  '/splash-light-1170x2532.png',
+  '/splash-light-1179x2556.png',
+  '/splash-light-1242x2208.png',
+  '/splash-light-1284x2778.png',
+  '/splash-light-1290x2796.png',
+  '/splash-light-1536x2048.png',
+  '/splash-light-2048x2732.png',
+  '/splash-light-640x1136.png',
+  '/splash-light-750x1334.png',
+  '/splash-light-828x1792.png',
+]
+
 const NAVIGATION_TIMEOUT_MS = 4000
 
 function fetchWithTimeout(request, timeoutMs) {
@@ -105,17 +142,31 @@ function fetchWithTimeout(request, timeoutMs) {
 self.addEventListener('install', (event) => {
   self.skipWaiting()
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache =>
-      Promise.allSettled(
-        PRECACHE_ROUTES.map(url =>
-          fetch(url, { redirect: 'follow' })
-            .then(res => {
-              if (res.ok && !res.redirected) return cache.put(url, res)
-            })
-            .catch(() => {})
+    Promise.all([
+      caches.open(CACHE_NAME).then(cache =>
+        Promise.allSettled(
+          PRECACHE_ROUTES.map(url =>
+            fetch(url, { redirect: 'follow' })
+              .then(res => {
+                if (res.ok && !res.redirected) return cache.put(url, res)
+              })
+              .catch(() => {})
+          )
         )
-      )
-    )
+      ),
+      caches.open(STATIC_CACHE_NAME).then(cache =>
+        Promise.allSettled(
+          PRECACHE_STATIC.map(url =>
+            cache.match(url).then(existing => {
+              if (existing) return
+              return fetch(url).then(res => {
+                if (res.ok) return cache.put(url, res)
+              }).catch(() => {})
+            })
+          )
+        )
+      ),
+    ])
   )
 })
 
@@ -123,7 +174,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
       .then(keys => Promise.all(
-        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+        keys.filter(k => k !== CACHE_NAME && k !== STATIC_CACHE_NAME).map(k => caches.delete(k))
       ))
       .then(() => clients.claim())
   )
@@ -163,7 +214,7 @@ self.addEventListener('fetch', (event) => {
     url.pathname.match(/\.(png|jpg|jpeg|webp|svg|ico|woff2|woff)$/)
   ) {
     event.respondWith(
-      caches.open(CACHE_NAME).then(async cache => {
+      caches.open(STATIC_CACHE_NAME).then(async cache => {
         const cached = await cache.match(request)
         if (cached) {
           // Serve from cache immediately; update in background
