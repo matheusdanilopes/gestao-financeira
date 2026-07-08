@@ -191,6 +191,7 @@ export async function POST(req: NextRequest) {
         .select('*', { count: 'exact', head: true })
         .eq('projeto_fatura', fatura)
         .eq('cartao', cartao)
+        .eq('is_estorno', false)
       faturaStats[fatura].totalNoBanco = count ?? 0
     }
 

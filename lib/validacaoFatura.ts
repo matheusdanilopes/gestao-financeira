@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { labelCartao } from '@/lib/pushImportacao'
-import { TransacaoNubank } from '@/lib/csvparser'
+import { TransacaoNubank, normalizarDescricaoParaHash } from '@/lib/csvparser'
 import { formatBRL } from '@/lib/logger'
 
 export interface StatsFaturaValidacao {
@@ -10,18 +10,25 @@ export interface StatsFaturaValidacao {
 
 interface LinhaBanco {
   id: string
-  hash_linha: string
   descricao: string
   valor: number
   data_compra: string
 }
 
+/** Chave de identidade por conteúdo (data + descrição normalizada + valor), não por hash_linha —
+ *  evita depender da ordem/occurrence_index usado para gerar hash_linha, que pode variar entre
+ *  reimportações e tornar a comparação por hash frágil. */
+function chaveConteudo(dataCompra: string, descricao: string, valor: number): string {
+  return `${dataCompra}|${normalizarDescricaoParaHash(descricao)}|${valor.toFixed(2)}`
+}
+
 /**
  * Compara, por fatura (mês), a quantidade de transações do arquivo importado
  * com a quantidade atual no banco para o mesmo cartão. Quando o banco tem
- * MAIS transações que o arquivo, identifica a(s) linha(s) excedente(s)
- * (presentes no banco, ausentes do arquivo, via `hash_linha`) e gera uma
- * notificação (tabela `notificacoes`) apontando exatamente para ela(s).
+ * MAIS transações que o arquivo, identifica a(s) linha(s) excedente(s) via
+ * diferença de multiconjunto (contagem por data+descrição+valor: banco vs
+ * arquivo) e gera uma notificação (tabela `notificacoes`) apontando
+ * exatamente para ela(s).
  *
  * Deduplicação: não cria uma nova notificação se já existir uma não lida
  * para o mesmo cartao+mês — evita spam a cada reimportação enquanto a
@@ -38,40 +45,98 @@ export async function validarDivergenciaFatura(
   const nome = labelCartao(cartao, nomeCartao)
 
   for (const [mesReferencia, stats] of Object.entries(faturaStats)) {
-    if (stats.totalNoBanco <= stats.noCSV) continue
+    if (stats.totalNoBanco <= stats.noCSV) {
+      // Sem divergência agora (resolvida por uma reimportação ou nunca existiu de fato) —
+      // marca como lida qualquer notificação antiga não lida para não deixar o usuário
+      // preso olhando um alerta que não reflete mais o estado real dos dados.
+      await supabase
+        .from('notificacoes')
+        .update({ lida: true })
+        .eq('acao', 'fatura_divergencia')
+        .eq('lida', false)
+        .contains('metadata', { cartao, mes_referencia: mesReferencia })
+      continue
+    }
 
     try {
       const { data: existente } = await supabase
         .from('notificacoes')
-        .select('id')
+        .select('id, metadata')
         .eq('acao', 'fatura_divergencia')
         .eq('lida', false)
         .contains('metadata', { cartao, mes_referencia: mesReferencia })
         .maybeSingle()
 
-      if (existente) {
-        console.log(`[validacaoFatura] divergência já notificada (não lida) cartao=${cartao} mes=${mesReferencia}`)
+      const metadataExistente = existente?.metadata as Record<string, unknown> | undefined
+      const mesmaDivergencia =
+        metadataExistente?.quantidade_arquivo === stats.noCSV &&
+        metadataExistente?.quantidade_banco === stats.totalNoBanco
+
+      if (existente && mesmaDivergencia) {
+        console.log(`[validacaoFatura] divergência já notificada (não lida, sem mudança) cartao=${cartao} mes=${mesReferencia}`)
         continue
+      }
+
+      if (existente && !mesmaDivergencia) {
+        // Situação mudou desde a última notificação (números diferentes, ou a lógica de
+        // detecção foi corrigida) — marca a antiga como lida e gera uma nova, atualizada.
+        await supabase.from('notificacoes').update({ lida: true }).eq('id', existente.id)
       }
 
       const diferenca = stats.totalNoBanco - stats.noCSV
       const mesLabel = mesReferencia.substring(0, 7)
 
-      const { data: linhasBanco } = await supabase
+      const { data: linhasBanco, error: linhasBancoError } = await supabase
         .from('transacoes_nubank')
-        .select('id, hash_linha, descricao, valor, data_compra')
+        .select('id, descricao, valor, data_compra')
         .eq('projeto_fatura', mesReferencia)
         .eq('cartao', cartao)
+        .eq('is_estorno', false)
 
-      const hashesArquivo = new Set(
-        transacoesArquivo
-          .filter(t => t.projeto_fatura === mesReferencia)
-          .map(t => t.hash_linha)
-      )
+      let linhas: LinhaBanco[] = linhasBanco ?? []
 
-      const excedentes: LinhaBanco[] = (linhasBanco ?? []).filter(
-        (r: LinhaBanco) => !hashesArquivo.has(r.hash_linha)
-      )
+      // Fallback para schema legado (coluna 'data' em vez de 'data_compra'),
+      // mesmo padrão usado em lib/conciliacao.ts e app/api/import/cartao/route.ts.
+      if (linhasBancoError?.message?.includes('data_compra')) {
+        const { data: linhasBancoLegado, error: erroLegado } = await supabase
+          .from('transacoes_nubank')
+          .select('id, descricao, valor, data')
+          .eq('projeto_fatura', mesReferencia)
+          .eq('cartao', cartao)
+          .eq('is_estorno', false)
+        if (erroLegado) {
+          console.error(`[validacaoFatura] erro ao buscar linhas do banco (legado) cartao=${cartao} mes=${mesReferencia}:`, erroLegado)
+        }
+        linhas = (linhasBancoLegado ?? []).map((r: Record<string, unknown>) => ({ ...r, data_compra: r.data }) as LinhaBanco)
+      } else if (linhasBancoError) {
+        console.error(`[validacaoFatura] erro ao buscar linhas do banco cartao=${cartao} mes=${mesReferencia}:`, linhasBancoError)
+      }
+
+      // Contagem por chave de conteúdo no arquivo (quantas vezes essa combinação aparece)
+      const contagemArquivo = new Map<string, number>()
+      for (const t of transacoesArquivo) {
+        if (t.projeto_fatura !== mesReferencia) continue
+        const k = chaveConteudo(t.data_compra, t.descricao, t.valor)
+        contagemArquivo.set(k, (contagemArquivo.get(k) ?? 0) + 1)
+      }
+
+      // Agrupa linhas do banco pela mesma chave
+      const porChaveBanco = new Map<string, LinhaBanco[]>()
+      for (const r of linhas) {
+        if (!r.data_compra) continue
+        const k = chaveConteudo(r.data_compra, r.descricao, r.valor)
+        if (!porChaveBanco.has(k)) porChaveBanco.set(k, [])
+        porChaveBanco.get(k)!.push(r)
+      }
+
+      // Para cada chave onde o banco tem mais ocorrências que o arquivo, as linhas
+      // "sobrando" (mais recentes/últimas da lista) são as excedentes.
+      const excedentes: LinhaBanco[] = []
+      for (const [k, rows] of porChaveBanco) {
+        const noArquivo = contagemArquivo.get(k) ?? 0
+        const excesso = rows.length - noArquivo
+        if (excesso > 0) excedentes.push(...rows.slice(0, excesso))
+      }
 
       let descricao: string
       if (excedentes.length === 1) {
