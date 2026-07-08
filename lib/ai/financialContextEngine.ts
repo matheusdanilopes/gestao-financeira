@@ -49,6 +49,7 @@ export type ContextDomain =
   | 'planejamento'  // consigo, posso, viajar, meta, reserva, economizar
   | 'categoria'     // quanto gastei com X, gasto em Alimentação
   | 'receitas'      // renda, salário, receita, entrada de dinheiro
+  | 'porPessoa'     // quem gastou mais, Matheus vs Jeniffer, top categorias de cada um
   | 'historico'     // comparar, histórico, mês passado, tendência
   | 'insights'      // problema, análise, principal, alerta
   | 'geral'         // fallback
@@ -58,6 +59,7 @@ export function detectContextDomain(pergunta: string): ContextDomain {
   if (/fatura|parcel|cartão|cartao|compra cara|gastei demais/.test(p)) return 'cartao'
   if (/invest|aporte|carteira|patrimôni|patrimoni|rendimento/.test(p)) return 'investimentos'
   if (/receita|renda|salário|salario|recebimento|entrou\s*dinheiro/.test(p)) return 'receitas'
+  if (/quem gast|matheus.*jeniffer|jeniffer.*matheus|cada um (dos dois)?|por responsáv|por responsav/.test(p)) return 'porPessoa'
   if (/orçamento|orcamento|previsto|budget|está pago|foi pago|paguei/.test(p)) return 'orcamento'
   if (/consigo|posso|viajar|economizar|reserva|emergência|emergencia|sobra|meta financ/.test(p)) return 'planejamento'
   if (/quanto gastei|gast.*com|quanto.*ifood|quanto.*uber|quanto.*netflix|quanto.*spotify|quanto.*mercado|quanto.*alimenta|quanto.*lazer/.test(p)) return 'categoria'
@@ -181,6 +183,38 @@ function buildTendenciasLayer(data: EnrichedData, hoje: Date): string {
   })
 
   return trends.length > 0 ? `TENDÊNCIAS (últimos 3m):\n${trends.join(' · ')}` : ''
+}
+
+// ─── Gastos por responsável × categoria ──────────────────────────────────────
+// Snapshot layers only ever exposed per-person TOTALS (Matheus vs Jeniffer) or
+// the overall #1 category — never a per-person category breakdown, so a
+// simple "quem gastou mais em qual categoria?" had no data to answer from.
+
+function buildGastosPorPessoaLayer(data: EnrichedData, hoje: Date): string {
+  const mesFatura = format(addMonths(hoje, 1), 'yyyy-MM')
+  const txAtual = data.transacoes.filter(t => mesEfetivo(t) === mesFatura)
+  if (txAtual.length === 0) return ''
+
+  const porPessoa: Record<string, Transacao[]> = {}
+  for (const t of txAtual) {
+    const resp = t.responsavel || 'Sem responsável'
+    if (!porPessoa[resp]) porPessoa[resp] = []
+    porPessoa[resp].push(t)
+  }
+
+  const linhas: string[] = []
+  for (const [resp, txs] of Object.entries(porPessoa)) {
+    const total = sumTx(txs)
+    const cats: Record<string, number> = {}
+    for (const t of txs) {
+      const cat = t.categoria ?? 'Sem categoria'
+      cats[cat] = (cats[cat] ?? 0) + t.valor
+    }
+    const top3 = Object.entries(cats).sort((a, b) => b[1] - a[1]).slice(0, 3)
+    linhas.push(`${resp} (${R(total)}): ${top3.map(([c, v]) => `${c} ${R(v)}`).join(' · ')}`)
+  }
+
+  return linhas.length > 0 ? `GASTOS POR RESPONSÁVEL (top categorias):\n${linhas.join('\n')}` : ''
 }
 
 // ─── Vencimento por cartão ────────────────────────────────────────────────────
@@ -553,6 +587,7 @@ function buildFullContext(
     buildIndicadoresLayer(m),
     buildTendenciasLayer(data, hoje),
     buildCardMotor(data, hoje),
+    buildGastosPorPessoaLayer(data, hoje),
     buildPlanejamentoLayer(m),
     buildReceitasLayer(data, hoje),
     buildInvestimentosLayer(data, m),
@@ -593,6 +628,10 @@ function buildFocusedContext(
 
     case 'receitas':
       focus = buildReceitasLayer(data, hoje)
+      break
+
+    case 'porPessoa':
+      focus = [buildGastosPorPessoaLayer(data, hoje), buildSnapshotLayer(m)].filter(Boolean).join('\n\n')
       break
 
     case 'planejamento':
