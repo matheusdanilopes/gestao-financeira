@@ -23,7 +23,7 @@ const ROTAS_COM_MENU = [
 ]
 
 // Rotas acessíveis sem conexão (têm cache/operações locais)
-const ROTAS_OFFLINE = ['/dashboard', '/lista-mercado']
+const ROTAS_OFFLINE = ['/dashboard', '/lista-mercado', '/listas-compras']
 
 const ROTAS_FINANCAS = ['/financas', '/contas', '/receitas', '/investimentos']
 const ROTAS_CARTAO   = ['/compras', '/assinaturas']
