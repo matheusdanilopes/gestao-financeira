@@ -583,20 +583,37 @@ function buildFullContext(
   const sections = [
     `Data: ${dateStr}${screenCtx ? ' | ' + screenCtx : ''}`,
     buildPerfilLayer(data),
-    buildSnapshotLayer(m),
-    buildIndicadoresLayer(m),
-    buildTendenciasLayer(data, hoje),
+    buildCoreBundle(data, m, hoje),
     buildCardMotor(data, hoje),
-    buildGastosPorPessoaLayer(data, hoje),
     buildPlanejamentoLayer(m),
     buildReceitasLayer(data, hoje),
     buildInvestimentosLayer(data, m),
-    buildAssinaturasLayer(data, m),
     buildInsightsLayer(m),
     buildHistoricoCompactoLayer(data, hoje),
   ].filter(s => s.length > 0)
 
   return sections.join('\n\n')
+}
+
+// ─── Core bundle (sent on EVERY follow-up message, regardless of domain) ─────
+// The domain regexes below are a hand-written approximation of intent — they
+// will never anticipate every phrasing. Rather than gate summary-level data
+// behind guessing the "right" keyword, every follow-up gets this compact
+// baseline: totals, per-person split, top categories (overall AND per
+// person), trend direction, budget/vencimento status and subscriptions.
+// This alone answers the large majority of "anything the user might ask"
+// questions. Anything heavier — line-item purchases, investment portfolio
+// detail, receitas breakdown, card-level recurring/estornos — stays gated
+// behind the domain-specific "extra" below so token cost doesn't balloon on
+// every single message (RN03).
+function buildCoreBundle(data: EnrichedData, m: FinancialInsightsContext, hoje: Date): string {
+  return [
+    buildSnapshotLayer(m),
+    buildIndicadoresLayer(m),
+    buildTendenciasLayer(data, hoje),
+    buildGastosPorPessoaLayer(data, hoje),
+    buildAssinaturasLayer(data, m),
+  ].filter(Boolean).join('\n\n')
 }
 
 // ─── Focused Context (Mensagens Subsequentes) ─────────────────────────────────
@@ -610,73 +627,60 @@ function buildFocusedContext(
 ): string {
   const dateStr = format(hoje, "dd/MM/yyyy", { locale: ptBR })
   const anchor = `Data: ${dateStr}\n[Contexto financeiro completo já estabelecido. Dados atuais para esta pergunta:]`
+  const core = buildCoreBundle(data, m, hoje)
 
-  let focus: string
+  let extra = ''
 
   switch (domain) {
     case 'cartao':
-      focus = [buildCardMotor(data, hoje), buildSnapshotLayer(m)].filter(Boolean).join('\n\n')
+      extra = buildCardMotor(data, hoje)
       break
 
     case 'investimentos':
-      focus = buildInvestimentosLayer(data, m)
+      extra = buildInvestimentosLayer(data, m)
       break
 
     case 'orcamento':
-      focus = buildPlanejamentoLayer(m)
+      extra = buildPlanejamentoLayer(m)
       break
 
     case 'receitas':
-      focus = buildReceitasLayer(data, hoje)
+      extra = buildReceitasLayer(data, hoje)
       break
 
     case 'porPessoa':
-      focus = [buildGastosPorPessoaLayer(data, hoje), buildSnapshotLayer(m)].filter(Boolean).join('\n\n')
+      // Already in the core bundle (buildGastosPorPessoaLayer) — nothing extra.
       break
 
     case 'planejamento':
-      focus = [buildSnapshotLayer(m), buildPlanejamentoLayer(m), buildInvestimentosLayer(data, m)]
-        .filter(Boolean).join('\n\n')
+      extra = [buildPlanejamentoLayer(m), buildInvestimentosLayer(data, m)].filter(Boolean).join('\n\n')
       break
 
     case 'categoria': {
       const cats = detectCategorias(pergunta)
-      const catFocus = cats.length > 0 ? buildCategoryFocusLayer(data, cats, hoje) : ''
-      // Falls back to the snapshot when the category yields no data (wrong
-      // name detected, or genuinely no spend) instead of sending an empty
-      // context for the question.
-      focus = catFocus || buildSnapshotLayer(m)
+      extra = cats.length > 0 ? buildCategoryFocusLayer(data, cats, hoje) : ''
       break
     }
 
     case 'historico':
-      focus = [buildHistoricoCompactoLayer(data, hoje, 6), buildTendenciasLayer(data, hoje), buildIndicadoresLayer(m)].filter(Boolean).join('\n\n')
+      extra = buildHistoricoCompactoLayer(data, hoje, 6)
       break
 
     case 'insights': {
-      // Includes the multi-category trend breakdown so follow-ups like "o que
-      // está puxando essa alta?" can reference the same categories/percentages
-      // the first message already gave — without this, the model only sees the
-      // single #1 category from buildIndicadoresLayer and contradicts itself.
-      // Also pulls actual purchases for the top 2 categories so "what's
-      // driving this" can be answered with real line items, not just %.
+      // Pulls actual purchases for the top 2 categories so "what's driving
+      // this" can be answered with real line items, not just percentages.
       const topCats = m.topCategorias.slice(0, 2).map(c => c.categoria)
-      focus = [
-        buildInsightsLayer(m),
-        buildIndicadoresLayer(m),
-        buildTendenciasLayer(data, hoje),
-        buildCategoryFocusLayer(data, topCats, hoje),
-        buildSnapshotLayer(m),
-      ].filter(Boolean).join('\n\n')
+      extra = [buildInsightsLayer(m), buildCategoryFocusLayer(data, topCats, hoje)].filter(Boolean).join('\n\n')
       break
     }
 
     case 'geral':
     default:
-      focus = [buildSnapshotLayer(m), buildIndicadoresLayer(m), buildTendenciasLayer(data, hoje)].filter(Boolean).join('\n\n')
+      // Core bundle alone already covers the generic case.
+      break
   }
 
-  return [anchor, focus].filter(s => s.length > 0).join('\n\n')
+  return [anchor, core, extra].filter(s => s.length > 0).join('\n\n')
 }
 
 // ─── Main Export ─────────────────────────────────────────────────────────────
