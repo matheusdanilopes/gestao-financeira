@@ -6,7 +6,7 @@ import {
   Crown, Plus, Archive, ArchiveRestore, Trash2,
   MoreHorizontal, Check, Pencil, ShoppingBag,
 } from 'lucide-react'
-import ModalPortal from '@/components/ModalPortal'
+import { BottomSheet } from '@/components/BottomSheet'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { useListasCompras, type ListaComMeta } from '@/lib/useListasCompras'
 import { formatBRL } from '@/lib/logger'
@@ -47,8 +47,8 @@ function InputNovaLista({ onCriar }: { onCriar: (nome: string) => Promise<unknow
         value={valor}
         onChange={e => setValor(e.target.value)}
         placeholder="Nome da nova lista…"
-        className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5
-                   placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-400
+        className="flex-1 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3.5 py-2.5
+                   placeholder-gray-400 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-400
                    focus:border-transparent transition-all"
         maxLength={80}
       />
@@ -92,50 +92,48 @@ function BottomSheetAcoes({
     if (renomeando) setTimeout(() => inputRef.current?.focus(), 50)
   }, [renomeando])
 
-  async function confirmarRenomear() {
+  async function confirmarRenomear(): Promise<boolean> {
     const nome = nomeLocal.trim()
-    if (!nome || nome === lista.nome) { setRenomeando(false); return }
+    if (!nome || nome === lista.nome) { setRenomeando(false); return false }
     await onRenomear(lista.id, nome)
-    onClose()
+    return true
   }
 
   async function handleArquivar() {
-    lista.status === 'ativa' ? await onArquivar(lista.id) : await onDesarquivar(lista.id)
-    onClose()
+    if (lista.status === 'ativa') {
+      await onArquivar(lista.id)
+    } else {
+      await onDesarquivar(lista.id)
+    }
   }
 
   async function handleExcluir() {
     await onExcluir(lista.id)
-    onClose()
   }
 
   return (
-    <ModalPortal>
-      <div
-        className="fixed inset-0 z-[200] flex items-end modal-overlay"
-        style={{ background: 'rgba(0,0,0,0.45)' }}
-        onClick={e => e.target === e.currentTarget && onClose()}
-      >
-        <div className="w-full bg-white rounded-t-3xl shadow-2xl px-5 pt-2 pb-10 modal-sheet">
-          <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-4" />
-          <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Lista</p>
-          <p className="text-base font-bold text-gray-900 mb-5 truncate">{lista.nome}</p>
+    <BottomSheet onClose={onClose} sheetClassName="px-5 pt-2 pb-10">
+      {close => (
+        <>
+          <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-700 mx-auto mb-4" />
+          <p className="text-xs text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wide mb-1">Lista</p>
+          <p className="text-base font-bold text-gray-900 dark:text-white mb-5 truncate">{lista.nome}</p>
 
           {confirmarExclusao ? (
-            <div className="rounded-2xl bg-red-50 p-4">
-              <p className="text-sm font-bold text-gray-900 mb-1">Excluir "{lista.nome}"?</p>
-              <p className="text-xs text-gray-500 mb-4">Essa ação não pode ser desfeita.</p>
+            <div className="rounded-2xl bg-red-50 dark:bg-red-900/20 p-4">
+              <p className="text-sm font-bold text-gray-900 dark:text-white mb-1">Excluir "{lista.nome}"?</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Essa ação não pode ser desfeita.</p>
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setConfirmarExclusao(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 font-semibold"
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-600 dark:text-gray-300 font-semibold"
                 >
                   Cancelar
                 </button>
                 <button
                   type="button"
-                  onClick={handleExcluir}
+                  onClick={async () => { await handleExcluir(); close() }}
                   className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold"
                 >
                   Excluir
@@ -149,11 +147,11 @@ function BottomSheetAcoes({
                 type="text"
                 value={nomeLocal}
                 onChange={e => setNomeLocal(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') confirmarRenomear()
+                onKeyDown={async e => {
+                  if (e.key === 'Enter') { if (await confirmarRenomear()) close() }
                   if (e.key === 'Escape') setRenomeando(false)
                 }}
-                className="w-full text-sm border border-primary-400 rounded-xl px-3.5 py-2.5
+                className="w-full text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-primary-400 rounded-xl px-3.5 py-2.5
                            focus:outline-none focus:ring-2 focus:ring-primary-400"
                 maxLength={80}
               />
@@ -161,13 +159,13 @@ function BottomSheetAcoes({
                 <button
                   type="button"
                   onClick={() => setRenomeando(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 font-semibold"
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-600 dark:text-gray-300 font-semibold"
                 >
                   Cancelar
                 </button>
                 <button
                   type="button"
-                  onClick={confirmarRenomear}
+                  onClick={async () => { if (await confirmarRenomear()) close() }}
                   className="flex-1 py-2.5 rounded-xl bg-primary-600 text-white text-sm font-semibold"
                 >
                   Salvar
@@ -179,25 +177,25 @@ function BottomSheetAcoes({
               <button
                 type="button"
                 onClick={() => setRenomeando(true)}
-                className="flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl hover:bg-gray-50
-                           text-gray-700 text-sm font-semibold transition-colors active:bg-gray-100"
+                className="flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-800
+                           text-gray-700 dark:text-gray-300 text-sm font-semibold transition-colors active:bg-gray-100 dark:active:bg-gray-700"
               >
-                <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center">
-                  <Pencil className="w-4 h-4 text-gray-600" strokeWidth={1.8} />
+                <div className="w-8 h-8 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                  <Pencil className="w-4 h-4 text-gray-600 dark:text-gray-300" strokeWidth={1.8} />
                 </div>
                 Renomear
               </button>
 
               <button
                 type="button"
-                onClick={handleArquivar}
-                className="flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl hover:bg-gray-50
-                           text-gray-700 text-sm font-semibold transition-colors active:bg-gray-100"
+                onClick={async () => { await handleArquivar(); close() }}
+                className="flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-800
+                           text-gray-700 dark:text-gray-300 text-sm font-semibold transition-colors active:bg-gray-100 dark:active:bg-gray-700"
               >
-                <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center">
                   {lista.status === 'ativa'
-                    ? <Archive className="w-4 h-4 text-amber-600" strokeWidth={1.8} />
-                    : <ArchiveRestore className="w-4 h-4 text-amber-600" strokeWidth={1.8} />
+                    ? <Archive className="w-4 h-4 text-amber-600 dark:text-amber-400" strokeWidth={1.8} />
+                    : <ArchiveRestore className="w-4 h-4 text-amber-600 dark:text-amber-400" strokeWidth={1.8} />
                   }
                 </div>
                 {lista.status === 'ativa' ? 'Arquivar' : 'Desarquivar'}
@@ -206,19 +204,19 @@ function BottomSheetAcoes({
               <button
                 type="button"
                 onClick={() => setConfirmarExclusao(true)}
-                className="flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl hover:bg-red-50
-                           text-red-600 text-sm font-semibold transition-colors active:bg-red-100"
+                className="flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl hover:bg-red-50 dark:hover:bg-red-900/20
+                           text-red-600 dark:text-red-400 text-sm font-semibold transition-colors active:bg-red-100 dark:active:bg-red-900/30"
               >
-                <div className="w-8 h-8 rounded-xl bg-red-50 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-xl bg-red-50 dark:bg-red-900/30 flex items-center justify-center">
                   <Trash2 className="w-4 h-4 text-red-500" strokeWidth={1.8} />
                 </div>
                 Excluir lista
               </button>
             </div>
           )}
-        </div>
-      </div>
-    </ModalPortal>
+        </>
+      )}
+    </BottomSheet>
   )
 }
 
@@ -227,44 +225,51 @@ function BottomSheetAcoes({
 function ListaCard({
   lista,
   onAcoes,
+  onExcluir,
 }: {
   lista: ListaComMeta
   onAcoes: (lista: ListaComMeta) => void
+  onExcluir: (id: string) => Promise<void>
 }) {
   const temPrevisto = lista.totalPrevisto > 0
   const temPago = lista.totalPago > 0
 
   return (
-    <SwipeableItem onDelete={() => onAcoes(lista)} requireConfirmation={false} disabled={false}>
-      <div className="relative bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <SwipeableItem
+      onDelete={() => onExcluir(lista.id)}
+      requireConfirmation
+      confirmTitle={`Excluir "${lista.nome}"?`}
+      disabled={false}
+    >
+      <div className="relative bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
         {/* Link cobre o card inteiro */}
         <Link href={`/listas-compras/${lista.id}`} className="absolute inset-0 z-0" aria-label={lista.nome} />
         <div className="relative z-10 p-4 pr-12 pointer-events-none">
           <div className="flex items-start gap-3">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-none
-                            ${lista.status === 'arquivada' ? 'bg-gray-100' : 'bg-amber-50'}`}>
+                            ${lista.status === 'arquivada' ? 'bg-gray-100 dark:bg-gray-700' : 'bg-amber-50 dark:bg-amber-900/30'}`}>
               {lista.status === 'arquivada'
-                ? <Archive className="w-5 h-5 text-gray-400" strokeWidth={1.8} />
-                : <ShoppingBag className="w-5 h-5 text-amber-600" strokeWidth={1.8} />
+                ? <Archive className="w-5 h-5 text-gray-400 dark:text-gray-500" strokeWidth={1.8} />
+                : <ShoppingBag className="w-5 h-5 text-amber-600 dark:text-amber-400" strokeWidth={1.8} />
               }
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className={`text-sm font-bold truncate ${lista.status === 'arquivada' ? 'text-gray-400' : 'text-gray-900'}`}>
+              <h3 className={`text-sm font-bold truncate ${lista.status === 'arquivada' ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>
                 {lista.nome}
               </h3>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 {lista.totalSublistas > 0 ? (
-                  <span className="text-[11px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                  <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 rounded-full">
                     {lista.totalSublistas} {lista.totalSublistas === 1 ? 'sublista' : 'sublistas'}
                   </span>
                 ) : lista.totalItens === 0 ? (
-                  <span className="text-[11px] text-gray-400">Vazia</span>
+                  <span className="text-[11px] text-gray-400 dark:text-gray-500">Vazia</span>
                 ) : lista.totalPendentes > 0 ? (
-                  <span className="text-[11px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                  <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 rounded-full">
                     {lista.totalPendentes} {lista.totalPendentes === 1 ? 'pendente' : 'pendentes'}
                   </span>
                 ) : (
-                  <span className="text-[11px] font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                  <span className="text-[11px] font-semibold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-2 py-0.5 rounded-full flex items-center gap-0.5">
                     <Check className="w-2.5 h-2.5" strokeWidth={3} />
                     Concluída
                   </span>
@@ -273,13 +278,13 @@ function ListaCard({
               {(temPrevisto || temPago) && (
                 <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                   {temPrevisto && (
-                    <span className="text-[11px] text-gray-400">
-                      Prev: <span className="font-semibold text-gray-600 num">{formatBRL(lista.totalPrevisto)}</span>
+                    <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                      Prev: <span className="font-semibold text-gray-600 dark:text-gray-300 num">{formatBRL(lista.totalPrevisto)}</span>
                     </span>
                   )}
                   {temPago && (
-                    <span className="text-[11px] text-gray-400">
-                      Pago: <span className="font-semibold text-green-600 num">{formatBRL(lista.totalPago)}</span>
+                    <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                      Pago: <span className="font-semibold text-green-600 dark:text-green-400 num">{formatBRL(lista.totalPago)}</span>
                     </span>
                   )}
                 </div>
@@ -287,12 +292,12 @@ function ListaCard({
             </div>
           </div>
         </div>
-        {/* Botão ··· acima do Link overlay */}
+        {/* Botão ··· acima do Link overlay — abre o menu completo de ações */}
         <button
           type="button"
           onClick={e => { e.stopPropagation(); onAcoes(lista) }}
-          className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-xl
-                     flex items-center justify-center text-gray-400 hover:bg-gray-100
+          className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-xl
+                     flex items-center justify-center text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700
                      transition-colors active:scale-90"
           aria-label="Ações da lista"
         >
@@ -303,24 +308,40 @@ function ListaCard({
   )
 }
 
+// ── Skeleton (estado de carregamento) ─────────────────────────────────────────
+
+function ListaCardSkeleton() {
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-4">
+      <div className="flex items-start gap-3">
+        <div className="skeleton w-10 h-10 rounded-xl flex-none" />
+        <div className="flex-1 min-w-0 space-y-2">
+          <div className="skeleton h-4 w-2/3 rounded-md" />
+          <div className="skeleton h-3 w-1/3 rounded-full" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Página principal ──────────────────────────────────────────────────────────
 
 export default function ListasComprasPage() {
-  const { ativas, arquivadas, criarLista, renomearLista, arquivarLista, desarquivarLista, excluirLista } = useListasCompras()
+  const { ativas, arquivadas, criarLista, renomearLista, arquivarLista, desarquivarLista, excluirLista, isLoading } = useListasCompras()
   const [aba, setAba] = useState<'pendentes' | 'concluidas'>('pendentes')
   const [listaAcoes, setListaAcoes] = useState<ListaComMeta | null>(null)
 
   return (
     <div className="min-h-screen pb-40 page-enter">
       {/* Header sticky */}
-      <div className="sticky top-0 z-10 sticky-header border-b border-gray-100 px-4 pt-4 pb-3">
+      <div className="sticky top-0 z-10 sticky-header border-b border-gray-100 dark:border-gray-800 px-4 pt-4 pb-3">
         <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center flex-none">
-            <Crown className="w-5 h-5 text-amber-600" strokeWidth={1.8} />
+          <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center flex-none">
+            <Crown className="w-5 h-5 text-amber-600 dark:text-amber-400" strokeWidth={1.8} />
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-bold text-gray-900 leading-none">Listas da Princesa</h1>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <h1 className="text-lg font-bold text-gray-900 dark:text-white leading-none">Listas da Princesa</h1>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
               {ativas.length} {ativas.length === 1 ? 'lista ativa' : 'listas ativas'}
               {arquivadas.length > 0 && ` · ${arquivadas.length} arquivada${arquivadas.length > 1 ? 's' : ''}`}
             </p>
@@ -358,43 +379,58 @@ export default function ListasComprasPage() {
       {/* Listas ativas */}
       {aba === 'pendentes' && (
         <div className="px-4 pt-3 space-y-3">
-          {ativas.length === 0 && (
+          {isLoading ? (
+            <>
+              <ListaCardSkeleton />
+              <ListaCardSkeleton />
+              <ListaCardSkeleton />
+            </>
+          ) : ativas.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center mb-4">
-                <Crown className="w-8 h-8 text-amber-400" strokeWidth={1.5} />
+              <div className="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center mb-4">
+                <Crown className="w-8 h-8 text-amber-400 dark:text-amber-500" strokeWidth={1.5} />
               </div>
-              <p className="text-sm font-semibold text-gray-500">Nenhuma lista ainda</p>
-              <p className="text-xs text-gray-400 mt-1">Crie sua primeira lista acima</p>
+              <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">Nenhuma lista ainda</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Crie sua primeira lista acima</p>
             </div>
+          ) : (
+            ativas.map(lista => (
+              <ListaCard
+                key={lista.id}
+                lista={lista}
+                onAcoes={setListaAcoes}
+                onExcluir={excluirLista}
+              />
+            ))
           )}
-          {ativas.map(lista => (
-            <ListaCard
-              key={lista.id}
-              lista={lista}
-              onAcoes={setListaAcoes}
-            />
-          ))}
         </div>
       )}
 
       {/* Listas arquivadas */}
       {aba === 'concluidas' && (
         <div className="px-4 pt-3 space-y-3">
-          {arquivadas.length === 0 && (
+          {isLoading ? (
+            <>
+              <ListaCardSkeleton />
+              <ListaCardSkeleton />
+            </>
+          ) : arquivadas.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
-                <Archive className="w-8 h-8 text-gray-400" strokeWidth={1.5} />
+              <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
+                <Archive className="w-8 h-8 text-gray-400 dark:text-gray-500" strokeWidth={1.5} />
               </div>
-              <p className="text-sm font-semibold text-gray-500">Nenhuma lista arquivada</p>
+              <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">Nenhuma lista arquivada</p>
             </div>
+          ) : (
+            arquivadas.map(lista => (
+              <ListaCard
+                key={lista.id}
+                lista={lista}
+                onAcoes={setListaAcoes}
+                onExcluir={excluirLista}
+              />
+            ))
           )}
-          {arquivadas.map(lista => (
-            <ListaCard
-              key={lista.id}
-              lista={lista}
-              onAcoes={setListaAcoes}
-            />
-          ))}
         </div>
       )}
 

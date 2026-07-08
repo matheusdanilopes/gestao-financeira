@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { supabase } from './supabaseClient'
 import { useGlobalSync } from './useGlobalSync'
 
@@ -62,16 +62,32 @@ export function useListasCompras() {
   const listasRef = useRef<ListaCompras[]>([])
   useEffect(() => { listasRef.current = listas }, [listas])
 
-  useGlobalSync({
+  const sync = useGlobalSync({
     cacheKey: 'listas-compras',
     tables: ['listas_compras', 'listas_compras_itens'],
     fetcher: async () => {
-      const [listasResult, itensResult, sublistasResult] = await Promise.all([
-        supabase.from('listas_compras').select('*').is('parent_id', null).order('created_at', { ascending: false }),
-        supabase.from('listas_compras_itens').select('lista_id, preco_previsto, preco_pago, status, quantidade'),
+      const listasResult = await supabase
+        .from('listas_compras')
+        .select('*')
+        .is('parent_id', null)
+        .order('created_at', { ascending: false })
+      if (listasResult.error) throw listasResult.error
+
+      // Busca itens só das listas raiz carregadas acima — evita trazer a
+      // tabela inteira de itens (que cresce com todo o histórico de compras)
+      // só para calcular contadores/totais das listas visíveis nesta tela.
+      const listaIds = (listasResult.data ?? []).map(l => l.id)
+      async function fetchItens(): Promise<{ data: ItemMeta[] | null; error: unknown }> {
+        if (listaIds.length === 0) return { data: [], error: null }
+        return supabase.from('listas_compras_itens').select('lista_id, preco_previsto, preco_pago, status, quantidade').in('lista_id', listaIds)
+      }
+
+      const [itensResult, sublistasResult] = await Promise.all([
+        fetchItens(),
         supabase.from('listas_compras').select('id, parent_id').not('parent_id', 'is', null),
       ])
-      if (listasResult.error) throw listasResult.error
+      if (itensResult.error) throw itensResult.error
+      if (sublistasResult.error) throw sublistasResult.error
       return {
         listas: listasResult.data ?? [],
         itens: itensResult.data ?? [],
@@ -86,7 +102,7 @@ export function useListasCompras() {
     },
   })
 
-  const listasComMeta: ListaComMeta[] = listas.map(lista => {
+  const listasComMeta: ListaComMeta[] = useMemo(() => listas.map(lista => {
     const itens = itensMeta.filter(i => i.lista_id === lista.id)
     const totalSublistas = sublistasMeta.filter(s => s.parent_id === lista.id).length
     return {
@@ -99,10 +115,11 @@ export function useListasCompras() {
         .reduce((s, i) => s + (i.preco_pago ?? 0) * i.quantidade, 0),
       totalSublistas,
     }
-  })
+  }), [listas, itensMeta, sublistasMeta])
 
-  const ativas = listasComMeta.filter(l => l.status === 'ativa')
-  const arquivadas = listasComMeta.filter(l => l.status === 'arquivada')
+  const ativas = useMemo(() => listasComMeta.filter(l => l.status === 'ativa'), [listasComMeta])
+  const arquivadas = useMemo(() => listasComMeta.filter(l => l.status === 'arquivada'), [listasComMeta])
+  const isLoading = sync.status === 'loading'
 
   const criarLista = useCallback(async (nome: string) => {
     const criado_por = await getUsuario()
@@ -174,7 +191,7 @@ export function useListasCompras() {
     }
   }, [])
 
-  return { ativas, arquivadas, criarLista, renomearLista, arquivarLista, desarquivarLista, excluirLista }
+  return { ativas, arquivadas, criarLista, renomearLista, arquivarLista, desarquivarLista, excluirLista, isLoading }
 }
 
 // ── useSublistasLista — gerencia sublistas filhas de uma lista (tela Detalhe) ──
@@ -185,15 +202,25 @@ export function useSublistasLista(parentId: string) {
   const sublistasRef = useRef<ListaCompras[]>([])
   useEffect(() => { sublistasRef.current = sublistas }, [sublistas])
 
-  useGlobalSync({
+  const sync = useGlobalSync({
     cacheKey: `sublistas-${parentId}`,
     tables: ['listas_compras', 'listas_compras_itens'],
     fetcher: async () => {
-      const [sublistasResult, itensResult] = await Promise.all([
-        supabase.from('listas_compras').select('*').eq('parent_id', parentId).order('created_at', { ascending: true }),
-        supabase.from('listas_compras_itens').select('lista_id, preco_previsto, preco_pago, status, quantidade'),
-      ])
+      const sublistasResult = await supabase
+        .from('listas_compras')
+        .select('*')
+        .eq('parent_id', parentId)
+        .order('created_at', { ascending: true })
       if (sublistasResult.error) throw sublistasResult.error
+
+      // Mesma otimização de useListasCompras: só busca itens das sublistas
+      // já carregadas, em vez da tabela inteira de itens do app.
+      const subIds = (sublistasResult.data ?? []).map(s => s.id)
+      const itensResult = subIds.length > 0
+        ? await supabase.from('listas_compras_itens').select('lista_id, preco_previsto, preco_pago, status, quantidade').in('lista_id', subIds)
+        : { data: [] as ItemMeta[], error: null }
+      if (itensResult.error) throw itensResult.error
+
       return { sublistas: sublistasResult.data ?? [], itens: itensResult.data ?? [] }
     },
     onData: (data: unknown) => {
@@ -203,7 +230,7 @@ export function useSublistasLista(parentId: string) {
     },
   })
 
-  const sublistasComMeta: ListaComMeta[] = sublistas.map(sub => {
+  const sublistasComMeta: ListaComMeta[] = useMemo(() => sublistas.map(sub => {
     const itens = itensMeta.filter(i => i.lista_id === sub.id)
     return {
       ...sub,
@@ -215,7 +242,8 @@ export function useSublistasLista(parentId: string) {
         .reduce((s, i) => s + (i.preco_pago ?? 0) * i.quantidade, 0),
       totalSublistas: 0,
     }
-  })
+  }), [sublistas, itensMeta])
+  const isLoading = sync.status === 'loading'
 
   const criarSublista = useCallback(async (nome: string) => {
     const criado_por = await getUsuario()
@@ -264,7 +292,7 @@ export function useSublistasLista(parentId: string) {
   const totalPrevisto = sublistasComMeta.reduce((s, sub) => s + sub.totalPrevisto, 0)
   const totalPago = sublistasComMeta.reduce((s, sub) => s + sub.totalPago, 0)
 
-  return { sublistas: sublistasComMeta, totalPrevisto, totalPago, criarSublista, renomearSublista, excluirSublista }
+  return { sublistas: sublistasComMeta, totalPrevisto, totalPago, criarSublista, renomearSublista, excluirSublista, isLoading }
 }
 
 // ── useItensLista — gerencia itens de uma lista específica (tela Detalhe) ─────
@@ -277,7 +305,7 @@ export function useItensLista(listaId: string) {
   const timersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const pendingRef = useRef<Record<string, Partial<ItemListaCompras>>>({})
 
-  useGlobalSync({
+  const sync = useGlobalSync({
     cacheKey: `lista-itens-${listaId}`,
     tables: ['listas_compras_itens'],
     fetcher: async () => {
@@ -291,6 +319,7 @@ export function useItensLista(listaId: string) {
     },
     onData: (data) => setItens(data as ItemListaCompras[]),
   })
+  const isLoading = sync.status === 'loading'
 
   const _salvar = useCallback((id: string, campos: Partial<ItemListaCompras>) => {
     setItens(prev => prev.map(i => i.id === id ? { ...i, ...campos } : i))
@@ -412,5 +441,6 @@ export function useItensLista(listaId: string) {
     adicionarItem, editarItem, alterarQuantidade,
     marcarComprado, desmarcarComprado,
     excluirItem, moverParaWishlist,
+    isLoading,
   }
 }
