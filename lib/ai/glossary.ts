@@ -30,6 +30,16 @@ INVESTIMENTO: Capital aplicado com objetivo de crescimento patrimonial
 FATURA: Conjunto de compras de um cartão em determinado mês
   → Determinada pelo campo projeto_fatura (mês em que a compra é cobrada)
   → Pode diferir do mês da compra (devido à data de fechamento do cartão)
+  → O valor de fatura já é líquido de estornos — nunca precisa subtrair estorno manualmente
+
+RECEITA: Entrada de renda (salário, freelance, reembolso, etc.) → item "[RECEITA] *" em planejamento
+  → Diferente de DESPESA PLANEJADA: não é um gasto, é dinheiro entrando
+  → "pago"/"valor_real" indicam se e quanto já foi efetivamente recebido (não confundir com data_pagamento de despesas)
+  → NUNCA some receitas ao total de gastos/despesas do mês
+
+ESTORNO: Cancelamento/devolução de uma compra em cartão (status ESTORNO/ESTORNADO)
+  → Já excluído do total da fatura — é informado apenas para explicar diferenças ao usuário
+  → NÃO é uma nova despesa nem deve ser somado a nada
 
 ORÇAMENTO: Total previsto para gastos do mês → SUM(planejamento.valor_previsto)
   → Comparado com o realizado (gastos em transacoes_nubank) para medir aderência
