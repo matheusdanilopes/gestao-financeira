@@ -62,10 +62,13 @@ export function detectContextDomain(pergunta: string): ContextDomain {
   if (/consigo|posso|viajar|economizar|reserva|emergência|emergencia|sobra|meta financ/.test(p)) return 'planejamento'
   if (/quanto gastei|gast.*com|quanto.*ifood|quanto.*uber|quanto.*netflix|quanto.*spotify|quanto.*mercado|quanto.*alimenta|quanto.*lazer/.test(p)) return 'categoria'
   if (/compar|histórico|historico|mês passado|mes passado|evolu|tendência|tendencia|antes/.test(p)) return 'historico'
-  if (/problema|pior|análise|analise|principal|insight|piora|alerta/.test(p)) return 'insights'
+  if (/problema|pior|análise|analise|principal|insight|piora|alerta|acima do normal|puxando|impulsionando|o que (está|esta) causando|por que.*(subiu|aumentou|cresceu|disparou|caiu)/.test(p)) return 'insights'
   return 'geral'
 }
 
+// Keys must match the real category names in CATEGORIAS_PADRAO (lib/categorias.ts)
+// exactly — buildCategoryFocusLayer does a strict equality match against
+// t.categoria, so a mismatched name here silently returns zero transactions.
 function detectCategorias(pergunta: string): string[] {
   const p = pergunta.toLowerCase()
   const MAP: Record<string, string[]> = {
@@ -73,9 +76,15 @@ function detectCategorias(pergunta: string): string[] {
     'Mercado': ['mercado', 'supermercado'],
     'Saúde': ['saúde', 'saude', 'médico', 'farmácia', 'farmacia', 'pilates', 'academia'],
     'Transporte': ['transporte', 'gasolina', 'uber', 'combustível', 'combustivel'],
-    'Entretenimento': ['entretenimento', 'netflix', 'streaming', 'spotify', 'disney', 'lazer', 'cinema'],
+    'Lazer': ['lazer', 'cinema', 'diversão', 'diversao', 'parque', 'show', 'bar', 'balada'],
+    'Streaming': ['netflix', 'streaming', 'spotify', 'disney', 'hbo', 'amazon prime', 'max', 'youtube premium'],
     'Educação': ['educação', 'educacao', 'escola', 'curso', 'faculdade'],
     'Moradia': ['aluguel', 'condomínio', 'condominio', 'energia', 'internet', 'água', 'agua'],
+    'Vestuário': ['roupa', 'vestuário', 'vestuario', 'calçado', 'calcado', 'moda', 'sapato', 'tênis', 'tenis'],
+    'Tecnologia': ['tecnologia', 'celular', 'computador', 'eletrônico', 'eletronico', 'notebook', 'apple', 'samsung'],
+    'Serviços': ['serviço', 'servico', 'manutenção', 'manutencao', 'reparo', 'conserto'],
+    'Viagem': ['viagem', 'hotel', 'passagem', 'aéreo', 'aereo', 'turismo', 'airbnb'],
+    'Pet': ['pet', 'veterinário', 'veterinario', 'ração', 'racao', 'petshop'],
   }
   return Object.entries(MAP)
     .filter(([, kws]) => kws.some(kw => p.includes(kw)))
@@ -593,23 +602,39 @@ function buildFocusedContext(
 
     case 'categoria': {
       const cats = detectCategorias(pergunta)
-      focus = cats.length > 0
-        ? buildCategoryFocusLayer(data, cats, hoje)
-        : buildSnapshotLayer(m)
+      const catFocus = cats.length > 0 ? buildCategoryFocusLayer(data, cats, hoje) : ''
+      // Falls back to the snapshot when the category yields no data (wrong
+      // name detected, or genuinely no spend) instead of sending an empty
+      // context for the question.
+      focus = catFocus || buildSnapshotLayer(m)
       break
     }
 
     case 'historico':
-      focus = [buildHistoricoCompactoLayer(data, hoje, 6), buildIndicadoresLayer(m)].filter(Boolean).join('\n\n')
+      focus = [buildHistoricoCompactoLayer(data, hoje, 6), buildTendenciasLayer(data, hoje), buildIndicadoresLayer(m)].filter(Boolean).join('\n\n')
       break
 
-    case 'insights':
-      focus = [buildInsightsLayer(m), buildIndicadoresLayer(m), buildSnapshotLayer(m)].filter(Boolean).join('\n\n')
+    case 'insights': {
+      // Includes the multi-category trend breakdown so follow-ups like "o que
+      // está puxando essa alta?" can reference the same categories/percentages
+      // the first message already gave — without this, the model only sees the
+      // single #1 category from buildIndicadoresLayer and contradicts itself.
+      // Also pulls actual purchases for the top 2 categories so "what's
+      // driving this" can be answered with real line items, not just %.
+      const topCats = m.topCategorias.slice(0, 2).map(c => c.categoria)
+      focus = [
+        buildInsightsLayer(m),
+        buildIndicadoresLayer(m),
+        buildTendenciasLayer(data, hoje),
+        buildCategoryFocusLayer(data, topCats, hoje),
+        buildSnapshotLayer(m),
+      ].filter(Boolean).join('\n\n')
       break
+    }
 
     case 'geral':
     default:
-      focus = [buildSnapshotLayer(m), buildIndicadoresLayer(m)].filter(Boolean).join('\n\n')
+      focus = [buildSnapshotLayer(m), buildIndicadoresLayer(m), buildTendenciasLayer(data, hoje)].filter(Boolean).join('\n\n')
   }
 
   return [anchor, focus].filter(s => s.length > 0).join('\n\n')
