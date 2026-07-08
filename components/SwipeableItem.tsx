@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
 import { Trash2 } from 'lucide-react'
+import { BottomSheet } from './BottomSheet'
 
 const SWIPE_REVEAL_WIDTH = 72
 const SWIPE_DELETE_THRESHOLD = -60
@@ -12,11 +12,15 @@ export function SwipeableItem({
   onDelete,
   disabled = false,
   requireConfirmation = false,
+  confirmTitle = 'Remover este item?',
+  confirmDescription = 'Essa ação não pode ser desfeita.',
 }: {
   children: ReactNode
   onDelete: () => void
   disabled?: boolean
   requireConfirmation?: boolean
+  confirmTitle?: string
+  confirmDescription?: string
 }) {
   const [translateX, setTranslateX] = useState(0)
   const [animating, setAnimating] = useState(false)
@@ -146,134 +150,115 @@ export function SwipeableItem({
         </div>
       </div>
       {showConfirm && (
-        <DeleteConfirmSheet onConfirm={handleConfirm} onCancel={handleCancel} />
+        <DeleteConfirmSheet
+          title={confirmTitle}
+          description={confirmDescription}
+          onConfirm={handleConfirm}
+          onCancel={handleCancel}
+        />
       )}
     </>
   )
 }
 
 function DeleteConfirmSheet({
+  title,
+  description,
   onConfirm,
   onCancel,
 }: {
+  title: string
+  description: string
   onConfirm: () => void
   onCancel: () => void
 }) {
-  const [visible, setVisible] = useState(false)
   const cancelBtnRef = useRef<HTMLButtonElement>(null)
-  const ANIM_MS = 220
+  // BottomSheet só chama um único onClose após a animação de saída — guardamos
+  // aqui qual das duas ações (cancelar/confirmar) deve rodar quando isso acontecer.
+  const actionRef = useRef<() => void>(onCancel)
 
-  useEffect(() => {
-    // Double rAF ensures the element is painted before the transition starts
-    const id = requestAnimationFrame(() =>
-      requestAnimationFrame(() => setVisible(true))
-    )
-    return () => cancelAnimationFrame(id)
-  }, [])
-
-  useEffect(() => {
-    if (visible) cancelBtnRef.current?.focus()
-  }, [visible])
-
-  function dismiss(cb: () => void) {
-    setVisible(false)
-    setTimeout(cb, ANIM_MS)
-  }
-
-  function handleBackdropClick() {
-    dismiss(onCancel)
-  }
-
-  function handleCancel() {
-    dismiss(onCancel)
-  }
-
-  function handleConfirm() {
-    dismiss(onConfirm)
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Escape') handleCancel()
-  }
-
-  const content = (
-    // Backdrop
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Confirmar exclusão"
-      onKeyDown={handleKeyDown}
-      className="fixed inset-0 z-50 flex items-end"
-      style={{
-        backgroundColor: visible ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0)',
-        transition: `background-color ${ANIM_MS}ms ease`,
-      }}
-      onClick={handleBackdropClick}
-    >
-      {/* Sheet */}
-      <div
-        className="w-full bg-white dark:bg-gray-900 rounded-t-3xl shadow-2xl"
-        style={{
-          transform: visible ? 'translateY(0)' : 'translateY(100%)',
-          transition: `transform ${ANIM_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`,
-        }}
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Handle bar */}
-        <div className="flex justify-center pt-3 pb-1" aria-hidden="true">
-          <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-700" />
-        </div>
-
-        {/* Body */}
-        <div className="px-5 pt-4 pb-5">
-          <div className="flex items-center gap-3.5 mb-6">
-            <div className="w-11 h-11 rounded-2xl bg-red-50 dark:bg-red-900/30 flex items-center justify-center flex-none">
-              <Trash2 className="w-5 h-5 text-red-500" aria-hidden="true" strokeWidth={2} />
-            </div>
-            <div>
-              <p
-                id="delete-confirm-title"
-                className="text-[15px] font-semibold text-gray-900 dark:text-white leading-snug"
-              >
-                Remover este item?
-              </p>
-              <p className="text-sm text-gray-400 mt-0.5">
-                Essa ação não pode ser desfeita.
-              </p>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-3">
-            <button
-              ref={cancelBtnRef}
-              type="button"
-              onClick={handleCancel}
-              className="flex-1 h-12 rounded-2xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300
-                         font-semibold text-sm transition-all ease-smooth
-                         hover:bg-gray-200 dark:hover:bg-gray-700
-                         active:scale-[0.97]"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={handleConfirm}
-              className="flex-1 h-12 rounded-2xl bg-red-500 text-white font-semibold text-sm
-                         transition-all ease-smooth
-                         hover:bg-red-600 active:scale-[0.97]"
-            >
-              Excluir
-            </button>
-          </div>
-        </div>
-
-        {/* Safe area for notched phones */}
-        <div style={{ height: 'env(safe-area-inset-bottom, 8px)' }} />
-      </div>
-    </div>
+  return (
+    <BottomSheet onClose={() => actionRef.current()}>
+      {close => (
+        <ConfirmBody
+          title={title}
+          description={description}
+          cancelBtnRef={cancelBtnRef}
+          onCancel={() => { actionRef.current = onCancel; close() }}
+          onConfirm={() => { actionRef.current = onConfirm; close() }}
+        />
+      )}
+    </BottomSheet>
   )
+}
 
-  if (typeof document === 'undefined') return null
-  return createPortal(content, document.getElementById('modal-root') ?? document.body)
+function ConfirmBody({
+  title,
+  description,
+  cancelBtnRef,
+  onCancel,
+  onConfirm,
+}: {
+  title: string
+  description: string
+  cancelBtnRef: React.RefObject<HTMLButtonElement | null>
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  useEffect(() => {
+    cancelBtnRef.current?.focus()
+  }, [cancelBtnRef])
+
+  return (
+    <>
+      {/* Handle bar */}
+      <div className="flex justify-center pt-3 pb-1" aria-hidden="true">
+        <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-700" />
+      </div>
+
+      {/* Body */}
+      <div className="px-5 pt-4 pb-5">
+        <div className="flex items-center gap-3.5 mb-6">
+          <div className="w-11 h-11 rounded-2xl bg-red-50 dark:bg-red-900/30 flex items-center justify-center flex-none">
+            <Trash2 className="w-5 h-5 text-red-500" aria-hidden="true" strokeWidth={2} />
+          </div>
+          <div>
+            <p className="text-[15px] font-semibold text-gray-900 dark:text-white leading-snug">
+              {title}
+            </p>
+            <p className="text-sm text-gray-400 mt-0.5">
+              {description}
+            </p>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-3">
+          <button
+            ref={cancelBtnRef}
+            type="button"
+            onClick={onCancel}
+            className="flex-1 h-12 rounded-2xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300
+                       font-semibold text-sm transition-all ease-smooth
+                       hover:bg-gray-200 dark:hover:bg-gray-700
+                       active:scale-[0.97]"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="flex-1 h-12 rounded-2xl bg-red-500 text-white font-semibold text-sm
+                       transition-all ease-smooth
+                       hover:bg-red-600 active:scale-[0.97]"
+          >
+            Excluir
+          </button>
+        </div>
+      </div>
+
+      {/* Safe area for notched phones */}
+      <div style={{ height: 'env(safe-area-inset-bottom, 8px)' }} />
+    </>
+  )
 }
