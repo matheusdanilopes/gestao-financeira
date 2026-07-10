@@ -16,6 +16,7 @@ import { useMes } from '@/components/MesProvider'
 import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
 import FilterSelect from '@/components/FilterSelect'
 import { calcularProjetoFatura } from '@/lib/fatura'
+import { AUTH_DISABLED } from '@/lib/authConfig'
 
 type Compra = {
   id: string
@@ -112,6 +113,10 @@ function getCartaoBorderColor(cartao: string | undefined, labels: Record<string,
 const CARTOES_VALIDOS = ['nubank', 'cartao1', 'cartao2'] as const
 type CartaoValido = typeof CARTOES_VALIDOS[number]
 
+// Janela máxima para considerar uma compra "nova" — evita marcar todo o histórico
+// como novo para um usuário que não acessa a tela há muito tempo.
+const JANELA_COMPRA_NOVA_MS = 24 * 60 * 60 * 1000
+
 export default function ComprasPage() {
   const router = useRouter()
   const { mesAtual: mesGlobal, setMesAtual } = useMes()
@@ -121,7 +126,6 @@ export default function ComprasPage() {
   // Parâmetros de deep link vindos da notificação de importação
   const searchParams = useSearchParams()
   const importCartao = searchParams.get('cartao')
-  const importDia = searchParams.get('dia')
   const importMes = searchParams.get('mes')   // YYYY-MM
   const importTs = searchParams.get('ts')     // Date.now() do momento da importação
   // ids de transações excedentes (notificação de divergência de fatura) a destacar
@@ -156,6 +160,13 @@ export default function ComprasPage() {
   const [ajusteFechamento, setAjusteFechamento] = useState(0)
   const [cartaoLabels, setCartaoLabels] = useState(CARTAO_LABEL)
 
+  // Tag "Nova" individualizada por usuário. `ultimaVisualizacaoAnterior` é a última
+  // vez que O USUÁRIO ATUAL visitou esta tela (undefined = ainda carregando, null =
+  // nunca visitou). `tagsNovasVisiveis` controla o fade automático: a tag some depois
+  // de um tempo em tela mesmo sem o usuário sair da página.
+  const [ultimaVisualizacaoAnterior, setUltimaVisualizacaoAnterior] = useState<Date | null | undefined>(undefined)
+  const [tagsNovasVisiveis, setTagsNovasVisiveis] = useState(true)
+
   // Ref para garantir que o contexto de deep link só é aplicado uma vez na montagem
   const importContextApplied = useRef(false)
   // Ref para o primeiro item importado (usado no auto-scroll)
@@ -189,11 +200,16 @@ export default function ComprasPage() {
 
   const isFirstRender = useRef(true)
 
-  // Aplica filtros contextuais vindos do deep link da notificação de importação.
-  // Executado apenas uma vez na montagem para não sobrescrever escolhas do usuário.
+  // Navega ao mês correto vindo do deep link da notificação de importação.
+  // Não aplica filtro automático de cartão/dia: a tela apresenta as compras novas
+  // via tag "Nova" (individualizada por usuário — ver isCompraNova), sem restringir
+  // a lista visível. O filtro de cartão só é aplicado no fluxo de destaque de
+  // divergência de fatura (highlightParam), que precisa restringir a busca à
+  // transação-alvo. Executado apenas uma vez na montagem para não sobrescrever
+  // escolhas do usuário.
   useEffect(() => {
     if (importContextApplied.current) return
-    if (!importCartao && !importDia && !importMes && !highlightParam) return
+    if (!importCartao && !importMes && !highlightParam) return
     importContextApplied.current = true
 
     if (importCartao && (CARTOES_VALIDOS as readonly string[]).includes(importCartao)) {
@@ -201,9 +217,7 @@ export default function ComprasPage() {
     }
     // Deep link de destaque (fatura_divergencia): reseta filtros "não relacionados"
     // que podem ter ficado ativos de uma navegação anterior na mesma sessão e
-    // esconderiam silenciosamente a transação alvo. Não mexe em filtroCartao
-    // (setado acima) nem impede o bloco de importDia abaixo de sobrescrever
-    // filtroData quando aplicável.
+    // esconderiam silenciosamente a transação alvo.
     if (highlightParam) {
       setFiltroResponsavel('')
       setFiltroDescricaoInput('')
@@ -213,28 +227,58 @@ export default function ComprasPage() {
       setFiltroParcelamento('')
       setFiltroData('')
     }
-    if (importDia) {
-      const mes = importMes || format(mesAtual, 'yyyy-MM')
-      setFiltroData(`${mes}-${importDia.padStart(2, '0')}`)
-      setFiltrosExpandidos(true)
-    }
     if (importMes) {
       // mesGlobal = mesAtual - 1; mesAtual é o mês exibido na tela
       const targetMesAtual = startOfMonth(parseISO(importMes + '-01'))
       const targetMesGlobal = subMonths(targetMesAtual, 1)
       setMesAtual(targetMesGlobal)
     }
-  }, [importCartao, importDia, importMes, highlightParam, setMesAtual]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [importCartao, importMes, highlightParam, setMesAtual])
 
-  // Compras recém-importadas: criadas dentro de uma janela de ±10 min em torno do importTs.
-  const isRecentlyImported = useCallback((c: Compra): boolean => {
-    if (!importTs || !c.created_at) return false
-    const ts = parseInt(importTs, 10)
-    if (isNaN(ts)) return false
+  // Registra a visita do usuário atual à tela de Compras: lê a visualização anterior
+  // (para saber o que era "novo" para ELE) e já grava o novo timestamp, garantindo
+  // que a tag "Nova" não reapareça em acessos futuros — comportamento individualizado
+  // por usuário (cada usuário tem sua própria linha em compras_ultima_visualizacao).
+  useEffect(() => {
+    let cancelado = false
+    async function marcarVisualizacao() {
+      let email = 'demo@demo.com'
+      if (!AUTH_DISABLED) {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.user?.email) return
+        email = session.user.email
+      }
+      const { data } = await supabase
+        .from('compras_ultima_visualizacao')
+        .select('visto_em')
+        .eq('usuario', email)
+        .maybeSingle()
+      if (cancelado) return
+      setUltimaVisualizacaoAnterior(data?.visto_em ? parseTimestamp(data.visto_em) : null)
+      await supabase
+        .from('compras_ultima_visualizacao')
+        .upsert({ usuario: email, visto_em: new Date().toISOString() }, { onConflict: 'usuario' })
+    }
+    marcarVisualizacao()
+    return () => { cancelado = true }
+  }, [])
+
+  // Fade automático: mesmo sem sair da tela, a tag "Nova" some depois de um tempo.
+  useEffect(() => {
+    if (ultimaVisualizacaoAnterior === undefined) return
+    const timer = setTimeout(() => setTagsNovasVisiveis(false), 8_000)
+    return () => clearTimeout(timer)
+  }, [ultimaVisualizacaoAnterior])
+
+  // Compra "nova" para o usuário atual: criada depois da última visita DELE a esta
+  // tela (individualizado por usuário) e dentro da janela de segurança. Deixa de
+  // valer quando tagsNovasVisiveis vira false (fade por tempo em tela).
+  const isCompraNova = useCallback((c: Compra): boolean => {
+    if (!tagsNovasVisiveis || !c.created_at || ultimaVisualizacaoAnterior === undefined) return false
     const createdAt = parseTimestamp(c.created_at).getTime()
-    // Janela: 5 min antes do ts (transações inseridas antes do push) até 15 min depois (importações longas)
-    return createdAt >= ts - 5 * 60 * 1000 && createdAt <= ts + 15 * 60 * 1000
-  }, [importTs])
+    const limite = ultimaVisualizacaoAnterior ? ultimaVisualizacaoAnterior.getTime() : 0
+    return createdAt > limite && createdAt > Date.now() - JANELA_COMPRA_NOVA_MS
+  }, [tagsNovasVisiveis, ultimaVisualizacaoAnterior])
 
   function showToast(msg: string, tipo: 'ok' | 'erro' = 'ok') {
     setToast({ msg, tipo })
@@ -419,16 +463,18 @@ export default function ComprasPage() {
   const totalJeniffer = useMemo(() => semEstorno.filter(c => c.responsavel === 'Jeniffer').reduce((acc, c) => acc + c.valor, 0), [semEstorno])
   const totalConjunto = useMemo(() => semEstorno.filter(c => c.responsavel === 'Conjunto').reduce((acc, c) => acc + c.valor, 0), [semEstorno])
 
-  // Hash da primeira compra importada na lista visível (para scroll e ref)
+  // Hash da primeira compra nova na lista visível (para scroll e ref). Só é usado
+  // para o auto-scroll/banner ao chegar via notificação (importTs presente); a tag
+  // "Nova" em si (isCompraNova) independe de importTs.
   const firstImportedHash = useMemo(() => {
     if (!importTs) return null
     for (const [, items] of grupos) {
       for (const c of items) {
-        if (isRecentlyImported(c)) return c.hash_linha
+        if (isCompraNova(c)) return c.hash_linha
       }
     }
     return null
-  }, [grupos, importTs, isRecentlyImported])
+  }, [grupos, importTs, isCompraNova])
 
   // Auto-scroll até a primeira compra importada após os dados carregarem
   useEffect(() => {
@@ -777,7 +823,7 @@ export default function ComprasPage() {
                       : isEstornado
                         ? 'border-l-gray-300'
                         : getCartaoBorderColor(c.cartao, cartaoLabels)
-                    const recentlyImported = isRecentlyImported(c)
+                    const compraNova = isCompraNova(c)
                     const isFirst = c.hash_linha === firstImportedHash
                     const isHighlighted = highlightIds.includes(c.id)
                     const metaParts = [
@@ -800,7 +846,7 @@ export default function ComprasPage() {
                               ? 'bg-gray-50/80 dark:bg-gray-800/50 opacity-60'
                               : isEstorno
                                 ? 'bg-orange-50/40 dark:bg-orange-900/20'
-                                : recentlyImported
+                                : compraNova
                                   ? 'bg-green-50/60 dark:bg-green-900/10'
                                   : 'bg-white'
                           } ${canInteract ? 'cursor-pointer active:bg-gray-50 dark:active:bg-white/[0.06] hover:bg-gray-50/50 dark:hover:bg-white/[0.06]' : 'cursor-default'}`}
@@ -839,8 +885,8 @@ export default function ComprasPage() {
                                 Estornada
                               </span>
                             )}
-                            {!isEstorno && !isEstornado && recentlyImported && (
-                              <span className="text-[9px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full leading-none">
+                            {!isEstorno && !isEstornado && compraNova && (
+                              <span className="text-[9px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full leading-none transition-opacity duration-500">
                                 Nova
                               </span>
                             )}

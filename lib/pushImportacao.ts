@@ -28,11 +28,11 @@ export function labelCartao(cartao: string, nomeCartao?: string): string {
 
 /** Contexto da importação para construir o deep link da notificação. */
 export interface ContextoImportacao {
-  /** Datas de compra (data_compra, YYYY-MM-DD) das transações inseridas — para filtro de dia. */
+  /** Datas de compra (data_compra, YYYY-MM-DD) das transações inseridas. */
   purchaseDates?: string[]
   /** Valores de projeto_fatura (YYYY-MM-DD) das transações inseridas — para navegar ao mês correto. */
   projetoFaturas?: string[]
-  /** Timestamp (Date.now()) do início da importação — identifica compras recém-importadas na tela. */
+  /** Timestamp (Date.now()) do início da importação — repassado à tela de Compras. */
   importTs?: number
   /** Estornos vinculados a uma compra original (status ESTORNADO aplicado). */
   estornosAplicados?: number
@@ -41,12 +41,13 @@ export interface ContextoImportacao {
 }
 
 /**
- * Constrói a URL de deep link para a tela de Compras com filtros contextuais.
- * Rota erros para /importar, sucessos para /compras com cartao + mes + dia (quando único) + ts.
+ * Constrói a URL de deep link para a tela de Compras.
+ * Rota erros para /importar, sucessos para /compras com mes (quando identificável) + ts.
+ * Não aplica filtro de cartão/dia: a tela apresenta as compras novas via tag "Nova"
+ * (individualizada por usuário), sem restringir a lista.
  */
-function buildDeepLinkUrl(cartao: string, ctx: ContextoImportacao): string {
+function buildDeepLinkUrl(ctx: ContextoImportacao): string {
   const params = new URLSearchParams()
-  params.set('cartao', cartao)
   params.set('ts', String(ctx.importTs ?? Date.now()))
 
   const faturas = ctx.projetoFaturas ?? []
@@ -58,14 +59,6 @@ function buildDeepLinkUrl(cartao: string, ctx: ContextoImportacao): string {
     }
     const primaryMes = Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0]
     params.set('mes', primaryMes)
-  }
-
-  const dates = ctx.purchaseDates ?? []
-  if (dates.length > 0) {
-    const dias = [...new Set(dates.map(d => d.substring(8, 10)))]
-    if (dias.length === 1) {
-      params.set('dia', String(parseInt(dias[0], 10)))
-    }
   }
 
   return `/compras?${params.toString()}`
@@ -129,15 +122,15 @@ export async function notificarImportacao(
     : `importacao-erro-${cartao}`
 
   // Erros ou importações sem novas compras: /importar (resultado/diagnóstico).
-  // Sucessos com novas compras: deep link para /compras com filtros pré-aplicados.
+  // Sucessos com novas compras: deep link para /compras apresentando as compras novas.
   const temNovasCompras = (novas ?? 0) > 0
   let url: string
   if (tipo === 'erro' || !temNovasCompras) {
     url = '/importar'
   } else if (contexto && ((contexto.purchaseDates?.length ?? 0) > 0 || (contexto.projetoFaturas?.length ?? 0) > 0)) {
-    url = buildDeepLinkUrl(cartao, contexto)
+    url = buildDeepLinkUrl(contexto)
   } else {
-    url = `/compras?cartao=${cartao}&ts=${contexto?.importTs ?? Date.now()}`
+    url = `/compras?ts=${contexto?.importTs ?? Date.now()}`
   }
 
   const payload = {
