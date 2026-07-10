@@ -98,14 +98,14 @@ export const NOTIFICACAO_META: Record<string, NotificacaoMeta> = {
   },
   importacao_concluida: {
     rota: '/compras',
+    // Sem filtro de cartão/dia: a tela apresenta as compras novas via tag "Nova"
+    // (individualizada por usuário), sem restringir a lista visível.
     rotaFn: (meta) => {
-      if (!meta?.cartao) return '/compras'
       const params = new URLSearchParams()
-      params.set('cartao', String(meta.cartao))
-      if (meta.mes) params.set('mes', String(meta.mes))
-      if (meta.dia) params.set('dia', String(meta.dia))
-      if (meta.ts) params.set('ts', String(meta.ts))
-      return `/compras?${params.toString()}`
+      if (meta?.mes) params.set('mes', String(meta.mes))
+      if (meta?.ts) params.set('ts', String(meta.ts))
+      const qs = params.toString()
+      return qs ? `/compras?${qs}` : '/compras'
     },
     grupo: 'importacao',
     corIcone: 'text-green-500',

@@ -360,3 +360,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_transacoes_conciliacao_ref_pendente
 ALTER TABLE notificacoes
   ADD COLUMN IF NOT EXISTS resolvido_em  TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS resolvido_por TEXT;
+
+-- 23. Última visualização da tela de Compras por usuário — usada para calcular a
+-- tag "Nova" de forma individualizada (cada usuário vê como novas apenas as
+-- compras criadas depois da última vez que ELE acessou a tela).
+CREATE TABLE IF NOT EXISTS compras_ultima_visualizacao (
+  usuario  TEXT PRIMARY KEY,
+  visto_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE compras_ultima_visualizacao ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "allow_all_compras_ultima_visualizacao" ON compras_ultima_visualizacao;
+CREATE POLICY "allow_all_compras_ultima_visualizacao" ON compras_ultima_visualizacao
+  FOR ALL USING (true) WITH CHECK (true);
