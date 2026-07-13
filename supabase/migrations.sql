@@ -373,3 +373,11 @@ ALTER TABLE compras_ultima_visualizacao ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "allow_all_compras_ultima_visualizacao" ON compras_ultima_visualizacao;
 CREATE POLICY "allow_all_compras_ultima_visualizacao" ON compras_ultima_visualizacao
   FOR ALL USING (true) WITH CHECK (true);
+
+-- 24. Identificação de assinaturas em moeda estrangeira
+-- Permite marcar assinaturas cujo valor em BRL oscila por câmbio (ex.: cobranças em USD/EUR),
+-- registrando o valor de referência na moeda original. Não há conversão nem cálculo automático:
+-- assinaturas.valor continua sendo preenchido manualmente todo mês, exatamente como hoje.
+ALTER TABLE assinaturas
+  ADD COLUMN IF NOT EXISTS moeda        TEXT NOT NULL DEFAULT 'BRL',
+  ADD COLUMN IF NOT EXISTS valor_origem NUMERIC(12,2);

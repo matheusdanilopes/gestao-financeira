@@ -28,6 +28,8 @@ interface Assinatura {
   ativa: boolean
   observacao: string | null
   created_at: string
+  moeda: string
+  valor_origem: number | null
 }
 
 interface HistoricoValor {
@@ -51,6 +53,8 @@ interface Props {
 
 const CARTOES_KEYS = ['nubank', 'cartao1', 'cartao2'] as const
 const RESPONSAVEIS = ['Matheus', 'Jeniffer', 'Compartilhado']
+const MOEDAS = ['BRL', 'USD', 'EUR'] as const
+const MOEDA_SIMBOLO: Record<string, string> = { USD: 'US$', EUR: '€' }
 
 type CartaoLabels = { nubank: string; cartao1: string; cartao2: string }
 const CARTAO_LABELS_DEFAULT: CartaoLabels = { nubank: 'NuBank', cartao1: 'Cartão 1', cartao2: 'Cartão 2' }
@@ -63,6 +67,8 @@ const FORM_VAZIO = {
   dia_cobranca: '',
   categoria: 'Streaming',
   observacao: '',
+  moeda: 'BRL',
+  valorOrigem: '',
 }
 
 type StatusTx = 'detectada' | 'valor_divergente' | 'nao_encontrada' | 'inativa'
@@ -198,7 +204,9 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     )
     if (matches.length === 0) return 'nao_encontrada'
     const valorEsperado = valorParaMes(assinatura, mesSelecionado, historico)
-    const valorOk = matches.some(tx => Math.abs(tx.valor - valorEsperado) <= 0.05)
+    // Assinaturas em moeda estrangeira oscilam com o câmbio: tolerância percentual em vez de fixa.
+    const tolerancia = assinatura.moeda !== 'BRL' ? valorEsperado * 0.05 : 0.05
+    const valorOk = matches.some(tx => Math.abs(tx.valor - valorEsperado) <= tolerancia)
     return valorOk ? 'detectada' : 'valor_divergente'
   }
 
@@ -270,6 +278,9 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
 
     const vigenteDe  = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
     const vigenteFim = format(endOfMonth(mesSelecionado),   'yyyy-MM-dd')
+    const valorOrigemParsed = formData.moeda !== 'BRL' && formData.valorOrigem
+      ? parseFloat(formData.valorOrigem.replace(',', '.'))
+      : null
     const payload = {
       nome,
       valor,
@@ -278,6 +289,8 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       dia_cobranca: formData.dia_cobranca ? parseInt(formData.dia_cobranca) : null,
       categoria: formData.categoria,
       observacao: formData.observacao.trim() || null,
+      moeda: formData.moeda,
+      valor_origem: valorOrigemParsed !== null && !isNaN(valorOrigemParsed) ? valorOrigemParsed : null,
     }
 
     if (modalAberto === 'adicionar') {
@@ -394,6 +407,8 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       dia_cobranca: item.dia_cobranca ? String(item.dia_cobranca) : '',
       categoria: item.categoria,
       observacao: item.observacao || '',
+      moeda: item.moeda || 'BRL',
+      valorOrigem: item.valor_origem != null ? String(item.valor_origem) : '',
     })
     setModalAberto('editar')
   }
@@ -621,6 +636,14 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                         <p className={`text-[15px] font-bold num ${item.ativa ? 'text-primary-700' : 'text-gray-400'}`}>
                           R$ {valorParaMes(item, mesSelecionado, historico).toFixed(2)}
                         </p>
+                        {item.moeda !== 'BRL' && item.valor_origem != null && (
+                          <p
+                            className="text-[10px] text-gray-400 num leading-tight mt-0.5"
+                            title="Moeda estrangeira — valor em R$ pode oscilar por câmbio"
+                          >
+                            {MOEDA_SIMBOLO[item.moeda] ?? item.moeda} {item.valor_origem.toFixed(2)}
+                          </p>
+                        )}
                       </div>
                       {isOnline && (
                         <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -720,6 +743,38 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                   onChange={e => setFormData(f => ({ ...f, valor: numericOnly(e.target.value) }))}
                 />
               </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Moeda</label>
+                <select
+                  className="w-full border border-gray-200 rounded-2xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow bg-white"
+                  value={formData.moeda}
+                  onChange={e => setFormData(f => ({
+                    ...f,
+                    moeda: e.target.value,
+                    ...(e.target.value === 'BRL' ? { valorOrigem: '' } : {}),
+                  }))}
+                >
+                  {MOEDAS.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+
+              {formData.moeda !== 'BRL' && (
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 mb-1.5 block">
+                    Valor original ({formData.moeda})
+                    <span className="ml-1 text-gray-400 font-normal">(referência, opcional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    className="w-full border border-gray-200 rounded-2xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow num"
+                    placeholder="Ex: 9,99"
+                    value={formData.valorOrigem}
+                    onChange={e => setFormData(f => ({ ...f, valorOrigem: numericOnly(e.target.value) }))}
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Cartão</label>
