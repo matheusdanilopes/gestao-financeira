@@ -5,6 +5,7 @@ import { processarCSV, TransacaoNubank } from '@/lib/csvparser'
 import { notificarImportacao } from '@/lib/pushImportacao'
 import { conciliarEstorno } from '@/lib/conciliacao'
 import { validarDivergenciaFatura } from '@/lib/validacaoFatura'
+import { sincronizarAssinaturasMoedaEstrangeira } from '@/lib/assinaturasSync'
 
 const CARTOES_VALIDOS = ['cartao1', 'cartao2'] as const
 type CartaoValido = typeof CARTOES_VALIDOS[number]
@@ -197,6 +198,8 @@ export async function POST(req: NextRequest) {
 
     await validarDivergenciaFatura(supabase, faturaStats, transacoesNormais, cartao, nomeCartao)
 
+    const assinaturasAtualizadas = await sincronizarAssinaturasMoedaEstrangeira(supabase, cartao, mesesNoArquivo)
+
     await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, undefined, cartao, nomeCartao, {
       purchaseDates,
       projetoFaturas: mesesNoArquivo,
@@ -218,6 +221,7 @@ export async function POST(req: NextRequest) {
       estornos: estornos.length,
       estornosAplicados,
       estornosRegistrados,
+      assinaturasAtualizadas,
     })
   } catch (error) {
     console.error('[import/cartao] Exceção:', error)

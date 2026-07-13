@@ -10,6 +10,7 @@ import { categorizarTransacoes, ResultadoCategorizar } from '@/lib/categorizarTr
 import { notificarImportacao } from '@/lib/pushImportacao'
 import { conciliarTransacao, conciliarEstorno } from '@/lib/conciliacao'
 import { validarDivergenciaFatura } from '@/lib/validacaoFatura'
+import { sincronizarAssinaturasMoedaEstrangeira } from '@/lib/assinaturasSync'
 
 export const maxDuration = 300
 
@@ -135,6 +136,8 @@ async function salvarTransacoes(
 
   await validarDivergenciaFatura(supabase, faturaStats, transacoesNormais, cartao)
 
+  const assinaturasAtualizadas = await sincronizarAssinaturasMoedaEstrangeira(supabase, cartao, mesesNoArquivo)
+
   return {
     totalLidas: transacoes.length,
     novas: verdadeiramenteNovas,
@@ -150,6 +153,7 @@ async function salvarTransacoes(
     purchaseDates,
     estornosAplicados,
     estornosRegistrados,
+    assinaturasAtualizadas,
   }
 }
 

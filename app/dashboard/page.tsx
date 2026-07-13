@@ -159,7 +159,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     supabase.from('investimentos').select('id, descricao, percentual, investimentos_aportes(valor)').eq('mes_referencia', mesRef).order('created_at', { ascending: true }),
     supabase.from('configuracoes').select('chave, valor').in('chave', ['dia_vencimento', 'ajuste_fechamento']),
     supabase.from('faturas').select('data_fechamento').eq('cartao', 'nubank').eq('mes_referencia', mesRefFatura).limit(1),
-    supabase.from('assinaturas').select('nome, valor, responsavel, ativa').eq('cartao', 'nubank'),
+    supabase.from('assinaturas').select('nome, valor, responsavel, ativa, moeda').eq('cartao', 'nubank'),
     supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'nubank')
       .lte('projeto_fatura', mesRefFatura).order('projeto_fatura', { ascending: false }).limit(1),
   ])
@@ -346,7 +346,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const sobraLiquida = receitaTotal - totalGastos
   const percentualComprometimento = receitaTotal > 0 ? (totalGastos / receitaTotal) * 100 : 0
 
-  type AssinaturaRow = { nome: string; valor: number; responsavel: string; ativa: boolean }
+  type AssinaturaRow = { nome: string; valor: number; responsavel: string; ativa: boolean; moeda: string }
   type TransacaoRow = { valor: number; responsavel: string | null; descricao: string | null }
   const assinAtivas = (assinaturasData || []).filter((a: AssinaturaRow) => a.ativa)
   const txFaturaList: TransacaoRow[] = transacoesFatura || []
@@ -367,7 +367,9 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
           tx.descricao?.toLowerCase().includes(nome)
         )
         if (matches.length === 0) return []
-        if (matches.some((tx: TransacaoRow) => Math.abs(tx.valor - a.valor) <= 0.05)) return []
+        // Assinaturas em moeda estrangeira oscilam com o câmbio: tolerância percentual em vez de fixa.
+        const tolerancia = a.moeda !== 'BRL' ? a.valor * 0.05 : 0.05
+        if (matches.some((tx: TransacaoRow) => Math.abs(tx.valor - a.valor) <= tolerancia)) return []
         const best = matches.reduce((prev: TransacaoRow, cur: TransacaoRow) =>
           Math.abs(cur.valor - a.valor) < Math.abs(prev.valor - a.valor) ? cur : prev
         )
