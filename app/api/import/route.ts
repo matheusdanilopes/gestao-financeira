@@ -4,6 +4,7 @@ import { processarCSV } from '@/lib/csvparser'
 import { notificarImportacao } from '@/lib/pushImportacao'
 import { conciliarTransacao, conciliarEstorno } from '@/lib/conciliacao'
 import { validarDivergenciaFatura } from '@/lib/validacaoFatura'
+import { sincronizarAssinaturasMoedaEstrangeira } from '@/lib/assinaturasSync'
 
 export async function POST(req: NextRequest) {
   const { supabase, unauthorized } = await requireAuth(req)
@@ -111,6 +112,8 @@ export async function POST(req: NextRequest) {
 
     await validarDivergenciaFatura(supabase, faturaStats, transacoesNormais, 'nubank')
 
+    const assinaturasAtualizadas = await sincronizarAssinaturasMoedaEstrangeira(supabase, 'nubank', mesesNoArquivo)
+
     await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, conflitos, 'nubank', undefined, {
       purchaseDates,
       projetoFaturas: mesesNoArquivo,
@@ -134,6 +137,7 @@ export async function POST(req: NextRequest) {
       estornos: estornos.length,
       estornosAplicados,
       estornosRegistrados,
+      assinaturasAtualizadas,
     })
   } catch (error) {
     console.error('[import] Excecao:', error instanceof Error ? error.message : 'unknown')

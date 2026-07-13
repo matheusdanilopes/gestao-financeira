@@ -16,6 +16,7 @@ import { SwipeableItem } from '@/components/SwipeableItem'
 import EmptyState from '@/components/EmptyState'
 import { log, numericOnly, formatBRL } from '@/lib/logger'
 import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
+import { valorEfetivoNoMes } from '@/lib/assinaturaValor'
 
 interface Assinatura {
   id: string
@@ -165,14 +166,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
   })
 
   function valorParaMes(assinatura: Assinatura, mes: Date, hist: HistoricoValor[]): number {
-    const cutoff = format(endOfMonth(mes), 'yyyy-MM-dd')
-    const entry = hist
-      .filter(h => h.assinatura_id === assinatura.id && h.vigente_desde <= cutoff)
-      .sort((a, b) => {
-        const d = b.vigente_desde.localeCompare(a.vigente_desde)
-        return d !== 0 ? d : b.criado_em.localeCompare(a.criado_em)
-      })[0]
-    return entry?.valor ?? assinatura.valor
+    return valorEfetivoNoMes(assinatura.id, assinatura.valor, format(endOfMonth(mes), 'yyyy-MM-dd'), hist)
   }
 
   function showToast(msg: string, tipo: 'ok' | 'erro' = 'ok') {

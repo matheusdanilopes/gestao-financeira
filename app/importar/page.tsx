@@ -14,6 +14,12 @@ interface StatsFatura {
   totalNoBanco: number
 }
 
+interface AssinaturaAtualizada {
+  nome: string
+  valorAnterior: number
+  valorNovo: number
+}
+
 interface Resumo {
   matheus: number
   jeniffer: number
@@ -23,6 +29,7 @@ interface Resumo {
   totalLidas: number
   mesesSobrescritos: string[]
   resumoPorFatura?: Record<string, StatsFatura>
+  assinaturasAtualizadas?: AssinaturaAtualizada[]
 }
 
 interface Atividade {
@@ -194,6 +201,7 @@ export default function ImportarPage() {
           totalLidas: data.totalLidas,
           mesesSobrescritos: data.mesesReprocessados ?? data.mesesSobrescritos ?? [],
           resumoPorFatura: data.resumoPorFatura,
+          assinaturasAtualizadas: data.assinaturasAtualizadas ?? [],
         })
       } else {
         setErro(data.error || 'Erro desconhecido')
@@ -394,6 +402,24 @@ export default function ImportarPage() {
               </div>
             </div>
           )}
+          {resumo.assinaturasAtualizadas && resumo.assinaturasAtualizadas.length > 0 && (
+            <div className="pt-1">
+              <p className="text-xs text-amber-700 font-semibold mb-1.5">
+                {resumo.assinaturasAtualizadas.length} assinatura(s) atualizada(s) com o valor da fatura
+              </p>
+              <div className="space-y-1">
+                {resumo.assinaturasAtualizadas.map((a, i) => (
+                  <div key={i} className="flex items-center justify-between bg-amber-50 border border-amber-100 rounded-xl px-3 py-1.5 text-xs">
+                    <span className="text-amber-800 font-medium truncate">{a.nome}</span>
+                    <span className="text-amber-700 num shrink-0 ml-2">
+                      R$ {a.valorAnterior.toFixed(2)} → R$ {a.valorNovo.toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {resumo.duplicatasNoArquivo > 0 && (
             <p className="text-xs text-gray-400 text-center">
               {resumo.duplicatasNoArquivo} linha(s) ignorada(s) — já existiam no banco
