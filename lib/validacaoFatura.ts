@@ -30,10 +30,12 @@ function chaveConteudo(dataCompra: string, descricao: string, valor: number): st
  * arquivo) e gera uma notificação (tabela `notificacoes`) apontando
  * exatamente para ela(s).
  *
- * Deduplicação: não cria uma nova notificação se já existir uma não lida
- * para o mesmo cartao+mês — evita spam a cada reimportação enquanto a
- * divergência não é resolvida/lida (mesmo padrão de `conflitoExistente` em
- * lib/conciliacao.ts).
+ * Deduplicação: não cria uma nova notificação se já existir uma (lida ou não)
+ * com os mesmos números para o mesmo cartao+mês — evita spam a cada
+ * reimportação enquanto a divergência continuar exatamente a mesma, mesmo que
+ * a notificação anterior já tenha sido marcada como lida (ex: usuário visitou
+ * /compras por outro motivo). Só gera uma nova notificação quando os números
+ * de fato mudam.
  */
 export async function validarDivergenciaFatura(
   supabase: SupabaseClient,
@@ -59,25 +61,26 @@ export async function validarDivergenciaFatura(
     }
 
     try {
-      const { data: existente } = await supabase
+      const { data: existentes } = await supabase
         .from('notificacoes')
-        .select('id, metadata')
+        .select('id, metadata, lida')
         .eq('acao', 'fatura_divergencia')
-        .eq('lida', false)
         .contains('metadata', { cartao, mes_referencia: mesReferencia })
-        .maybeSingle()
+        .order('created_at', { ascending: false })
+        .limit(1)
 
+      const existente = existentes?.[0]
       const metadataExistente = existente?.metadata as Record<string, unknown> | undefined
       const mesmaDivergencia =
         metadataExistente?.quantidade_arquivo === stats.noCSV &&
         metadataExistente?.quantidade_banco === stats.totalNoBanco
 
       if (existente && mesmaDivergencia) {
-        console.log(`[validacaoFatura] divergência já notificada (não lida, sem mudança) cartao=${cartao} mes=${mesReferencia}`)
+        console.log(`[validacaoFatura] divergência já notificada (sem mudança, lida=${existente.lida}) cartao=${cartao} mes=${mesReferencia}`)
         continue
       }
 
-      if (existente && !mesmaDivergencia) {
+      if (existente && !existente.lida) {
         // Situação mudou desde a última notificação (números diferentes, ou a lógica de
         // detecção foi corrigida) — marca a antiga como lida e gera uma nova, atualizada.
         await supabase.from('notificacoes').update({ lida: true }).eq('id', existente.id)
