@@ -15,20 +15,76 @@ interface LinhaBanco {
   data_compra: string
 }
 
-/** Chave de identidade por conteúdo (data + descrição normalizada + valor), não por hash_linha —
- *  evita depender da ordem/occurrence_index usado para gerar hash_linha, que pode variar entre
- *  reimportações e tornar a comparação por hash frágil. */
-function chaveConteudo(dataCompra: string, descricao: string, valor: number): string {
-  return `${dataCompra}|${normalizarDescricaoParaHash(descricao)}|${valor.toFixed(2)}`
+const TOLERANCIA_DIAS_MS = 3 * 24 * 60 * 60 * 1000
+const TOLERANCIA_VALOR = 0.05
+
+/**
+ * Casa cada linha do banco com a transação do arquivo mais próxima pela mesma
+ * descrição normalizada, tolerando até 3 dias de diferença na data e R$ 0,05 no
+ * valor (mesma janela de 3 dias usada em contarNoBanco/import/cartao — exportações
+ * sucessivas do mesmo extrato do NuBank podem trazer a data de compra ligeiramente
+ * diferente — data de processamento vs. data de compra — e o valor de uma parcela
+ * com centavos redistribuídos de forma diferente). Comparar por igualdade estrita
+ * de data+valor (como antes) tratava essas variações naturais como "excedentes",
+ * gerando dezenas de falsos positivos numa única divergência real.
+ *
+ * Linhas do banco sem par dentro da tolerância são as excedentes de fato.
+ */
+function encontrarExcedentes(
+  linhasBanco: LinhaBanco[],
+  transacoesArquivo: TransacaoNubank[],
+  mesReferencia: string
+): LinhaBanco[] {
+  const porDescricaoArquivo = new Map<string, { data: string; valor: number }[]>()
+  for (const t of transacoesArquivo) {
+    if (t.projeto_fatura !== mesReferencia) continue
+    const k = normalizarDescricaoParaHash(t.descricao)
+    if (!porDescricaoArquivo.has(k)) porDescricaoArquivo.set(k, [])
+    porDescricaoArquivo.get(k)!.push({ data: t.data_compra, valor: t.valor })
+  }
+
+  // Ordena por data para consumir os candidatos do arquivo de forma estável
+  // (mais previsível quando há múltiplas ocorrências da mesma descrição/valor).
+  const linhasOrdenadas = [...linhasBanco]
+    .filter(r => !!r.data_compra)
+    .sort((a, b) => a.data_compra.localeCompare(b.data_compra))
+
+  const excedentes: LinhaBanco[] = []
+
+  for (const linha of linhasOrdenadas) {
+    const k = normalizarDescricaoParaHash(linha.descricao)
+    const candidatos = porDescricaoArquivo.get(k)
+    const dataBanco = new Date(linha.data_compra + 'T12:00:00').getTime()
+
+    let melhorIdx = -1
+    let melhorScore = Infinity
+    candidatos?.forEach((c, i) => {
+      const dataArq = new Date(c.data + 'T12:00:00').getTime()
+      const diffDias = Math.abs(dataArq - dataBanco)
+      const diffValor = Math.abs(c.valor - linha.valor)
+      if (diffDias <= TOLERANCIA_DIAS_MS && diffValor <= TOLERANCIA_VALOR) {
+        const score = diffDias + diffValor * 1_000_000 // prioriza data próxima, depois valor exato
+        if (score < melhorScore) { melhorScore = score; melhorIdx = i }
+      }
+    })
+
+    if (melhorIdx >= 0) {
+      candidatos!.splice(melhorIdx, 1) // consome o candidato casado
+    } else {
+      excedentes.push(linha)
+    }
+  }
+
+  return excedentes
 }
 
 /**
  * Compara, por fatura (mês), a quantidade de transações do arquivo importado
  * com a quantidade atual no banco para o mesmo cartão. Quando o banco tem
  * MAIS transações que o arquivo, identifica a(s) linha(s) excedente(s) via
- * diferença de multiconjunto (contagem por data+descrição+valor: banco vs
- * arquivo) e gera uma notificação (tabela `notificacoes`) apontando
- * exatamente para ela(s).
+ * `encontrarExcedentes` (casamento tolerante por descrição, com folga de data
+ * e valor) e gera uma notificação (tabela `notificacoes`) apontando exatamente
+ * para ela(s).
  *
  * Deduplicação: não cria uma nova notificação se já existir uma (lida ou não)
  * com os mesmos números para o mesmo cartao+mês — evita spam a cada
@@ -115,31 +171,7 @@ export async function validarDivergenciaFatura(
         console.error(`[validacaoFatura] erro ao buscar linhas do banco cartao=${cartao} mes=${mesReferencia}:`, linhasBancoError)
       }
 
-      // Contagem por chave de conteúdo no arquivo (quantas vezes essa combinação aparece)
-      const contagemArquivo = new Map<string, number>()
-      for (const t of transacoesArquivo) {
-        if (t.projeto_fatura !== mesReferencia) continue
-        const k = chaveConteudo(t.data_compra, t.descricao, t.valor)
-        contagemArquivo.set(k, (contagemArquivo.get(k) ?? 0) + 1)
-      }
-
-      // Agrupa linhas do banco pela mesma chave
-      const porChaveBanco = new Map<string, LinhaBanco[]>()
-      for (const r of linhas) {
-        if (!r.data_compra) continue
-        const k = chaveConteudo(r.data_compra, r.descricao, r.valor)
-        if (!porChaveBanco.has(k)) porChaveBanco.set(k, [])
-        porChaveBanco.get(k)!.push(r)
-      }
-
-      // Para cada chave onde o banco tem mais ocorrências que o arquivo, as linhas
-      // "sobrando" (mais recentes/últimas da lista) são as excedentes.
-      const excedentes: LinhaBanco[] = []
-      for (const [k, rows] of porChaveBanco) {
-        const noArquivo = contagemArquivo.get(k) ?? 0
-        const excesso = rows.length - noArquivo
-        if (excesso > 0) excedentes.push(...rows.slice(0, excesso))
-      }
+      const excedentes = encontrarExcedentes(linhas, transacoesArquivo, mesReferencia)
 
       let descricao: string
       if (excedentes.length === 1) {
