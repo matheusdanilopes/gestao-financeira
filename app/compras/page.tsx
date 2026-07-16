@@ -134,6 +134,10 @@ export default function ComprasPage() {
     () => (highlightParam ? highlightParam.split(',').filter(Boolean) : []),
     [highlightParam]
   )
+  // id da compra que provavelmente é a mesma transação lançada em duplicidade
+  // (notificação de divergência de fatura) — marcada com um selo diferente da
+  // excedente para o usuário comparar as duas e decidir se é o caso de excluir uma.
+  const duplicataId = searchParams.get('duplicata')
 
   const [compras, setCompras] = useState<Compra[]>([])
   const [filtroResponsavel, setFiltroResponsavel] = useState('')
@@ -826,6 +830,11 @@ export default function ComprasPage() {
                     const compraNova = isCompraNova(c)
                     const isFirst = c.hash_linha === firstImportedHash
                     const isHighlighted = highlightIds.includes(c.id)
+                    const isProvavelDuplicata = !!duplicataId && duplicataId === c.id
+                    // A excedente também ganha o selo quando há uma provável duplicata
+                    // apontada, para deixar claro que as duas compras (esta + a marcada
+                    // ao lado) devem ser comparadas.
+                    const mostrarSeloDuplicata = isProvavelDuplicata || (isHighlighted && !!duplicataId)
                     const metaParts = [
                       c.responsavel,
                       isParcelado ? `${c.parcela_atual}/${c.total_parcelas}x` : null,
@@ -841,7 +850,7 @@ export default function ComprasPage() {
                         <div
                           id={`compra-${c.id}`}
                           ref={isFirst ? firstImportedRef : undefined}
-                          className={`px-4 py-3.5 flex items-center gap-3 border-l-4 ${borderColor} transition-colors ${isHighlighted ? ' animate-fatura-highlight' : ''} ${
+                          className={`px-4 py-3.5 flex items-center gap-3 border-l-4 ${borderColor} transition-colors ${isHighlighted ? ' animate-fatura-highlight' : ''}${isProvavelDuplicata ? ' ring-2 ring-amber-400 ring-offset-1 ring-offset-white dark:ring-offset-gray-900' : ''} ${
                             isEstornado
                               ? 'bg-gray-50/80 dark:bg-gray-800/50 opacity-60'
                               : isEstorno
@@ -888,6 +897,11 @@ export default function ComprasPage() {
                             {!isEstorno && !isEstornado && compraNova && (
                               <span className="text-[9px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full leading-none transition-opacity duration-500">
                                 Nova
+                              </span>
+                            )}
+                            {mostrarSeloDuplicata && (
+                              <span className="text-[9px] font-bold text-amber-700 bg-amber-100 dark:text-amber-300 dark:bg-amber-900/40 px-1.5 py-0.5 rounded-full leading-none">
+                                Possível duplicata
                               </span>
                             )}
                           </div>

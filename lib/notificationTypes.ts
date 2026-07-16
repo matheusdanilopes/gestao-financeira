@@ -148,6 +148,9 @@ export const NOTIFICACAO_META: Record<string, NotificacaoMeta> = {
       if (Array.isArray(meta.transacao_ids) && meta.transacao_ids.length > 0) {
         params.set('highlight', meta.transacao_ids.join(','))
       }
+      if (typeof meta.provavel_duplicata_id === 'string' && meta.provavel_duplicata_id) {
+        params.set('duplicata', meta.provavel_duplicata_id)
+      }
       return `/compras?${params.toString()}`
     },
     grupo: 'importacao',

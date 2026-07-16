@@ -78,6 +78,49 @@ function encontrarExcedentes(
   return excedentes
 }
 
+const PREFIXO_MIN_LEN = 8
+
+/**
+ * Procura, entre as demais linhas do banco (mesma fatura/cartão), a transação
+ * mais parecida com a excedente — candidata a ser a mesma compra lançada em
+ * duplicidade. Considera "parecida" quando a descrição normalizada é igual ou
+ * uma é prefixo da outra (títulos do NuBank podem vir truncados de forma
+ * diferente entre exportações, ex.: "Jim.Com* 41697862 Pau" vs "...Paul"),
+ * com valor dentro de R$ 0,05 e data dentro de 3 dias. Exige um prefixo com
+ * pelo menos `PREFIXO_MIN_LEN` caracteres para não casar títulos curtos e
+ * genéricos (ex.: "B" também é prefixo de "B1 - Parcela 1/6").
+ */
+function encontrarProvavelDuplicata(alvo: LinhaBanco, todasLinhas: LinhaBanco[]): LinhaBanco | null {
+  const descAlvo = normalizarDescricaoParaHash(alvo.descricao)
+  const dataAlvo = new Date(alvo.data_compra + 'T12:00:00').getTime()
+
+  let melhor: LinhaBanco | null = null
+  let melhorScore = Infinity
+
+  for (const outra of todasLinhas) {
+    if (outra.id === alvo.id || !outra.data_compra) continue
+
+    const diffValor = Math.abs(outra.valor - alvo.valor)
+    if (diffValor > TOLERANCIA_VALOR) continue
+
+    const descOutra = normalizarDescricaoParaHash(outra.descricao)
+    const minLen = Math.min(descAlvo.length, descOutra.length)
+    const parecida =
+      descAlvo === descOutra ||
+      (minLen >= PREFIXO_MIN_LEN && (descAlvo.startsWith(descOutra) || descOutra.startsWith(descAlvo)))
+    if (!parecida) continue
+
+    const dataOutra = new Date(outra.data_compra + 'T12:00:00').getTime()
+    const diffDias = Math.abs(dataOutra - dataAlvo)
+    if (diffDias > TOLERANCIA_DIAS_MS) continue
+
+    const score = diffDias + diffValor * 1_000_000
+    if (score < melhorScore) { melhorScore = score; melhor = outra }
+  }
+
+  return melhor
+}
+
 /**
  * Compara, por fatura (mês), a quantidade de transações do arquivo importado
  * com a quantidade atual no banco para o mesmo cartão. Quando o banco tem
@@ -173,12 +216,23 @@ export async function validarDivergenciaFatura(
 
       const excedentes = encontrarExcedentes(linhas, transacoesArquivo, mesReferencia)
 
+      // Só faz sentido apontar uma provável duplicata quando há exatamente uma
+      // transação excedente — com várias, a comparação par-a-par vira ruído.
+      const provavelDuplicata = excedentes.length === 1
+        ? encontrarProvavelDuplicata(excedentes[0], linhas)
+        : null
+
       let descricao: string
       if (excedentes.length === 1) {
         const [linha] = excedentes
         const data = linha.data_compra?.substring(8, 10)
         const mes = linha.data_compra?.substring(5, 7)
         descricao = `Fatura ${mesLabel} do ${nome}: "${linha.descricao}" (${formatBRL(linha.valor)}${data && mes ? ` em ${data}/${mes}` : ''}) está no banco mas não consta no arquivo importado.`
+        if (provavelDuplicata) {
+          const dataDup = provavelDuplicata.data_compra?.substring(8, 10)
+          const mesDup = provavelDuplicata.data_compra?.substring(5, 7)
+          descricao += ` Pode ser duplicata de "${provavelDuplicata.descricao}"${dataDup && mesDup ? ` (${dataDup}/${mesDup})` : ''}.`
+        }
       } else if (excedentes.length > 1) {
         descricao = `Fatura ${mesLabel} do ${nome}: ${excedentes.length} transações estão no banco mas não constam no arquivo importado.`
       } else {
@@ -197,6 +251,7 @@ export async function validarDivergenciaFatura(
           quantidade_banco: stats.totalNoBanco,
           diferenca,
           ...(excedentes.length > 0 ? { transacao_ids: excedentes.map(e => e.id) } : {}),
+          ...(provavelDuplicata ? { provavel_duplicata_id: provavelDuplicata.id } : {}),
         },
       })
     } catch (error) {
