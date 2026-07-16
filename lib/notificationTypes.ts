@@ -148,6 +148,9 @@ export const NOTIFICACAO_META: Record<string, NotificacaoMeta> = {
       if (Array.isArray(meta.transacao_ids) && meta.transacao_ids.length > 0) {
         params.set('highlight', meta.transacao_ids.join(','))
       }
+      if (typeof meta.provavel_duplicata_id === 'string' && meta.provavel_duplicata_id) {
+        params.set('duplicata', meta.provavel_duplicata_id)
+      }
       return `/compras?${params.toString()}`
     },
     grupo: 'importacao',
@@ -455,7 +458,11 @@ export const ROTA_PARA_ACOES: Record<string, string[]> = {
   '/wishlist':      ['wishlist_novo_item', 'wishlist_item_ia', 'wishlist_item_concluido'],
   '/contas':        ['conta_vencendo', 'conta_atrasada', 'pagar'],
   '/importar':      ['importacao_iniciada', 'importacao_processando'],
-  '/compras':       ['categorizacao_concluida', 'pedido_criado', 'pedido_pendente', 'pedido_cancelado', 'pedido_concluido', 'importacao_concluida', 'estorno_aplicado', 'fatura_divergencia'],
+  // fatura_divergencia fica de fora: é um alerta acionável (exigeInteracao) que só deve
+  // ser marcado como lido quando o usuário interage com ele de fato (clique no bell),
+  // não pela simples navegação até /compras — senão a divergência real-mas-não-lida
+  // engana o dedup de validarDivergenciaFatura e gera notificações repetidas a cada import.
+  '/compras':       ['categorizacao_concluida', 'pedido_criado', 'pedido_pendente', 'pedido_cancelado', 'pedido_concluido', 'importacao_concluida', 'estorno_aplicado'],
   '/dashboard':     ['aporte'],
   '/receitas':      ['receber'],
   '/lista-mercado': ['lista_compra_finalizada', 'lista_sincronizacao', 'lista_item_compartilhado', 'lista_item_adicionado'],

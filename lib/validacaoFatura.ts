@@ -15,25 +15,126 @@ interface LinhaBanco {
   data_compra: string
 }
 
-/** Chave de identidade por conteúdo (data + descrição normalizada + valor), não por hash_linha —
- *  evita depender da ordem/occurrence_index usado para gerar hash_linha, que pode variar entre
- *  reimportações e tornar a comparação por hash frágil. */
-function chaveConteudo(dataCompra: string, descricao: string, valor: number): string {
-  return `${dataCompra}|${normalizarDescricaoParaHash(descricao)}|${valor.toFixed(2)}`
+const TOLERANCIA_DIAS_MS = 3 * 24 * 60 * 60 * 1000
+const TOLERANCIA_VALOR = 0.05
+
+/**
+ * Casa cada linha do banco com a transação do arquivo mais próxima pela mesma
+ * descrição normalizada, tolerando até 3 dias de diferença na data e R$ 0,05 no
+ * valor (mesma janela de 3 dias usada em contarNoBanco/import/cartao — exportações
+ * sucessivas do mesmo extrato do NuBank podem trazer a data de compra ligeiramente
+ * diferente — data de processamento vs. data de compra — e o valor de uma parcela
+ * com centavos redistribuídos de forma diferente). Comparar por igualdade estrita
+ * de data+valor (como antes) tratava essas variações naturais como "excedentes",
+ * gerando dezenas de falsos positivos numa única divergência real.
+ *
+ * Linhas do banco sem par dentro da tolerância são as excedentes de fato.
+ */
+function encontrarExcedentes(
+  linhasBanco: LinhaBanco[],
+  transacoesArquivo: TransacaoNubank[],
+  mesReferencia: string
+): LinhaBanco[] {
+  const porDescricaoArquivo = new Map<string, { data: string; valor: number }[]>()
+  for (const t of transacoesArquivo) {
+    if (t.projeto_fatura !== mesReferencia) continue
+    const k = normalizarDescricaoParaHash(t.descricao)
+    if (!porDescricaoArquivo.has(k)) porDescricaoArquivo.set(k, [])
+    porDescricaoArquivo.get(k)!.push({ data: t.data_compra, valor: t.valor })
+  }
+
+  // Ordena por data para consumir os candidatos do arquivo de forma estável
+  // (mais previsível quando há múltiplas ocorrências da mesma descrição/valor).
+  const linhasOrdenadas = [...linhasBanco]
+    .filter(r => !!r.data_compra)
+    .sort((a, b) => a.data_compra.localeCompare(b.data_compra))
+
+  const excedentes: LinhaBanco[] = []
+
+  for (const linha of linhasOrdenadas) {
+    const k = normalizarDescricaoParaHash(linha.descricao)
+    const candidatos = porDescricaoArquivo.get(k)
+    const dataBanco = new Date(linha.data_compra + 'T12:00:00').getTime()
+
+    let melhorIdx = -1
+    let melhorScore = Infinity
+    candidatos?.forEach((c, i) => {
+      const dataArq = new Date(c.data + 'T12:00:00').getTime()
+      const diffDias = Math.abs(dataArq - dataBanco)
+      const diffValor = Math.abs(c.valor - linha.valor)
+      if (diffDias <= TOLERANCIA_DIAS_MS && diffValor <= TOLERANCIA_VALOR) {
+        const score = diffDias + diffValor * 1_000_000 // prioriza data próxima, depois valor exato
+        if (score < melhorScore) { melhorScore = score; melhorIdx = i }
+      }
+    })
+
+    if (melhorIdx >= 0) {
+      candidatos!.splice(melhorIdx, 1) // consome o candidato casado
+    } else {
+      excedentes.push(linha)
+    }
+  }
+
+  return excedentes
+}
+
+const PREFIXO_MIN_LEN = 8
+
+/**
+ * Procura, entre as demais linhas do banco (mesma fatura/cartão), a transação
+ * mais parecida com a excedente — candidata a ser a mesma compra lançada em
+ * duplicidade. Considera "parecida" quando a descrição normalizada é igual ou
+ * uma é prefixo da outra (títulos do NuBank podem vir truncados de forma
+ * diferente entre exportações, ex.: "Jim.Com* 41697862 Pau" vs "...Paul"),
+ * com valor dentro de R$ 0,05 e data dentro de 3 dias. Exige um prefixo com
+ * pelo menos `PREFIXO_MIN_LEN` caracteres para não casar títulos curtos e
+ * genéricos (ex.: "B" também é prefixo de "B1 - Parcela 1/6").
+ */
+function encontrarProvavelDuplicata(alvo: LinhaBanco, todasLinhas: LinhaBanco[]): LinhaBanco | null {
+  const descAlvo = normalizarDescricaoParaHash(alvo.descricao)
+  const dataAlvo = new Date(alvo.data_compra + 'T12:00:00').getTime()
+
+  let melhor: LinhaBanco | null = null
+  let melhorScore = Infinity
+
+  for (const outra of todasLinhas) {
+    if (outra.id === alvo.id || !outra.data_compra) continue
+
+    const diffValor = Math.abs(outra.valor - alvo.valor)
+    if (diffValor > TOLERANCIA_VALOR) continue
+
+    const descOutra = normalizarDescricaoParaHash(outra.descricao)
+    const minLen = Math.min(descAlvo.length, descOutra.length)
+    const parecida =
+      descAlvo === descOutra ||
+      (minLen >= PREFIXO_MIN_LEN && (descAlvo.startsWith(descOutra) || descOutra.startsWith(descAlvo)))
+    if (!parecida) continue
+
+    const dataOutra = new Date(outra.data_compra + 'T12:00:00').getTime()
+    const diffDias = Math.abs(dataOutra - dataAlvo)
+    if (diffDias > TOLERANCIA_DIAS_MS) continue
+
+    const score = diffDias + diffValor * 1_000_000
+    if (score < melhorScore) { melhorScore = score; melhor = outra }
+  }
+
+  return melhor
 }
 
 /**
  * Compara, por fatura (mês), a quantidade de transações do arquivo importado
  * com a quantidade atual no banco para o mesmo cartão. Quando o banco tem
  * MAIS transações que o arquivo, identifica a(s) linha(s) excedente(s) via
- * diferença de multiconjunto (contagem por data+descrição+valor: banco vs
- * arquivo) e gera uma notificação (tabela `notificacoes`) apontando
- * exatamente para ela(s).
+ * `encontrarExcedentes` (casamento tolerante por descrição, com folga de data
+ * e valor) e gera uma notificação (tabela `notificacoes`) apontando exatamente
+ * para ela(s).
  *
- * Deduplicação: não cria uma nova notificação se já existir uma não lida
- * para o mesmo cartao+mês — evita spam a cada reimportação enquanto a
- * divergência não é resolvida/lida (mesmo padrão de `conflitoExistente` em
- * lib/conciliacao.ts).
+ * Deduplicação: não cria uma nova notificação se já existir uma (lida ou não)
+ * com os mesmos números para o mesmo cartao+mês — evita spam a cada
+ * reimportação enquanto a divergência continuar exatamente a mesma, mesmo que
+ * a notificação anterior já tenha sido marcada como lida (ex: usuário visitou
+ * /compras por outro motivo). Só gera uma nova notificação quando os números
+ * de fato mudam.
  */
 export async function validarDivergenciaFatura(
   supabase: SupabaseClient,
@@ -59,25 +160,26 @@ export async function validarDivergenciaFatura(
     }
 
     try {
-      const { data: existente } = await supabase
+      const { data: existentes } = await supabase
         .from('notificacoes')
-        .select('id, metadata')
+        .select('id, metadata, lida')
         .eq('acao', 'fatura_divergencia')
-        .eq('lida', false)
         .contains('metadata', { cartao, mes_referencia: mesReferencia })
-        .maybeSingle()
+        .order('created_at', { ascending: false })
+        .limit(1)
 
+      const existente = existentes?.[0]
       const metadataExistente = existente?.metadata as Record<string, unknown> | undefined
       const mesmaDivergencia =
         metadataExistente?.quantidade_arquivo === stats.noCSV &&
         metadataExistente?.quantidade_banco === stats.totalNoBanco
 
       if (existente && mesmaDivergencia) {
-        console.log(`[validacaoFatura] divergência já notificada (não lida, sem mudança) cartao=${cartao} mes=${mesReferencia}`)
+        console.log(`[validacaoFatura] divergência já notificada (sem mudança, lida=${existente.lida}) cartao=${cartao} mes=${mesReferencia}`)
         continue
       }
 
-      if (existente && !mesmaDivergencia) {
+      if (existente && !existente.lida) {
         // Situação mudou desde a última notificação (números diferentes, ou a lógica de
         // detecção foi corrigida) — marca a antiga como lida e gera uma nova, atualizada.
         await supabase.from('notificacoes').update({ lida: true }).eq('id', existente.id)
@@ -112,31 +214,13 @@ export async function validarDivergenciaFatura(
         console.error(`[validacaoFatura] erro ao buscar linhas do banco cartao=${cartao} mes=${mesReferencia}:`, linhasBancoError)
       }
 
-      // Contagem por chave de conteúdo no arquivo (quantas vezes essa combinação aparece)
-      const contagemArquivo = new Map<string, number>()
-      for (const t of transacoesArquivo) {
-        if (t.projeto_fatura !== mesReferencia) continue
-        const k = chaveConteudo(t.data_compra, t.descricao, t.valor)
-        contagemArquivo.set(k, (contagemArquivo.get(k) ?? 0) + 1)
-      }
+      const excedentes = encontrarExcedentes(linhas, transacoesArquivo, mesReferencia)
 
-      // Agrupa linhas do banco pela mesma chave
-      const porChaveBanco = new Map<string, LinhaBanco[]>()
-      for (const r of linhas) {
-        if (!r.data_compra) continue
-        const k = chaveConteudo(r.data_compra, r.descricao, r.valor)
-        if (!porChaveBanco.has(k)) porChaveBanco.set(k, [])
-        porChaveBanco.get(k)!.push(r)
-      }
-
-      // Para cada chave onde o banco tem mais ocorrências que o arquivo, as linhas
-      // "sobrando" (mais recentes/últimas da lista) são as excedentes.
-      const excedentes: LinhaBanco[] = []
-      for (const [k, rows] of porChaveBanco) {
-        const noArquivo = contagemArquivo.get(k) ?? 0
-        const excesso = rows.length - noArquivo
-        if (excesso > 0) excedentes.push(...rows.slice(0, excesso))
-      }
+      // Só faz sentido apontar uma provável duplicata quando há exatamente uma
+      // transação excedente — com várias, a comparação par-a-par vira ruído.
+      const provavelDuplicata = excedentes.length === 1
+        ? encontrarProvavelDuplicata(excedentes[0], linhas)
+        : null
 
       let descricao: string
       if (excedentes.length === 1) {
@@ -144,6 +228,11 @@ export async function validarDivergenciaFatura(
         const data = linha.data_compra?.substring(8, 10)
         const mes = linha.data_compra?.substring(5, 7)
         descricao = `Fatura ${mesLabel} do ${nome}: "${linha.descricao}" (${formatBRL(linha.valor)}${data && mes ? ` em ${data}/${mes}` : ''}) está no banco mas não consta no arquivo importado.`
+        if (provavelDuplicata) {
+          const dataDup = provavelDuplicata.data_compra?.substring(8, 10)
+          const mesDup = provavelDuplicata.data_compra?.substring(5, 7)
+          descricao += ` Pode ser duplicata de "${provavelDuplicata.descricao}"${dataDup && mesDup ? ` (${dataDup}/${mesDup})` : ''}.`
+        }
       } else if (excedentes.length > 1) {
         descricao = `Fatura ${mesLabel} do ${nome}: ${excedentes.length} transações estão no banco mas não constam no arquivo importado.`
       } else {
@@ -162,6 +251,7 @@ export async function validarDivergenciaFatura(
           quantidade_banco: stats.totalNoBanco,
           diferenca,
           ...(excedentes.length > 0 ? { transacao_ids: excedentes.map(e => e.id) } : {}),
+          ...(provavelDuplicata ? { provavel_duplicata_id: provavelDuplicata.id } : {}),
         },
       })
     } catch (error) {
