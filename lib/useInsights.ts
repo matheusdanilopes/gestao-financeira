@@ -5,11 +5,13 @@
  *
  * Estratégia:
  * 1. Carrega insights do localStorage imediatamente (stale-while-revalidate)
- * 2. Busca insights frescos da API em background ao montar
- * 3. Se o cache tiver mais de 12h, força ?fresh=true para nova análise via IA
+ * 2. Busca insights da API em background ao montar (sem forçar ?fresh=true —
+ *    o servidor decide se recalcula via IA ou devolve o cache persistido,
+ *    com base no valor gasto no cartão desde o último cálculo)
+ * 3. refresh() (botão manual) força ?fresh=true para nova análise via IA
  * 4. Escuta mudanças nas tabelas financeiras via Supabase Realtime
- * 5. Debounce de 5s: múltiplas mudanças em sequência geram apenas uma análise
- * 6. Cooldown de 90s: evita chamadas excessivas à API de IA
+ * 5. Debounce de 5s: múltiplas mudanças em sequência geram apenas uma checagem
+ * 6. Cooldown de 90s: evita chamadas excessivas ao endpoint de insights
  * 7. Marca insights como "atualizando" sem bloquear a exibição do conteúdo atual
  * 8. Timeout de 30s: nunca trava indefinidamente em loading
  * 9. Detecta mudança real de conteúdo e sinaliza com changedIndices por 6s
@@ -37,7 +39,6 @@ const CACHE_KEY = 'insights:dashboard'
 const DEBOUNCE_MS = 5_000
 const COOLDOWN_MS = 90_000
 const FETCH_TIMEOUT_MS = 55_000
-const MAX_CACHE_AGE_MS = 12 * 60 * 60 * 1000  // 12 horas
 const NEW_BADGE_DURATION_MS = 6_000
 
 // Tables that trigger insight re-analysis when changed
@@ -66,12 +67,6 @@ function writeCache(data: InsightsResponse): void {
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify(data))
   } catch { /* localStorage cheio — sem crash */ }
-}
-
-function isCacheFresh(data: InsightsResponse): boolean {
-  try {
-    return Date.now() - new Date(data.updatedAt).getTime() < MAX_CACHE_AGE_MS
-  } catch { return false }
 }
 
 export function useInsights(): InsightsState {
@@ -187,7 +182,10 @@ export function useInsights(): InsightsState {
   const scheduleDebounced = useCallback(() => {
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
     debounceTimerRef.current = setTimeout(() => {
-      fetchInsights({ background: true, fresh: true })
+      // Not forced: the server only calls the AI again once card spending has
+      // moved past its threshold since the last calculation, otherwise it
+      // returns the persisted cache — this call just lets it check.
+      fetchInsights({ background: true, fresh: false })
     }, DEBOUNCE_MS)
   }, [fetchInsights])
 
@@ -212,10 +210,9 @@ export function useInsights(): InsightsState {
       setStatus('updating')
     }
 
-    // 2. Fetch fresh insights on mount.
-    //    Force ?fresh=true when cache is older than 12h so the AI re-analyses.
-    const stale = !cached || !isCacheFresh(cached)
-    fetchInsights({ background: !!cached, fresh: stale })
+    // 2. Fetch insights on mount without forcing a recalculation — the server
+    //    decides (persisted cache + spend threshold) whether to call the AI.
+    fetchInsights({ background: !!cached, fresh: false })
 
     // 3. Realtime subscriptions on all financial tables
     const channel = supabase.channel('insights:realtime')
