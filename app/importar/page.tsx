@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import ModalPortal from '@/components/ModalPortal'
-import { Upload, CheckCircle2, XCircle, Sparkles, Clock, AlertCircle, ShieldCheck, Trash2, Code2, Copy, Check, X } from 'lucide-react'
+import { Upload, CheckCircle2, XCircle, Sparkles, Clock, AlertCircle, ShieldCheck, Trash2, Code2, Copy, Check, X, FileSpreadsheet } from 'lucide-react'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth } from 'date-fns'
@@ -83,6 +83,9 @@ export default function ImportarPage() {
   const [resultadoCorrecao, setResultadoCorrecao] = useState<{ removidos: number; mensagem: string } | null>(null)
   const [modalApiAberto, setModalApiAberto] = useState(false)
   const [copiado, setCopiado] = useState<string | null>(null)
+  const [disparandoScript, setDisparandoScript] = useState(false)
+  const [scriptResultado, setScriptResultado] = useState<string | null>(null)
+  const [scriptErro, setScriptErro] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { categorizando, categorizadoMsg, categorizar } = useCategorizacao()
 
@@ -130,6 +133,26 @@ export default function ImportarPage() {
     } finally {
       setCorrigindo(false)
       setPendingModo(null)
+    }
+  }
+
+  async function dispararGoogleAppsScript() {
+    setDisparandoScript(true)
+    setScriptResultado(null)
+    setScriptErro(null)
+    try {
+      const res = await fetch('/api/import/google-apps-script', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cartao: cartaoSelecionado }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error ?? 'Erro desconhecido')
+      setScriptResultado('Importação via Google Apps Script acionada com sucesso.')
+    } catch (e) {
+      setScriptErro(e instanceof Error ? e.message : String(e))
+    } finally {
+      setDisparandoScript(false)
     }
   }
 
@@ -320,6 +343,38 @@ export default function ImportarPage() {
           <p>Parcelas detectadas pelo padrão <span className="font-mono bg-amber-100 px-1 rounded">X/Y</span> na descrição (ex: 2/12).</p>
         </div>
       )}
+
+      {/* Importar via Google Apps Script */}
+      <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-5 mb-4">
+        <h2 className="text-sm font-bold text-gray-900 mb-1 flex items-center gap-2">
+          <FileSpreadsheet className="w-4 h-4 text-gray-500" />
+          Importar via Google Sheets
+        </h2>
+        <p className="text-xs text-gray-400 mb-4 leading-relaxed">
+          Aciona o Web App do Google Apps Script para enviar os dados da planilha do {cartaoLabels[cartaoSelecionado]} diretamente para nossa API.
+        </p>
+        <button
+          onClick={dispararGoogleAppsScript}
+          disabled={disparandoScript}
+          className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white py-3 rounded-2xl font-semibold hover:bg-emerald-700 transition-all disabled:opacity-50 active:scale-[0.98] shadow-sm"
+        >
+          <FileSpreadsheet className={`w-4 h-4 ${disparandoScript ? 'animate-pulse' : ''}`} />
+          {disparandoScript ? 'Acionando Web App…' : 'Importar via Google Apps Script'}
+        </button>
+
+        {scriptResultado && (
+          <div className="mt-3 bg-green-50 border border-green-100 rounded-2xl px-4 py-3 text-sm text-green-700 flex items-center gap-2.5">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-green-600" />
+            {scriptResultado}
+          </div>
+        )}
+        {scriptErro && (
+          <div className="mt-3 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-sm text-red-700 flex items-center gap-2.5">
+            <XCircle className="w-4 h-4 shrink-0 text-red-500" />
+            {scriptErro}
+          </div>
+        )}
+      </div>
 
       {/* Erro de importação com causa e ação */}
       {erro && (
