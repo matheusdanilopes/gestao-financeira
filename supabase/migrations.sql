@@ -381,3 +381,23 @@ CREATE POLICY "allow_all_compras_ultima_visualizacao" ON compras_ultima_visualiz
 ALTER TABLE assinaturas
   ADD COLUMN IF NOT EXISTS moeda        TEXT NOT NULL DEFAULT 'BRL',
   ADD COLUMN IF NOT EXISTS valor_origem NUMERIC(12,2);
+
+-- 25. Cache persistido dos insights de IA do dashboard
+-- Linha única (dados são compartilhados entre Matheus e Jeniffer, então um
+-- cálculo serve para os dois) para evitar chamar a API do Gemini a cada
+-- acesso à tela ou a cada nova transação — a regra de recálculo (valor gasto
+-- acumulado no cartão desde o último cálculo) é aplicada em app/api/insights/route.ts.
+CREATE TABLE IF NOT EXISTS insights_cache (
+  id                   INT PRIMARY KEY DEFAULT 1,
+  insights             JSONB NOT NULL,
+  source               TEXT NOT NULL DEFAULT 'ai',
+  fallback_reason      TEXT,
+  total_gasto_snapshot NUMERIC(12,2) NOT NULL DEFAULT 0,
+  updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT insights_cache_singleton CHECK (id = 1)
+);
+
+ALTER TABLE insights_cache ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "allow_all_insights_cache" ON insights_cache;
+CREATE POLICY "allow_all_insights_cache" ON insights_cache
+  FOR ALL USING (true) WITH CHECK (true);

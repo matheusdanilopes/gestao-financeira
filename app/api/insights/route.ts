@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/serverAuth'
 import { fetchEnrichedData, clearEnrichedDataCache } from '@/lib/ai/contextBuilder'
 import { computeInsights, serializeInsightsCompact, generateFallbackInsights } from '@/lib/ai/insightsEngine'
 import { validateFinancialData } from '@/lib/ai/financialValidationEngine'
+import { readInsightsCache, writeInsightsCache } from '@/lib/ai/insightsCache'
 import type { InsightItem, InsightsResponse } from '@/lib/insightsTypes'
 
 export type { InsightItem, InsightsResponse }
@@ -14,6 +15,13 @@ export const maxDuration = 60
 
 const GEMINI_MODEL = 'gemini-2.5-flash'
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
+
+// Recalculation rule: only call Gemini again once card spending has moved by
+// this much since the last calculation — not on every single transaction.
+const RECALC_THRESHOLD_REAIS = 300
+// Safety net so date-sensitive content (overdue bills, trends) doesn't go
+// stale indefinitely on a quiet month with little new spending.
+const MAX_CACHE_AGE_MS = 24 * 60 * 60 * 1000
 
 // Single user message that combines role + data + output instruction.
 // Mirrors the pattern used by the chat route (no systemInstruction, no responseSchema)
@@ -186,7 +194,8 @@ export async function GET(req: NextRequest) {
   const { unauthorized, user } = await requireAuth(req)
   if (unauthorized) return unauthorized
 
-  // ?fresh=true bypasses the 5-min cache (used after realtime events)
+  // ?fresh=true forces a real recalculation (manual refresh button): bypasses
+  // both the 60s raw-data cache and the persisted insights cache/threshold gate.
   const fresh = req.nextUrl.searchParams.get('fresh') === 'true'
   if (fresh) clearEnrichedDataCache(user.id)
 
@@ -202,6 +211,29 @@ export async function GET(req: NextRequest) {
     console.log(`[insights] validação: ${certificate.indiceConfiabilidade}% | ${certificate.transacoesValidadas}/${certificate.totalTransacoes} tx | ${certificate.transacoesExcluidas} excluídas`)
 
     const metrics = computeInsights(validatedData)
+
+    // Recalculation gate: reuse the persisted result unless the caller asked
+    // for a forced refresh, or enough has changed since the last calculation
+    // (card spend moved by RECALC_THRESHOLD_REAIS, or the cache is too old).
+    if (!fresh) {
+      const cached = await readInsightsCache()
+      if (cached) {
+        const age = Date.now() - new Date(cached.updatedAt).getTime()
+        const spendDelta = Math.abs(metrics.totalGastos - cached.totalGastoSnapshot)
+        if (age < MAX_CACHE_AGE_MS && spendDelta < RECALC_THRESHOLD_REAIS) {
+          console.log(`[insights] cache reaproveitado (delta=R$${spendDelta.toFixed(2)}, idade=${Math.round(age / 60000)}min)`)
+          const response: InsightsResponse = {
+            insights: cached.insights,
+            updatedAt: cached.updatedAt,
+            source: cached.source,
+            ...(cached.fallbackReason ? { fallbackReason: cached.fallbackReason } : {}),
+          }
+          return NextResponse.json(response, {
+            headers: { 'Cache-Control': 'no-store' },
+          })
+        }
+      }
+    }
 
     // Try Gemini first; fall back to rule-based insights on any failure
     let insights: InsightItem[]
@@ -220,9 +252,18 @@ export async function GET(req: NextRequest) {
 
     console.log(`[insights] gerado via ${source}: ${insights.length} itens`)
 
+    const updatedAt = new Date().toISOString()
+
+    await writeInsightsCache({
+      insights,
+      source,
+      fallbackReason,
+      totalGastoSnapshot: metrics.totalGastos,
+    })
+
     const response: InsightsResponse = {
       insights,
-      updatedAt: new Date().toISOString(),
+      updatedAt,
       source,
       ...(fallbackReason ? { fallbackReason } : {}),
     }
