@@ -69,11 +69,15 @@ export async function requireShoppingListAuth(req: NextRequest): Promise<Shoppin
 }
 
 /**
- * Para o webhook da Pluggy: valida um segredo compartilhado enviado em um
- * header customizado (configurado no cadastro do webhook no dashboard da
- * Pluggy — não há esquema de assinatura HMAC documentado). Diferente de
- * `requireCronSecret`, aqui a ausência da env var **rejeita** a requisição:
- * não existe chamador legado dependendo dessa rota estar aberta.
+ * Para o webhook da Pluggy: valida um segredo compartilhado. O dashboard da
+ * Pluggy (tela "Webhooks") só expõe URL + tipo de evento, sem campo de
+ * headers customizados — headers só são configuráveis chamando `POST
+ * /webhooks` diretamente na API. Por isso o segredo é aceito tanto via
+ * query string (`?secret=...` na URL cadastrada no dashboard) quanto via
+ * header `x-webhook-secret` (para quem cadastrar o webhook pela API com
+ * `headers`). Diferente de `requireCronSecret`, aqui a ausência da env var
+ * **rejeita** a requisição: não existe chamador legado dependendo dessa
+ * rota estar aberta.
  */
 export function requirePluggyWebhookSecret(req: NextRequest): NextResponse | null {
   const secret = process.env.PLUGGY_WEBHOOK_SECRET
@@ -81,7 +85,8 @@ export function requirePluggyWebhookSecret(req: NextRequest): NextResponse | nul
     return NextResponse.json({ error: 'PLUGGY_WEBHOOK_SECRET não configurado no servidor' }, { status: 401 })
   }
   const header = req.headers.get('x-webhook-secret') ?? ''
-  if (header === secret) return null
+  const fromQuery = new URL(req.url).searchParams.get('secret') ?? ''
+  if (header === secret || fromQuery === secret) return null
   return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 }
 
