@@ -125,41 +125,46 @@ export interface PluggyTransaction {
   [key: string]: unknown
 }
 
-export interface PluggyTransactionsPage {
+export interface PluggyTransactionsCursorPage {
   results: PluggyTransaction[]
-  total: number
-  totalPages: number
-  page: number
+  /** Link (URL relativa) para a próxima página, ou null se não houver mais resultados. */
+  next: string | null
 }
 
-/** Busca uma página de transações de uma conta. Chame em loop até `page >= totalPages`. */
-export async function getTransactions(
+/**
+ * Busca uma página de transações de uma conta via `/v2/transactions` (cursor).
+ * O endpoint antigo baseado em `page`/`totalPages` (`/transactions`) foi
+ * descontinuado pela Pluggy (HTTP 410) — usar sempre este.
+ */
+export async function getTransactionsCursor(
   accountId: string,
-  opts: { from?: string; to?: string; page?: number; pageSize?: number } = {}
-): Promise<PluggyTransactionsPage> {
+  opts: { dateFrom?: string; dateTo?: string; after?: string } = {}
+): Promise<PluggyTransactionsCursorPage> {
   const apiKey = await getPluggyApiKey()
   const params = new URLSearchParams({ accountId })
-  if (opts.from) params.set('from', opts.from)
-  if (opts.to) params.set('to', opts.to)
-  if (opts.page) params.set('page', String(opts.page))
-  if (opts.pageSize) params.set('pageSize', String(opts.pageSize))
+  if (opts.dateFrom) params.set('dateFrom', opts.dateFrom)
+  if (opts.dateTo) params.set('dateTo', opts.dateTo)
+  if (opts.after) params.set('after', opts.after)
 
-  const res = await pluggyFetch(`/transactions?${params.toString()}`, { method: 'GET' }, apiKey)
+  const res = await pluggyFetch(`/v2/transactions?${params.toString()}`, { method: 'GET' }, apiKey)
   if (!res.ok) {
     throw new Error(`Falha ao buscar transações da conta ${accountId}: ${res.status} ${await res.text()}`)
   }
   return res.json()
 }
 
-/** Busca todas as páginas de transações de uma conta desde `from`. */
-export async function getAllTransactions(accountId: string, from: string, to: string): Promise<PluggyTransaction[]> {
+/** Busca todas as transações de uma conta entre `dateFrom` e `dateTo`, seguindo o cursor até o fim. */
+export async function getAllTransactions(accountId: string, dateFrom: string, dateTo: string): Promise<PluggyTransaction[]> {
   const all: PluggyTransaction[] = []
-  let page = 1
+  let after: string | undefined
   for (;;) {
-    const pageData = await getTransactions(accountId, { from, to, page, pageSize: 500 })
+    const pageData = await getTransactionsCursor(accountId, { dateFrom, dateTo, after })
     all.push(...pageData.results)
-    if (page >= pageData.totalPages || pageData.results.length === 0) break
-    page++
+    if (!pageData.next) break
+    // `next` é uma URL (relativa ou absoluta) contendo o cursor no parâmetro `after`.
+    const nextAfter = new URL(pageData.next, PLUGGY_BASE_URL).searchParams.get('after')
+    if (!nextAfter) break
+    after = nextAfter
   }
   return all
 }
