@@ -194,6 +194,7 @@ export default function PluggyNubankSync() {
         <PluggyConnect
           connectToken={connectToken}
           updateItem={status?.itemId}
+          includeSandbox={process.env.NEXT_PUBLIC_PLUGGY_SANDBOX === 'true'}
           onSuccess={onWidgetSuccess}
           onError={(err: { message: string }) => {
             setErroAcao(err.message)
