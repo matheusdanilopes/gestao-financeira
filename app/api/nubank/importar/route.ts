@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
 import {
   processarCSV,
@@ -6,7 +6,7 @@ import {
   TransacaoInputJSON,
   TransacaoNubank,
 } from '@/lib/csvparser'
-import { categorizarTransacoes, ResultadoCategorizar } from '@/lib/categorizarTransacoes'
+import { categorizarTransacoes } from '@/lib/categorizarTransacoes'
 import { notificarImportacao } from '@/lib/pushImportacao'
 import { conciliarTransacao, conciliarEstorno } from '@/lib/conciliacao'
 import { validarDivergenciaFatura } from '@/lib/validacaoFatura'
@@ -16,6 +16,16 @@ export const maxDuration = 300
 
 const CARTOES_VALIDOS = ['nubank', 'cartao1', 'cartao2'] as const
 type CartaoValido = typeof CARTOES_VALIDOS[number]
+
+// A categorização por IA é lenta (lotes de 20 descrições com 5s de intervalo entre
+// chamadas ao Gemini) e não deve bloquear a confirmação de recebimento do CSV.
+// O import fica síncrono; a categorização é disparada em background via after() e
+// rastreada em `categorization_jobs`, reaproveitando o mesmo mecanismo de job/polling
+// já usado pelo botão "Categorizar com IA" (app/api/categorizar + /categorizar/status).
+type CategorizacaoResposta =
+  | { status: 'queued'; jobId: string | null; total: number }
+  | { status: 'skipped'; motivo: string }
+  | null
 
 type AuthResult =
   | { ok: true }
@@ -264,43 +274,7 @@ export async function POST(req: NextRequest) {
 
     const resultadoImportacao = await salvarTransacoes(supabase, transacoes, cartao)
 
-    const deveCategorizar = url.searchParams.get('categorizar') !== 'false'
-
-    let categorizacao: (ResultadoCategorizar & { ignorado?: string }) | null = null
-
-    if (deveCategorizar) {
-      const geminiKey = process.env.GEMINI_API_KEY
-      if (!geminiKey) {
-        categorizacao = {
-          categorized: 0,
-          total: 0,
-          cotaDiariaEsgotada: false,
-          ignorado: 'GEMINI_API_KEY não configurada no servidor.',
-        }
-      } else if (resultadoImportacao.hashesImportados.length > 0) {
-        try {
-          const resultado = await categorizarTransacoes(
-            supabase,
-            geminiKey,
-            resultadoImportacao.hashesImportados,
-            true
-          )
-          categorizacao = resultado
-        } catch (err) {
-          console.error('[nubank/importar] Erro na categorização:', err)
-          categorizacao = {
-            categorized: 0,
-            total: resultadoImportacao.hashesImportados.length,
-            cotaDiariaEsgotada: false,
-            erros: [String(err)],
-          }
-        }
-      } else {
-        categorizacao = { categorized: 0, total: 0, cotaDiariaEsgotada: false }
-      }
-    }
-
-    const { hashesImportados: _, purchaseDates, ...importacaoPublica } = resultadoImportacao
+    const { hashesImportados, purchaseDates, ...importacaoPublica } = resultadoImportacao
 
     const mesesStr = importacaoPublica.mesesReprocessados.map(m => m.substring(0, 7)).join(', ')
     await registrarLog(
@@ -316,6 +290,53 @@ export async function POST(req: NextRequest) {
       estornosAplicados: importacaoPublica.estornosAplicados,
       estornosRegistrados: importacaoPublica.estornosRegistrados,
     })
+
+    // Etapa 2 (assíncrona): a confirmação acima já garante o recebimento do CSV.
+    // A categorização por IA roda em background após a resposta ser enviada.
+    const deveCategorizar = url.searchParams.get('categorizar') !== 'false'
+    let categorizacao: CategorizacaoResposta = null
+
+    if (deveCategorizar) {
+      const geminiKey = process.env.GEMINI_API_KEY
+      if (!geminiKey) {
+        categorizacao = { status: 'skipped', motivo: 'GEMINI_API_KEY não configurada no servidor.' }
+      } else if (hashesImportados.length === 0) {
+        categorizacao = { status: 'skipped', motivo: 'Nenhuma transação nova para categorizar.' }
+      } else {
+        const { data: job } = await supabase
+          .from('categorization_jobs')
+          .insert({ status: 'running', total: hashesImportados.length })
+          .select('id')
+          .single()
+        const jobId: string | null = job?.id ?? null
+
+        categorizacao = { status: 'queued', jobId, total: hashesImportados.length }
+
+        after(async () => {
+          try {
+            const resultado = await categorizarTransacoes(supabase, geminiKey, hashesImportados, true)
+            if (jobId) {
+              await supabase.from('categorization_jobs').update({
+                status: 'done',
+                categorized: resultado.categorized,
+                cota_diaria_esgotada: resultado.cotaDiariaEsgotada,
+                erros: resultado.erros ?? null,
+                finished_at: new Date().toISOString(),
+              }).eq('id', jobId)
+            }
+          } catch (err) {
+            console.error('[nubank/importar] Erro na categorização assíncrona:', err)
+            if (jobId) {
+              await supabase.from('categorization_jobs').update({
+                status: 'error',
+                erros: [String(err)],
+                finished_at: new Date().toISOString(),
+              }).eq('id', jobId)
+            }
+          }
+        })
+      }
+    }
 
     return NextResponse.json({
       success: true,
