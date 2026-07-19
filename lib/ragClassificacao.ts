@@ -96,6 +96,43 @@ export async function buscarContextoRAG(
     .map(({ item }) => item)
 }
 
+// ── Bulk History Lookup ──────────────────────────────────────────────────
+// Used to check user-corrected history for a whole batch before falling
+// back to the AI, so a merchant corrected once doesn't need correcting again.
+const LIMIAR_SIMILARIDADE_HISTORICO = 0.6
+
+export async function buscarTodasAprendidas(
+  supabase: SupabaseClient,
+  userId = 'default'
+): Promise<ClassificacaoAprendida[]> {
+  const { data } = await supabase
+    .from('classificacoes_aprendidas')
+    .select('descricao_limpa, categoria_validada, frequencia')
+    .eq('user_id', userId)
+  return (data as ClassificacaoAprendida[]) || []
+}
+
+// Returns the learned category for an exact match, or the best fuzzy match
+// (Jaccard similarity >= LIMIAR_SIMILARIDADE_HISTORICO) — same "muito
+// similar" establishment. Returns null when no match is close enough,
+// leaving the caller free to fall back to the AI.
+export function encontrarCategoriaHistorico(
+  descricaoLimpa: string,
+  aprendidas: ClassificacaoAprendida[]
+): string | null {
+  const exata = aprendidas.find(a => a.descricao_limpa === descricaoLimpa)
+  if (exata) return exata.categoria_validada
+
+  let melhor: { categoria: string; score: number } | null = null
+  for (const item of aprendidas) {
+    const score = calcularSimilaridade(descricaoLimpa, item.descricao_limpa)
+    if (score >= LIMIAR_SIMILARIDADE_HISTORICO && (!melhor || score > melhor.score)) {
+      melhor = { categoria: item.categoria_validada, score }
+    }
+  }
+  return melhor?.categoria ?? null
+}
+
 // ── Dynamic Prompt Construction ───────────────────────────────────────────
 
 function construirContextoMemoria(contexto: ClassificacaoAprendida[]): string {

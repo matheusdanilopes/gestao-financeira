@@ -1,5 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
+import { sanitizarDescricao, buscarTodasAprendidas, encontrarCategoriaHistorico } from '@/lib/ragClassificacao'
 
 const LOTE = 20
 const DELAY_ENTRE_LOTES_MS = 5000
@@ -138,10 +139,49 @@ export async function categorizarTransacoes(
   const erros: string[] = []
   let cotaDiariaEsgotada = false
 
-  for (let i = 0; i < transacoes.length; i += LOTE) {
+  // Antes de chamar a IA, reaproveita correções manuais já feitas pelo
+  // usuário para o mesmo estabelecimento (ou nome muito similar).
+  const aprendidas = await buscarTodasAprendidas(supabase)
+  const comHistorico: { hash_linha: string; descricao: string; categoria: string }[] = []
+  const semHistorico: typeof transacoes = []
+
+  for (const t of transacoes) {
+    const categoriaHistorico = aprendidas.length > 0
+      ? encontrarCategoriaHistorico(sanitizarDescricao(t.descricao), aprendidas)
+      : null
+    if (categoriaHistorico && categoriasPermitidas.includes(categoriaHistorico)) {
+      comHistorico.push({ hash_linha: t.hash_linha, descricao: t.descricao, categoria: categoriaHistorico })
+    } else {
+      semHistorico.push(t)
+    }
+  }
+
+  if (comHistorico.length > 0) {
+    const updateResults = await Promise.all(
+      comHistorico.map(t =>
+        supabase
+          .from('transacoes_nubank')
+          .update({
+            categoria: t.categoria,
+            categoria_origem: 'HISTORICO',
+            categoria_confianca: 1,
+          })
+          .eq('hash_linha', t.hash_linha)
+      )
+    )
+    const updateErrors = updateResults
+      .map((r, i) => (r.error ? `${comHistorico[i].hash_linha.slice(0, 8)}: ${r.error.message}` : null))
+      .filter((e): e is string => e !== null)
+    if (updateErrors.length > 0) {
+      erros.push(`Falha ao aplicar histórico em ${updateErrors.length} transação(ões): ${updateErrors.join('; ')}`)
+    }
+    totalCategorized += comHistorico.length - updateErrors.length
+  }
+
+  for (let i = 0; i < semHistorico.length; i += LOTE) {
     if (cotaDiariaEsgotada) break
 
-    const lote = transacoes.slice(i, i + LOTE)
+    const lote = semHistorico.slice(i, i + LOTE)
     const numLote = Math.floor(i / LOTE) + 1
 
     try {
@@ -170,7 +210,7 @@ export async function categorizarTransacoes(
 
       totalCategorized += lote.length
 
-      if (i + LOTE < transacoes.length) {
+      if (i + LOTE < semHistorico.length) {
         await sleep(DELAY_ENTRE_LOTES_MS)
       }
     } catch (err) {

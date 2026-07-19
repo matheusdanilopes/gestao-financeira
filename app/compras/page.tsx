@@ -17,6 +17,7 @@ import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
 import FilterSelect from '@/components/FilterSelect'
 import { calcularProjetoFatura } from '@/lib/fatura'
 import { AUTH_DISABLED } from '@/lib/authConfig'
+import { sanitizarDescricao, atualizarAprendizado } from '@/lib/ragClassificacao'
 
 type Compra = {
   id: string
@@ -363,6 +364,14 @@ export default function ComprasPage() {
 
     setSalvando(false)
     if (error) { console.error('[salvarEdicao]', error); showToast(error.message || 'Erro ao salvar', 'erro'); return }
+
+    // Memoriza a correção para que a IA não erre de novo neste estabelecimento.
+    if (formEditar.categoria) {
+      const descricaoLimpa = sanitizarDescricao(formEditar.descricao.trim())
+      atualizarAprendizado(supabase, descricaoLimpa, formEditar.categoria).catch(err =>
+        console.error('[salvarEdicao] falha ao memorizar categoria', err)
+      )
+    }
 
     log('editar', 'transacoes_nubank',
       `Editado: ${formEditar.descricao.trim()} — R$ ${valor.toFixed(2)} (${formEditar.responsavel})`,
