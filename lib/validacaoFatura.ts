@@ -1,6 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { labelCartao } from '@/lib/pushImportacao'
 import { TransacaoNubank, normalizarDescricaoParaHash } from '@/lib/csvparser'
+import { descricoesParecidas } from '@/lib/descricaoSimilaridade'
 import { formatBRL } from '@/lib/logger'
 
 export interface StatsFaturaValidacao {
@@ -78,20 +79,18 @@ function encontrarExcedentes(
   return excedentes
 }
 
-const PREFIXO_MIN_LEN = 8
-
 /**
  * Procura, entre as demais linhas do banco (mesma fatura/cartão), a transação
  * mais parecida com a excedente — candidata a ser a mesma compra lançada em
- * duplicidade. Considera "parecida" quando a descrição normalizada é igual ou
- * uma é prefixo da outra (títulos do NuBank podem vir truncados de forma
- * diferente entre exportações, ex.: "Jim.Com* 41697862 Pau" vs "...Paul"),
- * com valor dentro de R$ 0,05 e data dentro de 3 dias. Exige um prefixo com
- * pelo menos `PREFIXO_MIN_LEN` caracteres para não casar títulos curtos e
- * genéricos (ex.: "B" também é prefixo de "B1 - Parcela 1/6").
+ * duplicidade. Considera "parecida" (via `descricoesParecidas`, compartilhada
+ * com a checagem de conciliação em `lib/conciliacao.ts`) quando a descrição
+ * normalizada é igual, uma é prefixo da outra (títulos do NuBank podem vir
+ * truncados de forma diferente entre exportações, ex.: "Jim.Com* 41697862
+ * Pau" vs "...Paul"), ou difere por poucos caracteres (letra/pontuação
+ * removida ou trocada em qualquer posição) — com valor dentro de R$ 0,05 e
+ * data dentro de 3 dias.
  */
 function encontrarProvavelDuplicata(alvo: LinhaBanco, todasLinhas: LinhaBanco[]): LinhaBanco | null {
-  const descAlvo = normalizarDescricaoParaHash(alvo.descricao)
   const dataAlvo = new Date(alvo.data_compra + 'T12:00:00').getTime()
 
   let melhor: LinhaBanco | null = null
@@ -103,12 +102,7 @@ function encontrarProvavelDuplicata(alvo: LinhaBanco, todasLinhas: LinhaBanco[])
     const diffValor = Math.abs(outra.valor - alvo.valor)
     if (diffValor > TOLERANCIA_VALOR) continue
 
-    const descOutra = normalizarDescricaoParaHash(outra.descricao)
-    const minLen = Math.min(descAlvo.length, descOutra.length)
-    const parecida =
-      descAlvo === descOutra ||
-      (minLen >= PREFIXO_MIN_LEN && (descAlvo.startsWith(descOutra) || descOutra.startsWith(descAlvo)))
-    if (!parecida) continue
+    if (!descricoesParecidas(outra.descricao, alvo.descricao)) continue
 
     const dataOutra = new Date(outra.data_compra + 'T12:00:00').getTime()
     const diffDias = Math.abs(dataOutra - dataAlvo)
