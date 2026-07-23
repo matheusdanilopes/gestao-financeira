@@ -31,10 +31,12 @@ async function buscarMatchNomeData(
 ): Promise<TransacaoMatch[]> {
   const dataInicio = adicionarDias(item.data_compra, -3)
   const dataFim = adicionarDias(item.data_compra, 3)
+  const cartao = item.cartao ?? 'nubank'
 
   const { data, error } = await supabase
     .from('transacoes_nubank')
     .select('id, descricao, valor, data_compra, status')
+    .eq('cartao', cartao)
     .gte('data_compra', dataInicio)
     .lte('data_compra', dataFim)
     .neq('status', 'CONFLITO_VALOR')
@@ -43,6 +45,7 @@ async function buscarMatchNomeData(
     const { data: data2 } = await supabase
       .from('transacoes_nubank')
       .select('id, descricao, valor, data, status')
+      .eq('cartao', cartao)
       .gte('data', dataInicio)
       .lte('data', dataFim)
       .neq('status', 'CONFLITO_VALOR')
@@ -134,10 +137,12 @@ export async function conciliarEstorno(
   const descOriginal = normalizarDescricaoParaHash(descNorm)
   const dataInicio = adicionarDias(estorno.data_compra, -30)
   const dataFim    = adicionarDias(estorno.data_compra, 30)
+  const cartaoEstorno = estorno.cartao ?? 'nubank'
 
   const { data: candidates, error: candidatesError } = await supabase
     .from('transacoes_nubank')
     .select('id, descricao, valor, data_compra, status')
+    .eq('cartao', cartaoEstorno)
     .gte('data_compra', dataInicio)
     .lte('data_compra', dataFim)
     .in('status', ['PENDENTE', 'CONCILIADO'])
@@ -147,6 +152,7 @@ export async function conciliarEstorno(
     ? await supabase
         .from('transacoes_nubank')
         .select('id, descricao, valor, data, status')
+        .eq('cartao', cartaoEstorno)
         .gte('data', dataInicio)
         .lte('data', dataFim)
         .in('status', ['PENDENTE', 'CONCILIADO'])

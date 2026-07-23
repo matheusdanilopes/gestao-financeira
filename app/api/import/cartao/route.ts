@@ -1,70 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
-import { criarSupabaseServer } from '@/lib/supabaseServer'
-import { processarCSV, TransacaoNubank } from '@/lib/csvparser'
-import { descricoesParecidas } from '@/lib/descricaoSimilaridade'
+import { processarCSV } from '@/lib/csvparser'
 import { notificarImportacao } from '@/lib/pushImportacao'
-import { conciliarEstorno } from '@/lib/conciliacao'
+import { conciliarTransacao, conciliarEstorno } from '@/lib/conciliacao'
 import { validarDivergenciaFatura } from '@/lib/validacaoFatura'
 import { sincronizarAssinaturasMoedaEstrangeira } from '@/lib/assinaturasSync'
 
 const CARTOES_VALIDOS = ['cartao1', 'cartao2'] as const
 type CartaoValido = typeof CARTOES_VALIDOS[number]
-
-function adicionarDias(dataISO: string, dias: number): string {
-  const d = new Date(dataISO + 'T12:00:00')
-  d.setDate(d.getDate() + dias)
-  return d.toISOString().substring(0, 10)
-}
-
-async function contarNoBanco(
-  supabase: ReturnType<typeof criarSupabaseServer>,
-  item: TransacaoNubank,
-  dataInicio: string,
-  dataFim: string,
-  cartao: string
-): Promise<number> {
-  // Busca por valor+cartão+janela de data e compara a descrição em JS (tolerando pequenas
-  // variações via descricoesParecidas) em vez de comparação exata no banco — um emissor pode
-  // reexportar a mesma compra com a descrição ligeiramente diferente (letra/pontuação a menos).
-  const { data, error } = await supabase
-    .from('transacoes_nubank')
-    .select('descricao')
-    .eq('valor', item.valor)
-    .eq('cartao', cartao)
-    .gte('data_compra', dataInicio)
-    .lte('data_compra', dataFim)
-
-  if (error?.message?.includes('data_compra')) {
-    const { data: data2 } = await supabase
-      .from('transacoes_nubank')
-      .select('descricao')
-      .eq('valor', item.valor)
-      .eq('cartao', cartao)
-      .gte('data', dataInicio)
-      .lte('data', dataFim)
-    return (data2 ?? []).filter(r => descricoesParecidas(r.descricao, item.descricao)).length
-  }
-
-  return (data ?? []).filter(r => descricoesParecidas(r.descricao, item.descricao)).length
-}
-
-async function inserirTransacao(
-  supabase: ReturnType<typeof criarSupabaseServer>,
-  item: TransacaoNubank
-): Promise<boolean> {
-  const { occurrence_index: _oi, ...payload } = item as TransacaoNubank & { occurrence_index?: number }
-  let result = await supabase.from('transacoes_nubank').insert(payload)
-
-  if (result.error?.message?.includes('data_compra')) {
-    const { data_compra, ...resto } = payload as Record<string, unknown>
-    result = await supabase.from('transacoes_nubank').insert({ ...resto, data: data_compra })
-  }
-
-  if (!result.error) return true
-  if (result.error.code === '23505' || result.error.message?.includes('duplicate')) return false
-  throw new Error('Erro ao salvar: ' + result.error.message)
-}
 
 export async function POST(req: NextRequest) {
   const { supabase, unauthorized } = await requireAuth(req)
@@ -139,6 +82,8 @@ export async function POST(req: NextRequest) {
     let totalValor = 0
     let verdadeiramenteNovas = 0
     let duplicatasIgnoradas = 0
+    let conciliados = 0
+    let conflitos = 0
     let estornosAplicados = 0
     let estornosRegistrados = 0
     const importTs = Date.now()
@@ -152,33 +97,38 @@ export async function POST(req: NextRequest) {
       const stats = faturaStats[item.projeto_fatura]
       stats.noCSV++
 
-      const dataInicio = adicionarDias(item.data_compra, -3)
-      const dataFim = adicionarDias(item.data_compra, 3)
+      const resultado = await conciliarTransacao(supabase, item, 'csv')
 
-      const qtdNoBanco = await contarNoBanco(supabase, item, dataInicio, dataFim, cartao)
-
-      const qtdNoCsv = transacoesNormais.filter(x =>
-        x.descricao === item.descricao &&
-        x.valor === item.valor &&
-        x.data_compra === item.data_compra
-      ).length
-
-      if (qtdNoBanco < qtdNoCsv) {
-        const inserido = await inserirTransacao(supabase, item)
-        if (inserido) {
-          verdadeiramenteNovas++
+      switch (resultado.acao) {
+        case 'inserido':
+          if (resultado.inseriu) {
+            verdadeiramenteNovas++
+            purchaseDates.push(item.data_compra)
+            stats.inseridas++
+            if (item.responsavel === 'Matheus') novosMatheus++
+            else novosJeniffer++
+            totalValor += item.valor
+          } else {
+            duplicatasIgnoradas++
+            stats.ignoradas++
+          }
+          break
+        case 'conciliado':
+          conciliados++
+          stats.inseridas++
+          break
+        case 'conflito':
+          conflitos++
           purchaseDates.push(item.data_compra)
           stats.inseridas++
           if (item.responsavel === 'Matheus') novosMatheus++
           else novosJeniffer++
           totalValor += item.valor
-        } else {
+          break
+        case 'ignorado':
           duplicatasIgnoradas++
           stats.ignoradas++
-        }
-      } else {
-        duplicatasIgnoradas++
-        stats.ignoradas++
+          break
       }
     }
 
@@ -202,7 +152,7 @@ export async function POST(req: NextRequest) {
 
     const assinaturasAtualizadas = await sincronizarAssinaturasMoedaEstrangeira(supabase, cartao, mesesNoArquivo)
 
-    await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, undefined, cartao, nomeCartao, {
+    await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, conflitos, cartao, nomeCartao, {
       purchaseDates,
       projetoFaturas: mesesNoArquivo,
       importTs,
@@ -214,6 +164,8 @@ export async function POST(req: NextRequest) {
       success: true,
       totalLidas: transacoes.length,
       novas: verdadeiramenteNovas,
+      conciliados,
+      conflitos,
       duplicatasNoArquivo: duplicatasIgnoradas,
       matheus: novosMatheus,
       jeniffer: novosJeniffer,
