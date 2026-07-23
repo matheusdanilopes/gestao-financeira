@@ -1,5 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { TransacaoNubank, normalizarDescricaoParaHash } from '@/lib/csvparser'
+import { descricoesParecidas } from '@/lib/descricaoSimilaridade'
 import { formatBRL } from '@/lib/logger'
 
 function adicionarDias(dataISO: string, dias: number): string {
@@ -30,7 +31,6 @@ async function buscarMatchNomeData(
 ): Promise<TransacaoMatch[]> {
   const dataInicio = adicionarDias(item.data_compra, -3)
   const dataFim = adicionarDias(item.data_compra, 3)
-  const normDesc = normalizarDescricaoParaHash(item.descricao)
 
   const { data, error } = await supabase
     .from('transacoes_nubank')
@@ -47,11 +47,11 @@ async function buscarMatchNomeData(
       .lte('data', dataFim)
       .neq('status', 'CONFLITO_VALOR')
     return (data2 ?? [])
-      .filter(r => normalizarDescricaoParaHash(r.descricao) === normDesc)
+      .filter(r => descricoesParecidas(r.descricao, item.descricao))
       .map(r => ({ ...r, data_compra: r.data }))
   }
 
-  return (data ?? []).filter(r => normalizarDescricaoParaHash(r.descricao) === normDesc)
+  return (data ?? []).filter(r => descricoesParecidas(r.descricao, item.descricao))
 }
 
 async function inserirRegistro(

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
 import { processarCSV, TransacaoNubank } from '@/lib/csvparser'
+import { descricoesParecidas } from '@/lib/descricaoSimilaridade'
 import { notificarImportacao } from '@/lib/pushImportacao'
 import { conciliarEstorno } from '@/lib/conciliacao'
 import { validarDivergenciaFatura } from '@/lib/validacaoFatura'
@@ -23,28 +24,29 @@ async function contarNoBanco(
   dataFim: string,
   cartao: string
 ): Promise<number> {
-  const { count, error } = await supabase
+  // Busca por valor+cartão+janela de data e compara a descrição em JS (tolerando pequenas
+  // variações via descricoesParecidas) em vez de comparação exata no banco — um emissor pode
+  // reexportar a mesma compra com a descrição ligeiramente diferente (letra/pontuação a menos).
+  const { data, error } = await supabase
     .from('transacoes_nubank')
-    .select('*', { count: 'exact', head: true })
-    .eq('descricao', item.descricao)
+    .select('descricao')
     .eq('valor', item.valor)
     .eq('cartao', cartao)
     .gte('data_compra', dataInicio)
     .lte('data_compra', dataFim)
 
   if (error?.message?.includes('data_compra')) {
-    const { count: count2 } = await supabase
+    const { data: data2 } = await supabase
       .from('transacoes_nubank')
-      .select('*', { count: 'exact', head: true })
-      .eq('descricao', item.descricao)
+      .select('descricao')
       .eq('valor', item.valor)
       .eq('cartao', cartao)
       .gte('data', dataInicio)
       .lte('data', dataFim)
-    return count2 ?? 0
+    return (data2 ?? []).filter(r => descricoesParecidas(r.descricao, item.descricao)).length
   }
 
-  return count ?? 0
+  return (data ?? []).filter(r => descricoesParecidas(r.descricao, item.descricao)).length
 }
 
 async function inserirTransacao(
