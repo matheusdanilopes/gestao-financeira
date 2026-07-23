@@ -86,6 +86,12 @@ export async function notificarImportacao(
     const estornosRegistrados = contexto?.estornosRegistrados ?? 0
     const temEstornos = estornosAplicados > 0 || estornosRegistrados > 0
 
+    // Importação sem nada relevante a reportar (sem novas, sem conflitos, sem estornos):
+    // não envia push. A tag é fixa por cartão (ver abaixo) e o SW usa renotify: true,
+    // então uma notificação vazia aqui sobrescreveria no tray do OS um resultado anterior
+    // com compras novas (ex.: reimportação/retry do mesmo lote já conciliado por hash).
+    if (!temNovas && !temConflitos && !temEstornos) return
+
     if (temNovas) {
       const n = novas!
       title = `${nome} — novas compras`
