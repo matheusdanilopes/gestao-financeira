@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse, after } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
 import { processarCSV } from '@/lib/csvparser'
 import { notificarImportacao } from '@/lib/pushImportacao'
@@ -100,22 +100,22 @@ export async function POST(req: NextRequest) {
       if (resultado.acao === 'registrado') estornosRegistrados++
     }
 
-    // Push de sucesso: dispara em background assim que os dados que ele precisa já
-    // estão prontos. Não depende da recontagem por fatura, de validarDivergenciaFatura
-    // nem da sincronização de assinaturas — por isso não espera essas três etapas.
-    after(async () => {
-      try {
-        await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, conflitos, 'nubank', undefined, {
-          purchaseDates,
-          projetoFaturas: mesesNoArquivo,
-          importTs,
-          estornosAplicados,
-          estornosRegistrados,
-        })
-      } catch (err) {
-        console.error('[import] push sucesso falhou:', err)
-      }
-    })
+    // Push de sucesso: dispara assim que os dados que ele precisa já estão prontos —
+    // antes da recontagem por fatura, de validarDivergenciaFatura e da sincronização de
+    // assinaturas, que não alimentam o payload da notificação. Chamada síncrona (não
+    // after()): after() só dispara depois que TODA a resposta HTTP termina de ser
+    // processada, então embrulhar aqui não adiantaria a entrega.
+    try {
+      await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, conflitos, 'nubank', undefined, {
+        purchaseDates,
+        projetoFaturas: mesesNoArquivo,
+        importTs,
+        estornosAplicados,
+        estornosRegistrados,
+      })
+    } catch (err) {
+      console.error('[import] push sucesso falhou:', err)
+    }
 
     let assinaturasAtualizadas: AssinaturaSincronizada[] = []
     try {

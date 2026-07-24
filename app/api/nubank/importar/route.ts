@@ -134,24 +134,24 @@ async function salvarTransacoes(
     if (resultado.acao === 'registrado') estornosRegistrados++
   }
 
-  // Push de sucesso: dispara em background assim que os dados que ele precisa
-  // (verdadeiramenteNovas, conflitos, purchaseDates, estornos) já estão prontos. Não
-  // depende da recontagem por fatura, de validarDivergenciaFatura nem da sincronização
-  // de assinaturas — por isso não espera essas três etapas, que rodam depois.
+  // Push de sucesso: dispara assim que os dados que ele precisa (verdadeiramenteNovas,
+  // conflitos, purchaseDates, estornos) já estão prontos — antes da recontagem por fatura,
+  // de validarDivergenciaFatura e da sincronização de assinaturas, que não alimentam o
+  // payload da notificação. Chamada síncrona (não after()): after() só dispara depois que
+  // TODA a resposta HTTP termina de ser processada, então embrulhar aqui não adiantaria a
+  // entrega — só faria esperar pelas mesmas três etapas de um jeito mais indireto.
   const importTs = Date.now()
-  after(async () => {
-    try {
-      await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, conflitos, cartao, undefined, {
-        purchaseDates,
-        projetoFaturas: mesesNoArquivo,
-        importTs,
-        estornosAplicados,
-        estornosRegistrados,
-      })
-    } catch (err) {
-      console.error('[nubank/importar] push sucesso falhou:', err)
-    }
-  })
+  try {
+    await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, conflitos, cartao, undefined, {
+      purchaseDates,
+      projetoFaturas: mesesNoArquivo,
+      importTs,
+      estornosAplicados,
+      estornosRegistrados,
+    })
+  } catch (err) {
+    console.error('[nubank/importar] push sucesso falhou:', err)
+  }
 
   let assinaturasAtualizadas: AssinaturaSincronizada[] = []
   try {
