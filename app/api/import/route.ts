@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
 import { processarCSV } from '@/lib/csvparser'
 import { notificarImportacao } from '@/lib/pushImportacao'
 import { conciliarTransacao, conciliarEstorno } from '@/lib/conciliacao'
 import { validarDivergenciaFatura } from '@/lib/validacaoFatura'
-import { sincronizarAssinaturasMoedaEstrangeira } from '@/lib/assinaturasSync'
+import { sincronizarAssinaturasMoedaEstrangeira, AssinaturaSincronizada } from '@/lib/assinaturasSync'
 
 export async function POST(req: NextRequest) {
   const { supabase, unauthorized } = await requireAuth(req)
@@ -100,27 +100,43 @@ export async function POST(req: NextRequest) {
       if (resultado.acao === 'registrado') estornosRegistrados++
     }
 
-    for (const fatura of mesesNoArquivo) {
-      const { count } = await supabase
-        .from('transacoes_nubank')
-        .select('*', { count: 'exact', head: true })
-        .eq('projeto_fatura', fatura)
-        .eq('cartao', 'nubank')
-        .eq('is_estorno', false)
-      faturaStats[fatura].totalNoBanco = count ?? 0
-    }
-
-    await validarDivergenciaFatura(supabase, faturaStats, transacoesNormais, 'nubank')
-
-    const assinaturasAtualizadas = await sincronizarAssinaturasMoedaEstrangeira(supabase, 'nubank', mesesNoArquivo)
-
-    await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, conflitos, 'nubank', undefined, {
-      purchaseDates,
-      projetoFaturas: mesesNoArquivo,
-      importTs,
-      estornosAplicados,
-      estornosRegistrados,
+    // Push de sucesso: dispara em background assim que os dados que ele precisa já
+    // estão prontos. Não depende da recontagem por fatura, de validarDivergenciaFatura
+    // nem da sincronização de assinaturas — por isso não espera essas três etapas.
+    after(async () => {
+      try {
+        await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, conflitos, 'nubank', undefined, {
+          purchaseDates,
+          projetoFaturas: mesesNoArquivo,
+          importTs,
+          estornosAplicados,
+          estornosRegistrados,
+        })
+      } catch (err) {
+        console.error('[import] push sucesso falhou:', err)
+      }
     })
+
+    let assinaturasAtualizadas: AssinaturaSincronizada[] = []
+    try {
+      for (const fatura of mesesNoArquivo) {
+        const { count } = await supabase
+          .from('transacoes_nubank')
+          .select('*', { count: 'exact', head: true })
+          .eq('projeto_fatura', fatura)
+          .eq('cartao', 'nubank')
+          .eq('is_estorno', false)
+        faturaStats[fatura].totalNoBanco = count ?? 0
+      }
+
+      await validarDivergenciaFatura(supabase, faturaStats, transacoesNormais, 'nubank')
+
+      assinaturasAtualizadas = await sincronizarAssinaturasMoedaEstrangeira(supabase, 'nubank', mesesNoArquivo)
+    } catch (postImportError) {
+      // Falha aqui não deve derrubar a resposta HTTP nem disparar um push de erro
+      // contraditório — o push de sucesso acima já foi (ou está sendo) enviado.
+      console.error('[import] Falha pós-import (recontagem/validação/assinaturas):', postImportError)
+    }
 
     return NextResponse.json({
       success: true,

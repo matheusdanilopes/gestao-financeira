@@ -78,6 +78,12 @@ export async function notificarImportacao(
   const nome = labelCartao(cartao, nomeCartao)
   let title: string
   let body: string
+  // "Quão informativo" é o resultado — usado pelo SW para decidir se uma notificação
+  // pode sobrescrever outra com a mesma tag (mesmo cartão). Uma importação que não
+  // acha nada novo (score 0) não deve apagar do tray um resultado anterior mais
+  // relevante (ex.: duas execuções da rota de import para o mesmo cartão em sequência,
+  // como upload manual + gatilho assíncrono do Apps Script, ou retry de webhook).
+  let score = 0
 
   if (tipo === 'sucesso') {
     const temNovas = (novas ?? 0) > 0
@@ -85,6 +91,7 @@ export async function notificarImportacao(
     const estornosAplicados = contexto?.estornosAplicados ?? 0
     const estornosRegistrados = contexto?.estornosRegistrados ?? 0
     const temEstornos = estornosAplicados > 0 || estornosRegistrados > 0
+    score = (temNovas ? 2 : 0) + (temConflitos ? 1 : 0) + (temEstornos ? 1 : 0)
 
     if (temNovas) {
       const n = novas!
@@ -138,6 +145,7 @@ export async function notificarImportacao(
     body,
     url,
     tag,
+    score,
     requireInteraction: tipo === 'erro',
   }
 

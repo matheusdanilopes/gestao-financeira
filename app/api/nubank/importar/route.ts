@@ -10,7 +10,7 @@ import { categorizarTransacoes } from '@/lib/categorizarTransacoes'
 import { notificarImportacao } from '@/lib/pushImportacao'
 import { conciliarTransacao, conciliarEstorno } from '@/lib/conciliacao'
 import { validarDivergenciaFatura } from '@/lib/validacaoFatura'
-import { sincronizarAssinaturasMoedaEstrangeira } from '@/lib/assinaturasSync'
+import { sincronizarAssinaturasMoedaEstrangeira, AssinaturaSincronizada } from '@/lib/assinaturasSync'
 
 export const maxDuration = 300
 
@@ -134,19 +134,45 @@ async function salvarTransacoes(
     if (resultado.acao === 'registrado') estornosRegistrados++
   }
 
-  for (const fatura of mesesNoArquivo) {
-    const { count } = await supabase
-      .from('transacoes_nubank')
-      .select('*', { count: 'exact', head: true })
-      .eq('projeto_fatura', fatura)
-      .eq('cartao', cartao)
-      .eq('is_estorno', false)
-    faturaStats[fatura].totalNoBanco = count ?? 0
+  // Push de sucesso: dispara em background assim que os dados que ele precisa
+  // (verdadeiramenteNovas, conflitos, purchaseDates, estornos) já estão prontos. Não
+  // depende da recontagem por fatura, de validarDivergenciaFatura nem da sincronização
+  // de assinaturas — por isso não espera essas três etapas, que rodam depois.
+  const importTs = Date.now()
+  after(async () => {
+    try {
+      await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, conflitos, cartao, undefined, {
+        purchaseDates,
+        projetoFaturas: mesesNoArquivo,
+        importTs,
+        estornosAplicados,
+        estornosRegistrados,
+      })
+    } catch (err) {
+      console.error('[nubank/importar] push sucesso falhou:', err)
+    }
+  })
+
+  let assinaturasAtualizadas: AssinaturaSincronizada[] = []
+  try {
+    for (const fatura of mesesNoArquivo) {
+      const { count } = await supabase
+        .from('transacoes_nubank')
+        .select('*', { count: 'exact', head: true })
+        .eq('projeto_fatura', fatura)
+        .eq('cartao', cartao)
+        .eq('is_estorno', false)
+      faturaStats[fatura].totalNoBanco = count ?? 0
+    }
+
+    await validarDivergenciaFatura(supabase, faturaStats, transacoesNormais, cartao)
+
+    assinaturasAtualizadas = await sincronizarAssinaturasMoedaEstrangeira(supabase, cartao, mesesNoArquivo)
+  } catch (postImportError) {
+    // Falha aqui não deve derrubar a resposta HTTP nem disparar um push de erro
+    // contraditório — o push de sucesso acima já foi (ou está sendo) enviado.
+    console.error('[nubank/importar] Falha pós-import (recontagem/validação/assinaturas):', postImportError)
   }
-
-  await validarDivergenciaFatura(supabase, faturaStats, transacoesNormais, cartao)
-
-  const assinaturasAtualizadas = await sincronizarAssinaturasMoedaEstrangeira(supabase, cartao, mesesNoArquivo)
 
   return {
     totalLidas: transacoes.length,
@@ -274,6 +300,9 @@ export async function POST(req: NextRequest) {
 
     const resultadoImportacao = await salvarTransacoes(supabase, transacoes, cartao)
 
+    // purchaseDates é excluído da resposta pública propositalmente (só usado pelo push,
+    // já disparado em background dentro de salvarTransacoes).
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { hashesImportados, purchaseDates, ...importacaoPublica } = resultadoImportacao
 
     const mesesStr = importacaoPublica.mesesReprocessados.map(m => m.substring(0, 7)).join(', ')
@@ -282,17 +311,9 @@ export async function POST(req: NextRequest) {
       parseFloat(importacaoPublica.total)
     )
 
-    const importTs = Date.now()
-    await notificarImportacao(supabase, 'sucesso', importacaoPublica.novas, importacaoPublica.conflitos, cartao, undefined, {
-      purchaseDates,
-      projetoFaturas: importacaoPublica.mesesReprocessados,
-      importTs,
-      estornosAplicados: importacaoPublica.estornosAplicados,
-      estornosRegistrados: importacaoPublica.estornosRegistrados,
-    })
-
-    // Etapa 2 (assíncrona): a confirmação acima já garante o recebimento do CSV.
-    // A categorização por IA roda em background após a resposta ser enviada.
+    // Etapa 2 (assíncrona): o push de sucesso já foi disparado em background dentro de
+    // salvarTransacoes (logo após o loop de estornos). A categorização por IA roda em
+    // background após a resposta ser enviada.
     const deveCategorizar = url.searchParams.get('categorizar') !== 'false'
     let categorizacao: CategorizacaoResposta = null
 

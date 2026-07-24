@@ -298,6 +298,10 @@ self.addEventListener('push', function (event) {
 
   const title = data.title || 'Gestão Financeira'
   const tag = data.tag || 'gestao-push'
+  // "Quão informativo" é este push (ver lib/pushImportacao.ts). Ausente em tipos de
+  // notificação que não usam esse conceito — tratado como 0, o que nunca bloqueia nada
+  // (0 > 0 é falso), preservando o comportamento antigo para eles.
+  const score = typeof data.score === 'number' ? data.score : 0
   const isPersistent = data.requireInteraction === true ||
     PERSISTENT_TAGS.some(function (t) { return tag === t || tag.startsWith(t + '-') })
   const options = {
@@ -306,7 +310,7 @@ self.addEventListener('push', function (event) {
     badge: '/badge.png',
     tag,
     renotify: true,
-    data: { url: data.url || '/dashboard', tag },
+    data: { url: data.url || '/dashboard', tag, score },
     vibrate: [200, 100, 200],
     silent: false,
     // Notificações de erro/ação obrigatória ficam visíveis até o usuário interagir
@@ -315,7 +319,17 @@ self.addEventListener('push', function (event) {
 
   event.waitUntil(
     Promise.all([
-      self.registration.showNotification(title, options).catch(() => {}),
+      self.registration.getNotifications({ tag: tag }).then(function (existing) {
+        // Não deixa um resultado menos informativo (ex.: "nenhuma compra nova" de uma
+        // reimportação/retry para o mesmo cartão) sobrescrever no tray uma notificação
+        // anterior mais relevante (ex.: "5 novas compras") que o usuário ainda não viu.
+        const substituiPiorResultado = existing.some(function (n) {
+          const scoreAnterior = typeof (n.data && n.data.score) === 'number' ? n.data.score : 0
+          return scoreAnterior > score
+        })
+        if (substituiPiorResultado) return
+        return self.registration.showNotification(title, options)
+      }).catch(() => {}),
       self.clients.matchAll({ type: 'window', includeUncontrolled: true })
         .then(function (clientList) {
           clientList.forEach(function (client) {
