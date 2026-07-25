@@ -363,11 +363,14 @@ export async function POST(req: NextRequest) {
 
     if (logId && linhas.length > 0) {
       try {
-        await supabase.from('import_validacoes').insert(
+        const { error: erroValidacoes } = await supabase.from('import_validacoes').insert(
           linhas.map(l => ({ ...l, log_id: logId }))
         )
+        if (erroValidacoes) {
+          console.error('[nubank/importar] Falha ao salvar detalhes de validação:', erroValidacoes.message, erroValidacoes.details, erroValidacoes.hint)
+        }
       } catch (err) {
-        console.error('[nubank/importar] Falha ao salvar detalhes de validação:', err)
+        console.error('[nubank/importar] Exceção ao salvar detalhes de validação:', err)
       }
     }
 
