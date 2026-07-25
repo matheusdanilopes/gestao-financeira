@@ -302,18 +302,23 @@ export async function conciliarTransacao(
       return { acao: 'inserido', inseriu: ok, transacaoId: id }
     }
 
-    // Entre R$0,05 e R$2,00 → só cria um novo conflito se não existir um pendente para este original.
-    // Evita reabrir alerta a cada reimportação da mesma compra (valor "pendente" do Nubank varia até fechar fatura).
-    const { data: conflitoExistente } = await supabase
+    // Entre R$0,05 e R$2,00 → só ignora se já existir um conflito pendente para este original
+    // COM O MESMO VALOR (reimportação da mesma linha, cujo valor "pendente" do Nubank varia até
+    // fechar fatura). Um valor diferente é uma compra distinta e deve gerar seu próprio conflito,
+    // em vez de ser descartada silenciosamente.
+    const { data: conflitosExistentes } = await supabase
       .from('transacoes_nubank')
-      .select('id')
+      .select('id, valor')
       .eq('conciliacao_ref', match.id)
       .eq('status', 'CONFLITO_VALOR')
-      .maybeSingle()
 
-    if (conflitoExistente) {
-      console.log(`[conciliacao] conflito já pendente para original=${match.id}, ignorando nova linha desc="${item.descricao}"`)
-      return { acao: 'ignorado', inseriu: false, matchExistenteId: conflitoExistente.id }
+    const conflitoMesmoValor = (conflitosExistentes ?? []).find(
+      c => Math.abs(c.valor - item.valor) <= 0.05
+    )
+
+    if (conflitoMesmoValor) {
+      console.log(`[conciliacao] conflito já pendente com mesmo valor para original=${match.id}, ignorando reimportação desc="${item.descricao}"`)
+      return { acao: 'ignorado', inseriu: false, matchExistenteId: conflitoMesmoValor.id }
     }
 
     const payload = buildPayload(item, { status: 'CONFLITO_VALOR', conciliacao_ref: match.id })
