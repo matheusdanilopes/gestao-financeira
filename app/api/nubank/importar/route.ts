@@ -65,6 +65,28 @@ async function autenticar(req: NextRequest): Promise<AuthResult> {
 
 type StatsFatura = { noCSV: number; inseridas: number; ignoradas: number; totalNoBanco: number }
 
+type DecisaoValidacao =
+  | 'inserida' | 'duplicada' | 'conflito'
+  | 'estorno_aplicado' | 'estorno_registrado' | 'estorno_ignorado'
+
+interface LinhaValidacao {
+  descricao: string
+  valor: number
+  data_compra: string
+  decisao: DecisaoValidacao
+  transacao_id: string | null
+  dados_linha: Record<string, unknown>
+  estado_anterior: Record<string, unknown> | null
+  notificacao_id: string | null
+}
+
+// Payload cru da linha (sem occurrence_index, que não é persistido) — guardado para
+// permitir reinserir a transação depois, caso o usuário reverta uma decisão manualmente.
+function dadosLinhaDe(item: TransacaoNubank): Record<string, unknown> {
+  const { occurrence_index: _oi, ...base } = item as TransacaoNubank & { occurrence_index?: number }
+  return base
+}
+
 async function salvarTransacoes(
   supabase: ReturnType<typeof criarSupabaseServer>,
   transacoes: TransacaoNubank[],
@@ -84,6 +106,7 @@ async function salvarTransacoes(
   let conflitos = 0
   let estornosAplicados = 0
   let estornosRegistrados = 0
+  const linhas: LinhaValidacao[] = []
 
   const mesesNoArquivo = [...new Set(transacoes.map(t => t.projeto_fatura))].sort()
   const faturaStats: Record<string, StatsFatura> = {}
@@ -94,6 +117,8 @@ async function salvarTransacoes(
     stats.noCSV++
 
     const resultado = await conciliarTransacao(supabase, item, 'api')
+    const dadosLinha = dadosLinhaDe(item)
+    const linhaBase = { descricao: item.descricao, valor: item.valor, data_compra: item.data_compra, dados_linha: dadosLinha }
 
     switch (resultado.acao) {
       case 'inserido':
@@ -105,9 +130,11 @@ async function salvarTransacoes(
           if (item.responsavel === 'Matheus') novosMatheus++
           else novosJeniffer++
           totalValor += item.valor
+          linhas.push({ ...linhaBase, decisao: 'inserida', transacao_id: resultado.transacaoId ?? null, estado_anterior: null, notificacao_id: null })
         } else {
           duplicatasIgnoradas++
           stats.ignoradas++
+          linhas.push({ ...linhaBase, decisao: 'duplicada', transacao_id: resultado.matchExistenteId ?? null, estado_anterior: null, notificacao_id: null })
         }
         break
       case 'conciliado':
@@ -120,18 +147,35 @@ async function salvarTransacoes(
         if (item.responsavel === 'Matheus') novosMatheus++
         else novosJeniffer++
         totalValor += item.valor
+        linhas.push({ ...linhaBase, decisao: 'conflito', transacao_id: resultado.transacaoId ?? null, estado_anterior: null, notificacao_id: resultado.notificacaoId ?? null })
         break
       case 'ignorado':
         duplicatasIgnoradas++
         stats.ignoradas++
+        linhas.push({ ...linhaBase, decisao: 'duplicada', transacao_id: resultado.matchExistenteId ?? null, estado_anterior: null, notificacao_id: null })
         break
     }
   }
 
   for (const estorno of estornos) {
     const resultado = await conciliarEstorno(supabase, estorno)
-    if (resultado.acao === 'aplicado')   estornosAplicados++
-    if (resultado.acao === 'registrado') estornosRegistrados++
+    const linhaBase = { descricao: estorno.descricao, valor: estorno.valor, data_compra: estorno.data_compra, dados_linha: dadosLinhaDe(estorno) }
+
+    if (resultado.acao === 'aplicado') {
+      estornosAplicados++
+      linhas.push({
+        ...linhaBase,
+        decisao: 'estorno_aplicado',
+        transacao_id: resultado.transacaoId ?? null,
+        estado_anterior: resultado.originalId ? { original_id: resultado.originalId, status_anterior: resultado.statusAnteriorOriginal } : null,
+        notificacao_id: null,
+      })
+    } else if (resultado.acao === 'registrado') {
+      estornosRegistrados++
+      linhas.push({ ...linhaBase, decisao: 'estorno_registrado', transacao_id: resultado.transacaoId ?? null, estado_anterior: null, notificacao_id: null })
+    } else {
+      linhas.push({ ...linhaBase, decisao: 'estorno_ignorado', transacao_id: null, estado_anterior: null, notificacao_id: null })
+    }
   }
 
   // Push de sucesso: dispara assim que os dados que ele precisa (verdadeiramenteNovas,
@@ -190,6 +234,7 @@ async function salvarTransacoes(
     estornosAplicados,
     estornosRegistrados,
     assinaturasAtualizadas,
+    linhas,
   }
 }
 
@@ -210,15 +255,19 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  async function registrarLog(descricao: string, valor?: number) {
+  async function registrarLog(descricao: string, valor?: number): Promise<string | null> {
     try {
-      await supabase.from('activity_logs').insert({
+      const { data } = await supabase.from('activity_logs').insert({
         acao: 'importar',
         tabela: 'transacoes_nubank',
         descricao,
         valor: valor ?? null,
-      })
-    } catch { /* falha no log nunca deve interromper a resposta */ }
+      }).select('id').single()
+      return data?.id ?? null
+    } catch {
+      /* falha no log nunca deve interromper a resposta */
+      return null
+    }
   }
 
   try {
@@ -300,16 +349,27 @@ export async function POST(req: NextRequest) {
 
     const resultadoImportacao = await salvarTransacoes(supabase, transacoes, cartao)
 
-    // purchaseDates é excluído da resposta pública propositalmente (só usado pelo push,
-    // já disparado em background dentro de salvarTransacoes).
+    // purchaseDates e linhas são excluídos da resposta pública propositalmente: purchaseDates
+    // só é usado pelo push (já disparado em background dentro de salvarTransacoes); linhas
+    // carrega o payload interno de cada transação e vai só pra import_validacoes, não pro cliente.
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { hashesImportados, purchaseDates, ...importacaoPublica } = resultadoImportacao
+    const { hashesImportados, purchaseDates, linhas, ...importacaoPublica } = resultadoImportacao
 
     const mesesStr = importacaoPublica.mesesReprocessados.map(m => m.substring(0, 7)).join(', ')
-    await registrarLog(
+    const logId = await registrarLog(
       `${importacaoPublica.novas} novas via API (${importacaoPublica.matheus}M + ${importacaoPublica.jeniffer}J)${mesesStr ? ' · ' + mesesStr : ''}`,
       parseFloat(importacaoPublica.total)
     )
+
+    if (logId && linhas.length > 0) {
+      try {
+        await supabase.from('import_validacoes').insert(
+          linhas.map(l => ({ ...l, log_id: logId }))
+        )
+      } catch (err) {
+        console.error('[nubank/importar] Falha ao salvar detalhes de validação:', err)
+      }
+    }
 
     // Etapa 2 (assíncrona): o push de sucesso já foi disparado em background dentro de
     // salvarTransacoes (logo após o loop de estornos). A categorização por IA roda em

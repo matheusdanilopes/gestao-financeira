@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import ModalPortal from '@/components/ModalPortal'
-import { Upload, CheckCircle2, XCircle, Sparkles, Clock, AlertCircle, ShieldCheck, Trash2, Code2, Copy, Check, X, FileSpreadsheet } from 'lucide-react'
+import { Upload, CheckCircle2, XCircle, Sparkles, Clock, AlertCircle, ShieldCheck, Trash2, Code2, Copy, Check, X, FileSpreadsheet, RotateCcw } from 'lucide-react'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth } from 'date-fns'
@@ -37,6 +37,44 @@ interface Atividade {
   descricao: string
   valor: number | null
   created_at: string
+}
+
+type DecisaoValidacao =
+  | 'inserida' | 'removida' | 'duplicada' | 'conflito'
+  | 'estorno_aplicado' | 'estorno_registrado' | 'estorno_removido' | 'estorno_ignorado'
+
+interface LinhaValidacao {
+  id: string
+  descricao: string
+  valor: number | null
+  data_compra: string | null
+  decisao: DecisaoValidacao
+  transacao_id: string | null
+  notificacao_id: string | null
+  revertido_em: string | null
+  created_at: string
+}
+
+const DECISAO_INFO: Record<DecisaoValidacao, { label: string; classes: string }> = {
+  inserida: { label: 'Nova transação', classes: 'bg-green-50 text-green-700 border-green-100' },
+  removida: { label: 'Removida manualmente', classes: 'bg-gray-100 text-gray-500 border-gray-200' },
+  duplicada: { label: 'Já existia no banco', classes: 'bg-gray-50 text-gray-500 border-gray-100' },
+  conflito: { label: 'Conflito de valor', classes: 'bg-amber-50 text-amber-700 border-amber-100' },
+  estorno_aplicado: { label: 'Estorno aplicado', classes: 'bg-purple-50 text-purple-700 border-purple-100' },
+  estorno_registrado: { label: 'Estorno sem correspondência', classes: 'bg-purple-50 text-purple-700 border-purple-100' },
+  estorno_removido: { label: 'Estorno removido', classes: 'bg-gray-100 text-gray-500 border-gray-200' },
+  estorno_ignorado: { label: 'Estorno duplicado', classes: 'bg-gray-50 text-gray-500 border-gray-100' },
+}
+
+function acaoParaLinha(decisao: DecisaoValidacao): { label: string; acao: 'reverter' | 'reaplicar'; destrutiva: boolean } | null {
+  switch (decisao) {
+    case 'inserida': return { label: 'Remover', acao: 'reverter', destrutiva: true }
+    case 'removida': return { label: 'Reinserir', acao: 'reaplicar', destrutiva: false }
+    case 'estorno_aplicado':
+    case 'estorno_registrado': return { label: 'Remover estorno', acao: 'reverter', destrutiva: true }
+    case 'estorno_removido': return { label: 'Reaplicar', acao: 'reaplicar', destrutiva: false }
+    default: return null
+  }
 }
 
 interface DiagnosticoPar {
@@ -75,6 +113,12 @@ export default function ImportarPage() {
   const [arrastando, setArrastando] = useState(false)
   const [nomeArquivo, setNomeArquivo] = useState<string | null>(null)
   const [atividades, setAtividades] = useState<Atividade[]>([])
+  const [detalheLogAberto, setDetalheLogAberto] = useState<string | null>(null)
+  const [detalheLinhas, setDetalheLinhas] = useState<LinhaValidacao[] | null>(null)
+  const [carregandoDetalhe, setCarregandoDetalhe] = useState(false)
+  const [revertendoId, setRevertendoId] = useState<string | null>(null)
+  const [confirmarAcao, setConfirmarAcao] = useState<{ linhaId: string; acao: 'reverter' | 'reaplicar' } | null>(null)
+  const [erroLinha, setErroLinha] = useState<{ id: string; mensagem: string } | null>(null)
   const [diagnostico, setDiagnostico] = useState<Diagnostico | null>(null)
   const [diagnosticando, setDiagnosticando] = useState(false)
   const [diagnosticoExpandido, setDiagnosticoExpandido] = useState(false)
@@ -170,6 +214,59 @@ export default function ImportarPage() {
         setAtividades(data.atividades ?? [])
       }
     } catch { /* silencioso */ }
+  }
+
+  async function abrirDetalhesLog(id: string) {
+    setDetalheLogAberto(id)
+    setDetalheLinhas(null)
+    setCarregandoDetalhe(true)
+    setConfirmarAcao(null)
+    setErroLinha(null)
+    try {
+      const res = await fetch(`/api/nubank/atividades/${id}/detalhes`)
+      const data = res.ok ? await res.json() : { linhas: [] }
+      setDetalheLinhas(data.linhas ?? [])
+    } catch {
+      setDetalheLinhas([])
+    } finally {
+      setCarregandoDetalhe(false)
+    }
+  }
+
+  function fecharDetalhes() {
+    setDetalheLogAberto(null)
+    setDetalheLinhas(null)
+    setConfirmarAcao(null)
+    setErroLinha(null)
+  }
+
+  function pedirAcaoLinha(linhaId: string, acao: 'reverter' | 'reaplicar', destrutiva: boolean) {
+    if (destrutiva) {
+      setConfirmarAcao({ linhaId, acao })
+    } else {
+      executarAcaoLinha(linhaId, acao)
+    }
+  }
+
+  async function executarAcaoLinha(linhaId: string, acao: 'reverter' | 'reaplicar') {
+    if (!detalheLogAberto) return
+    setRevertendoId(linhaId)
+    setErroLinha(null)
+    try {
+      const res = await fetch(`/api/nubank/atividades/${detalheLogAberto}/detalhes/${linhaId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ acao }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Erro desconhecido')
+      setDetalheLinhas(prev => prev ? prev.map(l => (l.id === linhaId ? data.linha : l)) : prev)
+    } catch (e) {
+      setErroLinha({ id: linhaId, mensagem: e instanceof Error ? e.message : String(e) })
+    } finally {
+      setRevertendoId(null)
+      setConfirmarAcao(null)
+    }
   }
 
   useEffect(() => {
@@ -687,7 +784,8 @@ export default function ImportarPage() {
                 return (
                   <div
                     key={a.id}
-                    className={`px-4 py-3 flex items-start gap-3 ${isErro ? 'bg-red-50' : ''}`}
+                    onClick={!isErro ? () => abrirDetalhesLog(a.id) : undefined}
+                    className={`px-4 py-3 flex items-start gap-3 ${isErro ? 'bg-red-50' : 'cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors'}`}
                   >
                     <div className="shrink-0 mt-0.5">
                       {isErro
@@ -870,6 +968,113 @@ export default function ImportarPage() {
 }`}</pre>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+        </ModalPortal>
+      )}
+
+      {detalheLogAberto && (
+        <ModalPortal>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end justify-center z-[200] modal-overlay">
+          <div className="bg-white rounded-t-3xl w-full max-h-[88vh] overflow-y-auto overflow-x-hidden modal-sheet">
+            <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-4 flex items-center justify-between">
+              <h2 className="text-base font-bold flex items-center gap-2">
+                <Clock className="w-4 h-4 text-primary-600" />
+                Detalhes da importação
+              </h2>
+              <button onClick={fecharDetalhes} className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 transition-all hover:rotate-90 duration-200">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-2 pb-10">
+              {carregandoDetalhe ? (
+                <div className="py-10 flex justify-center">
+                  <div className="w-6 h-6 rounded-full border-[3px] border-primary-200 border-t-primary-600 animate-spin" />
+                </div>
+              ) : !detalheLinhas || detalheLinhas.length === 0 ? (
+                <div className="py-8 text-center">
+                  <p className="text-sm text-gray-400">Detalhes não disponíveis — resultados de validação ficam disponíveis por até 2 dias após a importação.</p>
+                </div>
+              ) : (
+                detalheLinhas.map(linha => {
+                  const info = DECISAO_INFO[linha.decisao]
+                  const acaoDisponivel = acaoParaLinha(linha.decisao)
+                  const isRevertendo = revertendoId === linha.id
+                  return (
+                    <div key={linha.id} className="bg-gray-50 border border-gray-100 rounded-2xl p-3 space-y-1.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="text-sm font-medium text-gray-800 truncate">{linha.descricao}</span>
+                        {linha.valor != null && (
+                          <span className="text-sm font-semibold text-gray-700 whitespace-nowrap num shrink-0">
+                            R$ {Number(linha.valor).toFixed(2).replace('.', ',')}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {linha.data_compra && (
+                            <span className="text-xs text-gray-400">
+                              {new Date(linha.data_compra + 'T12:00:00').toLocaleDateString('pt-BR')}
+                            </span>
+                          )}
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${info.classes}`}>{info.label}</span>
+                          {linha.revertido_em && (
+                            <span className="text-[10px] text-gray-400">
+                              revertido em {new Date(linha.revertido_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          )}
+                        </div>
+                        {linha.decisao === 'conflito' ? (
+                          <span className="text-xs text-amber-600 shrink-0">Resolva pelo sino de notificações</span>
+                        ) : acaoDisponivel ? (
+                          <button
+                            onClick={() => pedirAcaoLinha(linha.id, acaoDisponivel.acao, acaoDisponivel.destrutiva)}
+                            disabled={isRevertendo}
+                            className="text-xs font-semibold text-primary-600 hover:text-primary-700 disabled:opacity-50 flex items-center gap-1 shrink-0"
+                          >
+                            {isRevertendo ? (
+                              <span className="w-3 h-3 rounded-full border-2 border-primary-200 border-t-primary-600 animate-spin" />
+                            ) : acaoDisponivel.destrutiva ? (
+                              <Trash2 className="w-3.5 h-3.5" />
+                            ) : (
+                              <RotateCcw className="w-3.5 h-3.5" />
+                            )}
+                            {acaoDisponivel.label}
+                          </button>
+                        ) : null}
+                      </div>
+
+                      {erroLinha?.id === linha.id && (
+                        <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-2 py-1">{erroLinha.mensagem}</p>
+                      )}
+
+                      {confirmarAcao?.linhaId === linha.id && (
+                        <div className="bg-red-50 border border-red-200 rounded-xl p-2.5 space-y-2">
+                          <p className="text-xs text-red-700">
+                            Confirma {confirmarAcao.acao === 'reverter' ? 'a remoção' : 'a reaplicação'}? Essa ação altera dados reais em transações.
+                          </p>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => executarAcaoLinha(linha.id, confirmarAcao.acao)}
+                              className="flex-1 bg-red-600 text-white text-xs font-semibold py-1.5 rounded-lg hover:bg-red-700 transition-all"
+                            >
+                              Confirmar
+                            </button>
+                            <button
+                              onClick={() => setConfirmarAcao(null)}
+                              className="flex-1 bg-white border border-gray-200 text-gray-600 text-xs font-medium py-1.5 rounded-lg hover:bg-gray-50 transition-all"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })
+              )}
             </div>
           </div>
         </div>
