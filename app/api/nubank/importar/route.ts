@@ -8,7 +8,7 @@ import {
 } from '@/lib/csvparser'
 import { categorizarTransacoes } from '@/lib/categorizarTransacoes'
 import { notificarImportacao } from '@/lib/pushImportacao'
-import { conciliarTransacao, conciliarEstorno } from '@/lib/conciliacao'
+import { conciliarTransacao, conciliarEstorno, aplicarResponsavelDeParcelaAnterior } from '@/lib/conciliacao'
 import { validarDivergenciaFatura } from '@/lib/validacaoFatura'
 import { sincronizarAssinaturasMoedaEstrangeira, AssinaturaSincronizada } from '@/lib/assinaturasSync'
 import { LinhaValidacaoInsert, linhaDeTransacao, linhaDeEstorno } from '@/lib/importValidacao'
@@ -71,6 +71,8 @@ async function salvarTransacoes(
   transacoes: TransacaoNubank[],
   cartao: string = 'nubank'
 ) {
+  await aplicarResponsavelDeParcelaAnterior(supabase, transacoes)
+
   const transacoesNormais = transacoes.filter(t => !t.is_estorno)
   const estornos = transacoes.filter(t => t.is_estorno)
 

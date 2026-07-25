@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
 import { processarCSV } from '@/lib/csvparser'
 import { notificarImportacao } from '@/lib/pushImportacao'
-import { conciliarTransacao, conciliarEstorno } from '@/lib/conciliacao'
+import { conciliarTransacao, conciliarEstorno, aplicarResponsavelDeParcelaAnterior } from '@/lib/conciliacao'
 import { validarDivergenciaFatura } from '@/lib/validacaoFatura'
 import { sincronizarAssinaturasMoedaEstrangeira, AssinaturaSincronizada } from '@/lib/assinaturasSync'
 import { LinhaValidacaoInsert, linhaDeTransacao, linhaDeEstorno } from '@/lib/importValidacao'
@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
 
     const csvText = await file.text()
     const transacoes = processarCSV(csvText, diaVencimento, ajusteFechamento)
+    await aplicarResponsavelDeParcelaAnterior(supabase, transacoes)
 
     const transacoesNormais = transacoes.filter(t => !t.is_estorno)
     const estornos = transacoes.filter(t => t.is_estorno)

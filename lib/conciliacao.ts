@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { TransacaoNubank, normalizarDescricaoParaHash } from '@/lib/csvparser'
-import { descricoesParecidas } from '@/lib/descricaoSimilaridade'
+import { descricoesParecidas, normalizarDescricaoSemParcela } from '@/lib/descricaoSimilaridade'
 import { formatBRL } from '@/lib/logger'
 
 function adicionarDias(dataISO: string, dias: number): string {
@@ -162,6 +162,63 @@ async function criarNotificacaoConflito(
 function buildPayload(item: TransacaoNubank, extra: Record<string, unknown>): Record<string, unknown> {
   const { occurrence_index: _oi, ...base } = item as TransacaoNubank & { occurrence_index?: number }
   return { ...base, ...extra }
+}
+
+async function buscarResponsavelNoBanco(
+  supabase: SupabaseClient,
+  item: TransacaoNubank,
+  cartao: string,
+  descBase: string
+): Promise<'Matheus' | 'Jeniffer' | 'Conjunto' | null> {
+  const { data } = await supabase
+    .from('transacoes_nubank')
+    .select('descricao, responsavel, parcela_atual')
+    .eq('cartao', cartao)
+    .eq('total_parcelas', item.total_parcelas)
+    .eq('is_estorno', false)
+    .lt('parcela_atual', item.parcela_atual)
+    .order('parcela_atual', { ascending: false })
+
+  const anterior = (data ?? []).find(r => normalizarDescricaoSemParcela(r.descricao) === descBase)
+  return (anterior?.responsavel as 'Matheus' | 'Jeniffer' | 'Conjunto' | undefined) ?? null
+}
+
+/**
+ * Para cada transação do lote que seja parcela N/X com N > 1, busca a parcela
+ * imediatamente anterior da mesma compra (mesmo cartão, mesmo total de parcelas,
+ * descrição igual ignorando o número da parcela atual) — primeiro dentro do próprio
+ * lote importado (compra nova, com 1/X e 2/X no mesmo arquivo), depois no banco — e
+ * sobrescreve item.responsavel para manter o mesmo responsável em toda a série.
+ * Transações sem parcela anterior encontrada mantêm o responsável já calculado
+ * (heurística de descrição/responsavelPadrao).
+ */
+export async function aplicarResponsavelDeParcelaAnterior(
+  supabase: SupabaseClient,
+  transacoes: TransacaoNubank[]
+): Promise<void> {
+  for (const item of transacoes) {
+    if (item.is_estorno || !item.total_parcelas || !item.parcela_atual || item.parcela_atual <= 1) continue
+
+    const cartao = item.cartao ?? 'nubank'
+    const descBase = normalizarDescricaoSemParcela(item.descricao)
+
+    const candidatoNoLote = transacoes
+      .filter(t =>
+        t !== item &&
+        !t.is_estorno &&
+        (t.cartao ?? 'nubank') === cartao &&
+        t.total_parcelas === item.total_parcelas &&
+        (t.parcela_atual ?? 0) < item.parcela_atual! &&
+        normalizarDescricaoSemParcela(t.descricao) === descBase
+      )
+      .sort((a, b) => (b.parcela_atual ?? 0) - (a.parcela_atual ?? 0))[0]
+
+    const responsavelAnterior = candidatoNoLote
+      ? candidatoNoLote.responsavel
+      : await buscarResponsavelNoBanco(supabase, item, cartao, descBase)
+
+    if (responsavelAnterior) item.responsavel = responsavelAnterior
+  }
 }
 
 export async function conciliarEstorno(

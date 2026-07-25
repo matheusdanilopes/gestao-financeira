@@ -43,6 +43,14 @@ function extrairParcela(descricaoNormalizada: string): { atual: number; total: n
   return { atual: parseInt(m[1], 10), total: parseInt(m[2], 10) }
 }
 
+// Normaliza a descrição substituindo o número da parcela atual por um marcador,
+// mantendo o total fixo — permite comparar "Loja X 1/12" e "Loja X 2/12" como a
+// mesma compra, ao contrário de descricoesParecidas() (que as trata como diferentes).
+export function normalizarDescricaoSemParcela(descricao: string): string {
+  const normalizada = normalizarDescricaoParaHash(descricao)
+  return normalizada.replace(/\d+(\s*\/\s*\d+)/, '#$1')
+}
+
 /**
  * Compara duas descrições de transação e diz se provavelmente são "a mesma compra",
  * tolerando as pequenas variações que o Nubank/emissores costumam introduzir entre
