@@ -36,6 +36,13 @@ function distanciaLevenshtein(a: string, b: string): number {
   return anterior[b.length]
 }
 
+// Extrai o número da parcela no padrão "X/Y" da descrição (ex.: "Parcela 2/2").
+function extrairParcela(descricaoNormalizada: string): { atual: number; total: number } | null {
+  const m = descricaoNormalizada.match(/(\d+)\s*\/\s*(\d+)/)
+  if (!m) return null
+  return { atual: parseInt(m[1], 10), total: parseInt(m[2], 10) }
+}
+
 /**
  * Compara duas descrições de transação e diz se provavelmente são "a mesma compra",
  * tolerando as pequenas variações que o Nubank/emissores costumam introduzir entre
@@ -47,6 +54,15 @@ export function descricoesParecidas(descricaoA: string, descricaoB: string): boo
   const b = normalizarDescricaoParaHash(descricaoB)
 
   if (a === b) return true
+
+  // Parcelas diferentes (ex.: "Parcela 1/2" vs "Parcela 2/2") nunca são a mesma
+  // compra, mesmo quando o número da parcela é o único caractere que muda — caso
+  // contrário a tolerância de 1 caractere de edição abaixo confundiria as duas.
+  const parcelaA = extrairParcela(a)
+  const parcelaB = extrairParcela(b)
+  if (parcelaA && parcelaB && (parcelaA.atual !== parcelaB.atual || parcelaA.total !== parcelaB.total)) {
+    return false
+  }
 
   const minLen = Math.min(a.length, b.length)
   if (minLen < COMPRIMENTO_MIN) return false
