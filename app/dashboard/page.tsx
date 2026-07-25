@@ -827,14 +827,21 @@ export default function Dashboard() {
                 <div className="mb-6 pb-5 border-b border-gray-100">
                   <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Total atual</p>
                   {(() => {
-                    const totalStr = fmt(fatura.totalRealizado)
+                    const totalProjecaoParcelas = fatura.matheusProjecaoParcelas + fatura.jenifferProjecaoParcelas + fatura.conjuntoProjecaoParcelas
+                    const totalExibido = fatura.totalRealizado > 0 ? fatura.totalRealizado : totalProjecaoParcelas
+                    const totalStr = fmt(totalExibido)
                     const commaIdx = totalStr.lastIndexOf(',')
                     const intPart = commaIdx >= 0 ? totalStr.slice(0, commaIdx) : totalStr
                     const decPart = commaIdx >= 0 ? totalStr.slice(commaIdx) : ''
                     return (
-                      <p className="text-4xl font-bold text-gray-900 num leading-none">
-                        {intPart}<span className="text-gray-300">{decPart}</span>
-                      </p>
+                      <>
+                        <p className="text-4xl font-bold text-gray-900 num leading-none">
+                          {intPart}<span className="text-gray-300">{decPart}</span>
+                        </p>
+                        {fatura.totalRealizado === 0 && totalProjecaoParcelas > 0 && (
+                          <p className="text-[10px] text-orange-500 font-medium mt-1">soma das parcelas previstas</p>
+                        )}
+                      </>
                     )
                   })()}
                 </div>
