@@ -283,7 +283,9 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
         const faturaDate = startOfMonth(new Date(t.projeto_fatura + 'T12:00:00'))
         const origem = subMonths(faturaDate, atual - 1)
         const descBase = descricao.replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '').replace(/\s+\d{1,2}\/\d{1,2}\s*$/i, '').trim().toLowerCase()
-        const key = `${format(origem, 'yyyy-MM')}|${descBase}|${total}|${t.responsavel}`
+        // Inclui o valor na chave: duas compras distintas podem ter descrição, total de
+        // parcelas, responsável e mês de origem idênticos, mas o valor cobrado as diferencia.
+        const key = `${format(origem, 'yyyy-MM')}|${descBase}|${total}|${t.responsavel}|${t.valor.toFixed(2)}`
         const existing = contratos.get(key)
         if (!existing || faturaDate > existing.fatura) {
           contratos.set(key, { fatura: faturaDate, atual, total, valor: t.valor, responsavel: t.responsavel, descricao })
