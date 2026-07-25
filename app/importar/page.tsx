@@ -44,6 +44,22 @@ type DecisaoValidacao =
   | 'conciliada' | 'conciliacao_desfeita'
   | 'estorno_aplicado' | 'estorno_registrado' | 'estorno_removido' | 'estorno_ignorado'
 
+interface RegistroConflitante {
+  id: string
+  descricao: string
+  valor: number
+  data_compra: string
+  status: string
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  PENDENTE: 'pendente',
+  CONCILIADO: 'conciliada',
+  CONFLITO_VALOR: 'em conflito',
+  ESTORNO: 'estorno',
+  ESTORNADO: 'estornada',
+}
+
 interface LinhaValidacao {
   id: string
   descricao: string
@@ -52,6 +68,7 @@ interface LinhaValidacao {
   decisao: DecisaoValidacao
   transacao_id: string | null
   notificacao_id: string | null
+  registro_conflitante: RegistroConflitante | null
   revertido_em: string | null
   created_at: string
 }
@@ -1053,6 +1070,12 @@ export default function ImportarPage() {
                           </button>
                         ) : null}
                       </div>
+
+                      {linha.registro_conflitante && (
+                        <p className="text-[11px] text-gray-500 bg-white border border-gray-100 rounded-lg px-2 py-1">
+                          Já existe: &quot;{linha.registro_conflitante.descricao}&quot; · R$ {Number(linha.registro_conflitante.valor).toFixed(2).replace('.', ',')} · {new Date(linha.registro_conflitante.data_compra + 'T12:00:00').toLocaleDateString('pt-BR')} · {STATUS_LABELS[linha.registro_conflitante.status] ?? linha.registro_conflitante.status.toLowerCase()}
+                        </p>
+                      )}
 
                       {erroLinha?.id === linha.id && (
                         <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-2 py-1">{erroLinha.mensagem}</p>

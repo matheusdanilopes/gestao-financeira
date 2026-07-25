@@ -20,6 +20,7 @@ export interface LinhaValidacaoInsert {
   dados_linha: Record<string, unknown>
   estado_anterior: Record<string, unknown> | null
   notificacao_id: string | null
+  registro_conflitante: Record<string, unknown> | null
 }
 
 // Payload cru da linha (sem occurrence_index, que não é persistido) — guardado para
@@ -40,8 +41,8 @@ export function linhaDeTransacao(item: TransacaoNubank, resultado: ResultadoConc
   switch (resultado.acao) {
     case 'inserido':
       return resultado.inseriu
-        ? { ...base, decisao: 'inserida', transacao_id: resultado.transacaoId ?? null, estado_anterior: null, notificacao_id: null }
-        : { ...base, decisao: 'duplicada', transacao_id: resultado.matchExistenteId ?? null, estado_anterior: null, notificacao_id: null }
+        ? { ...base, decisao: 'inserida', transacao_id: resultado.transacaoId ?? null, estado_anterior: null, notificacao_id: null, registro_conflitante: null }
+        : { ...base, decisao: 'duplicada', transacao_id: resultado.matchExistenteId ?? null, estado_anterior: null, notificacao_id: null, registro_conflitante: resultado.registroConflitante ? { ...resultado.registroConflitante } : null }
     case 'conciliado':
       return {
         ...base,
@@ -49,11 +50,26 @@ export function linhaDeTransacao(item: TransacaoNubank, resultado: ResultadoConc
         transacao_id: resultado.transacaoId ?? resultado.matchExistenteId ?? null,
         estado_anterior: resultado.estadoAnterior ? { ...resultado.estadoAnterior } : null,
         notificacao_id: null,
+        registro_conflitante: null,
       }
     case 'conflito':
-      return { ...base, decisao: 'conflito', transacao_id: resultado.transacaoId ?? null, estado_anterior: null, notificacao_id: resultado.notificacaoId ?? null }
+      return {
+        ...base,
+        decisao: 'conflito',
+        transacao_id: resultado.transacaoId ?? null,
+        estado_anterior: null,
+        notificacao_id: resultado.notificacaoId ?? null,
+        registro_conflitante: resultado.registroConflitante ? { ...resultado.registroConflitante } : null,
+      }
     case 'ignorado':
-      return { ...base, decisao: 'duplicada', transacao_id: resultado.matchExistenteId ?? null, estado_anterior: null, notificacao_id: null }
+      return {
+        ...base,
+        decisao: 'duplicada',
+        transacao_id: resultado.matchExistenteId ?? null,
+        estado_anterior: null,
+        notificacao_id: null,
+        registro_conflitante: resultado.registroConflitante ? { ...resultado.registroConflitante } : null,
+      }
     default:
       return null
   }
@@ -76,10 +92,18 @@ export function linhaDeEstorno(estorno: TransacaoNubank, resultado: ResultadoEst
         ? { original_id: resultado.originalId, status_anterior: resultado.statusAnteriorOriginal }
         : null,
       notificacao_id: null,
+      registro_conflitante: null,
     }
   }
   if (resultado.acao === 'registrado') {
-    return { ...base, decisao: 'estorno_registrado', transacao_id: resultado.transacaoId ?? null, estado_anterior: null, notificacao_id: null }
+    return { ...base, decisao: 'estorno_registrado', transacao_id: resultado.transacaoId ?? null, estado_anterior: null, notificacao_id: null, registro_conflitante: null }
   }
-  return { ...base, decisao: 'estorno_ignorado', transacao_id: null, estado_anterior: null, notificacao_id: null }
+  return {
+    ...base,
+    decisao: 'estorno_ignorado',
+    transacao_id: null,
+    estado_anterior: null,
+    notificacao_id: null,
+    registro_conflitante: resultado.registroConflitante ? { ...resultado.registroConflitante } : null,
+  }
 }

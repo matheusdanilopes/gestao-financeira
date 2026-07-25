@@ -13,6 +13,14 @@ export type OrigemImportacao = 'csv' | 'api'
 export type AcaoConciliacao = 'conciliado' | 'ignorado' | 'inserido' | 'conflito' | 'estorno'
 export type AcaoEstorno = 'aplicado' | 'registrado' | 'ignorado'
 
+export interface RegistroConflitante {
+  id: string
+  descricao: string
+  valor: number
+  data_compra: string
+  status: string
+}
+
 export interface ResultadoConciliacao {
   acao: AcaoConciliacao
   inseriu: boolean
@@ -24,6 +32,8 @@ export interface ResultadoConciliacao {
   notificacaoId?: string | null
   /** estado do registro conciliado antes desta linha sobrescrever valor/valor_final/status (só acao='conciliado') */
   estadoAnterior?: { status: string; valor: number; valor_final: number | null } | null
+  /** snapshot do registro já existente que fez esta linha ser duplicada/conflito (explica por que não foi importada) */
+  registroConflitante?: RegistroConflitante | null
 }
 
 export interface ResultadoEstorno {
@@ -35,6 +45,8 @@ export interface ResultadoEstorno {
   originalId?: string | null
   /** status da transação original antes de ser marcada ESTORNADO */
   statusAnteriorOriginal?: string | null
+  /** snapshot do estorno já existente que fez esta linha ser ignorada */
+  registroConflitante?: RegistroConflitante | null
 }
 
 interface TransacaoMatch {
@@ -76,6 +88,25 @@ async function buscarMatchNomeData(
   }
 
   return (data ?? []).filter(r => descricoesParecidas(r.descricao, item.descricao))
+}
+
+async function buscarPorHash(supabase: SupabaseClient, hashLinha: string): Promise<RegistroConflitante | null> {
+  const { data, error } = await supabase
+    .from('transacoes_nubank')
+    .select('id, descricao, valor, data_compra, status')
+    .eq('hash_linha', hashLinha)
+    .maybeSingle()
+
+  if (error?.message?.includes('data_compra')) {
+    const { data: data2 } = await supabase
+      .from('transacoes_nubank')
+      .select('id, descricao, valor, data, status')
+      .eq('hash_linha', hashLinha)
+      .maybeSingle()
+    return data2 ? { ...data2, data_compra: data2.data } : null
+  }
+
+  return data ?? null
 }
 
 export async function inserirRegistro(
@@ -138,15 +169,11 @@ export async function conciliarEstorno(
   estorno: TransacaoNubank
 ): Promise<ResultadoEstorno> {
   // 1. Hash dedup — evita reprocessar o mesmo estorno em reimportação
-  const { data: hashMatch } = await supabase
-    .from('transacoes_nubank')
-    .select('id')
-    .eq('hash_linha', estorno.hash_linha)
-    .maybeSingle()
+  const hashMatch = await buscarPorHash(supabase, estorno.hash_linha)
 
   if (hashMatch) {
     console.log(`[conciliacao] estorno ignorado (hash duplicado) hash=${estorno.hash_linha.slice(0, 12)} desc="${estorno.descricao}"`)
-    return { acao: 'ignorado', inseriu: false }
+    return { acao: 'ignorado', inseriu: false, registroConflitante: hashMatch }
   }
 
   // 2. Busca transação original: normaliza descrição do estorno para extrair nome do lojista.
@@ -241,15 +268,11 @@ export async function conciliarTransacao(
   const occurrenceIndex = (item as TransacaoNubank & { occurrence_index?: number }).occurrence_index ?? 1
 
   // 1. Hash pre-check: se o hash já existe, é reimportação desta linha exata → ignora
-  const { data: hashMatch } = await supabase
-    .from('transacoes_nubank')
-    .select('id')
-    .eq('hash_linha', item.hash_linha)
-    .maybeSingle()
+  const hashMatch = await buscarPorHash(supabase, item.hash_linha)
 
   if (hashMatch) {
     console.log(`[conciliacao] ignorado (hash duplicado) hash=${item.hash_linha.slice(0, 12)} desc="${item.descricao}" data=${item.data_compra} valor=${item.valor}`)
-    return { acao: 'ignorado', inseriu: false, matchExistenteId: hashMatch.id }
+    return { acao: 'ignorado', inseriu: false, matchExistenteId: hashMatch.id, registroConflitante: hashMatch }
   }
 
   // 2. Buscar match por nome (LOWER estrito) + data (±3 dias)
@@ -291,7 +314,12 @@ export async function conciliarTransacao(
       }
       // API: ignora entrada redundante
       console.log(`[conciliacao] ignorado (match nome+data+valor) desc="${item.descricao}" data=${item.data_compra} valor=${item.valor}`)
-      return { acao: 'ignorado', inseriu: false, matchExistenteId: match.id }
+      return {
+        acao: 'ignorado',
+        inseriu: false,
+        matchExistenteId: match.id,
+        registroConflitante: { id: match.id, descricao: match.descricao, valor: match.valor, data_compra: match.data_compra, status: match.status },
+      }
     }
 
     // Match parcial: nome + data coincidem, mas valor difere > R$0,05
@@ -318,7 +346,12 @@ export async function conciliarTransacao(
 
     if (conflitoMesmoValor) {
       console.log(`[conciliacao] conflito já pendente com mesmo valor para original=${match.id}, ignorando reimportação desc="${item.descricao}"`)
-      return { acao: 'ignorado', inseriu: false, matchExistenteId: conflitoMesmoValor.id }
+      return {
+        acao: 'ignorado',
+        inseriu: false,
+        matchExistenteId: conflitoMesmoValor.id,
+        registroConflitante: { id: match.id, descricao: match.descricao, valor: match.valor, data_compra: match.data_compra, status: match.status },
+      }
     }
 
     const payload = buildPayload(item, { status: 'CONFLITO_VALOR', conciliacao_ref: match.id })
@@ -329,7 +362,13 @@ export async function conciliarTransacao(
     if (conflito_id) {
       notificacaoId = await criarNotificacaoConflito(supabase, match, item, conflito_id)
     }
-    return { acao: 'conflito', inseriu: true, transacaoId: conflito_id, notificacaoId }
+    return {
+      acao: 'conflito',
+      inseriu: true,
+      transacaoId: conflito_id,
+      notificacaoId,
+      registroConflitante: { id: match.id, descricao: match.descricao, valor: match.valor, data_compra: match.data_compra, status: match.status },
+    }
   }
 
   // 3. Sem match: insere como PENDENTE

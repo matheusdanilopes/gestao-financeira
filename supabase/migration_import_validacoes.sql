@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS import_validacoes (
   dados_linha     JSONB       NOT NULL,  -- payload completo (TransacaoNubank + status) usado para inserir; permite reinserir depois
   estado_anterior JSONB,       -- para estornos aplicados: { original_id, status_anterior } antes de marcar ESTORNADO
   notificacao_id  UUID,        -- só para decisao='conflito': aponta pra notificação conciliacao_conflito
+  registro_conflitante JSONB,  -- snapshot { id, descricao, valor, data_compra, status } do registro já existente
+                                -- que fez esta linha ser 'duplicada'/'conflito'/'estorno_ignorado'
   revertido_em    TIMESTAMPTZ, -- preenchido quando o usuário reverte manualmente
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -28,3 +30,6 @@ CREATE POLICY "allow_all_import_validacoes" ON import_validacoes
 
 CREATE INDEX IF NOT EXISTS idx_import_validacoes_log_id ON import_validacoes(log_id);
 CREATE INDEX IF NOT EXISTS idx_import_validacoes_created ON import_validacoes(created_at);
+
+-- Coluna adicionada depois da criação inicial da tabela — para bancos já existentes:
+ALTER TABLE import_validacoes ADD COLUMN IF NOT EXISTS registro_conflitante JSONB;

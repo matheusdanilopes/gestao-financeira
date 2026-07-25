@@ -14,7 +14,7 @@ export async function GET(
 
     const { data, error } = await supabase
       .from('import_validacoes')
-      .select('id, descricao, valor, data_compra, decisao, transacao_id, notificacao_id, revertido_em, created_at')
+      .select('id, descricao, valor, data_compra, decisao, transacao_id, notificacao_id, registro_conflitante, revertido_em, created_at')
       .eq('log_id', id)
       .gte('created_at', doisDiasAtras)
       .order('created_at', { ascending: true })
