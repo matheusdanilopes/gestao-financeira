@@ -41,6 +41,7 @@ interface Atividade {
 
 type DecisaoValidacao =
   | 'inserida' | 'removida' | 'duplicada' | 'conflito'
+  | 'conciliada' | 'conciliacao_desfeita'
   | 'estorno_aplicado' | 'estorno_registrado' | 'estorno_removido' | 'estorno_ignorado'
 
 interface LinhaValidacao {
@@ -60,6 +61,8 @@ const DECISAO_INFO: Record<DecisaoValidacao, { label: string; classes: string }>
   removida: { label: 'Removida manualmente', classes: 'bg-gray-100 text-gray-500 border-gray-200' },
   duplicada: { label: 'Já existia no banco', classes: 'bg-gray-50 text-gray-500 border-gray-100' },
   conflito: { label: 'Conflito de valor', classes: 'bg-amber-50 text-amber-700 border-amber-100' },
+  conciliada: { label: 'Conciliada com pendente existente', classes: 'bg-blue-50 text-blue-700 border-blue-100' },
+  conciliacao_desfeita: { label: 'Conciliação desfeita manualmente', classes: 'bg-gray-100 text-gray-500 border-gray-200' },
   estorno_aplicado: { label: 'Estorno aplicado', classes: 'bg-purple-50 text-purple-700 border-purple-100' },
   estorno_registrado: { label: 'Estorno sem correspondência', classes: 'bg-purple-50 text-purple-700 border-purple-100' },
   estorno_removido: { label: 'Estorno removido', classes: 'bg-gray-100 text-gray-500 border-gray-200' },
@@ -70,9 +73,13 @@ function acaoParaLinha(decisao: DecisaoValidacao): { label: string; acao: 'rever
   switch (decisao) {
     case 'inserida': return { label: 'Remover', acao: 'reverter', destrutiva: true }
     case 'removida': return { label: 'Reinserir', acao: 'reaplicar', destrutiva: false }
+    case 'duplicada': return { label: 'Inserir mesmo assim', acao: 'reaplicar', destrutiva: false }
+    case 'conciliada': return { label: 'Desfazer conciliação', acao: 'reverter', destrutiva: true }
+    case 'conciliacao_desfeita': return { label: 'Reaplicar conciliação', acao: 'reaplicar', destrutiva: false }
     case 'estorno_aplicado':
     case 'estorno_registrado': return { label: 'Remover estorno', acao: 'reverter', destrutiva: true }
     case 'estorno_removido': return { label: 'Reaplicar', acao: 'reaplicar', destrutiva: false }
+    case 'estorno_ignorado': return { label: 'Inserir mesmo assim', acao: 'reaplicar', destrutiva: false }
     default: return null
   }
 }
@@ -323,6 +330,7 @@ export default function ImportarPage() {
           resumoPorFatura: data.resumoPorFatura,
           assinaturasAtualizadas: data.assinaturasAtualizadas ?? [],
         })
+        carregarAtividades()
       } else {
         setErro(data.error || 'Erro desconhecido')
       }
@@ -765,12 +773,12 @@ export default function ImportarPage() {
       <div className="mt-4">
         <div className="flex items-center gap-2 mb-3">
           <Clock className="w-4 h-4 text-gray-400" />
-          <h2 className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest">Atividades Recentes via API</h2>
+          <h2 className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest">Atividades Recentes</h2>
         </div>
 
         {atividades.length === 0 ? (
           <div className="bg-white rounded-2xl shadow-card border border-gray-100 py-8 text-center">
-            <p className="text-sm text-gray-400">Nenhuma importação via API registrada</p>
+            <p className="text-sm text-gray-400">Nenhuma importação registrada</p>
           </div>
         ) : (
           <div className="bg-white rounded-2xl shadow-card border border-gray-100 overflow-hidden">
@@ -1053,7 +1061,7 @@ export default function ImportarPage() {
                       {confirmarAcao?.linhaId === linha.id && (
                         <div className="bg-red-50 border border-red-200 rounded-xl p-2.5 space-y-2">
                           <p className="text-xs text-red-700">
-                            Confirma {confirmarAcao.acao === 'reverter' ? 'a remoção' : 'a reaplicação'}? Essa ação altera dados reais em transações.
+                            Confirma a ação &quot;{acaoDisponivel?.label}&quot;? Essa ação altera dados reais em transações.
                           </p>
                           <div className="flex gap-2">
                             <button

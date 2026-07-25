@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS import_validacoes (
   valor           NUMERIC(12,2),
   data_compra     DATE,
   decisao         TEXT        NOT NULL,
-  -- 'inserida' | 'removida' | 'duplicada' | 'conflito' |
+  -- 'inserida' | 'removida' | 'duplicada' | 'conflito' | 'conciliada' | 'conciliacao_desfeita' |
   -- 'estorno_aplicado' | 'estorno_registrado' | 'estorno_removido' | 'estorno_ignorado'
   transacao_id    UUID,        -- id atual em transacoes_nubank associado a esta linha (sem FK — a linha pode ser apagada)
   dados_linha     JSONB       NOT NULL,  -- payload completo (TransacaoNubank + status) usado para inserir; permite reinserir depois

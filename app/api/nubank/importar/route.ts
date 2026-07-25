@@ -11,6 +11,7 @@ import { notificarImportacao } from '@/lib/pushImportacao'
 import { conciliarTransacao, conciliarEstorno } from '@/lib/conciliacao'
 import { validarDivergenciaFatura } from '@/lib/validacaoFatura'
 import { sincronizarAssinaturasMoedaEstrangeira, AssinaturaSincronizada } from '@/lib/assinaturasSync'
+import { LinhaValidacaoInsert, linhaDeTransacao, linhaDeEstorno } from '@/lib/importValidacao'
 
 export const maxDuration = 300
 
@@ -65,28 +66,6 @@ async function autenticar(req: NextRequest): Promise<AuthResult> {
 
 type StatsFatura = { noCSV: number; inseridas: number; ignoradas: number; totalNoBanco: number }
 
-type DecisaoValidacao =
-  | 'inserida' | 'duplicada' | 'conflito'
-  | 'estorno_aplicado' | 'estorno_registrado' | 'estorno_ignorado'
-
-interface LinhaValidacao {
-  descricao: string
-  valor: number
-  data_compra: string
-  decisao: DecisaoValidacao
-  transacao_id: string | null
-  dados_linha: Record<string, unknown>
-  estado_anterior: Record<string, unknown> | null
-  notificacao_id: string | null
-}
-
-// Payload cru da linha (sem occurrence_index, que não é persistido) — guardado para
-// permitir reinserir a transação depois, caso o usuário reverta uma decisão manualmente.
-function dadosLinhaDe(item: TransacaoNubank): Record<string, unknown> {
-  const { occurrence_index: _oi, ...base } = item as TransacaoNubank & { occurrence_index?: number }
-  return base
-}
-
 async function salvarTransacoes(
   supabase: ReturnType<typeof criarSupabaseServer>,
   transacoes: TransacaoNubank[],
@@ -106,7 +85,7 @@ async function salvarTransacoes(
   let conflitos = 0
   let estornosAplicados = 0
   let estornosRegistrados = 0
-  const linhas: LinhaValidacao[] = []
+  const linhas: LinhaValidacaoInsert[] = []
 
   const mesesNoArquivo = [...new Set(transacoes.map(t => t.projeto_fatura))].sort()
   const faturaStats: Record<string, StatsFatura> = {}
@@ -117,8 +96,8 @@ async function salvarTransacoes(
     stats.noCSV++
 
     const resultado = await conciliarTransacao(supabase, item, 'api')
-    const dadosLinha = dadosLinhaDe(item)
-    const linhaBase = { descricao: item.descricao, valor: item.valor, data_compra: item.data_compra, dados_linha: dadosLinha }
+    const linha = linhaDeTransacao(item, resultado)
+    if (linha) linhas.push(linha)
 
     switch (resultado.acao) {
       case 'inserido':
@@ -130,11 +109,9 @@ async function salvarTransacoes(
           if (item.responsavel === 'Matheus') novosMatheus++
           else novosJeniffer++
           totalValor += item.valor
-          linhas.push({ ...linhaBase, decisao: 'inserida', transacao_id: resultado.transacaoId ?? null, estado_anterior: null, notificacao_id: null })
         } else {
           duplicatasIgnoradas++
           stats.ignoradas++
-          linhas.push({ ...linhaBase, decisao: 'duplicada', transacao_id: resultado.matchExistenteId ?? null, estado_anterior: null, notificacao_id: null })
         }
         break
       case 'conciliado':
@@ -147,35 +124,20 @@ async function salvarTransacoes(
         if (item.responsavel === 'Matheus') novosMatheus++
         else novosJeniffer++
         totalValor += item.valor
-        linhas.push({ ...linhaBase, decisao: 'conflito', transacao_id: resultado.transacaoId ?? null, estado_anterior: null, notificacao_id: resultado.notificacaoId ?? null })
         break
       case 'ignorado':
         duplicatasIgnoradas++
         stats.ignoradas++
-        linhas.push({ ...linhaBase, decisao: 'duplicada', transacao_id: resultado.matchExistenteId ?? null, estado_anterior: null, notificacao_id: null })
         break
     }
   }
 
   for (const estorno of estornos) {
     const resultado = await conciliarEstorno(supabase, estorno)
-    const linhaBase = { descricao: estorno.descricao, valor: estorno.valor, data_compra: estorno.data_compra, dados_linha: dadosLinhaDe(estorno) }
+    linhas.push(linhaDeEstorno(estorno, resultado))
 
-    if (resultado.acao === 'aplicado') {
-      estornosAplicados++
-      linhas.push({
-        ...linhaBase,
-        decisao: 'estorno_aplicado',
-        transacao_id: resultado.transacaoId ?? null,
-        estado_anterior: resultado.originalId ? { original_id: resultado.originalId, status_anterior: resultado.statusAnteriorOriginal } : null,
-        notificacao_id: null,
-      })
-    } else if (resultado.acao === 'registrado') {
-      estornosRegistrados++
-      linhas.push({ ...linhaBase, decisao: 'estorno_registrado', transacao_id: resultado.transacaoId ?? null, estado_anterior: null, notificacao_id: null })
-    } else {
-      linhas.push({ ...linhaBase, decisao: 'estorno_ignorado', transacao_id: null, estado_anterior: null, notificacao_id: null })
-    }
+    if (resultado.acao === 'aplicado')   estornosAplicados++
+    if (resultado.acao === 'registrado') estornosRegistrados++
   }
 
   // Push de sucesso: dispara assim que os dados que ele precisa (verdadeiramenteNovas,

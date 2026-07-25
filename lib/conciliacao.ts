@@ -16,12 +16,14 @@ export type AcaoEstorno = 'aplicado' | 'registrado' | 'ignorado'
 export interface ResultadoConciliacao {
   acao: AcaoConciliacao
   inseriu: boolean
-  /** id em transacoes_nubank criado/atualizado por esta linha (inserido/conflito) */
+  /** id em transacoes_nubank criado/atualizado por esta linha (inserido/conflito/conciliado) */
   transacaoId?: string | null
   /** id em transacoes_nubank já existente que fez esta linha ser ignorada como duplicata */
   matchExistenteId?: string | null
   /** id da notificação conciliacao_conflito criada (só quando acao='conflito') */
   notificacaoId?: string | null
+  /** estado do registro conciliado antes desta linha sobrescrever valor/valor_final/status (só acao='conciliado') */
+  estadoAnterior?: { status: string; valor: number; valor_final: number | null } | null
 }
 
 export interface ResultadoEstorno {
@@ -41,6 +43,7 @@ interface TransacaoMatch {
   valor: number
   data_compra: string
   status: string
+  valor_final: number | null
 }
 
 async function buscarMatchNomeData(
@@ -53,7 +56,7 @@ async function buscarMatchNomeData(
 
   const { data, error } = await supabase
     .from('transacoes_nubank')
-    .select('id, descricao, valor, data_compra, status')
+    .select('id, descricao, valor, data_compra, status, valor_final')
     .eq('cartao', cartao)
     .gte('data_compra', dataInicio)
     .lte('data_compra', dataFim)
@@ -62,7 +65,7 @@ async function buscarMatchNomeData(
   if (error?.message?.includes('data_compra')) {
     const { data: data2 } = await supabase
       .from('transacoes_nubank')
-      .select('id, descricao, valor, data, status')
+      .select('id, descricao, valor, data, status, valor_final')
       .eq('cartao', cartao)
       .gte('data', dataInicio)
       .lte('data', dataFim)
@@ -278,7 +281,13 @@ export async function conciliarTransacao(
           .from('transacoes_nubank')
           .update({ valor_final: item.valor, status: 'CONCILIADO' })
           .eq('id', match.id)
-        return { acao: 'conciliado', inseriu: false, matchExistenteId: match.id }
+        return {
+          acao: 'conciliado',
+          inseriu: false,
+          matchExistenteId: match.id,
+          transacaoId: match.id,
+          estadoAnterior: { status: match.status, valor: match.valor, valor_final: match.valor_final },
+        }
       }
       // API: ignora entrada redundante
       console.log(`[conciliacao] ignorado (match nome+data+valor) desc="${item.descricao}" data=${item.data_compra} valor=${item.valor}`)
