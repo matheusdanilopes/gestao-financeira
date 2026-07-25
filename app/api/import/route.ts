@@ -5,6 +5,7 @@ import { notificarImportacao } from '@/lib/pushImportacao'
 import { conciliarTransacao, conciliarEstorno } from '@/lib/conciliacao'
 import { validarDivergenciaFatura } from '@/lib/validacaoFatura'
 import { sincronizarAssinaturasMoedaEstrangeira, AssinaturaSincronizada } from '@/lib/assinaturasSync'
+import { LinhaValidacaoInsert, linhaDeTransacao, linhaDeEstorno } from '@/lib/importValidacao'
 
 export async function POST(req: NextRequest) {
   const { supabase, unauthorized } = await requireAuth(req)
@@ -50,6 +51,7 @@ export async function POST(req: NextRequest) {
     let estornosRegistrados = 0
     const importTs = Date.now()
     const purchaseDates: string[] = []
+    const linhas: LinhaValidacaoInsert[] = []
 
     type StatsFatura = { noCSV: number; inseridas: number; ignoradas: number; totalNoBanco: number }
     const faturaStats: Record<string, StatsFatura> = {}
@@ -60,6 +62,8 @@ export async function POST(req: NextRequest) {
       stats.noCSV++
 
       const resultado = await conciliarTransacao(supabase, item, 'csv')
+      const linha = linhaDeTransacao(item, resultado)
+      if (linha) linhas.push(linha)
 
       switch (resultado.acao) {
         case 'inserido':
@@ -96,6 +100,7 @@ export async function POST(req: NextRequest) {
 
     for (const estorno of estornos) {
       const resultado = await conciliarEstorno(supabase, estorno)
+      linhas.push(linhaDeEstorno(estorno, resultado))
       if (resultado.acao === 'aplicado')   estornosAplicados++
       if (resultado.acao === 'registrado') estornosRegistrados++
     }
@@ -136,6 +141,32 @@ export async function POST(req: NextRequest) {
       // Falha aqui não deve derrubar a resposta HTTP nem disparar um push de erro
       // contraditório — o push de sucesso acima já foi (ou está sendo) enviado.
       console.error('[import] Falha pós-import (recontagem/validação/assinaturas):', postImportError)
+    }
+
+    // Registra o log de atividade + detalhes por linha (mesmo mecanismo do endpoint via
+    // API), pra essa importação aparecer em "Atividades Recentes" com os detalhes de
+    // validação por linha, igual à importação via API/Google Sheets.
+    try {
+      const mesesStr = mesesNoArquivo.map(m => m.substring(0, 7)).join(', ')
+      const { data: logRow, error: erroLog } = await supabase.from('activity_logs').insert({
+        acao: 'importar',
+        tabela: 'transacoes_nubank',
+        descricao: `${verdadeiramenteNovas} novas via upload (${novosMatheus}M + ${novosJeniffer}J)${mesesStr ? ' · ' + mesesStr : ''}`,
+        valor: totalValor,
+      }).select('id').single()
+
+      if (erroLog) {
+        console.error('[import] Falha ao registrar log de atividade:', erroLog.message)
+      } else if (logRow?.id && linhas.length > 0) {
+        const { error: erroValidacoes } = await supabase.from('import_validacoes').insert(
+          linhas.map(l => ({ ...l, log_id: logRow.id }))
+        )
+        if (erroValidacoes) {
+          console.error('[import] Falha ao salvar detalhes de validação:', erroValidacoes.message, erroValidacoes.details, erroValidacoes.hint)
+        }
+      }
+    } catch (err) {
+      console.error('[import] Exceção ao registrar log/detalhes:', err)
     }
 
     return NextResponse.json({

@@ -11,6 +11,7 @@ import { notificarImportacao } from '@/lib/pushImportacao'
 import { conciliarTransacao, conciliarEstorno } from '@/lib/conciliacao'
 import { validarDivergenciaFatura } from '@/lib/validacaoFatura'
 import { sincronizarAssinaturasMoedaEstrangeira, AssinaturaSincronizada } from '@/lib/assinaturasSync'
+import { LinhaValidacaoInsert, linhaDeTransacao, linhaDeEstorno } from '@/lib/importValidacao'
 
 export const maxDuration = 300
 
@@ -84,6 +85,7 @@ async function salvarTransacoes(
   let conflitos = 0
   let estornosAplicados = 0
   let estornosRegistrados = 0
+  const linhas: LinhaValidacaoInsert[] = []
 
   const mesesNoArquivo = [...new Set(transacoes.map(t => t.projeto_fatura))].sort()
   const faturaStats: Record<string, StatsFatura> = {}
@@ -94,6 +96,8 @@ async function salvarTransacoes(
     stats.noCSV++
 
     const resultado = await conciliarTransacao(supabase, item, 'api')
+    const linha = linhaDeTransacao(item, resultado)
+    if (linha) linhas.push(linha)
 
     switch (resultado.acao) {
       case 'inserido':
@@ -130,6 +134,8 @@ async function salvarTransacoes(
 
   for (const estorno of estornos) {
     const resultado = await conciliarEstorno(supabase, estorno)
+    linhas.push(linhaDeEstorno(estorno, resultado))
+
     if (resultado.acao === 'aplicado')   estornosAplicados++
     if (resultado.acao === 'registrado') estornosRegistrados++
   }
@@ -190,6 +196,7 @@ async function salvarTransacoes(
     estornosAplicados,
     estornosRegistrados,
     assinaturasAtualizadas,
+    linhas,
   }
 }
 
@@ -210,15 +217,24 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  async function registrarLog(descricao: string, valor?: number) {
+  async function registrarLog(descricao: string, valor?: number): Promise<string | null> {
     try {
-      await supabase.from('activity_logs').insert({
+      const { data, error } = await supabase.from('activity_logs').insert({
         acao: 'importar',
         tabela: 'transacoes_nubank',
         descricao,
         valor: valor ?? null,
-      })
-    } catch { /* falha no log nunca deve interromper a resposta */ }
+      }).select('id').single()
+      if (error) {
+        console.error('[nubank/importar] registrarLog: insert/select falhou:', error.message, error.details, error.hint)
+        return null
+      }
+      return data?.id ?? null
+    } catch (err) {
+      /* falha no log nunca deve interromper a resposta */
+      console.error('[nubank/importar] registrarLog: exceção:', err)
+      return null
+    }
   }
 
   try {
@@ -300,16 +316,34 @@ export async function POST(req: NextRequest) {
 
     const resultadoImportacao = await salvarTransacoes(supabase, transacoes, cartao)
 
-    // purchaseDates é excluído da resposta pública propositalmente (só usado pelo push,
-    // já disparado em background dentro de salvarTransacoes).
+    // purchaseDates e linhas são excluídos da resposta pública propositalmente: purchaseDates
+    // só é usado pelo push (já disparado em background dentro de salvarTransacoes); linhas
+    // carrega o payload interno de cada transação e vai só pra import_validacoes, não pro cliente.
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { hashesImportados, purchaseDates, ...importacaoPublica } = resultadoImportacao
+    const { hashesImportados, purchaseDates, linhas, ...importacaoPublica } = resultadoImportacao
 
     const mesesStr = importacaoPublica.mesesReprocessados.map(m => m.substring(0, 7)).join(', ')
-    await registrarLog(
+    const logId = await registrarLog(
       `${importacaoPublica.novas} novas via API (${importacaoPublica.matheus}M + ${importacaoPublica.jeniffer}J)${mesesStr ? ' · ' + mesesStr : ''}`,
       parseFloat(importacaoPublica.total)
     )
+
+    console.log('[nubank/importar] logId:', logId, '| linhas coletadas:', linhas.length)
+
+    if (logId && linhas.length > 0) {
+      try {
+        const { error: erroValidacoes } = await supabase.from('import_validacoes').insert(
+          linhas.map(l => ({ ...l, log_id: logId }))
+        )
+        if (erroValidacoes) {
+          console.error('[nubank/importar] Falha ao salvar detalhes de validação:', erroValidacoes.message, erroValidacoes.details, erroValidacoes.hint)
+        } else {
+          console.log('[nubank/importar] Detalhes de validação salvos com sucesso:', linhas.length, 'linha(s)')
+        }
+      } catch (err) {
+        console.error('[nubank/importar] Exceção ao salvar detalhes de validação:', err)
+      }
+    }
 
     // Etapa 2 (assíncrona): o push de sucesso já foi disparado em background dentro de
     // salvarTransacoes (logo após o loop de estornos). A categorização por IA roda em
