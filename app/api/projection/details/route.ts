@@ -66,7 +66,9 @@ function buildContracts(transacoes: TransacaoRow[]) {
       .trim()
       .toLowerCase()
     const cartao = t.cartao || 'nubank'
-    const key = `${cartao}|${format(origem, 'yyyy-MM')}|${descBase}|${parcela.total}|${t.responsavel}`
+    // Inclui o valor na chave: duas compras distintas podem ter descrição, total de
+    // parcelas, responsável e mês de origem idênticos, mas o valor cobrado as diferencia.
+    const key = `${cartao}|${format(origem, 'yyyy-MM')}|${descBase}|${parcela.total}|${t.responsavel}|${Number(t.valor ?? 0).toFixed(2)}`
 
     const existing = map.get(key)
     if (!existing || fatura > existing.fatura) {
@@ -91,7 +93,7 @@ function buildContratosExtras(planejamentos: PlanejamentoRow[]) {
       .replace(/\s+\d{1,2}\/\d{1,2}\s*$/i, '')
       .trim()
       .toLowerCase()
-    const key = `${format(origem, 'yyyy-MM')}|${descBase}|${parcela.total}|${e.responsavel || ''}`
+    const key = `${format(origem, 'yyyy-MM')}|${descBase}|${parcela.total}|${e.responsavel || ''}|${Number(e.valor_previsto ?? 0).toFixed(2)}`
 
     const existing = map.get(key)
     if (!existing || mesRef > existing.mesRef) {

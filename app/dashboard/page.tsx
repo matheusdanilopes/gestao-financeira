@@ -85,17 +85,29 @@ interface CartaoItem {
   pago: number
 }
 
+interface ProjecaoItem {
+  descricao: string
+  valor: number
+  responsavel: string
+  cartao: string
+  parcela_atual: number
+  total_parcelas: number
+}
+
 interface FaturaState {
   totalRealizado: number
   matheusAtual: number
   matheusPrevisto: number
   matheusProjecaoParcelas: number
+  matheusProjecaoItens: ProjecaoItem[]
   jenifferAtual: number
   jenifferPrevisto: number
   jenifferProjecaoParcelas: number
+  jenifferProjecaoItens: ProjecaoItem[]
   conjuntoAtual: number
   conjuntoPrevisto: number
   conjuntoProjecaoParcelas: number
+  conjuntoProjecaoItens: ProjecaoItem[]
   conjuntoItemExiste: boolean
   sobraMatheus: number
   sobraJeniffer: number
@@ -236,6 +248,9 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   let matheusProjecaoParcelas = 0
   let jenifferProjecaoParcelas = 0
   let conjuntoProjecaoParcelas = 0
+  const matheusProjecaoItens: ProjecaoItem[] = []
+  const jenifferProjecaoItens: ProjecaoItem[] = []
+  const conjuntoProjecaoItens: ProjecaoItem[] = []
   if (faturaEhPrevisto) {
     const mesProjecao = startOfMonth(addMonths(mes, 1))
 
@@ -246,7 +261,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
         .eq('cartao', 'nubank').eq('projeto_fatura', maxFaturaRowData[0].projeto_fatura)
         .neq('status', 'ESTORNO').neq('status', 'ESTORNADO')
 
-      const contratos = new Map<string, { fatura: Date; atual: number; total: number; valor: number; responsavel: string }>()
+      const contratos = new Map<string, { fatura: Date; atual: number; total: number; valor: number; responsavel: string; descricao: string }>()
 
       for (const t of (transacoesBase || [])) {
         let atual: number, total: number
@@ -268,20 +283,26 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
         const faturaDate = startOfMonth(new Date(t.projeto_fatura + 'T12:00:00'))
         const origem = subMonths(faturaDate, atual - 1)
         const descBase = descricao.replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '').replace(/\s+\d{1,2}\/\d{1,2}\s*$/i, '').trim().toLowerCase()
-        const key = `${format(origem, 'yyyy-MM')}|${descBase}|${total}|${t.responsavel}`
+        // Inclui o valor na chave: duas compras distintas podem ter descrição, total de
+        // parcelas, responsável e mês de origem idênticos, mas o valor cobrado as diferencia.
+        const key = `${format(origem, 'yyyy-MM')}|${descBase}|${total}|${t.responsavel}|${t.valor.toFixed(2)}`
         const existing = contratos.get(key)
         if (!existing || faturaDate > existing.fatura) {
-          contratos.set(key, { fatura: faturaDate, atual, total, valor: t.valor, responsavel: t.responsavel })
+          contratos.set(key, { fatura: faturaDate, atual, total, valor: t.valor, responsavel: t.responsavel, descricao })
         }
       }
 
-      for (const { fatura: faturaDate, atual, total, valor, responsavel } of contratos.values()) {
+      for (const { fatura: faturaDate, atual, total, valor, responsavel, descricao } of contratos.values()) {
         const deltaM = (mesProjecao.getFullYear() - faturaDate.getFullYear()) * 12 + (mesProjecao.getMonth() - faturaDate.getMonth())
         const parcelaNoMes = atual + deltaM
         if (parcelaNoMes >= 1 && parcelaNoMes <= total) {
-          if (responsavel === 'Matheus') matheusProjecaoParcelas += valor
-          if (responsavel === 'Jeniffer') jenifferProjecaoParcelas += valor
-          if (responsavel === 'Conjunto') conjuntoProjecaoParcelas += valor
+          const descAjustada = /parcela\s+\d+\/\d+/i.test(descricao)
+            ? descricao.replace(/parcela\s+\d+\/\d+/i, `Parcela ${parcelaNoMes}/${total}`)
+            : descricao.replace(/\b\d{1,2}\/\d{1,2}\b/, `${parcelaNoMes}/${total}`)
+          const item: ProjecaoItem = { descricao: descAjustada, valor, responsavel, cartao: 'nubank', parcela_atual: parcelaNoMes, total_parcelas: total }
+          if (responsavel === 'Matheus') { matheusProjecaoParcelas += valor; matheusProjecaoItens.push(item) }
+          if (responsavel === 'Jeniffer') { jenifferProjecaoParcelas += valor; jenifferProjecaoItens.push(item) }
+          if (responsavel === 'Conjunto') { conjuntoProjecaoParcelas += valor; conjuntoProjecaoItens.push(item) }
         }
       }
     }
@@ -380,9 +401,9 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
 
   return {
     fatura: {
-      totalRealizado, matheusAtual, matheusPrevisto, matheusProjecaoParcelas,
-      jenifferAtual, jenifferPrevisto, jenifferProjecaoParcelas,
-      conjuntoAtual, conjuntoPrevisto, conjuntoProjecaoParcelas,
+      totalRealizado, matheusAtual, matheusPrevisto, matheusProjecaoParcelas, matheusProjecaoItens,
+      jenifferAtual, jenifferPrevisto, jenifferProjecaoParcelas, jenifferProjecaoItens,
+      conjuntoAtual, conjuntoPrevisto, conjuntoProjecaoParcelas, conjuntoProjecaoItens,
       conjuntoItemExiste: !!nubankConjuntoRow,
       sobraMatheus: matheusPrevisto - matheusAtual - matheusProjecaoParcelas - assinNaoPagaMatheus,
       sobraJeniffer: jenifferPrevisto - jenifferAtual - jenifferProjecaoParcelas - assinNaoPagaJeniffer,
@@ -410,9 +431,9 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
 }
 
 const FATURA_INICIAL: FaturaState = {
-  totalRealizado: 0, matheusAtual: 0, matheusPrevisto: 0, matheusProjecaoParcelas: 0,
-  jenifferAtual: 0, jenifferPrevisto: 0, jenifferProjecaoParcelas: 0,
-  conjuntoAtual: 0, conjuntoPrevisto: 0, conjuntoProjecaoParcelas: 0,
+  totalRealizado: 0, matheusAtual: 0, matheusPrevisto: 0, matheusProjecaoParcelas: 0, matheusProjecaoItens: [],
+  jenifferAtual: 0, jenifferPrevisto: 0, jenifferProjecaoParcelas: 0, jenifferProjecaoItens: [],
+  conjuntoAtual: 0, conjuntoPrevisto: 0, conjuntoProjecaoParcelas: 0, conjuntoProjecaoItens: [],
   conjuntoItemExiste: false,
   sobraMatheus: 0, sobraJeniffer: 0, sobraConjunto: 0, cartao1Items: [], cartao2Items: [],
   cartao1AtualMatheus: 0, cartao1AtualJeniffer: 0, cartao2AtualMatheus: 0, cartao2AtualJeniffer: 0,
@@ -440,6 +461,16 @@ export default function Dashboard() {
   const [seletorAberto, setSeletorAberto] = useState(false)
   const [drawerAberto, setDrawerAberto] = useState(false)
   const [detalhesPonto, setDetalhesPonto] = useState<{ serie: string; mes: string; valor: number; itens: Record<string, unknown>[] } | null>(null)
+
+  const abrirDetalhesProjecao = useCallback((responsavel: string, valor: number, itens: ProjecaoItem[]) => {
+    setDetalhesPonto({
+      serie: `Parcelas previstas — ${responsavel}`,
+      mes: format(mesAtual, 'MMMM yyyy', { locale: ptBR }).replace(/^\w/, c => c.toUpperCase()),
+      valor,
+      itens: itens as unknown as Record<string, unknown>[],
+    })
+    setDrawerAberto(true)
+  }, [mesAtual])
   const [aba, setAba] = useState<'resumo' | 'graficos'>('resumo')
   const [graficosAbertos, setGraficosAbertos] = useState(false)
   const [visaoGastosDiarios, setVisaoGastosDiarios] = useState<'valor' | 'burndown'>('valor')
@@ -827,14 +858,29 @@ export default function Dashboard() {
                 <div className="mb-6 pb-5 border-b border-gray-100">
                   <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Total atual</p>
                   {(() => {
-                    const totalStr = fmt(fatura.totalRealizado)
+                    const totalProjecaoParcelas = fatura.matheusProjecaoParcelas + fatura.jenifferProjecaoParcelas + fatura.conjuntoProjecaoParcelas
+                    const totalExibido = fatura.totalRealizado > 0 ? fatura.totalRealizado : totalProjecaoParcelas
+                    const totalStr = fmt(totalExibido)
                     const commaIdx = totalStr.lastIndexOf(',')
                     const intPart = commaIdx >= 0 ? totalStr.slice(0, commaIdx) : totalStr
                     const decPart = commaIdx >= 0 ? totalStr.slice(commaIdx) : ''
                     return (
-                      <p className="text-4xl font-bold text-gray-900 num leading-none">
-                        {intPart}<span className="text-gray-300">{decPart}</span>
-                      </p>
+                      <>
+                        <p className="text-4xl font-bold text-gray-900 num leading-none">
+                          {intPart}<span className="text-gray-300">{decPart}</span>
+                        </p>
+                        {fatura.totalRealizado === 0 && totalProjecaoParcelas > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => abrirDetalhesProjecao('Todos', totalProjecaoParcelas, [
+                              ...fatura.matheusProjecaoItens, ...fatura.jenifferProjecaoItens, ...fatura.conjuntoProjecaoItens,
+                            ])}
+                            className="text-[10px] text-orange-500 font-medium underline decoration-dotted underline-offset-2 mt-1"
+                          >
+                            soma das parcelas previstas
+                          </button>
+                        )}
+                      </>
                     )
                   })()}
                 </div>
@@ -857,7 +903,13 @@ export default function Dashboard() {
                       </div>
                       <div className="flex items-center justify-between mb-1">
                         {fatura.matheusProjecaoParcelas > 0 ? (
-                          <span className="text-[11px] text-orange-500 font-medium">parc. prev. − {fmt(fatura.matheusProjecaoParcelas)}</span>
+                          <button
+                            type="button"
+                            onClick={() => abrirDetalhesProjecao('Matheus', fatura.matheusProjecaoParcelas, fatura.matheusProjecaoItens)}
+                            className="text-[11px] text-orange-500 font-medium underline decoration-dotted underline-offset-2"
+                          >
+                            parc. prev. − {fmt(fatura.matheusProjecaoParcelas)}
+                          </button>
                         ) : (
                           <span className="text-[11px] text-gray-400">{matheusSobraWarning ? 'limite quase no teto' : ''}</span>
                         )}
@@ -902,7 +954,13 @@ export default function Dashboard() {
                       </div>
                       <div className="flex items-center justify-between mb-1">
                         {fatura.jenifferProjecaoParcelas > 0 ? (
-                          <span className="text-[11px] text-orange-500 font-medium">parc. prev. − {fmt(fatura.jenifferProjecaoParcelas)}</span>
+                          <button
+                            type="button"
+                            onClick={() => abrirDetalhesProjecao('Jeniffer', fatura.jenifferProjecaoParcelas, fatura.jenifferProjecaoItens)}
+                            className="text-[11px] text-orange-500 font-medium underline decoration-dotted underline-offset-2"
+                          >
+                            parc. prev. − {fmt(fatura.jenifferProjecaoParcelas)}
+                          </button>
                         ) : (
                           <span className="text-[11px] text-gray-400">{jenifferSobraWarning ? 'limite quase no teto' : ''}</span>
                         )}
@@ -964,7 +1022,13 @@ export default function Dashboard() {
                           </div>
                           <div className="flex items-center justify-between mb-1">
                             {fatura.conjuntoProjecaoParcelas > 0 ? (
-                              <span className="text-[11px] text-orange-500 font-medium">parc. prev. − {fmt(fatura.conjuntoProjecaoParcelas)}</span>
+                              <button
+                                type="button"
+                                onClick={() => abrirDetalhesProjecao('Conjunto', fatura.conjuntoProjecaoParcelas, fatura.conjuntoProjecaoItens)}
+                                className="text-[11px] text-orange-500 font-medium underline decoration-dotted underline-offset-2"
+                              >
+                                parc. prev. − {fmt(fatura.conjuntoProjecaoParcelas)}
+                              </button>
                             ) : <span />}
                             <span className="text-[11px] text-gray-400 num">{Math.min(100, (fatura.conjuntoAtual / fatura.conjuntoPrevisto) * 100).toFixed(0)}%</span>
                           </div>
