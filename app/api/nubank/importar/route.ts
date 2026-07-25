@@ -257,15 +257,20 @@ export async function POST(req: NextRequest) {
 
   async function registrarLog(descricao: string, valor?: number): Promise<string | null> {
     try {
-      const { data } = await supabase.from('activity_logs').insert({
+      const { data, error } = await supabase.from('activity_logs').insert({
         acao: 'importar',
         tabela: 'transacoes_nubank',
         descricao,
         valor: valor ?? null,
       }).select('id').single()
+      if (error) {
+        console.error('[nubank/importar] registrarLog: insert/select falhou:', error.message, error.details, error.hint)
+        return null
+      }
       return data?.id ?? null
-    } catch {
+    } catch (err) {
       /* falha no log nunca deve interromper a resposta */
+      console.error('[nubank/importar] registrarLog: exceção:', err)
       return null
     }
   }
@@ -361,6 +366,8 @@ export async function POST(req: NextRequest) {
       parseFloat(importacaoPublica.total)
     )
 
+    console.log('[nubank/importar] logId:', logId, '| linhas coletadas:', linhas.length)
+
     if (logId && linhas.length > 0) {
       try {
         const { error: erroValidacoes } = await supabase.from('import_validacoes').insert(
@@ -368,6 +375,8 @@ export async function POST(req: NextRequest) {
         )
         if (erroValidacoes) {
           console.error('[nubank/importar] Falha ao salvar detalhes de validação:', erroValidacoes.message, erroValidacoes.details, erroValidacoes.hint)
+        } else {
+          console.log('[nubank/importar] Detalhes de validação salvos com sucesso:', linhas.length, 'linha(s)')
         }
       } catch (err) {
         console.error('[nubank/importar] Exceção ao salvar detalhes de validação:', err)
