@@ -1261,10 +1261,10 @@ export default function Dashboard() {
                 </div>
                 <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
                   Projeção de Parcelamentos
-                  <InfoPopover texto="Total de parcelas previstas para vencer nos próximos 6 meses, separado por pessoa e extras. Calculado a partir das compras parceladas já registradas no NuBank. Toque em um ponto do gráfico para ver os detalhes de cada mês." />
+                  <InfoPopover texto="Total de parcelas previstas para vencer nos próximos 6 meses, separado por pessoa e extras. Calculado a partir das compras parceladas já registradas no NuBank. Toque duas vezes em um ponto do gráfico para ver os detalhes do mês." />
                 </h2>
               </div>
-              <p className="text-xs text-gray-400 mb-4 ml-10">Próximos 6 meses · Toque em um ponto para detalhes</p>
+              <p className="text-xs text-gray-400 mb-4 ml-10">Próximos 6 meses · Toque duas vezes no mês para ver detalhes</p>
               <GraficoProjecao
                 mesInicio={mesAtual}
                 onPontoClicado={(serie, mes, valor, itens) => {
