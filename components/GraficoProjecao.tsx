@@ -86,6 +86,14 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
   const onClickRef = useRef(onPontoClicado)
   useEffect(() => { onClickRef.current = onPontoClicado }, [onPontoClicado])
 
+  // Exige 2 cliques no mesmo mês antes de abrir o detalhamento — evita
+  // abertura acidental ao só explorar o gráfico (o tooltip já responde ao 1º toque)
+  const pendingIndexRef = useRef<number | null>(null)
+  const pendingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => {
+    if (pendingTimeoutRef.current) clearTimeout(pendingTimeoutRef.current)
+  }, [])
+
   // Plugin criado uma única vez — lê isDarkRef.current no draw, sem recriar objeto
   // Preserva as opacidades originais deste gráfico (0.13 / 0.09)
   const plugins = useMemo(
@@ -243,6 +251,20 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
       onClick: async (_event: ChartEvent, elements: ActiveElement[]) => {
         if (!elements.length) return
         const { datasetIndex, index } = elements[0]
+
+        if (pendingIndexRef.current !== index) {
+          // 1º clique neste mês — arma e aguarda confirmação
+          pendingIndexRef.current = index
+          if (pendingTimeoutRef.current) clearTimeout(pendingTimeoutRef.current)
+          pendingTimeoutRef.current = setTimeout(() => {
+            pendingIndexRef.current = null
+          }, 3000)
+          return
+        }
+        // 2º clique no mesmo mês — confirma e abre o detalhamento
+        pendingIndexRef.current = null
+        if (pendingTimeoutRef.current) clearTimeout(pendingTimeoutRef.current)
+
         const d = dadosRef.current
         if (!d) return
         const labels   = ['Total', 'Matheus', 'Jeniffer', 'Despesas']
@@ -315,7 +337,7 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
       </div>
       <p className="flex items-center justify-center gap-1.5 text-[11px] text-gray-400 mt-3">
         <MousePointerClick className="w-3.5 h-3.5" />
-        Toque em um ponto para ver as parcelas do mês
+        Toque duas vezes no mês para ver as parcelas
       </p>
     </div>
   )

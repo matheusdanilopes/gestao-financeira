@@ -159,13 +159,14 @@ export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }:
       <div className="fixed inset-0 bg-black/50 dark:bg-black/70 z-[190] modal-overlay" onClick={onClose} />
 
       <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 rounded-t-3xl shadow-float z-[200] max-h-[84vh] overflow-y-auto modal-sheet">
-        {/* Drag handle */}
-        <div className="flex justify-center pt-3 pb-1 sticky top-0 bg-white dark:bg-gray-900 z-10">
+        {/* Cabeçalho fixo — drag handle + título + filtros em um único bloco sticky,
+            sem fresta entre blocos por onde a lista poderia aparecer por trás */}
+        <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800">
+        <div className="flex justify-center pt-3 pb-1">
           <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-700" />
         </div>
 
-        {/* Cabeçalho fixo */}
-        <div className="sticky top-[28px] bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 px-4 pb-4 pt-1 space-y-3 z-10">
+        <div className="px-4 pb-4 pt-1 space-y-3">
           <div className="flex justify-between items-start">
             <div>
               <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 tracking-tight">{dados.serie}</h3>
@@ -258,8 +259,9 @@ export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }:
             </div>
           </div>
         </div>
+        </div>
 
-        <div className="p-4 pb-8">
+        <div className="relative z-0 p-4 pb-8">
           {/* Total card */}
           <div className="bg-primary-50 dark:bg-primary-900/20 rounded-2xl p-4 mb-4 border border-primary-100 dark:border-primary-900/40">
             <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-0.5">Valor total</p>
