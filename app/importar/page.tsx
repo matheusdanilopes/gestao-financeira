@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import ModalPortal from '@/components/ModalPortal'
-import { Upload, CheckCircle2, XCircle, Sparkles, Clock, AlertCircle, ShieldCheck, Trash2, Code2, Copy, Check, X, FileSpreadsheet, RotateCcw } from 'lucide-react'
+import { Upload, CheckCircle2, XCircle, Sparkles, Clock, AlertCircle, ShieldCheck, Trash2, Code2, Copy, Check, X, FileSpreadsheet, RotateCcw, Search, Calendar } from 'lucide-react'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth } from 'date-fns'
+import FilterSelect from '@/components/FilterSelect'
+import { numericOnly } from '@/lib/logger'
 
 interface StatsFatura {
   noCSV: number
@@ -140,6 +142,10 @@ export default function ImportarPage() {
   const [detalheLogAberto, setDetalheLogAberto] = useState<string | null>(null)
   const [detalheLinhas, setDetalheLinhas] = useState<LinhaValidacao[] | null>(null)
   const [carregandoDetalhe, setCarregandoDetalhe] = useState(false)
+  const [filtroBuscaDetalhe, setFiltroBuscaDetalhe] = useState('')
+  const [filtroDecisaoDetalhe, setFiltroDecisaoDetalhe] = useState('')
+  const [filtroValorMinDetalhe, setFiltroValorMinDetalhe] = useState('')
+  const [filtroDataDetalhe, setFiltroDataDetalhe] = useState('')
   const [revertendoId, setRevertendoId] = useState<string | null>(null)
   const [confirmarAcao, setConfirmarAcao] = useState<{ linhaId: string; acao: 'reverter' | 'reaplicar' } | null>(null)
   const [erroLinha, setErroLinha] = useState<{ id: string; mensagem: string } | null>(null)
@@ -246,6 +252,10 @@ export default function ImportarPage() {
     setCarregandoDetalhe(true)
     setConfirmarAcao(null)
     setErroLinha(null)
+    setFiltroBuscaDetalhe('')
+    setFiltroDecisaoDetalhe('')
+    setFiltroValorMinDetalhe('')
+    setFiltroDataDetalhe('')
     try {
       const res = await fetch(`/api/nubank/atividades/${id}/detalhes`)
       const data = res.ok ? await res.json() : { linhas: [] }
@@ -262,7 +272,24 @@ export default function ImportarPage() {
     setDetalheLinhas(null)
     setConfirmarAcao(null)
     setErroLinha(null)
+    setFiltroBuscaDetalhe('')
+    setFiltroDecisaoDetalhe('')
+    setFiltroValorMinDetalhe('')
+    setFiltroDataDetalhe('')
   }
+
+  const detalheLinhasFiltradas = useMemo(() => {
+    if (!detalheLinhas) return detalheLinhas
+    const busca = filtroBuscaDetalhe.trim().toLowerCase()
+    return detalheLinhas.filter(l =>
+      (!busca || l.descricao.toLowerCase().includes(busca)) &&
+      (!filtroDecisaoDetalhe || l.decisao === filtroDecisaoDetalhe) &&
+      (!filtroValorMinDetalhe || (l.valor != null && l.valor >= Number(filtroValorMinDetalhe))) &&
+      (!filtroDataDetalhe || l.data_compra === filtroDataDetalhe)
+    )
+  }, [detalheLinhas, filtroBuscaDetalhe, filtroDecisaoDetalhe, filtroValorMinDetalhe, filtroDataDetalhe])
+
+  const filtrosDetalheAtivos = !!filtroBuscaDetalhe || !!filtroDecisaoDetalhe || !!filtroValorMinDetalhe || !!filtroDataDetalhe
 
   function pedirAcaoLinha(linhaId: string, acao: 'reverter' | 'reaplicar', destrutiva: boolean) {
     if (destrutiva) {
@@ -1014,6 +1041,71 @@ export default function ImportarPage() {
             </div>
 
             <div className="p-4 space-y-2 pb-10">
+              {!carregandoDetalhe && detalheLinhas && detalheLinhas.length > 0 && (
+                <div className="space-y-2 mb-2">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      className="w-full bg-gray-50 border border-gray-100 rounded-xl pl-9 pr-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+                      placeholder="Buscar por descrição..."
+                      value={filtroBuscaDetalhe}
+                      onChange={(e) => setFiltroBuscaDetalhe(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <FilterSelect
+                      value={filtroDecisaoDetalhe}
+                      onChange={v => setFiltroDecisaoDetalhe(v)}
+                      options={[
+                        { value: '', label: 'Status (todos)' },
+                        ...Array.from(new Set(detalheLinhas.map(l => l.decisao))).map(d => ({
+                          value: d,
+                          label: DECISAO_INFO[d].label,
+                        })),
+                      ]}
+                    />
+                    {filtrosDetalheAtivos && (
+                      <button
+                        onClick={() => {
+                          setFiltroBuscaDetalhe('')
+                          setFiltroDecisaoDetalhe('')
+                          setFiltroValorMinDetalhe('')
+                          setFiltroDataDetalhe('')
+                        }}
+                        className="shrink-0 text-xs text-red-500 hover:text-red-600 font-semibold px-2 py-2 transition-colors"
+                      >
+                        Limpar
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+                      placeholder="Valor mínimo"
+                      value={filtroValorMinDetalhe}
+                      onChange={(e) => setFiltroValorMinDetalhe(numericOnly(e.target.value))}
+                    />
+                    <div className="relative">
+                      <input
+                        type="date"
+                        className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow appearance-none"
+                        value={filtroDataDetalhe}
+                        onChange={(e) => setFiltroDataDetalhe(e.target.value)}
+                      />
+                      {!filtroDataDetalhe && (
+                        <div className="absolute inset-0 flex items-center gap-1.5 px-3 pointer-events-none">
+                          <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
+                          <span className="text-sm text-gray-400">Data</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {carregandoDetalhe ? (
                 <div className="py-10 flex justify-center">
                   <div className="w-6 h-6 rounded-full border-[3px] border-primary-200 border-t-primary-600 animate-spin" />
@@ -1022,8 +1114,12 @@ export default function ImportarPage() {
                 <div className="py-8 text-center">
                   <p className="text-sm text-gray-400">Detalhes não disponíveis — resultados de validação ficam disponíveis por até 2 dias após a importação.</p>
                 </div>
+              ) : detalheLinhasFiltradas && detalheLinhasFiltradas.length === 0 ? (
+                <div className="py-8 text-center">
+                  <p className="text-sm text-gray-400">Nenhuma compra encontrada para os filtros aplicados.</p>
+                </div>
               ) : (
-                detalheLinhas.map(linha => {
+                detalheLinhasFiltradas!.map(linha => {
                   const info = DECISAO_INFO[linha.decisao]
                   const acaoDisponivel = acaoParaLinha(linha.decisao)
                   const isRevertendo = revertendoId === linha.id
