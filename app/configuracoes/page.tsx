@@ -233,7 +233,7 @@ function SettingsToggleRow({
 
 function ConfiguracoesContent() {
   const searchParams = useSearchParams()
-  const [abaAtual, setAbaAtual] = useState<AbaConfiguracoes>('cartoes')
+  const [abaAtual, setAbaAtual] = useState<AbaConfiguracoes>('preferencias')
 
   useEffect(() => {
     const tab = searchParams.get('tab')
@@ -1074,6 +1074,17 @@ function ConfiguracoesContent() {
       {/* ---- ABA PREFERÊNCIAS ---- */}
       {abaAtual === 'preferencias' && (
         <>
+          {/* Dados */}
+          <SettingsCard icon={Upload} title="Dados">
+            <Link
+              href="/importar"
+              className="w-full flex items-center justify-center gap-2 bg-primary-600 text-white py-3 rounded-2xl font-semibold hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm"
+            >
+              <Upload className="w-4 h-4" />
+              Importar Dados
+            </Link>
+          </SettingsCard>
+
           {/* Tema */}
           <SettingsCard icon={Sun} title="Tema">
             <div className="flex gap-2">
@@ -1191,17 +1202,6 @@ function ConfiguracoesContent() {
                 }}
               />
             </div>
-          </SettingsCard>
-
-          {/* Dados */}
-          <SettingsCard icon={Upload} title="Dados">
-            <Link
-              href="/importar"
-              className="w-full flex items-center justify-center gap-2 bg-primary-600 text-white py-3 rounded-2xl font-semibold hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm"
-            >
-              <Upload className="w-4 h-4" />
-              Importar Dados
-            </Link>
           </SettingsCard>
 
           {/* Conta */}
