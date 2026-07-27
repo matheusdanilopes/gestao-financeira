@@ -1,95 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { SlidersHorizontal, ChevronRight, Sparkles, Heart, ShoppingBasket, RepeatIcon, Activity, Crown } from 'lucide-react'
-
-const grupos = [
-  {
-    titulo: 'Inteligência',
-    items: [
-      {
-        href:        '/chat',
-        label:       'Assistente IA',
-        description: 'Pergunte sobre suas finanças com base nos seus dados reais',
-        iconBg:      'bg-gradient-to-br from-violet-500 to-indigo-600',
-        iconColor:   'text-white',
-        Icon:        Sparkles,
-        badge:       'IA',
-        badgeColor:  'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300',
-      },
-    ],
-  },
-  {
-    titulo: 'Listas & Desejos',
-    items: [
-      {
-        href:        '/wishlist',
-        label:       'Wishlist',
-        description: 'Itens que vocês querem comprar, com prioridade e preço estimado',
-        iconBg:      'bg-pink-100',
-        iconColor:   'text-pink-500',
-        Icon:        Heart,
-        badge:       null,
-        badgeColor:  '',
-      },
-      {
-        href:        '/lista-mercado',
-        label:       'Lista de Mercado',
-        description: 'Lista colaborativa com sync em tempo real e histórico de compras',
-        iconBg:      'bg-emerald-100',
-        iconColor:   'text-emerald-600',
-        Icon:        ShoppingBasket,
-        badge:       null,
-        badgeColor:  '',
-      },
-      {
-        href:        '/listas-compras',
-        label:       'Listas da Princesa',
-        description: 'Crie listas por nome, controle gastos previstos e realizados',
-        iconBg:      'bg-amber-100',
-        iconColor:   'text-amber-600',
-        Icon:        Crown,
-        badge:       null,
-        badgeColor:  '',
-      },
-      {
-        href:        '/assinaturas',
-        label:       'Assinaturas',
-        description: 'Serviços recorrentes e mensalidades cadastradas',
-        iconBg:      'bg-indigo-100',
-        iconColor:   'text-indigo-600',
-        Icon:        RepeatIcon,
-        badge:       null,
-        badgeColor:  '',
-      },
-    ],
-  },
-  {
-    titulo: 'Configurações',
-    items: [
-      {
-        href:        '/configuracoes',
-        label:       'Configurações',
-        description: 'Cartões, faturas, categorias e preferências',
-        iconBg:      'bg-gray-100',
-        iconColor:   'text-gray-600',
-        Icon:        SlidersHorizontal,
-        badge:       null,
-        badgeColor:  '',
-      },
-      {
-        href:        '/configuracoes?tab=atividades',
-        label:       'Atividades',
-        description: 'Histórico completo de ações realizadas no app',
-        iconBg:      'bg-amber-100',
-        iconColor:   'text-amber-600',
-        Icon:        Activity,
-        badge:       null,
-        badgeColor:  '',
-      },
-    ],
-  },
-]
+import { ChevronRight } from 'lucide-react'
+import { EXTRAS_GRUPOS } from '@/lib/extrasItems'
 
 export default function ExtrasPage() {
   return (
@@ -99,7 +12,7 @@ export default function ExtrasPage() {
       </div>
 
       <div className="page-content mt-4 space-y-6">
-        {grupos.map(({ titulo, items }) => (
+        {EXTRAS_GRUPOS.map(({ titulo, items }) => (
           <div key={titulo}>
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">{titulo}</p>
             <div className="space-y-2">

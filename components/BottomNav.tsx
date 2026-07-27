@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  LayoutDashboard, Receipt, TrendingUp, ShoppingCart, MessageCircle,
+  LayoutDashboard, Receipt, TrendingUp, ShoppingCart,
   SlidersHorizontal, PiggyBank, Sparkles, BarChart3, Plus, MoreHorizontal, Wallet, CreditCard, RepeatIcon,
   Heart, ShoppingBasket, WifiOff, Crown,
 } from 'lucide-react'
@@ -15,6 +15,7 @@ import { useCategorizacao } from '@/components/CategorizacaoProvider'
 import { useOnline } from '@/lib/useOnline'
 import ModalPortal from '@/components/ModalPortal'
 import FabQuickLaunchSheet from '@/components/FabQuickLaunchSheet'
+import { EXTRAS_QUICK_ACCESS } from '@/lib/extrasItems'
 
 const ROTAS_COM_MENU = [
   '/dashboard', '/contas', '/receitas', '/investimentos', '/assinaturas',
@@ -39,7 +40,7 @@ const desktopItems = [
   { href: '/wishlist',      label: 'Wishlist',      icon: Heart,             desktopOnly: false },
   { href: '/lista-mercado',  label: 'Mercado',        icon: ShoppingBasket,    desktopOnly: false },
   { href: '/listas-compras', label: 'Princesa',       icon: Crown,             desktopOnly: false },
-  { href: '/chat',          label: 'IA',            icon: MessageCircle,     desktopOnly: false },
+  { href: '/chat',          label: 'IA',            icon: Sparkles,          desktopOnly: false },
   { href: '/configuracoes', label: 'Config',        icon: SlidersHorizontal, desktopOnly: false },
   { href: '/analytics',     label: 'Analytics',     icon: BarChart3,         desktopOnly: true  },
 ]
@@ -116,18 +117,12 @@ function CartaoMenuPopover({ onClose }: { onClose: () => void }) {
 
 
 function ExtrasMenuPopover({ onClose }: { onClose: () => void }) {
-  const opcoes = [
-    { href: '/wishlist',      label: 'Wishlist',      Icon: Heart,             cor: 'text-pink-500 dark:text-pink-400',    bg: 'bg-pink-50'    },
-    { href: '/lista-mercado',  label: 'Lista Mercado',   Icon: ShoppingBasket,    cor: 'text-green-600',  bg: 'bg-green-50'   },
-    { href: '/listas-compras', label: 'Listas da Princesa', Icon: Crown,         cor: 'text-amber-600',  bg: 'bg-amber-50'   },
-    { href: '/chat',          label: 'IA Assistant',  Icon: MessageCircle,     cor: 'text-primary-600',                    bg: 'bg-primary-50' },
-    { href: '/configuracoes', label: 'Configurações', Icon: SlidersHorizontal, cor: 'text-gray-600',                       bg: 'bg-gray-100'   },
-  ]
+  const opcoes = EXTRAS_QUICK_ACCESS
 
   return (
     <div className="fixed bottom-[72px] right-3 z-[51] modal-center">
       <div className="bg-white rounded-3xl shadow-float border border-gray-100 overflow-hidden w-56">
-        {opcoes.map(({ href, label, Icon, cor, bg }, i) => (
+        {opcoes.map(({ href, label, Icon, popoverColor, popoverBg }, i) => (
           <Link
             key={href}
             href={href}
@@ -138,8 +133,8 @@ function ExtrasMenuPopover({ onClose }: { onClose: () => void }) {
                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
                         ${i < opcoes.length - 1 ? 'border-b border-gray-100' : ''}`}
           >
-            <div className={`w-8 h-8 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
-              <Icon className={`w-4 h-4 ${cor}`} strokeWidth={1.8} />
+            <div className={`w-8 h-8 rounded-xl ${popoverBg} flex items-center justify-center shrink-0`}>
+              <Icon className={`w-4 h-4 ${popoverColor}`} strokeWidth={1.8} />
             </div>
             <span className="text-sm font-semibold text-gray-700">{label}</span>
           </Link>
