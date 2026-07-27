@@ -8,6 +8,7 @@ import { descricaoFechamento, calcularDataFechamentoDaFaturaISO } from '@/lib/fa
 import {
   Settings, LogOut, Upload, Activity, ChevronDown, Sun, Moon, Monitor,
   Tags, Plus, Pencil, Trash2, Check, CreditCard, CalendarDays, X, Bell, Search,
+  User, Mail, Lock, Eye, EyeOff,
 } from 'lucide-react'
 import FilterSelect from '@/components/FilterSelect'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -60,7 +61,7 @@ const CARTAO_LABELS: Record<string, string> = {
 
 const PAGE_SIZE = 20
 
-type AbaConfiguracoes = 'cartoes' | 'categorias' | 'preferencias' | 'atividades'
+type AbaConfiguracoes = 'cartoes' | 'categorias' | 'preferencias' | 'conta' | 'atividades'
 type CartaoFaturas = 'nubank' | 'cartao1' | 'cartao2'
 
 // ---- Componente de configuração de cartão (acordeão) ----
@@ -237,7 +238,7 @@ function ConfiguracoesContent() {
 
   useEffect(() => {
     const tab = searchParams.get('tab')
-    if (tab === 'cartoes' || tab === 'categorias' || tab === 'preferencias' || tab === 'atividades') {
+    if (tab === 'cartoes' || tab === 'categorias' || tab === 'preferencias' || tab === 'conta' || tab === 'atividades') {
       setAbaAtual(tab)
     }
   }, [searchParams])
@@ -278,6 +279,19 @@ function ConfiguracoesContent() {
   const [registrandoPush, setRegistrandoPush] = useState(false)
   const [testando, setTestando] = useState(false)
   const [mensagemPush, setMensagemPush] = useState('')
+
+  // --- Conta (usuário) ---
+  const [emailAtual, setEmailAtual] = useState('')
+  const [novoEmail, setNovoEmail] = useState('')
+  const [salvandoEmail, setSalvandoEmail] = useState(false)
+  const [mensagemEmail, setMensagemEmail] = useState('')
+
+  const [novaSenha, setNovaSenha] = useState('')
+  const [confirmarSenha, setConfirmarSenha] = useState('')
+  const [mostrarNovaSenha, setMostrarNovaSenha] = useState(false)
+  const [mostrarConfirmarSenha, setMostrarConfirmarSenha] = useState(false)
+  const [salvandoSenha, setSalvandoSenha] = useState(false)
+  const [mensagemSenha, setMensagemSenha] = useState('')
 
   // --- Categorias ---
   const [categorias, setCategorias] = useState<string[]>(CATEGORIAS_PADRAO)
@@ -695,6 +709,72 @@ function ConfiguracoesContent() {
     router.refresh()
   }
 
+  async function handleAlterarEmail(e: React.FormEvent) {
+    e.preventDefault()
+    setMensagemEmail('')
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(novoEmail)) {
+      setMensagemEmail('Informe um email válido.')
+      return
+    }
+    if (novoEmail === emailAtual) {
+      setMensagemEmail('O novo email deve ser diferente do atual.')
+      return
+    }
+    setSalvandoEmail(true)
+    try {
+      const res = await fetch('/api/conta/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: novoEmail }),
+      })
+      const data = await res.json()
+      if (data.ok) {
+        setMensagemEmail('Solicitação enviada com sucesso! Verifique a caixa de entrada do novo email e clique no link para confirmar a alteração.')
+        setNovoEmail('')
+      } else {
+        setMensagemEmail('Erro: ' + (data.error || 'desconhecido'))
+      }
+    } catch {
+      setMensagemEmail('Erro ao conectar ao servidor.')
+    } finally {
+      setSalvandoEmail(false)
+    }
+  }
+
+  async function handleAlterarSenha(e: React.FormEvent) {
+    e.preventDefault()
+    setMensagemSenha('')
+    if (novaSenha.length < 6) {
+      setMensagemSenha('A senha deve ter pelo menos 6 caracteres.')
+      return
+    }
+    if (novaSenha !== confirmarSenha) {
+      setMensagemSenha('As senhas não coincidem.')
+      return
+    }
+    setSalvandoSenha(true)
+    try {
+      const res = await fetch('/api/conta/senha', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ senha: novaSenha }),
+      })
+      const data = await res.json()
+      if (data.ok) {
+        setMensagemSenha('Senha atualizada com sucesso!')
+        setNovaSenha('')
+        setConfirmarSenha('')
+        setTimeout(() => setMensagemSenha(''), 3000)
+      } else {
+        setMensagemSenha('Erro: ' + (data.error || 'desconhecido'))
+      }
+    } catch {
+      setMensagemSenha('Erro ao conectar ao servidor.')
+    } finally {
+      setSalvandoSenha(false)
+    }
+  }
+
   const logsFiltrados = useMemo(() => {
     return logs.filter((entry) => (
       (!filtroAcao || entry.acao === filtroAcao) &&
@@ -718,6 +798,12 @@ function ConfiguracoesContent() {
       carregarStatusPush()
     }, 0)
     return () => clearTimeout(timer)
+  }, [])
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user?.email) setEmailAtual(data.user.email)
+    })
   }, [])
 
   // ---- Helpers de data ----
@@ -746,6 +832,7 @@ function ConfiguracoesContent() {
       <div className="flex overflow-x-auto gap-2 mb-4 mt-3 pb-0.5 scrollbar-hide">
         {([
           { key: 'preferencias', label: 'Preferências', icon: Settings },
+          { key: 'conta',        label: 'Conta',        icon: User },
           { key: 'cartoes',      label: 'Cartões',      icon: CreditCard },
           { key: 'categorias',   label: 'Categorias',   icon: Tags },
           { key: 'atividades',   label: 'Atividades',   icon: Activity },
@@ -1204,8 +1291,119 @@ function ConfiguracoesContent() {
             </div>
           </SettingsCard>
 
-          {/* Conta */}
-          <SettingsCard icon={LogOut} title="Conta">
+        </>
+      )}
+
+      {/* ---- ABA CONTA ---- */}
+      {abaAtual === 'conta' && (
+        <>
+          {/* Email */}
+          <SettingsCard icon={Mail} title="Email" description={`Email atual: ${emailAtual || '—'}`}>
+            <form onSubmit={handleAlterarEmail} className="space-y-3">
+              <input
+                type="email"
+                value={novoEmail}
+                onChange={(e) => setNovoEmail(e.target.value)}
+                placeholder="novo@email.com"
+                required
+                autoComplete="email"
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-shadow"
+              />
+              {mensagemEmail && (
+                <p className={`text-xs px-3.5 py-2.5 rounded-2xl border ${
+                  mensagemEmail.includes('sucesso')
+                    ? 'bg-green-50 border-green-100 text-green-700'
+                    : 'bg-red-50 border-red-100 text-red-600'
+                }`}>
+                  {mensagemEmail}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={salvandoEmail}
+                className="w-full bg-primary-600 text-white py-3 rounded-2xl font-semibold text-sm hover:bg-primary-700 active:scale-[0.98] transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {salvandoEmail ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Salvando…
+                  </span>
+                ) : (
+                  'Alterar email'
+                )}
+              </button>
+            </form>
+          </SettingsCard>
+
+          {/* Senha */}
+          <SettingsCard icon={Lock} title="Senha">
+            <form onSubmit={handleAlterarSenha} className="space-y-3">
+              <div className="relative">
+                <input
+                  type={mostrarNovaSenha ? 'text' : 'password'}
+                  value={novaSenha}
+                  onChange={(e) => setNovaSenha(e.target.value)}
+                  placeholder="Nova senha"
+                  required
+                  autoComplete="new-password"
+                  className="w-full pl-4 pr-11 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-shadow"
+                />
+                <button
+                  type="button"
+                  onClick={() => setMostrarNovaSenha(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  aria-label={mostrarNovaSenha ? 'Ocultar senha' : 'Mostrar senha'}
+                >
+                  {mostrarNovaSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <div className="relative">
+                <input
+                  type={mostrarConfirmarSenha ? 'text' : 'password'}
+                  value={confirmarSenha}
+                  onChange={(e) => setConfirmarSenha(e.target.value)}
+                  placeholder="Confirmar nova senha"
+                  required
+                  autoComplete="new-password"
+                  className="w-full pl-4 pr-11 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-shadow"
+                />
+                <button
+                  type="button"
+                  onClick={() => setMostrarConfirmarSenha(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  aria-label={mostrarConfirmarSenha ? 'Ocultar senha' : 'Mostrar senha'}
+                >
+                  {mostrarConfirmarSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {mensagemSenha && (
+                <p className={`text-xs px-3.5 py-2.5 rounded-2xl border ${
+                  mensagemSenha.includes('sucesso')
+                    ? 'bg-green-50 border-green-100 text-green-700'
+                    : 'bg-red-50 border-red-100 text-red-600'
+                }`}>
+                  {mensagemSenha}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={salvandoSenha}
+                className="w-full bg-primary-600 text-white py-3 rounded-2xl font-semibold text-sm hover:bg-primary-700 active:scale-[0.98] transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {salvandoSenha ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Salvando…
+                  </span>
+                ) : (
+                  'Alterar senha'
+                )}
+              </button>
+            </form>
+          </SettingsCard>
+
+          {/* Sessão */}
+          <SettingsCard icon={LogOut} title="Sessão">
             <button
               onClick={handleLogout}
               className="w-full flex items-center justify-center gap-2.5 py-3 text-red-600 font-semibold hover:bg-red-50 rounded-2xl transition-colors active:scale-[0.98]"
