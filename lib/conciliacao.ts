@@ -354,28 +354,20 @@ export async function conciliarTransacao(
         return { acao: 'inserido', inseriu: ok, transacaoId: id }
       }
 
-      // Match completo (nome + data + valor dentro da tolerância)
-      if (origem === 'csv') {
-        // CSV é autoridade: atualiza valor_final e marca como CONCILIADO
-        await supabase
-          .from('transacoes_nubank')
-          .update({ valor_final: item.valor, status: 'CONCILIADO' })
-          .eq('id', match.id)
-        return {
-          acao: 'conciliado',
-          inseriu: false,
-          matchExistenteId: match.id,
-          transacaoId: match.id,
-          estadoAnterior: { status: match.status, valor: match.valor, valor_final: match.valor_final },
-        }
-      }
-      // API: ignora entrada redundante
-      console.log(`[conciliacao] ignorado (match nome+data+valor) desc="${item.descricao}" data=${item.data_compra} valor=${item.valor}`)
+      // Match completo (nome + data + valor dentro da tolerância): a fonte mais recente
+      // (CSV ou API) é autoridade sobre o valor final da compra — atualiza valor_final
+      // e marca como CONCILIADO em ambos os casos.
+      console.log(`[conciliacao] conciliado (match nome+data+valor, origem=${origem}) desc="${item.descricao}" data=${item.data_compra} valor=${item.valor}`)
+      await supabase
+        .from('transacoes_nubank')
+        .update({ valor_final: item.valor, status: 'CONCILIADO' })
+        .eq('id', match.id)
       return {
-        acao: 'ignorado',
+        acao: 'conciliado',
         inseriu: false,
         matchExistenteId: match.id,
-        registroConflitante: { id: match.id, descricao: match.descricao, valor: match.valor, data_compra: match.data_compra, status: match.status },
+        transacaoId: match.id,
+        estadoAnterior: { status: match.status, valor: match.valor, valor_final: match.valor_final },
       }
     }
 
