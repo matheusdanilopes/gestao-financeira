@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '@/lib/supabaseClient'
@@ -10,7 +10,7 @@ import {
   Tags, Plus, Pencil, Trash2, Check, CreditCard, CalendarDays, X, Bell, Search,
 } from 'lucide-react'
 import FilterSelect from '@/components/FilterSelect'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useTheme } from '@/components/ThemeProvider'
 import { CATEGORIAS_PADRAO, normalizarCategorias, parseCategoriasConfig } from '@/lib/categorias'
@@ -159,8 +159,42 @@ function SecaoCartao({
   )
 }
 
-export default function ConfiguracoesPage() {
+// ---- Card de seção reutilizável (evita repetir a casca visual em cada bloco da aba Geral) ----
+
+function SettingsCard({
+  icon: Icon,
+  title,
+  children,
+  className = '',
+}: {
+  icon: React.ComponentType<{ className?: string }>
+  title: string
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <div className={`bg-white rounded-3xl shadow-card border border-gray-100 p-4 mb-4 ${className}`}>
+      <h2 className="text-base font-semibold mb-4 flex items-center gap-2.5 text-gray-800 tracking-tight">
+        <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
+          <Icon className="w-4 h-4 text-gray-500" />
+        </div>
+        {title}
+      </h2>
+      {children}
+    </div>
+  )
+}
+
+function ConfiguracoesContent() {
+  const searchParams = useSearchParams()
   const [abaAtual, setAbaAtual] = useState<AbaConfiguracoes>('geral')
+
+  useEffect(() => {
+    const tab = searchParams.get('tab')
+    if (tab === 'geral' || tab === 'faturas' || tab === 'atividades' || tab === 'categorias') {
+      setAbaAtual(tab)
+    }
+  }, [searchParams])
 
   // --- Geral ---
   const [cartaoExpandido, setCartaoExpandido] = useState<'nubank' | 'cartao1' | 'cartao2' | null>(null)
@@ -708,14 +742,7 @@ export default function ConfiguracoesPage() {
       {abaAtual === 'geral' && (
         <>
           {/* Ciclos de fatura */}
-          <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 mb-4">
-            <h2 className="text-base font-semibold mb-4 flex items-center gap-2.5 text-gray-800 tracking-tight">
-              <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
-                <Settings className="w-4 h-4 text-gray-500" />
-              </div>
-              Ciclos de Fatura por Cartão
-            </h2>
-
+          <SettingsCard icon={Settings} title="Ciclos de Fatura por Cartão">
             <div className="space-y-3">
               <SecaoCartao
                 titulo="NuBank"
@@ -758,16 +785,10 @@ export default function ConfiguracoesPage() {
                 ) : 'Salvar Configurações'}
               </button>
             </div>
-          </div>
+          </SettingsCard>
 
           {/* Importar dados */}
-          <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 mb-4">
-            <h2 className="text-base font-semibold mb-3 flex items-center gap-2.5 text-gray-800 tracking-tight">
-              <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
-                <Upload className="w-4 h-4 text-gray-500" />
-              </div>
-              Importar Dados
-            </h2>
+          <SettingsCard icon={Upload} title="Importar Dados">
             <Link
               href="/importar"
               className="w-full flex items-center justify-center gap-2 bg-primary-600 text-white py-3 rounded-2xl font-semibold hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm"
@@ -775,16 +796,10 @@ export default function ConfiguracoesPage() {
               <Upload className="w-4 h-4" />
               Ir para Importação
             </Link>
-          </div>
+          </SettingsCard>
 
           {/* Tema */}
-          <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 mb-4">
-            <h2 className="text-base font-semibold mb-4 flex items-center gap-2.5 text-gray-800 tracking-tight">
-              <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
-                <Sun className="w-4 h-4 text-gray-500" />
-              </div>
-              Tema
-            </h2>
+          <SettingsCard icon={Sun} title="Tema">
             <div className="flex gap-2">
               {([
                 { value: 'light',  label: 'Claro',   Icon: Sun },
@@ -805,17 +820,10 @@ export default function ConfiguracoesPage() {
                 </button>
               ))}
             </div>
-          </div>
+          </SettingsCard>
 
           {/* Notificações push */}
-          <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 mb-4 space-y-4">
-            <h2 className="text-base font-semibold flex items-center gap-2.5 text-gray-800 tracking-tight">
-              <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
-                <Bell className="w-4 h-4 text-gray-500" />
-              </div>
-              Notificações Push
-            </h2>
-
+          <SettingsCard icon={Bell} title="Notificações Push" className="space-y-4">
             {/* Status da permissão */}
             {permissaoPush !== null && (
               <div className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl text-sm font-medium ${
@@ -923,10 +931,10 @@ export default function ConfiguracoesPage() {
                 </button>
               </div>
             </div>
-          </div>
+          </SettingsCard>
 
-          {/* Sair */}
-          <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-3 mb-4">
+          {/* Conta */}
+          <SettingsCard icon={LogOut} title="Conta">
             <button
               onClick={handleLogout}
               className="w-full flex items-center justify-center gap-2.5 py-3 text-red-600 font-semibold hover:bg-red-50 rounded-2xl transition-colors active:scale-[0.98]"
@@ -934,7 +942,7 @@ export default function ConfiguracoesPage() {
               <LogOut className="w-4 h-4" />
               Sair da conta
             </button>
-          </div>
+          </SettingsCard>
         </>
       )}
 
@@ -1285,5 +1293,13 @@ export default function ConfiguracoesPage() {
       )}
 
     </div>
+  )
+}
+
+export default function ConfiguracoesPage() {
+  return (
+    <Suspense>
+      <ConfiguracoesContent />
+    </Suspense>
   )
 }
