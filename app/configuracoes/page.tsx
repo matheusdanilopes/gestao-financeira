@@ -729,10 +729,8 @@ function ConfiguracoesContent() {
       })
       const data = await res.json()
       if (data.ok) {
-        setMensagemEmail('Email atualizado com sucesso!')
-        setEmailAtual(novoEmail)
+        setMensagemEmail('Solicitação enviada com sucesso! Verifique a caixa de entrada do novo email e clique no link para confirmar a alteração.')
         setNovoEmail('')
-        setTimeout(() => setMensagemEmail(''), 3000)
       } else {
         setMensagemEmail('Erro: ' + (data.error || 'desconhecido'))
       }
