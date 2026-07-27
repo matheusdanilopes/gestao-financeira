@@ -60,7 +60,7 @@ const CARTAO_LABELS: Record<string, string> = {
 
 const PAGE_SIZE = 20
 
-type AbaConfiguracoes = 'geral' | 'faturas' | 'atividades' | 'categorias'
+type AbaConfiguracoes = 'cartoes' | 'categorias' | 'preferencias' | 'atividades'
 type CartaoFaturas = 'nubank' | 'cartao1' | 'cartao2'
 
 // ---- Componente de configuração de cartão (acordeão) ----
@@ -164,34 +164,80 @@ function SecaoCartao({
 function SettingsCard({
   icon: Icon,
   title,
+  description,
+  badge,
   children,
   className = '',
 }: {
   icon: React.ComponentType<{ className?: string }>
   title: string
+  description?: string
+  badge?: string
   children: React.ReactNode
   className?: string
 }) {
   return (
     <div className={`bg-white rounded-3xl shadow-card border border-gray-100 p-4 mb-4 ${className}`}>
-      <h2 className="text-base font-semibold mb-4 flex items-center gap-2.5 text-gray-800 tracking-tight">
+      <h2 className={`text-base font-semibold flex items-center gap-2.5 text-gray-800 tracking-tight ${description ? 'mb-1' : 'mb-4'}`}>
         <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
           <Icon className="w-4 h-4 text-gray-500" />
         </div>
-        {title}
+        <span className="flex-1">{title}</span>
+        {badge && (
+          <span className="text-xs text-gray-400 font-normal bg-gray-100 px-2 py-0.5 rounded-full">{badge}</span>
+        )}
       </h2>
+      {description && (
+        <p className="text-xs text-gray-400 mb-4 ml-10">{description}</p>
+      )}
       {children}
+    </div>
+  )
+}
+
+function SettingsToggleRow({
+  title,
+  description,
+  checked,
+  onChange,
+}: {
+  title: string
+  description?: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-gray-700 tracking-tight">{title}</p>
+        {description && <p className="text-xs text-gray-400 mt-0.5">{description}</p>}
+      </div>
+      <button
+        type="button"
+        aria-checked={checked}
+        role="switch"
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-spring focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 ${
+          checked ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-700'
+        }`}
+      >
+        <span
+          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 ease-spring ${
+            checked ? 'translate-x-5' : 'translate-x-0'
+          }`}
+        />
+      </button>
     </div>
   )
 }
 
 function ConfiguracoesContent() {
   const searchParams = useSearchParams()
-  const [abaAtual, setAbaAtual] = useState<AbaConfiguracoes>('geral')
+  const [abaAtual, setAbaAtual] = useState<AbaConfiguracoes>('cartoes')
 
   useEffect(() => {
     const tab = searchParams.get('tab')
-    if (tab === 'geral' || tab === 'faturas' || tab === 'atividades' || tab === 'categorias') {
+    if (tab === 'cartoes' || tab === 'categorias' || tab === 'preferencias' || tab === 'atividades') {
       setAbaAtual(tab)
     }
   }, [searchParams])
@@ -699,10 +745,10 @@ function ConfiguracoesContent() {
       {/* Tabs */}
       <div className="flex overflow-x-auto gap-2 mb-4 mt-3 pb-0.5 scrollbar-hide">
         {([
-          { key: 'geral',       label: 'Geral',      icon: Settings },
-          { key: 'faturas',     label: 'Faturas',    icon: CreditCard },
-          { key: 'atividades',  label: 'Atividades', icon: Activity },
-          { key: 'categorias',  label: 'Categorias', icon: Tags },
+          { key: 'cartoes',      label: 'Cartões',      icon: CreditCard },
+          { key: 'categorias',   label: 'Categorias',   icon: Tags },
+          { key: 'preferencias', label: 'Preferências', icon: Settings },
+          { key: 'atividades',   label: 'Atividades',   icon: Activity },
         ] as const).map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -738,8 +784,8 @@ function ConfiguracoesContent() {
         </div>
       )}
 
-      {/* ---- ABA GERAL ---- */}
-      {abaAtual === 'geral' && (
+      {/* ---- ABA CARTÕES ---- */}
+      {abaAtual === 'cartoes' && (
         <>
           {/* Ciclos de fatura */}
           <SettingsCard icon={Settings} title="Ciclos de Fatura por Cartão">
@@ -787,179 +833,12 @@ function ConfiguracoesContent() {
             </div>
           </SettingsCard>
 
-          {/* Importar dados */}
-          <SettingsCard icon={Upload} title="Importar Dados">
-            <Link
-              href="/importar"
-              className="w-full flex items-center justify-center gap-2 bg-primary-600 text-white py-3 rounded-2xl font-semibold hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm"
-            >
-              <Upload className="w-4 h-4" />
-              Ir para Importação
-            </Link>
-          </SettingsCard>
-
-          {/* Tema */}
-          <SettingsCard icon={Sun} title="Tema">
-            <div className="flex gap-2">
-              {([
-                { value: 'light',  label: 'Claro',   Icon: Sun },
-                { value: 'dark',   label: 'Escuro',  Icon: Moon },
-                { value: 'system', label: 'Sistema', Icon: Monitor },
-              ] as const).map(({ value, label, Icon }) => (
-                <button
-                  key={value}
-                  onClick={() => setTheme(value)}
-                  className={`flex-1 flex flex-col items-center gap-2 py-3.5 rounded-2xl border-2 font-semibold text-sm transition active:scale-[0.97] ${
-                    theme === value
-                      ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400'
-                      : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
-                  }`}
-                >
-                  <Icon className={`w-5 h-5 ${theme === value ? 'text-primary-500' : ''}`} />
-                  {label}
-                </button>
-              ))}
-            </div>
-          </SettingsCard>
-
-          {/* Notificações push */}
-          <SettingsCard icon={Bell} title="Notificações Push" className="space-y-4">
-            {/* Status da permissão */}
-            {permissaoPush !== null && (
-              <div className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl text-sm font-medium ${
-                permissaoPush === 'granted'
-                  ? 'bg-green-50 border border-green-100 text-green-700'
-                  : permissaoPush === 'denied'
-                  ? 'bg-red-50 border border-red-100 text-red-700'
-                  : permissaoPush === 'unsupported'
-                  ? 'bg-gray-50 border border-gray-200 text-gray-500'
-                  : 'bg-amber-50 border border-amber-100 text-amber-700'
-              }`}>
-                <span className={`w-2 h-2 rounded-full shrink-0 ${
-                  permissaoPush === 'granted' ? 'bg-green-500' :
-                  permissaoPush === 'denied'  ? 'bg-red-500' :
-                  permissaoPush === 'unsupported' ? 'bg-gray-400' : 'bg-amber-400'
-                }`} />
-                {permissaoPush === 'granted' && subscricaoAtiva
-                  ? 'Notificações ativas e subscrição registrada'
-                  : permissaoPush === 'granted' && subscricaoAtiva === false
-                  ? 'Permissão concedida, mas sem subscrição ativa'
-                  : permissaoPush === 'denied'
-                  ? 'Permissão bloqueada — libere nas configurações do sistema'
-                  : permissaoPush === 'unsupported'
-                  ? 'Notificações não suportadas neste navegador'
-                  : 'Permissão não concedida'}
-              </div>
-            )}
-
-            {mensagemPush && (
-              <p className={`text-xs px-3.5 py-2.5 rounded-2xl border ${
-                mensagemPush.includes('sucesso') || mensagemPush.includes('enviada')
-                  ? 'bg-green-50 border-green-100 text-green-700'
-                  : 'bg-red-50 border-red-100 text-red-600'
-              }`}>
-                {mensagemPush}
-              </p>
-            )}
-
-            {/* Ações */}
-            {permissaoPush !== null && permissaoPush !== 'unsupported' && permissaoPush !== 'denied' && (
-              <div className="flex gap-2">
-                {(!subscricaoAtiva || permissaoPush !== 'granted') ? (
-                  <button
-                    onClick={ativarNotificacoes}
-                    disabled={registrandoPush}
-                    className="flex-1 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-2xl transition-all active:scale-[0.97] disabled:opacity-50 shadow-sm"
-                  >
-                    {registrandoPush ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        Ativando…
-                      </span>
-                    ) : 'Ativar notificações'}
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      onClick={testarNotificacao}
-                      disabled={testando}
-                      className="flex-1 py-2.5 bg-primary-50 hover:bg-primary-100 text-primary-700 text-sm font-semibold rounded-2xl transition-all active:scale-[0.97] disabled:opacity-50 border border-primary-200"
-                    >
-                      {testando ? 'Enviando…' : 'Testar notificação'}
-                    </button>
-                    <button
-                      onClick={desativarNotificacoes}
-                      disabled={registrandoPush}
-                      className="py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-semibold rounded-2xl transition-all active:scale-[0.97] disabled:opacity-50"
-                    >
-                      {registrandoPush ? '…' : 'Desativar'}
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* Alertas de vencimento */}
-            <div className="border-t border-gray-100 pt-4">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-700 tracking-tight">Alertas de vencimento</p>
-                  <p className="text-xs text-gray-400 mt-0.5">T-1 e no dia do vencimento às 09:00</p>
-                </div>
-                <button
-                  type="button"
-                  aria-checked={notificacoesVencimentoAtivas}
-                  role="switch"
-                  onClick={async () => {
-                    const newVal = !notificacoesVencimentoAtivas
-                    setNotificacoesVencimentoAtivas(newVal)
-                    await fetch('/api/configuracoes', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ configuracoes: [{ chave: 'notificacoes_vencimento_ativas', valor: String(newVal) }] }),
-                    })
-                  }}
-                  className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-spring focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 ${
-                    notificacoesVencimentoAtivas ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-700'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 ease-spring ${
-                      notificacoesVencimentoAtivas ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-              </div>
-            </div>
-          </SettingsCard>
-
-          {/* Conta */}
-          <SettingsCard icon={LogOut} title="Conta">
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center justify-center gap-2.5 py-3 text-red-600 font-semibold hover:bg-red-50 rounded-2xl transition-colors active:scale-[0.98]"
-            >
-              <LogOut className="w-4 h-4" />
-              Sair da conta
-            </button>
-          </SettingsCard>
-        </>
-      )}
-
-      {/* ---- ABA FATURAS ---- */}
-      {abaAtual === 'faturas' && (
-        <div className="space-y-4">
-          <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
-            <h2 className="text-base font-semibold mb-1 flex items-center gap-2.5 text-gray-800 tracking-tight">
-              <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
-                <CreditCard className="w-4 h-4 text-gray-500" />
-              </div>
-              Datas de Fechamento
-            </h2>
-            <p className="text-sm text-gray-500 mb-4 ml-10">
-              Registre a data real de fechamento de cada fatura. Datas em cinza são estimativas automáticas.
-            </p>
-
+          {/* Datas de fechamento */}
+          <SettingsCard
+            icon={CalendarDays}
+            title="Datas de Fechamento"
+            description="Registre a data real de fechamento de cada fatura. Datas em cinza são estimativas automáticas."
+          >
             {/* Seletor de cartão */}
             <div className="flex gap-2 mb-4">
               {(['nubank', 'cartao1', 'cartao2'] as CartaoFaturas[]).map(c => (
@@ -1073,117 +952,17 @@ function ConfiguracoesContent() {
             <p className="text-xs text-gray-400 mt-3 leading-relaxed">
               Datas em cinza são calculadas automaticamente. Use o lápis para registrar a data real (útil quando cai em fim de semana ou feriado).
             </p>
-          </div>
-        </div>
-      )}
-
-      {/* ---- ABA ATIVIDADES ---- */}
-      {abaAtual === 'atividades' && (
-        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 mb-4">
-          <div className="flex items-center gap-2.5 mb-4">
-            <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
-              <Activity className="w-4 h-4 text-gray-500" />
-            </div>
-            <h2 className="text-base font-semibold text-gray-800 tracking-tight flex-1">Atividade Recente</h2>
-            {logsTotal > 0 && (
-              <span className="text-xs text-gray-400 font-normal bg-gray-100 px-2 py-0.5 rounded-full">
-                {logsTotal} reg.
-              </span>
-            )}
-          </div>
-
-          {/* Filtros */}
-          <div className="space-y-2 mb-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-              <input
-                type="text"
-                value={filtroBusca}
-                onChange={(e) => setFiltroBusca(e.target.value)}
-                placeholder="Buscar descrição…"
-                className="w-full bg-gray-50 border border-gray-200 dark:border-gray-700 rounded-2xl pl-9 pr-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow placeholder-gray-400"
-              />
-            </div>
-            <div className="flex gap-2">
-              <FilterSelect
-                value={filtroAcao}
-                onChange={v => setFiltroAcao(v)}
-                options={[
-                  { value: '', label: 'Ação (todas)' },
-                  ...Object.entries(ACAO_CONFIG).map(([key, cfg]) => ({ value: key, label: cfg.label })),
-                ]}
-              />
-              <FilterSelect
-                value={filtroTabela}
-                onChange={v => setFiltroTabela(v)}
-                options={[
-                  { value: '', label: 'Tabela (todas)' },
-                  ...tabelasDisponiveis.map(tabela => ({ value: tabela, label: tabela })),
-                ]}
-              />
-            </div>
-          </div>
-
-          {logsFiltrados.length === 0 && !logsCarregando ? (
-            <div className="flex flex-col items-center justify-center py-10 gap-2 text-center">
-              <div className="w-10 h-10 rounded-2xl bg-gray-100 flex items-center justify-center mb-1">
-                <Activity className="w-5 h-5 text-gray-400" />
-              </div>
-              <p className="text-sm font-medium text-gray-500">Nenhuma atividade encontrada</p>
-              <p className="text-xs text-gray-400">Tente ajustar os filtros</p>
-            </div>
-          ) : (
-            <div className="space-y-0">
-              {logsFiltrados.map((entry) => {
-                const cfg = ACAO_CONFIG[entry.acao] ?? { label: entry.acao, color: 'bg-gray-100 text-gray-600' }
-                const dt = new Date(entry.created_at)
-                const dataStr = dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
-                const horaStr = dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-
-                return (
-                  <div key={entry.id} className="flex items-start gap-3 py-2.5 border-b border-gray-50 last:border-0">
-                    <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full mt-0.5 whitespace-nowrap ${cfg.color}`}>
-                      {cfg.label}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-700 dark:text-gray-300 leading-snug">{entry.descricao}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {entry.tabela} · {dataStr} às {horaStr}
-                        {entry.usuario && <span className="ml-1 text-gray-500">· {entry.usuario}</span>}
-                      </p>
-                    </div>
-                  </div>
-                )
-              })}
-
-              {logs.length < logsTotal && (
-                <button
-                  onClick={() => carregarLogs(logsPage + 1)}
-                  disabled={logsCarregando}
-                  className="w-full mt-2 py-2.5 text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 flex items-center justify-center gap-1.5 disabled:opacity-50 transition-colors rounded-2xl hover:bg-primary-50 dark:hover:bg-primary-900/20"
-                >
-                  <ChevronDown className="w-4 h-4" />
-                  {logsCarregando ? 'Carregando…' : `Ver mais (${logsTotal - logs.length} restantes)`}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+          </SettingsCard>
+        </>
       )}
 
       {/* ---- ABA CATEGORIAS ---- */}
       {abaAtual === 'categorias' && (
-        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 mb-4">
-          <div className="flex items-center gap-2.5 mb-1">
-            <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
-              <Tags className="w-4 h-4 text-gray-500" />
-            </div>
-            <h2 className="text-base font-semibold text-gray-800 tracking-tight">Categorias</h2>
-          </div>
-          <p className="text-xs text-gray-400 mb-4 ml-10">
-            Usadas em compras, despesas, receitas e assinaturas.
-          </p>
-
+        <SettingsCard
+          icon={Tags}
+          title="Categorias"
+          description="Usadas em compras, despesas, receitas e assinaturas."
+        >
           {/* Adicionar categoria */}
           <div className="flex gap-2 mb-4">
             <input
@@ -1289,7 +1068,239 @@ function ConfiguracoesContent() {
           <p className="text-xs text-gray-400 mt-3 leading-relaxed">
             Editar renomeia a categoria em compras e assinaturas automaticamente. Remoção só é permitida quando não há uso.
           </p>
-        </div>
+        </SettingsCard>
+      )}
+
+      {/* ---- ABA PREFERÊNCIAS ---- */}
+      {abaAtual === 'preferencias' && (
+        <>
+          {/* Tema */}
+          <SettingsCard icon={Sun} title="Tema">
+            <div className="flex gap-2">
+              {([
+                { value: 'light',  label: 'Claro',   Icon: Sun },
+                { value: 'dark',   label: 'Escuro',  Icon: Moon },
+                { value: 'system', label: 'Sistema', Icon: Monitor },
+              ] as const).map(({ value, label, Icon }) => (
+                <button
+                  key={value}
+                  onClick={() => setTheme(value)}
+                  className={`flex-1 flex flex-col items-center gap-2 py-3.5 rounded-2xl border-2 font-semibold text-sm transition active:scale-[0.97] ${
+                    theme === value
+                      ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400'
+                      : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                  }`}
+                >
+                  <Icon className={`w-5 h-5 ${theme === value ? 'text-primary-500' : ''}`} />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </SettingsCard>
+
+          {/* Notificações push */}
+          <SettingsCard icon={Bell} title="Notificações Push" className="space-y-4">
+            {/* Status da permissão */}
+            {permissaoPush !== null && (
+              <div className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl text-sm font-medium ${
+                permissaoPush === 'granted'
+                  ? 'bg-green-50 border border-green-100 text-green-700'
+                  : permissaoPush === 'denied'
+                  ? 'bg-red-50 border border-red-100 text-red-700'
+                  : permissaoPush === 'unsupported'
+                  ? 'bg-gray-50 border border-gray-200 text-gray-500'
+                  : 'bg-amber-50 border border-amber-100 text-amber-700'
+              }`}>
+                <span className={`w-2 h-2 rounded-full shrink-0 ${
+                  permissaoPush === 'granted' ? 'bg-green-500' :
+                  permissaoPush === 'denied'  ? 'bg-red-500' :
+                  permissaoPush === 'unsupported' ? 'bg-gray-400' : 'bg-amber-400'
+                }`} />
+                {permissaoPush === 'granted' && subscricaoAtiva
+                  ? 'Notificações ativas e subscrição registrada'
+                  : permissaoPush === 'granted' && subscricaoAtiva === false
+                  ? 'Permissão concedida, mas sem subscrição ativa'
+                  : permissaoPush === 'denied'
+                  ? 'Permissão bloqueada — libere nas configurações do sistema'
+                  : permissaoPush === 'unsupported'
+                  ? 'Notificações não suportadas neste navegador'
+                  : 'Permissão não concedida'}
+              </div>
+            )}
+
+            {mensagemPush && (
+              <p className={`text-xs px-3.5 py-2.5 rounded-2xl border ${
+                mensagemPush.includes('sucesso') || mensagemPush.includes('enviada')
+                  ? 'bg-green-50 border-green-100 text-green-700'
+                  : 'bg-red-50 border-red-100 text-red-600'
+              }`}>
+                {mensagemPush}
+              </p>
+            )}
+
+            {/* Ações */}
+            {permissaoPush !== null && permissaoPush !== 'unsupported' && permissaoPush !== 'denied' && (
+              <div className="flex gap-2">
+                {(!subscricaoAtiva || permissaoPush !== 'granted') ? (
+                  <button
+                    onClick={ativarNotificacoes}
+                    disabled={registrandoPush}
+                    className="flex-1 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-2xl transition-all active:scale-[0.97] disabled:opacity-50 shadow-sm"
+                  >
+                    {registrandoPush ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Ativando…
+                      </span>
+                    ) : 'Ativar notificações'}
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={testarNotificacao}
+                      disabled={testando}
+                      className="flex-1 py-2.5 bg-primary-50 hover:bg-primary-100 text-primary-700 text-sm font-semibold rounded-2xl transition-all active:scale-[0.97] disabled:opacity-50 border border-primary-200"
+                    >
+                      {testando ? 'Enviando…' : 'Testar notificação'}
+                    </button>
+                    <button
+                      onClick={desativarNotificacoes}
+                      disabled={registrandoPush}
+                      className="py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-semibold rounded-2xl transition-all active:scale-[0.97] disabled:opacity-50"
+                    >
+                      {registrandoPush ? '…' : 'Desativar'}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Alertas de vencimento */}
+            <div className="border-t border-gray-100 pt-4">
+              <SettingsToggleRow
+                title="Alertas de vencimento"
+                description="T-1 e no dia do vencimento às 09:00"
+                checked={notificacoesVencimentoAtivas}
+                onChange={async (newVal) => {
+                  setNotificacoesVencimentoAtivas(newVal)
+                  await fetch('/api/configuracoes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ configuracoes: [{ chave: 'notificacoes_vencimento_ativas', valor: String(newVal) }] }),
+                  })
+                }}
+              />
+            </div>
+          </SettingsCard>
+
+          {/* Dados */}
+          <SettingsCard icon={Upload} title="Dados">
+            <Link
+              href="/importar"
+              className="w-full flex items-center justify-center gap-2 bg-primary-600 text-white py-3 rounded-2xl font-semibold hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm"
+            >
+              <Upload className="w-4 h-4" />
+              Importar Dados
+            </Link>
+          </SettingsCard>
+
+          {/* Conta */}
+          <SettingsCard icon={LogOut} title="Conta">
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center gap-2.5 py-3 text-red-600 font-semibold hover:bg-red-50 rounded-2xl transition-colors active:scale-[0.98]"
+            >
+              <LogOut className="w-4 h-4" />
+              Sair da conta
+            </button>
+          </SettingsCard>
+        </>
+      )}
+
+      {/* ---- ABA ATIVIDADES ---- */}
+      {abaAtual === 'atividades' && (
+        <SettingsCard
+          icon={Activity}
+          title="Atividade Recente"
+          badge={logsTotal > 0 ? `${logsTotal} reg.` : undefined}
+        >
+          {/* Filtros */}
+          <div className="space-y-2 mb-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <input
+                type="text"
+                value={filtroBusca}
+                onChange={(e) => setFiltroBusca(e.target.value)}
+                placeholder="Buscar descrição…"
+                className="w-full bg-gray-50 border border-gray-200 dark:border-gray-700 rounded-2xl pl-9 pr-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow placeholder-gray-400"
+              />
+            </div>
+            <div className="flex gap-2">
+              <FilterSelect
+                value={filtroAcao}
+                onChange={v => setFiltroAcao(v)}
+                options={[
+                  { value: '', label: 'Ação (todas)' },
+                  ...Object.entries(ACAO_CONFIG).map(([key, cfg]) => ({ value: key, label: cfg.label })),
+                ]}
+              />
+              <FilterSelect
+                value={filtroTabela}
+                onChange={v => setFiltroTabela(v)}
+                options={[
+                  { value: '', label: 'Tabela (todas)' },
+                  ...tabelasDisponiveis.map(tabela => ({ value: tabela, label: tabela })),
+                ]}
+              />
+            </div>
+          </div>
+
+          {logsFiltrados.length === 0 && !logsCarregando ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-2 text-center">
+              <div className="w-10 h-10 rounded-2xl bg-gray-100 flex items-center justify-center mb-1">
+                <Activity className="w-5 h-5 text-gray-400" />
+              </div>
+              <p className="text-sm font-medium text-gray-500">Nenhuma atividade encontrada</p>
+              <p className="text-xs text-gray-400">Tente ajustar os filtros</p>
+            </div>
+          ) : (
+            <div className="space-y-0">
+              {logsFiltrados.map((entry) => {
+                const cfg = ACAO_CONFIG[entry.acao] ?? { label: entry.acao, color: 'bg-gray-100 text-gray-600' }
+                const dt = new Date(entry.created_at)
+                const dataStr = dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+                const horaStr = dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+
+                return (
+                  <div key={entry.id} className="flex items-start gap-3 py-2.5 border-b border-gray-50 last:border-0">
+                    <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full mt-0.5 whitespace-nowrap ${cfg.color}`}>
+                      {cfg.label}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-700 dark:text-gray-300 leading-snug">{entry.descricao}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {entry.tabela} · {dataStr} às {horaStr}
+                        {entry.usuario && <span className="ml-1 text-gray-500">· {entry.usuario}</span>}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
+
+              {logs.length < logsTotal && (
+                <button
+                  onClick={() => carregarLogs(logsPage + 1)}
+                  disabled={logsCarregando}
+                  className="w-full mt-2 py-2.5 text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 flex items-center justify-center gap-1.5 disabled:opacity-50 transition-colors rounded-2xl hover:bg-primary-50 dark:hover:bg-primary-900/20"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                  {logsCarregando ? 'Carregando…' : `Ver mais (${logsTotal - logs.length} restantes)`}
+                </button>
+              )}
+            </div>
+          )}
+        </SettingsCard>
       )}
 
     </div>
