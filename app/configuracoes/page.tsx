@@ -745,9 +745,9 @@ function ConfiguracoesContent() {
       {/* Tabs */}
       <div className="flex overflow-x-auto gap-2 mb-4 mt-3 pb-0.5 scrollbar-hide">
         {([
+          { key: 'preferencias', label: 'Preferências', icon: Settings },
           { key: 'cartoes',      label: 'Cartões',      icon: CreditCard },
           { key: 'categorias',   label: 'Categorias',   icon: Tags },
-          { key: 'preferencias', label: 'Preferências', icon: Settings },
           { key: 'atividades',   label: 'Atividades',   icon: Activity },
         ] as const).map(({ key, label, icon: Icon }) => (
           <button
