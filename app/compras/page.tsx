@@ -9,6 +9,7 @@ import { SwipeableItem } from '@/components/SwipeableItem'
 import { Trash2, X, ShoppingBag, Lock, WifiOff, SlidersHorizontal, Calendar, Search } from 'lucide-react'
 import MonthSelector from '@/components/MonthSelector'
 import EmptyState from '@/components/EmptyState'
+import UltimaImportacaoInfo from '@/components/UltimaImportacaoInfo'
 import { addMonths, subMonths, format, startOfMonth, isToday, isYesterday, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { log, numericOnly, formatBRL } from '@/lib/logger'
@@ -577,7 +578,10 @@ export default function ComprasPage() {
 
       <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 z-[10]">
         <div className="flex items-center justify-between mb-3">
-          <h1 className="text-xl font-bold text-gray-900">Compras</h1>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Compras</h1>
+            <UltimaImportacaoInfo />
+          </div>
         </div>
         <MonthSelector
           value={mesGlobal}

@@ -8,6 +8,7 @@ import { AlertTriangle, BarChart2, BarChart3, CreditCard, Wallet, PiggyBank, Tre
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
 import MonthSelector from '@/components/MonthSelector'
+import UltimaImportacaoInfo from '@/components/UltimaImportacaoInfo'
 import dynamic from 'next/dynamic'
 
 const GraficoProjecao = dynamic(() => import('@/components/GraficoProjecao'), {
@@ -629,6 +630,7 @@ export default function Dashboard() {
           <div>
             <p className="text-[11px] font-medium text-gray-400 leading-none">{saudacao}</p>
             <h1 className="text-lg font-bold text-gray-900 leading-tight mt-0.5">Dashboard</h1>
+            <UltimaImportacaoInfo />
           </div>
         </div>
         <MonthSelector
