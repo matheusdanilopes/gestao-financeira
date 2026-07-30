@@ -6,7 +6,7 @@ import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { SwipeableItem } from '@/components/SwipeableItem'
-import { Trash2, X, ShoppingBag, Lock, WifiOff, SlidersHorizontal, Calendar, Search } from 'lucide-react'
+import { Trash2, X, ShoppingBag, Lock, WifiOff, SlidersHorizontal, Calendar, Search, CreditCard } from 'lucide-react'
 import MonthSelector from '@/components/MonthSelector'
 import EmptyState from '@/components/EmptyState'
 import UltimaImportacaoInfo from '@/components/UltimaImportacaoInfo'
@@ -650,16 +650,27 @@ export default function ComprasPage() {
               ]}
             />
 
-            {/* Parcelamento */}
-            <FilterSelect
-              value={filtroParcelamento}
-              onChange={v => setFiltroParcelamento(v as '' | 'avista' | 'parcelado')}
-              options={[
-                { value: '',          label: 'Parcelamento (todos)' },
-                { value: 'avista',    label: 'À vista'              },
-                { value: 'parcelado', label: 'Parcelado'            },
-              ]}
-            />
+            {/* Parcelamento — controle segmentado (3 opções fixas: dropdown seria clique extra à toa) */}
+            <div className="flex items-center gap-1 bg-gray-900/40 rounded-xl p-1">
+              {([
+                ['', 'Todos'],
+                ['avista', 'À vista'],
+                ['parcelado', 'Parcelado'],
+              ] as [string, string][]).map(([val, label]) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => setFiltroParcelamento(val as '' | 'avista' | 'parcelado')}
+                  className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all duration-150 active:scale-[0.97] ${
+                    filtroParcelamento === val
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
 
             {/* Valor mínimo + Data */}
             <div className="grid grid-cols-2 gap-2">
@@ -831,7 +842,9 @@ export default function ComprasPage() {
 
                 <div className="divide-y divide-gray-50">
                   {items.map((c) => {
-                    const isParcelado = c.parcela_atual && c.total_parcelas
+                    // total_parcelas > 1 é o mesmo critério usado no filtro "Parcelado" acima;
+                    // sem o > 1, toda compra à vista (1/1) ganharia o selo de parcelamento à toa.
+                    const isParcelado = !!c.parcela_atual && !!c.total_parcelas && c.total_parcelas > 1
                     const canInteract = !faturaFechada && isOnline
                     const isEstorno   = c.status === 'ESTORNO'
                     const isEstornado = c.status === 'ESTORNADO'
@@ -850,7 +863,6 @@ export default function ComprasPage() {
                     const mostrarSeloDuplicata = isProvavelDuplicata || (isHighlighted && !!duplicataId)
                     const metaParts = [
                       c.responsavel,
-                      isParcelado ? `${c.parcela_atual}/${c.total_parcelas}x` : null,
                       c.categoria || null,
                     ].filter(Boolean) as string[]
                     const horaInclusao = formatarHoraInclusao(c, dateKey)
@@ -882,10 +894,26 @@ export default function ComprasPage() {
                             <p className={`text-[15px] font-semibold leading-snug truncate ${isEstornado ? 'line-through text-gray-400' : 'text-gray-900'}`}>
                               {c.descricao}
                             </p>
-                            {metaParts.length > 0 && (
-                              <p className="text-xs text-gray-400 dark:text-gray-300 mt-0.5 leading-tight truncate">
-                                {metaParts.join(' · ')}
-                              </p>
+                            {(metaParts.length > 0 || isParcelado) && (
+                              <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+                                {metaParts.length > 0 && (
+                                  <p className="text-xs text-gray-400 dark:text-gray-300 leading-tight truncate">
+                                    {metaParts.join(' · ')}
+                                  </p>
+                                )}
+                                {isParcelado && (
+                                  <span className="inline-flex items-center gap-1.5 shrink-0 text-[10px] font-bold text-primary-700 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300 pl-1.5 pr-2 py-[3px] rounded-full">
+                                    <span
+                                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                                      style={{
+                                        background: `conic-gradient(#6366f1 ${Math.round((c.parcela_atual! / c.total_parcelas!) * 360)}deg, #c7d2fe 0deg)`,
+                                      }}
+                                      aria-hidden="true"
+                                    />
+                                    {c.parcela_atual}/{c.total_parcelas}
+                                  </span>
+                                )}
+                              </div>
                             )}
                           </div>
                           <div className="text-right shrink-0 flex flex-col items-end gap-1">
@@ -934,8 +962,16 @@ export default function ComprasPage() {
         <ModalPortal>
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4 modal-overlay">
           <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm lg:max-w-lg p-6 shadow-float modal-sheet sm:modal-center">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-bold">Editar Compra</h3>
+            <div className="flex items-start justify-between mb-5">
+              <div>
+                <h3 className="text-lg font-bold">Editar Compra</h3>
+                {!!modalEditar.total_parcelas && modalEditar.total_parcelas > 1 && (
+                  <span className="inline-flex items-center gap-1.5 mt-1.5 text-[11px] font-bold text-primary-700 bg-primary-50 px-2 py-0.5 rounded-full">
+                    <CreditCard className="w-3 h-3" />
+                    Parcela {modalEditar.parcela_atual} de {modalEditar.total_parcelas}
+                  </span>
+                )}
+              </div>
               <button onClick={() => setModalEditar(null)} className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 transition-all hover:rotate-90 duration-200">
                 <X className="w-5 h-5" />
               </button>
