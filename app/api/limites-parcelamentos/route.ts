@@ -7,11 +7,13 @@ export async function GET(req: NextRequest) {
 
   try {
     const mes = req.nextUrl.searchParams.get('mes')
+    const ate = req.nextUrl.searchParams.get('ate')
 
     let query = supabase.from('limites_parcelamentos').select('mes_referencia, responsavel, valor')
     if (mes) query = query.eq('mes_referencia', mes)
+    else if (ate) query = query.lte('mes_referencia', ate)
 
-    const { data, error } = await query
+    const { data, error } = await query.order('mes_referencia', { ascending: false })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ limites: data ?? [] })
   } catch {

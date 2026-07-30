@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import { Layers, Search, CreditCard, ClipboardList, Sparkles } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { formatBRL } from '@/lib/logger'
@@ -44,6 +45,7 @@ const MESES_HISTORICO = 6
 export default function ParcelamentosMensal({ mesAtual }: Props) {
   const [limites, setLimites] = useState<Record<string, number>>({})
   const [inputs, setInputs] = useState<Record<string, string>>({})
+  const [origemLimite, setOrigemLimite] = useState<Record<string, string>>({})
   const [sugestoes, setSugestoes] = useState<Record<string, number>>({})
   const [itens, setItens] = useState<ParcelaItem[]>([])
   const [carregando, setCarregando] = useState(true)
@@ -78,7 +80,7 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
         { data: transacoesHist },
         { data: planejadosHist },
       ] = await Promise.all([
-        fetch(`/api/limites-parcelamentos?mes=${mesReferencia}`),
+        fetch(`/api/limites-parcelamentos?ate=${mesReferencia}`),
         supabase
           .from('transacoes_nubank')
           .select('descricao, valor, responsavel, categoria, cartao, parcela_atual, total_parcelas')
@@ -108,13 +110,20 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
       if (cancelado) return
 
       const limitesJson = await limitesRes.json()
-      const limitesData: Array<{ responsavel: string; valor: number }> = limitesJson.limites ?? []
+      // A API retorna todos os limites até o mês selecionado, ordenados do mais
+      // recente para o mais antigo — o primeiro de cada responsável é o valor
+      // "efetivo" daquele mês: o próprio, se existir, senão o do mês anterior
+      // mais recente que tenha sido configurado (herança futura → passado).
+      const limitesData: Array<{ mes_referencia: string; responsavel: string; valor: number }> = limitesJson.limites ?? []
 
       const lMap: Record<string, number> = {}
       const iMap: Record<string, string> = {}
+      const oMap: Record<string, string> = {}
       for (const l of limitesData) {
+        if (oMap[l.responsavel]) continue // já achou a linha mais recente para esse responsável
         lMap[l.responsavel] = Number(l.valor ?? 0)
         iMap[l.responsavel] = String(l.valor ?? '')
+        oMap[l.responsavel] = l.mes_referencia
       }
 
       const lista: ParcelaItem[] = [
@@ -171,6 +180,7 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
       if (!cancelado) {
         setLimites(lMap)
         setInputs(iMap)
+        setOrigemLimite(oMap)
         setSugestoes(sMap)
         setItens(lista)
         setCarregando(false)
@@ -193,6 +203,7 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
         body: JSON.stringify({ limites: [{ mes_referencia: mesReferencia, responsavel, valor: valorFinal }] }),
       })
       setLimites(prev => ({ ...prev, [responsavel]: valorFinal }))
+      setOrigemLimite(prev => ({ ...prev, [responsavel]: mesReferencia }))
     } finally {
       setSalvando(null)
     }
@@ -250,6 +261,8 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
         const sugestao = Math.max(mediaHistorica, Math.round(gasto))
         const sugestaoPresaAoComprometido = sugestao > mediaHistorica
         const mostrarSugestao = sugestao > 0 && Math.abs(sugestao - limite) > 1
+        const mesOrigemLimite = origemLimite[responsavel]
+        const limiteHerdado = !!mesOrigemLimite && mesOrigemLimite !== mesReferencia
 
         return (
           <div key={responsavel} className="bg-white dark:bg-gray-900 rounded-3xl shadow-card border border-gray-100 dark:border-gray-800 p-4">
@@ -277,6 +290,12 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
                 />
               </div>
             </div>
+
+            {limiteHerdado && (
+              <p className="text-[10px] text-gray-400 text-right mb-2">
+                Herdado de {format(new Date(mesOrigemLimite + 'T12:00:00'), 'MMM/yyyy', { locale: ptBR })} — edite para fixar este mês
+              </p>
+            )}
 
             {mostrarSugestao && (
               <div className="flex justify-end mb-2">
