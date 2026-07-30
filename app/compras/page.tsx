@@ -589,8 +589,8 @@ export default function ComprasPage() {
         />
       </div>
 
-      {/* Filtros: container dark com chips de cartão + campos de filtro */}
-      <div className="bg-gray-800 rounded-2xl p-3 mb-3 space-y-2.5">
+      {/* Filtros: acompanha o tema do app (claro/escuro) em vez de ficar sempre escuro */}
+      <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-transparent shadow-card dark:shadow-none rounded-2xl p-3 mb-3 space-y-2.5">
         {/* Tab chips + botão Filtros */}
         <div className="flex items-center gap-2">
           <div className="flex gap-1 flex-1 min-w-0">
@@ -605,8 +605,8 @@ export default function ComprasPage() {
                 onClick={() => setFiltroCartao(val as '' | 'nubank' | 'cartao1' | 'cartao2')}
                 className={`flex-1 min-w-0 py-1.5 text-[11px] font-semibold rounded-xl transition-all active:scale-95 truncate ${
                   filtroCartao === val
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-400 hover:text-gray-200'
+                    ? 'bg-primary-600 text-white shadow-sm dark:bg-white dark:text-gray-900'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
                 }`}
               >
                 {label}
@@ -617,8 +617,8 @@ export default function ComprasPage() {
             onClick={() => setFiltrosExpandidos(v => !v)}
             className={`shrink-0 flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-[11px] font-semibold transition-all active:scale-[0.97] ${
               filtrosAtivos
-                ? 'bg-primary-500/30 text-primary-300'
-                : 'bg-gray-700 text-gray-300'
+                ? 'bg-primary-50 text-primary-700 dark:bg-primary-500/30 dark:text-primary-300'
+                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
             }`}
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -633,7 +633,7 @@ export default function ComprasPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               <input
                 type="text"
-                className="w-full bg-gray-700 border border-transparent rounded-xl pl-9 pr-3 py-2.5 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+                className="w-full bg-gray-100 dark:bg-gray-700 border border-transparent rounded-xl pl-9 pr-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
                 placeholder="Buscar por descrição..."
                 value={filtroDescricaoInput}
                 onChange={(e) => handleFiltroDescricaoChange(e.target.value)}
@@ -651,7 +651,7 @@ export default function ComprasPage() {
             />
 
             {/* Parcelamento — controle segmentado (3 opções fixas: dropdown seria clique extra à toa) */}
-            <div className="flex items-center gap-1 bg-gray-900/40 rounded-xl p-1">
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-900/40 rounded-xl p-1">
               {([
                 ['', 'Todos'],
                 ['avista', 'À vista'],
@@ -663,8 +663,8 @@ export default function ComprasPage() {
                   onClick={() => setFiltroParcelamento(val as '' | 'avista' | 'parcelado')}
                   className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all duration-150 active:scale-[0.97] ${
                     filtroParcelamento === val
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-400 hover:text-gray-200'
+                      ? 'bg-primary-600 text-white shadow-sm dark:bg-white dark:text-gray-900'
+                      : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
                   }`}
                 >
                   {label}
@@ -677,7 +677,7 @@ export default function ComprasPage() {
               <input
                 type="text"
                 inputMode="decimal"
-                className="bg-gray-700 border border-transparent rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+                className="bg-gray-100 dark:bg-gray-700 border border-transparent rounded-xl px-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
                 placeholder="Valor mínimo"
                 value={filtroValorMin}
                 onChange={(e) => setFiltroValorMin(numericOnly(e.target.value))}
@@ -685,7 +685,7 @@ export default function ComprasPage() {
               <div className="relative">
                 <input
                   type="date"
-                  className="w-full bg-gray-700 border border-transparent rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow appearance-none"
+                  className="w-full bg-gray-100 dark:bg-gray-700 border border-transparent rounded-xl px-3 py-2.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow appearance-none [color-scheme:light] dark:[color-scheme:dark]"
                   value={filtroData}
                   onChange={(e) => setFiltroData(e.target.value)}
                 />
@@ -701,7 +701,7 @@ export default function ComprasPage() {
             {filtrosAtivos && (
               <button
                 onClick={limparFiltros}
-                className="w-full text-xs text-red-400 hover:text-red-300 py-1 font-semibold transition-colors"
+                className="w-full text-xs text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 py-1 font-semibold transition-colors"
               >
                 Limpar filtros
               </button>
