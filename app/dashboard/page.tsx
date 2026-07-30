@@ -79,6 +79,32 @@ function isNuBankItem(item: string): boolean {
          lower === 'nubank jeniffer conjunto' || lower === 'nubank conjunto'
 }
 
+function extrairParcela(descricao?: string | null, parcelaAtual?: number | null, totalParcelas?: number | null): { atual: number; total: number } | null {
+  if (parcelaAtual && totalParcelas) return { atual: Number(parcelaAtual), total: Number(totalParcelas) }
+  const desc = String(descricao || '')
+  const matchParcela = desc.match(/parcela\s*(\d+)\s*\/\s*(\d+)/i)
+  if (matchParcela) return { atual: Number(matchParcela[1]), total: Number(matchParcela[2]) }
+  const matchSlash = desc.match(/\b(\d{1,2})\/(\d{1,2})\b/)
+  if (matchSlash) {
+    const atual = Number(matchSlash[1])
+    const total = Number(matchSlash[2])
+    if (total >= 2) return { atual, total }
+  }
+  return null
+}
+
+// Traduz o valor "atual" de uma barra em segmentos empilháveis (percentual da largura da barra).
+function calcularSegmentosBarra(atual: number, previsto: number, composicao: { existente: number; novo: number; assinatura: number }) {
+  const pct = previsto > 0 ? Math.min(100, (atual / previsto) * 100) : 0
+  if (atual <= 0) return { pct, existente: 0, novo: 0, assinatura: 0 }
+  return {
+    pct,
+    existente: (composicao.existente / atual) * pct,
+    novo: (composicao.novo / atual) * pct,
+    assinatura: (composicao.assinatura / atual) * pct,
+  }
+}
+
 interface CartaoItem {
   nome: string
   responsavel: string
@@ -95,20 +121,40 @@ interface ProjecaoItem {
   total_parcelas: number
 }
 
+interface ComposicaoGastos {
+  existente: number
+  novo: number
+  assinatura: number
+}
+
+interface ComposicaoItem {
+  descricao: string
+  valor: number
+  responsavel: string
+  cartao: string
+  tipo: 'Parcela existente' | 'Nova parcela' | 'Assinatura'
+}
+
 interface FaturaState {
   totalRealizado: number
   matheusAtual: number
   matheusPrevisto: number
   matheusProjecaoParcelas: number
   matheusProjecaoItens: ProjecaoItem[]
+  matheusComposicao: ComposicaoGastos
+  matheusComposicaoItens: ComposicaoItem[]
   jenifferAtual: number
   jenifferPrevisto: number
   jenifferProjecaoParcelas: number
   jenifferProjecaoItens: ProjecaoItem[]
+  jenifferComposicao: ComposicaoGastos
+  jenifferComposicaoItens: ComposicaoItem[]
   conjuntoAtual: number
   conjuntoPrevisto: number
   conjuntoProjecaoParcelas: number
   conjuntoProjecaoItens: ProjecaoItem[]
+  conjuntoComposicao: ComposicaoGastos
+  conjuntoComposicaoItens: ComposicaoItem[]
   conjuntoItemExiste: boolean
   sobraMatheus: number
   sobraJeniffer: number
@@ -166,7 +212,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     { data: maxFaturaRowData },
   ] = await Promise.all([
     // Busca todas as transações do período em uma única query e separa por cartão no cliente
-    supabase.from('transacoes_nubank').select('valor, responsavel, descricao, cartao').eq('projeto_fatura', mesRefFatura).neq('status', 'ESTORNO').neq('status', 'ESTORNADO'),
+    supabase.from('transacoes_nubank').select('valor, responsavel, descricao, cartao, parcela_atual, total_parcelas').eq('projeto_fatura', mesRefFatura).neq('status', 'ESTORNO').neq('status', 'ESTORNADO'),
     supabase.from('planejamento').select('item, responsavel, valor_previsto, pago, valor_real').eq('mes_referencia', mesRef),
     // Busca aportes embutidos para eliminar a query sequencial posterior
     supabase.from('investimentos').select('id, descricao, percentual, investimentos_aportes(valor)').eq('mes_referencia', mesRef).order('created_at', { ascending: true }),
@@ -369,7 +415,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const percentualComprometimento = receitaTotal > 0 ? (totalGastos / receitaTotal) * 100 : 0
 
   type AssinaturaRow = { nome: string; valor: number; responsavel: string; ativa: boolean; moeda: string }
-  type TransacaoRow = { valor: number; responsavel: string | null; descricao: string | null }
+  type TransacaoRow = { valor: number; responsavel: string | null; descricao: string | null; parcela_atual?: number | null; total_parcelas?: number | null }
   const assinAtivas = (assinaturasData || []).filter((a: AssinaturaRow) => a.ativa)
   const txFaturaList: TransacaoRow[] = transacoesFatura || []
   const calcNaoPaga = (responsavel: string) =>
@@ -400,11 +446,38 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const divergentesMatheus  = calcDivergente('Matheus')
   const divergentesJeniffer = calcDivergente('Jeniffer')
 
+  // Decompõe o valor gasto (atual) de cada responsável em: parcelas pré-existentes (2/X em diante),
+  // novas parcelas/compras à vista (1/X) e assinaturas — para exibir sobreposto na barra da fatura.
+  function montarComposicao(responsavel: string): { existente: number; novo: number; assinatura: number; itens: ComposicaoItem[] } {
+    let existente = 0, novo = 0, assinatura = 0
+    const itens: ComposicaoItem[] = []
+    for (const t of txFaturaList.filter((tx: TransacaoRow) => tx.responsavel === responsavel)) {
+      const desc = (t.descricao || '').toLowerCase()
+      const ehAssinatura = assinAtivas.some((a: AssinaturaRow) => a.responsavel === responsavel && desc.includes(a.nome.toLowerCase()))
+      const parcela = extrairParcela(t.descricao, t.parcela_atual, t.total_parcelas)
+      const tipo: ComposicaoItem['tipo'] = ehAssinatura ? 'Assinatura' : (parcela && parcela.atual >= 2) ? 'Parcela existente' : 'Nova parcela'
+      if (tipo === 'Assinatura') assinatura += t.valor
+      else if (tipo === 'Parcela existente') existente += t.valor
+      else novo += t.valor
+      itens.push({ descricao: t.descricao || '(sem descrição)', valor: t.valor, responsavel, cartao: 'nubank', tipo })
+    }
+    return { existente, novo, assinatura, itens }
+  }
+  const composicaoMatheus  = montarComposicao('Matheus')
+  const composicaoJeniffer = montarComposicao('Jeniffer')
+  const composicaoConjunto = montarComposicao('Conjunto')
+
   return {
     fatura: {
       totalRealizado, matheusAtual, matheusPrevisto, matheusProjecaoParcelas, matheusProjecaoItens,
+      matheusComposicao: { existente: composicaoMatheus.existente, novo: composicaoMatheus.novo, assinatura: composicaoMatheus.assinatura },
+      matheusComposicaoItens: composicaoMatheus.itens,
       jenifferAtual, jenifferPrevisto, jenifferProjecaoParcelas, jenifferProjecaoItens,
+      jenifferComposicao: { existente: composicaoJeniffer.existente, novo: composicaoJeniffer.novo, assinatura: composicaoJeniffer.assinatura },
+      jenifferComposicaoItens: composicaoJeniffer.itens,
       conjuntoAtual, conjuntoPrevisto, conjuntoProjecaoParcelas, conjuntoProjecaoItens,
+      conjuntoComposicao: { existente: composicaoConjunto.existente, novo: composicaoConjunto.novo, assinatura: composicaoConjunto.assinatura },
+      conjuntoComposicaoItens: composicaoConjunto.itens,
       conjuntoItemExiste: !!nubankConjuntoRow,
       sobraMatheus: matheusPrevisto - matheusAtual - matheusProjecaoParcelas - assinNaoPagaMatheus,
       sobraJeniffer: jenifferPrevisto - jenifferAtual - jenifferProjecaoParcelas - assinNaoPagaJeniffer,
@@ -431,10 +504,15 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   }
 }
 
+const COMPOSICAO_INICIAL: ComposicaoGastos = { existente: 0, novo: 0, assinatura: 0 }
+
 const FATURA_INICIAL: FaturaState = {
   totalRealizado: 0, matheusAtual: 0, matheusPrevisto: 0, matheusProjecaoParcelas: 0, matheusProjecaoItens: [],
+  matheusComposicao: COMPOSICAO_INICIAL, matheusComposicaoItens: [],
   jenifferAtual: 0, jenifferPrevisto: 0, jenifferProjecaoParcelas: 0, jenifferProjecaoItens: [],
+  jenifferComposicao: COMPOSICAO_INICIAL, jenifferComposicaoItens: [],
   conjuntoAtual: 0, conjuntoPrevisto: 0, conjuntoProjecaoParcelas: 0, conjuntoProjecaoItens: [],
+  conjuntoComposicao: COMPOSICAO_INICIAL, conjuntoComposicaoItens: [],
   conjuntoItemExiste: false,
   sobraMatheus: 0, sobraJeniffer: 0, sobraConjunto: 0, cartao1Items: [], cartao2Items: [],
   cartao1AtualMatheus: 0, cartao1AtualJeniffer: 0, cartao2AtualMatheus: 0, cartao2AtualJeniffer: 0,
@@ -462,6 +540,7 @@ export default function Dashboard() {
   const [seletorAberto, setSeletorAberto] = useState(false)
   const [drawerAberto, setDrawerAberto] = useState(false)
   const [detalhesPonto, setDetalhesPonto] = useState<{ serie: string; mes: string; valor: number; itens: Record<string, unknown>[] } | null>(null)
+  const [drawerFiltroInicial, setDrawerFiltroInicial] = useState<'responsavel' | 'tipo'>('responsavel')
 
   const abrirDetalhesProjecao = useCallback((responsavel: string, valor: number, itens: ProjecaoItem[]) => {
     setDetalhesPonto({
@@ -470,6 +549,17 @@ export default function Dashboard() {
       valor,
       itens: itens as unknown as Record<string, unknown>[],
     })
+    setDrawerFiltroInicial('responsavel')
+    setDrawerAberto(true)
+  }, [mesAtual])
+  const abrirDetalhesComposicao = useCallback((responsavel: string, valor: number, itens: ComposicaoItem[]) => {
+    setDetalhesPonto({
+      serie: `Composição da fatura — ${responsavel}`,
+      mes: format(mesAtual, 'MMMM yyyy', { locale: ptBR }).replace(/^\w/, c => c.toUpperCase()),
+      valor,
+      itens: itens as unknown as Record<string, unknown>[],
+    })
+    setDrawerFiltroInicial('tipo')
     setDrawerAberto(true)
   }, [mesAtual])
   const [aba, setAba] = useState<'resumo' | 'graficos'>('resumo')
@@ -887,6 +977,13 @@ export default function Dashboard() {
                   })()}
                 </div>
 
+                {/* Legenda da composição das barras */}
+                <div className="flex items-center gap-3 flex-wrap text-[10px] text-gray-400 mb-3">
+                  <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-600 dark:bg-gray-300 inline-block shrink-0" />Parcelas antigas</span>
+                  <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-300 dark:bg-gray-600 inline-block shrink-0" />Novas parcelas</span>
+                  <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-indigo-400 inline-block shrink-0" />Assinaturas</span>
+                </div>
+
                 {/* Blocos Matheus / Jeniffer — ordem conforme usuário logado */}
                 {(() => {
                   const matheusBlock = (
@@ -900,9 +997,21 @@ export default function Dashboard() {
                           {fmt(fatura.matheusAtual)} / {fatura.matheusPrevisto > 0 ? fatura.matheusPrevisto.toLocaleString('pt-BR') : '–'}
                         </span>
                       </div>
-                      <div className="h-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-full overflow-hidden mb-0.5">
-                        <div key={fatura.matheusAtual} className="h-full bg-blue-500 rounded-full bar-enter" style={{ '--bar-w': `${fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100) : 0}%` } as React.CSSProperties} />
-                      </div>
+                      {(() => {
+                        const seg = calcularSegmentosBarra(fatura.matheusAtual, fatura.matheusPrevisto, fatura.matheusComposicao)
+                        return (
+                          <button
+                            type="button"
+                            onClick={fatura.matheusAtual > 0 ? () => abrirDetalhesComposicao('Matheus', fatura.matheusAtual, fatura.matheusComposicaoItens) : undefined}
+                            className={`flex w-full h-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-full overflow-hidden mb-0.5 ${fatura.matheusAtual > 0 ? 'cursor-pointer' : 'cursor-default'}`}
+                            aria-label="Ver composição da fatura de Matheus"
+                          >
+                            <div key={`ex-${fatura.matheusAtual}`} className="h-full bg-blue-700 bar-enter" style={{ '--bar-w': `${seg.existente}%` } as React.CSSProperties} />
+                            <div key={`no-${fatura.matheusAtual}`} className="h-full bg-blue-300 bar-enter" style={{ '--bar-w': `${seg.novo}%` } as React.CSSProperties} />
+                            <div key={`as-${fatura.matheusAtual}`} className="h-full bg-indigo-400 bar-enter" style={{ '--bar-w': `${seg.assinatura}%` } as React.CSSProperties} />
+                          </button>
+                        )
+                      })()}
                       <div className="flex items-center justify-between mb-1">
                         {fatura.matheusProjecaoParcelas > 0 ? (
                           <button
@@ -951,9 +1060,21 @@ export default function Dashboard() {
                           {fmt(fatura.jenifferAtual)} / {fatura.jenifferPrevisto > 0 ? fatura.jenifferPrevisto.toLocaleString('pt-BR') : '–'}
                         </span>
                       </div>
-                      <div className="h-2.5 bg-pink-100 dark:bg-pink-900/30 rounded-full overflow-hidden mb-0.5">
-                        <div key={fatura.jenifferAtual} className="h-full bg-pink-500 rounded-full bar-enter" style={{ '--bar-w': `${fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100) : 0}%` } as React.CSSProperties} />
-                      </div>
+                      {(() => {
+                        const seg = calcularSegmentosBarra(fatura.jenifferAtual, fatura.jenifferPrevisto, fatura.jenifferComposicao)
+                        return (
+                          <button
+                            type="button"
+                            onClick={fatura.jenifferAtual > 0 ? () => abrirDetalhesComposicao('Jeniffer', fatura.jenifferAtual, fatura.jenifferComposicaoItens) : undefined}
+                            className={`flex w-full h-2.5 bg-pink-100 dark:bg-pink-900/30 rounded-full overflow-hidden mb-0.5 ${fatura.jenifferAtual > 0 ? 'cursor-pointer' : 'cursor-default'}`}
+                            aria-label="Ver composição da fatura de Jeniffer"
+                          >
+                            <div key={`ex-${fatura.jenifferAtual}`} className="h-full bg-pink-700 bar-enter" style={{ '--bar-w': `${seg.existente}%` } as React.CSSProperties} />
+                            <div key={`no-${fatura.jenifferAtual}`} className="h-full bg-pink-300 bar-enter" style={{ '--bar-w': `${seg.novo}%` } as React.CSSProperties} />
+                            <div key={`as-${fatura.jenifferAtual}`} className="h-full bg-indigo-400 bar-enter" style={{ '--bar-w': `${seg.assinatura}%` } as React.CSSProperties} />
+                          </button>
+                        )
+                      })()}
                       <div className="flex items-center justify-between mb-1">
                         {fatura.jenifferProjecaoParcelas > 0 ? (
                           <button
@@ -1019,9 +1140,21 @@ export default function Dashboard() {
                       </div>
                       {fatura.conjuntoPrevisto > 0 && (
                         <>
-                          <div className="h-2.5 bg-purple-100 dark:bg-purple-900/30 rounded-full overflow-hidden mb-0.5">
-                            <div key={fatura.conjuntoAtual} className="h-full bg-purple-500 rounded-full bar-enter" style={{ '--bar-w': `${Math.min(100, (fatura.conjuntoAtual / fatura.conjuntoPrevisto) * 100)}%` } as React.CSSProperties} />
-                          </div>
+                          {(() => {
+                            const seg = calcularSegmentosBarra(fatura.conjuntoAtual, fatura.conjuntoPrevisto, fatura.conjuntoComposicao)
+                            return (
+                              <button
+                                type="button"
+                                onClick={fatura.conjuntoAtual > 0 ? () => abrirDetalhesComposicao('Conjunto', fatura.conjuntoAtual, fatura.conjuntoComposicaoItens) : undefined}
+                                className={`flex w-full h-2.5 bg-purple-100 dark:bg-purple-900/30 rounded-full overflow-hidden mb-0.5 ${fatura.conjuntoAtual > 0 ? 'cursor-pointer' : 'cursor-default'}`}
+                                aria-label="Ver composição da fatura Conjunto"
+                              >
+                                <div key={`ex-${fatura.conjuntoAtual}`} className="h-full bg-purple-700 bar-enter" style={{ '--bar-w': `${seg.existente}%` } as React.CSSProperties} />
+                                <div key={`no-${fatura.conjuntoAtual}`} className="h-full bg-purple-300 bar-enter" style={{ '--bar-w': `${seg.novo}%` } as React.CSSProperties} />
+                                <div key={`as-${fatura.conjuntoAtual}`} className="h-full bg-indigo-400 bar-enter" style={{ '--bar-w': `${seg.assinatura}%` } as React.CSSProperties} />
+                              </button>
+                            )
+                          })()}
                           <div className="flex items-center justify-between mb-1">
                             {fatura.conjuntoProjecaoParcelas > 0 ? (
                               <button
@@ -1330,6 +1463,7 @@ export default function Dashboard() {
         aberto={drawerAberto}
         onClose={() => setDrawerAberto(false)}
         dados={detalhesPonto}
+        filtroInicial={drawerFiltroInicial}
         cartaoLabels={{ nubank: 'NuBank', cartao1: fatura.cartao1Nome, cartao2: fatura.cartao2Nome }}
       />
     </div>
