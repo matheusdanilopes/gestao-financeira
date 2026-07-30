@@ -52,6 +52,7 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
   const [filtroResp, setFiltroResp] = useState<'todos' | Responsavel>('todos')
   const [filtroCategoria, setFiltroCategoria] = useState('todas')
   const [filtroOrigem, setFiltroOrigem] = useState<'todos' | Origem>('todos')
+  const [filtroNovidade, setFiltroNovidade] = useState<'todas' | 'novas' | 'andamento'>('todas')
   const [busca, setBusca] = useState('')
 
   const mesReferencia = format(startOfMonth(mesAtual), 'yyyy-MM-dd')
@@ -198,7 +199,7 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
   }
 
   function aplicarSugestao(responsavel: Responsavel) {
-    const valor = Math.round(sugestoes[responsavel] ?? 0)
+    const valor = Math.max(Math.round(sugestoes[responsavel] ?? 0), Math.round(comprometidoPorPessoa[responsavel] ?? 0))
     setInputs(prev => ({ ...prev, [responsavel]: String(valor) }))
     salvarLimite(responsavel, String(valor))
   }
@@ -220,10 +221,12 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
       if (filtroResp !== 'todos' && item.responsavel !== filtroResp) return false
       if (filtroCategoria !== 'todas' && item.categoria !== filtroCategoria) return false
       if (filtroOrigem !== 'todos' && item.origem !== filtroOrigem) return false
+      if (filtroNovidade === 'novas' && item.parcelaAtual !== 1) return false
+      if (filtroNovidade === 'andamento' && (!item.parcelaAtual || item.parcelaAtual < 2)) return false
       if (buscaNorm && !item.descricao.toLowerCase().includes(buscaNorm)) return false
       return true
     })
-  }, [itens, filtroResp, filtroCategoria, filtroOrigem, busca])
+  }, [itens, filtroResp, filtroCategoria, filtroOrigem, filtroNovidade, busca])
 
   const totalComprometido = RESPONSAVEIS.reduce((s, r) => s + (comprometidoPorPessoa[r] ?? 0), 0)
   const totalLimite = RESPONSAVEIS.reduce((s, r) => s + (limites[r] ?? 0), 0)
@@ -243,7 +246,9 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
         const limite = limites[responsavel] ?? 0
         const gasto = comprometidoPorPessoa[responsavel] ?? 0
         const pct = limite > 0 ? (gasto / limite) * 100 : 0
-        const sugestao = Math.round(sugestoes[responsavel] ?? 0)
+        const mediaHistorica = Math.round(sugestoes[responsavel] ?? 0)
+        const sugestao = Math.max(mediaHistorica, Math.round(gasto))
+        const sugestaoPresaAoComprometido = sugestao > mediaHistorica
         const mostrarSugestao = sugestao > 0 && Math.abs(sugestao - limite) > 1
 
         return (
@@ -279,10 +284,12 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
                   type="button"
                   onClick={() => aplicarSugestao(responsavel)}
                   className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
-                  title="Preenche o limite com a média dos últimos 6 meses"
+                  title={sugestaoPresaAoComprometido
+                    ? 'Preenche o limite com o valor já comprometido este mês'
+                    : 'Preenche o limite com a média dos últimos 6 meses'}
                 >
                   <Sparkles className="w-3 h-3" />
-                  Sugestão: {formatBRL(sugestao)} (média 6 meses)
+                  Sugestão: {formatBRL(sugestao)} {sugestaoPresaAoComprometido ? '(comprometido este mês)' : '(média 6 meses)'}
                 </button>
               </div>
             )}
@@ -360,6 +367,15 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
               { value: 'planejamento', label: 'Planejado' },
             ]}
           />
+          <FilterSelect
+            value={filtroNovidade}
+            onChange={v => setFiltroNovidade(v as 'todas' | 'novas' | 'andamento')}
+            options={[
+              { value: 'todas', label: 'Novas e em andamento' },
+              { value: 'novas', label: 'Novas (1ª parcela)' },
+              { value: 'andamento', label: 'Em andamento (2ª+)' },
+            ]}
+          />
         </div>
 
         {carregando ? (
@@ -389,6 +405,11 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
                         <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 num">
                           {item.parcelaAtual}/{item.totalParcelas}
                         </span>
+                        {item.parcelaAtual === 1 && (
+                          <span className="inline-flex items-center text-[10px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 px-1.5 py-0.5 rounded-full">
+                            Nova
+                          </span>
+                        )}
                       </>
                     )}
                   </div>
