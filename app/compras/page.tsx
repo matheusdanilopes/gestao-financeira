@@ -6,7 +6,7 @@ import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { SwipeableItem } from '@/components/SwipeableItem'
-import { Trash2, X, ShoppingBag, Lock, WifiOff, SlidersHorizontal, Calendar, Search } from 'lucide-react'
+import { Trash2, X, ShoppingBag, Lock, WifiOff, SlidersHorizontal, Calendar, Search, CreditCard } from 'lucide-react'
 import MonthSelector from '@/components/MonthSelector'
 import EmptyState from '@/components/EmptyState'
 import UltimaImportacaoInfo from '@/components/UltimaImportacaoInfo'
@@ -589,8 +589,8 @@ export default function ComprasPage() {
         />
       </div>
 
-      {/* Filtros: container dark com chips de cartão + campos de filtro */}
-      <div className="bg-gray-800 rounded-2xl p-3 mb-3 space-y-2.5">
+      {/* Filtros: acompanha o tema do app (claro/escuro) em vez de ficar sempre escuro */}
+      <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-transparent shadow-card dark:shadow-none rounded-2xl p-3 mb-3 space-y-2.5">
         {/* Tab chips + botão Filtros */}
         <div className="flex items-center gap-2">
           <div className="flex gap-1 flex-1 min-w-0">
@@ -605,8 +605,8 @@ export default function ComprasPage() {
                 onClick={() => setFiltroCartao(val as '' | 'nubank' | 'cartao1' | 'cartao2')}
                 className={`flex-1 min-w-0 py-1.5 text-[11px] font-semibold rounded-xl transition-all active:scale-95 truncate ${
                   filtroCartao === val
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-400 hover:text-gray-200'
+                    ? 'bg-primary-600 text-white shadow-sm dark:bg-white dark:text-gray-900'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
                 }`}
               >
                 {label}
@@ -617,8 +617,8 @@ export default function ComprasPage() {
             onClick={() => setFiltrosExpandidos(v => !v)}
             className={`shrink-0 flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-[11px] font-semibold transition-all active:scale-[0.97] ${
               filtrosAtivos
-                ? 'bg-primary-500/30 text-primary-300'
-                : 'bg-gray-700 text-gray-300'
+                ? 'bg-primary-50 text-primary-700 dark:bg-primary-500/30 dark:text-primary-300'
+                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
             }`}
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -633,7 +633,7 @@ export default function ComprasPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               <input
                 type="text"
-                className="w-full bg-gray-700 border border-transparent rounded-xl pl-9 pr-3 py-2.5 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+                className="w-full bg-gray-100 dark:bg-gray-700 border border-transparent rounded-xl pl-9 pr-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
                 placeholder="Buscar por descrição..."
                 value={filtroDescricaoInput}
                 onChange={(e) => handleFiltroDescricaoChange(e.target.value)}
@@ -650,23 +650,34 @@ export default function ComprasPage() {
               ]}
             />
 
-            {/* Parcelamento */}
-            <FilterSelect
-              value={filtroParcelamento}
-              onChange={v => setFiltroParcelamento(v as '' | 'avista' | 'parcelado')}
-              options={[
-                { value: '',          label: 'Parcelamento (todos)' },
-                { value: 'avista',    label: 'À vista'              },
-                { value: 'parcelado', label: 'Parcelado'            },
-              ]}
-            />
+            {/* Parcelamento — controle segmentado (3 opções fixas: dropdown seria clique extra à toa) */}
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-900/40 rounded-xl p-1">
+              {([
+                ['', 'Todos'],
+                ['avista', 'À vista'],
+                ['parcelado', 'Parcelado'],
+              ] as [string, string][]).map(([val, label]) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => setFiltroParcelamento(val as '' | 'avista' | 'parcelado')}
+                  className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all duration-150 active:scale-[0.97] ${
+                    filtroParcelamento === val
+                      ? 'bg-primary-600 text-white shadow-sm dark:bg-white dark:text-gray-900'
+                      : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
 
             {/* Valor mínimo + Data */}
             <div className="grid grid-cols-2 gap-2">
               <input
                 type="text"
                 inputMode="decimal"
-                className="bg-gray-700 border border-transparent rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+                className="bg-gray-100 dark:bg-gray-700 border border-transparent rounded-xl px-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
                 placeholder="Valor mínimo"
                 value={filtroValorMin}
                 onChange={(e) => setFiltroValorMin(numericOnly(e.target.value))}
@@ -674,7 +685,7 @@ export default function ComprasPage() {
               <div className="relative">
                 <input
                   type="date"
-                  className="w-full bg-gray-700 border border-transparent rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow appearance-none"
+                  className="w-full bg-gray-100 dark:bg-gray-700 border border-transparent rounded-xl px-3 py-2.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow appearance-none [color-scheme:light] dark:[color-scheme:dark]"
                   value={filtroData}
                   onChange={(e) => setFiltroData(e.target.value)}
                 />
@@ -690,7 +701,7 @@ export default function ComprasPage() {
             {filtrosAtivos && (
               <button
                 onClick={limparFiltros}
-                className="w-full text-xs text-red-400 hover:text-red-300 py-1 font-semibold transition-colors"
+                className="w-full text-xs text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 py-1 font-semibold transition-colors"
               >
                 Limpar filtros
               </button>
@@ -831,7 +842,9 @@ export default function ComprasPage() {
 
                 <div className="divide-y divide-gray-50">
                   {items.map((c) => {
-                    const isParcelado = c.parcela_atual && c.total_parcelas
+                    // total_parcelas > 1 é o mesmo critério usado no filtro "Parcelado" acima;
+                    // sem o > 1, toda compra à vista (1/1) ganharia o selo de parcelamento à toa.
+                    const isParcelado = !!c.parcela_atual && !!c.total_parcelas && c.total_parcelas > 1
                     const canInteract = !faturaFechada && isOnline
                     const isEstorno   = c.status === 'ESTORNO'
                     const isEstornado = c.status === 'ESTORNADO'
@@ -850,7 +863,6 @@ export default function ComprasPage() {
                     const mostrarSeloDuplicata = isProvavelDuplicata || (isHighlighted && !!duplicataId)
                     const metaParts = [
                       c.responsavel,
-                      isParcelado ? `${c.parcela_atual}/${c.total_parcelas}x` : null,
                       c.categoria || null,
                     ].filter(Boolean) as string[]
                     const horaInclusao = formatarHoraInclusao(c, dateKey)
@@ -882,10 +894,26 @@ export default function ComprasPage() {
                             <p className={`text-[15px] font-semibold leading-snug truncate ${isEstornado ? 'line-through text-gray-400' : 'text-gray-900'}`}>
                               {c.descricao}
                             </p>
-                            {metaParts.length > 0 && (
-                              <p className="text-xs text-gray-400 dark:text-gray-300 mt-0.5 leading-tight truncate">
-                                {metaParts.join(' · ')}
-                              </p>
+                            {(metaParts.length > 0 || isParcelado) && (
+                              <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+                                {metaParts.length > 0 && (
+                                  <p className="text-xs text-gray-400 dark:text-gray-300 leading-tight truncate">
+                                    {metaParts.join(' · ')}
+                                  </p>
+                                )}
+                                {isParcelado && (
+                                  <span className="inline-flex items-center gap-1.5 shrink-0 text-[10px] font-bold text-primary-700 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300 pl-1.5 pr-2 py-[3px] rounded-full">
+                                    <span
+                                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                                      style={{
+                                        background: `conic-gradient(#6366f1 ${Math.round((c.parcela_atual! / c.total_parcelas!) * 360)}deg, #c7d2fe 0deg)`,
+                                      }}
+                                      aria-hidden="true"
+                                    />
+                                    {c.parcela_atual}/{c.total_parcelas}
+                                  </span>
+                                )}
+                              </div>
                             )}
                           </div>
                           <div className="text-right shrink-0 flex flex-col items-end gap-1">
@@ -934,8 +962,16 @@ export default function ComprasPage() {
         <ModalPortal>
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4 modal-overlay">
           <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm lg:max-w-lg p-6 shadow-float modal-sheet sm:modal-center">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-bold">Editar Compra</h3>
+            <div className="flex items-start justify-between mb-5">
+              <div>
+                <h3 className="text-lg font-bold">Editar Compra</h3>
+                {!!modalEditar.total_parcelas && modalEditar.total_parcelas > 1 && (
+                  <span className="inline-flex items-center gap-1.5 mt-1.5 text-[11px] font-bold text-primary-700 bg-primary-50 px-2 py-0.5 rounded-full">
+                    <CreditCard className="w-3 h-3" />
+                    Parcela {modalEditar.parcela_atual} de {modalEditar.total_parcelas}
+                  </span>
+                )}
+              </div>
               <button onClick={() => setModalEditar(null)} className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 transition-all hover:rotate-90 duration-200">
                 <X className="w-5 h-5" />
               </button>
