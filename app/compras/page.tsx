@@ -121,7 +121,7 @@ const TIPOS_GASTO_VALIDOS = ['existente', 'novo', 'assinatura'] as const
 
 const TIPO_GASTO_LABEL: Record<TipoGasto, string> = {
   existente: 'Parcelas antigas',
-  novo: 'Novas parcelas',
+  novo: 'Novas compras',
   assinatura: 'Assinaturas',
 }
 
