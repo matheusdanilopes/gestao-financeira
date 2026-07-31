@@ -961,13 +961,6 @@ export default function Dashboard() {
                   })()}
                 </div>
 
-                {/* Legenda da composição das barras */}
-                <div className="flex items-center gap-3 flex-wrap text-[10px] text-gray-400 mb-3">
-                  <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-500 dark:bg-gray-300 inline-block shrink-0" />Parcelas antigas</span>
-                  <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block shrink-0" />Novas parcelas</span>
-                  <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400 inline-block shrink-0" />Assinaturas</span>
-                </div>
-
                 {/* Blocos Matheus / Jeniffer — ordem conforme usuário logado */}
                 {(() => {
                   const matheusBlock = (
@@ -990,9 +983,9 @@ export default function Dashboard() {
                             className={`flex w-full h-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-full overflow-hidden mb-0.5 ${fatura.matheusAtual > 0 ? 'cursor-pointer' : 'cursor-default'}`}
                             aria-label="Ver composição da fatura de Matheus"
                           >
-                            <div key={`ex-${fatura.matheusAtual}`} className="h-full bg-blue-600 bar-enter" style={{ '--bar-w': `${seg.existente}%` } as React.CSSProperties} />
-                            <div key={`no-${fatura.matheusAtual}`} className="h-full bg-amber-400 bar-enter" style={{ '--bar-w': `${seg.novo}%` } as React.CSSProperties} />
-                            <div key={`as-${fatura.matheusAtual}`} className="h-full bg-emerald-400 bar-enter" style={{ '--bar-w': `${seg.assinatura}%` } as React.CSSProperties} />
+                            <div key={`ex-${fatura.matheusAtual}`} className="h-full bg-blue-800 bar-enter" style={{ '--bar-w': `${seg.existente}%` } as React.CSSProperties} />
+                            <div key={`no-${fatura.matheusAtual}`} className="h-full bg-blue-500 bar-enter" style={{ '--bar-w': `${seg.novo}%` } as React.CSSProperties} />
+                            <div key={`as-${fatura.matheusAtual}`} className="h-full bg-blue-200 bar-enter" style={{ '--bar-w': `${seg.assinatura}%` } as React.CSSProperties} />
                           </button>
                         )
                       })()}
@@ -1053,9 +1046,9 @@ export default function Dashboard() {
                             className={`flex w-full h-2.5 bg-pink-100 dark:bg-pink-900/30 rounded-full overflow-hidden mb-0.5 ${fatura.jenifferAtual > 0 ? 'cursor-pointer' : 'cursor-default'}`}
                             aria-label="Ver composição da fatura de Jeniffer"
                           >
-                            <div key={`ex-${fatura.jenifferAtual}`} className="h-full bg-pink-600 bar-enter" style={{ '--bar-w': `${seg.existente}%` } as React.CSSProperties} />
-                            <div key={`no-${fatura.jenifferAtual}`} className="h-full bg-amber-400 bar-enter" style={{ '--bar-w': `${seg.novo}%` } as React.CSSProperties} />
-                            <div key={`as-${fatura.jenifferAtual}`} className="h-full bg-emerald-400 bar-enter" style={{ '--bar-w': `${seg.assinatura}%` } as React.CSSProperties} />
+                            <div key={`ex-${fatura.jenifferAtual}`} className="h-full bg-pink-800 bar-enter" style={{ '--bar-w': `${seg.existente}%` } as React.CSSProperties} />
+                            <div key={`no-${fatura.jenifferAtual}`} className="h-full bg-pink-500 bar-enter" style={{ '--bar-w': `${seg.novo}%` } as React.CSSProperties} />
+                            <div key={`as-${fatura.jenifferAtual}`} className="h-full bg-pink-200 bar-enter" style={{ '--bar-w': `${seg.assinatura}%` } as React.CSSProperties} />
                           </button>
                         )
                       })()}
@@ -1133,9 +1126,9 @@ export default function Dashboard() {
                                 className={`flex w-full h-2.5 bg-purple-100 dark:bg-purple-900/30 rounded-full overflow-hidden mb-0.5 ${fatura.conjuntoAtual > 0 ? 'cursor-pointer' : 'cursor-default'}`}
                                 aria-label="Ver composição da fatura Conjunto"
                               >
-                                <div key={`ex-${fatura.conjuntoAtual}`} className="h-full bg-purple-600 bar-enter" style={{ '--bar-w': `${seg.existente}%` } as React.CSSProperties} />
-                                <div key={`no-${fatura.conjuntoAtual}`} className="h-full bg-amber-400 bar-enter" style={{ '--bar-w': `${seg.novo}%` } as React.CSSProperties} />
-                                <div key={`as-${fatura.conjuntoAtual}`} className="h-full bg-emerald-400 bar-enter" style={{ '--bar-w': `${seg.assinatura}%` } as React.CSSProperties} />
+                                <div key={`ex-${fatura.conjuntoAtual}`} className="h-full bg-purple-800 bar-enter" style={{ '--bar-w': `${seg.existente}%` } as React.CSSProperties} />
+                                <div key={`no-${fatura.conjuntoAtual}`} className="h-full bg-purple-500 bar-enter" style={{ '--bar-w': `${seg.novo}%` } as React.CSSProperties} />
+                                <div key={`as-${fatura.conjuntoAtual}`} className="h-full bg-purple-200 bar-enter" style={{ '--bar-w': `${seg.assinatura}%` } as React.CSSProperties} />
                               </button>
                             )
                           })()}

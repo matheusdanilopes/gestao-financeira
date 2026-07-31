@@ -19,16 +19,25 @@ interface Props {
   dados: ComposicaoFaturaDados | null
 }
 
+// Mesma escala tonal usada na barra da fatura (escuro → claro) por responsável.
+const CORES_RESPONSAVEL: Record<string, { existente: string; novo: string; assinatura: string }> = {
+  Matheus: { existente: 'bg-blue-800', novo: 'bg-blue-500', assinatura: 'bg-blue-200' },
+  Jeniffer: { existente: 'bg-pink-800', novo: 'bg-pink-500', assinatura: 'bg-pink-200' },
+  Conjunto: { existente: 'bg-purple-800', novo: 'bg-purple-500', assinatura: 'bg-purple-200' },
+}
+const CORES_PADRAO = { existente: 'bg-gray-700', novo: 'bg-gray-500', assinatura: 'bg-gray-300' }
+
 const LINHAS = [
-  { chave: 'existente' as const, label: 'Parcelas antigas', descricao: 'Parcelas de compras de meses anteriores (2/X em diante)', dot: 'bg-gray-500 dark:bg-gray-300' },
-  { chave: 'novo' as const, label: 'Novas parcelas', descricao: 'Compras novas ou primeira parcela (1/X)', dot: 'bg-amber-400' },
-  { chave: 'assinatura' as const, label: 'Assinaturas', descricao: 'Cobranças de assinaturas ativas', dot: 'bg-emerald-400' },
+  { chave: 'existente' as const, label: 'Parcelas antigas', descricao: 'Parcelas de compras de meses anteriores (2/X em diante)' },
+  { chave: 'novo' as const, label: 'Novas parcelas', descricao: 'Compras novas ou primeira parcela (1/X)' },
+  { chave: 'assinatura' as const, label: 'Assinaturas', descricao: 'Cobranças de assinaturas ativas' },
 ]
 
 export default function ComposicaoFaturaModal({ aberto, onClose, dados }: Props) {
   if (!aberto || !dados) return null
 
   const total = dados.total > 0 ? dados.total : 1
+  const cores = CORES_RESPONSAVEL[dados.responsavel] ?? CORES_PADRAO
 
   return (
     <ModalPortal>
@@ -64,9 +73,10 @@ export default function ComposicaoFaturaModal({ aberto, onClose, dados }: Props)
           </div>
 
           <div className="space-y-2.5">
-            {LINHAS.map(({ chave, label, descricao, dot }) => {
+            {LINHAS.map(({ chave, label, descricao }) => {
               const valor = dados[chave]
               const pct = (valor / total) * 100
+              const dot = cores[chave]
               return (
                 <div key={chave} className="bg-gray-50 dark:bg-gray-800/60 rounded-2xl p-3.5 border border-gray-100 dark:border-gray-700/50">
                   <div className="flex items-center justify-between gap-2 mb-1">
