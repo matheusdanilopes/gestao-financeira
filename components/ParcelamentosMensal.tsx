@@ -329,68 +329,37 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
             : `Preenche o limite com a média dos últimos 6 meses (${formatBRL(sugestao)})`
           const { texto, iconBg } = RESPONSAVEL_STYLE[responsavel]
 
+          const corPct = pct >= 100 ? 'text-red-600 dark:text-red-400' : pct >= 80 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'
+          const bgPct = pct >= 100 ? 'bg-red-100 dark:bg-red-900/30' : pct >= 80 ? 'bg-amber-100 dark:bg-amber-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30'
+
           return (
             <div key={responsavel} className="bg-white dark:bg-gray-900 rounded-3xl shadow-card border border-gray-100 dark:border-gray-800 p-4">
               <div className="flex items-center gap-2 mb-3">
                 <div className={`w-8 h-8 rounded-xl ${iconBg} flex items-center justify-center`}>
                   <Layers className={`w-4 h-4 ${texto}`} />
                 </div>
-                <h2 className={`text-base font-semibold ${texto}`}>{responsavel}</h2>
+                <h2 className={`text-base font-semibold flex-1 ${texto}`}>{responsavel}</h2>
+                {limite > 0 && (
+                  <span className={`text-[10px] font-bold num px-2 py-0.5 rounded-full ${bgPct} ${corPct}`}>
+                    {Math.round(Math.min(pct, 999))}%
+                  </span>
+                )}
               </div>
 
-              <div className="flex items-center justify-between gap-3 mb-1">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Limite do mês</span>
-                <div className={`flex items-center gap-1 bg-gray-50 dark:bg-gray-800 border border-transparent rounded-xl pl-2 pr-1 py-1 ${CAMPO_FOCO}`}>
-                  <span className="text-[11px] text-gray-400">R$</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="Sem limite"
-                    value={inputs[responsavel] ?? ''}
-                    onChange={(e) => setInputs(prev => ({ ...prev, [responsavel]: e.target.value }))}
-                    onBlur={(e) => salvarLimite(responsavel, e.target.value)}
-                    disabled={salvando === responsavel}
-                    aria-label={`Limite mensal de ${responsavel}`}
-                    className="w-16 bg-transparent outline-none text-xs num"
-                  />
-                </div>
-              </div>
-
-              {(limiteHerdado || mostrarSugestao) && (
-                <div className="flex items-center justify-between gap-2 mb-2 min-h-[19px]">
-                  {limiteHerdado ? (
-                    <span
-                      className="badge-fade-in inline-flex items-center text-[10px] font-medium text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/60 px-2 py-0.5 rounded-full"
-                      title="Edite o valor para fixar o limite deste mês"
-                    >
-                      Herdado de {format(new Date(mesOrigemLimite + 'T12:00:00'), 'MMM/yyyy', { locale: ptBR })}
-                    </span>
-                  ) : <span />}
-                  {mostrarSugestao && (
-                    <button
-                      type="button"
-                      onClick={() => aplicarSugestao(responsavel)}
-                      className="tap-scale inline-flex items-center gap-1 text-[10px] font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
-                      title={tituloSugestao}
-                      aria-label={tituloSugestao}
-                    >
-                      <Sparkles className="w-3 h-3" />
-                      Sugestão: {formatBRL(sugestao)}
-                    </button>
-                  )}
-                </div>
-              )}
-
-              <div className="flex justify-between items-baseline mb-1">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Comprometido</span>
-                <span className={`text-[11px] font-semibold num ${pct >= 100 ? 'text-red-500' : pct >= 80 ? 'text-amber-500' : 'text-gray-400'}`}>
-                  {formatBRL(gasto)}{limite > 0 ? ` / ${formatBRL(limite)}` : ''}
-                </span>
+              <div className="mb-3">
+                <p
+                  key={`${mesReferencia}-${Math.round(gasto)}`}
+                  className="text-2xl font-bold text-gray-800 dark:text-gray-100 num value-tight value-update"
+                >
+                  {formatBRL(gasto)}
+                </p>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mt-0.5">
+                  comprometido este mês
+                </p>
               </div>
 
               {limite > 0 && (
-                <>
+                <div className="mb-3">
                   <div
                     className="w-full h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden"
                     role="progressbar"
@@ -410,8 +379,60 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
                       ? `Limite ultrapassado em ${formatBRL(gasto - limite)}`
                       : `Ainda pode comprometer ${formatBRL(limite - gasto)}`}
                   </p>
-                </>
+                </div>
               )}
+
+              <div className="pt-3 border-t border-gray-50 dark:border-gray-800/60">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Limite mensal</span>
+                  <div className={`flex items-center gap-1 bg-gray-50 dark:bg-gray-800 border border-transparent rounded-xl pl-2 pr-1 py-1.5 ${CAMPO_FOCO}`}>
+                    <span className="text-[11px] text-gray-400">R$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="Sem limite"
+                      value={inputs[responsavel] ?? ''}
+                      onChange={(e) => setInputs(prev => ({ ...prev, [responsavel]: e.target.value }))}
+                      onBlur={(e) => salvarLimite(responsavel, e.target.value)}
+                      disabled={salvando === responsavel}
+                      aria-label={`Limite mensal de ${responsavel}`}
+                      className="w-16 bg-transparent outline-none text-xs num"
+                    />
+                  </div>
+                </div>
+
+                {limite === 0 && !mostrarSugestao && (
+                  <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1.5">
+                    Defina um limite para acompanhar o progresso deste mês.
+                  </p>
+                )}
+
+                {(limiteHerdado || mostrarSugestao) && (
+                  <div className="flex items-center justify-between gap-2 mt-1.5 min-h-[19px]">
+                    {limiteHerdado ? (
+                      <span
+                        className="badge-fade-in inline-flex items-center text-[10px] font-medium text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/60 px-2 py-0.5 rounded-full"
+                        title="Edite o valor para fixar o limite deste mês"
+                      >
+                        Herdado de {format(new Date(mesOrigemLimite + 'T12:00:00'), 'MMM/yyyy', { locale: ptBR })}
+                      </span>
+                    ) : <span />}
+                    {mostrarSugestao && (
+                      <button
+                        type="button"
+                        onClick={() => aplicarSugestao(responsavel)}
+                        className="tap-scale inline-flex items-center gap-1 text-[10px] font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
+                        title={tituloSugestao}
+                        aria-label={tituloSugestao}
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        Sugestão: {formatBRL(sugestao)}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )
         })}
