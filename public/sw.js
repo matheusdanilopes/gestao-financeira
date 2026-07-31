@@ -9,7 +9,12 @@ const CACHE_NAME = 'gestao-financeira-v17'
 // apple-touch-icon com canal alfa e cai no fallback de monograma (letra sobre
 // fundo da theme_color — o "G roxo" visto ao reinstalar o PWA). Bump força
 // clientes com o ícone antigo em cache a buscar a versão opaca/full-bleed.
-const STATIC_CACHE_NAME = 'gestao-financeira-static-v2'
+// v3: mesmo com o arquivo corrigido no servidor, o iOS mantém seu próprio
+// cache interno de touch icon por URL (fora do alcance de "Limpar Dados de
+// Site" e independente deste SW) — reinstalar o PWA continuava mostrando o
+// ícone antigo. Os PNGs foram renomeados (sufixo -v2) para forçar o iOS a
+// tratá-los como recurso novo, nunca visto antes.
+const STATIC_CACHE_NAME = 'gestao-financeira-static-v3'
 
 const OFFLINE_HTML = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Carregando…</title><script>setTimeout(function(){location.reload()},4000)<\/script></head><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0"><p>Reconectando…</p></body></html>'
 const OFFLINE_RESPONSE = () => new Response(OFFLINE_HTML, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
@@ -106,11 +111,11 @@ const PRECACHE_ROUTES = [
 // Pré-cacheados no install para nunca depender de uma busca de rede no momento em
 // que o iOS captura o ícone/splash do app.
 const PRECACHE_STATIC = [
-  '/apple-touch-icon.png',
-  '/icon-192.png',
-  '/icon-512.png',
-  '/icon-192-maskable.png',
-  '/icon-512-maskable.png',
+  '/apple-touch-icon-v2.png',
+  '/icon-192-v2.png',
+  '/icon-512-v2.png',
+  '/icon-192-maskable-v2.png',
+  '/icon-512-maskable-v2.png',
   '/splash-1125x2436.png',
   '/splash-1170x2532.png',
   '/splash-1179x2556.png',
@@ -313,7 +318,7 @@ self.addEventListener('push', function (event) {
     PERSISTENT_TAGS.some(function (t) { return tag === t || tag.startsWith(t + '-') })
   const options = {
     body: data.body || '',
-    icon: '/icon-192.png',
+    icon: '/icon-192-v2.png',
     badge: '/badge.png',
     tag,
     renotify: true,
