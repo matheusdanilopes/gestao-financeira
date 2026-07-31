@@ -14,14 +14,6 @@ function nomeDoUsuario(email: string | undefined): 'Matheus' | 'Jeniffer' {
   return 'Matheus'
 }
 
-// Itens de planejamento parcelados marcados com prefixo de outro cartão (mesma
-// convenção de app/api/import/cartao/route.ts) não podem entrar no comprometido
-// do Nubank — senão o total misturaria compromissos de Cartão 1/Cartão 2.
-function vinculadoAOutroCartao(item: string): boolean {
-  const nome = String(item ?? '').trim().toUpperCase()
-  return nome.startsWith('[CARTAO1]') || nome.startsWith('[CARTAO2]')
-}
-
 // A fatura do mês é considerada paga quando todos os itens "nubank ..." do
 // planejamento daquele mês (com valor previsto) já foram marcados como pagos
 // na tela de Despesas (ChecklistMensal.tsx) — mesmo prefixo usado lá.
@@ -117,7 +109,7 @@ export async function GET(req: NextRequest) {
         .neq('status', 'ESTORNADO'),
       supabase
         .from('planejamento')
-        .select('item, valor_previsto, responsavel, total_parcelas')
+        .select('valor_previsto, responsavel, total_parcelas')
         .eq('mes_referencia', mesRef)
         .gt('total_parcelas', 1),
       supabase.from('configuracoes').select('chave, valor').in('chave', ['dia_vencimento', 'ajuste_fechamento']),
@@ -145,7 +137,6 @@ export async function GET(req: NextRequest) {
       comprometidoPorResponsavel[resp] = (comprometidoPorResponsavel[resp] ?? 0) + Number(t.valor ?? 0)
     }
     for (const p of planejadosParcelados ?? []) {
-      if (vinculadoAOutroCartao(p.item)) continue
       const resp = String(p.responsavel ?? '')
       comprometidoPorResponsavel[resp] = (comprometidoPorResponsavel[resp] ?? 0) + Number(p.valor_previsto ?? 0)
     }
