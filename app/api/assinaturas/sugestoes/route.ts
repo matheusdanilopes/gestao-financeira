@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
 import { format, subMonths, startOfMonth } from 'date-fns'
+import { extrairParcela } from '@/lib/csvparser'
 
 const MIN_MESES_CONSECUTIVOS = 3
 // Assinaturas têm valor estável. Acima desse limite de variação (relativa ao valor médio)
@@ -59,16 +60,17 @@ export async function GET(req: NextRequest) {
   }
   const grupos = new Map<string, Grupo>()
 
-  // Regex para detectar parcelamentos na descrição (fallback caso colunas não estejam preenchidas)
-  const RE_PARCELA = /\b\d{1,2}\s*\/\s*\d{2,}\b|\bparcela\s*\d/i
+  // Fallback para descrições que citam "parcela N" sem informar o total (ex.: "Parcela 2")
+  const RE_PARCELA_SEM_TOTAL = /\bparcela\s*\d/i
 
   for (const t of transacoes ?? []) {
     if (!t.descricao || !t.projeto_fatura) continue
 
     // Descarta parcelamentos explícitos via colunas
     if (t.total_parcelas && Number(t.total_parcelas) > 1) continue
-    // Descarta parcelamentos detectados na descrição (ex: "SAMSUNG 3/12", "Parcela 2")
-    if (RE_PARCELA.test(t.descricao as string)) continue
+    // Descarta parcelamentos detectados na descrição (ex: "SAMSUNG 3/12", "Parcela 2/12") —
+    // mesma extração validada usada na importação, evita falso positivo em algo como "12/2024"
+    if (extrairParcela(t.descricao as string) || RE_PARCELA_SEM_TOTAL.test(t.descricao as string)) continue
 
     const norm = normalizar(t.descricao as string)
     if (norm.length < 3) continue

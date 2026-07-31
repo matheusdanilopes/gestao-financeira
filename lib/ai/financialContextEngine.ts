@@ -15,7 +15,7 @@
 import { format, subMonths, addMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { fetchEnrichedData } from './contextBuilder'
-import { computeInsights, getMesEfetivo as mesEfetivo, nomeCartao } from './insightsEngine'
+import { computeInsights, getMesEfetivo as mesEfetivo, nomeCartao, cartaoLabelsFromPlanejamento } from './insightsEngine'
 import {
   validateFinancialData,
   formatCertificateForAI,
@@ -281,9 +281,10 @@ function buildEstornosSummary(data: EnrichedData, mesFatura: string, mesFaturaAn
   })
   if (relevantes.length === 0) return ''
 
+  const cartaoLabels = cartaoLabelsFromPlanejamento(data.planejamento)
   const porCartao: Record<string, { count: number; total: number }> = {}
   for (const e of relevantes) {
-    const c = nomeCartao(e.cartao)
+    const c = nomeCartao(e.cartao, cartaoLabels)
     if (!porCartao[c]) porCartao[c] = { count: 0, total: 0 }
     porCartao[c].count++
     porCartao[c].total += Math.abs(e.valor)
@@ -321,9 +322,10 @@ function buildCardMotor(data: EnrichedData, hoje: Date): string {
   const meses4 = Array.from({ length: 4 }, (_, i) => format(subMonths(addMonths(hoje, 1), i), 'yyyy-MM'))
 
   const sections: string[] = ['CARTÃO — FATURA ATUAL:']
+  const cartaoLabels = cartaoLabelsFromPlanejamento(data.planejamento)
 
   for (const [cartaoId, txs] of Object.entries(porCartaoRaw)) {
-    const cartao = nomeCartao(cartaoId)
+    const cartao = nomeCartao(cartaoId, cartaoLabels)
     const total = sumTx(txs)
 
     // 6 most recent closed billing periods for the historical average

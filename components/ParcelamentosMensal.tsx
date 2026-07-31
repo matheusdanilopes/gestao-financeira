@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { formatBRL } from '@/lib/logger'
 import FilterSelect from '@/components/FilterSelect'
 import EmptyState from '@/components/EmptyState'
+import { buscarCartaoLabels, type CartaoLabels } from '@/lib/cartaoLabels'
 
 interface Props {
   mesAtual: Date
@@ -28,11 +29,11 @@ const RESPONSAVEL_STYLE: Record<Responsavel, { texto: string; iconBg: string }> 
 
 type Origem = 'nubank' | 'cartao1' | 'cartao2' | 'planejamento'
 
-const ORIGEM_LABEL: Record<Origem, string> = {
-  nubank: 'NuBank',
-  cartao1: 'Cartão 1',
-  cartao2: 'Cartão 2',
-  planejamento: 'Planejado',
+const CARTAO_LABELS_PADRAO: CartaoLabels = { nubank: 'NuBank', cartao1: 'Cartão 1', cartao2: 'Cartão 2' }
+
+function origemLabel(o: Origem, cartaoLabels: CartaoLabels): string {
+  if (o === 'planejamento') return 'Planejado'
+  return cartaoLabels[o]
 }
 
 const ORIGEM_ICON: Record<Origem, LucideIcon> = {
@@ -54,6 +55,11 @@ interface ParcelaItem {
 
 const MESES_HISTORICO = 6
 
+function arredondar(n: number, casas: number): number {
+  const f = 10 ** casas
+  return Math.round(n * f) / f
+}
+
 // Recipe de foco premium equivalente à classe `.input-base` de app/globals.css,
 // aplicada via `focus-within` no wrapper (o input em si fica transparente) —
 // evita depender da ordem de cascata do CSS para permitir campos compactos.
@@ -62,9 +68,12 @@ const CAMPO_FOCO = 'focus-within:border-primary-400 focus-within:shadow-[0_0_0_3
 export default function ParcelamentosMensal({ mesAtual }: Props) {
   const [limites, setLimites] = useState<Record<string, number>>({})
   const [inputs, setInputs] = useState<Record<string, string>>({})
+  const [inputsPct, setInputsPct] = useState<Record<string, string>>({})
   const [origemLimite, setOrigemLimite] = useState<Record<string, string>>({})
   const [sugestoes, setSugestoes] = useState<Record<string, number>>({})
+  const [previstoFatura, setPrevistoFatura] = useState<Record<string, number>>({})
   const [itens, setItens] = useState<ParcelaItem[]>([])
+  const [cartaoLabels, setCartaoLabels] = useState<CartaoLabels>(CARTAO_LABELS_PADRAO)
   const [carregando, setCarregando] = useState(true)
   const [salvando, setSalvando] = useState<string | null>(null)
 
@@ -97,6 +106,8 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
         { data: planejados },
         { data: transacoesHist },
         { data: planejadosHist },
+        cartaoLabelsCarregados,
+        { data: planejamentoMes },
       ] = await Promise.all([
         fetch(`/api/limites-parcelamentos?ate=${mesReferencia}`),
         supabase
@@ -123,6 +134,13 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
           .select('valor_previsto, responsavel, mes_referencia')
           .in('mes_referencia', mesesRefHist)
           .gt('total_parcelas', 1),
+        buscarCartaoLabels(supabase, mesReferencia),
+        // Mesmos dados da tela de Despesas (ChecklistMensal): usados para somar o valor
+        // previsto da fatura de cada cartão (NuBank + Cartão 1 + Cartão 2) por responsável.
+        supabase
+          .from('planejamento')
+          .select('item, valor_previsto, responsavel')
+          .eq('mes_referencia', mesReferencia),
       ])
 
       if (cancelado) return
@@ -195,12 +213,45 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
         sMap[responsavel] = totalHistorico / MESES_HISTORICO
       }
 
+      // Valor previsto da fatura por responsável — soma do previsto de cada cartão
+      // (NuBank + Cartão 1 + Cartão 2), igual ao que a tela de Despesas mostra.
+      // É o denominador do campo "%": quanto do limite representa da fatura prevista.
+      const despesas = planejamentoMes ?? []
+      const nubankPrevistoPor = (nome: string) =>
+        Number(despesas.find(p => String(p.item ?? '').trim().toLowerCase() === nome)?.valor_previsto ?? 0)
+      const cartaoPrevistoPor = (responsavel: string, prefixo: string) =>
+        despesas
+          .filter(p => String(p.item ?? '').startsWith(prefixo) && p.responsavel === responsavel)
+          .reduce((soma, p) => soma + Number(p.valor_previsto ?? 0), 0)
+
+      const pMap: Record<string, number> = {}
+      for (const responsavel of RESPONSAVEIS) {
+        const nubankPrevisto = responsavel === 'Matheus'
+          ? nubankPrevistoPor('nubank matheus')
+          : responsavel === 'Jeniffer'
+            ? nubankPrevistoPor('nubank jeniffer') + nubankPrevistoPor('nubank jeniffer conjunto')
+            : nubankPrevistoPor('nubank conjunto')
+        pMap[responsavel] = nubankPrevisto
+          + cartaoPrevistoPor(responsavel, '[CARTAO1]')
+          + cartaoPrevistoPor(responsavel, '[CARTAO2]')
+      }
+
+      const pctMap: Record<string, string> = {}
+      for (const responsavel of RESPONSAVEIS) {
+        const previsto = pMap[responsavel] ?? 0
+        const valor = lMap[responsavel] ?? 0
+        pctMap[responsavel] = previsto > 0 && valor > 0 ? String(arredondar((valor / previsto) * 100, 1)) : ''
+      }
+
       if (!cancelado) {
         setLimites(lMap)
         setInputs(iMap)
+        setInputsPct(pctMap)
         setOrigemLimite(oMap)
         setSugestoes(sMap)
+        setPrevistoFatura(pMap)
         setItens(lista)
+        setCartaoLabels(cartaoLabelsCarregados)
         setCarregando(false)
       }
     }
@@ -230,7 +281,31 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
   function aplicarSugestao(responsavel: Responsavel) {
     const valor = Math.max(Math.round(sugestoes[responsavel] ?? 0), Math.round(comprometidoPorPessoa[responsavel] ?? 0))
     setInputs(prev => ({ ...prev, [responsavel]: String(valor) }))
+    const previsto = previstoFatura[responsavel] ?? 0
+    setInputsPct(prev => ({ ...prev, [responsavel]: previsto > 0 ? String(arredondar((valor / previsto) * 100, 1)) : '' }))
     salvarLimite(responsavel, String(valor))
+  }
+
+  function alterarValor(responsavel: Responsavel, valorStr: string) {
+    setInputs(prev => ({ ...prev, [responsavel]: valorStr }))
+    const previsto = previstoFatura[responsavel] ?? 0
+    const valor = parseFloat(valorStr.replace(',', '.'))
+    if (previsto > 0 && !isNaN(valor)) {
+      setInputsPct(prev => ({ ...prev, [responsavel]: String(arredondar((valor / previsto) * 100, 1)) }))
+    } else if (valorStr === '') {
+      setInputsPct(prev => ({ ...prev, [responsavel]: '' }))
+    }
+  }
+
+  function alterarPercentual(responsavel: Responsavel, pctStr: string) {
+    setInputsPct(prev => ({ ...prev, [responsavel]: pctStr }))
+    const previsto = previstoFatura[responsavel] ?? 0
+    const pct = parseFloat(pctStr.replace(',', '.'))
+    if (previsto > 0 && !isNaN(pct)) {
+      setInputs(prev => ({ ...prev, [responsavel]: String(arredondar((pct / 100) * previsto, 2)) }))
+    } else if (pctStr === '') {
+      setInputs(prev => ({ ...prev, [responsavel]: '' }))
+    }
   }
 
   function limparFiltros(incluirBusca = false) {
@@ -244,6 +319,18 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
   const comprometidoPorPessoa = useMemo(() => {
     const m: Record<string, number> = {}
     for (const item of itens) m[item.responsavel] = (m[item.responsavel] ?? 0) + item.valor
+    return m
+  }, [itens])
+
+  // Abre o "comprometido" por origem (NuBank/Cartão 1/Cartão 2/Planejado) —
+  // sem essa quebra, o total combinado de todos os cartões parecia "errado"
+  // por não bater com a fatura de um cartão específico exibida em outra tela.
+  const comprometidoPorPessoaOrigem = useMemo(() => {
+    const m: Record<string, Partial<Record<Origem, number>>> = {}
+    for (const item of itens) {
+      m[item.responsavel] ??= {}
+      m[item.responsavel][item.origem] = (m[item.responsavel][item.origem] ?? 0) + item.valor
+    }
     return m
   }, [itens])
 
@@ -318,6 +405,10 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
           const limite = limites[responsavel] ?? 0
           const gasto = comprometidoPorPessoa[responsavel] ?? 0
           const pct = limite > 0 ? (gasto / limite) * 100 : 0
+          const previstoPessoa = previstoFatura[responsavel] ?? 0
+          const porOrigem = comprometidoPorPessoaOrigem[responsavel] ?? {}
+          const origensComValor = (['nubank', 'cartao1', 'cartao2', 'planejamento'] as Origem[])
+            .filter(o => (porOrigem[o] ?? 0) > 0)
           const mediaHistorica = Math.round(sugestoes[responsavel] ?? 0)
           const sugestao = Math.max(mediaHistorica, Math.round(gasto))
           const sugestaoPresaAoComprometido = sugestao > mediaHistorica
@@ -356,6 +447,16 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mt-0.5">
                   comprometido este mês
                 </p>
+                {origensComValor.length > 1 && (
+                  <div className="flex items-center gap-x-2.5 gap-y-1 flex-wrap mt-1.5">
+                    {origensComValor.map(o => (
+                      <span key={o} className="inline-flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400">
+                        {origemLabel(o, cartaoLabels)}
+                        <span className="font-semibold text-gray-700 dark:text-gray-300 num">{formatBRL(porOrigem[o] ?? 0)}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {limite > 0 && (
@@ -383,22 +484,47 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
               )}
 
               <div className="pt-3 border-t border-gray-50 dark:border-gray-800/60">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center justify-between gap-2 mb-2">
                   <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Limite mensal</span>
-                  <div className={`flex items-center gap-1 bg-gray-50 dark:bg-gray-800 border border-transparent rounded-xl pl-2 pr-1 py-1.5 ${CAMPO_FOCO}`}>
-                    <span className="text-[11px] text-gray-400">R$</span>
+                  {previstoPessoa > 0 && (
+                    <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                      Previsto da fatura <span className="font-semibold text-gray-500 dark:text-gray-400 num">{formatBRL(previstoPessoa)}</span>
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className={`flex-1 min-w-0 flex items-center gap-1.5 bg-white dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 rounded-xl pl-3 pr-2.5 py-2 ${CAMPO_FOCO}`}>
+                    <span className="text-xs font-medium text-gray-400 dark:text-gray-500 shrink-0">R$</span>
                     <input
                       type="number"
                       min="0"
                       step="0.01"
                       placeholder="Sem limite"
                       value={inputs[responsavel] ?? ''}
-                      onChange={(e) => setInputs(prev => ({ ...prev, [responsavel]: e.target.value }))}
+                      onChange={(e) => alterarValor(responsavel, e.target.value)}
                       onBlur={(e) => salvarLimite(responsavel, e.target.value)}
                       disabled={salvando === responsavel}
                       aria-label={`Limite mensal de ${responsavel}`}
-                      className="w-16 bg-transparent outline-none text-xs num"
+                      className="w-full min-w-0 bg-transparent outline-none text-sm font-semibold text-gray-800 dark:text-gray-100 num"
                     />
+                  </div>
+                  <div
+                    className={`flex-1 min-w-0 flex items-center gap-1.5 bg-white dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 rounded-xl pl-3 pr-2.5 py-2 ${CAMPO_FOCO} ${previstoPessoa <= 0 ? 'opacity-50' : ''}`}
+                    title={previstoPessoa > 0 ? `% do valor previsto da fatura (${formatBRL(previstoPessoa)})` : 'Sem valor previsto da fatura este mês para calcular o %'}
+                  >
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      placeholder="%"
+                      value={inputsPct[responsavel] ?? ''}
+                      onChange={(e) => alterarPercentual(responsavel, e.target.value)}
+                      onBlur={() => salvarLimite(responsavel, inputs[responsavel] ?? '')}
+                      disabled={salvando === responsavel || previstoPessoa <= 0}
+                      aria-label={`Percentual do valor previsto da fatura de ${responsavel}`}
+                      className="w-full min-w-0 bg-transparent outline-none text-sm font-semibold text-gray-800 dark:text-gray-100 num"
+                    />
+                    <span className="text-xs font-medium text-gray-400 dark:text-gray-500 shrink-0">%</span>
                   </div>
                 </div>
 
@@ -504,9 +630,9 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
                 onChange={v => setFiltroOrigem(v as 'todos' | Origem)}
                 options={[
                   { value: 'todos', label: 'Todas origens' },
-                  { value: 'nubank', label: 'NuBank' },
-                  { value: 'cartao1', label: 'Cartão 1' },
-                  { value: 'cartao2', label: 'Cartão 2' },
+                  { value: 'nubank', label: cartaoLabels.nubank },
+                  { value: 'cartao1', label: cartaoLabels.cartao1 },
+                  { value: 'cartao2', label: cartaoLabels.cartao2 },
                   { value: 'planejamento', label: 'Planejado' },
                 ]}
               />
@@ -574,7 +700,7 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
                       <span className="text-[11px] text-gray-400">·</span>
                       <span className="inline-flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400">
                         <IconeOrigem className="w-3 h-3" />
-                        {ORIGEM_LABEL[item.origem]}
+                        {origemLabel(item.origem, cartaoLabels)}
                       </span>
                       {item.parcelaAtual && item.totalParcelas && (
                         <>
