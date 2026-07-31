@@ -56,14 +56,28 @@ function formatarDia(iso: string): string {
   return `${dia} (${semana})`
 }
 
-function LinhaResponsavel({ responsavel, percentual, valor }: { responsavel: string; percentual: number | null; valor: string }) {
+function LinhaResponsavel({
+  responsavel,
+  percentual,
+  valor,
+  destaque,
+}: {
+  responsavel: string
+  percentual: number | null
+  valor: string
+  destaque: boolean
+}) {
   return (
     <div className="flex items-center justify-between py-0.5">
       <span className={`text-[11px] font-semibold ${RESPONSAVEL_TEXTO[responsavel] ?? 'text-gray-500'}`}>
-        {responsavel}
+        {responsavel}{destaque && <span className="text-gray-400 dark:text-gray-500 font-normal"> (você)</span>}
       </span>
-      <span className="text-[11px] text-gray-500 dark:text-gray-400 num">
-        {percentual !== null ? `${Math.round(percentual)}% · ` : ''}{valor}
+      <span
+        className="text-[11px] num"
+        style={{ color: percentual !== null ? corTexto(percentual) : undefined }}
+      >
+        {percentual !== null ? `${Math.round(percentual)}% · ` : ''}
+        <span className="text-gray-500 dark:text-gray-400">{valor}</span>
       </span>
     </div>
   )
@@ -73,6 +87,8 @@ export default function AlertaFaturaModal({ aberto, dados, onFechar }: Props) {
   if (!aberto || !dados) return null
 
   const { parcelamento, fatura } = dados
+  // porResponsavel já vem ordenado com o usuário logado primeiro (ver app/api/alertas-fatura/route.ts).
+  const responsavelAtual = parcelamento.porResponsavel[0]?.responsavel ?? fatura.porResponsavel[0]?.responsavel
 
   return (
     <ModalPortal>
@@ -96,24 +112,35 @@ export default function AlertaFaturaModal({ aberto, dados, onFechar }: Props) {
               </div>
             </div>
 
-            {/* Bloco parcelamento */}
-            {parcelamento.percentual !== null && (
-              <div className="mb-4 bg-gray-50 dark:bg-gray-800/60 rounded-2xl p-3.5">
-                <div className="flex items-center gap-1.5 mb-2">
-                  <Layers className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Parcelamento
+            {/* Bloco parcelamento — sempre visível para deixar claro que o recurso existe,
+                mesmo sem limite configurado ou sem parcelas ativas no mês. */}
+            <div className="mb-4 bg-gray-50 dark:bg-gray-800/60 rounded-2xl p-3.5">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Layers className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Parcelamento
+                </p>
+              </div>
+              {parcelamento.percentual !== null ? (
+                <>
+                  <p className="text-xl font-bold text-gray-800 dark:text-gray-100 num mb-1.5">
+                    {Math.round(parcelamento.percentual)}% do limite usado
                   </p>
-                </div>
-                <p className="text-xl font-bold text-gray-800 dark:text-gray-100 num mb-1.5">
-                  {Math.round(parcelamento.percentual)}% do limite usado
+                  <BarraProgresso pct={parcelamento.percentual} />
+                  <p className="text-[11px] text-right mt-1 font-semibold" style={{ color: corTexto(parcelamento.percentual) }}>
+                    {parcelamento.falta < 0
+                      ? `Limite ultrapassado em ${formatBRL(Math.abs(parcelamento.falta))}`
+                      : `Ainda pode comprometer ${formatBRL(parcelamento.falta)}`}
+                  </p>
+                </>
+              ) : parcelamento.comprometido > 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {formatBRL(parcelamento.comprometido)} em parcelas ativas — nenhum limite configurado em Parcelamentos
                 </p>
-                <BarraProgresso pct={parcelamento.percentual} />
-                <p className="text-[11px] text-right mt-1 font-semibold" style={{ color: corTexto(parcelamento.percentual) }}>
-                  {parcelamento.falta < 0
-                    ? `Limite ultrapassado em ${formatBRL(Math.abs(parcelamento.falta))}`
-                    : `Ainda pode comprometer ${formatBRL(parcelamento.falta)}`}
-                </p>
+              ) : (
+                <p className="text-sm text-gray-400 dark:text-gray-500">Nenhuma parcela ativa este mês</p>
+              )}
+              {parcelamento.porResponsavel.some(r => r.limite > 0 || r.comprometido > 0) && (
                 <div className="mt-2.5 pt-2 border-t border-gray-100 dark:border-gray-700/60">
                   {parcelamento.porResponsavel
                     .filter(r => r.limite > 0 || r.comprometido > 0)
@@ -123,11 +150,12 @@ export default function AlertaFaturaModal({ aberto, dados, onFechar }: Props) {
                         responsavel={r.responsavel}
                         percentual={r.percentual}
                         valor={formatBRL(r.comprometido)}
+                        destaque={r.responsavel === responsavelAtual}
                       />
                     ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Bloco fatura */}
             <div className="mb-5 bg-gray-50 dark:bg-gray-800/60 rounded-2xl p-3.5">
@@ -137,7 +165,7 @@ export default function AlertaFaturaModal({ aberto, dados, onFechar }: Props) {
                   Fatura atual
                 </p>
               </div>
-              {fatura.percentual !== null && (
+              {fatura.percentual !== null ? (
                 <>
                   <p className="text-xl font-bold text-gray-800 dark:text-gray-100 num mb-1.5">
                     {Math.round(fatura.percentual)}% gasto
@@ -146,19 +174,28 @@ export default function AlertaFaturaModal({ aberto, dados, onFechar }: Props) {
                   <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 num">
                     {formatBRL(fatura.gasto)} de {formatBRL(fatura.previsto)} previsto
                   </p>
-                  <div className="mt-2.5 pt-2 border-t border-gray-100 dark:border-gray-700/60">
-                    {fatura.porResponsavel
-                      .filter(r => r.previsto > 0 || r.gasto > 0)
-                      .map(r => (
-                        <LinhaResponsavel
-                          key={r.responsavel}
-                          responsavel={r.responsavel}
-                          percentual={r.percentual}
-                          valor={formatBRL(r.gasto)}
-                        />
-                      ))}
-                  </div>
                 </>
+              ) : fatura.gasto > 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {formatBRL(fatura.gasto)} lançado — sem valor previsto configurado
+                </p>
+              ) : (
+                <p className="text-sm text-gray-400 dark:text-gray-500">Nenhum lançamento nesta fatura ainda</p>
+              )}
+              {fatura.porResponsavel.some(r => r.previsto > 0 || r.gasto > 0) && (
+                <div className="mt-2.5 pt-2 border-t border-gray-100 dark:border-gray-700/60">
+                  {fatura.porResponsavel
+                    .filter(r => r.previsto > 0 || r.gasto > 0)
+                    .map(r => (
+                      <LinhaResponsavel
+                        key={r.responsavel}
+                        responsavel={r.responsavel}
+                        percentual={r.percentual}
+                        valor={formatBRL(r.gasto)}
+                        destaque={r.responsavel === responsavelAtual}
+                      />
+                    ))}
+                </div>
               )}
               <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-gray-100 dark:border-gray-700/60">
                 <span className="text-xs text-gray-500 dark:text-gray-400">
