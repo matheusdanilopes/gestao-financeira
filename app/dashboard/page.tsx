@@ -1,9 +1,11 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths, subMonths, isSameMonth } from 'date-fns'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
+import { classificarTipoGasto, type TipoGasto } from '@/lib/composicaoFatura'
 import { AlertTriangle, BarChart2, BarChart3, CreditCard, Wallet, PiggyBank, TrendingUp, TrendingDown, Minus, LineChart, Activity } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
@@ -79,20 +81,6 @@ function isNuBankItem(item: string): boolean {
   const lower = item.trim().toLowerCase()
   return lower === 'nubank matheus' || lower === 'nubank jeniffer' ||
          lower === 'nubank jeniffer conjunto' || lower === 'nubank conjunto'
-}
-
-function extrairParcela(descricao?: string | null, parcelaAtual?: number | null, totalParcelas?: number | null): { atual: number; total: number } | null {
-  if (parcelaAtual && totalParcelas) return { atual: Number(parcelaAtual), total: Number(totalParcelas) }
-  const desc = String(descricao || '')
-  const matchParcela = desc.match(/parcela\s*(\d+)\s*\/\s*(\d+)/i)
-  if (matchParcela) return { atual: Number(matchParcela[1]), total: Number(matchParcela[2]) }
-  const matchSlash = desc.match(/\b(\d{1,2})\/(\d{1,2})\b/)
-  if (matchSlash) {
-    const atual = Number(matchSlash[1])
-    const total = Number(matchSlash[2])
-    if (total >= 2) return { atual, total }
-  }
-  return null
 }
 
 // Traduz o valor "atual" de uma barra em segmentos empilháveis (percentual da largura da barra).
@@ -442,11 +430,9 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   function montarComposicao(responsavel: string): ComposicaoGastos {
     let existente = 0, novo = 0, assinatura = 0
     for (const t of txFaturaList.filter((tx: TransacaoRow) => tx.responsavel === responsavel)) {
-      const desc = (t.descricao || '').toLowerCase()
-      const ehAssinatura = assinAtivas.some((a: AssinaturaRow) => a.responsavel === responsavel && desc.includes(a.nome.toLowerCase()))
-      const parcela = extrairParcela(t.descricao, t.parcela_atual, t.total_parcelas)
-      if (ehAssinatura) assinatura += t.valor
-      else if (parcela && parcela.atual >= 2) existente += t.valor
+      const tipo = classificarTipoGasto(t.descricao, t.parcela_atual, t.total_parcelas, t.responsavel, assinAtivas)
+      if (tipo === 'assinatura') assinatura += t.valor
+      else if (tipo === 'existente') existente += t.valor
       else novo += t.valor
     }
     return { existente, novo, assinatura }
@@ -511,6 +497,7 @@ const RESUMO_INICIAL: ResumoCaixaState = {
 }
 
 export default function Dashboard() {
+  const router = useRouter()
   const { mesAtual, setMesAtual } = useMes()
 
   const [dados, setDados] = useState<DashboardData>({
@@ -541,11 +528,25 @@ export default function Dashboard() {
     setComposicaoDados({
       responsavel,
       mes: format(mesAtual, 'MMMM yyyy', { locale: ptBR }).replace(/^\w/, c => c.toUpperCase()),
+      mesRefFatura: format(startOfMonth(addMonths(mesAtual, 1)), 'yyyy-MM'),
       total,
       ...composicao,
     })
     setComposicaoAberta(true)
   }, [mesAtual])
+  // Leva o usuário à tela de Compras já filtrada pelos mesmos lançamentos que
+  // compõem o card em que ele deu duplo clique/toque no modal de composição.
+  const verComprasDoTipo = useCallback((tipo: TipoGasto) => {
+    if (!composicaoDados) return
+    const params = new URLSearchParams({
+      mes: composicaoDados.mesRefFatura,
+      cartao: 'nubank',
+      responsavel: composicaoDados.responsavel,
+      tipo,
+    })
+    setComposicaoAberta(false)
+    router.push(`/compras?${params.toString()}`)
+  }, [composicaoDados, router])
   const [aba, setAba] = useState<'resumo' | 'graficos'>('resumo')
   const [graficosAbertos, setGraficosAbertos] = useState(false)
   const [visaoGastosDiarios, setVisaoGastosDiarios] = useState<'valor' | 'burndown'>('valor')
@@ -1447,6 +1448,7 @@ export default function Dashboard() {
         aberto={composicaoAberta}
         onClose={() => setComposicaoAberta(false)}
         dados={composicaoDados}
+        onVerCompras={verComprasDoTipo}
       />
     </div>
   )

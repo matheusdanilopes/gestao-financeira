@@ -3,10 +3,13 @@
 import { X } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
 import { formatBRL } from '@/lib/logger'
+import type { TipoGasto } from '@/lib/composicaoFatura'
 
 export interface ComposicaoFaturaDados {
   responsavel: string
   mes: string
+  /** Mês da fatura no formato usado pela tela de Compras (YYYY-MM), para o deep link. */
+  mesRefFatura: string
   total: number
   existente: number
   novo: number
@@ -17,6 +20,7 @@ interface Props {
   aberto: boolean
   onClose: () => void
   dados: ComposicaoFaturaDados | null
+  onVerCompras?: (tipo: TipoGasto) => void
 }
 
 // Mesma escala tonal usada na barra da fatura (escuro → claro) por responsável.
@@ -33,7 +37,7 @@ const LINHAS = [
   { chave: 'assinatura' as const, label: 'Assinaturas', descricao: 'Cobranças de assinaturas ativas' },
 ]
 
-export default function ComposicaoFaturaModal({ aberto, onClose, dados }: Props) {
+export default function ComposicaoFaturaModal({ aberto, onClose, dados, onVerCompras }: Props) {
   if (!aberto || !dados) return null
 
   const total = dados.total > 0 ? dados.total : 1
@@ -77,8 +81,13 @@ export default function ComposicaoFaturaModal({ aberto, onClose, dados }: Props)
               const valor = dados[chave]
               const pct = (valor / total) * 100
               const dot = cores[chave]
+              const clicavel = !!onVerCompras && valor > 0
               return (
-                <div key={chave} className="bg-gray-50 dark:bg-gray-800/60 rounded-2xl p-3.5 border border-gray-100 dark:border-gray-700/50">
+                <div
+                  key={chave}
+                  onDoubleClick={clicavel ? () => onVerCompras(chave) : undefined}
+                  className={`bg-gray-50 dark:bg-gray-800/60 rounded-2xl p-3.5 border border-gray-100 dark:border-gray-700/50 ${clicavel ? 'cursor-pointer active:scale-[0.98] transition-transform' : ''}`}
+                >
                   <div className="flex items-center justify-between gap-2 mb-1">
                     <span className="flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-gray-100">
                       <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${dot}`} />
@@ -94,6 +103,12 @@ export default function ComposicaoFaturaModal({ aberto, onClose, dados }: Props)
               )
             })}
           </div>
+
+          {onVerCompras && (
+            <p className="text-center text-[11px] text-gray-400 dark:text-gray-500 mt-3">
+              Toque duas vezes em um card para ver as compras
+            </p>
+          )}
         </div>
       </div>
     </ModalPortal>

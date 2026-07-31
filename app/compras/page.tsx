@@ -17,6 +17,7 @@ import { useMes } from '@/components/MesProvider'
 import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
 import FilterSelect from '@/components/FilterSelect'
 import { calcularProjetoFatura } from '@/lib/fatura'
+import { classificarTipoGasto, type TipoGasto, type AssinaturaAtiva } from '@/lib/composicaoFatura'
 import { AUTH_DISABLED } from '@/lib/authConfig'
 import { sanitizarDescricao, atualizarAprendizado } from '@/lib/ragClassificacao'
 
@@ -115,6 +116,15 @@ function getCartaoBorderColor(cartao: string | undefined, labels: Record<string,
 const CARTOES_VALIDOS = ['nubank', 'cartao1', 'cartao2'] as const
 type CartaoValido = typeof CARTOES_VALIDOS[number]
 
+const RESPONSAVEIS_VALIDOS = ['Matheus', 'Jeniffer', 'Conjunto'] as const
+const TIPOS_GASTO_VALIDOS = ['existente', 'novo', 'assinatura'] as const
+
+const TIPO_GASTO_LABEL: Record<TipoGasto, string> = {
+  existente: 'Parcelas antigas',
+  novo: 'Novas parcelas',
+  assinatura: 'Assinaturas',
+}
+
 // Janela máxima para considerar uma compra "nova" — evita marcar todo o histórico
 // como novo para um usuário que não acessa a tela há muito tempo.
 const JANELA_COMPRA_NOVA_MS = 24 * 60 * 60 * 1000
@@ -140,6 +150,10 @@ export default function ComprasPage() {
   // (notificação de divergência de fatura) — marcada com um selo diferente da
   // excedente para o usuário comparar as duas e decidir se é o caso de excluir uma.
   const duplicataId = searchParams.get('duplicata')
+  // Deep link vindo do modal de composição da fatura (Dashboard): responsável + tipo
+  // de gasto (parcela antiga/nova/assinatura) do card em que o usuário deu duplo clique.
+  const importResponsavel = searchParams.get('responsavel')
+  const importTipoGasto = searchParams.get('tipo')
 
   const [compras, setCompras] = useState<Compra[]>([])
   const [filtroResponsavel, setFiltroResponsavel] = useState('')
@@ -151,7 +165,9 @@ export default function ComprasPage() {
   const [filtroData, setFiltroData] = useState('')
   const [filtroCategoria, setFiltroCategoria] = useState('')
   const [filtroParcelamento, setFiltroParcelamento] = useState<'' | 'avista' | 'parcelado'>('')
+  const [filtroTipoGasto, setFiltroTipoGasto] = useState<'' | TipoGasto>('')
   const [categorias, setCategorias] = useState<string[]>(CATEGORIAS_PADRAO)
+  const [assinaturasAtivas, setAssinaturasAtivas] = useState<AssinaturaAtiva[]>([])
 
   const [modalEditar, setModalEditar] = useState<Compra | null>(null)
   const [modalExcluir, setModalExcluir] = useState<Compra | null>(null)
@@ -215,7 +231,7 @@ export default function ComprasPage() {
   // escolhas do usuário.
   useEffect(() => {
     if (importContextApplied.current) return
-    if (!importCartao && !importMes && !highlightParam) return
+    if (!importCartao && !importMes && !highlightParam && !importResponsavel && !importTipoGasto) return
     importContextApplied.current = true
 
     if (importCartao && (CARTOES_VALIDOS as readonly string[]).includes(importCartao)) {
@@ -233,13 +249,21 @@ export default function ComprasPage() {
       setFiltroParcelamento('')
       setFiltroData('')
     }
+    // Deep link vindo do modal de composição da fatura (Dashboard).
+    if (importResponsavel && (RESPONSAVEIS_VALIDOS as readonly string[]).includes(importResponsavel)) {
+      setFiltroResponsavel(importResponsavel)
+    }
+    if (importTipoGasto && (TIPOS_GASTO_VALIDOS as readonly string[]).includes(importTipoGasto)) {
+      setFiltroTipoGasto(importTipoGasto as TipoGasto)
+      setFiltrosExpandidos(true)
+    }
     if (importMes) {
       // mesGlobal = mesAtual - 1; mesAtual é o mês exibido na tela
       const targetMesAtual = startOfMonth(parseISO(importMes + '-01'))
       const targetMesGlobal = subMonths(targetMesAtual, 1)
       setMesAtual(targetMesGlobal)
     }
-  }, [importCartao, importMes, highlightParam, setMesAtual])
+  }, [importCartao, importMes, highlightParam, importResponsavel, importTipoGasto, setMesAtual])
 
   // Registra a visita do usuário atual à tela de Compras: lê a visualização anterior
   // (para saber o que era "novo" para ELE) e já grava o novo timestamp, garantindo
@@ -299,6 +323,15 @@ export default function ComprasPage() {
     setCategorias(parseCategoriasConfig(categoriasConfig?.valor))
     setDiaVencimento(parseInt(configs.find(c => c.chave === 'dia_vencimento')?.valor || '10'))
     setAjusteFechamento(parseInt(configs.find(c => c.chave === 'ajuste_fechamento')?.valor || '0'))
+  }
+
+  async function carregarAssinaturasAtivas() {
+    const { data } = await supabase
+      .from('assinaturas')
+      .select('nome, responsavel')
+      .eq('cartao', 'nubank')
+      .eq('ativa', true)
+    setAssinaturasAtivas(data || [])
   }
 
   async function carregarLabelsCartao() {
@@ -404,7 +437,14 @@ export default function ComprasPage() {
     refetch()
   }
 
-  const filtrosAtivos = !!filtroResponsavel || !!filtroCartao || !!filtroDescricao || !!filtroValorMin || !!filtroData || !!filtroCategoria || !!filtroParcelamento
+  const filtrosAtivos = !!filtroResponsavel || !!filtroCartao || !!filtroDescricao || !!filtroValorMin || !!filtroData || !!filtroCategoria || !!filtroParcelamento || !!filtroTipoGasto
+
+  // Mesma classificação usada nas barras da fatura do Dashboard (parcela antiga,
+  // nova ou assinatura), para que o filtro "Tipo de gasto" mostre exatamente os
+  // lançamentos que compõem cada card do modal de composição.
+  const tipoGastoDe = useCallback((c: Compra): TipoGasto =>
+    classificarTipoGasto(c.descricao, c.parcela_atual, c.total_parcelas, c.responsavel, assinaturasAtivas),
+  [assinaturasAtivas])
 
   function handleFiltroDescricaoChange(value: string) {
     setFiltroDescricaoInput(value)
@@ -421,6 +461,7 @@ export default function ComprasPage() {
     setFiltroData('')
     setFiltroCategoria('')
     setFiltroParcelamento('')
+    setFiltroTipoGasto('')
   }
 
   const comprasFiltradas = useMemo(() => {
@@ -436,10 +477,11 @@ export default function ComprasPage() {
         (!filtroParcelamento ||
           (filtroParcelamento === 'avista' && (c.total_parcelas === null || c.total_parcelas <= 1)) ||
           (filtroParcelamento === 'parcelado' && c.total_parcelas !== null && c.total_parcelas > 1)
-        )
+        ) &&
+        (!filtroTipoGasto || tipoGastoDe(c) === filtroTipoGasto)
       )
     })
-  }, [compras, filtroResponsavel, filtroCartao, filtroDescricao, filtroValorMin, filtroData, filtroCategoria, filtroParcelamento])
+  }, [compras, filtroResponsavel, filtroCartao, filtroDescricao, filtroValorMin, filtroData, filtroCategoria, filtroParcelamento, filtroTipoGasto, tipoGastoDe])
 
   const grupos = useMemo(() => {
     const map = new Map<string, Compra[]>()
@@ -466,10 +508,11 @@ export default function ComprasPage() {
         (!filtroParcelamento ||
           (filtroParcelamento === 'avista' && (c.total_parcelas === null || c.total_parcelas <= 1)) ||
           (filtroParcelamento === 'parcelado' && c.total_parcelas !== null && c.total_parcelas > 1)
-        )
+        ) &&
+        (!filtroTipoGasto || tipoGastoDe(c) === filtroTipoGasto)
       )
     })
-  }, [compras, filtroCartao, filtroDescricao, filtroValorMin, filtroData, filtroCategoria, filtroParcelamento])
+  }, [compras, filtroCartao, filtroDescricao, filtroValorMin, filtroData, filtroCategoria, filtroParcelamento, filtroTipoGasto, tipoGastoDe])
 
   const semEstorno = useMemo(() => comprasSemFiltroResponsavel.filter(c => c.status !== 'ESTORNO' && c.status !== 'ESTORNADO'), [comprasSemFiltroResponsavel])
   const total = useMemo(() => semEstorno.reduce((acc, c) => acc + c.valor, 0), [semEstorno])
@@ -563,7 +606,7 @@ export default function ComprasPage() {
     verificarFaturaFechada()
     carregarLabelsCartao()
   }, [mesAtualKey]) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { carregarCategorias(); carregarLabelsCartao(); verificarFaturaFechada() }, []) // eslint-disable-line react-hooks/set-state-in-effect
+  useEffect(() => { carregarCategorias(); carregarLabelsCartao(); verificarFaturaFechada(); carregarAssinaturasAtivas() }, []) // eslint-disable-line react-hooks/set-state-in-effect
 
   return (
     <div className="min-h-screen bg-gray-50 page-content page-bottom-safe page-enter">
@@ -647,6 +690,16 @@ export default function ComprasPage() {
               options={[
                 { value: '', label: 'Categoria (todas)' },
                 ...categorias.map(cat => ({ value: cat, label: cat })),
+              ]}
+            />
+
+            {/* Tipo de gasto — mesma classificação das barras da fatura no Dashboard */}
+            <FilterSelect
+              value={filtroTipoGasto}
+              onChange={v => setFiltroTipoGasto(v as '' | TipoGasto)}
+              options={[
+                { value: '', label: 'Tipo de gasto (todos)' },
+                ...TIPOS_GASTO_VALIDOS.map(t => ({ value: t, label: TIPO_GASTO_LABEL[t] })),
               ]}
             />
 
