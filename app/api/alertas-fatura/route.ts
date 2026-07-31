@@ -96,7 +96,6 @@ export async function GET(req: NextRequest) {
     const [
       { data: limitesData },
       { data: transacoesFatura },
-      { data: transacoesParceladasTodosCartoes },
       { data: planejadosParcelados },
       { data: nubankConfigs },
       { data: faturaRegistradaData },
@@ -113,20 +112,16 @@ export async function GET(req: NextRequest) {
         .eq('projeto_fatura', mesRefFatura)
         .neq('status', 'ESTORNO')
         .neq('status', 'ESTORNADO'),
-      // O limite de parcelamento é geral (não é só do Nubank) — mesma consulta sem
-      // filtro de cartão usada em ParcelamentosMensal.tsx, para bater com a tela Parcelamentos.
-      supabase
-        .from('transacoes_nubank')
-        .select('valor, responsavel, total_parcelas')
-        .eq('projeto_fatura', mesRefFatura)
-        .gt('total_parcelas', 1)
-        .neq('status', 'ESTORNO')
-        .neq('status', 'ESTORNADO'),
+      // Este popup é específico da fatura Nubank — exclui itens de planejamento
+      // parcelado vinculados a outro cartão (mesmo prefixo [CARTAO1]/[CARTAO2]
+      // usado em app/api/import/cartao/route.ts).
       supabase
         .from('planejamento')
         .select('valor_previsto, responsavel, total_parcelas')
         .eq('mes_referencia', mesRef)
-        .gt('total_parcelas', 1),
+        .gt('total_parcelas', 1)
+        .not('item', 'ilike', '[CARTAO1]%')
+        .not('item', 'ilike', '[CARTAO2]%'),
       supabase.from('configuracoes').select('chave, valor').in('chave', ['dia_vencimento', 'ajuste_fechamento']),
       supabase.from('faturas').select('data_fechamento').eq('cartao', 'nubank').eq('mes_referencia', mesRefFatura).limit(1),
     ])
@@ -146,7 +141,8 @@ export async function GET(req: NextRequest) {
     }
 
     const comprometidoPorResponsavel: Record<string, number> = {}
-    for (const t of transacoesParceladasTodosCartoes ?? []) {
+    for (const t of transacoesFatura ?? []) {
+      if (Number(t.total_parcelas ?? 0) <= 1) continue
       const resp = String(t.responsavel ?? '')
       comprometidoPorResponsavel[resp] = (comprometidoPorResponsavel[resp] ?? 0) + Number(t.valor ?? 0)
     }
