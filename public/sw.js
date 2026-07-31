@@ -4,7 +4,12 @@ const CACHE_NAME = 'gestao-financeira-v17'
 // nunca de nome de arquivo. Misturar com CACHE_NAME fazia o activate() apagar os ícones
 // a cada deploy, criando uma janela em que uma falha de rede podia fazer o iOS capturar
 // um ícone/splash quebrado ao recriar o atalho na tela de início.
-const STATIC_CACHE_NAME = 'gestao-financeira-static-v1'
+// v2: os PNGs de ícone tinham cantos arredondados com transparência já embutidos
+// (pensados para preview de loja, não para uso direto). O iOS descarta um
+// apple-touch-icon com canal alfa e cai no fallback de monograma (letra sobre
+// fundo da theme_color — o "G roxo" visto ao reinstalar o PWA). Bump força
+// clientes com o ícone antigo em cache a buscar a versão opaca/full-bleed.
+const STATIC_CACHE_NAME = 'gestao-financeira-static-v2'
 
 const OFFLINE_HTML = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Carregando…</title><script>setTimeout(function(){location.reload()},4000)<\/script></head><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0"><p>Reconectando…</p></body></html>'
 const OFFLINE_RESPONSE = () => new Response(OFFLINE_HTML, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
@@ -104,6 +109,8 @@ const PRECACHE_STATIC = [
   '/apple-touch-icon.png',
   '/icon-192.png',
   '/icon-512.png',
+  '/icon-192-maskable.png',
+  '/icon-512-maskable.png',
   '/splash-1125x2436.png',
   '/splash-1170x2532.png',
   '/splash-1179x2556.png',
