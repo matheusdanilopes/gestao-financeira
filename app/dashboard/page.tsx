@@ -1,14 +1,17 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths, subMonths, isSameMonth } from 'date-fns'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
+import { classificarTipoGasto, type TipoGasto } from '@/lib/composicaoFatura'
 import { AlertTriangle, BarChart2, BarChart3, CreditCard, Wallet, PiggyBank, TrendingUp, TrendingDown, Minus, LineChart, Activity } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
 import MonthSelector from '@/components/MonthSelector'
 import UltimaImportacaoInfo from '@/components/UltimaImportacaoInfo'
+import type { ComposicaoFaturaDados } from '@/components/ComposicaoFaturaModal'
 import dynamic from 'next/dynamic'
 
 const GraficoProjecao = dynamic(() => import('@/components/GraficoProjecao'), {
@@ -46,6 +49,7 @@ const GraficoCategoriasDespesas = dynamic(
 import { InfoPopover } from '@/components/InfoPopover'
 
 const DrawerDetalhes = dynamic(() => import('@/components/DrawerDetalhes'), { ssr: false })
+const ComposicaoFaturaModal = dynamic(() => import('@/components/ComposicaoFaturaModal'), { ssr: false })
 const PeriodSelectorSheet = dynamic(() => import('@/components/PeriodSelectorSheet'), { ssr: false })
 const InsightsCard = dynamic(() => import('@/components/InsightsCard'), {
   ssr: false,
@@ -79,6 +83,18 @@ function isNuBankItem(item: string): boolean {
          lower === 'nubank jeniffer conjunto' || lower === 'nubank conjunto'
 }
 
+// Traduz o valor "atual" de uma barra em segmentos empilháveis (percentual da largura da barra).
+function calcularSegmentosBarra(atual: number, previsto: number, composicao: { existente: number; novo: number; assinatura: number }) {
+  const pct = previsto > 0 ? Math.min(100, (atual / previsto) * 100) : 0
+  if (atual <= 0) return { pct, existente: 0, novo: 0, assinatura: 0 }
+  return {
+    pct,
+    existente: (composicao.existente / atual) * pct,
+    novo: (composicao.novo / atual) * pct,
+    assinatura: (composicao.assinatura / atual) * pct,
+  }
+}
+
 interface CartaoItem {
   nome: string
   responsavel: string
@@ -95,20 +111,29 @@ interface ProjecaoItem {
   total_parcelas: number
 }
 
+interface ComposicaoGastos {
+  existente: number
+  novo: number
+  assinatura: number
+}
+
 interface FaturaState {
   totalRealizado: number
   matheusAtual: number
   matheusPrevisto: number
   matheusProjecaoParcelas: number
   matheusProjecaoItens: ProjecaoItem[]
+  matheusComposicao: ComposicaoGastos
   jenifferAtual: number
   jenifferPrevisto: number
   jenifferProjecaoParcelas: number
   jenifferProjecaoItens: ProjecaoItem[]
+  jenifferComposicao: ComposicaoGastos
   conjuntoAtual: number
   conjuntoPrevisto: number
   conjuntoProjecaoParcelas: number
   conjuntoProjecaoItens: ProjecaoItem[]
+  conjuntoComposicao: ComposicaoGastos
   conjuntoItemExiste: boolean
   sobraMatheus: number
   sobraJeniffer: number
@@ -166,7 +191,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     { data: maxFaturaRowData },
   ] = await Promise.all([
     // Busca todas as transações do período em uma única query e separa por cartão no cliente
-    supabase.from('transacoes_nubank').select('valor, responsavel, descricao, cartao').eq('projeto_fatura', mesRefFatura).neq('status', 'ESTORNO').neq('status', 'ESTORNADO'),
+    supabase.from('transacoes_nubank').select('valor, responsavel, descricao, cartao, parcela_atual, total_parcelas').eq('projeto_fatura', mesRefFatura).neq('status', 'ESTORNO').neq('status', 'ESTORNADO'),
     supabase.from('planejamento').select('item, responsavel, valor_previsto, pago, valor_real').eq('mes_referencia', mesRef),
     // Busca aportes embutidos para eliminar a query sequencial posterior
     supabase.from('investimentos').select('id, descricao, percentual, investimentos_aportes(valor)').eq('mes_referencia', mesRef).order('created_at', { ascending: true }),
@@ -369,7 +394,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const percentualComprometimento = receitaTotal > 0 ? (totalGastos / receitaTotal) * 100 : 0
 
   type AssinaturaRow = { nome: string; valor: number; responsavel: string; ativa: boolean; moeda: string }
-  type TransacaoRow = { valor: number; responsavel: string | null; descricao: string | null }
+  type TransacaoRow = { valor: number; responsavel: string | null; descricao: string | null; parcela_atual?: number | null; total_parcelas?: number | null }
   const assinAtivas = (assinaturasData || []).filter((a: AssinaturaRow) => a.ativa)
   const txFaturaList: TransacaoRow[] = transacoesFatura || []
   const calcNaoPaga = (responsavel: string) =>
@@ -400,11 +425,30 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const divergentesMatheus  = calcDivergente('Matheus')
   const divergentesJeniffer = calcDivergente('Jeniffer')
 
+  // Decompõe o valor gasto (atual) de cada responsável em: parcelas pré-existentes (2/X em diante),
+  // novas parcelas/compras à vista (1/X) e assinaturas — para exibir sobreposto na barra da fatura.
+  function montarComposicao(responsavel: string): ComposicaoGastos {
+    let existente = 0, novo = 0, assinatura = 0
+    for (const t of txFaturaList.filter((tx: TransacaoRow) => tx.responsavel === responsavel)) {
+      const tipo = classificarTipoGasto(t.descricao, t.parcela_atual, t.total_parcelas, t.responsavel, assinAtivas)
+      if (tipo === 'assinatura') assinatura += t.valor
+      else if (tipo === 'existente') existente += t.valor
+      else novo += t.valor
+    }
+    return { existente, novo, assinatura }
+  }
+  const composicaoMatheus  = montarComposicao('Matheus')
+  const composicaoJeniffer = montarComposicao('Jeniffer')
+  const composicaoConjunto = montarComposicao('Conjunto')
+
   return {
     fatura: {
       totalRealizado, matheusAtual, matheusPrevisto, matheusProjecaoParcelas, matheusProjecaoItens,
+      matheusComposicao: composicaoMatheus,
       jenifferAtual, jenifferPrevisto, jenifferProjecaoParcelas, jenifferProjecaoItens,
+      jenifferComposicao: composicaoJeniffer,
       conjuntoAtual, conjuntoPrevisto, conjuntoProjecaoParcelas, conjuntoProjecaoItens,
+      conjuntoComposicao: composicaoConjunto,
       conjuntoItemExiste: !!nubankConjuntoRow,
       sobraMatheus: matheusPrevisto - matheusAtual - matheusProjecaoParcelas - assinNaoPagaMatheus,
       sobraJeniffer: jenifferPrevisto - jenifferAtual - jenifferProjecaoParcelas - assinNaoPagaJeniffer,
@@ -431,10 +475,15 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   }
 }
 
+const COMPOSICAO_INICIAL: ComposicaoGastos = { existente: 0, novo: 0, assinatura: 0 }
+
 const FATURA_INICIAL: FaturaState = {
   totalRealizado: 0, matheusAtual: 0, matheusPrevisto: 0, matheusProjecaoParcelas: 0, matheusProjecaoItens: [],
+  matheusComposicao: COMPOSICAO_INICIAL,
   jenifferAtual: 0, jenifferPrevisto: 0, jenifferProjecaoParcelas: 0, jenifferProjecaoItens: [],
+  jenifferComposicao: COMPOSICAO_INICIAL,
   conjuntoAtual: 0, conjuntoPrevisto: 0, conjuntoProjecaoParcelas: 0, conjuntoProjecaoItens: [],
+  conjuntoComposicao: COMPOSICAO_INICIAL,
   conjuntoItemExiste: false,
   sobraMatheus: 0, sobraJeniffer: 0, sobraConjunto: 0, cartao1Items: [], cartao2Items: [],
   cartao1AtualMatheus: 0, cartao1AtualJeniffer: 0, cartao2AtualMatheus: 0, cartao2AtualJeniffer: 0,
@@ -448,6 +497,7 @@ const RESUMO_INICIAL: ResumoCaixaState = {
 }
 
 export default function Dashboard() {
+  const router = useRouter()
   const { mesAtual, setMesAtual } = useMes()
 
   const [dados, setDados] = useState<DashboardData>({
@@ -462,6 +512,8 @@ export default function Dashboard() {
   const [seletorAberto, setSeletorAberto] = useState(false)
   const [drawerAberto, setDrawerAberto] = useState(false)
   const [detalhesPonto, setDetalhesPonto] = useState<{ serie: string; mes: string; valor: number; itens: Record<string, unknown>[] } | null>(null)
+  const [composicaoAberta, setComposicaoAberta] = useState(false)
+  const [composicaoDados, setComposicaoDados] = useState<ComposicaoFaturaDados | null>(null)
 
   const abrirDetalhesProjecao = useCallback((responsavel: string, valor: number, itens: ProjecaoItem[]) => {
     setDetalhesPonto({
@@ -472,6 +524,29 @@ export default function Dashboard() {
     })
     setDrawerAberto(true)
   }, [mesAtual])
+  const abrirComposicaoFatura = useCallback((responsavel: string, total: number, composicao: ComposicaoGastos) => {
+    setComposicaoDados({
+      responsavel,
+      mes: format(mesAtual, 'MMMM yyyy', { locale: ptBR }).replace(/^\w/, c => c.toUpperCase()),
+      mesRefFatura: format(startOfMonth(addMonths(mesAtual, 1)), 'yyyy-MM'),
+      total,
+      ...composicao,
+    })
+    setComposicaoAberta(true)
+  }, [mesAtual])
+  // Leva o usuário à tela de Compras já filtrada pelos mesmos lançamentos que
+  // compõem o card em que ele deu duplo clique/toque no modal de composição.
+  const verComprasDoTipo = useCallback((tipo: TipoGasto) => {
+    if (!composicaoDados) return
+    const params = new URLSearchParams({
+      mes: composicaoDados.mesRefFatura,
+      cartao: 'nubank',
+      responsavel: composicaoDados.responsavel,
+      tipo,
+    })
+    setComposicaoAberta(false)
+    router.push(`/compras?${params.toString()}`)
+  }, [composicaoDados, router])
   const [aba, setAba] = useState<'resumo' | 'graficos'>('resumo')
   const [graficosAbertos, setGraficosAbertos] = useState(false)
   const [visaoGastosDiarios, setVisaoGastosDiarios] = useState<'valor' | 'burndown'>('valor')
@@ -900,9 +975,21 @@ export default function Dashboard() {
                           {fmt(fatura.matheusAtual)} / {fatura.matheusPrevisto > 0 ? fatura.matheusPrevisto.toLocaleString('pt-BR') : '–'}
                         </span>
                       </div>
-                      <div className="h-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-full overflow-hidden mb-0.5">
-                        <div key={fatura.matheusAtual} className="h-full bg-blue-500 rounded-full bar-enter" style={{ '--bar-w': `${fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100) : 0}%` } as React.CSSProperties} />
-                      </div>
+                      {(() => {
+                        const seg = calcularSegmentosBarra(fatura.matheusAtual, fatura.matheusPrevisto, fatura.matheusComposicao)
+                        return (
+                          <button
+                            type="button"
+                            onClick={fatura.matheusAtual > 0 ? () => abrirComposicaoFatura('Matheus', fatura.matheusAtual, fatura.matheusComposicao) : undefined}
+                            className={`flex w-full h-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-full overflow-hidden mb-0.5 ${fatura.matheusAtual > 0 ? 'cursor-pointer' : 'cursor-default'}`}
+                            aria-label="Ver composição da fatura de Matheus"
+                          >
+                            <div key={`ex-${fatura.matheusAtual}`} className="h-full bg-blue-800 bar-enter" style={{ '--bar-w': `${seg.existente}%` } as React.CSSProperties} />
+                            <div key={`no-${fatura.matheusAtual}`} className="h-full bg-blue-500 bar-enter" style={{ '--bar-w': `${seg.novo}%` } as React.CSSProperties} />
+                            <div key={`as-${fatura.matheusAtual}`} className="h-full bg-blue-200 bar-enter" style={{ '--bar-w': `${seg.assinatura}%` } as React.CSSProperties} />
+                          </button>
+                        )
+                      })()}
                       <div className="flex items-center justify-between mb-1">
                         {fatura.matheusProjecaoParcelas > 0 ? (
                           <button
@@ -951,9 +1038,21 @@ export default function Dashboard() {
                           {fmt(fatura.jenifferAtual)} / {fatura.jenifferPrevisto > 0 ? fatura.jenifferPrevisto.toLocaleString('pt-BR') : '–'}
                         </span>
                       </div>
-                      <div className="h-2.5 bg-pink-100 dark:bg-pink-900/30 rounded-full overflow-hidden mb-0.5">
-                        <div key={fatura.jenifferAtual} className="h-full bg-pink-500 rounded-full bar-enter" style={{ '--bar-w': `${fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100) : 0}%` } as React.CSSProperties} />
-                      </div>
+                      {(() => {
+                        const seg = calcularSegmentosBarra(fatura.jenifferAtual, fatura.jenifferPrevisto, fatura.jenifferComposicao)
+                        return (
+                          <button
+                            type="button"
+                            onClick={fatura.jenifferAtual > 0 ? () => abrirComposicaoFatura('Jeniffer', fatura.jenifferAtual, fatura.jenifferComposicao) : undefined}
+                            className={`flex w-full h-2.5 bg-pink-100 dark:bg-pink-900/30 rounded-full overflow-hidden mb-0.5 ${fatura.jenifferAtual > 0 ? 'cursor-pointer' : 'cursor-default'}`}
+                            aria-label="Ver composição da fatura de Jeniffer"
+                          >
+                            <div key={`ex-${fatura.jenifferAtual}`} className="h-full bg-pink-800 bar-enter" style={{ '--bar-w': `${seg.existente}%` } as React.CSSProperties} />
+                            <div key={`no-${fatura.jenifferAtual}`} className="h-full bg-pink-500 bar-enter" style={{ '--bar-w': `${seg.novo}%` } as React.CSSProperties} />
+                            <div key={`as-${fatura.jenifferAtual}`} className="h-full bg-pink-200 bar-enter" style={{ '--bar-w': `${seg.assinatura}%` } as React.CSSProperties} />
+                          </button>
+                        )
+                      })()}
                       <div className="flex items-center justify-between mb-1">
                         {fatura.jenifferProjecaoParcelas > 0 ? (
                           <button
@@ -1019,9 +1118,21 @@ export default function Dashboard() {
                       </div>
                       {fatura.conjuntoPrevisto > 0 && (
                         <>
-                          <div className="h-2.5 bg-purple-100 dark:bg-purple-900/30 rounded-full overflow-hidden mb-0.5">
-                            <div key={fatura.conjuntoAtual} className="h-full bg-purple-500 rounded-full bar-enter" style={{ '--bar-w': `${Math.min(100, (fatura.conjuntoAtual / fatura.conjuntoPrevisto) * 100)}%` } as React.CSSProperties} />
-                          </div>
+                          {(() => {
+                            const seg = calcularSegmentosBarra(fatura.conjuntoAtual, fatura.conjuntoPrevisto, fatura.conjuntoComposicao)
+                            return (
+                              <button
+                                type="button"
+                                onClick={fatura.conjuntoAtual > 0 ? () => abrirComposicaoFatura('Conjunto', fatura.conjuntoAtual, fatura.conjuntoComposicao) : undefined}
+                                className={`flex w-full h-2.5 bg-purple-100 dark:bg-purple-900/30 rounded-full overflow-hidden mb-0.5 ${fatura.conjuntoAtual > 0 ? 'cursor-pointer' : 'cursor-default'}`}
+                                aria-label="Ver composição da fatura Conjunto"
+                              >
+                                <div key={`ex-${fatura.conjuntoAtual}`} className="h-full bg-purple-800 bar-enter" style={{ '--bar-w': `${seg.existente}%` } as React.CSSProperties} />
+                                <div key={`no-${fatura.conjuntoAtual}`} className="h-full bg-purple-500 bar-enter" style={{ '--bar-w': `${seg.novo}%` } as React.CSSProperties} />
+                                <div key={`as-${fatura.conjuntoAtual}`} className="h-full bg-purple-200 bar-enter" style={{ '--bar-w': `${seg.assinatura}%` } as React.CSSProperties} />
+                              </button>
+                            )
+                          })()}
                           <div className="flex items-center justify-between mb-1">
                             {fatura.conjuntoProjecaoParcelas > 0 ? (
                               <button
@@ -1331,6 +1442,13 @@ export default function Dashboard() {
         onClose={() => setDrawerAberto(false)}
         dados={detalhesPonto}
         cartaoLabels={{ nubank: 'NuBank', cartao1: fatura.cartao1Nome, cartao2: fatura.cartao2Nome }}
+      />
+
+      <ComposicaoFaturaModal
+        aberto={composicaoAberta}
+        onClose={() => setComposicaoAberta(false)}
+        dados={composicaoDados}
+        onVerCompras={verComprasDoTipo}
       />
     </div>
   )
