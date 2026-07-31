@@ -54,6 +54,19 @@ interface ParcelaItem {
 
 const MESES_HISTORICO = 6
 
+// Linhas especiais do planejamento que carregam o valor previsto da fatura de
+// cada responsável (mesmo critério usado em lib/prefetchers.ts:isNuBankItem).
+function isNuBankItem(item: string): boolean {
+  const lower = item.trim().toLowerCase()
+  return lower === 'nubank matheus' || lower === 'nubank jeniffer' ||
+         lower === 'nubank jeniffer conjunto' || lower === 'nubank conjunto'
+}
+
+function arredondar(n: number, casas: number): number {
+  const f = 10 ** casas
+  return Math.round(n * f) / f
+}
+
 // Recipe de foco premium equivalente à classe `.input-base` de app/globals.css,
 // aplicada via `focus-within` no wrapper (o input em si fica transparente) —
 // evita depender da ordem de cascata do CSS para permitir campos compactos.
@@ -62,8 +75,10 @@ const CAMPO_FOCO = 'focus-within:border-primary-400 focus-within:shadow-[0_0_0_3
 export default function ParcelamentosMensal({ mesAtual }: Props) {
   const [limites, setLimites] = useState<Record<string, number>>({})
   const [inputs, setInputs] = useState<Record<string, string>>({})
+  const [inputsPct, setInputsPct] = useState<Record<string, string>>({})
   const [origemLimite, setOrigemLimite] = useState<Record<string, string>>({})
   const [sugestoes, setSugestoes] = useState<Record<string, number>>({})
+  const [previstoFatura, setPrevistoFatura] = useState<Record<string, number>>({})
   const [itens, setItens] = useState<ParcelaItem[]>([])
   const [carregando, setCarregando] = useState(true)
   const [salvando, setSalvando] = useState<string | null>(null)
@@ -97,6 +112,7 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
         { data: planejados },
         { data: transacoesHist },
         { data: planejadosHist },
+        { data: previstoRows },
       ] = await Promise.all([
         fetch(`/api/limites-parcelamentos?ate=${mesReferencia}`),
         supabase
@@ -123,6 +139,11 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
           .select('valor_previsto, responsavel, mes_referencia')
           .in('mes_referencia', mesesRefHist)
           .gt('total_parcelas', 1),
+        supabase
+          .from('planejamento')
+          .select('item, valor_previsto')
+          .eq('mes_referencia', mesReferencia)
+          .ilike('item', 'nubank%'),
       ])
 
       if (cancelado) return
@@ -195,11 +216,31 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
         sMap[responsavel] = totalHistorico / MESES_HISTORICO
       }
 
+      // Valor previsto da fatura por responsável, vindo das linhas especiais
+      // do planejamento ("nubank matheus/jeniffer/jeniffer conjunto/conjunto").
+      const nubankRows = (previstoRows ?? []).filter(p => isNuBankItem(String(p.item ?? '')))
+      const previstoPor = (nome: string) =>
+        Number(nubankRows.find(p => String(p.item).trim().toLowerCase() === nome)?.valor_previsto ?? 0)
+      const pMap: Record<string, number> = {
+        Matheus: previstoPor('nubank matheus'),
+        Jeniffer: previstoPor('nubank jeniffer') + previstoPor('nubank jeniffer conjunto'),
+        Conjunto: previstoPor('nubank conjunto'),
+      }
+
+      const pctMap: Record<string, string> = {}
+      for (const responsavel of RESPONSAVEIS) {
+        const previsto = pMap[responsavel] ?? 0
+        const valor = lMap[responsavel] ?? 0
+        pctMap[responsavel] = previsto > 0 && valor > 0 ? String(arredondar((valor / previsto) * 100, 1)) : ''
+      }
+
       if (!cancelado) {
         setLimites(lMap)
         setInputs(iMap)
+        setInputsPct(pctMap)
         setOrigemLimite(oMap)
         setSugestoes(sMap)
+        setPrevistoFatura(pMap)
         setItens(lista)
         setCarregando(false)
       }
@@ -230,7 +271,31 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
   function aplicarSugestao(responsavel: Responsavel) {
     const valor = Math.max(Math.round(sugestoes[responsavel] ?? 0), Math.round(comprometidoPorPessoa[responsavel] ?? 0))
     setInputs(prev => ({ ...prev, [responsavel]: String(valor) }))
+    const previsto = previstoFatura[responsavel] ?? 0
+    setInputsPct(prev => ({ ...prev, [responsavel]: previsto > 0 ? String(arredondar((valor / previsto) * 100, 1)) : '' }))
     salvarLimite(responsavel, String(valor))
+  }
+
+  function alterarValor(responsavel: Responsavel, valorStr: string) {
+    setInputs(prev => ({ ...prev, [responsavel]: valorStr }))
+    const previsto = previstoFatura[responsavel] ?? 0
+    const valor = parseFloat(valorStr.replace(',', '.'))
+    if (previsto > 0 && !isNaN(valor)) {
+      setInputsPct(prev => ({ ...prev, [responsavel]: String(arredondar((valor / previsto) * 100, 1)) }))
+    } else if (valorStr === '') {
+      setInputsPct(prev => ({ ...prev, [responsavel]: '' }))
+    }
+  }
+
+  function alterarPercentual(responsavel: Responsavel, pctStr: string) {
+    setInputsPct(prev => ({ ...prev, [responsavel]: pctStr }))
+    const previsto = previstoFatura[responsavel] ?? 0
+    const pct = parseFloat(pctStr.replace(',', '.'))
+    if (previsto > 0 && !isNaN(pct)) {
+      setInputs(prev => ({ ...prev, [responsavel]: String(arredondar((pct / 100) * previsto, 2)) }))
+    } else if (pctStr === '') {
+      setInputs(prev => ({ ...prev, [responsavel]: '' }))
+    }
   }
 
   function limparFiltros(incluirBusca = false) {
@@ -318,6 +383,7 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
           const limite = limites[responsavel] ?? 0
           const gasto = comprometidoPorPessoa[responsavel] ?? 0
           const pct = limite > 0 ? (gasto / limite) * 100 : 0
+          const previstoPessoa = previstoFatura[responsavel] ?? 0
           const mediaHistorica = Math.round(sugestoes[responsavel] ?? 0)
           const sugestao = Math.max(mediaHistorica, Math.round(gasto))
           const sugestaoPresaAoComprometido = sugestao > mediaHistorica
@@ -385,20 +451,40 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
               <div className="pt-3 border-t border-gray-50 dark:border-gray-800/60">
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Limite mensal</span>
-                  <div className={`flex items-center gap-1 bg-gray-50 dark:bg-gray-800 border border-transparent rounded-xl pl-2 pr-1 py-1.5 ${CAMPO_FOCO}`}>
-                    <span className="text-[11px] text-gray-400">R$</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="Sem limite"
-                      value={inputs[responsavel] ?? ''}
-                      onChange={(e) => setInputs(prev => ({ ...prev, [responsavel]: e.target.value }))}
-                      onBlur={(e) => salvarLimite(responsavel, e.target.value)}
-                      disabled={salvando === responsavel}
-                      aria-label={`Limite mensal de ${responsavel}`}
-                      className="w-16 bg-transparent outline-none text-xs num"
-                    />
+                  <div className="flex items-center gap-1.5">
+                    <div className={`flex items-center gap-1 bg-gray-50 dark:bg-gray-800 border border-transparent rounded-xl pl-2 pr-1 py-1.5 ${CAMPO_FOCO}`}>
+                      <span className="text-[11px] text-gray-400">R$</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Sem limite"
+                        value={inputs[responsavel] ?? ''}
+                        onChange={(e) => alterarValor(responsavel, e.target.value)}
+                        onBlur={(e) => salvarLimite(responsavel, e.target.value)}
+                        disabled={salvando === responsavel}
+                        aria-label={`Limite mensal de ${responsavel}`}
+                        className="w-16 bg-transparent outline-none text-xs num"
+                      />
+                    </div>
+                    <div
+                      className={`flex items-center gap-1 bg-gray-50 dark:bg-gray-800 border border-transparent rounded-xl pl-2 pr-1 py-1.5 ${CAMPO_FOCO} ${previstoPessoa <= 0 ? 'opacity-50' : ''}`}
+                      title={previstoPessoa > 0 ? `% do valor previsto da fatura (${formatBRL(previstoPessoa)})` : 'Defina o valor previsto da fatura no planejamento para usar o %'}
+                    >
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        placeholder="%"
+                        value={inputsPct[responsavel] ?? ''}
+                        onChange={(e) => alterarPercentual(responsavel, e.target.value)}
+                        onBlur={() => salvarLimite(responsavel, inputs[responsavel] ?? '')}
+                        disabled={salvando === responsavel || previstoPessoa <= 0}
+                        aria-label={`Percentual da fatura prevista de ${responsavel}`}
+                        className="w-10 bg-transparent outline-none text-xs num"
+                      />
+                      <span className="text-[11px] text-gray-400">%</span>
+                    </div>
                   </div>
                 </div>
 
