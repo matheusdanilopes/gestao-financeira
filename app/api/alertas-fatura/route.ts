@@ -69,20 +69,25 @@ export async function GET(req: NextRequest) {
     // Se a fatura do mês corrente já estiver paga, os avisos passam a ser
     // sobre o próximo mês — não faz sentido continuar alertando sobre uma
     // fatura já quitada.
+    // Exclui itens vinculados a outro cartão (prefixo [CARTAO1]/[CARTAO2], mesma
+    // convenção de app/api/import/cartao/route.ts) — o previsto e o check de fatura
+    // paga aqui são específicos do Nubank.
+    const buscarPlanejamentoNubank = async (mes: string) =>
+      (await supabase
+        .from('planejamento')
+        .select('item, valor_previsto, pago')
+        .eq('mes_referencia', mes)
+        .not('item', 'ilike', '[CARTAO1]%')
+        .not('item', 'ilike', '[CARTAO2]%')).data ?? []
+
     let mesBase = hoje
     let mesRef = format(startOfMonth(mesBase), 'yyyy-MM-dd')
-    let planejamentoMes = (await supabase
-      .from('planejamento')
-      .select('item, valor_previsto, pago')
-      .eq('mes_referencia', mesRef)).data ?? []
+    let planejamentoMes = await buscarPlanejamentoNubank(mesRef)
 
     if (faturaEstaPaga(planejamentoMes)) {
       mesBase = addMonths(mesBase, 1)
       mesRef = format(startOfMonth(mesBase), 'yyyy-MM-dd')
-      planejamentoMes = (await supabase
-        .from('planejamento')
-        .select('item, valor_previsto, pago')
-        .eq('mes_referencia', mesRef)).data ?? []
+      planejamentoMes = await buscarPlanejamentoNubank(mesRef)
     }
 
     const mesRefFaturaDate = startOfMonth(addMonths(mesBase, 1))
