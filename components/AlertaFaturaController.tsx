@@ -15,6 +15,11 @@ const POLL_MS = 5 * 60 * 1000 // checagem periódica leve enquanto o app está a
 interface EstadoDia {
   data: string // yyyy-MM-dd — vira o dia (mesmo que ainda não tenham passado 4h) zera o ciclo
   ultimaExibicao: number // epoch ms
+  // false enquanto o popup deste ciclo ainda não foi fechado com "OK". PWAs
+  // instalados costumam recarregar a página ao voltar do background — sem essa
+  // flag, o popup "sumia sozinho" porque já tinha sido marcado como mostrado
+  // antes do usuário conseguir confirmar.
+  confirmado: boolean
 }
 
 function lerEstado(): EstadoDia | null {
@@ -31,7 +36,7 @@ function salvarEstado(estado: EstadoDia): void {
   try { localStorage.setItem(ESTADO_KEY, JSON.stringify(estado)) } catch { /* localStorage indisponível — sem crash */ }
 }
 
-// Decide se deve mostrar agora e, em caso positivo, o novo estado a persistir.
+// Decide se deve mostrar agora e, em caso positivo, o estado a persistir.
 function decidirExibicao(): EstadoDia | null {
   const hoje = format(new Date(), 'yyyy-MM-dd')
   const estado = lerEstado()
@@ -39,10 +44,15 @@ function decidirExibicao(): EstadoDia | null {
   // Virou o dia (00:00) → zera o ciclo e mostra imediatamente, mesmo que não
   // tenham se passado 4h desde a última exibição do dia anterior.
   if (!estado || estado.data !== hoje) {
-    return { data: hoje, ultimaExibicao: Date.now() }
+    return { data: hoje, ultimaExibicao: Date.now(), confirmado: false }
+  }
+  // Ciclo de hoje ainda não foi confirmado com OK (ex.: página recarregou
+  // sozinha antes do clique) → retoma o mesmo ciclo em vez de abrir um novo.
+  if (!estado.confirmado) {
+    return estado
   }
   if (Date.now() - estado.ultimaExibicao >= JANELA_MS) {
-    return { data: hoje, ultimaExibicao: Date.now() }
+    return { data: hoje, ultimaExibicao: Date.now(), confirmado: false }
   }
   return null
 }
@@ -53,6 +63,7 @@ export default function AlertaFaturaController() {
   const [dados, setDados] = useState<AlertasFaturaResponse | null>(null)
   const abertoRef = useRef(false)
   const verificandoRef = useRef(false)
+  const estadoAtualRef = useRef<EstadoDia | null>(null)
 
   const verificar = useCallback(async () => {
     if (abertoRef.current || verificandoRef.current) return
@@ -72,6 +83,7 @@ export default function AlertaFaturaController() {
       const json: AlertasFaturaResponse = await res.json()
 
       salvarEstado(novoEstado)
+      estadoAtualRef.current = novoEstado
       setDados(json)
       setAberto(true)
       abertoRef.current = true
@@ -105,6 +117,9 @@ export default function AlertaFaturaController() {
   if (pathname === '/login') return null
 
   function fechar() {
+    if (estadoAtualRef.current) {
+      salvarEstado({ ...estadoAtualRef.current, confirmado: true })
+    }
     setAberto(false)
     abertoRef.current = false
   }
