@@ -97,6 +97,8 @@ export async function GET(req: NextRequest) {
       { data: limitesData },
       { data: transacoesFatura },
       { data: planejadosParcelados },
+      { data: transacoesOutrosCartoes },
+      { data: planejadosOutrosCartoes },
       { data: nubankConfigs },
       { data: faturaRegistradaData },
     ] = await Promise.all([
@@ -122,6 +124,23 @@ export async function GET(req: NextRequest) {
         .gt('total_parcelas', 1)
         .not('item', 'ilike', '[CARTAO1]%')
         .not('item', 'ilike', '[CARTAO2]%'),
+      // Parcelas já comprometidas em OUTROS cartões (ex. PicPay Matheus, Cartão 2
+      // Jeniffer) do responsável — descontadas do limite geral, já que ele é
+      // compartilhado entre todos os cartões, não só o Nubank.
+      supabase
+        .from('transacoes_nubank')
+        .select('valor, responsavel, total_parcelas')
+        .neq('cartao', 'nubank')
+        .eq('projeto_fatura', mesRefFatura)
+        .gt('total_parcelas', 1)
+        .neq('status', 'ESTORNO')
+        .neq('status', 'ESTORNADO'),
+      supabase
+        .from('planejamento')
+        .select('valor_previsto, responsavel')
+        .eq('mes_referencia', mesRef)
+        .gt('total_parcelas', 1)
+        .or('item.ilike.[CARTAO1]%,item.ilike.[CARTAO2]%'),
       supabase.from('configuracoes').select('chave, valor').in('chave', ['dia_vencimento', 'ajuste_fechamento']),
       supabase.from('faturas').select('data_fechamento').eq('cartao', 'nubank').eq('mes_referencia', mesRefFatura).limit(1),
     ])
@@ -151,17 +170,46 @@ export async function GET(req: NextRequest) {
       comprometidoPorResponsavel[resp] = (comprometidoPorResponsavel[resp] ?? 0) + Number(p.valor_previsto ?? 0)
     }
 
-    const limite = RESPONSAVEIS.reduce((soma, r) => soma + (limiteEfetivo[r] ?? 0), 0)
+    // Parcelas já comprometidas em outros cartões (PicPay, Cartão 2 etc.) do mesmo
+    // responsável — descontadas do limite geral antes de medir o uso pelo Nubank,
+    // já que o limite não é exclusivo do Nubank.
+    const outrosCartoesPorResponsavel: Record<string, number> = {}
+    for (const t of transacoesOutrosCartoes ?? []) {
+      const resp = String(t.responsavel ?? '')
+      outrosCartoesPorResponsavel[resp] = (outrosCartoesPorResponsavel[resp] ?? 0) + Number(t.valor ?? 0)
+    }
+    for (const p of planejadosOutrosCartoes ?? []) {
+      const resp = String(p.responsavel ?? '')
+      outrosCartoesPorResponsavel[resp] = (outrosCartoesPorResponsavel[resp] ?? 0) + Number(p.valor_previsto ?? 0)
+    }
+
+    // Limite ainda disponível para o Nubank = limite geral menos o que os outros
+    // cartões do responsável já consumiram. Pode ficar negativo se os outros
+    // cartões, sozinhos, já ultrapassarem o limite.
+    const limiteDisponivelPorResponsavel: Record<string, number> = {}
+    for (const r of RESPONSAVEIS) {
+      limiteDisponivelPorResponsavel[r] = (limiteEfetivo[r] ?? 0) - (outrosCartoesPorResponsavel[r] ?? 0)
+    }
+
+    function calcularPercentual(comprometidoNubank: number, limiteBruto: number, limiteDisponivel: number): number | null {
+      if (limiteBruto <= 0) return null
+      if (limiteDisponivel <= 0) return comprometidoNubank > 0 ? 100 + (comprometidoNubank / limiteBruto) * 100 : 100
+      return (comprometidoNubank / limiteDisponivel) * 100
+    }
+
+    const limite = RESPONSAVEIS.reduce((soma, r) => soma + limiteDisponivelPorResponsavel[r], 0)
+    const limiteBrutoTotal = RESPONSAVEIS.reduce((soma, r) => soma + (limiteEfetivo[r] ?? 0), 0)
     const comprometido = RESPONSAVEIS.reduce((soma, r) => soma + (comprometidoPorResponsavel[r] ?? 0), 0)
-    const pctParcelamento = limite > 0 ? (comprometido / limite) * 100 : null
+    const pctParcelamento = calcularPercentual(comprometido, limiteBrutoTotal, limite)
     const falta = limite - comprometido
 
     const parcelamentoPorResponsavel: ParcelamentoPorResponsavel[] = ordemExibicao.map(responsavel => {
-      const limitePessoa = limiteEfetivo[responsavel] ?? 0
+      const limitePessoa = limiteDisponivelPorResponsavel[responsavel] ?? 0
+      const limiteBrutoPessoa = limiteEfetivo[responsavel] ?? 0
       const comprometidoPessoa = comprometidoPorResponsavel[responsavel] ?? 0
       return {
         responsavel,
-        percentual: limitePessoa > 0 ? (comprometidoPessoa / limitePessoa) * 100 : null,
+        percentual: calcularPercentual(comprometidoPessoa, limiteBrutoPessoa, limitePessoa),
         comprometido: comprometidoPessoa,
         limite: limitePessoa,
       }
