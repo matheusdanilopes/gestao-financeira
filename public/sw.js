@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gestao-financeira-v16'
+const CACHE_NAME = 'gestao-financeira-v17'
 // Cache separado e permanente para ícones/splash screens (Add to Home Screen do iOS).
 // Nunca é apagado em bumps de CACHE_NAME — só esses assets mudam de conteúdo (raro),
 // nunca de nome de arquivo. Misturar com CACHE_NAME fazia o activate() apagar os ícones
@@ -234,17 +234,17 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (request.mode === 'navigate') {
-    // Root path redirects to /dashboard on the server. Intercepting it and returning
-    // response.redirected=true to WKWebView (iOS Safari / Chrome iOS) causes
-    // "This page couldn't load". Skip the SW and let the browser handle the redirect
-    // natively; the /dashboard navigation will be intercepted separately.
-    if (url.pathname === '/') return
-
     event.respondWith(
       // redirect:'manual' means if the server returns a redirect, we get an opaque redirect
       // response (type:'opaqueredirect') which we pass back to the browser to follow itself —
       // this is iOS-safe. Contrast with redirect:'follow' which produces response.redirected=true
       // that WKWebView can reject for navigation events.
+      // This also covers '/' (the PWA's start_url, per manifest.json — the entry point used
+      // when opening the app from the home screen icon, always a server redirect to /dashboard).
+      // '/' used to be skipped entirely to dodge the redirect:'follow' bug, but that left the
+      // app's actual launch path with zero timeout/offline handling: any connectivity hiccup at
+      // launch surfaced the browser's native "This page couldn't load" error instead of falling
+      // back to a cached shell. Routing it through this same opaque-redirect flow fixes that.
       fetchWithTimeout(new Request(request, { redirect: 'manual' }), NAVIGATION_TIMEOUT_MS)
         .then(response => {
           // Opaque redirect — pass through for browser to follow (no caching)
