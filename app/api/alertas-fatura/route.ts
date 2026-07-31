@@ -2,10 +2,31 @@ import { NextRequest, NextResponse } from 'next/server'
 import { format, startOfMonth, addMonths, addDays, differenceInCalendarDays, parseISO } from 'date-fns'
 import { requireAuth } from '@/lib/serverAuth'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
-import { readInsightsCache } from '@/lib/ai/insightsCache'
-import type { InsightItem } from '@/lib/insightsTypes'
 
 const RESPONSAVEIS = ['Matheus', 'Jeniffer', 'Conjunto'] as const
+type Responsavel = typeof RESPONSAVEIS[number]
+
+// Mesmo heurístico usado em outras rotas (ex. app/api/notificacoes/resumo-semanal/route.ts)
+// para descobrir quem está logado a partir do e-mail — sem tabela de mapeamento dedicada.
+function nomeDoUsuario(email: string | undefined): 'Matheus' | 'Jeniffer' {
+  const lower = (email ?? '').toLowerCase()
+  if (lower.includes('jeniffer') || lower.includes('jennifer')) return 'Jeniffer'
+  return 'Matheus'
+}
+
+interface ParcelamentoPorResponsavel {
+  responsavel: Responsavel
+  percentual: number | null
+  comprometido: number
+  limite: number
+}
+
+interface FaturaPorResponsavel {
+  responsavel: Responsavel
+  percentual: number | null
+  gasto: number
+  previsto: number
+}
 
 export interface AlertasFaturaResponse {
   parcelamento: {
@@ -13,6 +34,7 @@ export interface AlertasFaturaResponse {
     comprometido: number
     limite: number
     falta: number
+    porResponsavel: ParcelamentoPorResponsavel[]
   }
   fatura: {
     percentual: number | null
@@ -22,12 +44,12 @@ export interface AlertasFaturaResponse {
     diasAteFechar: number
     dataVencimento: string
     diasAteVencimento: number
+    porResponsavel: FaturaPorResponsavel[]
   }
-  insights: InsightItem[]
 }
 
 export async function GET(req: NextRequest) {
-  const { supabase, unauthorized } = await requireAuth(req)
+  const { supabase, unauthorized, user } = await requireAuth(req)
   if (unauthorized) return unauthorized
 
   try {
@@ -43,7 +65,6 @@ export async function GET(req: NextRequest) {
       { data: planejamentoMes },
       { data: nubankConfigs },
       { data: faturaRegistradaData },
-      cache,
     ] = await Promise.all([
       supabase
         .from('limites_parcelamentos')
@@ -68,8 +89,12 @@ export async function GET(req: NextRequest) {
         .eq('mes_referencia', mesRef),
       supabase.from('configuracoes').select('chave, valor').in('chave', ['dia_vencimento', 'ajuste_fechamento']),
       supabase.from('faturas').select('data_fechamento').eq('cartao', 'nubank').eq('mes_referencia', mesRefFatura).limit(1),
-      readInsightsCache(),
     ])
+
+    // Ordem de exibição: usuário logado primeiro, depois o outro responsável, "Conjunto" por último.
+    const atual = nomeDoUsuario(user?.email)
+    const outro: Responsavel = atual === 'Matheus' ? 'Jeniffer' : 'Matheus'
+    const ordemExibicao: Responsavel[] = [atual, outro, 'Conjunto']
 
     // Limite efetivo por responsável: primeiro registro (mais recente) já ordenado desc —
     // herda o valor do mês anterior configurado quando o mês corrente não tem o seu próprio.
@@ -79,29 +104,62 @@ export async function GET(req: NextRequest) {
       if (!resp || limiteEfetivo[resp] !== undefined) continue
       limiteEfetivo[resp] = Number(l.valor ?? 0)
     }
+
+    const comprometidoPorResponsavel: Record<string, number> = {}
+    for (const t of transacoesFatura ?? []) {
+      if (Number(t.total_parcelas ?? 0) <= 1) continue
+      const resp = String(t.responsavel ?? '')
+      comprometidoPorResponsavel[resp] = (comprometidoPorResponsavel[resp] ?? 0) + Number(t.valor ?? 0)
+    }
+    for (const p of planejadosParcelados ?? []) {
+      const resp = String(p.responsavel ?? '')
+      comprometidoPorResponsavel[resp] = (comprometidoPorResponsavel[resp] ?? 0) + Number(p.valor_previsto ?? 0)
+    }
+
     const limite = RESPONSAVEIS.reduce((soma, r) => soma + (limiteEfetivo[r] ?? 0), 0)
-
-    const comprometidoTransacoes = (transacoesFatura ?? [])
-      .filter(t => Number(t.total_parcelas ?? 0) > 1)
-      .reduce((soma, t) => soma + Number(t.valor ?? 0), 0)
-    const comprometidoPlanejado = (planejadosParcelados ?? [])
-      .reduce((soma, p) => soma + Number(p.valor_previsto ?? 0), 0)
-    const comprometido = comprometidoTransacoes + comprometidoPlanejado
-
+    const comprometido = RESPONSAVEIS.reduce((soma, r) => soma + (comprometidoPorResponsavel[r] ?? 0), 0)
     const pctParcelamento = limite > 0 ? (comprometido / limite) * 100 : null
     const falta = limite - comprometido
 
-    const gasto = (transacoesFatura ?? []).reduce((soma, t) => soma + Number(t.valor ?? 0), 0)
+    const parcelamentoPorResponsavel: ParcelamentoPorResponsavel[] = ordemExibicao.map(responsavel => {
+      const limitePessoa = limiteEfetivo[responsavel] ?? 0
+      const comprometidoPessoa = comprometidoPorResponsavel[responsavel] ?? 0
+      return {
+        responsavel,
+        percentual: limitePessoa > 0 ? (comprometidoPessoa / limitePessoa) * 100 : null,
+        comprometido: comprometidoPessoa,
+        limite: limitePessoa,
+      }
+    })
+
+    const gastoPorResponsavel: Record<string, number> = {}
+    for (const t of transacoesFatura ?? []) {
+      const resp = String(t.responsavel ?? '')
+      gastoPorResponsavel[resp] = (gastoPorResponsavel[resp] ?? 0) + Number(t.valor ?? 0)
+    }
+    const gasto = RESPONSAVEIS.reduce((soma, r) => soma + (gastoPorResponsavel[r] ?? 0), 0)
 
     const findPrevisto = (nome: string) =>
       Number((planejamentoMes ?? []).find(p => String(p.item ?? '').trim().toLowerCase() === nome)?.valor_previsto ?? 0)
-    const previsto =
-      findPrevisto('nubank matheus') +
-      findPrevisto('nubank jeniffer') +
-      findPrevisto('nubank jeniffer conjunto') +
-      findPrevisto('nubank conjunto')
+    const previstoPorResponsavel: Record<Responsavel, number> = {
+      Matheus: findPrevisto('nubank matheus'),
+      Jeniffer: findPrevisto('nubank jeniffer') + findPrevisto('nubank jeniffer conjunto'),
+      Conjunto: findPrevisto('nubank conjunto'),
+    }
+    const previsto = RESPONSAVEIS.reduce((soma, r) => soma + previstoPorResponsavel[r], 0)
 
     const pctGasto = previsto > 0 ? (gasto / previsto) * 100 : null
+
+    const faturaPorResponsavel: FaturaPorResponsavel[] = ordemExibicao.map(responsavel => {
+      const previstoPessoa = previstoPorResponsavel[responsavel]
+      const gastoPessoa = gastoPorResponsavel[responsavel] ?? 0
+      return {
+        responsavel,
+        percentual: previstoPessoa > 0 ? (gastoPessoa / previstoPessoa) * 100 : null,
+        gasto: gastoPessoa,
+        previsto: previstoPessoa,
+      }
+    })
 
     const diaVencimento = parseInt(nubankConfigs?.find(c => c.chave === 'dia_vencimento')?.valor || '10')
     const ajusteFechamento = parseInt(nubankConfigs?.find(c => c.chave === 'ajuste_fechamento')?.valor || '0')
@@ -114,12 +172,18 @@ export async function GET(req: NextRequest) {
     const dataVencimento = format(dataVencimentoDate, 'yyyy-MM-dd')
     const diasAteVencimento = differenceInCalendarDays(dataVencimentoDate, hoje)
 
-    const insights = (cache?.insights ?? []).filter(i => i.nivel === 'alerta').slice(0, 3)
-
     const response: AlertasFaturaResponse = {
-      parcelamento: { percentual: pctParcelamento, comprometido, limite, falta },
-      fatura: { percentual: pctGasto, gasto, previsto, dataFechamento, diasAteFechar, dataVencimento, diasAteVencimento },
-      insights,
+      parcelamento: { percentual: pctParcelamento, comprometido, limite, falta, porResponsavel: parcelamentoPorResponsavel },
+      fatura: {
+        percentual: pctGasto,
+        gasto,
+        previsto,
+        dataFechamento,
+        diasAteFechar,
+        dataVencimento,
+        diasAteVencimento,
+        porResponsavel: faturaPorResponsavel,
+      },
     }
 
     return NextResponse.json(response, { headers: { 'Cache-Control': 'no-store' } })

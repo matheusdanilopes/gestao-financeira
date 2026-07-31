@@ -13,8 +13,11 @@ interface Props {
   onFechar: () => void
 }
 
-const NIVEL_BADGE: Record<string, { cls: string; label: string }> = {
-  alerta: { cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300', label: 'Atenção' },
+// Reaproveita os tokens de marca já usados em ParcelamentosMensal.tsx/ComposicaoFaturaModal.tsx.
+const RESPONSAVEL_TEXTO: Record<string, string> = {
+  Matheus: 'text-matheus dark:text-blue-400',
+  Jeniffer: 'text-jeniffer dark:text-pink-400',
+  Conjunto: 'text-slate-500 dark:text-slate-400',
 }
 
 function corBarra(pct: number): string {
@@ -53,10 +56,23 @@ function formatarDia(iso: string): string {
   return `${dia} (${semana})`
 }
 
+function LinhaResponsavel({ responsavel, percentual, valor }: { responsavel: string; percentual: number | null; valor: string }) {
+  return (
+    <div className="flex items-center justify-between py-0.5">
+      <span className={`text-[11px] font-semibold ${RESPONSAVEL_TEXTO[responsavel] ?? 'text-gray-500'}`}>
+        {responsavel}
+      </span>
+      <span className="text-[11px] text-gray-500 dark:text-gray-400 num">
+        {percentual !== null ? `${Math.round(percentual)}% · ` : ''}{valor}
+      </span>
+    </div>
+  )
+}
+
 export default function AlertaFaturaModal({ aberto, dados, onFechar }: Props) {
   if (!aberto || !dados) return null
 
-  const { parcelamento, fatura, insights } = dados
+  const { parcelamento, fatura } = dados
 
   return (
     <ModalPortal>
@@ -98,11 +114,23 @@ export default function AlertaFaturaModal({ aberto, dados, onFechar }: Props) {
                     ? `Limite ultrapassado em ${formatBRL(Math.abs(parcelamento.falta))}`
                     : `Ainda pode comprometer ${formatBRL(parcelamento.falta)}`}
                 </p>
+                <div className="mt-2.5 pt-2 border-t border-gray-100 dark:border-gray-700/60">
+                  {parcelamento.porResponsavel
+                    .filter(r => r.limite > 0 || r.comprometido > 0)
+                    .map(r => (
+                      <LinhaResponsavel
+                        key={r.responsavel}
+                        responsavel={r.responsavel}
+                        percentual={r.percentual}
+                        valor={formatBRL(r.comprometido)}
+                      />
+                    ))}
+                </div>
               </div>
             )}
 
             {/* Bloco fatura */}
-            <div className="mb-4 bg-gray-50 dark:bg-gray-800/60 rounded-2xl p-3.5">
+            <div className="mb-5 bg-gray-50 dark:bg-gray-800/60 rounded-2xl p-3.5">
               <div className="flex items-center gap-1.5 mb-2">
                 <Calendar className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
@@ -118,6 +146,18 @@ export default function AlertaFaturaModal({ aberto, dados, onFechar }: Props) {
                   <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 num">
                     {formatBRL(fatura.gasto)} de {formatBRL(fatura.previsto)} previsto
                   </p>
+                  <div className="mt-2.5 pt-2 border-t border-gray-100 dark:border-gray-700/60">
+                    {fatura.porResponsavel
+                      .filter(r => r.previsto > 0 || r.gasto > 0)
+                      .map(r => (
+                        <LinhaResponsavel
+                          key={r.responsavel}
+                          responsavel={r.responsavel}
+                          percentual={r.percentual}
+                          valor={formatBRL(r.gasto)}
+                        />
+                      ))}
+                  </div>
                 </>
               )}
               <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-gray-100 dark:border-gray-700/60">
@@ -133,37 +173,6 @@ export default function AlertaFaturaModal({ aberto, dados, onFechar }: Props) {
                 <span className="text-[11px] text-gray-400 dark:text-gray-500">{formatarDia(fatura.dataVencimento)}</span>
               </div>
             </div>
-
-            {/* Insights de atenção */}
-            {insights.length > 0 && (
-              <div className="mb-5">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
-                  Pontos de atenção
-                </p>
-                <div className="space-y-2">
-                  {insights.map((item, i) => (
-                    <div
-                      key={i}
-                      className="flex gap-2.5 rounded-2xl border border-amber-100 dark:border-amber-900/40 bg-amber-50/60 dark:bg-amber-900/10 p-3"
-                    >
-                      <span className="text-lg leading-none shrink-0">{item.icone}</span>
-                      <div className="min-w-0">
-                        <span className={`inline-block text-[9px] font-bold uppercase tracking-widest px-1.5 py-px rounded-md mb-0.5 ${NIVEL_BADGE.alerta.cls}`}>
-                          {NIVEL_BADGE.alerta.label}
-                        </span>
-                        <p className="text-[13px] font-bold text-gray-800 dark:text-gray-100 leading-snug">{item.titulo}</p>
-                        {item.detalhe && (
-                          <p className="text-xs text-gray-500 dark:text-gray-400 leading-snug mt-0.5">{item.detalhe}</p>
-                        )}
-                        {item.recomendacao && (
-                          <p className="text-[11px] mt-1 font-medium text-amber-600 dark:text-amber-400">→ {item.recomendacao}</p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             <button
               onClick={onFechar}
