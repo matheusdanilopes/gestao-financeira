@@ -122,6 +122,26 @@ interface Diagnostico {
   pares: DiagnosticoPar[]
 }
 
+interface DivergenciaParcela {
+  id: string
+  descricao: string
+  valor: number
+  projeto_fatura: string
+  responsavel: string | null
+  parcela_atual_atual: number | null
+  total_parcelas_atual: number | null
+  parcela_atual_correta: number | null
+  total_parcelas_correta: number | null
+}
+
+interface DiagnosticoParcelas {
+  total: number
+  deixavamDeSerParcela: number
+  viravamParcela: number
+  numerosDiferentes: number
+  divergencias: DivergenciaParcela[]
+}
+
 type TipoCartao = 'nubank' | 'cartao1' | 'cartao2'
 
 const CARTAO_LABELS: Record<TipoCartao, string> = {
@@ -155,6 +175,12 @@ export default function ImportarPage() {
   const [pendingModo, setPendingModo] = useState<'conservador' | 'completo' | null>(null)
   const [corrigindo, setCorrigindo] = useState(false)
   const [resultadoCorrecao, setResultadoCorrecao] = useState<{ removidos: number; mensagem: string } | null>(null)
+  const [diagnosticoParcelas, setDiagnosticoParcelas] = useState<DiagnosticoParcelas | null>(null)
+  const [diagnosticandoParcelas, setDiagnosticandoParcelas] = useState(false)
+  const [parcelasExpandido, setParcelasExpandido] = useState(false)
+  const [confirmarCorrecaoParcelas, setConfirmarCorrecaoParcelas] = useState(false)
+  const [corrigindoParcelas, setCorrigindoParcelas] = useState(false)
+  const [resultadoCorrecaoParcelas, setResultadoCorrecaoParcelas] = useState<{ corrigidos: number; mensagem: string } | null>(null)
   const [modalApiAberto, setModalApiAberto] = useState(false)
   const [copiado, setCopiado] = useState<string | null>(null)
   const [disparandoScript, setDisparandoScript] = useState(false)
@@ -207,6 +233,39 @@ export default function ImportarPage() {
     } finally {
       setCorrigindo(false)
       setPendingModo(null)
+    }
+  }
+
+  async function executarDiagnosticoParcelas() {
+    setDiagnosticandoParcelas(true)
+    setDiagnosticoParcelas(null)
+    setResultadoCorrecaoParcelas(null)
+    setConfirmarCorrecaoParcelas(false)
+    try {
+      const res = await fetch('/api/import/diagnostico/parcelas')
+      if (res.ok) {
+        const data = await res.json()
+        setDiagnosticoParcelas(data)
+        setParcelasExpandido(data.total > 0)
+      }
+    } catch { /* silencioso */ } finally {
+      setDiagnosticandoParcelas(false)
+    }
+  }
+
+  async function aplicarCorrecaoParcelas() {
+    setCorrigindoParcelas(true)
+    try {
+      const res = await fetch('/api/import/diagnostico/corrigir-parcelas', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Erro desconhecido')
+      setResultadoCorrecaoParcelas(data)
+      await executarDiagnosticoParcelas()
+    } catch (e) {
+      setResultadoCorrecaoParcelas({ corrigidos: -1, mensagem: e instanceof Error ? e.message : String(e) })
+    } finally {
+      setCorrigindoParcelas(false)
+      setConfirmarCorrecaoParcelas(false)
     }
   }
 
@@ -802,6 +861,132 @@ export default function ImportarPage() {
                           {!p.mesmaFatura && (
                             <span className="text-red-500 font-semibold bg-red-50 px-1.5 py-0.5 rounded-full">faturas distintas</span>
                           )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Seção: Parcelas divergentes */}
+      <div className="mt-2">
+        <div className="flex items-center gap-2 mb-3">
+          <ShieldCheck className="w-4 h-4 text-gray-400" />
+          <h2 className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest">Parcelamentos</h2>
+        </div>
+
+        <button
+          onClick={executarDiagnosticoParcelas}
+          disabled={diagnosticandoParcelas}
+          className="w-full flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-700 py-3 rounded-2xl font-medium hover:bg-gray-50 transition-all disabled:opacity-50 mb-3 text-sm shadow-card active:scale-[0.98]"
+        >
+          <ShieldCheck className={`w-4 h-4 ${diagnosticandoParcelas ? 'animate-pulse text-primary-500' : ''}`} />
+          {diagnosticandoParcelas ? 'Verificando parcelamentos…' : 'Verificar parcelamentos indevidos'}
+        </button>
+
+        {diagnosticoParcelas && (
+          <div className={`rounded-2xl p-4 mb-4 ${diagnosticoParcelas.total > 0 ? 'bg-amber-50 border border-amber-200' : 'bg-green-50 border border-green-100'}`}>
+            {diagnosticoParcelas.total === 0 ? (
+              <div className="flex items-center gap-2.5 text-green-700">
+                <div className="w-7 h-7 rounded-xl bg-green-100 border border-green-200 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+                <span className="text-sm font-semibold">Nenhuma transação com parcelamento divergente</span>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-7 h-7 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0 mt-0.5">
+                      <AlertCircle className="w-4 h-4 text-amber-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-amber-900">
+                        {diagnosticoParcelas.total} transação(ões) com parcelamento divergente
+                      </p>
+                      <p className="text-xs text-amber-700 mt-0.5">
+                        {diagnosticoParcelas.deixavamDeSerParcela} contadas como parcela indevidamente · {diagnosticoParcelas.viravamParcela} deveriam ser parcela e não estavam marcadas · {diagnosticoParcelas.numerosDiferentes} com número de parcela errado
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setParcelasExpandido(v => !v)}
+                    className="text-xs text-amber-700 font-semibold shrink-0 underline underline-offset-2 transition-opacity hover:opacity-70"
+                  >
+                    {parcelasExpandido ? 'Ocultar' : 'Ver detalhes'}
+                  </button>
+                </div>
+
+                {resultadoCorrecaoParcelas && (
+                  <div className={`mt-3 rounded-xl p-3 text-sm flex items-center gap-2.5 ${resultadoCorrecaoParcelas.corrigidos >= 0 ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'}`}>
+                    {resultadoCorrecaoParcelas.corrigidos >= 0
+                      ? <CheckCircle2 className="w-4 h-4 shrink-0 text-green-600" />
+                      : <XCircle className="w-4 h-4 shrink-0 text-red-500" />
+                    }
+                    <span className="font-medium">{resultadoCorrecaoParcelas.mensagem}</span>
+                  </div>
+                )}
+
+                {confirmarCorrecaoParcelas ? (
+                  <div className="mt-3 bg-red-50 border border-red-200 rounded-2xl p-4 space-y-3">
+                    <p className="text-sm font-bold text-red-800">Confirmar correção</p>
+                    <p className="text-xs text-red-700 leading-relaxed">
+                      Serão atualizados {diagnosticoParcelas.total} registro(s) de transacoes_nubank (campos parcela_atual/total_parcelas), recalculados a partir da descrição de cada compra. Isso muda o total &ldquo;comprometido&rdquo; e os limites da tela de Parcelamentos.
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={aplicarCorrecaoParcelas}
+                        disabled={corrigindoParcelas}
+                        className="flex-1 flex items-center justify-center gap-1.5 bg-red-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-red-700 transition-all disabled:opacity-50 active:scale-[0.97]"
+                      >
+                        <ShieldCheck className={`w-3.5 h-3.5 ${corrigindoParcelas ? 'animate-pulse' : ''}`} />
+                        {corrigindoParcelas ? 'Corrigindo…' : 'Confirmar correção'}
+                      </button>
+                      <button
+                        onClick={() => setConfirmarCorrecaoParcelas(false)}
+                        disabled={corrigindoParcelas}
+                        className="flex-1 bg-white border border-gray-200 text-gray-700 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition-all disabled:opacity-50"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-3">
+                    <button
+                      onClick={() => setConfirmarCorrecaoParcelas(true)}
+                      className="w-full flex items-center justify-center gap-1.5 bg-amber-500 text-white py-2.5 rounded-xl text-xs font-semibold hover:bg-amber-600 transition-all active:scale-[0.97]"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      Corrigir {diagnosticoParcelas.total} registro(s)
+                    </button>
+                  </div>
+                )}
+
+                {parcelasExpandido && (
+                  <div className="mt-3 space-y-2">
+                    {diagnosticoParcelas.divergencias.map((d) => (
+                      <div key={d.id} className="bg-white rounded-xl p-3 text-xs space-y-1.5 border border-amber-100">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-semibold text-gray-800 truncate">{d.descricao}</span>
+                          <span className="text-gray-600 font-mono shrink-0">R$ {Number(d.valor).toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-gray-400 flex-wrap">
+                          <span>{d.responsavel ?? '—'}</span>
+                          <span className="text-gray-300">·</span>
+                          <span>{d.projeto_fatura}</span>
+                          <span className="text-gray-300">·</span>
+                          <span className="font-mono">
+                            {d.parcela_atual_atual ?? '—'}/{d.total_parcelas_atual ?? '—'}
+                          </span>
+                          <span className="text-gray-300">→</span>
+                          <span className="font-mono text-amber-700 font-semibold">
+                            {d.parcela_atual_correta ?? '—'}/{d.total_parcelas_correta ?? '—'}
+                          </span>
                         </div>
                       </div>
                     ))}

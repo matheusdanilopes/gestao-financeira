@@ -112,7 +112,7 @@ function isPagamentoFatura(descricao: string): boolean {
 // a regex antiga `/(\d+)\/(\d+)/` não tinha limite de dígitos nem checagem de
 // sanidade, então casava qualquer "12/2024" (data) ou código embutido na
 // descrição e marcava compras normais como parceladas.
-function extrairParcela(descricao: string): { atual: number; total: number } | null {
+export function extrairParcela(descricao: string): { atual: number; total: number } | null {
   const matchParcela = descricao.match(/parcela\s*(\d+)\s*\/\s*(\d+)/i)
   if (matchParcela) {
     const atual = parseInt(matchParcela[1])
