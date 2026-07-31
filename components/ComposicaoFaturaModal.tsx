@@ -33,7 +33,7 @@ const CORES_PADRAO = { existente: 'bg-gray-700', novo: 'bg-gray-500', assinatura
 
 const LINHAS = [
   { chave: 'existente' as const, label: 'Parcelas antigas', descricao: 'Parcelas de compras de meses anteriores (2/X em diante)' },
-  { chave: 'novo' as const, label: 'Novas parcelas', descricao: 'Compras novas ou primeira parcela (1/X)' },
+  { chave: 'novo' as const, label: 'Novas compras', descricao: 'Compras novas ou primeira parcela (1/X)' },
   { chave: 'assinatura' as const, label: 'Assinaturas', descricao: 'Cobranças de assinaturas ativas' },
 ]
 
@@ -77,7 +77,7 @@ export default function ComposicaoFaturaModal({ aberto, onClose, dados, onVerCom
           </div>
 
           <div className="space-y-2.5">
-            {LINHAS.map(({ chave, label, descricao }) => {
+            {LINHAS.filter(({ chave }) => dados[chave] > 0).map(({ chave, label, descricao }) => {
               const valor = dados[chave]
               const pct = (valor / total) * 100
               const dot = cores[chave]
