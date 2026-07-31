@@ -52,7 +52,6 @@ interface Props {
   aberto: boolean
   onClose: () => void
   cartaoLabels?: Record<string, string>
-  filtroInicial?: CampoFiltro
   dados: {
     serie: string
     mes: string
@@ -61,8 +60,8 @@ interface Props {
   } | null
 }
 
-export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels, filtroInicial = 'responsavel' }: Props) {
-  const [filtroCampo, setFiltroCampo] = useState<CampoFiltro>(filtroInicial)
+export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }: Props) {
+  const [filtroCampo, setFiltroCampo] = useState<CampoFiltro>('responsavel')
   const [filtroValor, setFiltroValor] = useState('Todos')
   const [filtroCampo2, setFiltroCampo2] = useState<CampoFiltro>('cartao')
   const [filtroValor2, setFiltroValor2] = useState('Todos')
@@ -72,11 +71,10 @@ export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels, f
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setFiltroCampo(filtroInicial)
+    setFiltroCampo('responsavel')
     setFiltroValor('Todos')
-    setFiltroCampo2(filtroInicial === 'cartao' ? 'responsavel' : 'cartao')
+    setFiltroCampo2('cartao')
     setFiltroValor2('Todos')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dados])
 
   const valoresDisponiveis = useMemo(() => {
