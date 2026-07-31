@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Receipt, TrendingUp, ShoppingCart,
   SlidersHorizontal, PiggyBank, Sparkles, BarChart3, Plus, MoreHorizontal, Wallet, CreditCard, RepeatIcon,
-  Heart, ShoppingBasket, WifiOff, Crown,
+  Heart, ShoppingBasket, WifiOff, Crown, Layers,
 } from 'lucide-react'
 import { memo, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
@@ -21,13 +21,14 @@ const ROTAS_COM_MENU = [
   '/dashboard', '/contas', '/receitas', '/investimentos', '/assinaturas',
   '/compras', '/chat', '/configuracoes', '/importar', '/financas', '/extras',
   '/wishlist', '/lista-mercado', '/lista-mercado/historico', '/listas-compras',
+  '/parcelamentos',
 ]
 
 // Rotas acessíveis sem conexão (têm cache/operações locais)
 const ROTAS_OFFLINE = ['/dashboard', '/lista-mercado', '/listas-compras']
 
 const ROTAS_FINANCAS = ['/financas', '/contas', '/receitas', '/investimentos']
-const ROTAS_CARTAO   = ['/compras', '/assinaturas']
+const ROTAS_CARTAO   = ['/compras', '/assinaturas', '/parcelamentos']
 const ROTAS_EXTRAS   = ['/extras', '/chat', '/configuracoes', '/wishlist', '/lista-mercado', '/listas-compras']
 
 const desktopItems = [
@@ -37,6 +38,7 @@ const desktopItems = [
   { href: '/investimentos', label: 'Investir',      icon: PiggyBank,         desktopOnly: false },
   { href: '/compras',       label: 'Compras',       icon: ShoppingCart,      desktopOnly: false },
   { href: '/assinaturas',   label: 'Assinaturas',   icon: RepeatIcon,        desktopOnly: false },
+  { href: '/parcelamentos', label: 'Parcelamentos', icon: Layers,            desktopOnly: false },
   { href: '/wishlist',      label: 'Wishlist',      icon: Heart,             desktopOnly: false },
   { href: '/lista-mercado',  label: 'Mercado',        icon: ShoppingBasket,    desktopOnly: false },
   { href: '/listas-compras', label: 'Princesa',       icon: Crown,             desktopOnly: false },
@@ -86,8 +88,9 @@ function FinancasMenuPopover({ onClose }: { onClose: () => void }) {
 
 function CartaoMenuPopover({ onClose }: { onClose: () => void }) {
   const opcoes = [
-    { href: '/compras',     label: 'Compras',     Icon: ShoppingCart, cor: 'text-orange-500 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-900/20' },
-    { href: '/assinaturas', label: 'Assinaturas', Icon: RepeatIcon,   cor: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-900/20'  },
+    { href: '/compras',       label: 'Compras',       Icon: ShoppingCart, cor: 'text-orange-500 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+    { href: '/assinaturas',   label: 'Assinaturas',   Icon: RepeatIcon,   cor: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-900/20'  },
+    { href: '/parcelamentos', label: 'Parcelamentos', Icon: Layers,       cor: 'text-teal-600 dark:text-teal-400',     bg: 'bg-teal-50 dark:bg-teal-900/20'      },
   ]
 
   return (
@@ -282,6 +285,7 @@ export default memo(function BottomNav() {
     } else if (openMenu === 'cartao') {
       router.prefetch('/compras')
       router.prefetch('/assinaturas')
+      router.prefetch('/parcelamentos')
     } else if (openMenu === 'extras') {
       router.prefetch('/wishlist')
       router.prefetch('/lista-mercado')
