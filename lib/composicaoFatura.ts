@@ -16,15 +16,26 @@ export function extrairParcela(
   parcelaAtual?: number | null,
   totalParcelas?: number | null
 ): ParcelaInfo | null {
-  if (parcelaAtual && totalParcelas) return { atual: Number(parcelaAtual), total: Number(totalParcelas) }
+  if (parcelaAtual && totalParcelas) {
+    const atual = Number(parcelaAtual)
+    const total = Number(totalParcelas)
+    if (atual >= 1 && total >= atual) return { atual, total }
+  }
   const desc = String(descricao || '')
   const matchParcela = desc.match(/parcela\s*(\d+)\s*\/\s*(\d+)/i)
-  if (matchParcela) return { atual: Number(matchParcela[1]), total: Number(matchParcela[2]) }
+  if (matchParcela) {
+    const atual = Number(matchParcela[1])
+    const total = Number(matchParcela[2])
+    if (atual >= 1 && total >= atual) return { atual, total }
+  }
+  // Sem limite de dígitos nem checagem de sanidade, esta regex casaria qualquer
+  // "12/2024" (data) ou código embutido na descrição como se fosse parcela —
+  // mesma classe de bug já corrigida em lib/csvparser.ts (extrairParcela).
   const matchSlash = desc.match(/\b(\d{1,2})\/(\d{1,2})\b/)
   if (matchSlash) {
     const atual = Number(matchSlash[1])
     const total = Number(matchSlash[2])
-    if (total >= 2) return { atual, total }
+    if (atual >= 1 && total >= atual && total >= 2) return { atual, total }
   }
   return null
 }

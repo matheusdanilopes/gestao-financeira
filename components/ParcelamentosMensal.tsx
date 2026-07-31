@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { formatBRL } from '@/lib/logger'
 import FilterSelect from '@/components/FilterSelect'
 import EmptyState from '@/components/EmptyState'
+import { buscarCartaoLabels, type CartaoLabels } from '@/lib/cartaoLabels'
 
 interface Props {
   mesAtual: Date
@@ -28,11 +29,11 @@ const RESPONSAVEL_STYLE: Record<Responsavel, { texto: string; iconBg: string }> 
 
 type Origem = 'nubank' | 'cartao1' | 'cartao2' | 'planejamento'
 
-const ORIGEM_LABEL: Record<Origem, string> = {
-  nubank: 'NuBank',
-  cartao1: 'Cartão 1',
-  cartao2: 'Cartão 2',
-  planejamento: 'Planejado',
+const CARTAO_LABELS_PADRAO: CartaoLabels = { nubank: 'NuBank', cartao1: 'Cartão 1', cartao2: 'Cartão 2' }
+
+function origemLabel(o: Origem, cartaoLabels: CartaoLabels): string {
+  if (o === 'planejamento') return 'Planejado'
+  return cartaoLabels[o]
 }
 
 const ORIGEM_ICON: Record<Origem, LucideIcon> = {
@@ -71,6 +72,7 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
   const [origemLimite, setOrigemLimite] = useState<Record<string, string>>({})
   const [sugestoes, setSugestoes] = useState<Record<string, number>>({})
   const [itens, setItens] = useState<ParcelaItem[]>([])
+  const [cartaoLabels, setCartaoLabels] = useState<CartaoLabels>(CARTAO_LABELS_PADRAO)
   const [carregando, setCarregando] = useState(true)
   const [salvando, setSalvando] = useState<string | null>(null)
 
@@ -103,6 +105,7 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
         { data: planejados },
         { data: transacoesHist },
         { data: planejadosHist },
+        cartaoLabelsCarregados,
       ] = await Promise.all([
         fetch(`/api/limites-parcelamentos?ate=${mesReferencia}`),
         supabase
@@ -129,6 +132,7 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
           .select('valor_previsto, responsavel, mes_referencia')
           .in('mes_referencia', mesesRefHist)
           .gt('total_parcelas', 1),
+        buscarCartaoLabels(supabase, mesReferencia),
       ])
 
       if (cancelado) return
@@ -222,6 +226,7 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
         setOrigemLimite(oMap)
         setSugestoes(sMap)
         setItens(lista)
+        setCartaoLabels(cartaoLabelsCarregados)
         setCarregando(false)
       }
     }
@@ -420,7 +425,7 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
                   <div className="flex items-center gap-x-2.5 gap-y-1 flex-wrap mt-1.5">
                     {origensComValor.map(o => (
                       <span key={o} className="inline-flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400">
-                        {ORIGEM_LABEL[o]}
+                        {origemLabel(o, cartaoLabels)}
                         <span className="font-semibold text-gray-700 dark:text-gray-300 num">{formatBRL(porOrigem[o] ?? 0)}</span>
                       </span>
                     ))}
@@ -594,9 +599,9 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
                 onChange={v => setFiltroOrigem(v as 'todos' | Origem)}
                 options={[
                   { value: 'todos', label: 'Todas origens' },
-                  { value: 'nubank', label: 'NuBank' },
-                  { value: 'cartao1', label: 'Cartão 1' },
-                  { value: 'cartao2', label: 'Cartão 2' },
+                  { value: 'nubank', label: cartaoLabels.nubank },
+                  { value: 'cartao1', label: cartaoLabels.cartao1 },
+                  { value: 'cartao2', label: cartaoLabels.cartao2 },
                   { value: 'planejamento', label: 'Planejado' },
                 ]}
               />
@@ -664,7 +669,7 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
                       <span className="text-[11px] text-gray-400">·</span>
                       <span className="inline-flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400">
                         <IconeOrigem className="w-3 h-3" />
-                        {ORIGEM_LABEL[item.origem]}
+                        {origemLabel(item.origem, cartaoLabels)}
                       </span>
                       {item.parcelaAtual && item.totalParcelas && (
                         <>

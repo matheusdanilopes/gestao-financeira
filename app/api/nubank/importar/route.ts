@@ -66,10 +66,30 @@ async function autenticar(req: NextRequest): Promise<AuthResult> {
 
 type StatsFatura = { noCSV: number; inseridas: number; ignoradas: number; totalNoBanco: number }
 
+// Nome real do cartão (ex.: "PicPay"), lido da linha de planejamento "[CARTAO1] <nome>" /
+// "[CARTAO2] <nome>" — mesmo critério usado em app/api/import/cartao/route.ts. Sem isso, as
+// notificações push de importação via API para cartao1/cartao2 sempre mostravam o rótulo
+// genérico "Cartão 1"/"Cartão 2", mesmo com o cartão já nomeado no planejamento.
+async function buscarNomeCartao(
+  supabase: ReturnType<typeof criarSupabaseServer>,
+  cartao: string
+): Promise<string | undefined> {
+  if (cartao !== 'cartao1' && cartao !== 'cartao2') return undefined
+  const prefixo = cartao === 'cartao1' ? '[CARTAO1]' : '[CARTAO2]'
+  const { data } = await supabase
+    .from('planejamento')
+    .select('item')
+    .ilike('item', `${prefixo}%`)
+  return (data ?? [])
+    .map((p: { item: string }) => p.item?.replace(prefixo, '').trim())
+    .find(Boolean) || undefined
+}
+
 async function salvarTransacoes(
   supabase: ReturnType<typeof criarSupabaseServer>,
   transacoes: TransacaoNubank[],
-  cartao: string = 'nubank'
+  cartao: string = 'nubank',
+  nomeCartao?: string
 ) {
   await aplicarResponsavelDeParcelaAnterior(supabase, transacoes)
 
@@ -150,7 +170,7 @@ async function salvarTransacoes(
   // entrega — só faria esperar pelas mesmas três etapas de um jeito mais indireto.
   const importTs = Date.now()
   try {
-    await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, conflitos, cartao, undefined, {
+    await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, conflitos, cartao, nomeCartao, {
       purchaseDates,
       projetoFaturas: mesesNoArquivo,
       importTs,
@@ -173,7 +193,7 @@ async function salvarTransacoes(
       faturaStats[fatura].totalNoBanco = count ?? 0
     }
 
-    await validarDivergenciaFatura(supabase, faturaStats, transacoesNormais, cartao)
+    await validarDivergenciaFatura(supabase, faturaStats, transacoesNormais, cartao, nomeCartao)
 
     assinaturasAtualizadas = await sincronizarAssinaturasMoedaEstrangeira(supabase, cartao, mesesNoArquivo)
   } catch (postImportError) {
@@ -309,14 +329,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const nomeCartao = await buscarNomeCartao(supabase, cartao)
+
     if (transacoes.length === 0) {
       const msg = 'Nenhuma transação válida encontrada. Verifique o formato do CSV.'
       await registrarLog(`ERRO: ${msg}`)
-      await notificarImportacao(supabase, 'erro', undefined, undefined, cartao)
+      await notificarImportacao(supabase, 'erro', undefined, undefined, cartao, nomeCartao)
       return NextResponse.json({ success: false, error: msg }, { status: 422 })
     }
 
-    const resultadoImportacao = await salvarTransacoes(supabase, transacoes, cartao)
+    const resultadoImportacao = await salvarTransacoes(supabase, transacoes, cartao, nomeCartao)
 
     // purchaseDates e linhas são excluídos da resposta pública propositalmente: purchaseDates
     // só é usado pelo push (já disparado em background dentro de salvarTransacoes); linhas
@@ -404,7 +426,8 @@ export async function POST(req: NextRequest) {
     console.error('[nubank/importar] Exceção:', error)
     const msg = error instanceof Error ? error.message : String(error)
     await registrarLog(`ERRO: ${msg}`)
-    await notificarImportacao(supabase, 'erro', undefined, undefined, cartao, undefined, { importTs: Date.now() })
+    const nomeCartao = await buscarNomeCartao(supabase, cartao).catch(() => undefined)
+    await notificarImportacao(supabase, 'erro', undefined, undefined, cartao, nomeCartao, { importTs: Date.now() })
     return NextResponse.json({ error: 'Erro interno: ' + msg }, { status: 500 })
   }
 }

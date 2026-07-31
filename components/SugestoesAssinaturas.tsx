@@ -1,8 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { format, startOfMonth } from 'date-fns'
 import { Lightbulb, ChevronDown, ChevronUp, Plus, X } from 'lucide-react'
 import { formatBRL } from '@/lib/logger'
+import { supabase } from '@/lib/supabaseClient'
+import { buscarCartaoLabels, type CartaoLabels } from '@/lib/cartaoLabels'
 
 interface Sugestao {
   descricao: string
@@ -30,6 +33,7 @@ export default function SugestoesAssinaturas({ onAdicionarAssinatura: _onAdicion
   const [sugestoes, setSugestoes] = useState<Sugestao[]>([])
   const [carregando, setCarregando] = useState(false)
   const [expandido, setExpandido] = useState(false)
+  const [cartaoLabels, setCartaoLabels] = useState<CartaoLabels>({ nubank: 'NuBank', cartao1: 'Cartão 1', cartao2: 'Cartão 2' })
   const [ignoradas, setIgnoradas] = useState<Set<string>>(() => {
     try {
       const raw = localStorage.getItem('assinaturas-sugestoes-ignoradas')
@@ -50,6 +54,8 @@ export default function SugestoesAssinaturas({ onAdicionarAssinatura: _onAdicion
       }
     }
     carregar()
+    const mesRef = format(startOfMonth(new Date()), 'yyyy-MM-dd')
+    buscarCartaoLabels(supabase, mesRef).then(setCartaoLabels)
   }, [])
 
   function ignorar(descricao: string) {
@@ -62,8 +68,6 @@ export default function SugestoesAssinaturas({ onAdicionarAssinatura: _onAdicion
   const visiveis = sugestoes.filter((s: Sugestao) => !ignoradas.has(s.descricao))
 
   if (carregando || visiveis.length === 0) return null
-
-  const CARTAO_LABEL: Record<string, string> = { nubank: 'NuBank', cartao1: 'Cartão 1', cartao2: 'Cartão 2' }
 
   return (
     <div className="bg-amber-50 border border-amber-200 rounded-3xl overflow-hidden mb-4">
@@ -93,7 +97,7 @@ export default function SugestoesAssinaturas({ onAdicionarAssinatura: _onAdicion
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-900 truncate">{s.descricao}</p>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  {s.responsavel} · {CARTAO_LABEL[s.cartao] || s.cartao} · {s.aparicoes}× nos últimos 6 meses
+                  {s.responsavel} · {cartaoLabels[s.cartao as keyof CartaoLabels] || s.cartao} · {s.aparicoes}× nos últimos 6 meses
                 </p>
                 <p className="text-xs font-semibold text-amber-700 mt-0.5 num">
                   {formatBRL(s.valor_medio)}/mês

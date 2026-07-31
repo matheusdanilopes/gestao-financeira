@@ -7,6 +7,7 @@ import type {
   FinancialInsightsContext,
   CategoryMetric,
   Transacao,
+  Planejamento,
 } from './types'
 
 const fmtMes = (yyyyMM: string) => {
@@ -45,18 +46,28 @@ export function getMesEfetivo(t: Transacao): string {
 }
 
 // Maps internal DB identifiers to human-readable card names shown in the app.
+// Fallback for when the real name (set via planejamento "[CARTAO1]/[CARTAO2] <nome>") isn't available.
 const CARTAO_NOMES: Record<string, string> = {
   nubank:  'Nubank',
   cartao1: 'Cartão 1',
   cartao2: 'Cartão 2',
 }
-export function nomeCartao(cartao: string | null | undefined): string {
+
+/** Nome real de cartao1/cartao2 (ex.: "PicPay"), lido das linhas "[CARTAOx] <nome>" do planejamento já carregado. */
+export function cartaoLabelsFromPlanejamento(planejamento: Planejamento[]): Record<string, string> {
+  const c1 = planejamento.find(p => p.item.startsWith('[CARTAO1]'))?.item.replace('[CARTAO1]', '').trim()
+  const c2 = planejamento.find(p => p.item.startsWith('[CARTAO2]'))?.item.replace('[CARTAO2]', '').trim()
+  return { nubank: CARTAO_NOMES.nubank, cartao1: c1 || CARTAO_NOMES.cartao1, cartao2: c2 || CARTAO_NOMES.cartao2 }
+}
+
+export function nomeCartao(cartao: string | null | undefined, labels?: Record<string, string>): string {
   const id = cartao ?? 'nubank'
-  return CARTAO_NOMES[id] ?? id
+  return (labels ?? CARTAO_NOMES)[id] ?? id
 }
 
 export function computeInsights(data: EnrichedData): FinancialInsightsContext {
   const hoje = new Date()
+  const cartaoLabels = cartaoLabelsFromPlanejamento(data.planejamento)
 
   // Credit-card billing convention (mirrors the dashboard):
   //   mesCalendario = calendar month for planning queries (mes_referencia)
@@ -130,13 +141,13 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
       valor: t.valor,
       categoria: t.categoria ?? 'Sem categoria',
       responsavel: t.responsavel,
-      cartao: nomeCartao(t.cartao),
+      cartao: nomeCartao(t.cartao, cartaoLabels),
     }))
 
   // Spending by card
   const gastoPorCartao: Record<string, number> = {}
   for (const t of txAtual) {
-    const cartao = nomeCartao(t.cartao)
+    const cartao = nomeCartao(t.cartao, cartaoLabels)
     gastoPorCartao[cartao] = (gastoPorCartao[cartao] ?? 0) + t.valor
   }
 
