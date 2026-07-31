@@ -14,6 +14,17 @@ function nomeDoUsuario(email: string | undefined): 'Matheus' | 'Jeniffer' {
   return 'Matheus'
 }
 
+// A fatura do mês é considerada paga quando todos os itens "nubank ..." do
+// planejamento daquele mês (com valor previsto) já foram marcados como pagos
+// na tela de Despesas (ChecklistMensal.tsx) — mesmo prefixo usado lá.
+function faturaEstaPaga(itensPlanejamento: { item: string; valor_previsto: number; pago: boolean }[]): boolean {
+  const itensNubank = itensPlanejamento.filter(
+    p => String(p.item ?? '').trim().toLowerCase().startsWith('nubank') && Number(p.valor_previsto ?? 0) > 0
+  )
+  if (itensNubank.length === 0) return false
+  return itensNubank.every(p => p.pago === true)
+}
+
 interface ParcelamentoPorResponsavel {
   responsavel: Responsavel
   percentual: number | null
@@ -54,15 +65,33 @@ export async function GET(req: NextRequest) {
 
   try {
     const hoje = new Date()
-    const mesRef = format(startOfMonth(hoje), 'yyyy-MM-dd')
-    const mesRefFaturaDate = startOfMonth(addMonths(hoje, 1))
+
+    // Se a fatura do mês corrente já estiver paga, os avisos passam a ser
+    // sobre o próximo mês — não faz sentido continuar alertando sobre uma
+    // fatura já quitada.
+    let mesBase = hoje
+    let mesRef = format(startOfMonth(mesBase), 'yyyy-MM-dd')
+    let planejamentoMes = (await supabase
+      .from('planejamento')
+      .select('item, valor_previsto, pago')
+      .eq('mes_referencia', mesRef)).data ?? []
+
+    if (faturaEstaPaga(planejamentoMes)) {
+      mesBase = addMonths(mesBase, 1)
+      mesRef = format(startOfMonth(mesBase), 'yyyy-MM-dd')
+      planejamentoMes = (await supabase
+        .from('planejamento')
+        .select('item, valor_previsto, pago')
+        .eq('mes_referencia', mesRef)).data ?? []
+    }
+
+    const mesRefFaturaDate = startOfMonth(addMonths(mesBase, 1))
     const mesRefFatura = format(mesRefFaturaDate, 'yyyy-MM-dd')
 
     const [
       { data: limitesData },
       { data: transacoesFatura },
       { data: planejadosParcelados },
-      { data: planejamentoMes },
       { data: nubankConfigs },
       { data: faturaRegistradaData },
     ] = await Promise.all([
@@ -83,10 +112,6 @@ export async function GET(req: NextRequest) {
         .select('valor_previsto, responsavel, total_parcelas')
         .eq('mes_referencia', mesRef)
         .gt('total_parcelas', 1),
-      supabase
-        .from('planejamento')
-        .select('item, valor_previsto')
-        .eq('mes_referencia', mesRef),
       supabase.from('configuracoes').select('chave, valor').in('chave', ['dia_vencimento', 'ajuste_fechamento']),
       supabase.from('faturas').select('data_fechamento').eq('cartao', 'nubank').eq('mes_referencia', mesRefFatura).limit(1),
     ])
