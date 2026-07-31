@@ -108,6 +108,26 @@ function isPagamentoFatura(descricao: string): boolean {
   return /^pagamento\b/.test(lower)
 }
 
+// Mesmo critério validado usado em app/api/projection/route.ts (extrairParcelamento):
+// a regex antiga `/(\d+)\/(\d+)/` não tinha limite de dígitos nem checagem de
+// sanidade, então casava qualquer "12/2024" (data) ou código embutido na
+// descrição e marcava compras normais como parceladas.
+function extrairParcela(descricao: string): { atual: number; total: number } | null {
+  const matchParcela = descricao.match(/parcela\s*(\d+)\s*\/\s*(\d+)/i)
+  if (matchParcela) {
+    const atual = parseInt(matchParcela[1])
+    const total = parseInt(matchParcela[2])
+    if (atual >= 1 && total >= atual) return { atual, total }
+  }
+  const matchSlash = descricao.match(/\b(\d{1,2})\/(\d{1,2})\b/)
+  if (matchSlash) {
+    const atual = parseInt(matchSlash[1])
+    const total = parseInt(matchSlash[2])
+    if (atual >= 1 && total >= atual && total >= 2) return { atual, total }
+  }
+  return null
+}
+
 function gerarHashLinhaEstorno(
   dataISO: string,
   descricao: string,
@@ -207,10 +227,10 @@ export function processarCSV(
       hash_linha = gerarHashLinha(dataISO, descricao, valor, cartao, occurrenceIndex)
 
       // Identificação de parcelas no formato X/Y (apenas para compras normais)
-      const parcelaMatch = descricao.match(/(\d+)\/(\d+)/)
-      if (parcelaMatch) {
-        parcela_atual = parseInt(parcelaMatch[1])
-        total_parcelas = parseInt(parcelaMatch[2])
+      const parcela = extrairParcela(descricao)
+      if (parcela) {
+        parcela_atual = parcela.atual
+        total_parcelas = parcela.total
       }
     }
 
@@ -293,10 +313,10 @@ export function processarTransacoesJSON(
       occurrenceCounts.set(occurrenceKey, occurrenceIndex)
       hash_linha = gerarHashLinha(dataISO, descricao, valor, cartao, occurrenceIndex)
 
-      const parcelaMatch = descricao.match(/(\d+)\/(\d+)/)
-      if (parcelaMatch) {
-        parcela_atual = parseInt(parcelaMatch[1])
-        total_parcelas = parseInt(parcelaMatch[2])
+      const parcela = extrairParcela(descricao)
+      if (parcela) {
+        parcela_atual = parcela.atual
+        total_parcelas = parcela.total
       }
     }
 
