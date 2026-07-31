@@ -9,13 +9,12 @@ import AlertaFaturaModal from '@/components/AlertaFaturaModal'
 import type { AlertasFaturaResponse } from '@/app/api/alertas-fatura/route'
 
 const ESTADO_KEY = 'alerta_fatura_estado_dia'
-const JANELA_MS = 4 * 60 * 60 * 1000 // 4h após a primeira exibição do dia
+const JANELA_MS = 4 * 60 * 60 * 1000 // reabre a cada 4h
 const POLL_MS = 5 * 60 * 1000 // checagem periódica leve enquanto o app está aberto
 
 interface EstadoDia {
-  data: string // yyyy-MM-dd
-  primeiraExibicao: number // epoch ms
-  exibidoApos4h: boolean
+  data: string // yyyy-MM-dd — vira o dia (mesmo que ainda não tenham passado 4h) zera o ciclo
+  ultimaExibicao: number // epoch ms
 }
 
 function lerEstado(): EstadoDia | null {
@@ -37,11 +36,13 @@ function decidirExibicao(): EstadoDia | null {
   const hoje = format(new Date(), 'yyyy-MM-dd')
   const estado = lerEstado()
 
+  // Virou o dia (00:00) → zera o ciclo e mostra imediatamente, mesmo que não
+  // tenham se passado 4h desde a última exibição do dia anterior.
   if (!estado || estado.data !== hoje) {
-    return { data: hoje, primeiraExibicao: Date.now(), exibidoApos4h: false }
+    return { data: hoje, ultimaExibicao: Date.now() }
   }
-  if (!estado.exibidoApos4h && Date.now() - estado.primeiraExibicao >= JANELA_MS) {
-    return { ...estado, exibidoApos4h: true }
+  if (Date.now() - estado.ultimaExibicao >= JANELA_MS) {
+    return { data: hoje, ultimaExibicao: Date.now() }
   }
   return null
 }
