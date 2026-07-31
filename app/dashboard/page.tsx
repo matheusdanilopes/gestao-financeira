@@ -986,7 +986,7 @@ export default function Dashboard() {
                           >
                             <div key={`ex-${fatura.matheusAtual}`} className="h-full bg-blue-800 bar-enter" style={{ '--bar-w': `${seg.existente}%` } as React.CSSProperties} />
                             <div key={`no-${fatura.matheusAtual}`} className="h-full bg-blue-500 bar-enter" style={{ '--bar-w': `${seg.novo}%` } as React.CSSProperties} />
-                            <div key={`as-${fatura.matheusAtual}`} className="h-full bg-blue-200 bar-enter" style={{ '--bar-w': `${seg.assinatura}%` } as React.CSSProperties} />
+                            <div key={`as-${fatura.matheusAtual}`} className="h-full bg-blue-300 bar-enter" style={{ '--bar-w': `${seg.assinatura}%` } as React.CSSProperties} />
                           </button>
                         )
                       })()}
@@ -1049,7 +1049,7 @@ export default function Dashboard() {
                           >
                             <div key={`ex-${fatura.jenifferAtual}`} className="h-full bg-pink-800 bar-enter" style={{ '--bar-w': `${seg.existente}%` } as React.CSSProperties} />
                             <div key={`no-${fatura.jenifferAtual}`} className="h-full bg-pink-500 bar-enter" style={{ '--bar-w': `${seg.novo}%` } as React.CSSProperties} />
-                            <div key={`as-${fatura.jenifferAtual}`} className="h-full bg-pink-200 bar-enter" style={{ '--bar-w': `${seg.assinatura}%` } as React.CSSProperties} />
+                            <div key={`as-${fatura.jenifferAtual}`} className="h-full bg-pink-300 bar-enter" style={{ '--bar-w': `${seg.assinatura}%` } as React.CSSProperties} />
                           </button>
                         )
                       })()}
@@ -1129,7 +1129,7 @@ export default function Dashboard() {
                               >
                                 <div key={`ex-${fatura.conjuntoAtual}`} className="h-full bg-purple-800 bar-enter" style={{ '--bar-w': `${seg.existente}%` } as React.CSSProperties} />
                                 <div key={`no-${fatura.conjuntoAtual}`} className="h-full bg-purple-500 bar-enter" style={{ '--bar-w': `${seg.novo}%` } as React.CSSProperties} />
-                                <div key={`as-${fatura.conjuntoAtual}`} className="h-full bg-purple-200 bar-enter" style={{ '--bar-w': `${seg.assinatura}%` } as React.CSSProperties} />
+                                <div key={`as-${fatura.conjuntoAtual}`} className="h-full bg-purple-300 bar-enter" style={{ '--bar-w': `${seg.assinatura}%` } as React.CSSProperties} />
                               </button>
                             )
                           })()}
