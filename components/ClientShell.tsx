@@ -25,10 +25,50 @@ export default function ClientShell({ children }: { children: React.ReactNode })
   const { syncState } = useRefreshContext()
   const isOnline = useOnline()
 
-  // Registra o SW globalmente em todas as rotas para garantir cache offline
+  // Registra o SW globalmente em todas as rotas para garantir cache offline.
+  // Também força checagem de atualização ao voltar pro app (o navegador nem sempre
+  // reverifica sw.js sozinho ao reabrir um PWA a partir do ícone/bfcache) e recarrega
+  // a página uma única vez quando uma versão nova assume o controle — sem isso, o app
+  // podia ficar preso rodando JS antigo contra um SW/cache antigo indefinidamente,
+  // mesmo depois de deploys que corrigiam bugs (inclusive o próprio SW).
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
-    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {})
+
+    // Só recarrega em trocas de controller QUE SUBSTITUEM um controller já existente
+    // (uma atualização real). A primeira instalação também dispara 'controllerchange'
+    // (null -> worker via clients.claim()), e recarregar nesse caso seria desnecessário.
+    const hadController = !!navigator.serviceWorker.controller
+    let reloaded = false
+    function handleControllerChange() {
+      if (reloaded || !hadController) return
+      reloaded = true
+      window.location.reload()
+    }
+    navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange)
+
+    function checkForUpdate(reg: ServiceWorkerRegistration) {
+      return () => {
+        if (document.visibilityState === 'visible') reg.update().catch(() => {})
+      }
+    }
+
+    let onVisibility: (() => void) | undefined
+    let onFocus: (() => void) | undefined
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+      .then(reg => {
+        reg.update().catch(() => {})
+        onVisibility = checkForUpdate(reg)
+        onFocus = checkForUpdate(reg)
+        document.addEventListener('visibilitychange', onVisibility)
+        window.addEventListener('focus', onFocus)
+      })
+      .catch(() => {})
+
+    return () => {
+      navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange)
+      if (onVisibility) document.removeEventListener('visibilitychange', onVisibility)
+      if (onFocus) window.removeEventListener('focus', onFocus)
+    }
   }, [])
 
   // Fecha notificações de importação concluída ao abrir o app (cold start)
