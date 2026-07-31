@@ -64,6 +64,10 @@ export async function proxy(req: NextRequest) {
   return res
 }
 
+// A exclusão "icons" nunca bateu com os arquivos reais (icon-192-v2.png,
+// apple-touch-icon-v2.png, splash-*.png, sw.js) — todos eram redirecionados
+// para /login quando pedidos sem sessão (ex: iOS buscando o apple-touch-icon
+// ao "Adicionar à Tela de Início"), fazendo o ícone nunca carregar de fato.
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon\\.ico|manifest\\.json|icons).*)'],
+  matcher: ['/((?!api|_next/static|_next/image|favicon\\.ico|manifest.*\\.json|icon|apple-touch-icon|splash|sw\\.js|badge\\.png).*)'],
 }
