@@ -7,6 +7,7 @@ import DataStatusIndicator from './DataStatusIndicator'
 import { useRefreshContext } from './RefreshProvider'
 import { useOnline } from '@/lib/useOnline'
 import BottomNav from './BottomNav'
+import AlertaFaturaController from './AlertaFaturaController'
 import { useNotificationAutoClear } from '@/lib/notificationRouter'
 
 // Rotas que mostram sino de notificações
@@ -80,6 +81,7 @@ export default function ClientShell({ children }: { children: React.ReactNode })
         {children}
       </main>
       <BottomNav />
+      <AlertaFaturaController />
     </>
   )
 }
