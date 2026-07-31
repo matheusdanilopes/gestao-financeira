@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
 import { extrairParcela } from '@/lib/csvparser'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 type Transacao = {
   id: string
@@ -9,18 +10,36 @@ type Transacao = {
   total_parcelas: number | null
 }
 
+// O PostgREST limita cada select a no máximo 1000 linhas por padrão — sem
+// paginar, tabelas maiores que isso ficam com o final silenciosamente de
+// fora tanto do diagnóstico quanto da correção (parecendo que "corrigir"
+// não fez efeito nas linhas fora da primeira página).
+const TAMANHO_PAGINA = 1000
+
+async function buscarTodasTransacoes(supabase: SupabaseClient): Promise<Transacao[]> {
+  const todas: Transacao[] = []
+  let offset = 0
+  while (true) {
+    const { data, error } = await supabase
+      .from('transacoes_nubank')
+      .select('id, descricao, parcela_atual, total_parcelas')
+      .order('id', { ascending: true })
+      .range(offset, offset + TAMANHO_PAGINA - 1)
+    if (error) throw new Error(error.message)
+    const pagina = data ?? []
+    todas.push(...pagina)
+    if (pagina.length < TAMANHO_PAGINA) break
+    offset += TAMANHO_PAGINA
+  }
+  return todas
+}
+
 export async function POST(req: NextRequest) {
   const { supabase, unauthorized } = await requireAuth(req)
   if (unauthorized) return unauthorized
 
   try {
-    const { data, error } = await supabase
-      .from('transacoes_nubank')
-      .select('id, descricao, parcela_atual, total_parcelas')
-
-    if (error) throw new Error(error.message)
-
-    const transacoes: Transacao[] = data ?? []
+    const transacoes = await buscarTodasTransacoes(supabase)
     const idsParaCorrigir: { id: string; parcela_atual: number | null; total_parcelas: number | null }[] = []
 
     for (const t of transacoes) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
 import { extrairParcela } from '@/lib/csvparser'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 type Transacao = {
   id: string
@@ -56,19 +57,37 @@ function detectarDivergencias(transacoes: Transacao[]): Divergencia[] {
   return divergencias
 }
 
+// O PostgREST limita cada select a no máximo 1000 linhas por padrão — sem
+// paginar, tabelas maiores que isso ficam com o final silenciosamente de
+// fora do diagnóstico (e da correção, que usa a mesma fonte).
+const TAMANHO_PAGINA = 1000
+
+async function buscarTodasTransacoes(supabase: SupabaseClient): Promise<Transacao[]> {
+  const todas: Transacao[] = []
+  let offset = 0
+  while (true) {
+    const { data, error } = await supabase
+      .from('transacoes_nubank')
+      .select('id, descricao, valor, projeto_fatura, responsavel, parcela_atual, total_parcelas')
+      .order('projeto_fatura', { ascending: false })
+      .order('id', { ascending: true })
+      .range(offset, offset + TAMANHO_PAGINA - 1)
+    if (error) throw new Error(error.message)
+    const pagina = data ?? []
+    todas.push(...pagina)
+    if (pagina.length < TAMANHO_PAGINA) break
+    offset += TAMANHO_PAGINA
+  }
+  return todas
+}
+
 export async function GET(req: NextRequest) {
   const { supabase, unauthorized } = await requireAuth(req)
   if (unauthorized) return unauthorized
 
   try {
-    const { data, error } = await supabase
-      .from('transacoes_nubank')
-      .select('id, descricao, valor, projeto_fatura, responsavel, parcela_atual, total_parcelas')
-      .order('projeto_fatura', { ascending: false })
-
-    if (error) throw new Error(error.message)
-
-    const divergencias = detectarDivergencias(data ?? [])
+    const transacoes = await buscarTodasTransacoes(supabase)
+    const divergencias = detectarDivergencias(transacoes)
     const viravamParcela = divergencias.filter(d => !d.total_parcelas_atual && d.total_parcelas_correta).length
     const deixavamDeSerParcela = divergencias.filter(d => d.total_parcelas_atual && !d.total_parcelas_correta).length
     const numerosDiferentes = divergencias.length - viravamParcela - deixavamDeSerParcela

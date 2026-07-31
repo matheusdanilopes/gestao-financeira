@@ -292,6 +292,18 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
     return m
   }, [itens])
 
+  // Abre o "comprometido" por origem (NuBank/Cartão 1/Cartão 2/Planejado) —
+  // sem essa quebra, o total combinado de todos os cartões parecia "errado"
+  // por não bater com a fatura de um cartão específico exibida em outra tela.
+  const comprometidoPorPessoaOrigem = useMemo(() => {
+    const m: Record<string, Partial<Record<Origem, number>>> = {}
+    for (const item of itens) {
+      m[item.responsavel] ??= {}
+      m[item.responsavel][item.origem] = (m[item.responsavel][item.origem] ?? 0) + item.valor
+    }
+    return m
+  }, [itens])
+
   const categoriasDisponiveis = useMemo(
     () => Array.from(new Set(itens.map(i => i.categoria))).sort(),
     [itens]
@@ -363,6 +375,9 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
           const limite = limites[responsavel] ?? 0
           const gasto = comprometidoPorPessoa[responsavel] ?? 0
           const pct = limite > 0 ? (gasto / limite) * 100 : 0
+          const porOrigem = comprometidoPorPessoaOrigem[responsavel] ?? {}
+          const origensComValor = (['nubank', 'cartao1', 'cartao2', 'planejamento'] as Origem[])
+            .filter(o => (porOrigem[o] ?? 0) > 0)
           const mediaHistorica = Math.round(sugestoes[responsavel] ?? 0)
           const sugestao = Math.max(mediaHistorica, Math.round(gasto))
           const sugestaoPresaAoComprometido = sugestao > mediaHistorica
@@ -401,6 +416,16 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mt-0.5">
                   comprometido este mês
                 </p>
+                {origensComValor.length > 1 && (
+                  <div className="flex items-center gap-x-2.5 gap-y-1 flex-wrap mt-1.5">
+                    {origensComValor.map(o => (
+                      <span key={o} className="inline-flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400">
+                        {ORIGEM_LABEL[o]}
+                        <span className="font-semibold text-gray-700 dark:text-gray-300 num">{formatBRL(porOrigem[o] ?? 0)}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {limite > 0 && (
