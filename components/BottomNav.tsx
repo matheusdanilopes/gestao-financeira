@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Receipt, TrendingUp, ShoppingCart,
   SlidersHorizontal, PiggyBank, Sparkles, BarChart3, Plus, MoreHorizontal, Wallet, CreditCard, RepeatIcon,
-  Heart, ShoppingBasket, WifiOff, Crown, Layers,
+  Heart, ShoppingBasket, WifiOff, Crown, Layers, FileText,
 } from 'lucide-react'
 import { memo, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
@@ -21,7 +21,7 @@ const ROTAS_COM_MENU = [
   '/dashboard', '/contas', '/receitas', '/investimentos', '/assinaturas',
   '/compras', '/chat', '/configuracoes', '/importar', '/financas', '/extras',
   '/wishlist', '/lista-mercado', '/lista-mercado/historico', '/listas-compras',
-  '/parcelamentos',
+  '/parcelamentos', '/relatorios',
 ]
 
 // Rotas acessíveis sem conexão (têm cache/operações locais)
@@ -29,7 +29,7 @@ const ROTAS_OFFLINE = ['/dashboard', '/lista-mercado', '/listas-compras']
 
 const ROTAS_FINANCAS = ['/financas', '/contas', '/receitas', '/investimentos']
 const ROTAS_CARTAO   = ['/compras', '/assinaturas', '/parcelamentos']
-const ROTAS_EXTRAS   = ['/extras', '/chat', '/configuracoes', '/wishlist', '/lista-mercado', '/listas-compras']
+const ROTAS_EXTRAS   = ['/extras', '/chat', '/configuracoes', '/wishlist', '/lista-mercado', '/listas-compras', '/relatorios']
 
 const desktopItems = [
   { href: '/dashboard',     label: 'Dashboard',    icon: LayoutDashboard,   desktopOnly: false },
@@ -42,6 +42,7 @@ const desktopItems = [
   { href: '/wishlist',      label: 'Wishlist',      icon: Heart,             desktopOnly: false },
   { href: '/lista-mercado',  label: 'Mercado',        icon: ShoppingBasket,    desktopOnly: false },
   { href: '/listas-compras', label: 'Princesa',       icon: Crown,             desktopOnly: false },
+  { href: '/relatorios',    label: 'Relatórios',    icon: FileText,          desktopOnly: false },
   { href: '/chat',          label: 'IA',            icon: Sparkles,          desktopOnly: false },
   { href: '/configuracoes', label: 'Config',        icon: SlidersHorizontal, desktopOnly: false },
   { href: '/analytics',     label: 'Analytics',     icon: BarChart3,         desktopOnly: true  },
