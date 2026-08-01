@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { Sparkles, Heart, ShoppingBasket, Crown, SlidersHorizontal, Activity } from 'lucide-react'
+import { Sparkles, Heart, ShoppingBasket, Crown, SlidersHorizontal, Activity, FileText } from 'lucide-react'
 
 export interface ExtraItem {
   href: string
@@ -74,6 +74,22 @@ export const EXTRAS_GRUPOS: ExtraGrupo[] = [
         quickAccess: true,
         popoverBg: 'bg-amber-50',
         popoverColor: 'text-amber-600',
+      },
+    ],
+  },
+  {
+    titulo: 'Relatórios',
+    items: [
+      {
+        href: '/relatorios',
+        label: 'Relatórios',
+        description: 'Relatórios gerenciais para exportar em PDF ou CSV',
+        Icon: FileText,
+        iconBg: 'bg-sky-100',
+        iconColor: 'text-sky-600',
+        quickAccess: true,
+        popoverBg: 'bg-sky-50',
+        popoverColor: 'text-sky-600',
       },
     ],
   },
