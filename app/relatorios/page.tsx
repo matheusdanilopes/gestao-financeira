@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { FileDown, FileSpreadsheet, TrendingUp, Receipt, ShoppingCart, PiggyBank, FileBarChart } from 'lucide-react'
+import { FileDown, FileSpreadsheet, TrendingUp, Receipt, ShoppingCart, PiggyBank, FileBarChart, AlertTriangle } from 'lucide-react'
 import MonthSelector from '@/components/MonthSelector'
 import EmptyState from '@/components/EmptyState'
 import { useMes } from '@/components/MesProvider'
@@ -22,18 +22,23 @@ function RelatorioSkeleton() {
   )
 }
 
+interface Totalizador {
+  label: string
+  valor: number
+}
+
 interface SecaoProps {
   titulo: string
   explicacao: string
   Icon: React.ComponentType<{ className?: string; strokeWidth?: number }>
   corIcone: string
   corFundo: string
-  total: number
+  totais: Totalizador[]
   colunas: string[]
   linhas: (string | number)[][]
 }
 
-function SecaoRelatorio({ titulo, explicacao, Icon, corIcone, corFundo, total, colunas, linhas }: SecaoProps) {
+function SecaoRelatorio({ titulo, explicacao, Icon, corIcone, corFundo, totais, colunas, linhas }: SecaoProps) {
   return (
     <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 space-y-3">
       <div className="flex items-center gap-3">
@@ -69,9 +74,13 @@ function SecaoRelatorio({ titulo, explicacao, Icon, corIcone, corFundo, total, c
         </div>
       )}
 
-      <div className="flex justify-between items-center pt-2 border-t border-gray-100">
-        <span className="text-xs font-semibold text-gray-500">Total {titulo}</span>
-        <span className="font-bold text-gray-900">{formatBRL(total)}</span>
+      <div className="flex justify-between items-center pt-2 border-t border-gray-100 flex-wrap gap-x-4 gap-y-1">
+        {totais.map(t => (
+          <div key={t.label} className="flex items-baseline gap-1.5">
+            <span className="text-xs font-semibold text-gray-500">{t.label}</span>
+            <span className="font-bold text-gray-900">{formatBRL(t.valor)}</span>
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -80,15 +89,29 @@ function SecaoRelatorio({ titulo, explicacao, Icon, corIcone, corFundo, total, c
 function RelatorioConteudo({ relatorio }: { relatorio: RelatorioMensal }) {
   return (
     <div className="space-y-3">
+      {relatorio.erros.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-3xl p-4 flex gap-3">
+          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" strokeWidth={2} />
+          <div className="space-y-0.5">
+            {relatorio.erros.map((erro, idx) => (
+              <p key={idx} className="text-xs text-amber-700">{erro}</p>
+            ))}
+          </div>
+        </div>
+      )}
+
       <SecaoRelatorio
         titulo="Receitas"
         explicacao={RELATORIO_EXPLICACOES.receitas}
         Icon={TrendingUp}
         corIcone="text-green-600"
         corFundo="bg-green-50"
-        total={relatorio.receitas.total}
-        colunas={['Item', 'Responsável', 'Valor']}
-        linhas={relatorio.receitas.itens.map(i => [i.item, i.responsavel, formatBRL(i.valor)])}
+        totais={[
+          { label: 'Previsto', valor: relatorio.receitas.totalPrevisto },
+          { label: 'Recebido', valor: relatorio.receitas.totalRecebido },
+        ]}
+        colunas={['Item', 'Responsável', 'Previsto', 'Recebido']}
+        linhas={relatorio.receitas.itens.map(i => [i.item, i.responsavel, formatBRL(i.valorPrevisto), formatBRL(i.valorRecebido)])}
       />
 
       <SecaoRelatorio
@@ -97,9 +120,12 @@ function RelatorioConteudo({ relatorio }: { relatorio: RelatorioMensal }) {
         Icon={Receipt}
         corIcone="text-red-500"
         corFundo="bg-red-50"
-        total={relatorio.despesas.total}
-        colunas={['Item', 'Categoria', 'Status', 'Valor']}
-        linhas={relatorio.despesas.itens.map(i => [i.item, i.categoria, i.status, formatBRL(i.valor)])}
+        totais={[
+          { label: 'Previsto', valor: relatorio.despesas.totalPrevisto },
+          { label: 'Real', valor: relatorio.despesas.totalReal },
+        ]}
+        colunas={['Item', 'Categoria', 'Status', 'Previsto', 'Real']}
+        linhas={relatorio.despesas.itens.map(i => [i.item, i.categoria, i.status, formatBRL(i.valorPrevisto), i.valorReal !== null ? formatBRL(i.valorReal) : '—'])}
       />
 
       <SecaoRelatorio
@@ -108,7 +134,7 @@ function RelatorioConteudo({ relatorio }: { relatorio: RelatorioMensal }) {
         Icon={ShoppingCart}
         corIcone="text-orange-500"
         corFundo="bg-orange-50"
-        total={relatorio.compras.total}
+        totais={[{ label: 'Total', valor: relatorio.compras.total }]}
         colunas={['Data', 'Descrição', 'Responsável', 'Categoria', 'Valor']}
         linhas={relatorio.compras.itens.map(i => [i.data, i.descricao, i.responsavel, i.categoria ?? '', formatBRL(i.valor)])}
       />
@@ -119,17 +145,26 @@ function RelatorioConteudo({ relatorio }: { relatorio: RelatorioMensal }) {
         Icon={PiggyBank}
         corIcone="text-blue-600"
         corFundo="bg-blue-50"
-        total={relatorio.investimentos.total}
-        colunas={['Data', 'Descrição', 'Observação', 'Valor']}
-        linhas={relatorio.investimentos.itens.map(i => [i.data, i.descricao, i.observacao ?? '', formatBRL(i.valor)])}
+        totais={[
+          { label: 'Planejado', valor: relatorio.investimentos.totalPlanejado },
+          { label: 'Aportado', valor: relatorio.investimentos.totalAportado },
+        ]}
+        colunas={['Descrição', 'Percentual', 'Planejado', 'Aportado']}
+        linhas={relatorio.investimentos.itens.map(i => [i.descricao, `${i.percentual}%`, formatBRL(i.valorPlanejado), formatBRL(i.valorAportado)])}
       />
 
       <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 space-y-2">
         <h2 className="font-bold text-gray-900">Resumo</h2>
         <div className="flex justify-between items-center">
-          <span className="text-sm text-gray-600">Saldo do mês (valores realizados)</span>
-          <span className={`font-bold ${relatorio.saldoMes >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-            {formatBRL(relatorio.saldoMes)}
+          <span className="text-sm text-gray-600">Saldo previsto</span>
+          <span className={`font-bold ${relatorio.saldoPrevisto >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+            {formatBRL(relatorio.saldoPrevisto)}
+          </span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-gray-600">Saldo realizado</span>
+          <span className={`font-bold ${relatorio.saldoRealizado >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+            {formatBRL(relatorio.saldoRealizado)}
           </span>
         </div>
         <p className="text-xs text-gray-400 leading-snug">

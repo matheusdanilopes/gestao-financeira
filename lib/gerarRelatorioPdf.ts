@@ -46,6 +46,14 @@ export async function gerarRelatorioPdf(relatorio: RelatorioMensal, mesSeleciona
 
   cursorY += 10
 
+  if (relatorio.erros.length > 0) {
+    doc.setFontSize(9)
+    doc.setTextColor(180, 60, 0)
+    doc.text(`Atenção: ${relatorio.erros.join(' ')}`, MARGIN_X, cursorY, { maxWidth: 180 })
+    doc.setTextColor(0)
+    cursorY += 10
+  }
+
   function garantirEspaco(alturaNecessaria: number) {
     if (cursorY + alturaNecessaria > PAGE_HEIGHT - 20) {
       doc.addPage()
@@ -99,24 +107,30 @@ export async function gerarRelatorioPdf(relatorio: RelatorioMensal, mesSeleciona
   desenharSecao(
     'Receitas',
     RELATORIO_EXPLICACOES.receitas,
-    ['Item', 'Responsável', 'Valor'],
-    relatorio.receitas.itens.map(i => [i.item, i.responsavel, formatBRL(i.valor)]),
+    ['Item', 'Responsável', 'Previsto', 'Recebido'],
+    relatorio.receitas.itens.map(i => [i.item, i.responsavel, formatBRL(i.valorPrevisto), formatBRL(i.valorRecebido)]),
   )
   garantirEspaco(8)
   doc.setFont('helvetica', 'bold')
-  doc.text(`Total Receitas: ${formatBRL(relatorio.receitas.total)}`, MARGIN_X, cursorY)
+  doc.text(
+    `Total Receitas — Previsto: ${formatBRL(relatorio.receitas.totalPrevisto)}   Recebido: ${formatBRL(relatorio.receitas.totalRecebido)}`,
+    MARGIN_X, cursorY,
+  )
   doc.setFont('helvetica', 'normal')
   cursorY += 12
 
   desenharSecao(
     'Despesas',
     RELATORIO_EXPLICACOES.despesas,
-    ['Item', 'Categoria', 'Status', 'Valor'],
-    relatorio.despesas.itens.map(i => [i.item, i.categoria, i.status, formatBRL(i.valor)]),
+    ['Item', 'Categoria', 'Status', 'Previsto', 'Real'],
+    relatorio.despesas.itens.map(i => [i.item, i.categoria, i.status, formatBRL(i.valorPrevisto), i.valorReal !== null ? formatBRL(i.valorReal) : '—']),
   )
   garantirEspaco(8)
   doc.setFont('helvetica', 'bold')
-  doc.text(`Total Despesas: ${formatBRL(relatorio.despesas.total)}`, MARGIN_X, cursorY)
+  doc.text(
+    `Total Despesas — Previsto: ${formatBRL(relatorio.despesas.totalPrevisto)}   Real: ${formatBRL(relatorio.despesas.totalReal)}`,
+    MARGIN_X, cursorY,
+  )
   doc.setFont('helvetica', 'normal')
   cursorY += 12
 
@@ -135,24 +149,29 @@ export async function gerarRelatorioPdf(relatorio: RelatorioMensal, mesSeleciona
   desenharSecao(
     'Investimentos',
     RELATORIO_EXPLICACOES.investimentos,
-    ['Data', 'Descrição', 'Observação', 'Valor'],
-    relatorio.investimentos.itens.map(i => [formatarData(i.data), i.descricao, i.observacao ?? '', formatBRL(i.valor)]),
+    ['Descrição', 'Percentual', 'Planejado', 'Aportado'],
+    relatorio.investimentos.itens.map(i => [i.descricao, `${i.percentual}%`, formatBRL(i.valorPlanejado), formatBRL(i.valorAportado)]),
   )
   garantirEspaco(8)
   doc.setFont('helvetica', 'bold')
-  doc.text(`Total Investimentos: ${formatBRL(relatorio.investimentos.total)}`, MARGIN_X, cursorY)
+  doc.text(
+    `Total Investimentos — Planejado: ${formatBRL(relatorio.investimentos.totalPlanejado)}   Aportado: ${formatBRL(relatorio.investimentos.totalAportado)}`,
+    MARGIN_X, cursorY,
+  )
   doc.setFont('helvetica', 'normal')
   cursorY += 14
 
-  garantirEspaco(40)
+  garantirEspaco(50)
   doc.setFontSize(13)
   doc.setFont('helvetica', 'bold')
   doc.text('Resumo', MARGIN_X, cursorY)
   cursorY += 7
 
   doc.setFontSize(11)
-  doc.text(`Saldo do mês (valores realizados): ${formatBRL(relatorio.saldoMes)}`, MARGIN_X, cursorY)
+  doc.text(`Saldo previsto: ${formatBRL(relatorio.saldoPrevisto)}`, MARGIN_X, cursorY)
   cursorY += 6
+  doc.text(`Saldo realizado: ${formatBRL(relatorio.saldoRealizado)}`, MARGIN_X, cursorY)
+  cursorY += 8
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
@@ -168,12 +187,12 @@ export async function gerarRelatorioPdf(relatorio: RelatorioMensal, mesSeleciona
 
   autoTable(doc, {
     startY: cursorY,
-    head: [['Receitas', 'Despesas', 'Compras', 'Investimentos']],
+    head: [['Receitas (prev.)', 'Despesas (prev.)', 'Compras', 'Investimentos (planej.)']],
     body: [[
-      formatBRL(relatorio.receitas.total),
-      formatBRL(relatorio.despesas.total),
+      formatBRL(relatorio.receitas.totalPrevisto),
+      formatBRL(relatorio.despesas.totalPrevisto),
       formatBRL(relatorio.compras.total),
-      formatBRL(relatorio.investimentos.total),
+      formatBRL(relatorio.investimentos.totalPlanejado),
     ]],
     margin: { left: MARGIN_X, right: MARGIN_X },
     styles: { fontSize: 10, halign: 'center' },
