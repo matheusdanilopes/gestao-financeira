@@ -82,8 +82,8 @@ export const EXTRAS_GRUPOS: ExtraGrupo[] = [
     items: [
       {
         href: '/relatorios',
-        label: 'Relatório Mensal',
-        description: 'Receitas, despesas, compras e investimentos do mês em PDF ou CSV',
+        label: 'Relatórios',
+        description: 'Relatórios gerenciais para exportar em PDF ou CSV',
         Icon: FileText,
         iconBg: 'bg-sky-100',
         iconColor: 'text-sky-600',
