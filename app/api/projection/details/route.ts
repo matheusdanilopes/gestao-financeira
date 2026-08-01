@@ -1,108 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
-import { format, addMonths, startOfMonth, subMonths } from 'date-fns'
+import { addMonths, startOfMonth } from 'date-fns'
+import {
+  buildContracts,
+  buildContratosExtras,
+  type TransacaoRowParcelamento as TransacaoRow,
+} from '@/lib/parcelamentoProjecao'
 
 const PROJECAO_OFFSET_MESES = 1
-
-type TransacaoRow = {
-  descricao?: string | null
-  item?: string | null
-  parcela_atual?: number | string | null
-  total_parcelas?: number | string | null
-  projeto_fatura?: string | null
-  data_compra?: string | null
-  data?: string | null
-  cartao?: string | null
-  responsavel?: string | null
-  valor?: number | null
-  [key: string]: unknown
-}
-
-type PlanejamentoRow = {
-  item?: string | null
-  responsavel?: string | null
-  valor_previsto?: number | null
-  categoria?: string | null
-  parcela_atual?: number | string | null
-  total_parcelas?: number | string | null
-  mes_referencia?: string | null
-  [key: string]: unknown
-}
-
-function extrairParcelamento(t: TransacaoRow | PlanejamentoRow): { atual: number; total: number } | null {
-  if (t.parcela_atual && t.total_parcelas) {
-    const atual = Number(t.parcela_atual)
-    const total = Number(t.total_parcelas)
-    if (atual >= 1 && total >= atual) return { atual, total }
-  }
-  const descricao = String(t.descricao || t.item || '')
-  const matchParcela = descricao.match(/parcela\s*(\d+)\s*\/\s*(\d+)/i)
-  if (matchParcela) {
-    const atual = Number(matchParcela[1])
-    const total = Number(matchParcela[2])
-    if (atual >= 1 && total >= atual) return { atual, total }
-  }
-  const matchSlash = descricao.match(/\b(\d{1,2})\/(\d{1,2})\b/)
-  if (matchSlash) {
-    const atual = Number(matchSlash[1])
-    const total = Number(matchSlash[2])
-    if (atual >= 1 && total >= atual && total >= 2) return { atual, total }
-  }
-  return null
-}
-
-function buildContracts(transacoes: TransacaoRow[]) {
-  const map = new Map<string, { row: TransacaoRow; fatura: Date; parcela: { atual: number; total: number } }>()
-
-  for (const t of transacoes) {
-    const parcela = extrairParcelamento(t)
-    if (!parcela) continue
-
-    const fatura = startOfMonth(new Date(t.projeto_fatura || t.data_compra || t.data || ''))
-    const origem = subMonths(fatura, parcela.atual - 1)
-    const descBase = String(t.descricao || '')
-      .replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '')
-      .replace(/\s+\d{1,2}\/\d{1,2}\s*$/i, '')
-      .trim()
-      .toLowerCase()
-    const cartao = t.cartao || 'nubank'
-    // Inclui o valor na chave: duas compras distintas podem ter descrição, total de
-    // parcelas, responsável e mês de origem idênticos, mas o valor cobrado as diferencia.
-    const key = `${cartao}|${format(origem, 'yyyy-MM')}|${descBase}|${parcela.total}|${t.responsavel}|${Number(t.valor ?? 0).toFixed(2)}`
-
-    const existing = map.get(key)
-    if (!existing || fatura > existing.fatura) {
-      map.set(key, { row: t, fatura, parcela })
-    }
-  }
-
-  return map
-}
-
-function buildContratosExtras(planejamentos: PlanejamentoRow[]) {
-  const map = new Map<string, { row: PlanejamentoRow; mesRef: Date; parcela: { atual: number; total: number } }>()
-
-  for (const e of planejamentos) {
-    const parcela = extrairParcelamento({ ...e, descricao: e.item })
-    if (!parcela) continue
-
-    const mesRef = startOfMonth(new Date(e.mes_referencia || ''))
-    const origem = subMonths(mesRef, parcela.atual - 1)
-    const descBase = String(e.item || '')
-      .replace(/\s*[-–]\s*parcela\s+\d+\/\d+.*/i, '')
-      .replace(/\s+\d{1,2}\/\d{1,2}\s*$/i, '')
-      .trim()
-      .toLowerCase()
-    const key = `${format(origem, 'yyyy-MM')}|${descBase}|${parcela.total}|${e.responsavel || ''}|${Number(e.valor_previsto ?? 0).toFixed(2)}`
-
-    const existing = map.get(key)
-    if (!existing || mesRef > existing.mesRef) {
-      map.set(key, { row: e, mesRef, parcela })
-    }
-  }
-
-  return map
-}
 
 function ajustarDescricaoParcelamento(descricao: string, parcelaNoMes: number, total: number): string {
   if (/parcela\s+\d+\/\d+/i.test(descricao)) {

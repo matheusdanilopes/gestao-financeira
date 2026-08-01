@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { FileBarChart } from 'lucide-react'
+import { FileBarChart, CreditCard } from 'lucide-react'
 
 export interface RelatorioDisponivel {
   href: string
@@ -21,5 +21,13 @@ export const RELATORIOS_DISPONIVEIS: RelatorioDisponivel[] = [
     Icon: FileBarChart,
     iconBg: 'bg-sky-100',
     iconColor: 'text-sky-600',
+  },
+  {
+    href: '/relatorios/cartoes',
+    titulo: 'Relatório de Gastos no Cartão',
+    descricao: 'Histórico de 12 meses e projeção de parcelamentos em PDF ou CSV',
+    Icon: CreditCard,
+    iconBg: 'bg-violet-100',
+    iconColor: 'text-violet-600',
   },
 ]
