@@ -512,12 +512,33 @@ function buildReceitasLayer(data: EnrichedData, hoje: Date): string {
 // (lib/parcelamentoProjecao.ts) em vez de duplicar a matemática — mesma
 // convenção de "fatura atual = addMonths(hoje, 1)" usada no resto deste arquivo.
 
+// buildContracts dedupes rows into "one contract per purchase" by a key that
+// includes the exact valor — safe when fed a single-bill snapshot (one row
+// per active installment, as /api/projection/route.ts does), but NOT when
+// fed multi-month history directly: if a card's monthly installment value
+// drifts by even a cent between months (interest/rounding, common on
+// imported statements), each historical occurrence gets its own key and
+// survives as a separate "contract", so the same real purchase gets counted
+// once per surviving variant for every future month — the exact cause of the
+// projection being inflated. Restricting to each card's most recent billing
+// period (mirroring the dashboard's /api/projection selection) guarantees
+// exactly one row per active installment again.
+function ultimaFaturaSnapshot(transacoes: Transacao[]): Transacao[] {
+  const maxPorCartao: Record<string, string> = {}
+  for (const t of transacoes) {
+    const cartaoId = t.cartao ?? 'nubank'
+    const mes = mesEfetivo(t)
+    if (!maxPorCartao[cartaoId] || mes > maxPorCartao[cartaoId]) maxPorCartao[cartaoId] = mes
+  }
+  return transacoes.filter(t => mesEfetivo(t) === maxPorCartao[t.cartao ?? 'nubank'])
+}
+
 function buildFuturoLayer(data: EnrichedData, m: FinancialInsightsContext, hoje: Date, mesesAFrente = 3): string {
   const planejamentoSemReceita = data.planejamento.filter(p => !(p.item ?? '').startsWith(RECEITA_PREFIXO))
   // Transacao/Planejamento are structurally compatible with the projection
   // engine's looser row types (same fields, plus extras) but TS requires an
   // explicit index signature match — cast rather than widen the shared types.
-  const contratos = buildContracts(data.transacoes as unknown as TransacaoRowParcelamento[])
+  const contratos = buildContracts(ultimaFaturaSnapshot(data.transacoes) as unknown as TransacaoRowParcelamento[])
   const contratosExtras = buildContratosExtras(planejamentoSemReceita as unknown as PlanejamentoRowParcelamento[])
 
   const linhas: string[] = []
