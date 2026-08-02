@@ -15,14 +15,14 @@
 import { format, subMonths, addMonths, startOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { fetchEnrichedData } from './contextBuilder'
-import { computeInsights, getMesEfetivo as mesEfetivo, nomeCartao, cartaoLabelsFromPlanejamento } from './insightsEngine'
+import { computeInsights, getMesEfetivo as mesEfetivo, nomeCartao, cartaoLabelsFromPlanejamento, isPlanejamentoDespesaReal } from './insightsEngine'
 import {
   validateFinancialData,
   formatCertificateForAI,
   buildAntiDistortionSection,
   buildExplainabilitySection,
 } from './financialValidationEngine'
-import { buildContracts, buildContratosExtras, type TransacaoRowParcelamento, type PlanejamentoRowParcelamento } from '../parcelamentoProjecao'
+import { buildContracts, buildContratosExtras, extrairParcelamento, type TransacaoRowParcelamento, type PlanejamentoRowParcelamento } from '../parcelamentoProjecao'
 import type { EnrichedData, FinancialInsightsContext, Transacao, Planejamento, TelaAtual } from './types'
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -540,17 +540,82 @@ function ultimaFaturaSnapshot(transacoes: Transacao[]): Transacao[] {
   return transacoes.filter(t => mesEfetivo(t) === maxPorCartao[t.cartao ?? 'nubank'])
 }
 
-function buildFuturoLayer(data: EnrichedData, m: FinancialInsightsContext, hoje: Date, mesesAFrente = 3): string {
+// buildContratosExtras only recognizes planejamento rows with explicit
+// installment metadata (parcela_atual/total_parcelas, or an "N/M" pattern in
+// the item text) — see extrairParcelamento. Ordinary recurring fixed bills
+// (aluguel, condomínio, internet) that get logged as a fresh single row each
+// month have neither, so they're invisible to the projection below, silently
+// understating real future commitments for exactly the "posso bancar X"
+// questions this layer exists to answer. Detected the same way
+// buildReceitasLayer detects recurring income: same item name appearing in
+// ≥2 of the last 3 months, using only rows extrairParcelamento couldn't
+// already attribute to an installment (avoids double-counting with
+// buildContratosExtras).
+function mediaFixosRecorrentesSemParcela(planejamento: Planejamento[], hoje: Date): number {
+  // isPlanejamentoDespesaReal excludes internal bookkeeping rows (NuBank bill
+  // settlements, [CARTAO1]/[CARTAO2] tracking labels) — without it, those
+  // rows (which naturally have no parcela metadata either) would get
+  // mistaken for a recurring monthly bill and inflate every future month.
+  const semParcela = planejamento.filter(p =>
+    isPlanejamentoDespesaReal(p.item ?? '') && !extrairParcelamento({ ...p, descricao: p.item })
+  )
+  const meses3 = Array.from({ length: 3 }, (_, i) => format(subMonths(hoje, i), 'yyyy-MM'))
+  const porNome: Record<string, number[]> = {}
+  for (const p of semParcela) {
+    if (!meses3.includes((p.mes_referencia ?? '').substring(0, 7))) continue
+    const nome = p.item ?? ''
+    if (!nome) continue
+    if (!porNome[nome]) porNome[nome] = []
+    porNome[nome].push(p.valor_previsto)
+  }
+  let total = 0
+  for (const valores of Object.values(porNome)) {
+    if (valores.length >= 2) total += valores.reduce((s, v) => s + v, 0) / valores.length
+  }
+  return total
+}
+
+function buildFuturoLayer(
+  data: EnrichedData,
+  m: FinancialInsightsContext,
+  hoje: Date,
+  mesesAFrente = 3,
+  // buildFullContext already renders buildReceitasLayer (which includes the
+  // same "Futuras já cadastradas" list) right above this layer — skip it
+  // there to avoid sending the identical block twice in the first message.
+  // The domain-triggered follow-up call (buildDomainExtra) keeps it, since
+  // buildReceitasLayer isn't necessarily included that turn.
+  incluirReceitasFuturas = true
+): string {
   const planejamentoSemReceita = data.planejamento.filter(p => !(p.item ?? '').startsWith(RECEITA_PREFIXO))
   // Transacao/Planejamento are structurally compatible with the projection
   // engine's looser row types (same fields, plus extras) but TS requires an
   // explicit index signature match — cast rather than widen the shared types.
   const contratos = buildContracts(ultimaFaturaSnapshot(data.transacoes) as unknown as TransacaoRowParcelamento[])
   const contratosExtras = buildContratosExtras(planejamentoSemReceita as unknown as PlanejamentoRowParcelamento[])
+  const fixosRecorrentes = mediaFixosRecorrentesSemParcela(planejamentoSemReceita, hoje)
 
   const linhas: string[] = []
   for (let i = 0; i < mesesAFrente; i++) {
     const mesRef = startOfMonth(addMonths(hoje, 1 + i))
+
+    // The immediately upcoming billing/planning period (mesFatura/mesCalendario)
+    // already has real, complete data — m.totalGastos (buildCardMotor) and
+    // m.totalOrcado (buildPlanejamentoLayer) — including one-off card
+    // purchases and non-installment fixed items already posted this cycle.
+    // Reconstructing it from buildContracts/buildContratosExtras instead
+    // would silently show a LOWER, contradictory number for the same month
+    // right next to the real one elsewhere in the same context.
+    if (i === 0) {
+      const totalMes = m.totalGastos + m.totalOrcado + m.totalAssinaturas
+      // "SNAPSHOT" is the one section guaranteed present alongside this layer
+      // in every context (first message AND every follow-up, via the core
+      // bundle) — CARTÃO/PLANEJAMENTO are only present on some turns, so
+      // naming them here would sometimes point at a section that isn't there.
+      linhas.push(`${fmtMes(format(mesRef, 'yyyy-MM'))}: ${R(totalMes)} (mesmo total já mostrado em SNAPSHOT — dado real, não é uma projeção)`)
+      continue
+    }
+
     let totalParcelas = 0
     let totalFixos = 0
 
@@ -569,15 +634,18 @@ function buildFuturoLayer(data: EnrichedData, m: FinancialInsightsContext, hoje:
     // Assinaturas ativas não entram em buildContracts/buildContratosExtras
     // (não são parceladas nem têm mes_referencia) — somadas à parte como
     // recorrência fixa em todo mês projetado.
-    const totalMes = totalParcelas + totalFixos + m.totalAssinaturas
-    linhas.push(`${fmtMes(format(mesRef, 'yyyy-MM'))}: ${R(totalMes)} (parcelas ${R(totalParcelas)} + fixos ${R(totalFixos)} + assinaturas ${R(m.totalAssinaturas)})`)
+    const totalFixosCompleto = totalFixos + fixosRecorrentes
+    const totalMes = totalParcelas + totalFixosCompleto + m.totalAssinaturas
+    linhas.push(`${fmtMes(format(mesRef, 'yyyy-MM'))}: ${R(totalMes)} (parcelas ${R(totalParcelas)} + fixos ${R(totalFixosCompleto)} + assinaturas ${R(m.totalAssinaturas)})`)
   }
 
   const sections = [`PROJEÇÃO (próximos ${mesesAFrente} meses):`, linhas.join(' · ')]
 
-  const futurasReceitas = buildFuturasReceitasList(data, hoje, 5)
-  if (futurasReceitas.length > 0) {
-    sections.push(`Receitas futuras já cadastradas: ${futurasReceitas.map(r => `${r.nome} ${R(r.valor)} (${fmtMes(r.mes)})`).join(' · ')}`)
+  if (incluirReceitasFuturas) {
+    const futurasReceitas = buildFuturasReceitasList(data, hoje, 5)
+    if (futurasReceitas.length > 0) {
+      sections.push(`Receitas futuras já cadastradas: ${futurasReceitas.map(r => `${r.nome} ${R(r.valor)} (${fmtMes(r.mes)})`).join(' · ')}`)
+    }
   }
 
   sections.push('Projeção baseada apenas em compromissos já assumidos (parcelas abertas, fixos planejados, assinaturas ativas) — não inclui gastos discricionários futuros.')
@@ -699,7 +767,7 @@ function buildFullContext(
     buildInvestimentosLayer(data, m),
     buildInsightsLayer(m),
     buildHistoricoCompactoLayer(data, hoje),
-    buildFuturoLayer(data, m, hoje, 3),
+    buildFuturoLayer(data, m, hoje, 3, /* incluirReceitasFuturas */ false),
   ].filter(s => s.length > 0)
 
   return sections.join('\n\n')
@@ -801,11 +869,20 @@ function capDomains(domains: ContextDomain[]): ContextDomain[] {
     .slice(0, MAX_DOMAINS_RENDERED)
 }
 
-// Domains left out this turn because of the cap above — surfaced to the LLM
-// (Fase C) so it can explicitly request one instead of assuming it's absent.
+// Domains the LLM may still want but didn't get this turn — surfaced via
+// Fase C's tool hint. Kept proportional to what's actually missing instead
+// of a constant full menu on every follow-up (that would add fixed token
+// overhead to every turn, defeating the "on demand" point of Fase C):
+//  - router matched nothing (['geral']): offer the full domain space, since
+//    this is exactly the "unanticipated phrasing" case the tool exists for.
+//  - router matched something: only the domains the render cap cut, if any
+//    — usually empty, so the hint costs nothing on the common path.
 export function domainsNotRendered(domains: ContextDomain[]): ContextDomain[] {
   const rendered = new Set(capDomains(domains))
-  return KNOWN_DOMAINS.filter(d => !rendered.has(d))
+  if (domains.includes('geral')) {
+    return KNOWN_DOMAINS.filter(d => !rendered.has(d))
+  }
+  return [...new Set(domains)].filter(d => d !== 'geral' && !rendered.has(d))
 }
 
 function buildFocusedContext(

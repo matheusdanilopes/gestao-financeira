@@ -10,6 +10,24 @@ import type {
   Planejamento,
 } from './types'
 
+// Planning rows that are internal bookkeeping, not real (future) expenses —
+// mirrors the exclusion list used by the financas page (calcularSaldo) and
+// ChecklistMensal:
+//   - [RECEITA]* / "Receita Total" → income entries, not expenses
+//   - NuBank items                 → credit-card bill settlements
+//   - [CARTAO1]* / [CARTAO2]*      → per-card instalment tracking rows
+// Exported so other consumers of `planejamento` (e.g. the chat context's
+// recurring-fixed-expense detection) don't have to re-derive this list and
+// risk treating a settlement/tracking row as a real recurring bill.
+const PLAN_EXCLUDE_ITEMS = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto', 'Receita Total'])
+
+export function isPlanejamentoDespesaReal(item: string): boolean {
+  return !PLAN_EXCLUDE_ITEMS.has(item)
+    && !item.startsWith('[RECEITA]')
+    && !item.startsWith('[CARTAO1]')
+    && !item.startsWith('[CARTAO2]')
+}
+
 const fmtMes = (yyyyMM: string) => {
   try {
     return format(new Date(yyyyMM + '-02'), 'MMM/yyyy', { locale: ptBR }).toUpperCase()
@@ -171,14 +189,9 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
   //   - [RECEITA]* / "Receita Total" → income entries, not expenses
   //   - NuBank items               → credit-card bill settlements
   //   - [CARTAO1]* / [CARTAO2]*   → per-card instalment tracking rows
-  const PLAN_EXCLUDE = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto', 'Receita Total'])
   const planAtual = data.planejamento.filter(p => {
     if ((p.mes_referencia ?? '').substring(0, 7) !== mesCalendario) return false
-    const item = typeof p.item === 'string' ? p.item : ''
-    return !PLAN_EXCLUDE.has(item)
-      && !item.startsWith('[RECEITA]')
-      && !item.startsWith('[CARTAO1]')
-      && !item.startsWith('[CARTAO2]')
+    return isPlanejamentoDespesaReal(typeof p.item === 'string' ? p.item : '')
   })
   const totalOrcado = planAtual.reduce((s, p) => s + p.valor_previsto, 0)
   const totalPago = planAtual
@@ -195,8 +208,7 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
   for (const p of data.planejamento) {
     const calMes = (p.mes_referencia ?? '').substring(0, 7)
     if (!/^\d{4}-\d{2}$/.test(calMes)) continue   // skip rows with invalid/missing mes_referencia
-    const item = typeof p.item === 'string' ? p.item : ''
-    if (PLAN_EXCLUDE.has(item) || item.startsWith('[RECEITA]') || item.startsWith('[CARTAO1]') || item.startsWith('[CARTAO2]')) continue
+    if (!isPlanejamentoDespesaReal(typeof p.item === 'string' ? p.item : '')) continue
     planTotalByCalMes[calMes] = (planTotalByCalMes[calMes] ?? 0) + (p.valor_previsto ?? 0)
   }
   // Use explicit year/month constructor to avoid timezone-related date shifts;
