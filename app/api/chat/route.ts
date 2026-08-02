@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
-import { buildChatContext } from '@/lib/ai/financialContextEngine'
+import { buildChatContext, buildDomainExtra, KNOWN_DOMAINS, type ContextDomain } from '@/lib/ai/financialContextEngine'
 import { buildSystemPrompt } from '@/lib/ai/prompts'
 import type { TelaAtual } from '@/lib/ai/types'
 
@@ -17,14 +17,50 @@ const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GE
 const WINDOW_SIZE = 15
 const SUMMARY_TRIGGER = 20
 
+// ─── Fase C: busca sob demanda via function-calling nativo do Gemini ─────────
+// Só habilitada em follow-ups com dataset validado (ver toolsEnabled no POST
+// handler). O menu de domínios é o mesmo enum fechado usado pelo roteador
+// estático (Fase B) — a IA nunca pode pedir algo fora desse conjunto.
+const FINANCIAL_TOOL = {
+  functionDeclarations: [{
+    name: 'buscar_dados_financeiros',
+    description:
+      'Busca dados financeiros adicionais compactos para um ou mais domínios quando o contexto já fornecido não é suficiente para responder com precisão.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        dominios: {
+          type: 'ARRAY',
+          items: { type: 'STRING', enum: KNOWN_DOMAINS },
+        },
+      },
+      required: ['dominios'],
+    },
+  }],
+}
+
 // ─── Gemini ───────────────────────────────────────────────────────────────────
 
-async function geminiChat(
-  apiKey: string,
+interface GeminiPart {
+  text?: string
+  functionCall?: { name: string; args: Record<string, unknown> }
+  functionResponse?: { name: string; response: { name: string; content: unknown } }
+}
+
+interface GeminiContent {
+  role: string
+  parts: GeminiPart[]
+}
+
+type GeminiResult =
+  | { type: 'text'; text: string }
+  | { type: 'functionCall'; name: string; args: Record<string, unknown> }
+
+function buildContents(
   systemPrompt: string,
   mensagens: Array<{ role: string; content: string }>
-) {
-  const contents = [
+): GeminiContent[] {
+  return [
     { role: 'user', parts: [{ text: systemPrompt }] },
     {
       role: 'model',
@@ -35,9 +71,16 @@ async function geminiChat(
       parts: [{ text: m.content }],
     })),
   ]
+}
 
+async function geminiChat(
+  apiKey: string,
+  contents: GeminiContent[],
+  opts: { tools?: Array<typeof FINANCIAL_TOOL>; deadlineMs: number }
+): Promise<GeminiResult> {
   const body = JSON.stringify({
     contents,
+    ...(opts.tools ? { tools: opts.tools } : {}),
     generationConfig: { maxOutputTokens: 8192, temperature: 0.6 },
   })
 
@@ -47,19 +90,29 @@ async function geminiChat(
   // agora" even though the very next attempt would have worked. Google's own
   // guidance for UNAVAILABLE/503 is exponential backoff, so retries grow
   // 1.5s → 3s → 6s instead of the flat delay used for other transient errors.
+  //
+  // deadlineMs is a wall-clock budget shared across BOTH calls of a possible
+  // function-calling round trip (Fase C) — without it, two independent
+  // per-call retry budgets could together exceed the platform's maxDuration
+  // and get killed mid-flight instead of degrading gracefully.
   const MAX_RETRIES = 3
   const ATTEMPT_TIMEOUT_MS = 12_000
   let lastError: Error | null = null
   let lastStatusOverloaded = false
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (Date.now() >= opts.deadlineMs) break
+
     if (attempt > 0) {
       const delay = lastStatusOverloaded ? 1500 * 2 ** (attempt - 1) : attempt * 800
-      await new Promise(r => setTimeout(r, delay))
+      const remaining = opts.deadlineMs - Date.now()
+      if (remaining <= 0) break
+      await new Promise(r => setTimeout(r, Math.min(delay, remaining)))
     }
 
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), ATTEMPT_TIMEOUT_MS)
+    const timeoutMs = Math.max(1000, Math.min(ATTEMPT_TIMEOUT_MS, opts.deadlineMs - Date.now()))
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
     let res: Response
     try {
@@ -82,8 +135,13 @@ async function geminiChat(
 
     if (res.ok) {
       const data = await res.json()
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-      if (text) return text
+      const parts = data.candidates?.[0]?.content?.parts ?? []
+      const fnPart = parts.find((p: GeminiPart) => p.functionCall)
+      if (fnPart?.functionCall) {
+        return { type: 'functionCall', name: fnPart.functionCall.name, args: fnPart.functionCall.args ?? {} }
+      }
+      const text = parts.find((p: GeminiPart) => typeof p.text === 'string')?.text ?? ''
+      if (text) return { type: 'text', text }
       // Empty text with no thrown error (e.g. safety block, MAX_TOKENS with no
       // content yet) — treat as a failure worth retrying instead of silently
       // returning a blank assistant bubble.
@@ -292,10 +350,65 @@ export async function POST(req: NextRequest) {
     const summaryPreamble = contextoConversa.find(m => m.role === 'system')
 
     const isFirstMessage = contextoConversa.filter(m => m.role !== 'system').length === 0
-    const contextoFinanceiro = await buildChatContext({ userId, pergunta: perguntaSafe, isFirstMessage, tela })
-    const systemPrompt = buildSystemPrompt(contextoFinanceiro, summaryPreamble?.content)
+    // Fase B: 1-message lookback for short-range topic continuity (e.g. "e por
+    // categoria?" right after a cartão question) — bounded to the immediately
+    // preceding user turn, not the whole history.
+    const perguntaAnterior = contextoConversa.filter(m => m.role === 'user').at(-1)?.content
 
-    const resposta = await geminiChat(apiKey, systemPrompt, mensagensParaIA)
+    const ctxResult = await buildChatContext({ userId, pergunta: perguntaSafe, isFirstMessage, tela, perguntaAnterior })
+    const systemPrompt = buildSystemPrompt(ctxResult.context, summaryPreamble?.content)
+
+    // Fase C: only offer the on-demand data tool on follow-ups with a
+    // validated dataset — on the first message the full context already
+    // covers most cases, and a blocked/compromised dataset must never be
+    // "topped up" via a tool call.
+    const toolsEnabled = !isFirstMessage && !ctxResult.blocked
+    const deadlineMs = Date.now() + 50_000
+    const contents = buildContents(systemPrompt, mensagensParaIA)
+
+    const first = await geminiChat(apiKey, contents, {
+      tools: toolsEnabled ? [FINANCIAL_TOOL] : undefined,
+      deadlineMs,
+    })
+
+    let resposta: string
+    if (first.type === 'text') {
+      resposta = first.text
+    } else if (
+      first.type === 'functionCall' &&
+      first.name === 'buscar_dados_financeiros' &&
+      ctxResult.data && ctxResult.metrics && ctxResult.hoje
+    ) {
+      const data = ctxResult.data
+      const metrics = ctxResult.metrics
+      const hoje = ctxResult.hoje
+      const requested = Array.isArray(first.args?.dominios)
+        ? (first.args.dominios as unknown[]).filter((d): d is string => typeof d === 'string')
+        : []
+      const valid = requested.filter((d): d is ContextDomain => (KNOWN_DOMAINS as string[]).includes(d))
+      const extra = valid
+        .map(d => buildDomainExtra(d, data, metrics, perguntaSafe, hoje))
+        .filter(Boolean)
+        .join('\n\n')
+      const functionResponseContent = extra || 'Nenhum dado adicional disponível para os domínios solicitados.'
+
+      const followupContents: GeminiContent[] = [
+        ...contents,
+        { role: 'model', parts: [{ functionCall: { name: first.name, args: first.args } }] },
+        {
+          role: 'function',
+          parts: [{ functionResponse: { name: first.name, response: { name: first.name, content: functionResponseContent } } }],
+        },
+      ]
+      // No `tools` on the follow-up call: structurally prevents a second
+      // function call, bounding this to at most two Gemini calls per turn.
+      const second = await geminiChat(apiKey, followupContents, { deadlineMs })
+      resposta = second.type === 'text'
+        ? second.text
+        : 'Não consegui montar uma resposta completa agora — pode reformular a pergunta?'
+    } else {
+      resposta = 'Não consegui montar uma resposta completa agora — pode reformular a pergunta?'
+    }
 
     await supabase.from('messages').insert({
       conversation_id,
