@@ -12,16 +12,17 @@
  *  - Dados detalhados apenas sob demanda (RAG financeiro)
  */
 
-import { format, subMonths, addMonths } from 'date-fns'
+import { format, subMonths, addMonths, startOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { fetchEnrichedData } from './contextBuilder'
-import { computeInsights, getMesEfetivo as mesEfetivo, nomeCartao, cartaoLabelsFromPlanejamento } from './insightsEngine'
+import { computeInsights, getMesEfetivo as mesEfetivo, nomeCartao, cartaoLabelsFromPlanejamento, isPlanejamentoDespesaReal } from './insightsEngine'
 import {
   validateFinancialData,
   formatCertificateForAI,
   buildAntiDistortionSection,
   buildExplainabilitySection,
 } from './financialValidationEngine'
+import { buildContracts, buildContratosExtras, extrairParcelamento, type TransacaoRowParcelamento, type PlanejamentoRowParcelamento } from '../parcelamentoProjecao'
 import type { EnrichedData, FinancialInsightsContext, Transacao, Planejamento, TelaAtual } from './types'
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -52,20 +53,34 @@ export type ContextDomain =
   | 'porPessoa'     // quem gastou mais, Matheus vs Jeniffer, top categorias de cada um
   | 'historico'     // comparar, histórico, mês passado, tendência
   | 'insights'      // problema, análise, principal, alerta
+  | 'futuro'        // simulação, projeção, próximos meses, "consigo bancar X em dezembro"
   | 'geral'         // fallback
 
-export function detectContextDomain(pergunta: string): ContextDomain {
+// All the domain names a caller (router or the Gemini function-calling tool)
+// may legally request — used to validate LLM-supplied domain lists in route.ts.
+export const KNOWN_DOMAINS: ContextDomain[] = [
+  'cartao', 'investimentos', 'orcamento', 'planejamento', 'categoria',
+  'receitas', 'porPessoa', 'historico', 'insights', 'futuro',
+]
+
+// Returns every domain the question plausibly touches (not just the first
+// match) — a single message can legitimately span two domains ("cartão ou
+// investimentos, o que pesa mais?"), and an if/return chain used to silently
+// drop everything but the first hit.
+export function detectContextDomains(pergunta: string): ContextDomain[] {
   const p = pergunta.toLowerCase()
-  if (/fatura|parcel|cartão|cartao|compra cara|gastei demais/.test(p)) return 'cartao'
-  if (/invest|aporte|carteira|patrimôni|patrimoni|rendimento/.test(p)) return 'investimentos'
-  if (/receita|renda|salário|salario|recebimento|entrou\s*dinheiro/.test(p)) return 'receitas'
-  if (/quem gast|matheus.*jeniffer|jeniffer.*matheus|cada um (dos dois)?|por responsáv|por responsav/.test(p)) return 'porPessoa'
-  if (/orçamento|orcamento|previsto|budget|está pago|foi pago|paguei/.test(p)) return 'orcamento'
-  if (/consigo|posso|viajar|economizar|reserva|emergência|emergencia|sobra|meta financ/.test(p)) return 'planejamento'
-  if (/quanto gastei|gast.*com|quanto.*ifood|quanto.*uber|quanto.*netflix|quanto.*spotify|quanto.*mercado|quanto.*alimenta|quanto.*lazer/.test(p)) return 'categoria'
-  if (/compar|histórico|historico|mês passado|mes passado|evolu|tendência|tendencia|antes/.test(p)) return 'historico'
-  if (/problema|pior|análise|analise|principal|insight|piora|alerta|acima do normal|puxando|impulsionando|o que (está|esta) causando|por que.*(subiu|aumentou|cresceu|disparou|caiu)/.test(p)) return 'insights'
-  return 'geral'
+  const domains: ContextDomain[] = []
+  if (/fatura|parcel|cartão|cartao|compra cara|gastei demais/.test(p)) domains.push('cartao')
+  if (/invest|aporte|carteira|patrimôni|patrimoni|rendimento/.test(p)) domains.push('investimentos')
+  if (/receita|renda|salário|salario|recebimento|entrou\s*dinheiro/.test(p)) domains.push('receitas')
+  if (/quem gast|matheus.*jeniffer|jeniffer.*matheus|cada um (dos dois)?|por responsáv|por responsav/.test(p)) domains.push('porPessoa')
+  if (/orçamento|orcamento|previsto|budget|está pago|foi pago|paguei/.test(p)) domains.push('orcamento')
+  if (/consigo|posso|viajar|economizar|reserva|emergência|emergencia|sobra|meta financ/.test(p)) domains.push('planejamento')
+  if (/quanto gastei|gast.*com|quanto.*ifood|quanto.*uber|quanto.*netflix|quanto.*spotify|quanto.*mercado|quanto.*alimenta|quanto.*lazer/.test(p)) domains.push('categoria')
+  if (/compar|histórico|historico|mês passado|mes passado|evolu|tendência|tendencia|antes/.test(p)) domains.push('historico')
+  if (/problema|pior|análise|analise|principal|insight|piora|alerta|acima do normal|puxando|impulsionando|o que (está|esta) causando|por que.*(subiu|aumentou|cresceu|disparou|caiu)/.test(p)) domains.push('insights')
+  if (/simul|projeç|projec|próximo mês|proximo mes|mês que vem|mes que vem|daqui a \d|ano que vem|quanto vou ter|quanto (vai |vou )?sobrar|consigo (bancar|pagar|viajar) em|em (janeiro|fevereiro|março|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)/.test(p)) domains.push('futuro')
+  return domains.length > 0 ? domains : ['geral']
 }
 
 // Keys must match the real category names in CATEGORIAS_PADRAO (lib/categorias.ts)
@@ -429,6 +444,23 @@ function buildAssinaturasLayer(data: EnrichedData, m: FinancialInsightsContext):
 
 const RECEITA_PREFIXO = '[RECEITA] '
 
+// Shared by buildReceitasLayer (follow-up on the receitas domain) and
+// buildFuturoLayer (projection needs future income, not just future expenses,
+// to answer "will I have enough?").
+function buildFuturasReceitasList(data: EnrichedData, hoje: Date, limit = 5): Array<{ nome: string; valor: number; mes: string }> {
+  const mesCalendario = format(hoje, 'yyyy-MM')
+  const receitas = data.planejamento.filter(p => (p.item ?? '').startsWith(RECEITA_PREFIXO))
+  return receitas
+    .filter(r => (r.mes_referencia ?? '').substring(0, 7) > mesCalendario)
+    .sort((a, b) => (a.mes_referencia ?? '').localeCompare(b.mes_referencia ?? ''))
+    .slice(0, limit)
+    .map(r => ({
+      nome: r.item.replace(RECEITA_PREFIXO, ''),
+      valor: r.valor_previsto,
+      mes: (r.mes_referencia ?? '').substring(0, 7),
+    }))
+}
+
 function buildReceitasLayer(data: EnrichedData, hoje: Date): string {
   const receitas = data.planejamento.filter(p => (p.item ?? '').startsWith(RECEITA_PREFIXO))
   if (receitas.length === 0) return ''
@@ -437,45 +469,188 @@ function buildReceitasLayer(data: EnrichedData, hoje: Date): string {
   const nomeReceita = (p: Planejamento) => p.item.replace(RECEITA_PREFIXO, '')
 
   const doMes = receitas.filter(r => (r.mes_referencia ?? '').substring(0, 7) === mesCalendario)
-  if (doMes.length === 0) return ''
 
-  const totalPrevisto = doMes.reduce((s, r) => s + r.valor_previsto, 0)
-  const recebidas = doMes.filter(r => r.pago)
-  const totalRecebido = recebidas.reduce((s, r) => s + (r.valor_real ?? r.valor_previsto), 0)
-  const emAberto = doMes.filter(r => !r.pago)
-  const totalEmAberto = emAberto.reduce((s, r) => s + r.valor_previsto, 0)
+  const lines: string[] = []
 
-  // Recorrente: mesmo nome aparece em ≥2 dos últimos 3 meses (incluindo o atual)
-  const meses3 = Array.from({ length: 3 }, (_, i) => format(subMonths(hoje, i), 'yyyy-MM'))
-  const contagemPorNome: Record<string, number> = {}
-  for (const r of receitas) {
-    if (!meses3.includes((r.mes_referencia ?? '').substring(0, 7))) continue
-    const n = nomeReceita(r)
-    contagemPorNome[n] = (contagemPorNome[n] ?? 0) + 1
+  // Note: this used to `return ''` here when the current month had no
+  // receita rows — which silently dropped the "futuras" block below too,
+  // hiding already-registered future income (e.g. December) whenever the
+  // current month simply hadn't been logged yet.
+  if (doMes.length > 0) {
+    const totalPrevisto = doMes.reduce((s, r) => s + r.valor_previsto, 0)
+    const recebidas = doMes.filter(r => r.pago)
+    const totalRecebido = recebidas.reduce((s, r) => s + (r.valor_real ?? r.valor_previsto), 0)
+    const emAberto = doMes.filter(r => !r.pago)
+    const totalEmAberto = emAberto.reduce((s, r) => s + r.valor_previsto, 0)
+
+    // Recorrente: mesmo nome aparece em ≥2 dos últimos 3 meses (incluindo o atual)
+    const meses3 = Array.from({ length: 3 }, (_, i) => format(subMonths(hoje, i), 'yyyy-MM'))
+    const contagemPorNome: Record<string, number> = {}
+    for (const r of receitas) {
+      if (!meses3.includes((r.mes_referencia ?? '').substring(0, 7))) continue
+      const n = nomeReceita(r)
+      contagemPorNome[n] = (contagemPorNome[n] ?? 0) + 1
+    }
+    const recorrentes = doMes.filter(r => (contagemPorNome[nomeReceita(r)] ?? 0) >= 2)
+    const extraordinarias = doMes.filter(r => (contagemPorNome[nomeReceita(r)] ?? 0) < 2)
+
+    lines.push(`RECEITAS ${fmtMes(mesCalendario)}:`)
+    lines.push(`Previsto: ${R(totalPrevisto)} | Recebido: ${R(totalRecebido)} | Em aberto: ${R(totalEmAberto)}`)
+    if (recorrentes.length > 0) {
+      lines.push(`Recorrentes: ${recorrentes.map(r => `${nomeReceita(r)} ${R(r.valor_previsto)} (${r.responsavel ?? 'compartilhado'})`).join(' · ')}`)
+    }
+    if (extraordinarias.length > 0) {
+      lines.push(`Extraordinárias/pontuais: ${extraordinarias.map(r => `${nomeReceita(r)} ${R(r.valor_previsto)}`).join(' · ')}`)
+    }
+  } else {
+    lines.push(`RECEITAS ${fmtMes(mesCalendario)}: nenhuma receita cadastrada este mês.`)
   }
-  const recorrentes = doMes.filter(r => (contagemPorNome[nomeReceita(r)] ?? 0) >= 2)
-  const extraordinarias = doMes.filter(r => (contagemPorNome[nomeReceita(r)] ?? 0) < 2)
 
-  const lines = [
-    `RECEITAS ${fmtMes(mesCalendario)}:`,
-    `Previsto: ${R(totalPrevisto)} | Recebido: ${R(totalRecebido)} | Em aberto: ${R(totalEmAberto)}`,
-  ]
-  if (recorrentes.length > 0) {
-    lines.push(`Recorrentes: ${recorrentes.map(r => `${nomeReceita(r)} ${R(r.valor_previsto)} (${r.responsavel ?? 'compartilhado'})`).join(' · ')}`)
-  }
-  if (extraordinarias.length > 0) {
-    lines.push(`Extraordinárias/pontuais: ${extraordinarias.map(r => `${nomeReceita(r)} ${R(r.valor_previsto)}`).join(' · ')}`)
-  }
-
-  const futuras = receitas
-    .filter(r => (r.mes_referencia ?? '').substring(0, 7) > mesCalendario)
-    .sort((a, b) => (a.mes_referencia ?? '').localeCompare(b.mes_referencia ?? ''))
-    .slice(0, 5)
+  const futuras = buildFuturasReceitasList(data, hoje)
   if (futuras.length > 0) {
-    lines.push(`Futuras já cadastradas: ${futuras.map(r => `${nomeReceita(r)} ${R(r.valor_previsto)} (${fmtMes((r.mes_referencia ?? '').substring(0, 7))})`).join(' · ')}`)
+    lines.push(`Futuras já cadastradas: ${futuras.map(r => `${r.nome} ${R(r.valor)} (${fmtMes(r.mes)})`).join(' · ')}`)
   }
 
   return lines.join('\n')
+}
+
+// ─── Projeção / Futuro (compromissos já assumidos, projetados N meses) ──────
+// Reaproveita o motor de reconstrução de parcelas/fixos usado por /api/projection
+// (lib/parcelamentoProjecao.ts) em vez de duplicar a matemática — mesma
+// convenção de "fatura atual = addMonths(hoje, 1)" usada no resto deste arquivo.
+
+// buildContracts dedupes rows into "one contract per purchase" by a key that
+// includes the exact valor — safe when fed a single-bill snapshot (one row
+// per active installment, as /api/projection/route.ts does), but NOT when
+// fed multi-month history directly: if a card's monthly installment value
+// drifts by even a cent between months (interest/rounding, common on
+// imported statements), each historical occurrence gets its own key and
+// survives as a separate "contract", so the same real purchase gets counted
+// once per surviving variant for every future month — the exact cause of the
+// projection being inflated. Restricting to each card's most recent billing
+// period (mirroring the dashboard's /api/projection selection) guarantees
+// exactly one row per active installment again.
+function ultimaFaturaSnapshot(transacoes: Transacao[]): Transacao[] {
+  const maxPorCartao: Record<string, string> = {}
+  for (const t of transacoes) {
+    const cartaoId = t.cartao ?? 'nubank'
+    const mes = mesEfetivo(t)
+    if (!maxPorCartao[cartaoId] || mes > maxPorCartao[cartaoId]) maxPorCartao[cartaoId] = mes
+  }
+  return transacoes.filter(t => mesEfetivo(t) === maxPorCartao[t.cartao ?? 'nubank'])
+}
+
+// buildContratosExtras only recognizes planejamento rows with explicit
+// installment metadata (parcela_atual/total_parcelas, or an "N/M" pattern in
+// the item text) — see extrairParcelamento. Ordinary recurring fixed bills
+// (aluguel, condomínio, internet) that get logged as a fresh single row each
+// month have neither, so they're invisible to the projection below, silently
+// understating real future commitments for exactly the "posso bancar X"
+// questions this layer exists to answer. Detected the same way
+// buildReceitasLayer detects recurring income: same item name appearing in
+// ≥2 of the last 3 months, using only rows extrairParcelamento couldn't
+// already attribute to an installment (avoids double-counting with
+// buildContratosExtras).
+function mediaFixosRecorrentesSemParcela(planejamento: Planejamento[], hoje: Date): number {
+  // isPlanejamentoDespesaReal excludes internal bookkeeping rows (NuBank bill
+  // settlements, [CARTAO1]/[CARTAO2] tracking labels) — without it, those
+  // rows (which naturally have no parcela metadata either) would get
+  // mistaken for a recurring monthly bill and inflate every future month.
+  const semParcela = planejamento.filter(p =>
+    isPlanejamentoDespesaReal(p.item ?? '') && !extrairParcelamento({ ...p, descricao: p.item })
+  )
+  const meses3 = Array.from({ length: 3 }, (_, i) => format(subMonths(hoje, i), 'yyyy-MM'))
+  const porNome: Record<string, number[]> = {}
+  for (const p of semParcela) {
+    if (!meses3.includes((p.mes_referencia ?? '').substring(0, 7))) continue
+    const nome = p.item ?? ''
+    if (!nome) continue
+    if (!porNome[nome]) porNome[nome] = []
+    porNome[nome].push(p.valor_previsto)
+  }
+  let total = 0
+  for (const valores of Object.values(porNome)) {
+    if (valores.length >= 2) total += valores.reduce((s, v) => s + v, 0) / valores.length
+  }
+  return total
+}
+
+function buildFuturoLayer(
+  data: EnrichedData,
+  m: FinancialInsightsContext,
+  hoje: Date,
+  mesesAFrente = 3,
+  // buildFullContext already renders buildReceitasLayer (which includes the
+  // same "Futuras já cadastradas" list) right above this layer — skip it
+  // there to avoid sending the identical block twice in the first message.
+  // The domain-triggered follow-up call (buildDomainExtra) keeps it, since
+  // buildReceitasLayer isn't necessarily included that turn.
+  incluirReceitasFuturas = true
+): string {
+  const planejamentoSemReceita = data.planejamento.filter(p => !(p.item ?? '').startsWith(RECEITA_PREFIXO))
+  // Transacao/Planejamento are structurally compatible with the projection
+  // engine's looser row types (same fields, plus extras) but TS requires an
+  // explicit index signature match — cast rather than widen the shared types.
+  const contratos = buildContracts(ultimaFaturaSnapshot(data.transacoes) as unknown as TransacaoRowParcelamento[])
+  const contratosExtras = buildContratosExtras(planejamentoSemReceita as unknown as PlanejamentoRowParcelamento[])
+  const fixosRecorrentes = mediaFixosRecorrentesSemParcela(planejamentoSemReceita, hoje)
+
+  const linhas: string[] = []
+  for (let i = 0; i < mesesAFrente; i++) {
+    const mesRef = startOfMonth(addMonths(hoje, 1 + i))
+
+    // The immediately upcoming billing/planning period (mesFatura/mesCalendario)
+    // already has real, complete data — m.totalGastos (buildCardMotor) and
+    // m.totalOrcado (buildPlanejamentoLayer) — including one-off card
+    // purchases and non-installment fixed items already posted this cycle.
+    // Reconstructing it from buildContracts/buildContratosExtras instead
+    // would silently show a LOWER, contradictory number for the same month
+    // right next to the real one elsewhere in the same context.
+    if (i === 0) {
+      const totalMes = m.totalGastos + m.totalOrcado + m.totalAssinaturas
+      // "SNAPSHOT" is the one section guaranteed present alongside this layer
+      // in every context (first message AND every follow-up, via the core
+      // bundle) — CARTÃO/PLANEJAMENTO are only present on some turns, so
+      // naming them here would sometimes point at a section that isn't there.
+      linhas.push(`${fmtMes(format(mesRef, 'yyyy-MM'))}: ${R(totalMes)} (mesmo total já mostrado em SNAPSHOT — dado real, não é uma projeção)`)
+      continue
+    }
+
+    let totalParcelas = 0
+    let totalFixos = 0
+
+    for (const { row, fatura, parcela } of contratos.values()) {
+      const deltaM = (mesRef.getFullYear() - fatura.getFullYear()) * 12 + (mesRef.getMonth() - fatura.getMonth())
+      const parcelaNoMes = parcela.atual + deltaM
+      if (parcelaNoMes >= 1 && parcelaNoMes <= parcela.total) totalParcelas += row.valor ?? 0
+    }
+
+    for (const { row: e, mesRef: mesExtra, parcela } of contratosExtras.values()) {
+      const mesesDiff = (mesRef.getFullYear() - mesExtra.getFullYear()) * 12 + (mesRef.getMonth() - mesExtra.getMonth())
+      const restantes = parcela.total - parcela.atual + 1
+      if (mesesDiff >= 0 && mesesDiff < restantes) totalFixos += e.valor_previsto ?? 0
+    }
+
+    // Assinaturas ativas não entram em buildContracts/buildContratosExtras
+    // (não são parceladas nem têm mes_referencia) — somadas à parte como
+    // recorrência fixa em todo mês projetado.
+    const totalFixosCompleto = totalFixos + fixosRecorrentes
+    const totalMes = totalParcelas + totalFixosCompleto + m.totalAssinaturas
+    linhas.push(`${fmtMes(format(mesRef, 'yyyy-MM'))}: ${R(totalMes)} (parcelas ${R(totalParcelas)} + fixos ${R(totalFixosCompleto)} + assinaturas ${R(m.totalAssinaturas)})`)
+  }
+
+  const sections = [`PROJEÇÃO (próximos ${mesesAFrente} meses):`, linhas.join(' · ')]
+
+  if (incluirReceitasFuturas) {
+    const futurasReceitas = buildFuturasReceitasList(data, hoje, 5)
+    if (futurasReceitas.length > 0) {
+      sections.push(`Receitas futuras já cadastradas: ${futurasReceitas.map(r => `${r.nome} ${R(r.valor)} (${fmtMes(r.mes)})`).join(' · ')}`)
+    }
+  }
+
+  sections.push('Projeção baseada apenas em compromissos já assumidos (parcelas abertas, fixos planejados, assinaturas ativas) — não inclui gastos discricionários futuros.')
+
+  return sections.join('\n')
 }
 
 // ─── Insights Ativos (regras, sem IA) ────────────────────────────────────────
@@ -592,6 +767,7 @@ function buildFullContext(
     buildInvestimentosLayer(data, m),
     buildInsightsLayer(m),
     buildHistoricoCompactoLayer(data, hoje),
+    buildFuturoLayer(data, m, hoje, 3, /* incluirReceitasFuturas */ false),
   ].filter(s => s.length > 0)
 
   return sections.join('\n\n')
@@ -620,10 +796,99 @@ function buildCoreBundle(data: EnrichedData, m: FinancialInsightsContext, hoje: 
 
 // ─── Focused Context (Mensagens Subsequentes) ─────────────────────────────────
 
+// Renders the "extra" (domain-specific) block for a single domain. Exported
+// so both the multi-domain router below AND the Gemini function-calling
+// fallback in route.ts (Fase C) can render a domain on demand from the same
+// already-fetched data/metrics, without duplicating this dispatch logic.
+export function buildDomainExtra(
+  domain: ContextDomain,
+  data: EnrichedData,
+  m: FinancialInsightsContext,
+  pergunta: string,
+  hoje: Date
+): string {
+  switch (domain) {
+    case 'cartao':
+      return buildCardMotor(data, hoje)
+
+    case 'investimentos':
+      return buildInvestimentosLayer(data, m)
+
+    case 'orcamento':
+      return buildPlanejamentoLayer(m)
+
+    case 'receitas':
+      return buildReceitasLayer(data, hoje)
+
+    case 'porPessoa':
+      // Already in the core bundle (buildGastosPorPessoaLayer) — nothing extra.
+      return ''
+
+    case 'planejamento':
+      return [buildPlanejamentoLayer(m), buildInvestimentosLayer(data, m)].filter(Boolean).join('\n\n')
+
+    case 'categoria': {
+      const cats = detectCategorias(pergunta)
+      return cats.length > 0 ? buildCategoryFocusLayer(data, cats, hoje) : ''
+    }
+
+    case 'historico':
+      return buildHistoricoCompactoLayer(data, hoje, 6)
+
+    case 'insights': {
+      // Pulls actual purchases for the top 2 categories so "what's driving
+      // this" can be answered with real line items, not just percentages.
+      const topCats = m.topCategorias.slice(0, 2).map(c => c.categoria)
+      return [buildInsightsLayer(m), buildCategoryFocusLayer(data, topCats, hoje)].filter(Boolean).join('\n\n')
+    }
+
+    case 'futuro':
+      return buildFuturoLayer(data, m, hoje, 6)
+
+    case 'geral':
+    default:
+      // Core bundle alone already covers the generic case.
+      return ''
+  }
+}
+
+// Priority order used to cap how many domains get rendered per follow-up
+// turn — a message can match several domains (Fase B), but rendering all of
+// them would blow the "focused" token budget. 'porPessoa' has no extra block
+// (already in the core bundle) so it never consumes a cap slot in practice.
+const DOMAIN_PRIORITY: ContextDomain[] = [
+  'cartao', 'futuro', 'investimentos', 'planejamento', 'orcamento',
+  'receitas', 'categoria', 'historico', 'insights', 'porPessoa',
+]
+const MAX_DOMAINS_RENDERED = 2
+
+function capDomains(domains: ContextDomain[]): ContextDomain[] {
+  const unique = [...new Set(domains)].filter(d => d !== 'geral')
+  return unique
+    .sort((a, b) => DOMAIN_PRIORITY.indexOf(a) - DOMAIN_PRIORITY.indexOf(b))
+    .slice(0, MAX_DOMAINS_RENDERED)
+}
+
+// Domains the LLM may still want but didn't get this turn — surfaced via
+// Fase C's tool hint. Kept proportional to what's actually missing instead
+// of a constant full menu on every follow-up (that would add fixed token
+// overhead to every turn, defeating the "on demand" point of Fase C):
+//  - router matched nothing (['geral']): offer the full domain space, since
+//    this is exactly the "unanticipated phrasing" case the tool exists for.
+//  - router matched something: only the domains the render cap cut, if any
+//    — usually empty, so the hint costs nothing on the common path.
+export function domainsNotRendered(domains: ContextDomain[]): ContextDomain[] {
+  const rendered = new Set(capDomains(domains))
+  if (domains.includes('geral')) {
+    return KNOWN_DOMAINS.filter(d => !rendered.has(d))
+  }
+  return [...new Set(domains)].filter(d => d !== 'geral' && !rendered.has(d))
+}
+
 function buildFocusedContext(
   data: EnrichedData,
   m: FinancialInsightsContext,
-  domain: ContextDomain,
+  domains: ContextDomain[],
   pergunta: string,
   hoje: Date
 ): string {
@@ -631,73 +896,45 @@ function buildFocusedContext(
   const anchor = `Data: ${dateStr}\n[Contexto financeiro completo já estabelecido. Dados atuais para esta pergunta:]`
   const core = buildCoreBundle(data, m, hoje)
 
-  let extra = ''
+  const extras = capDomains(domains)
+    .map(d => buildDomainExtra(d, data, m, pergunta, hoje))
+    .filter(Boolean)
+  // String-level dedup: e.g. 'orcamento' and 'planejamento' both render
+  // buildPlanejamentoLayer(m) — avoid sending the identical block twice.
+  const dedupedExtras = [...new Set(extras)]
 
-  switch (domain) {
-    case 'cartao':
-      extra = buildCardMotor(data, hoje)
-      break
-
-    case 'investimentos':
-      extra = buildInvestimentosLayer(data, m)
-      break
-
-    case 'orcamento':
-      extra = buildPlanejamentoLayer(m)
-      break
-
-    case 'receitas':
-      extra = buildReceitasLayer(data, hoje)
-      break
-
-    case 'porPessoa':
-      // Already in the core bundle (buildGastosPorPessoaLayer) — nothing extra.
-      break
-
-    case 'planejamento':
-      extra = [buildPlanejamentoLayer(m), buildInvestimentosLayer(data, m)].filter(Boolean).join('\n\n')
-      break
-
-    case 'categoria': {
-      const cats = detectCategorias(pergunta)
-      extra = cats.length > 0 ? buildCategoryFocusLayer(data, cats, hoje) : ''
-      break
-    }
-
-    case 'historico':
-      extra = buildHistoricoCompactoLayer(data, hoje, 6)
-      break
-
-    case 'insights': {
-      // Pulls actual purchases for the top 2 categories so "what's driving
-      // this" can be answered with real line items, not just percentages.
-      const topCats = m.topCategorias.slice(0, 2).map(c => c.categoria)
-      extra = [buildInsightsLayer(m), buildCategoryFocusLayer(data, topCats, hoje)].filter(Boolean).join('\n\n')
-      break
-    }
-
-    case 'geral':
-    default:
-      // Core bundle alone already covers the generic case.
-      break
-  }
-
-  return [anchor, core, extra].filter(s => s.length > 0).join('\n\n')
+  return [anchor, core, ...dedupedExtras].filter(s => s.length > 0).join('\n\n')
 }
 
 // ─── Main Export ─────────────────────────────────────────────────────────────
+
+export interface ChatContextResult {
+  context: string
+  // true when the validation certificate blocked analysis (CA05) — route.ts
+  // must not enable the Fase C function-calling tool in this case, since it
+  // would be nonsensical for the model to "ask for more" already-flagged data.
+  blocked: boolean
+  data?: EnrichedData
+  metrics?: FinancialInsightsContext
+  hoje?: Date
+  // Domains left out of this turn's focused context due to the render cap —
+  // route.ts surfaces these to the model as what it may request via the tool.
+  domainsDisponiveis?: ContextDomain[]
+}
 
 export async function buildChatContext({
   userId,
   pergunta,
   isFirstMessage,
   tela,
+  perguntaAnterior,
 }: {
   userId: string
   pergunta: string
   isFirstMessage: boolean
   tela?: TelaAtual
-}): Promise<string> {
+  perguntaAnterior?: string
+}): Promise<ChatContextResult> {
   // Force a fresh read at the start of every conversation (RN04/CA03): the
   // user may have just logged an expense/income/investment/import on another
   // screen, and the assistant must never open on a stale snapshot. Follow-up
@@ -709,11 +946,12 @@ export async function buildChatContext({
 
   // Block severely compromised datasets (CA05)
   if (!certificate.certificado) {
-    return [
+    const context = [
       '⚠️ DADOS FINANCEIROS COM PROBLEMAS CRÍTICOS — ANÁLISE BLOQUEADA',
       formatCertificateForAI(certificate),
       'INSTRUÇÃO: Informe ao usuário que inconsistências críticas foram detectadas nos dados financeiros e que uma revisão é necessária antes de fornecer análises. Não tente gerar insights com estes dados.',
     ].join('\n\n')
+    return { context, blocked: true }
   }
 
   const m    = computeInsights(validatedData)
@@ -740,14 +978,41 @@ export async function buildChatContext({
       m.mesAnterior
     )
 
-    return [baseCtx, antiDistortion, explainability, certBlock]
+    const context = [baseCtx, antiDistortion, explainability, certBlock]
       .filter(s => s.length > 0)
       .join('\n\n')
+
+    return { context, blocked: false, data: validatedData, metrics: m, hoje }
   }
 
-  const domain    = detectContextDomain(pergunta)
-  const focusCtx  = buildFocusedContext(validatedData, m, domain, pergunta, hoje)
-  const certLine  = formatCertificateForAI(certificate, true)
+  // Fase B: union of domains from the current message + the immediately
+  // preceding user message (bounded to exactly one turn of lookback, so
+  // short-range topic continuity — "e por categoria?" right after a cartão
+  // question — resolves without unbounded drift across the conversation).
+  const domainsAtual    = detectContextDomains(pergunta)
+  const domainsAnterior = perguntaAnterior ? detectContextDomains(perguntaAnterior) : []
+  const domains         = [...new Set([...domainsAtual, ...domainsAnterior])]
 
-  return [focusCtx, certLine].filter(s => s.length > 0).join('\n\n')
+  const focusCtx = buildFocusedContext(validatedData, m, domains, pergunta, hoje)
+  const certLine = formatCertificateForAI(certificate, true)
+  const domainsDisponiveis = domainsNotRendered(domains)
+
+  // Tells the model what it may ask for via buscar_dados_financeiros instead
+  // of it having to guess whether an absent section means "doesn't exist" —
+  // this line is what makes Fase C's tool actually get used instead of the
+  // model defaulting to "não tenho esse dado".
+  const menu = domainsDisponiveis.length > 0
+    ? `DOMÍNIOS DISPONÍVEIS SOB DEMANDA (via buscar_dados_financeiros, se necessário para responder): ${domainsDisponiveis.join(', ')}`
+    : ''
+
+  const context = [focusCtx, menu, certLine].filter(s => s.length > 0).join('\n\n')
+
+  return {
+    context,
+    blocked: false,
+    data: validatedData,
+    metrics: m,
+    hoje,
+    domainsDisponiveis,
+  }
 }

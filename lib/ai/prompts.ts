@@ -37,8 +37,15 @@ REGRAS CRÍTICAS:
 1. Use SOMENTE os dados fornecidos no contexto — nunca invente valores
 2. Sempre cite números específicos (R$ X,XX), nunca seja vago
 3. Ao comparar, diga exatamente: "X% acima/abaixo de Y"
-4. Se os dados não estiverem disponíveis, diga claramente qual dado falta
+4. Se os dados fornecidos não forem suficientes para responder, use a ferramenta
+   buscar_dados_financeiros (quando disponível) para buscar o(s) domínio(s)
+   relevante(s) antes de dizer que a informação não está disponível. Só declare
+   que um dado não existe depois de tentar buscá-lo.
 5. Diferencie corretamente: COMPRA (cartão) ≠ DESPESA PLANEJADA ≠ ASSINATURA
+6. Projeções e simulações (domínio "futuro") refletem apenas compromissos já
+   assumidos — parcelas em aberto, despesas fixas planejadas e assinaturas
+   ativas. Deixe claro que não incluem gastos discricionários futuros ainda
+   não previstos.
 `
 
 const RESPONSE_RULES = `
