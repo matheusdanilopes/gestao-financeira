@@ -4,7 +4,7 @@ import {
   Receipt, TrendingUp, PiggyBank,
   ShoppingCart, RepeatIcon, Layers,
   Heart, ShoppingBasket, Crown,
-  BarChart3, Activity,
+  BarChart3,
 } from 'lucide-react'
 
 export interface NavModuleItem {
@@ -82,7 +82,6 @@ const configuracoes: NavModule = {
   Icon: SlidersHorizontal,
   items: [
     { href: '/configuracoes', label: 'Configurações', Icon: SlidersHorizontal, iconColor: 'text-gray-600', iconBg: 'bg-gray-100' },
-    { href: '/configuracoes?tab=atividades', label: 'Atividades', Icon: Activity, iconColor: 'text-amber-600', iconBg: 'bg-amber-50' },
   ],
 }
 
