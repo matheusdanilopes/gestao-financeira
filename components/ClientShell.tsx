@@ -12,13 +12,12 @@ import { useNotificationAutoClear } from '@/lib/notificationRouter'
 
 // Rotas que mostram sino de notificações
 const ROTAS_COM_BELL = [
-  '/dashboard', '/contas', '/receitas', '/investimentos',
-  '/compras', '/configuracoes', '/importar',
+  '/dashboard', '/financas', '/compras', '/configuracoes', '/importar',
 ]
 
 // Rotas que mostram o indicador de atualização (todas as com bell, exceto /chat)
 const ROTAS_COM_REFRESH = [
-  '/dashboard', '/contas', '/receitas', '/investimentos', '/compras',
+  '/dashboard', '/financas', '/compras',
 ]
 
 export default function ClientShell({ children }: { children: React.ReactNode }) {
