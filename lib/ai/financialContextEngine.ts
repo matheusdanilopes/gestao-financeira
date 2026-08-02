@@ -469,34 +469,41 @@ function buildReceitasLayer(data: EnrichedData, hoje: Date): string {
   const nomeReceita = (p: Planejamento) => p.item.replace(RECEITA_PREFIXO, '')
 
   const doMes = receitas.filter(r => (r.mes_referencia ?? '').substring(0, 7) === mesCalendario)
-  if (doMes.length === 0) return ''
 
-  const totalPrevisto = doMes.reduce((s, r) => s + r.valor_previsto, 0)
-  const recebidas = doMes.filter(r => r.pago)
-  const totalRecebido = recebidas.reduce((s, r) => s + (r.valor_real ?? r.valor_previsto), 0)
-  const emAberto = doMes.filter(r => !r.pago)
-  const totalEmAberto = emAberto.reduce((s, r) => s + r.valor_previsto, 0)
+  const lines: string[] = []
 
-  // Recorrente: mesmo nome aparece em ≥2 dos últimos 3 meses (incluindo o atual)
-  const meses3 = Array.from({ length: 3 }, (_, i) => format(subMonths(hoje, i), 'yyyy-MM'))
-  const contagemPorNome: Record<string, number> = {}
-  for (const r of receitas) {
-    if (!meses3.includes((r.mes_referencia ?? '').substring(0, 7))) continue
-    const n = nomeReceita(r)
-    contagemPorNome[n] = (contagemPorNome[n] ?? 0) + 1
-  }
-  const recorrentes = doMes.filter(r => (contagemPorNome[nomeReceita(r)] ?? 0) >= 2)
-  const extraordinarias = doMes.filter(r => (contagemPorNome[nomeReceita(r)] ?? 0) < 2)
+  // Note: this used to `return ''` here when the current month had no
+  // receita rows — which silently dropped the "futuras" block below too,
+  // hiding already-registered future income (e.g. December) whenever the
+  // current month simply hadn't been logged yet.
+  if (doMes.length > 0) {
+    const totalPrevisto = doMes.reduce((s, r) => s + r.valor_previsto, 0)
+    const recebidas = doMes.filter(r => r.pago)
+    const totalRecebido = recebidas.reduce((s, r) => s + (r.valor_real ?? r.valor_previsto), 0)
+    const emAberto = doMes.filter(r => !r.pago)
+    const totalEmAberto = emAberto.reduce((s, r) => s + r.valor_previsto, 0)
 
-  const lines = [
-    `RECEITAS ${fmtMes(mesCalendario)}:`,
-    `Previsto: ${R(totalPrevisto)} | Recebido: ${R(totalRecebido)} | Em aberto: ${R(totalEmAberto)}`,
-  ]
-  if (recorrentes.length > 0) {
-    lines.push(`Recorrentes: ${recorrentes.map(r => `${nomeReceita(r)} ${R(r.valor_previsto)} (${r.responsavel ?? 'compartilhado'})`).join(' · ')}`)
-  }
-  if (extraordinarias.length > 0) {
-    lines.push(`Extraordinárias/pontuais: ${extraordinarias.map(r => `${nomeReceita(r)} ${R(r.valor_previsto)}`).join(' · ')}`)
+    // Recorrente: mesmo nome aparece em ≥2 dos últimos 3 meses (incluindo o atual)
+    const meses3 = Array.from({ length: 3 }, (_, i) => format(subMonths(hoje, i), 'yyyy-MM'))
+    const contagemPorNome: Record<string, number> = {}
+    for (const r of receitas) {
+      if (!meses3.includes((r.mes_referencia ?? '').substring(0, 7))) continue
+      const n = nomeReceita(r)
+      contagemPorNome[n] = (contagemPorNome[n] ?? 0) + 1
+    }
+    const recorrentes = doMes.filter(r => (contagemPorNome[nomeReceita(r)] ?? 0) >= 2)
+    const extraordinarias = doMes.filter(r => (contagemPorNome[nomeReceita(r)] ?? 0) < 2)
+
+    lines.push(`RECEITAS ${fmtMes(mesCalendario)}:`)
+    lines.push(`Previsto: ${R(totalPrevisto)} | Recebido: ${R(totalRecebido)} | Em aberto: ${R(totalEmAberto)}`)
+    if (recorrentes.length > 0) {
+      lines.push(`Recorrentes: ${recorrentes.map(r => `${nomeReceita(r)} ${R(r.valor_previsto)} (${r.responsavel ?? 'compartilhado'})`).join(' · ')}`)
+    }
+    if (extraordinarias.length > 0) {
+      lines.push(`Extraordinárias/pontuais: ${extraordinarias.map(r => `${nomeReceita(r)} ${R(r.valor_previsto)}`).join(' · ')}`)
+    }
+  } else {
+    lines.push(`RECEITAS ${fmtMes(mesCalendario)}: nenhuma receita cadastrada este mês.`)
   }
 
   const futuras = buildFuturasReceitasList(data, hoje)
