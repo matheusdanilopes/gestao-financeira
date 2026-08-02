@@ -3,9 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  LayoutDashboard, Receipt, TrendingUp, ShoppingCart,
-  SlidersHorizontal, PiggyBank, Sparkles, BarChart3, Plus, MoreHorizontal, Wallet, CreditCard, RepeatIcon,
-  Heart, ShoppingBasket, WifiOff, Crown, Layers, FileText,
+  LayoutDashboard, Sparkles, Plus, MoreHorizontal, WifiOff, ChevronDown, ShoppingBasket,
 } from 'lucide-react'
 import { memo, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
@@ -15,13 +13,13 @@ import { useCategorizacao } from '@/components/CategorizacaoProvider'
 import { useOnline } from '@/lib/useOnline'
 import ModalPortal from '@/components/ModalPortal'
 import FabQuickLaunchSheet from '@/components/FabQuickLaunchSheet'
-import { EXTRAS_QUICK_ACCESS } from '@/lib/extrasItems'
+import { NAV_MODULES, type NavModuleItem, type NavModuleKey } from '@/lib/navModules'
 
 const ROTAS_COM_MENU = [
-  '/dashboard', '/contas', '/receitas', '/investimentos', '/assinaturas',
-  '/compras', '/chat', '/configuracoes', '/importar', '/financas', '/extras',
+  '/dashboard', '/financas', '/contas', '/receitas', '/investimentos',
+  '/compras', '/assinaturas', '/parcelamentos',
   '/wishlist', '/lista-mercado', '/lista-mercado/historico', '/listas-compras',
-  '/parcelamentos', '/relatorios',
+  '/relatorios', '/analytics', '/chat', '/configuracoes', '/importar',
 ]
 
 // Rotas acessíveis sem conexão (têm cache/operações locais)
@@ -29,120 +27,118 @@ const ROTAS_OFFLINE = ['/dashboard', '/lista-mercado', '/listas-compras']
 
 const ROTAS_FINANCAS = ['/financas', '/contas', '/receitas', '/investimentos']
 const ROTAS_CARTAO   = ['/compras', '/assinaturas', '/parcelamentos']
-const ROTAS_EXTRAS   = ['/extras', '/chat', '/configuracoes', '/wishlist', '/lista-mercado', '/listas-compras', '/relatorios']
+const ROTAS_LISTAS   = ['/wishlist', '/lista-mercado', '/listas-compras']
+const ROTAS_RELATORIOS = ['/relatorios', '/analytics']
+// União de tudo que hoje mora dentro do popover "Extras" no mobile.
+const ROTAS_EXTRAS = [...ROTAS_LISTAS, ...ROTAS_RELATORIOS, '/chat', '/configuracoes']
 
-const desktopItems = [
-  { href: '/dashboard',     label: 'Dashboard',    icon: LayoutDashboard,   desktopOnly: false },
-  { href: '/contas',        label: 'Despesas',      icon: Receipt,           desktopOnly: false },
-  { href: '/receitas',      label: 'Receitas',      icon: TrendingUp,        desktopOnly: false },
-  { href: '/investimentos', label: 'Investir',      icon: PiggyBank,         desktopOnly: false },
-  { href: '/compras',       label: 'Compras',       icon: ShoppingCart,      desktopOnly: false },
-  { href: '/assinaturas',   label: 'Assinaturas',   icon: RepeatIcon,        desktopOnly: false },
-  { href: '/parcelamentos', label: 'Parcelamentos', icon: Layers,            desktopOnly: false },
-  { href: '/wishlist',      label: 'Wishlist',      icon: Heart,             desktopOnly: false },
-  { href: '/lista-mercado',  label: 'Mercado',        icon: ShoppingBasket,    desktopOnly: false },
-  { href: '/listas-compras', label: 'Princesa',       icon: Crown,             desktopOnly: false },
-  { href: '/relatorios',    label: 'Relatórios',    icon: FileText,          desktopOnly: false },
-  { href: '/chat',          label: 'IA',            icon: Sparkles,          desktopOnly: false },
-  { href: '/configuracoes', label: 'Config',        icon: SlidersHorizontal, desktopOnly: false },
-  { href: '/analytics',     label: 'Analytics',     icon: BarChart3,         desktopOnly: true  },
-]
+function rotaAtiva(pathname: string | null, rotas: readonly string[]) {
+  if (!pathname) return false
+  return rotas.some(r => pathname === r || pathname.startsWith(r + '/'))
+}
+
+// Um item de módulo pode ter query string (ex: /financas?tab=despesas) — o
+// usePathname() do Next nunca inclui query string, então comparamos só o path.
+function itemAtivo(pathname: string | null, item: NavModuleItem) {
+  if (!pathname) return false
+  const path = item.href.split('?')[0]
+  return pathname === path || pathname.startsWith(path + '/')
+}
+
+// Módulos com múltiplos itens que viram dropdown na barra desktop.
+const DESKTOP_GROUPS: NavModuleKey[] = ['financas', 'cartao', 'listas', 'relatorios']
+
+// Módulos exibidos no popover "Extras" do mobile (tudo que não tem botão próprio).
+const MOBILE_EXTRAS_GROUPS: NavModuleKey[] = ['listas', 'relatorios', 'ia', 'configuracoes']
 
 // Cache de sessão em nível de módulo — persiste entre navegações de rota
 // e evita que cada mount do BottomNav faça um round-trip ao Supabase.
 let _cachedSession: Session | null = null
 let _sessionResolved = false
 
-// ── Sub-menus ─────────────────────────────────────────────────────────────────
+// ── Sub-menus mobile (popovers fixos, abrem pra cima) ──────────────────────────
+
+function ModuleItemsList({
+  items, onClose,
+}: {
+  items: readonly NavModuleItem[]
+  onClose: () => void
+}) {
+  return (
+    <>
+      {items.map(({ href, label, Icon, iconColor, iconBg }, i) => (
+        <Link
+          key={href}
+          href={href}
+          onClick={onClose}
+          prefetch={true}
+          className={`flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800
+                      active:bg-gray-100 dark:active:bg-gray-700 transition-colors duration-150
+                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
+                      ${i < items.length - 1 ? 'border-b border-gray-100 dark:border-gray-800' : ''}`}
+        >
+          <div className={`w-8 h-8 rounded-xl ${iconBg} flex items-center justify-center shrink-0`}>
+            <Icon className={`w-4 h-4 ${iconColor}`} strokeWidth={1.8} />
+          </div>
+          <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{label}</span>
+        </Link>
+      ))}
+    </>
+  )
+}
 
 function FinancasMenuPopover({ onClose }: { onClose: () => void }) {
-  const opcoes = [
-    { tab: 'despesas',      label: 'Despesas',      Icon: Receipt,    cor: 'text-red-500',   bg: 'bg-red-50'   },
-    { tab: 'receitas',      label: 'Receitas',      Icon: TrendingUp, cor: 'text-green-600', bg: 'bg-green-50' },
-    { tab: 'investimentos', label: 'Investimentos', Icon: PiggyBank,  cor: 'text-blue-600',  bg: 'bg-blue-50'  },
-  ]
-
   return (
     <div className="fixed bottom-[72px] left-3 z-[51] modal-center">
-      <div className="bg-white rounded-3xl shadow-float border border-gray-100 overflow-hidden w-56">
-        {opcoes.map(({ tab, label, Icon, cor, bg }, i) => (
-          <Link
-            key={tab}
-            href={`/financas?tab=${tab}`}
-            onClick={onClose}
-            prefetch={true}
-            className={`flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800
-                        active:bg-gray-100 dark:active:bg-gray-700 transition-colors duration-150
-                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
-                        ${i < opcoes.length - 1 ? 'border-b border-gray-100' : ''}`}
-          >
-            <div className={`w-8 h-8 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
-              <Icon className={`w-4 h-4 ${cor}`} strokeWidth={1.8} />
-            </div>
-            <span className="text-sm font-semibold text-gray-700">{label}</span>
-          </Link>
-        ))}
+      <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-float border border-gray-100 dark:border-gray-800 overflow-hidden w-56">
+        <ModuleItemsList items={NAV_MODULES.financas.items} onClose={onClose} />
       </div>
     </div>
   )
 }
 
 function CartaoMenuPopover({ onClose }: { onClose: () => void }) {
-  const opcoes = [
-    { href: '/compras',       label: 'Compras',       Icon: ShoppingCart, cor: 'text-orange-500 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-900/20' },
-    { href: '/assinaturas',   label: 'Assinaturas',   Icon: RepeatIcon,   cor: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-900/20'  },
-    { href: '/parcelamentos', label: 'Parcelamentos', Icon: Layers,       cor: 'text-teal-600 dark:text-teal-400',     bg: 'bg-teal-50 dark:bg-teal-900/20'      },
-  ]
-
   return (
     <div className="fixed bottom-[72px] right-14 z-[51] modal-center">
-      <div className="bg-white rounded-3xl shadow-float border border-gray-100 overflow-hidden w-56">
-        {opcoes.map(({ href, label, Icon, cor, bg }, i) => (
-          <Link
-            key={href}
-            href={href}
-            onClick={onClose}
-            prefetch={true}
-            className={`flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800
-                        active:bg-gray-100 dark:active:bg-gray-700 transition-colors duration-150
-                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
-                        ${i < opcoes.length - 1 ? 'border-b border-gray-100' : ''}`}
-          >
-            <div className={`w-8 h-8 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
-              <Icon className={`w-4 h-4 ${cor}`} strokeWidth={1.8} />
-            </div>
-            <span className="text-sm font-semibold text-gray-700">{label}</span>
-          </Link>
-        ))}
+      <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-float border border-gray-100 dark:border-gray-800 overflow-hidden w-56">
+        <ModuleItemsList items={NAV_MODULES.cartao.items} onClose={onClose} />
       </div>
     </div>
   )
 }
 
-
+// Extras agrupa tudo que não tem botão próprio no bottom nav — Listas &
+// Desejos, Relatórios, IA e Configurações — com cabeçalho por seção, no
+// mesmo espírito do que existia isolado em app/extras/page.tsx.
 function ExtrasMenuPopover({ onClose }: { onClose: () => void }) {
-  const opcoes = EXTRAS_QUICK_ACCESS
-
   return (
     <div className="fixed bottom-[72px] right-3 z-[51] modal-center">
-      <div className="bg-white rounded-3xl shadow-float border border-gray-100 overflow-hidden w-56">
-        {opcoes.map(({ href, label, Icon, popoverColor, popoverBg }, i) => (
-          <Link
-            key={href}
-            href={href}
-            onClick={onClose}
-            prefetch={true}
-            className={`flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800
-                        active:bg-gray-100 dark:active:bg-gray-700 transition-colors duration-150
-                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
-                        ${i < opcoes.length - 1 ? 'border-b border-gray-100' : ''}`}
-          >
-            <div className={`w-8 h-8 rounded-xl ${popoverBg} flex items-center justify-center shrink-0`}>
-              <Icon className={`w-4 h-4 ${popoverColor}`} strokeWidth={1.8} />
+      <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-float border border-gray-100 dark:border-gray-800 overflow-hidden w-64 max-h-[70vh] overflow-y-auto">
+        {MOBILE_EXTRAS_GROUPS.map((key, gi) => {
+          const mod = NAV_MODULES[key]
+          const items = mod.items.filter(i => !i.desktopOnly)
+          if (items.length === 0) return null
+          return (
+            <div key={key} className={gi > 0 ? 'border-t border-gray-100 dark:border-gray-800' : ''}>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-4 pt-3 pb-1">
+                {mod.label}
+              </p>
+              <ModuleItemsList items={items} onClose={onClose} />
             </div>
-            <span className="text-sm font-semibold text-gray-700">{label}</span>
-          </Link>
-        ))}
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ── Sub-menu desktop (dropdown ancorado no item da barra, abre pra baixo) ──────
+
+function DesktopModuleDropdown({ items, onClose }: { items: readonly NavModuleItem[]; onClose: () => void }) {
+  return (
+    <div className="absolute left-0 top-full mt-1.5 z-[51] w-56">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-float border border-gray-100 dark:border-gray-800 overflow-hidden">
+        <ModuleItemsList items={items} onClose={onClose} />
       </div>
     </div>
   )
@@ -193,7 +189,7 @@ function OfflineNavItem({
   )
 }
 
-// ── Nav item button (Finanças / Extras) ───────────────────────────────────────
+// ── Nav item button (Finanças / Cartão / Extras) ──────────────────────────────
 
 function MobileMenuButton({
   label, icon: Icon, isActive, onClick, ariaExpanded,
@@ -229,7 +225,7 @@ function MobileMenuButton({
   )
 }
 
-// ── Nav item link (Dashboard / Compras) ───────────────────────────────────────
+// ── Nav item link (Dashboard) ─────────────────────────────────────────────────
 
 function MobileNavItem({
   href, label, icon: Icon, isActive,
@@ -263,6 +259,72 @@ function MobileNavItem({
   )
 }
 
+// ── Nav item link desktop (Dashboard / IA / Config) ───────────────────────────
+
+function DesktopNavLink({
+  href, label, icon: Icon, isActive,
+}: {
+  href: string
+  label: string
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>
+  isActive: boolean
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex flex-row items-center gap-1.5 px-3 py-1.5 rounded-xl flex-none
+                 transition-colors duration-200
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-1"
+      aria-current={isActive ? 'page' : undefined}
+    >
+      <Icon
+        className={`w-4 h-4 transition-colors duration-200 ${isActive ? 'text-primary-600' : 'text-gray-500'}`}
+        strokeWidth={isActive ? 2.5 : 1.8}
+      />
+      <span className={`text-[13px] font-medium leading-none transition-colors duration-200
+                        ${isActive ? 'text-primary-600' : 'text-gray-600'}`}>
+        {label}
+      </span>
+    </Link>
+  )
+}
+
+// ── Botão de módulo desktop (abre dropdown) ───────────────────────────────────
+
+function DesktopModuleButton({
+  moduleKey, isActive, isOpen, onClick,
+}: {
+  moduleKey: NavModuleKey
+  isActive: boolean
+  isOpen: boolean
+  onClick: () => void
+}) {
+  const mod = NAV_MODULES[moduleKey]
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-expanded={isOpen}
+      className={`flex flex-row items-center gap-1.5 px-3 py-1.5 rounded-xl flex-none
+                  transition-colors duration-200
+                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-1`}
+    >
+      <mod.Icon
+        className={`w-4 h-4 transition-colors duration-200 ${isActive || isOpen ? 'text-primary-600' : 'text-gray-500'}`}
+        strokeWidth={isActive || isOpen ? 2.5 : 1.8}
+      />
+      <span className={`text-[13px] font-medium leading-none transition-colors duration-200
+                        ${isActive || isOpen ? 'text-primary-600' : 'text-gray-600'}`}>
+        {mod.label}
+      </span>
+      <ChevronDown
+        className={`w-3 h-3 transition-transform duration-200 ${isActive || isOpen ? 'text-primary-600' : 'text-gray-400'} ${isOpen ? 'rotate-180' : ''}`}
+        strokeWidth={2}
+      />
+    </button>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default memo(function BottomNav() {
@@ -273,6 +335,7 @@ export default memo(function BottomNav() {
   const [session, setSession] = useState<Session | null>(_cachedSession)
   const [isCheckingSession, setIsCheckingSession] = useState(!_sessionResolved)
   const [openMenu, setOpenMenu] = useState<'financas' | 'cartao' | 'extras' | null>(null)
+  const [openDesktopMenu, setOpenDesktopMenu] = useState<NavModuleKey | null>(null)
   const [fabSheetOpen, setFabSheetOpen] = useState(false)
   const { categorizando } = useCategorizacao()
   const isOnline = useOnline()
@@ -281,19 +344,21 @@ export default memo(function BottomNav() {
   // antecipa o RSC fetch antes do tap no item, tornando a navegação mais rápida.
   useEffect(() => {
     if (!isOnline || !openMenu) return
-    if (openMenu === 'financas') {
-      router.prefetch('/financas')
-    } else if (openMenu === 'cartao') {
-      router.prefetch('/compras')
-      router.prefetch('/assinaturas')
-      router.prefetch('/parcelamentos')
-    } else if (openMenu === 'extras') {
-      router.prefetch('/wishlist')
-      router.prefetch('/lista-mercado')
-      router.prefetch('/chat')
-      router.prefetch('/configuracoes')
+    if (openMenu === 'extras') {
+      MOBILE_EXTRAS_GROUPS.forEach(key => {
+        NAV_MODULES[key].items.forEach(item => {
+          if (!item.desktopOnly) router.prefetch(item.href)
+        })
+      })
+    } else {
+      NAV_MODULES[openMenu].items.forEach(item => router.prefetch(item.href))
     }
   }, [openMenu, isOnline, router])
+
+  useEffect(() => {
+    if (!isOnline || !openDesktopMenu) return
+    NAV_MODULES[openDesktopMenu].items.forEach(item => router.prefetch(item.href))
+  }, [openDesktopMenu, isOnline, router])
 
   useEffect(() => {
     // Se AUTH_DISABLED ou sessão já resolvida, não faz round-trip ao Supabase
@@ -345,6 +410,8 @@ export default memo(function BottomNav() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setOpenMenu(null)
     // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOpenDesktopMenu(null)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFabSheetOpen(false)
   }, [pathname])
 
@@ -355,6 +422,7 @@ export default memo(function BottomNav() {
   useEffect(() => {
     if (isOnline) return
     setOpenMenu(null)
+    setOpenDesktopMenu(null)
     setFabSheetOpen(false)
     if (pathname && !ROTAS_OFFLINE.some(r => pathname === r || pathname.startsWith(r + '/'))) {
       window.location.href = '/dashboard'
@@ -370,9 +438,9 @@ export default memo(function BottomNav() {
   if (!AUTH_DISABLED && isCheckingSession) return null
   if (!AUTH_DISABLED && isOnline && !session) return null
 
-  const isFinancasActive = ROTAS_FINANCAS.some(r => pathname === r || pathname.startsWith(r + '/'))
-  const isCartaoActive   = ROTAS_CARTAO.some(r => pathname === r || pathname.startsWith(r + '/'))
-  const isExtrasActive   = ROTAS_EXTRAS.some(r => pathname === r || pathname.startsWith(r + '/'))
+  const isFinancasActive = rotaAtiva(pathname, ROTAS_FINANCAS)
+  const isCartaoActive   = rotaAtiva(pathname, ROTAS_CARTAO)
+  const isExtrasActive   = rotaAtiva(pathname, ROTAS_EXTRAS)
 
   return (
     <div
@@ -448,7 +516,7 @@ export default memo(function BottomNav() {
 
             <MobileMenuButton
               label="Finanças"
-              icon={Wallet}
+              icon={NAV_MODULES.financas.Icon}
               isActive={isFinancasActive || openMenu === 'financas'}
               ariaExpanded={openMenu === 'financas'}
               onClick={() => setOpenMenu(p => p === 'financas' ? null : 'financas')}
@@ -482,7 +550,7 @@ export default memo(function BottomNav() {
 
             <MobileMenuButton
               label="Cartão"
-              icon={CreditCard}
+              icon={NAV_MODULES.cartao.Icon}
               isActive={isCartaoActive || openMenu === 'cartao'}
               ariaExpanded={openMenu === 'cartao'}
               onClick={() => setOpenMenu(p => p === 'cartao' ? null : 'cartao')}
@@ -498,36 +566,61 @@ export default memo(function BottomNav() {
           </div>
         )}
 
-        {/* ── Desktop: barra superior com todos os itens ────────────────────── */}
+        {/* ── Desktop: barra superior agrupada em módulos ────────────────────── */}
         <div className="hidden lg:flex justify-start items-center h-14 px-4 gap-1">
-          {desktopItems.map(({ href, label, icon: Icon, desktopOnly }) => {
-            const isActive = pathname === href
+          <DesktopNavLink
+            href="/dashboard"
+            label="Dashboard"
+            icon={LayoutDashboard}
+            isActive={pathname === '/dashboard'}
+          />
+
+          {DESKTOP_GROUPS.map((key) => {
+            const mod = NAV_MODULES[key]
+            const isOpen = openDesktopMenu === key
+            const isActive = mod.items.some(item => itemAtivo(pathname, item))
             return (
-              <Link
-                key={href}
-                href={href}
-                className={`
-                  ${desktopOnly ? 'hidden md:flex' : 'flex'}
-                  flex-row items-center gap-1.5 px-3 py-1.5 rounded-xl flex-none
-                  transition-colors duration-200
-                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-1
-                `}
-                aria-current={isActive ? 'page' : undefined}
-              >
-                <Icon
-                  className={`w-4 h-4 transition-colors duration-200 ${isActive ? 'text-primary-600' : 'text-gray-500'}`}
-                  strokeWidth={isActive ? 2.5 : 1.8}
+              <div key={key} className={`relative ${isOpen ? 'z-10' : ''}`}>
+                <DesktopModuleButton
+                  moduleKey={key}
+                  isActive={isActive}
+                  isOpen={isOpen}
+                  onClick={() => setOpenDesktopMenu(p => p === key ? null : key)}
                 />
-                <span className={`text-[13px] font-medium leading-none transition-colors duration-200
-                                  ${isActive ? 'text-primary-600' : 'text-gray-600'}`}>
-                  {label}
-                </span>
-              </Link>
+                {isOpen && (
+                  <DesktopModuleDropdown
+                    items={mod.items}
+                    onClose={() => setOpenDesktopMenu(null)}
+                  />
+                )}
+              </div>
             )
           })}
+
+          <DesktopNavLink
+            href="/chat"
+            label="IA"
+            icon={NAV_MODULES.ia.Icon}
+            isActive={pathname === '/chat'}
+          />
+          <DesktopNavLink
+            href="/configuracoes"
+            label="Config"
+            icon={NAV_MODULES.configuracoes.Icon}
+            isActive={pathname === '/configuracoes'}
+          />
         </div>
 
-        {/* ── Menus flutuantes via portal (apenas online) ───────────────────── */}
+        {/* ── Overlay para fechar dropdown desktop ao clicar fora ────────────── */}
+        {openDesktopMenu && (
+          <div
+            className="hidden lg:block fixed inset-0 z-[49]"
+            onClick={() => setOpenDesktopMenu(null)}
+            aria-hidden="true"
+          />
+        )}
+
+        {/* ── Menus flutuantes mobile via portal (apenas online) ─────────────── */}
         {isOnline && openMenu && (
           <ModalPortal>
             <div
