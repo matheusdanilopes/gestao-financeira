@@ -3,8 +3,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
-import { format, startOfMonth, addMonths, subMonths, isSameMonth } from 'date-fns'
+import { format, startOfMonth, endOfMonth, addMonths, subMonths, isSameMonth } from 'date-fns'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
+import { valorEfetivoNoMes } from '@/lib/assinaturaValor'
 import { classificarTipoGasto, type TipoGasto } from '@/lib/composicaoFatura'
 import { AlertTriangle, BarChart2, BarChart3, CreditCard, Wallet, PiggyBank, TrendingUp, TrendingDown, Minus, LineChart, Activity } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
@@ -188,6 +189,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     { data: nubankConfigs },
     { data: faturaRegistradaData },
     { data: assinaturasData },
+    { data: assinaturasHistoricoData },
     { data: maxFaturaRowData },
   ] = await Promise.all([
     // Busca todas as transações do período em uma única query e separa por cartão no cliente
@@ -197,7 +199,8 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     supabase.from('investimentos').select('id, descricao, percentual, investimentos_aportes(valor)').eq('mes_referencia', mesRef).order('created_at', { ascending: true }),
     supabase.from('configuracoes').select('chave, valor').in('chave', ['dia_vencimento', 'ajuste_fechamento']),
     supabase.from('faturas').select('data_fechamento').eq('cartao', 'nubank').eq('mes_referencia', mesRefFatura).limit(1),
-    supabase.from('assinaturas').select('nome, valor, responsavel, ativa, moeda').eq('cartao', 'nubank'),
+    supabase.from('assinaturas').select('id, nome, valor, responsavel, ativa, moeda').eq('cartao', 'nubank'),
+    supabase.from('assinaturas_historico').select('assinatura_id, valor, vigente_desde, criado_em'),
     supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'nubank')
       .lte('projeto_fatura', mesRefFatura).order('projeto_fatura', { ascending: false }).limit(1),
   ])
@@ -393,14 +396,20 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const sobraLiquida = receitaTotal - totalGastos
   const percentualComprometimento = receitaTotal > 0 ? (totalGastos / receitaTotal) * 100 : 0
 
-  type AssinaturaRow = { nome: string; valor: number; responsavel: string; ativa: boolean; moeda: string }
+  type AssinaturaRow = { id: string; nome: string; valor: number; responsavel: string; ativa: boolean; moeda: string }
   type TransacaoRow = { valor: number; responsavel: string | null; descricao: string | null; parcela_atual?: number | null; total_parcelas?: number | null }
   const assinAtivas = (assinaturasData || []).filter((a: AssinaturaRow) => a.ativa)
   const txFaturaList: TransacaoRow[] = transacoesFatura || []
+  const historicoValores = assinaturasHistoricoData || []
+  // Mesmo cutoff usado em AssinaturasMensal.tsx (endOfMonth do mês selecionado) para resolver
+  // o valor vigente da assinatura na fatura exibida, respeitando alterações de preço registradas.
+  const cutoffHistorico = format(endOfMonth(mes), 'yyyy-MM-dd')
+  const valorAssinaturaNoMes = (a: AssinaturaRow) =>
+    valorEfetivoNoMes(a.id, a.valor, cutoffHistorico, historicoValores)
   const calcNaoPaga = (responsavel: string) =>
     assinAtivas
       .filter((a: AssinaturaRow) => a.responsavel === responsavel && !txFaturaList.some((tx: TransacaoRow) => tx.descricao?.toLowerCase().includes(a.nome.toLowerCase())))
-      .reduce((sum: number, a: AssinaturaRow) => sum + a.valor, 0)
+      .reduce((sum: number, a: AssinaturaRow) => sum + valorAssinaturaNoMes(a), 0)
   const assinNaoPagaMatheus = calcNaoPaga('Matheus')
   const assinNaoPagaJeniffer = calcNaoPaga('Jeniffer')
 
@@ -414,13 +423,14 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
           tx.descricao?.toLowerCase().includes(nome)
         )
         if (matches.length === 0) return []
+        const valorEsperado = valorAssinaturaNoMes(a)
         // Assinaturas em moeda estrangeira oscilam com o câmbio: tolerância percentual em vez de fixa.
-        const tolerancia = a.moeda !== 'BRL' ? a.valor * 0.05 : 0.05
-        if (matches.some((tx: TransacaoRow) => Math.abs(tx.valor - a.valor) <= tolerancia)) return []
+        const tolerancia = a.moeda !== 'BRL' ? valorEsperado * 0.05 : 0.05
+        if (matches.some((tx: TransacaoRow) => Math.abs(tx.valor - valorEsperado) <= tolerancia)) return []
         const best = matches.reduce((prev: TransacaoRow, cur: TransacaoRow) =>
-          Math.abs(cur.valor - a.valor) < Math.abs(prev.valor - a.valor) ? cur : prev
+          Math.abs(cur.valor - valorEsperado) < Math.abs(prev.valor - valorEsperado) ? cur : prev
         )
-        return [{ nome: a.nome, valorEsperado: a.valor, valorCobrado: best.valor, diff: best.valor - a.valor }]
+        return [{ nome: a.nome, valorEsperado, valorCobrado: best.valor, diff: best.valor - valorEsperado }]
       })
   const divergentesMatheus  = calcDivergente('Matheus')
   const divergentesJeniffer = calcDivergente('Jeniffer')
