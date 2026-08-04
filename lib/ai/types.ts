@@ -90,6 +90,11 @@ export interface CategoryMetric {
 export interface FinancialInsightsContext {
   mesAtual: string
   mesAnterior: string
+  // Billing month (addMonths(hoje,1)) that totalGastos/gastoMatheus/gastoJeniffer
+  // are actually keyed to — distinct from mesAtual (calendar month). Exists so
+  // labels can say exactly which month a card figure belongs to instead of
+  // implying it's mesAtual's.
+  mesFaturaAtual: string
   diaAtual: number
   totalGastos: number
   totalGastosAnterior: number

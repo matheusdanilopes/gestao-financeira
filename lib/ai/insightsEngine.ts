@@ -336,6 +336,10 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
     // ("Junho 2026"), even though card transactions are filtered by billing period (mesFatura).
     mesAtual: fmtMes(mesCalendario),
     mesAnterior: fmtMes(format(subMonths(hoje, 1), 'yyyy-MM')),
+    // The billing month totalGastos is actually keyed to — one month AHEAD
+    // of mesAtual by convention (see comment above). Kept separate so
+    // downstream text can say exactly which month a card figure belongs to.
+    mesFaturaAtual: fmtMes(mesFatura),
     diaAtual,
     totalGastos,
     totalGastosAnterior,
