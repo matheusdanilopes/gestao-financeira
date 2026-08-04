@@ -7,7 +7,6 @@ import { format, startOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { TrendingUp, ArrowRight } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
-import { formatBRL } from '@/lib/logger'
 import { InfoPopover } from '@/components/InfoPopover'
 import { buscarCartaoLabels, type CartaoLabels } from '@/lib/cartaoLabels'
 import { RESPONSAVEL_STYLE } from '@/lib/responsavelStyle'
@@ -20,7 +19,6 @@ const GraficoProjecao = dynamic(() => import('@/components/GraficoProjecao'), {
 const DrawerDetalhes = dynamic(() => import('@/components/DrawerDetalhes'), { ssr: false })
 
 const CARTAO_LABELS_PADRAO: CartaoLabels = { nubank: 'NuBank', cartao1: 'Cartão 1', cartao2: 'Cartão 2' }
-const LISTA_TAMANHO = 5
 
 function capitalizar(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
@@ -56,12 +54,6 @@ export default function ProjecaoParcelamentosCard({ mesAtual, relatorio }: Props
     return () => { cancelado = true }
   }, [mesAtual])
 
-  function origemLabel(origem: string): string {
-    if (origem === 'planejamento') return 'Planejado'
-    if (origem === 'nubank' || origem === 'cartao1' || origem === 'cartao2') return cartaoLabels[origem]
-    return origem
-  }
-
   const livreEm = useMemo(() => {
     if (!relatorio) return null
     const porPessoa: Record<'Matheus' | 'Jeniffer', Date | null> = { Matheus: null, Jeniffer: null }
@@ -70,15 +62,8 @@ export default function ProjecaoParcelamentosCard({ mesAtual, relatorio }: Props
       const atual = porPessoa[p.responsavel]
       if (!atual || p.mesTermino > atual) porPessoa[p.responsavel] = p.mesTermino
     }
-    const casal = relatorio.parcelamentosAbertos.reduce<Date | null>(
-      (max, p) => (!max || p.mesTermino > max) ? p.mesTermino : max,
-      null
-    )
-    return { porPessoa, casal }
+    return { porPessoa }
   }, [relatorio])
-
-  const listaCondensada = relatorio?.parcelamentosAbertos.slice(0, LISTA_TAMANHO) ?? []
-  const totalRestante = relatorio?.parcelamentosAbertos.reduce((s, p) => s + p.valorRestante, 0) ?? 0
 
   return (
     <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-card border border-gray-100 dark:border-gray-800 p-4">
@@ -115,28 +100,6 @@ export default function ProjecaoParcelamentosCard({ mesAtual, relatorio }: Props
               </div>
             )
           })}
-        </div>
-      )}
-
-      {listaCondensada.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-gray-50 dark:border-gray-800/60">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Parcelamentos em aberto</p>
-            <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 num">{formatBRL(totalRestante)} restante</span>
-          </div>
-          <div className="space-y-2">
-            {listaCondensada.map((p, i) => (
-              <div key={`${p.descricao}-${p.responsavel}-${i}`} className="flex items-center gap-3 py-1.5">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{p.descricao}</p>
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                    {p.responsavel} · {origemLabel(p.origem)} · {p.parcelaAtual}/{p.totalParcelas} · termina {formatarMes(p.mesTermino)}
-                  </p>
-                </div>
-                <span className="text-sm font-semibold text-gray-800 dark:text-gray-100 num flex-none">{formatBRL(p.valorRestante)}</span>
-              </div>
-            ))}
-          </div>
         </div>
       )}
 
