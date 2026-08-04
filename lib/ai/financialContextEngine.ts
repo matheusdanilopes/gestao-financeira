@@ -77,10 +77,46 @@ export function detectContextDomains(pergunta: string): ContextDomain[] {
   if (/orçamento|orcamento|previsto|budget|está pago|foi pago|paguei/.test(p)) domains.push('orcamento')
   if (/consigo|posso|viajar|economizar|reserva|emergência|emergencia|sobra|meta financ/.test(p)) domains.push('planejamento')
   if (/quanto gastei|gast.*com|quanto.*ifood|quanto.*uber|quanto.*netflix|quanto.*spotify|quanto.*mercado|quanto.*alimenta|quanto.*lazer/.test(p)) domains.push('categoria')
-  if (/compar|histórico|historico|mês passado|mes passado|evolu|tendência|tendencia|antes/.test(p)) domains.push('historico')
+  if (/compar|histórico|historico|mês passado|mes passado|evolu|tendência|tendencia|antes|desde/.test(p)) domains.push('historico')
   if (/problema|pior|análise|analise|principal|insight|piora|alerta|acima do normal|puxando|impulsionando|o que (está|esta) causando|por que.*(subiu|aumentou|cresceu|disparou|caiu)/.test(p)) domains.push('insights')
   if (/simul|projeç|projec|próximo mês|proximo mes|mês que vem|mes que vem|daqui a \d|ano que vem|quanto vou ter|quanto (vai |vou )?sobrar|consigo (bancar|pagar|viajar) em|em (janeiro|fevereiro|março|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)/.test(p)) domains.push('futuro')
   return domains.length > 0 ? domains : ['geral']
+}
+
+const MESES_PT: Record<string, number> = {
+  janeiro: 1, fevereiro: 2, março: 3, marco: 3, abril: 4, maio: 5, junho: 6,
+  julho: 7, agosto: 8, setembro: 9, outubro: 10, novembro: 11, dezembro: 12,
+}
+
+// Parses a Portuguese month name mentioned in the question (e.g. "desde
+// Março") and returns how many billing periods back from the current
+// fatura that month falls — used to widen buildHistoricoCompactoLayer's
+// window dynamically instead of a fixed default that may silently exclude
+// a month the user explicitly named. Assumes the most recent past
+// occurrence of that month name (if it hasn't happened yet this calendar
+// year, it must refer to last year).
+function mesesAteReferencia(pergunta: string, hoje: Date): number | null {
+  const p = pergunta.toLowerCase()
+  let mesReferenciado: number | null = null
+  for (const [nome, num] of Object.entries(MESES_PT)) {
+    if (p.includes(nome)) { mesReferenciado = num; break }
+  }
+  if (mesReferenciado === null) return null
+
+  const mesAtualNum = hoje.getMonth() + 1
+  const anoRef = mesReferenciado > mesAtualNum ? hoje.getFullYear() - 1 : hoje.getFullYear()
+  const dataRef = new Date(anoRef, mesReferenciado - 1, 1)
+  const mesFaturaDate = startOfMonth(addMonths(hoje, 1))
+  const diffMeses = (mesFaturaDate.getFullYear() - dataRef.getFullYear()) * 12 + (mesFaturaDate.getMonth() - dataRef.getMonth())
+  return Math.max(1, diffMeses)
+}
+
+// Caps the dynamic window: never shrink below the existing default (5), and
+// never grow past 12 months so a stray/old month mention can't blow up the
+// context's token budget.
+function resolveNMesesHistorico(pergunta: string, hoje: Date, fallback: number): number {
+  const referencia = mesesAteReferencia(pergunta, hoje)
+  return referencia === null ? fallback : Math.min(12, Math.max(fallback, referencia))
 }
 
 // Keys must match the real category names in CATEGORIAS_PADRAO (lib/categorias.ts)
@@ -134,7 +170,10 @@ function buildSnapshotLayer(m: FinancialInsightsContext): string {
   const lines = [
     `SNAPSHOT ${m.mesAtual} (Dia ${m.diaAtual}):`,
     `Total do mês: ${R(totalMes)}${vsAnt}${vsHist}`,
-    `  Faturas cartão: ${R(m.totalGastos)} | Fixas planejadas: ${R(m.totalOrcado)}`,
+    // Faturas cartão is the NEXT month's bill (mesFaturaAtual), not mesAtual
+    // above — spelled out explicitly so the AI doesn't attribute this number
+    // to the calendar month in the header.
+    `  Faturas cartão (fatura de ${m.mesFaturaAtual}): ${R(m.totalGastos)} | Fixas planejadas (${m.mesAtual}): ${R(m.totalOrcado)}`,
     `  Por responsável (cartão): Matheus ${R(m.gastoMatheus)} | Jeniffer ${R(m.gastoJeniffer)}`,
   ]
   if (m.totalAportesHistorico > 0) lines.push(`Investimentos total histórico: ${R(m.totalAportesHistorico)}`)
@@ -694,7 +733,14 @@ function buildHistoricoCompactoLayer(data: EnrichedData, hoje: Date, nMeses = 5)
     })
     .filter(Boolean) as string[]
 
-  return entries.length > 0 ? `HISTÓRICO RECENTE: ${entries.join(' · ')}` : ''
+  // Explicit "somente cartão" qualifier: this sums data.transacoes only,
+  // never data.planejamento — without saying so, the LLM has no way to tell
+  // these figures apart from the combined (cartão + fixas) "Total do mês"
+  // shown in SNAPSHOT, and can wrongly assume it lacks card-only history it
+  // was actually given.
+  return entries.length > 0
+    ? `HISTÓRICO CARTÃO (somente faturas de cartão, não inclui despesas fixas planejadas): ${entries.join(' · ')}`
+    : ''
 }
 
 // ─── RAG Financeiro: Foco por Categoria (demanda explícita) ──────────────────
@@ -752,10 +798,17 @@ function buildFullContext(
   data: EnrichedData,
   m: FinancialInsightsContext,
   hoje: Date,
+  pergunta: string,
   tela?: TelaAtual
 ): string {
   const dateStr = format(hoje, "dd/MM/yyyy (EEEE)", { locale: ptBR })
   const screenCtx = tela ? SCREEN_CONTEXT[tela] ?? '' : ''
+
+  // If the very first message already names a month ("...desde Março"), the
+  // fixed 5-month default can silently exclude it — widen the window to
+  // reach it instead of relying on the follow-up-only 'historico' domain
+  // path (which this first message never goes through).
+  const nMesesHistorico = resolveNMesesHistorico(pergunta, hoje, 5)
 
   const sections = [
     `Data: ${dateStr}${screenCtx ? ' | ' + screenCtx : ''}`,
@@ -766,7 +819,7 @@ function buildFullContext(
     buildReceitasLayer(data, hoje),
     buildInvestimentosLayer(data, m),
     buildInsightsLayer(m),
-    buildHistoricoCompactoLayer(data, hoje),
+    buildHistoricoCompactoLayer(data, hoje, nMesesHistorico),
     buildFuturoLayer(data, m, hoje, 3, /* incluirReceitasFuturas */ false),
   ].filter(s => s.length > 0)
 
@@ -833,7 +886,7 @@ export function buildDomainExtra(
     }
 
     case 'historico':
-      return buildHistoricoCompactoLayer(data, hoje, 6)
+      return buildHistoricoCompactoLayer(data, hoje, resolveNMesesHistorico(pergunta, hoje, 6))
 
     case 'insights': {
       // Pulls actual purchases for the top 2 categories so "what's driving
@@ -958,7 +1011,7 @@ export async function buildChatContext({
   const hoje = new Date()
 
   if (isFirstMessage) {
-    const baseCtx   = buildFullContext(validatedData, m, hoje, tela)
+    const baseCtx   = buildFullContext(validatedData, m, hoje, pergunta, tela)
     const certBlock = formatCertificateForAI(certificate)
 
     // Anti-distortion motor (RN13): uses combined total (card + plan) so it
