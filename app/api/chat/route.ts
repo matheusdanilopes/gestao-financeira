@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
 import { buildChatContext, buildDomainExtra, KNOWN_DOMAINS, type ContextDomain } from '@/lib/ai/financialContextEngine'
+import { consultarTransacoes, consultarPlanejamento } from '@/lib/ai/consultaTool'
 import { buildSystemPrompt } from '@/lib/ai/prompts'
-import type { TelaAtual } from '@/lib/ai/types'
+import { CATEGORIAS_PADRAO } from '@/lib/categorias'
+import type { TelaAtual, EnrichedData, FinancialInsightsContext } from '@/lib/ai/types'
 
 // The retry loop below can take up to ~58s in the worst case (backoff +
 // timeouts on repeated 503s) — without this, the route falls back to the
@@ -17,26 +19,110 @@ const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GE
 const WINDOW_SIZE = 15
 const SUMMARY_TRIGGER = 20
 
-// ─── Fase C: busca sob demanda via function-calling nativo do Gemini ─────────
+// ─── Fase C/E: busca sob demanda via function-calling nativo do Gemini ───────
 // Só habilitada em follow-ups com dataset validado (ver toolsEnabled no POST
-// handler). O menu de domínios é o mesmo enum fechado usado pelo roteador
-// estático (Fase B) — a IA nunca pode pedir algo fora desse conjunto.
+// handler). Todo parâmetro é validado/normalizado em consultaTool.ts e
+// financialContextEngine.ts antes de tocar em qualquer dado — nunca SQL
+// bruto, apenas filtros estruturados sobre o EnrichedData já buscado e
+// validado neste turno (sem nova consulta ao banco, sem role/credencial
+// nova). Ver "Fase E" do plano para o porquê de não ser um run_sql aberto.
 const FINANCIAL_TOOL = {
-  functionDeclarations: [{
-    name: 'buscar_dados_financeiros',
-    description:
-      'Busca dados financeiros adicionais compactos para um ou mais domínios quando o contexto já fornecido não é suficiente para responder com precisão.',
-    parameters: {
-      type: 'OBJECT',
-      properties: {
-        dominios: {
-          type: 'ARRAY',
-          items: { type: 'STRING', enum: KNOWN_DOMAINS },
+  functionDeclarations: [
+    {
+      name: 'buscar_dados_financeiros',
+      description:
+        'Busca dados financeiros adicionais compactos para um ou mais domínios quando o contexto já fornecido não é suficiente para responder com precisão.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          dominios: {
+            type: 'ARRAY',
+            items: { type: 'STRING', enum: KNOWN_DOMAINS },
+          },
+        },
+        required: ['dominios'],
+      },
+    },
+    {
+      name: 'consultar_transacoes',
+      description:
+        'Consulta transações de cartão com filtros combinados (categoria, responsável, cartão, intervalo de meses) quando buscar_dados_financeiros não cobrir a combinação exata perguntada. Retorna um resumo compacto (total, por mês, maiores itens) — nunca a lista completa.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          categoria: { type: 'STRING', enum: CATEGORIAS_PADRAO },
+          responsavel: { type: 'STRING', enum: ['Matheus', 'Jeniffer'] },
+          cartao: { type: 'STRING', enum: ['nubank', 'cartao1', 'cartao2'] },
+          mesInicio: { type: 'STRING', description: 'Mês inicial no formato YYYY-MM' },
+          mesFim: { type: 'STRING', description: 'Mês final no formato YYYY-MM' },
         },
       },
-      required: ['dominios'],
     },
-  }],
+    {
+      name: 'consultar_planejamento',
+      description:
+        'Consulta despesas fixas planejadas com filtros combinados (categoria, responsável, intervalo de meses, se já foi pago) quando buscar_dados_financeiros não cobrir a combinação exata perguntada. Retorna um resumo compacto — nunca a lista completa.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          categoria: { type: 'STRING', enum: CATEGORIAS_PADRAO },
+          responsavel: { type: 'STRING', enum: ['Matheus', 'Jeniffer'] },
+          mesInicio: { type: 'STRING', description: 'Mês inicial no formato YYYY-MM' },
+          mesFim: { type: 'STRING', description: 'Mês final no formato YYYY-MM' },
+          pago: { type: 'BOOLEAN' },
+        },
+      },
+    },
+  ],
+}
+
+// Dispatches a functionCall by name to its handler, all operating on the
+// EnrichedData/metrics already fetched this turn — returns null for an
+// unknown/hallucinated tool name so the caller can fall back gracefully.
+function executarTool(
+  name: string,
+  args: Record<string, unknown>,
+  data: EnrichedData,
+  metrics: FinancialInsightsContext,
+  pergunta: string,
+  hoje: Date
+): string | null {
+  const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined)
+
+  switch (name) {
+    case 'buscar_dados_financeiros': {
+      const requested = Array.isArray(args?.dominios)
+        ? (args.dominios as unknown[]).filter((d): d is string => typeof d === 'string')
+        : []
+      const valid = requested.filter((d): d is ContextDomain => (KNOWN_DOMAINS as string[]).includes(d))
+      const extra = valid
+        .map(d => buildDomainExtra(d, data, metrics, pergunta, hoje))
+        .filter(Boolean)
+        .join('\n\n')
+      return extra || 'Nenhum dado adicional disponível para os domínios solicitados.'
+    }
+
+    case 'consultar_transacoes':
+      return consultarTransacoes(data, {
+        categoria: str(args?.categoria),
+        responsavel: str(args?.responsavel),
+        cartao: str(args?.cartao),
+        mesInicio: str(args?.mesInicio),
+        mesFim: str(args?.mesFim),
+      })
+
+    case 'consultar_planejamento':
+      return consultarPlanejamento(data, {
+        categoria: str(args?.categoria),
+        responsavel: str(args?.responsavel),
+        mesInicio: str(args?.mesInicio),
+        mesFim: str(args?.mesFim),
+        pago: typeof args?.pago === 'boolean' ? args.pago : undefined,
+      })
+
+    default:
+      return null
+  }
 }
 
 // ─── Gemini ───────────────────────────────────────────────────────────────────
@@ -371,43 +457,34 @@ export async function POST(req: NextRequest) {
       deadlineMs,
     })
 
+    const respostaGenerica = 'Não consegui montar uma resposta completa agora — pode reformular a pergunta?'
+
     let resposta: string
     if (first.type === 'text') {
       resposta = first.text
-    } else if (
-      first.type === 'functionCall' &&
-      first.name === 'buscar_dados_financeiros' &&
-      ctxResult.data && ctxResult.metrics && ctxResult.hoje
-    ) {
-      const data = ctxResult.data
-      const metrics = ctxResult.metrics
-      const hoje = ctxResult.hoje
-      const requested = Array.isArray(first.args?.dominios)
-        ? (first.args.dominios as unknown[]).filter((d): d is string => typeof d === 'string')
-        : []
-      const valid = requested.filter((d): d is ContextDomain => (KNOWN_DOMAINS as string[]).includes(d))
-      const extra = valid
-        .map(d => buildDomainExtra(d, data, metrics, perguntaSafe, hoje))
-        .filter(Boolean)
-        .join('\n\n')
-      const functionResponseContent = extra || 'Nenhum dado adicional disponível para os domínios solicitados.'
+    } else if (first.type === 'functionCall' && ctxResult.data && ctxResult.metrics && ctxResult.hoje) {
+      const functionResponseContent = executarTool(
+        first.name, first.args, ctxResult.data, ctxResult.metrics, perguntaSafe, ctxResult.hoje
+      )
 
-      const followupContents: GeminiContent[] = [
-        ...contents,
-        { role: 'model', parts: [{ functionCall: { name: first.name, args: first.args } }] },
-        {
-          role: 'function',
-          parts: [{ functionResponse: { name: first.name, response: { name: first.name, content: functionResponseContent } } }],
-        },
-      ]
-      // No `tools` on the follow-up call: structurally prevents a second
-      // function call, bounding this to at most two Gemini calls per turn.
-      const second = await geminiChat(apiKey, followupContents, { deadlineMs })
-      resposta = second.type === 'text'
-        ? second.text
-        : 'Não consegui montar uma resposta completa agora — pode reformular a pergunta?'
+      if (functionResponseContent === null) {
+        resposta = respostaGenerica
+      } else {
+        const followupContents: GeminiContent[] = [
+          ...contents,
+          { role: 'model', parts: [{ functionCall: { name: first.name, args: first.args } }] },
+          {
+            role: 'function',
+            parts: [{ functionResponse: { name: first.name, response: { name: first.name, content: functionResponseContent } } }],
+          },
+        ]
+        // No `tools` on the follow-up call: structurally prevents a second
+        // function call, bounding this to at most two Gemini calls per turn.
+        const second = await geminiChat(apiKey, followupContents, { deadlineMs })
+        resposta = second.type === 'text' ? second.text : respostaGenerica
+      }
     } else {
-      resposta = 'Não consegui montar uma resposta completa agora — pode reformular a pergunta?'
+      resposta = respostaGenerica
     }
 
     await supabase.from('messages').insert({
