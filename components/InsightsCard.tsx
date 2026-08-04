@@ -5,7 +5,7 @@ import { Sparkles, RefreshCw, Clock, ArrowRight } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useRouter } from 'next/navigation'
-import { useInsights } from '@/lib/useInsights'
+import type { InsightsState } from '@/lib/useInsights'
 import type { InsightItem } from '@/lib/insightsTypes'
 
 // Colored left accent bar
@@ -284,8 +284,15 @@ function formatUpdatedAt(date: Date): string {
   return formatDistanceToNow(date, { locale: ptBR, addSuffix: true })
 }
 
-export default function InsightsCard() {
-  const { insights, updatedAt, status, refreshFailed, changedIndices, source, fallbackReason, refresh } = useInsights()
+interface InsightsCardProps {
+  state: InsightsState
+  title: string
+  /** Texto exibido quando não está atualizando nem em fallback (fonte = regras, não IA). */
+  subtitle?: string
+}
+
+export default function InsightsCard({ state, title, subtitle = 'Baseado nas suas movimentações' }: InsightsCardProps) {
+  const { insights, updatedAt, status, refreshFailed, changedIndices, source, fallbackReason, refresh } = state
 
   const isLoading  = status === 'loading'
   const isUpdating = status === 'updating'
@@ -315,7 +322,7 @@ export default function InsightsCard() {
           </div>
           <div>
             <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 leading-none">
-              Insights por IA
+              {title}
             </h2>
             {isUpdating ? (
               <p className="text-[10px] text-violet-400 mt-0.5 flex items-center gap-1">
@@ -350,7 +357,7 @@ export default function InsightsCard() {
               </p>
             ) : (
               <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
-                Baseado nas suas movimentações
+                {subtitle}
               </p>
             )}
           </div>

@@ -10,21 +10,10 @@ import { formatBRL } from '@/lib/logger'
 import FilterSelect from '@/components/FilterSelect'
 import EmptyState from '@/components/EmptyState'
 import { buscarCartaoLabels, type CartaoLabels } from '@/lib/cartaoLabels'
+import { RESPONSAVEIS, RESPONSAVEL_STYLE, type Responsavel } from '@/lib/responsavelStyle'
 
 interface Props {
   mesAtual: Date
-}
-
-const RESPONSAVEIS = ['Matheus', 'Jeniffer', 'Conjunto'] as const
-type Responsavel = typeof RESPONSAVEIS[number]
-
-// Reaproveita os tokens de marca já definidos em tailwind.config.js (matheus/jeniffer).
-// "Conjunto" não é uma pessoa, então usa um neutro em vez de inventar uma cor nova —
-// violet já é a cor-assinatura de Investimentos em outras telas do app.
-const RESPONSAVEL_STYLE: Record<Responsavel, { texto: string; iconBg: string }> = {
-  Matheus:  { texto: 'text-matheus dark:text-blue-400',    iconBg: 'bg-matheus-light dark:bg-blue-900/20' },
-  Jeniffer: { texto: 'text-jeniffer dark:text-pink-400',   iconBg: 'bg-jeniffer-light dark:bg-pink-900/20' },
-  Conjunto: { texto: 'text-slate-600 dark:text-slate-300', iconBg: 'bg-slate-100 dark:bg-slate-800/40' },
 }
 
 type Origem = 'nubank' | 'cartao1' | 'cartao2' | 'planejamento'

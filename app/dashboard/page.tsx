@@ -13,6 +13,7 @@ import { useMes } from '@/components/MesProvider'
 import MonthSelector from '@/components/MonthSelector'
 import UltimaImportacaoInfo from '@/components/UltimaImportacaoInfo'
 import type { ComposicaoFaturaDados } from '@/components/ComposicaoFaturaModal'
+import { useInsights } from '@/lib/useInsights'
 import dynamic from 'next/dynamic'
 
 const GraficoProjecao = dynamic(() => import('@/components/GraficoProjecao'), {
@@ -77,6 +78,14 @@ const GraficoAnual = dynamic(() => import('@/components/GraficoAnual'), {
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { usePrefetchPages } from '@/lib/usePrefetchPages'
 import { formatBRL as fmt } from '@/lib/logger'
+
+// Isola a chamada do hook (fetch + Realtime) num componente à parte, montado só
+// quando o card de insights é exibido — chamar useInsights() direto no Dashboard
+// faria o fetch/subscribe rodar mesmo fora do mês atual, quando o card não aparece.
+function DashboardInsights() {
+  const insightsState = useInsights()
+  return <InsightsCard state={insightsState} title="Insights por IA" />
+}
 
 function isNuBankItem(item: string): boolean {
   const lower = item.trim().toLowerCase()
@@ -1215,7 +1224,7 @@ export default function Dashboard() {
           </div>
 
           {/* ── 4. Insights com IA ── */}
-          {isSameMonth(mesAtual, new Date()) && <InsightsCard />}
+          {isSameMonth(mesAtual, new Date()) && <DashboardInsights />}
 
           {/* ── 5. Investimentos ── */}
           {(carregando || investimentos.length > 0) && (
