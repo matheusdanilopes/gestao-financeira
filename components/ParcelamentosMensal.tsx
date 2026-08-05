@@ -11,6 +11,8 @@ import FilterSelect from '@/components/FilterSelect'
 import EmptyState from '@/components/EmptyState'
 import { buscarCartaoLabels, type CartaoLabels } from '@/lib/cartaoLabels'
 import { RESPONSAVEIS, RESPONSAVEL_STYLE, type Responsavel } from '@/lib/responsavelStyle'
+import { buscarBaseContratos } from '@/lib/relatorioCartoes'
+import { itensDoMes } from '@/lib/parcelamentoProjecao'
 
 interface Props {
   mesAtual: Date
@@ -81,6 +83,11 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
     async function carregar() {
       setCarregando(true)
 
+      // Meses futuros (após o mês corrente real) ainda não têm fatura importada nem
+      // planejamento cadastrado — para eles, os itens são projetados a partir dos
+      // contratos de parcelamento já em andamento, em vez de exigir um registro real.
+      const isFuturo = startOfMonth(mesAtual) > startOfMonth(new Date())
+
       const projetoFatura = format(startOfMonth(addMonths(mesAtual, 1)), 'yyyy-MM-dd')
 
       // Últimos N meses anteriores ao mês selecionado, usados para sugerir um limite
@@ -97,6 +104,7 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
         { data: planejadosHist },
         cartaoLabelsCarregados,
         { data: planejamentoMes },
+        contratosBase,
       ] = await Promise.all([
         fetch(`/api/limites-parcelamentos?ate=${mesReferencia}`),
         supabase
@@ -130,6 +138,7 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
           .from('planejamento')
           .select('item, valor_previsto, responsavel')
           .eq('mes_referencia', mesReferencia),
+        isFuturo ? buscarBaseContratos([]) : Promise.resolve(null),
       ])
 
       if (cancelado) return
@@ -151,26 +160,38 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
         oMap[l.responsavel] = l.mes_referencia
       }
 
-      const lista: ParcelaItem[] = [
-        ...(transacoes ?? []).map(t => ({
-          descricao: String(t.descricao ?? ''),
-          valor: Number(t.valor ?? 0),
-          responsavel: String(t.responsavel ?? ''),
-          categoria: t.categoria || 'Sem categoria',
-          origem: (t.cartao || 'nubank') as Origem,
-          parcelaAtual: t.parcela_atual,
-          totalParcelas: t.total_parcelas,
-        })),
-        ...(planejados ?? []).map(p => ({
-          descricao: String(p.item ?? ''),
-          valor: Number(p.valor_previsto ?? 0),
-          responsavel: String(p.responsavel ?? ''),
-          categoria: p.categoria || 'Sem categoria',
-          origem: 'planejamento' as Origem,
-          parcelaAtual: p.parcela_atual,
-          totalParcelas: p.total_parcelas,
-        })),
-      ]
+      const lista: ParcelaItem[] = (isFuturo && contratosBase
+        ? itensDoMes(startOfMonth(mesAtual), contratosBase.contratos, contratosBase.contratosExtras)
+          .map(i => ({
+            descricao: i.descricao,
+            valor: i.valor,
+            responsavel: i.responsavel,
+            categoria: i.categoria,
+            origem: (i.cartao || 'nubank') as Origem,
+            parcelaAtual: i.parcelaAtual,
+            totalParcelas: i.totalParcelas,
+          }))
+        : [
+          ...(transacoes ?? []).map(t => ({
+            descricao: String(t.descricao ?? ''),
+            valor: Number(t.valor ?? 0),
+            responsavel: String(t.responsavel ?? ''),
+            categoria: t.categoria || 'Sem categoria',
+            origem: (t.cartao || 'nubank') as Origem,
+            parcelaAtual: t.parcela_atual,
+            totalParcelas: t.total_parcelas,
+          })),
+          ...(planejados ?? []).map(p => ({
+            descricao: String(p.item ?? ''),
+            valor: Number(p.valor_previsto ?? 0),
+            responsavel: String(p.responsavel ?? ''),
+            categoria: p.categoria || 'Sem categoria',
+            origem: 'planejamento' as Origem,
+            parcelaAtual: p.parcela_atual,
+            totalParcelas: p.total_parcelas,
+          })),
+        ]
+      )
         .filter(item => item.responsavel)
         .sort((a, b) => b.valor - a.valor)
 
