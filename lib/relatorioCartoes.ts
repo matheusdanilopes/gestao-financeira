@@ -81,7 +81,7 @@ async function buscarHistorico(hoje: Date, erros: string[]): Promise<MesGasto[]>
   return meses.map(m => bucketsPorFatura.get(format(m, 'yyyy-MM-dd'))!)
 }
 
-async function buscarBaseContratos(erros: string[]) {
+export async function buscarBaseContratos(erros: string[]) {
   const [{ data: maxNubank }, { data: maxCartao1 }, { data: maxCartao2 }] = await Promise.all([
     supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'nubank').order('projeto_fatura', { ascending: false }).limit(1),
     supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'cartao1').order('projeto_fatura', { ascending: false }).limit(1),

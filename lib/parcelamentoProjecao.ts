@@ -85,6 +85,63 @@ export function buildContracts(transacoes: TransacaoRowParcelamento[]) {
   return map
 }
 
+export interface ItemParcelaProjetado {
+  descricao: string
+  valor: number
+  responsavel: string
+  categoria: string
+  cartao: string
+  parcelaAtual: number
+  totalParcelas: number
+}
+
+/**
+ * Deriva, a partir dos contratos já reconstruídos (buildContracts/buildContratosExtras),
+ * quais parcelas caem em `mesRef` — passado, presente ou futuro — sem depender de
+ * já existir um registro real (fatura importada ou planejamento cadastrado) para esse mês.
+ */
+export function itensDoMes(
+  mesRef: Date,
+  contratos: ReturnType<typeof buildContracts>,
+  contratosExtras: ReturnType<typeof buildContratosExtras>,
+): ItemParcelaProjetado[] {
+  const itens: ItemParcelaProjetado[] = []
+
+  for (const { row, fatura, parcela } of contratos.values()) {
+    const deltaM = (mesRef.getFullYear() - fatura.getFullYear()) * 12 + (mesRef.getMonth() - fatura.getMonth())
+    const parcelaNoMes = parcela.atual + deltaM
+    if (parcelaNoMes >= 1 && parcelaNoMes <= parcela.total) {
+      itens.push({
+        descricao: String(row.descricao ?? ''),
+        valor: Number(row.valor ?? 0),
+        responsavel: String(row.responsavel ?? ''),
+        categoria: String(row.categoria ?? '') || 'Sem categoria',
+        cartao: String(row.cartao ?? 'nubank'),
+        parcelaAtual: parcelaNoMes,
+        totalParcelas: parcela.total,
+      })
+    }
+  }
+
+  for (const { row: e, mesRef: mesExtra, parcela } of contratosExtras.values()) {
+    const deltaM = (mesRef.getFullYear() - mesExtra.getFullYear()) * 12 + (mesRef.getMonth() - mesExtra.getMonth())
+    const parcelaNoMes = parcela.atual + deltaM
+    if (parcelaNoMes >= 1 && parcelaNoMes <= parcela.total) {
+      itens.push({
+        descricao: String(e.item ?? ''),
+        valor: Number(e.valor_previsto ?? 0),
+        responsavel: String(e.responsavel ?? ''),
+        categoria: String(e.categoria ?? '') || 'Sem categoria',
+        cartao: 'planejamento',
+        parcelaAtual: parcelaNoMes,
+        totalParcelas: parcela.total,
+      })
+    }
+  }
+
+  return itens
+}
+
 export function buildContratosExtras(planejamentos: PlanejamentoRowParcelamento[]) {
   const map = new Map<string, { row: PlanejamentoRowParcelamento; mesRef: Date; parcela: { atual: number; total: number } }>()
 
