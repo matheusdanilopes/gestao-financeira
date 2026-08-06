@@ -51,6 +51,29 @@ function arredondar(n: number, casas: number): number {
   return Math.round(n * f) / f
 }
 
+type DonoCartao = Partial<Record<'cartao1' | 'cartao2', Responsavel>>
+
+// Cartão 1/Cartão 2 têm um "dono" cadastrado no planejamento (ex.: "[CARTAO2] NuBank
+// Jeniffer" → responsavel Jeniffer). Quando esse responsável é o mesmo em todas as
+// linhas de planejamento do cartão, é o dono real dele — e aqui na tela de Parcelamentos
+// os itens desse cartão devem contar para essa pessoa, mesmo que a transação individual
+// (importada) esteja gravada com outro responsável.
+async function buscarDonoCartoes(): Promise<DonoCartao> {
+  const [{ data: c1 }, { data: c2 }] = await Promise.all([
+    supabase.from('planejamento').select('responsavel').ilike('item', '[CARTAO1]%'),
+    supabase.from('planejamento').select('responsavel').ilike('item', '[CARTAO2]%'),
+  ])
+
+  function donoUnico(rows: { responsavel: string | null }[] | null): Responsavel | undefined {
+    const unicos = [...new Set((rows ?? []).map(r => r.responsavel).filter(Boolean))]
+    return unicos.length === 1 && (unicos[0] === 'Matheus' || unicos[0] === 'Jeniffer')
+      ? (unicos[0] as Responsavel)
+      : undefined
+  }
+
+  return { cartao1: donoUnico(c1), cartao2: donoUnico(c2) }
+}
+
 // Recipe de foco premium equivalente à classe `.input-base` de app/globals.css,
 // aplicada via `focus-within` no wrapper (o input em si fica transparente) —
 // evita depender da ordem de cascata do CSS para permitir campos compactos.
@@ -105,6 +128,7 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
         cartaoLabelsCarregados,
         { data: planejamentoMes },
         contratosBase,
+        donoCartoes,
       ] = await Promise.all([
         fetch(`/api/limites-parcelamentos?ate=${mesReferencia}`),
         supabase
@@ -139,6 +163,7 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
           .select('item, valor_previsto, responsavel')
           .eq('mes_referencia', mesReferencia),
         isFuturo ? buscarBaseContratos([]) : Promise.resolve(null),
+        buscarDonoCartoes(),
       ])
 
       if (cancelado) return
@@ -192,6 +217,10 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
           })),
         ]
       )
+        .map(item => {
+          const dono = (item.origem === 'cartao1' || item.origem === 'cartao2') ? donoCartoes[item.origem] : undefined
+          return dono ? { ...item, responsavel: dono } : item
+        })
         .filter(item => item.responsavel)
         .sort((a, b) => b.valor - a.valor)
 
