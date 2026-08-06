@@ -85,6 +85,31 @@ async function buscarNomeCartao(
     .find(Boolean) || undefined
 }
 
+// Responsável padrão cadastrado no planejamento para este cartão — mesmo critério usado
+// em app/api/import/cartao/route.ts. Sem isso, transações de cartao1/cartao2 importadas
+// via API (CSV como texto ou array de transações) sempre caíam na heurística por descrição
+// (só vira "Jeniffer" se a palavra aparecer no texto da compra), mesmo em um cartão já
+// nomeado e atribuído a alguém específico no planejamento.
+async function buscarResponsavelPadrao(
+  supabase: ReturnType<typeof criarSupabaseServer>,
+  cartao: string
+): Promise<'Matheus' | 'Jeniffer' | undefined> {
+  if (cartao !== 'cartao1' && cartao !== 'cartao2') return undefined
+  const prefixo = cartao === 'cartao1' ? '[CARTAO1]' : '[CARTAO2]'
+  const { data } = await supabase
+    .from('planejamento')
+    .select('responsavel')
+    .ilike('item', `${prefixo}%`)
+
+  const responsaveisUnicos = [
+    ...new Set((data ?? []).map((p: { responsavel: string | null }) => p.responsavel).filter(Boolean))
+  ]
+  return responsaveisUnicos.length === 1 &&
+    (responsaveisUnicos[0] === 'Matheus' || responsaveisUnicos[0] === 'Jeniffer')
+    ? (responsaveisUnicos[0] as 'Matheus' | 'Jeniffer')
+    : undefined
+}
+
 async function salvarTransacoes(
   supabase: ReturnType<typeof criarSupabaseServer>,
   transacoes: TransacaoNubank[],
@@ -290,7 +315,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: msg }, { status: 400 })
       }
       const csvText = await file.text()
-      transacoes = processarCSV(csvText, diaVencimento, ajusteFechamento, cartao)
+      const responsavelPadraoMultipart = await buscarResponsavelPadrao(supabase, cartao)
+      transacoes = processarCSV(csvText, diaVencimento, ajusteFechamento, cartao, responsavelPadraoMultipart)
     } else {
       let body: Record<string, unknown>
       try {
@@ -312,14 +338,17 @@ export async function POST(req: NextRequest) {
         cartao = body.cartao
       }
 
+      const responsavelPadraoJson = await buscarResponsavelPadrao(supabase, cartao)
+
       if (typeof body?.csv === 'string') {
-        transacoes = processarCSV(body.csv, diaVencimento, ajusteFechamento, cartao)
+        transacoes = processarCSV(body.csv, diaVencimento, ajusteFechamento, cartao, responsavelPadraoJson)
       } else if (Array.isArray(body?.transacoes)) {
         transacoes = processarTransacoesJSON(
           body.transacoes as TransacaoInputJSON[],
           diaVencimento,
           ajusteFechamento,
-          cartao
+          cartao,
+          responsavelPadraoJson
         )
       } else {
         const msg = 'Body deve conter "csv" (string com conteúdo CSV) ou "transacoes" (array de objetos).'

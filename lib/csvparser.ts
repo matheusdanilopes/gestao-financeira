@@ -256,7 +256,8 @@ export function processarTransacoesJSON(
   transacoes: TransacaoInputJSON[],
   diaVencimento: number = 10,
   ajusteFechamento: number = 0,
-  cartao: string = 'nubank'
+  cartao: string = 'nubank',
+  responsavelPadrao?: 'Matheus' | 'Jeniffer' | 'Conjunto'
 ): TransacaoNubank[] {
   function sanitizar(str: string): string {
     return str
@@ -295,7 +296,8 @@ export function processarTransacoesJSON(
     if (isEstorno && isPagamentoFatura(descricao)) continue
 
     const responsavel: 'Matheus' | 'Jeniffer' | 'Conjunto' =
-      descricao.toLowerCase().includes('jeniffer') ? 'Jeniffer' : 'Matheus'
+      responsavelPadrao ??
+      (descricao.toLowerCase().includes('jeniffer') ? 'Jeniffer' : 'Matheus')
 
     const dataCompra = new Date(dataISO + 'T12:00:00')
     let projetoFatura = calcularProjetoFatura(dataCompra, diaVencimento, ajusteFechamento)
