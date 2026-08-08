@@ -52,6 +52,8 @@ interface EvolucaoMensal {
 
 interface Props {
   mesAtual: Date
+  /** Controla o polling de 60s — false pausa fetch/timers sem desmontar o gráfico (ex: aba oculta). Default: true. */
+  ativo?: boolean
 }
 
 // Plugin: canvas gradient fills — recalculated each draw so resizes are handled
@@ -72,7 +74,7 @@ const gradientPlugin = {
   },
 }
 
-export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
+export default function GraficoEvolucaoMensal({ mesAtual, ativo = true }: Props) {
   const [dados, setDados] = useState<EvolucaoMensal | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
@@ -147,7 +149,11 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
     }
   }, [mesAtual])
 
+  // Pausa fetch + polling quando o gráfico está fora de vista (ex: aba "Gráficos"
+  // fechada no Dashboard) — o componente continua montado (cache preservado),
+  // só evita trabalho de rede/CPU sem benefício visual enquanto oculto.
   useEffect(() => {
+    if (!ativo) return
     carregar()
     let intervalId: ReturnType<typeof setInterval>
     const timeoutId = setTimeout(() => {
@@ -157,7 +163,7 @@ export default function GraficoEvolucaoMensal({ mesAtual }: Props) {
       clearTimeout(timeoutId)
       clearInterval(intervalId)
     }
-  }, [carregar])
+  }, [carregar, ativo])
 
   const chartData = useMemo(() => {
     if (!dados) return null

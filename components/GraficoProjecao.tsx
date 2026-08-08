@@ -79,6 +79,8 @@ interface DadosProjecao {
 interface Props {
   mesInicio?: Date
   onPontoClicado: (serie: string, mes: string, valor: number, itens: Record<string, unknown>[]) => void
+  /** Controla o polling de 60s — false pausa fetch/timers sem desmontar o gráfico (ex: aba oculta). Default: true. */
+  ativo?: boolean
 }
 
 // Gradient fill only for Total dataset
@@ -97,7 +99,7 @@ const gradientPlugin = {
   },
 }
 
-export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
+export default function GraficoProjecao({ mesInicio, onPontoClicado, ativo = true }: Props) {
   const [dados, setDados] = useState<DadosProjecao | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
@@ -169,7 +171,11 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
     }
   }, [mesInicio])
 
+  // Pausa fetch + polling quando o gráfico está fora de vista (ex: aba "Gráficos"
+  // fechada no Dashboard) — o componente continua montado (cache preservado),
+  // só evita trabalho de rede/CPU sem benefício visual enquanto oculto.
   useEffect(() => {
+    if (!ativo) return
     carregar()
     let intervalId: ReturnType<typeof setInterval>
     const timeoutId = setTimeout(() => {
@@ -179,7 +185,7 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
       clearTimeout(timeoutId)
       clearInterval(intervalId)
     }
-  }, [carregar])
+  }, [carregar, ativo])
 
   const chartData = useMemo(() => {
     if (!dados) return null

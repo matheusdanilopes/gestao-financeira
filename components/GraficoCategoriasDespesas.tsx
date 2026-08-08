@@ -55,11 +55,13 @@ interface CategoryData {
 
 interface Props {
   mesAtual: Date
+  /** Controla o polling de 60s — false pausa fetch/timers sem desmontar o gráfico (ex: aba oculta). Default: true. */
+  ativo?: boolean
 }
 
 type CacheEntry = { categorias: CategoryData[] }
 
-export default function GraficoCategoriasDespesas({ mesAtual }: Props) {
+export default function GraficoCategoriasDespesas({ mesAtual, ativo = true }: Props) {
   const [dados, setDados] = useState<CacheEntry | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
@@ -147,11 +149,15 @@ export default function GraficoCategoriasDespesas({ mesAtual }: Props) {
     }
   }, [mesAtual])
 
+  // Pausa fetch + polling quando o gráfico está fora de vista (ex: aba "Gráficos"
+  // fechada no Dashboard) — o componente continua montado (cache preservado),
+  // só evita trabalho de rede/CPU sem benefício visual enquanto oculto.
   useEffect(() => {
+    if (!ativo) return
     carregar()
     const id = setInterval(carregar, 60_000)
     return () => clearInterval(id)
-  }, [carregar])
+  }, [carregar, ativo])
 
   const chartData = useMemo(() => {
     if (!dados?.categorias.length) return null
