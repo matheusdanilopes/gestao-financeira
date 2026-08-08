@@ -22,8 +22,14 @@ const ROTAS_COM_MENU = [
   '/relatorios', '/analytics', '/chat', '/configuracoes', '/importar',
 ]
 
-// Rotas acessíveis sem conexão (têm cache/operações locais)
-const ROTAS_OFFLINE = ['/dashboard', '/lista-mercado', '/listas-compras']
+// Rotas acessíveis sem conexão. Critério: não só ter cache de leitura
+// (várias telas têm, via useGlobalSync/localStorage), mas também suas escritas
+// serem seguras offline — enfileiradas e sincronizadas depois, nunca perdidas
+// nem falhando em silêncio. Hoje só a Lista de Mercado tem essa fila
+// (lib/offlineQueue.ts); '/listas-compras' usa apenas cache de leitura — criar/
+// renomear/arquivar/excluir lista ou item falha ali sem enfileirar nada, então
+// fica de fora daqui até ganhar o mesmo suporte.
+const ROTAS_OFFLINE = ['/dashboard', '/lista-mercado']
 
 const ROTAS_FINANCAS = ['/financas', '/contas', '/receitas', '/investimentos']
 const ROTAS_CARTAO   = ['/compras', '/assinaturas', '/parcelamentos']
