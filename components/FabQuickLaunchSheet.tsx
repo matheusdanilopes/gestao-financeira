@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { notificarWishlist } from '@/lib/notificacoes'
 import { compressImage, abortTimeout, callAnalyze } from '@/lib/imageUtils'
 import { useOnline } from '@/lib/useOnline'
+import { enqueueOp } from '@/lib/offlineQueue'
 
 type View = 'menu' | 'wishlist-method' | 'wishlist' | 'wishlist-ai' | 'mercado'
 type AIStatus = 'idle' | 'uploading' | 'done' | 'error'
@@ -25,8 +26,15 @@ const PRIORIDADES = [
 const CATEGORIAS = ['Eletrônicos', 'Casa', 'Moda', 'Viagem', 'Lazer', 'Esporte', 'Saúde', 'Educação', 'Outros']
 
 async function getUsuario(): Promise<string | null> {
-  const { data: { user } } = await supabase.auth.getUser()
-  return user?.email ?? null
+  try {
+    // getSession() lê do armazenamento local sem chamada de rede — ao contrário
+    // de getUser(), não trava/rejeita offline (importante pro fluxo de Lista de
+    // Mercado do FAB, o único mantido disponível sem conexão).
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.user?.email ?? null
+  } catch {
+    return null
+  }
 }
 
 // ── Quick Add Wishlist ────────────────────────────────────────────────────────
@@ -174,7 +182,6 @@ function QuickAddMercado({
   const [nome, setNome] = useState('')
   const [quantidade, setQuantidade] = useState(1)
   const [salvando, setSalvando] = useState(false)
-  const [erro, setErro] = useState('')
 
   useEffect(() => {
     const t = setTimeout(() => nomeRef.current?.focus(), 120)
@@ -185,22 +192,35 @@ function QuickAddMercado({
     e.preventDefault()
     if (!nome.trim()) return
     setSalvando(true)
-    setErro('')
+    const criado_por = await getUsuario()
+    const payload = {
+      nome:       nome.trim(),
+      quantidade,
+      preco_unit: null as number | null,
+      comprado:   false,
+      criado_por,
+    }
     try {
-      const criado_por = await getUsuario()
-      const { error } = await supabase.from('lista_mercado_itens').insert([{
-        nome:       nome.trim(),
-        quantidade,
-        preco_unit: null,
-        comprado:   false,
-        criado_por,
-      }])
+      const { error } = await supabase.from('lista_mercado_itens').insert([payload])
       if (error) throw error
       window.dispatchEvent(new CustomEvent('lista-mercado:refresh'))
       onClose()
     } catch {
-      setErro('Erro ao salvar. Tente novamente.')
-      setSalvando(false)
+      // Offline (ou falha de rede transitória): enfileira o item em vez de
+      // perdê-lo — mesma fila offline usada por useListaMercado.adicionar(),
+      // sincronizada na próxima vez que a tela de Lista de Mercado carregar
+      // online. Este é o único fluxo do FAB mantido disponível offline
+      // (ver opcoesVisiveis abaixo), então precisa se comportar como tal.
+      const tempId = crypto.randomUUID()
+      const now = new Date().toISOString()
+      enqueueOp({
+        type: 'create',
+        itemId: tempId,
+        payload: { ...payload, id: tempId, created_at: now, updated_at: now },
+        timestamp: Date.now(),
+      })
+      window.dispatchEvent(new CustomEvent('lista-mercado:refresh'))
+      onClose()
     }
   }
 
@@ -252,8 +272,6 @@ function QuickAddMercado({
           </button>
         </div>
       </div>
-
-      {erro && <p className="text-xs text-red-500">{erro}</p>}
 
       <button
         type="submit"
