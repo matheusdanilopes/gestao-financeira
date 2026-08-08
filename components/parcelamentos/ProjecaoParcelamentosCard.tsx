@@ -73,10 +73,10 @@ export default function ProjecaoParcelamentosCard({ mesAtual, relatorio }: Props
         </div>
         <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 flex-1 flex items-center gap-1.5">
           Projeção de Parcelamentos
-          <InfoPopover texto="Total de parcelas previstas para os próximos 6 meses, por pessoa, a partir das compras parceladas já registradas. Toque duas vezes em um ponto do gráfico para ver os detalhes do mês." />
+          <InfoPopover texto="Total de parcelas previstas mês a mês, por pessoa, a partir das compras parceladas já registradas — até o último mês em que ainda houver alguma parcela em aberto. Toque duas vezes em um ponto do gráfico para ver os detalhes do mês." />
         </h2>
       </div>
-      <p className="text-xs text-gray-400 dark:text-gray-500 mb-4 ml-10">Próximos 6 meses · Toque duas vezes no mês para ver detalhes</p>
+      <p className="text-xs text-gray-400 dark:text-gray-500 mb-4 ml-10">Até a última parcela em aberto · Toque duas vezes no mês para ver detalhes</p>
 
       <GraficoProjecao
         mesInicio={mesAtual}

@@ -435,7 +435,12 @@ export default memo(function BottomNav() {
   // Aguarda resolução da sessão para evitar flash de nav sem autenticação.
   // Offline: não exige sessão — o getSession() falha em rede, mas páginas
   // cacheadas funcionam normalmente e o usuário precisa do nav para navegar.
-  if (!AUTH_DISABLED && isCheckingSession) return null
+  // Por isso os dois checks abaixo só bloqueiam a renderização quando online:
+  // isCheckingSession fica true de novo a cada cold start/reload (estado do
+  // módulo é resetado), e teria escondido a barra em modo offline por até
+  // 800ms (ou indefinidamente, se o reload de redirecionamento offline
+  // interromper o efeito antes do timeout) mesmo com o usuário sem rede.
+  if (!AUTH_DISABLED && isOnline && isCheckingSession) return null
   if (!AUTH_DISABLED && isOnline && !session) return null
 
   const isFinancasActive = rotaAtiva(pathname, ROTAS_FINANCAS)

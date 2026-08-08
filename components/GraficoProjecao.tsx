@@ -30,6 +30,29 @@ interface GradientChart {
 
 const PROJECAO_OFFSET_MESES = 1
 const POLL_DELAY = 40_000 // ms — escalonado para não coincidir com os outros dois gráficos
+// Janela máxima pedida à API (mesmo teto aceito por /api/projection) — o gráfico é
+// então cortado no último mês que ainda tem parcela (ver trimAoUltimoMesComParcela),
+// então isto é só o limite superior de meses possivelmente exibidos, não o padrão.
+const MESES_MAXIMOS = 24
+
+// Descarta os meses finais da janela pedida em que nenhuma série (Total, Matheus,
+// Jeniffer, Despesas) tem valor — o gráfico deve ir só até o último mês com parcela
+// em aberto, não até o teto fixo pedido à API. Mantém ao menos 1 mês.
+function trimAoUltimoMesComParcela(d: DadosProjecao): DadosProjecao {
+  let ultimoIndice = -1
+  for (let i = 0; i < d.total.length; i++) {
+    if (d.total[i] !== 0 || d.matheus[i] !== 0 || d.jeniffer[i] !== 0 || d.extra[i] !== 0) ultimoIndice = i
+  }
+  const corte = ultimoIndice === -1 ? 1 : ultimoIndice + 1
+  return {
+    labels: d.labels.slice(0, corte),
+    datas: d.datas.slice(0, corte),
+    total: d.total.slice(0, corte),
+    matheus: d.matheus.slice(0, corte),
+    jeniffer: d.jeniffer.slice(0, corte),
+    extra: d.extra.slice(0, corte),
+  }
+}
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
 
@@ -117,7 +140,7 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
 
       const labels: string[] = []
       const datas:  string[] = []
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < MESES_MAXIMOS; i++) {
         const m = addMonths(inicio, i)
         labels.push(format(m, 'MMM/yy', { locale: ptBR }))
         datas.push(format(startOfMonth(m), 'yyyy-MM-dd'))
@@ -131,7 +154,7 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado }: Props) {
       if (!res.ok) throw new Error('Falha ao carregar projeção')
       const { total, matheus, jeniffer, extra } = await res.json()
 
-      const d: DadosProjecao = { labels, datas, total, matheus, jeniffer, extra }
+      const d: DadosProjecao = trimAoUltimoMesComParcela({ labels, datas, total, matheus, jeniffer, extra })
       dataCache.current.set(mesKey, d)
       if (dataCache.current.size > 12) {
         const oldest = dataCache.current.keys().next().value
