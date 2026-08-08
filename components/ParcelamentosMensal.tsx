@@ -16,6 +16,10 @@ import { itensDoMes } from '@/lib/parcelamentoProjecao'
 
 interface Props {
   mesAtual: Date
+  // Repassa limite/gasto por pessoa pro card de destaque no topo da tela
+  // (MeuLimiteParcelamentoCard) assim que este componente termina de carregar —
+  // evita duplicar toda a lógica de resolução de limite/comprometido ali.
+  onResumo?: (resumo: Record<Responsavel, { limite: number; gasto: number }>) => void
 }
 
 type Origem = 'nubank' | 'cartao1' | 'cartao2' | 'planejamento'
@@ -79,7 +83,7 @@ async function buscarDonoCartoes(): Promise<DonoCartao> {
 // evita depender da ordem de cascata do CSS para permitir campos compactos.
 const CAMPO_FOCO = 'focus-within:border-primary-400 focus-within:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] dark:focus-within:shadow-[0_0_0_3px_rgba(129,140,248,0.18)] transition-shadow'
 
-export default function ParcelamentosMensal({ mesAtual }: Props) {
+export default function ParcelamentosMensal({ mesAtual, onResumo }: Props) {
   const [limites, setLimites] = useState<Record<string, number>>({})
   const [inputs, setInputs] = useState<Record<string, string>>({})
   const [inputsPct, setInputsPct] = useState<Record<string, string>>({})
@@ -292,12 +296,20 @@ export default function ParcelamentosMensal({ mesAtual }: Props) {
         setItens(lista)
         setCartaoLabels(cartaoLabelsCarregados)
         setCarregando(false)
+
+        if (onResumo) {
+          const gastoMap: Record<string, number> = {}
+          for (const item of lista) gastoMap[item.responsavel] = (gastoMap[item.responsavel] ?? 0) + item.valor
+          onResumo(Object.fromEntries(
+            RESPONSAVEIS.map(r => [r, { limite: lMap[r] ?? 0, gasto: gastoMap[r] ?? 0 }])
+          ) as Record<Responsavel, { limite: number; gasto: number }>)
+        }
       }
     }
 
     carregar()
     return () => { cancelado = true }
-  }, [mesReferencia, mesAtual])
+  }, [mesReferencia, mesAtual, onResumo])
 
   async function salvarLimite(responsavel: Responsavel, valorStr: string) {
     const valor = parseFloat(valorStr.replace(',', '.'))
