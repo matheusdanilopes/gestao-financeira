@@ -1383,7 +1383,7 @@ export default function Dashboard() {
                 </h2>
               </div>
               <p className="text-xs text-gray-400 mb-4 ml-10">Maior → menor · Toque para detalhes</p>
-              <GraficoCategoriasDespesas mesAtual={mesAtual} />
+              <GraficoCategoriasDespesas mesAtual={mesAtual} ativo={aba === 'graficos'} />
             </div>
 
             <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
@@ -1403,6 +1403,7 @@ export default function Dashboard() {
                   setDetalhesPonto({ serie, mes, valor, itens })
                   setDrawerAberto(true)
                 }}
+                ativo={aba === 'graficos'}
               />
             </div>
 
@@ -1421,7 +1422,7 @@ export default function Dashboard() {
                 </h2>
               </div>
               <p className="text-xs text-gray-400 mb-4 ml-10">Últimos 6 meses · Passe o cursor para detalhes</p>
-              <GraficoEvolucaoMensal mesAtual={mesAtual} />
+              <GraficoEvolucaoMensal mesAtual={mesAtual} ativo={aba === 'graficos'} />
             </div>
 
             <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
@@ -1435,7 +1436,7 @@ export default function Dashboard() {
                 </h2>
               </div>
               <p className="text-xs text-gray-400 mb-4 ml-10">Últimos 6 meses · Realizado vs. Meta</p>
-              <GraficoEvolucaoInvestimentos mesAtual={mesAtual} />
+              <GraficoEvolucaoInvestimentos mesAtual={mesAtual} ativo={aba === 'graficos'} />
             </div>
 
             <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">

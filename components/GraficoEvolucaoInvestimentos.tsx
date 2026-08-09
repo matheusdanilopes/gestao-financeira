@@ -48,6 +48,8 @@ interface DadosInvestimento {
 
 interface Props {
   mesAtual: Date
+  /** Controla o polling de 60s — false pausa fetch/timers sem desmontar o gráfico (ex: aba oculta). Default: true. */
+  ativo?: boolean
 }
 
 // Gradients: realizado (violet fill) + meta (teal very faint fill)
@@ -75,7 +77,7 @@ const gradientPlugin = {
   },
 }
 
-export default function GraficoEvolucaoInvestimentos({ mesAtual }: Props) {
+export default function GraficoEvolucaoInvestimentos({ mesAtual, ativo = true }: Props) {
   const [dados, setDados] = useState<DadosInvestimento | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
@@ -178,7 +180,11 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual }: Props) {
     }
   }, [mesAtual])
 
+  // Pausa fetch + polling quando o gráfico está fora de vista (ex: aba "Gráficos"
+  // fechada no Dashboard) — o componente continua montado (cache preservado),
+  // só evita trabalho de rede/CPU sem benefício visual enquanto oculto.
   useEffect(() => {
+    if (!ativo) return
     carregar()
     let intervalId: ReturnType<typeof setInterval>
     const timeoutId = setTimeout(() => {
@@ -188,7 +194,7 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual }: Props) {
       clearTimeout(timeoutId)
       clearInterval(intervalId)
     }
-  }, [carregar])
+  }, [carregar, ativo])
 
   const chartData = useMemo(() => {
     if (!dados) return null
