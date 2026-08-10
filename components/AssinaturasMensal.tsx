@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import ModalPortal from '@/components/ModalPortal'
 import { supabase } from '@/lib/supabaseClient'
-import { format, startOfMonth, addMonths, endOfMonth, addDays } from 'date-fns'
+import { format, startOfMonth, addMonths, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import {
@@ -412,7 +412,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       // Desativar exige escolher entre definitiva ou por um período (pausa).
       setItemSelecionado(item)
       setTipoDesativacao('definitiva')
-      setDataRetorno(format(addMonths(startOfMonth(new Date()), 1), 'yyyy-MM-dd'))
+      setDataRetorno(format(addMonths(startOfMonth(new Date()), 1), 'yyyy-MM'))
       setModalAberto('desativar')
     } else {
       reativar(item)
@@ -446,12 +446,14 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     if (!itemSelecionado) return
     const item = itemSelecionado
     const hoje = format(new Date(), 'yyyy-MM-dd')
+    const mesAtual = format(startOfMonth(new Date()), 'yyyy-MM')
     const isTemporaria = tipoDesativacao === 'temporaria'
-    if (isTemporaria && (!dataRetorno || dataRetorno <= hoje)) {
-      showToast('Escolha uma data futura para reativar', 'erro')
+    if (isTemporaria && (!dataRetorno || dataRetorno <= mesAtual)) {
+      showToast('Escolha um mês futuro para reativar', 'erro')
       return
     }
-    const pausadaAte = isTemporaria ? dataRetorno : null
+    const dataRetornoISO = `${dataRetorno}-01`
+    const pausadaAte = isTemporaria ? dataRetornoISO : null
 
     setItens(prev => prev.map(i => i.id === item.id ? { ...i, ativa: false, pausada_ate: pausadaAte } : i))
     fecharModal()
@@ -462,7 +464,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       { assinatura_id: item.id, ativa: false, vigente_desde: hoje },
     ]
     if (isTemporaria) {
-      novasEntradas.push({ assinatura_id: item.id, ativa: true, vigente_desde: dataRetorno })
+      novasEntradas.push({ assinatura_id: item.id, ativa: true, vigente_desde: dataRetornoISO })
     }
     const { data: entradasInseridas, error: histErr } = await supabase
       .from('assinaturas_status_historico')
@@ -476,7 +478,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       return
     }
     setStatusHistorico(prev => [...prev.filter(h => h.assinatura_id !== item.id || h.vigente_desde <= hoje), ...(entradasInseridas || [])])
-    const dataFmt = isTemporaria ? format(new Date(dataRetorno + 'T12:00:00'), 'dd/MM/yyyy') : null
+    const dataFmt = isTemporaria ? format(new Date(dataRetornoISO + 'T12:00:00'), 'MMM/yyyy', { locale: ptBR }) : null
     log('editar', 'assinaturas', isTemporaria ? `Pausada até ${dataFmt}: ${item.nome}` : `Desativada: ${item.nome}`)
     showToast(isTemporaria ? `Pausada até ${dataFmt}` : 'Desativada')
     refetch()
@@ -716,10 +718,10 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                           {!item.ativa && item.pausada_ate && (
                             <span
                               className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 shrink-0 font-medium"
-                              title="Reativa automaticamente nesta data"
+                              title="Reativa automaticamente neste mês"
                             >
                               <PauseCircle className="w-3 h-3" />
-                              até {format(new Date(item.pausada_ate + 'T12:00:00'), 'dd/MM')}
+                              até {format(new Date(item.pausada_ate + 'T12:00:00'), 'MMM/yyyy', { locale: ptBR })}
                             </span>
                           )}
                         </div>
@@ -1049,18 +1051,18 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                 }`}
               >
                 <p className="text-sm font-semibold text-gray-800">Pausar por um período</p>
-                <p className="text-xs text-gray-400 mt-0.5">Reativa automaticamente na data escolhida</p>
+                <p className="text-xs text-gray-400 mt-0.5">Reativa automaticamente no mês escolhido</p>
               </button>
             </div>
 
             {tipoDesativacao === 'temporaria' && (
               <div className="mb-5">
-                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Reativar em</label>
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Reativar em (mês/ano)</label>
                 <input
-                  type="date"
+                  type="month"
                   className="w-full border border-gray-200 rounded-2xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
                   value={dataRetorno}
-                  min={format(addDays(new Date(), 1), 'yyyy-MM-dd')}
+                  min={format(addMonths(startOfMonth(new Date()), 1), 'yyyy-MM')}
                   onChange={e => setDataRetorno(e.target.value)}
                 />
               </div>
