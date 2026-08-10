@@ -9,7 +9,7 @@ import { useGlobalSync } from '@/lib/useGlobalSync'
 import {
   Repeat, Plus, X, WifiOff,
   CheckCircle2, AlertTriangle, XCircle, MinusCircle,
-  CreditCard, Search, SlidersHorizontal, History,
+  CreditCard, Search, SlidersHorizontal, History, PauseCircle,
 } from 'lucide-react'
 import FilterSelect from '@/components/FilterSelect'
 import { SwipeableItem } from '@/components/SwipeableItem'
@@ -17,6 +17,7 @@ import EmptyState from '@/components/EmptyState'
 import { log, numericOnly, formatBRL } from '@/lib/logger'
 import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
 import { valorEfetivoNoMes } from '@/lib/assinaturaValor'
+import { ativaEfetivaNoMes, HistoricoStatusEntry } from '@/lib/assinaturaStatus'
 
 interface Assinatura {
   id: string
@@ -31,6 +32,7 @@ interface Assinatura {
   created_at: string
   moeda: string
   valor_origem: number | null
+  pausada_ate: string | null
 }
 
 interface HistoricoValor {
@@ -78,6 +80,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
   const [itens, setItens] = useState<Assinatura[]>([])
   const [transacoes, setTransacoes] = useState<TransacaoSimples[]>([])
   const [historico, setHistorico] = useState<HistoricoValor[]>([])
+  const [statusHistorico, setStatusHistorico] = useState<HistoricoStatusEntry[]>([])
   const [cartaoLabels, setCartaoLabels] = useState<CartaoLabels>(CARTAO_LABELS_DEFAULT)
   const [verificando, setVerificando] = useState(false)
 
@@ -95,9 +98,11 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       .catch(() => {}) // mantém CATEGORIAS_PADRAO como fallback
   }, [])
 
-  const [modalAberto, setModalAberto] = useState<'adicionar' | 'editar' | 'excluir' | null>(null)
+  const [modalAberto, setModalAberto] = useState<'adicionar' | 'editar' | 'excluir' | 'desativar' | null>(null)
   const [itemSelecionado, setItemSelecionado] = useState<Assinatura | null>(null)
   const [formData, setFormData] = useState(FORM_VAZIO)
+  const [tipoDesativacao, setTipoDesativacao] = useState<'definitiva' | 'temporaria'>('definitiva')
+  const [dataRetorno, setDataRetorno] = useState('')
 
   // Escuta eventos de pré-preenchimento via sugestões de recorrências
   useEffect(() => {
@@ -131,7 +136,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
   const mesFmt = format(mesSelecionado, 'MMMM', { locale: ptBR })
 
   const fetcher = useCallback(async () => {
-    const [{ data: assinaturasData }, { data: transacoesData }, { data: planejamentoData }, { data: historicoData }] = await Promise.all([
+    const [{ data: assinaturasData }, { data: transacoesData }, { data: planejamentoData }, { data: historicoData }, { data: statusHistoricoData }] = await Promise.all([
       supabase.from('assinaturas').select('*').order('nome', { ascending: true }),
       supabase
         .from('transacoes_nubank')
@@ -141,32 +146,52 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
         .neq('status', 'ESTORNADO'),
       supabase.from('planejamento').select('item').eq('mes_referencia', mesRefStr),
       supabase.from('assinaturas_historico').select('*').order('vigente_desde', { ascending: true }),
+      supabase.from('assinaturas_status_historico').select('*').order('vigente_desde', { ascending: true }),
     ])
     const c1 = (planejamentoData || []).find(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO1]'))?.item?.replace('[CARTAO1]', '').trim()
     const c2 = (planejamentoData || []).find(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]'))?.item?.replace('[CARTAO2]', '').trim()
+
+    // Reativação automática: assinaturas pausadas cuja data de retorno já chegou.
+    // O histórico de status para essa data futura já foi gravado no momento da pausa —
+    // aqui só sincronizamos a coluna `ativa`/`pausada_ate` para as demais telas do app.
+    const hoje = format(new Date(), 'yyyy-MM-dd')
+    let assinaturas = assinaturasData || []
+    const vencidas = assinaturas.filter(a => !a.ativa && a.pausada_ate && a.pausada_ate <= hoje)
+    if (vencidas.length > 0) {
+      const ids = vencidas.map(a => a.id)
+      await supabase.from('assinaturas').update({ ativa: true, pausada_ate: null }).in('id', ids)
+      assinaturas = assinaturas.map(a => ids.includes(a.id) ? { ...a, ativa: true, pausada_ate: null } : a)
+    }
+
     return {
-      assinaturas: assinaturasData || [],
+      assinaturas,
       transacoes: transacoesData || [],
       historico: historicoData || [],
+      statusHistorico: statusHistoricoData || [],
       cartaoLabels: { nubank: 'NuBank', cartao1: c1 || 'Cartão 1', cartao2: c2 || 'Cartão 2' },
     }
   }, [mesRefStr, nextMesRefStr])
 
   const { isOnline, refetch } = useGlobalSync({
     cacheKey: `assinaturas:${mesRefStr}`,
-    tables: ['assinaturas', 'transacoes_nubank', 'planejamento', 'assinaturas_historico'],
+    tables: ['assinaturas', 'transacoes_nubank', 'planejamento', 'assinaturas_historico', 'assinaturas_status_historico'],
     fetcher,
     onData: (raw) => {
-      const d = raw as { assinaturas: Assinatura[]; transacoes: TransacaoSimples[]; historico: HistoricoValor[]; cartaoLabels: CartaoLabels }
+      const d = raw as { assinaturas: Assinatura[]; transacoes: TransacaoSimples[]; historico: HistoricoValor[]; statusHistorico: HistoricoStatusEntry[]; cartaoLabels: CartaoLabels }
       setItens(d.assinaturas)
       setTransacoes(d.transacoes)
       setHistorico(d.historico || [])
+      setStatusHistorico(d.statusHistorico || [])
       setCartaoLabels(d.cartaoLabels)
     },
   })
 
   function valorParaMes(assinatura: Assinatura, mes: Date, hist: HistoricoValor[]): number {
     return valorEfetivoNoMes(assinatura.id, assinatura.valor, format(endOfMonth(mes), 'yyyy-MM-dd'), hist)
+  }
+
+  function ativaNoMes(assinatura: Assinatura, mes: Date, hist: HistoricoStatusEntry[]): boolean {
+    return ativaEfetivaNoMes(assinatura.id, assinatura.ativa, format(endOfMonth(mes), 'yyyy-MM-dd'), hist)
   }
 
   function showToast(msg: string, tipo: 'ok' | 'erro' = 'ok') {
@@ -182,7 +207,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       .eq('projeto_fatura', nextMesRefStr)
     setTransacoes(data || [])
     setVerificando(false)
-    const ativas = itens.filter(i => i.ativa)
+    const ativas = itens.filter(i => ativaNoMes(i, mesSelecionado, statusHistorico))
     const detectadas = ativas.filter(i => {
       const nome = i.nome.toLowerCase()
       return (data || []).some(tx => tx.cartao === i.cartao && tx.descricao.toLowerCase().includes(nome))
@@ -191,7 +216,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
   }
 
   function statusTransacao(assinatura: Assinatura): StatusTx {
-    if (!assinatura.ativa) return 'inativa'
+    if (!ativaNoMes(assinatura, mesSelecionado, statusHistorico)) return 'inativa'
     const nome = assinatura.nome.toLowerCase()
     const matches = transacoes.filter(
       tx => tx.cartao === assinatura.cartao && tx.descricao.toLowerCase().includes(nome)
@@ -211,49 +236,51 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       if (filtroCartao !== 'todos' && i.cartao !== filtroCartao) return false
       if (filtroResponsavel !== '' && i.responsavel !== filtroResponsavel) return false
       if (filtroDescricao !== '' && !i.nome.toLowerCase().includes(filtroDescricao.toLowerCase())) return false
-      if (filtroStatus === 'ativa' && !i.ativa) return false
-      if (filtroStatus === 'inativa' && i.ativa) return false
+      if (filtroStatus === 'ativa' && !ativaNoMes(i, mesSelecionado, statusHistorico)) return false
+      if (filtroStatus === 'inativa' && ativaNoMes(i, mesSelecionado, statusHistorico)) return false
       if (filtroFatura !== 'todas' && statusTransacao(i) !== filtroFatura) return false
       return true
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itens, filtroCartao, filtroResponsavel, filtroDescricao, filtroStatus, filtroFatura, transacoes])
+  }, [itens, filtroCartao, filtroResponsavel, filtroDescricao, filtroStatus, filtroFatura, transacoes, mesSelecionado, statusHistorico])
 
-  const itensAtivos = useMemo(() => itens.filter(i => i.ativa), [itens])
+  // "Ativas" no mês selecionado (não necessariamente o estado atual — uma assinatura
+  // reativada hoje continua contando como inativa em meses passados em que estava pausada).
+  const itensAtivosNoMes = useMemo(
+    () => itens.filter(i => ativaNoMes(i, mesSelecionado, statusHistorico)),
+    [itens, mesSelecionado, statusHistorico]
+  )
 
   const totalAtivo = useMemo(
-    () => itensAtivos.reduce((acc, i) => acc + valorParaMes(i, mesSelecionado, historico), 0),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [itensAtivos, mesSelecionado, historico]
+    () => itensAtivosNoMes.reduce((acc, i) => acc + valorParaMes(i, mesSelecionado, historico), 0),
+    [itensAtivosNoMes, mesSelecionado, historico]
   )
 
   const totalMatheus = useMemo(
-    () => itensAtivos.filter(i => i.responsavel === 'Matheus').reduce((acc, i) => acc + valorParaMes(i, mesSelecionado, historico), 0),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [itensAtivos, mesSelecionado, historico]
+    () => itensAtivosNoMes.filter(i => i.responsavel === 'Matheus').reduce((acc, i) => acc + valorParaMes(i, mesSelecionado, historico), 0),
+    [itensAtivosNoMes, mesSelecionado, historico]
   )
   const totalJeniffer = useMemo(
-    () => itensAtivos.filter(i => i.responsavel === 'Jeniffer').reduce((acc, i) => acc + valorParaMes(i, mesSelecionado, historico), 0),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [itensAtivos, mesSelecionado, historico]
+    () => itensAtivosNoMes.filter(i => i.responsavel === 'Jeniffer').reduce((acc, i) => acc + valorParaMes(i, mesSelecionado, historico), 0),
+    [itensAtivosNoMes, mesSelecionado, historico]
   )
 
   const countPorResponsavel = useMemo(() => ({
-    '': itensAtivos.length,
-    Matheus: itensAtivos.filter(i => i.responsavel === 'Matheus').length,
-    Jeniffer: itensAtivos.filter(i => i.responsavel === 'Jeniffer').length,
-  }), [itensAtivos])
+    '': itensAtivosNoMes.length,
+    Matheus: itensAtivosNoMes.filter(i => i.responsavel === 'Matheus').length,
+    Jeniffer: itensAtivosNoMes.filter(i => i.responsavel === 'Jeniffer').length,
+  }), [itensAtivosNoMes])
 
   const detectadasCount = useMemo(
-    () => itensAtivos.filter(i => statusTransacao(i) === 'detectada').length,
+    () => itensAtivosNoMes.filter(i => statusTransacao(i) === 'detectada').length,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [itensAtivos, transacoes, mesSelecionado, historico]
+    [itensAtivosNoMes, transacoes, mesSelecionado, historico]
   )
 
   const detectadasValor = useMemo(
-    () => itensAtivos.filter(i => statusTransacao(i) === 'detectada').reduce((acc, i) => acc + valorParaMes(i, mesSelecionado, historico), 0),
+    () => itensAtivosNoMes.filter(i => statusTransacao(i) === 'detectada').reduce((acc, i) => acc + valorParaMes(i, mesSelecionado, historico), 0),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [itensAtivos, transacoes, mesSelecionado, historico]
+    [itensAtivosNoMes, transacoes, mesSelecionado, historico]
   )
 
   const itensPorCartao = useMemo(() => {
@@ -380,15 +407,81 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     }
   }
 
-  async function toggleAtiva(item: Assinatura) {
-    setItens(prev => prev.map(i => i.id === item.id ? { ...i, ativa: !i.ativa } : i))
-    const { error } = await supabase.from('assinaturas').update({ ativa: !item.ativa }).eq('id', item.id)
-    if (!error) {
-      log('editar', 'assinaturas', `${item.ativa ? 'Desativada' : 'Ativada'}: ${item.nome}`)
+  function toggleAtiva(item: Assinatura) {
+    if (item.ativa) {
+      // Desativar exige escolher entre definitiva ou por um período (pausa).
+      setItemSelecionado(item)
+      setTipoDesativacao('definitiva')
+      setDataRetorno(format(addMonths(startOfMonth(new Date()), 1), 'yyyy-MM'))
+      setModalAberto('desativar')
     } else {
-      setItens(prev => prev.map(i => i.id === item.id ? { ...i, ativa: item.ativa } : i))
-      showToast('Erro ao atualizar assinatura', 'erro')
+      reativar(item)
     }
+  }
+
+  async function reativar(item: Assinatura) {
+    const hoje = format(new Date(), 'yyyy-MM-dd')
+    setItens(prev => prev.map(i => i.id === item.id ? { ...i, ativa: true, pausada_ate: null } : i))
+
+    // Remove qualquer reativação futura pendente (ex.: pausa em andamento sendo cancelada agora).
+    await supabase.from('assinaturas_status_historico').delete().eq('assinatura_id', item.id).gt('vigente_desde', hoje)
+    const { data: novaEntrada, error: histErr } = await supabase
+      .from('assinaturas_status_historico')
+      .insert([{ assinatura_id: item.id, ativa: true, vigente_desde: hoje }])
+      .select()
+    const { error } = await supabase.from('assinaturas').update({ ativa: true, pausada_ate: null }).eq('id', item.id)
+
+    if (error || histErr) {
+      setItens(prev => prev.map(i => i.id === item.id ? item : i))
+      showToast('Erro ao ativar', 'erro')
+      return
+    }
+    setStatusHistorico(prev => [...prev.filter(h => h.assinatura_id !== item.id || h.vigente_desde <= hoje), ...(novaEntrada || [])])
+    log('editar', 'assinaturas', `Ativada: ${item.nome}`)
+    showToast('Ativada!')
+    refetch()
+  }
+
+  async function confirmarDesativacao() {
+    if (!itemSelecionado) return
+    const item = itemSelecionado
+    const hoje = format(new Date(), 'yyyy-MM-dd')
+    const mesAtual = format(startOfMonth(new Date()), 'yyyy-MM')
+    const isTemporaria = tipoDesativacao === 'temporaria'
+    if (isTemporaria && (!dataRetorno || dataRetorno <= mesAtual)) {
+      showToast('Escolha um mês futuro para reativar', 'erro')
+      return
+    }
+    const dataRetornoISO = `${dataRetorno}-01`
+    const pausadaAte = isTemporaria ? dataRetornoISO : null
+
+    setItens(prev => prev.map(i => i.id === item.id ? { ...i, ativa: false, pausada_ate: pausadaAte } : i))
+    fecharModal()
+
+    // Limpa qualquer entrada futura pendente (ex.: reativação agendada de uma pausa anterior).
+    await supabase.from('assinaturas_status_historico').delete().eq('assinatura_id', item.id).gt('vigente_desde', hoje)
+    const novasEntradas: { assinatura_id: string; ativa: boolean; vigente_desde: string }[] = [
+      { assinatura_id: item.id, ativa: false, vigente_desde: hoje },
+    ]
+    if (isTemporaria) {
+      novasEntradas.push({ assinatura_id: item.id, ativa: true, vigente_desde: dataRetornoISO })
+    }
+    const { data: entradasInseridas, error: histErr } = await supabase
+      .from('assinaturas_status_historico')
+      .insert(novasEntradas)
+      .select()
+    const { error } = await supabase.from('assinaturas').update({ ativa: false, pausada_ate: pausadaAte }).eq('id', item.id)
+
+    if (error || histErr) {
+      setItens(prev => prev.map(i => i.id === item.id ? item : i))
+      showToast('Erro ao desativar', 'erro')
+      return
+    }
+    setStatusHistorico(prev => [...prev.filter(h => h.assinatura_id !== item.id || h.vigente_desde <= hoje), ...(entradasInseridas || [])])
+    const dataFmt = isTemporaria ? format(new Date(dataRetornoISO + 'T12:00:00'), 'MMM/yyyy', { locale: ptBR }) : null
+    log('editar', 'assinaturas', isTemporaria ? `Pausada até ${dataFmt}: ${item.nome}` : `Desativada: ${item.nome}`)
+    showToast(isTemporaria ? `Pausada até ${dataFmt}` : 'Desativada')
+    refetch()
   }
 
   function abrirEditar(item: Assinatura) {
@@ -411,6 +504,8 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     setModalAberto(null)
     setItemSelecionado(null)
     setFormData(FORM_VAZIO)
+    setTipoDesativacao('definitiva')
+    setDataRetorno('')
   }
 
   function StatusBadge({ status }: { status: StatusTx }) {
@@ -443,12 +538,12 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
             <p className="text-xs text-gray-400 font-medium">Total ativo/mês</p>
           </div>
           <p className="text-xl font-bold text-primary-700 num leading-none">R$ {totalAtivo.toFixed(2)}</p>
-          <p className="text-xs text-gray-400 mt-1">{itensAtivos.length} ativa(s)</p>
+          <p className="text-xs text-gray-400 mt-1">{itensAtivosNoMes.length} ativa(s)</p>
         </div>
         <div className="bg-white rounded-2xl shadow-card border border-gray-100 p-4 text-center">
           <p className="text-xs text-gray-400 font-medium mb-1.5">Detectado em {mesFmt}</p>
           <p className="text-xl font-bold text-green-700 num leading-none">R$ {detectadasValor.toFixed(2)}</p>
-          <p className="text-xs text-gray-400 mt-1">{detectadasCount}/{itensAtivos.length} identificadas</p>
+          <p className="text-xs text-gray-400 mt-1">{detectadasCount}/{itensAtivosNoMes.length} identificadas</p>
         </div>
       </div>
 
@@ -576,7 +671,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       {CARTOES_KEYS.map(key => {
         const grupo = itensPorCartao[key] || []
         if (grupo.length === 0) return null
-        const totalGrupoAtivo = grupo.filter(i => i.ativa).reduce((acc, i) => acc + valorParaMes(i, mesSelecionado, historico), 0)
+        const totalGrupoAtivo = grupo.filter(i => ativaNoMes(i, mesSelecionado, statusHistorico)).reduce((acc, i) => acc + valorParaMes(i, mesSelecionado, historico), 0)
 
         return (
           <div key={key} className="bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden">
@@ -594,6 +689,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
             <div className="divide-y divide-gray-50">
               {grupo.map(item => {
                 const status = statusTransacao(item)
+                const ativoNoMesAtual = ativaNoMes(item, mesSelecionado, statusHistorico)
                 return (
                   <SwipeableItem
                     key={item.id}
@@ -601,7 +697,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                     disabled={!isOnline}
                   >
                     <div
-                      className={`px-4 py-3.5 flex items-center gap-3 transition-colors ${!item.ativa ? 'opacity-50' : ''} ${isOnline ? 'cursor-pointer active:bg-gray-50 dark:active:bg-white/[0.06] hover:bg-gray-50/50 dark:hover:bg-white/[0.06]' : ''}`}
+                      className={`px-4 py-3.5 flex items-center gap-3 transition-colors ${!ativoNoMesAtual ? 'opacity-50' : ''} ${isOnline ? 'cursor-pointer active:bg-gray-50 dark:active:bg-white/[0.06] hover:bg-gray-50/50 dark:hover:bg-white/[0.06]' : ''}`}
                       onClick={() => { if (isOnline) abrirEditar(item) }}
                       role={isOnline ? 'button' : undefined}
                       tabIndex={isOnline ? 0 : undefined}
@@ -612,13 +708,22 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <p className={`text-[15px] font-semibold truncate leading-snug ${
-                            item.ativa ? 'text-gray-900' : 'text-gray-400 line-through'
+                            ativoNoMesAtual ? 'text-gray-900' : 'text-gray-400 line-through'
                           }`}>
                             {item.nome}
                           </p>
                           <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400 shrink-0 font-medium">
                             {item.categoria}
                           </span>
+                          {!item.ativa && item.pausada_ate && (
+                            <span
+                              className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 shrink-0 font-medium"
+                              title="Reativa automaticamente neste mês"
+                            >
+                              <PauseCircle className="w-3 h-3" />
+                              até {format(new Date(item.pausada_ate + 'T12:00:00'), 'MMM/yyyy', { locale: ptBR })}
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs text-gray-400 mt-0.5 leading-tight">
                           {item.responsavel}
@@ -627,7 +732,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                         </p>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className={`text-[15px] font-bold num ${item.ativa ? 'text-primary-700' : 'text-gray-400'}`}>
+                        <p className={`text-[15px] font-bold num ${ativoNoMesAtual ? 'text-primary-700' : 'text-gray-400'}`}>
                           R$ {valorParaMes(item, mesSelecionado, historico).toFixed(2)}
                         </p>
                         {item.moeda !== 'BRL' && item.valor_origem != null && (
@@ -909,6 +1014,73 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                 className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-semibold hover:bg-red-600 transition-all active:scale-[0.97] shadow-sm"
               >
                 Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+        </ModalPortal>
+      )}
+
+      {/* Modal: desativar (definitiva ou por um período) */}
+      {modalAberto === 'desativar' && itemSelecionado && (
+        <ModalPortal>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4 modal-overlay">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm p-6 shadow-float modal-sheet sm:modal-center">
+            <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+              <MinusCircle className="w-6 h-6 text-amber-500" />
+            </div>
+            <h3 className="text-lg font-bold text-center mb-1">Desativar assinatura?</h3>
+            <p className="text-sm text-gray-500 text-center mb-5">
+              <span className="font-semibold text-gray-800">&quot;{itemSelecionado.nome}&quot;</span>
+            </p>
+
+            <div className="space-y-2 mb-4">
+              <button
+                onClick={() => setTipoDesativacao('definitiva')}
+                className={`w-full text-left px-4 py-3 rounded-2xl border transition-colors ${
+                  tipoDesativacao === 'definitiva' ? 'border-primary-400 bg-primary-50' : 'border-gray-200'
+                }`}
+              >
+                <p className="text-sm font-semibold text-gray-800">Desativar definitivamente</p>
+                <p className="text-xs text-gray-400 mt-0.5">Fica inativa até você reativar manualmente</p>
+              </button>
+              <button
+                onClick={() => setTipoDesativacao('temporaria')}
+                className={`w-full text-left px-4 py-3 rounded-2xl border transition-colors ${
+                  tipoDesativacao === 'temporaria' ? 'border-primary-400 bg-primary-50' : 'border-gray-200'
+                }`}
+              >
+                <p className="text-sm font-semibold text-gray-800">Pausar por um período</p>
+                <p className="text-xs text-gray-400 mt-0.5">Reativa automaticamente no mês escolhido</p>
+              </button>
+            </div>
+
+            {tipoDesativacao === 'temporaria' && (
+              <div className="mb-5">
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Reativar em (mês/ano)</label>
+                <input
+                  type="month"
+                  className="w-full border border-gray-200 rounded-2xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+                  value={dataRetorno}
+                  min={format(addMonths(startOfMonth(new Date()), 1), 'yyyy-MM')}
+                  onChange={e => setDataRetorno(e.target.value)}
+                />
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={fecharModal}
+                className="flex-1 py-3 rounded-2xl bg-gray-100 font-semibold text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarDesativacao}
+                disabled={tipoDesativacao === 'temporaria' && !dataRetorno}
+                className="flex-1 py-3 rounded-2xl bg-amber-500 text-white font-semibold hover:bg-amber-600 transition-all active:scale-[0.97] shadow-sm disabled:opacity-50"
+              >
+                Desativar
               </button>
             </div>
           </div>

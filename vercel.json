@@ -11,6 +11,10 @@
     {
       "path": "/api/manutencao/limpeza",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/assinaturas/reativar-pausadas",
+      "schedule": "0 6 * * *"
     }
   ]
 }
