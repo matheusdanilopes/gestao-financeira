@@ -17,7 +17,7 @@ import { useMes } from '@/components/MesProvider'
 import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
 import FilterSelect from '@/components/FilterSelect'
 import { calcularProjetoFatura } from '@/lib/fatura'
-import { classificarTipoGasto, type TipoGasto, type AssinaturaAtiva } from '@/lib/composicaoFatura'
+import { classificarTipoGasto, somarValorFatura, type TipoGasto, type AssinaturaAtiva } from '@/lib/composicaoFatura'
 import { AUTH_DISABLED } from '@/lib/authConfig'
 import { sanitizarDescricao, atualizarAprendizado } from '@/lib/ragClassificacao'
 
@@ -36,6 +36,7 @@ type Compra = {
   created_at?: string
   status?: string | null
   is_estorno?: boolean | null
+  conciliacao_ref?: string | null
 }
 
 type FormEditar = {
@@ -514,11 +515,12 @@ export default function ComprasPage() {
     })
   }, [compras, filtroCartao, filtroDescricao, filtroValorMin, filtroData, filtroCategoria, filtroParcelamento, filtroTipoGasto, tipoGastoDe])
 
-  const semEstorno = useMemo(() => comprasSemFiltroResponsavel.filter(c => c.status !== 'ESTORNO' && c.status !== 'ESTORNADO'), [comprasSemFiltroResponsavel])
-  const total = useMemo(() => semEstorno.reduce((acc, c) => acc + c.valor, 0), [semEstorno])
-  const totalMatheus = useMemo(() => semEstorno.filter(c => c.responsavel === 'Matheus').reduce((acc, c) => acc + c.valor, 0), [semEstorno])
-  const totalJeniffer = useMemo(() => semEstorno.filter(c => c.responsavel === 'Jeniffer').reduce((acc, c) => acc + c.valor, 0), [semEstorno])
-  const totalConjunto = useMemo(() => semEstorno.filter(c => c.responsavel === 'Conjunto').reduce((acc, c) => acc + c.valor, 0), [semEstorno])
+  // Estorno sem par (conciliacao_ref nulo, não achou a compra original) precisa ser
+  // subtraído do total, não só excluído — ver somarValorFatura para o motivo.
+  const total = useMemo(() => somarValorFatura(comprasSemFiltroResponsavel), [comprasSemFiltroResponsavel])
+  const totalMatheus = useMemo(() => somarValorFatura(comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Matheus')), [comprasSemFiltroResponsavel])
+  const totalJeniffer = useMemo(() => somarValorFatura(comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Jeniffer')), [comprasSemFiltroResponsavel])
+  const totalConjunto = useMemo(() => somarValorFatura(comprasSemFiltroResponsavel.filter(c => c.responsavel === 'Conjunto')), [comprasSemFiltroResponsavel])
 
   // Hash da primeira compra nova na lista visível (para scroll e ref). Só é usado
   // para o auto-scroll/banner ao chegar via notificação (importTs presente); a tag
@@ -881,7 +883,7 @@ export default function ComprasPage() {
       ) : (
         <div className="space-y-3">
           {grupos.map(([dateKey, items], groupIdx) => {
-            const subtotal = items.filter(c => c.status !== 'ESTORNO' && c.status !== 'ESTORNADO').reduce((acc, c) => acc + c.valor, 0)
+            const subtotal = somarValorFatura(items)
             return (
               <div key={dateKey} className="bg-white rounded-3xl border border-gray-100 shadow-card overflow-hidden list-item-enter" style={{ animationDelay: `${Math.min(groupIdx, 3) * 40}ms` }}>
                 <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">

@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, endOfMonth, addMonths, subMonths, isSameMonth } from 'date-fns'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
 import { valorEfetivoNoMes } from '@/lib/assinaturaValor'
-import { classificarTipoGasto, type TipoGasto } from '@/lib/composicaoFatura'
+import { classificarTipoGasto, somarValorFatura, type TipoGasto } from '@/lib/composicaoFatura'
 import { AlertTriangle, BarChart2, BarChart3, CreditCard, Wallet, PiggyBank, TrendingUp, TrendingDown, Minus, LineChart, Activity } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
@@ -202,7 +202,10 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     { data: maxFaturaRowData },
   ] = await Promise.all([
     // Busca todas as transações do período em uma única query e separa por cartão no cliente
-    supabase.from('transacoes_nubank').select('valor, responsavel, descricao, cartao, parcela_atual, total_parcelas').eq('projeto_fatura', mesRefFatura).neq('status', 'ESTORNO').neq('status', 'ESTORNADO'),
+    // Não filtra ESTORNO/ESTORNADO aqui: precisamos do status e do conciliacao_ref
+    // para tratar estornos sem par (crédito não conciliado com a compra original)
+    // corretamente em somarValorFatura — ver comentário na função.
+    supabase.from('transacoes_nubank').select('valor, responsavel, descricao, cartao, parcela_atual, total_parcelas, status, conciliacao_ref').eq('projeto_fatura', mesRefFatura),
     supabase.from('planejamento').select('item, responsavel, valor_previsto, pago, valor_real').eq('mes_referencia', mesRef),
     // Busca aportes embutidos para eliminar a query sequencial posterior
     supabase.from('investimentos').select('id, descricao, percentual, investimentos_aportes(valor)').eq('mes_referencia', mesRef).order('created_at', { ascending: true }),
@@ -236,10 +239,10 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const dataFechamentoNubank = faturaRegistradaData?.[0]?.data_fechamento
     || format(calcularDataFechamentoDaFatura(mesRefFaturaDate, diaVencNubank, ajusteNubank), 'yyyy-MM-dd')
 
-  const totalRealizado = transacoesFatura?.reduce((acc, t) => acc + t.valor, 0) || 0
-  const matheusAtual = transacoesFatura?.filter(t => t.responsavel === 'Matheus').reduce((acc, t) => acc + t.valor, 0) || 0
-  const jenifferAtual = transacoesFatura?.filter(t => t.responsavel === 'Jeniffer').reduce((acc, t) => acc + t.valor, 0) || 0
-  const conjuntoAtual = transacoesFatura?.filter(t => t.responsavel === 'Conjunto').reduce((acc, t) => acc + t.valor, 0) || 0
+  const totalRealizado = somarValorFatura(transacoesFatura ?? [])
+  const matheusAtual = somarValorFatura((transacoesFatura ?? []).filter(t => t.responsavel === 'Matheus'))
+  const jenifferAtual = somarValorFatura((transacoesFatura ?? []).filter(t => t.responsavel === 'Jeniffer'))
+  const conjuntoAtual = somarValorFatura((transacoesFatura ?? []).filter(t => t.responsavel === 'Conjunto'))
 
   const matheusPrevisto = findNuBank('nubank matheus')?.valor_previsto || 0
   const jenifferPrevisto =
@@ -262,10 +265,10 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     .filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]'))
     .map(p => toCartaoItem(p, '[CARTAO2]'))
 
-  const cartao1TotalMatheus = (transacoesC1 || []).filter(t => t.responsavel === 'Matheus').reduce((s, t) => s + t.valor, 0)
-  const cartao1TotalJeniffer = (transacoesC1 || []).filter(t => t.responsavel === 'Jeniffer').reduce((s, t) => s + t.valor, 0)
-  const cartao2TotalMatheus = (transacoesC2 || []).filter(t => t.responsavel === 'Matheus').reduce((s, t) => s + t.valor, 0)
-  const cartao2TotalJeniffer = (transacoesC2 || []).filter(t => t.responsavel === 'Jeniffer').reduce((s, t) => s + t.valor, 0)
+  const cartao1TotalMatheus = somarValorFatura((transacoesC1 || []).filter(t => t.responsavel === 'Matheus'))
+  const cartao1TotalJeniffer = somarValorFatura((transacoesC1 || []).filter(t => t.responsavel === 'Jeniffer'))
+  const cartao2TotalMatheus = somarValorFatura((transacoesC2 || []).filter(t => t.responsavel === 'Matheus'))
+  const cartao2TotalJeniffer = somarValorFatura((transacoesC2 || []).filter(t => t.responsavel === 'Jeniffer'))
 
   const receitaBase = planejamento?.find(p => p.item === 'Receita Total')?.valor_previsto || 0
   const receitasExtras = planejamento
@@ -408,7 +411,12 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   type AssinaturaRow = { id: string; nome: string; valor: number; responsavel: string; ativa: boolean; moeda: string }
   type TransacaoRow = { valor: number; responsavel: string | null; descricao: string | null; parcela_atual?: number | null; total_parcelas?: number | null }
   const assinAtivas = (assinaturasData || []).filter((a: AssinaturaRow) => a.ativa)
-  const txFaturaList: TransacaoRow[] = transacoesFatura || []
+  // Composição (barras existente/novo/assinatura) e checagem de assinaturas usam só os
+  // lançamentos "reais" da fatura — estornos (créditos) e compras já estornadas não fazem
+  // sentido como segmento de barra; o valor deles já é tratado à parte em somarValorFatura.
+  const txFaturaList: TransacaoRow[] = (transacoesFatura || []).filter(
+    t => t.status !== 'ESTORNO' && t.status !== 'ESTORNADO'
+  )
   const historicoValores = assinaturasHistoricoData || []
   // Mesmo cutoff usado em AssinaturasMensal.tsx (endOfMonth do mês selecionado) para resolver
   // o valor vigente da assinatura na fatura exibida, respeitando alterações de preço registradas.
