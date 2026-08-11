@@ -4,6 +4,31 @@
 // a tela de Compras (filtro "Tipo de gasto"), para que o clique numa barra
 // leve a exatamente os mesmos lançamentos que a compuseram.
 
+export interface TransacaoParaTotal {
+  valor: number
+  status?: string | null
+  conciliacao_ref?: string | null
+}
+
+/**
+ * Soma os valores de um conjunto de transações tratando estornos corretamente:
+ * - Uma compra marcada ESTORNADO (par de estorno encontrado) é descartada, e o
+ *   estorno correspondente (status ESTORNO com conciliacao_ref preenchido)
+ *   também é descartado — as duas se cancelam, impacto zero.
+ * - Um estorno SEM par (conciliacao_ref nulo — o casamento por nome+data+valor
+ *   não achou a compra original, comum em estorno parcial ou descrição
+ *   divergente do extrato) precisa ser SUBTRAÍDO: a compra original continua
+ *   contando o valor cheio, então o crédito recebido precisa abater esse
+ *   valor — do contrário o total fica maior que a fatura real do NuBank.
+ */
+export function somarValorFatura<T extends TransacaoParaTotal>(transacoes: T[]): number {
+  return transacoes.reduce((acc, t) => {
+    if (t.status === 'ESTORNADO') return acc
+    if (t.status === 'ESTORNO') return t.conciliacao_ref ? acc : acc - t.valor
+    return acc + t.valor
+  }, 0)
+}
+
 export type TipoGasto = 'existente' | 'novo' | 'assinatura'
 
 export interface ParcelaInfo {
