@@ -4,6 +4,8 @@ import { usePathname } from 'next/navigation'
 import { useEffect } from 'react'
 import NotificacoesBell from './NotificacoesBell'
 import DataStatusIndicator from './DataStatusIndicator'
+import ImportacaoScriptIndicator from './ImportacaoScriptIndicator'
+import { useImportacaoScript } from './ImportacaoScriptProvider'
 import { useRefreshContext } from './RefreshProvider'
 import { useOnline } from '@/lib/useOnline'
 import BottomNav from './BottomNav'
@@ -24,6 +26,7 @@ export default function ClientShell({ children }: { children: React.ReactNode })
   const pathname = usePathname()
   const { syncState } = useRefreshContext()
   const isOnline = useOnline()
+  const { execucao: execucaoScript } = useImportacaoScript()
 
   // Registra o SW globalmente em todas as rotas para garantir cache offline
   useEffect(() => {
@@ -57,6 +60,10 @@ export default function ClientShell({ children }: { children: React.ReactNode })
 
   const mostrarBell = pathname ? ROTAS_COM_BELL.includes(pathname) : false
   const mostrarRefresh = pathname ? ROTAS_COM_REFRESH.includes(pathname) : false
+  // Indicador do Google Apps Script aparece em qualquer tela (fora de /importar,
+  // onde o próprio componente se esconde) — é justamente pra cobrir quem saiu da tela.
+  const mostrarImportIndicator =
+    execucaoScript?.status === 'running' || execucaoScript?.status === 'success' || execucaoScript?.status === 'error'
 
   // pb-16 = nav bar (64px); pb-24 = nav bar + offline banner (~88px).
   // Transição CSS suaviza a mudança de padding para evitar layout shift brusco.
@@ -64,8 +71,9 @@ export default function ClientShell({ children }: { children: React.ReactNode })
 
   return (
     <>
-      {(mostrarBell || (mostrarRefresh && syncState)) && (
+      {(mostrarBell || (mostrarRefresh && syncState) || mostrarImportIndicator) && (
         <div className="fixed top-[calc(0.75rem+var(--safe-top))] right-3 lg:top-[calc(0.625rem+var(--safe-top))] lg:right-6 z-50 flex items-center gap-2">
+          {mostrarImportIndicator && <ImportacaoScriptIndicator />}
           {mostrarRefresh && syncState && (
             <DataStatusIndicator
               status={syncState.status}

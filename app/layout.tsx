@@ -10,6 +10,7 @@ const inter = Inter({
 })
 import { MesProvider } from '@/components/MesProvider'
 import { CategorizacaoProvider } from '@/components/CategorizacaoProvider'
+import { ImportacaoScriptProvider } from '@/components/ImportacaoScriptProvider'
 import { RefreshProvider } from '@/components/RefreshProvider'
 import ClientShell from '@/components/ClientShell'
 
@@ -112,9 +113,11 @@ export default function RootLayout({
           <RefreshProvider>
             <MesProvider>
               <CategorizacaoProvider>
-                <ClientShell>
-                  {children}
-                </ClientShell>
+                <ImportacaoScriptProvider>
+                  <ClientShell>
+                    {children}
+                  </ClientShell>
+                </ImportacaoScriptProvider>
               </CategorizacaoProvider>
             </MesProvider>
           </RefreshProvider>
