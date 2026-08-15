@@ -6,6 +6,13 @@ export const maxDuration = 60
 const CARTOES_VALIDOS = ['nubank', 'cartao1', 'cartao2'] as const
 type CartaoValido = typeof CARTOES_VALIDOS[number]
 
+// Preview seguro do token (nunca o valor completo) para comparar visualmente
+// contra o TRIGGER_TOKEN das Script Properties sem expor o segredo.
+function previewToken(token: string): string {
+  if (token.length <= 8) return `${token.slice(0, 2)}…(${token.length} chars)`
+  return `${token.slice(0, 4)}…${token.slice(-4)} (${token.length} chars)`
+}
+
 interface ArquivoDetalhe {
   assunto: string | null
   arquivo: string | null
@@ -86,11 +93,11 @@ export async function GET(req: NextRequest) {
         { status: httpStatus || 502 }
       )
     }
-    if (httpStatus === 401 && !scriptToken) {
-      return NextResponse.json(
-        { ...data, erro: `${data.erro ?? 'Token inválido ou ausente.'} (GOOGLE_APPS_SCRIPT_IMPORT_TOKEN não está configurada no servidor.)` },
-        { status: httpStatus }
-      )
+    if (httpStatus === 401) {
+      const dica = scriptToken
+        ? ` (Enviamos o token "${previewToken(scriptToken)}" — confira se bate com o TRIGGER_TOKEN nas Script Properties do Apps Script.)`
+        : ' (GOOGLE_APPS_SCRIPT_IMPORT_TOKEN não está configurada no servidor.)'
+      return NextResponse.json({ ...data, erro: `${data.erro ?? 'Token inválido ou ausente.'}${dica}` }, { status: httpStatus })
     }
     return NextResponse.json(data, { status: httpStatus })
   } catch (error) {
@@ -143,7 +150,9 @@ export async function POST(req: NextRequest) {
     // Token inválido/ausente é erro de configuração, não algo que o disparo em
     // background resolveria — falha rápido em vez de tentar (e falhar de novo) depois.
     if (httpStatus === 401) {
-      const dica = !scriptToken ? ' (GOOGLE_APPS_SCRIPT_IMPORT_TOKEN não está configurada no servidor.)' : ''
+      const dica = scriptToken
+        ? ` (Enviamos o token "${previewToken(scriptToken)}" — confira se bate com o TRIGGER_TOKEN nas Script Properties do Apps Script.)`
+        : ' (GOOGLE_APPS_SCRIPT_IMPORT_TOKEN não está configurada no servidor.)'
       return NextResponse.json(
         { success: false, error: `${data?.erro ?? 'Token inválido ao autenticar no Google Apps Script.'}${dica}` },
         { status: 401 }
