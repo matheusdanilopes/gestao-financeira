@@ -294,6 +294,11 @@ export default function ImportarPage() {
   const pollScriptRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pollInicioRef = useRef<number | null>(null)
   const consultarStatusScriptRef = useRef<(agendarProximo: boolean) => Promise<void>>(async () => {})
+  // true entre o momento em que disparamos/detectamos uma execução e o momento em
+  // que um poll traz um resultado definitivo (success/error) — evita que um poll
+  // que ainda não viu o status "running" propagado (corrida com o Apps Script)
+  // seja interpretado como "não tem nada acontecendo".
+  const aguardandoResultadoRef = useRef(false)
   const { categorizando, categorizadoMsg, categorizar } = useCategorizacao()
 
   // Usuário acessou a tela de importação → limpa notificações de importação concluída
@@ -385,11 +390,14 @@ export default function ImportarPage() {
   }, [])
 
   // Agenda o próximo poll, mas desiste depois de POLL_MAX_MS para não ficar
-  // consultando pra sempre caso o Apps Script fique preso em "running".
+  // consultando pra sempre caso o Apps Script fique preso em "running". Ao desistir,
+  // avisa em vez de deixar a UI congelada silenciosamente em "rodando".
   const agendarProximoPoll = useCallback(() => {
     if (pollInicioRef.current == null) pollInicioRef.current = Date.now()
     if (Date.now() - pollInicioRef.current > POLL_MAX_MS) {
       pollScriptRef.current = null
+      aguardandoResultadoRef.current = false
+      setScriptErro('Não foi possível confirmar o resultado da importação após alguns minutos. Toque em "Verificar status agora" ou tente novamente.')
       return
     }
     pollScriptRef.current = setTimeout(() => consultarStatusScriptRef.current(true), 4000)
@@ -400,16 +408,32 @@ export default function ImportarPage() {
       const res = await fetch('/api/import/google-apps-script')
       const data: RespostaScript = await res.json()
       const execucao = data.status ?? null
-      setScriptExecucao(execucao)
 
       if (execucao?.status === 'running') {
+        aguardandoResultadoRef.current = true
+        setScriptExecucao(execucao)
         if (agendarProximo) agendarProximoPoll()
         return
       }
-      if (execucao?.status === 'success') {
-        setScriptErro(null)
-        carregarAtividades()
+      if (execucao?.status === 'success' || execucao?.status === 'error') {
+        aguardandoResultadoRef.current = false
+        setScriptExecucao(execucao)
+        if (execucao.status === 'success') {
+          setScriptErro(null)
+          carregarAtividades()
+        }
+        pararPollingScript()
+        return
       }
+
+      // Status "nulo" (idle/nunca rodou). Se acabamos de disparar ou detectar uma
+      // execução, pode ser só o Apps Script ainda não ter propagado o "running" —
+      // mantém o aviso atual e continua tentando em vez de sumir com tudo de repente.
+      if (aguardandoResultadoRef.current) {
+        if (agendarProximo) agendarProximoPoll()
+        return
+      }
+      setScriptExecucao(null)
       pararPollingScript()
     } catch {
       // Falha passageira (rede, JSON inválido etc.) — tenta de novo mais adiante
@@ -432,6 +456,13 @@ export default function ImportarPage() {
     return () => pararPollingScript()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  function verificarStatusScriptAgora() {
+    pararPollingScript()
+    aguardandoResultadoRef.current = true
+    setScriptErro(null)
+    consultarStatusScript(true)
+  }
 
   // Enquanto uma execução está rodando, atualiza o "tempo decorrido" no aviso.
   useEffect(() => {
@@ -456,6 +487,7 @@ export default function ImportarPage() {
       if (res.status === 409 || data.emExecucao) {
         // Já existe uma execução em andamento (pode ter sido disparada por outro
         // acionamento ou pelo gatilho de tempo do Apps Script) — não é um erro.
+        aguardandoResultadoRef.current = true
         setScriptExecucao(data.status ?? { status: 'running' })
         agendarProximoPoll()
         return
@@ -463,10 +495,12 @@ export default function ImportarPage() {
       if (!res.ok || !data.success) throw new Error(data.error ?? 'Erro desconhecido')
 
       // Disparo aceito — a execução real roda em background; acompanha via polling.
+      aguardandoResultadoRef.current = true
       setAgoraTick(Date.now())
       setScriptExecucao({ status: 'running', iniciadoEm: new Date().toISOString(), origem: 'api' })
       agendarProximoPoll()
     } catch (e) {
+      aguardandoResultadoRef.current = false
       setScriptErro(e instanceof Error ? e.message : String(e))
     } finally {
       setDisparandoScript(false)
@@ -779,14 +813,22 @@ export default function ImportarPage() {
 
         {/* Rodando */}
         {scriptExecucao?.status === 'running' && (
-          <div className="mt-3 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3 text-sm text-blue-700 flex items-center gap-2.5">
-            <span className="w-4 h-4 shrink-0 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin" />
-            <span>
-              Importação em andamento — iniciada às {formatarHora(scriptExecucao.iniciadoEm)}
-              {scriptExecucao.origem ? ` (${ORIGEM_LABELS[scriptExecucao.origem] ?? scriptExecucao.origem})` : ''}
-              {formatarDecorrido(scriptExecucao.iniciadoEm, agoraTick) && ` · há ${formatarDecorrido(scriptExecucao.iniciadoEm, agoraTick)}`}.
-              {' '}Verifique novamente em alguns instantes.
-            </span>
+          <div className="mt-3 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3 text-sm text-blue-700 flex items-start gap-2.5">
+            <span className="w-4 h-4 shrink-0 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin mt-0.5" />
+            <div className="flex-1">
+              <span>
+                Importação em andamento — iniciada às {formatarHora(scriptExecucao.iniciadoEm)}
+                {scriptExecucao.origem ? ` (${ORIGEM_LABELS[scriptExecucao.origem] ?? scriptExecucao.origem})` : ''}
+                {formatarDecorrido(scriptExecucao.iniciadoEm, agoraTick) && ` · há ${formatarDecorrido(scriptExecucao.iniciadoEm, agoraTick)}`}.
+                {' '}Verifique novamente em alguns instantes.
+              </span>
+              <button
+                onClick={verificarStatusScriptAgora}
+                className="block mt-1.5 text-xs font-semibold text-blue-700 underline underline-offset-2 hover:opacity-70 transition-opacity"
+              >
+                Verificar status agora
+              </button>
+            </div>
           </div>
         )}
 
