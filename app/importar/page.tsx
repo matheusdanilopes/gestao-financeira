@@ -167,6 +167,9 @@ interface StatusExecucaoScript {
   finalizadoEm?: string | null
   resumo?: ResumoImportacaoScript
   erro?: string
+  // Mensagem pronta vinda do nível raiz da resposta, usada quando o Apps Script
+  // não manda o objeto de execução completo (fora do contrato documentado).
+  mensagem?: string
 }
 
 interface RespostaScript {
@@ -197,7 +200,7 @@ function classificarCenarioScript(execucao: StatusExecucaoScript): { cenario: Ce
 
   const resumo = execucao.resumo
   if (!resumo) {
-    return { cenario: 'generico', mensagem: 'Importação via Google Apps Script concluída com sucesso.' }
+    return { cenario: 'generico', mensagem: execucao.mensagem || 'Importação via Google Apps Script concluída com sucesso.' }
   }
 
   if (!resumo.arquivoEncontrado) {
@@ -407,11 +410,16 @@ export default function ImportarPage() {
     try {
       const res = await fetch('/api/import/google-apps-script')
       const data: RespostaScript = await res.json()
-      const execucao = data.status ?? null
+      // Em teoria data.status é sempre o objeto de execução aninhado, mas na prática
+      // já vimos o Apps Script devolver só o número do HTTP status ali (fora do
+      // contrato documentado) — nesse caso ignora e usa o fallback abaixo.
+      const statusBruto: unknown = data.status
+      const execucao: StatusExecucaoScript | null =
+        statusBruto && typeof statusBruto === 'object' ? (statusBruto as StatusExecucaoScript) : null
 
-      if (execucao?.status === 'running') {
+      if (execucao?.status === 'running' || data.emExecucao) {
         aguardandoResultadoRef.current = true
-        setScriptExecucao(execucao)
+        setScriptExecucao(execucao ?? { status: 'running' })
         if (agendarProximo) agendarProximoPoll()
         return
       }
@@ -426,9 +434,27 @@ export default function ImportarPage() {
         return
       }
 
-      // Status "nulo" (idle/nunca rodou). Se acabamos de disparar ou detectar uma
-      // execução, pode ser só o Apps Script ainda não ter propagado o "running" —
-      // mantém o aviso atual e continua tentando em vez de sumir com tudo de repente.
+      // O Apps Script respondeu sem o objeto de execução aninhado — usa
+      // sucesso/erro/mensagem do nível raiz como sinal em vez de ficar esperando
+      // pra sempre um formato que essa implementação não está devolvendo.
+      if (typeof data.sucesso === 'boolean') {
+        aguardandoResultadoRef.current = false
+        setScriptExecucao({
+          status: data.sucesso ? 'success' : 'error',
+          erro: data.sucesso ? undefined : (data.erro ?? data.mensagem),
+          mensagem: data.mensagem,
+        })
+        if (data.sucesso) {
+          setScriptErro(null)
+          carregarAtividades()
+        }
+        pararPollingScript()
+        return
+      }
+
+      // Nenhum sinal aproveitável. Se acabamos de disparar ou detectar uma execução,
+      // pode ser só o Apps Script ainda não ter propagado o "running" — mantém o
+      // aviso atual e continua tentando em vez de sumir com tudo de repente.
       if (aguardandoResultadoRef.current) {
         if (agendarProximo) agendarProximoPoll()
         return
