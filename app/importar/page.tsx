@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import ModalPortal from '@/components/ModalPortal'
-import { Upload, CheckCircle2, XCircle, Sparkles, Clock, AlertCircle, ShieldCheck, Trash2, Code2, Copy, Check, X, FileSpreadsheet, RotateCcw, Search, Calendar, Info, ChevronDown, ChevronUp } from 'lucide-react'
+import { Upload, CheckCircle2, XCircle, Sparkles, Clock, AlertCircle, ShieldCheck, Trash2, Code2, Copy, Check, X, FileSpreadsheet, RotateCcw, Search, Calendar, Info, ChevronDown, ChevronUp, FileCheck, FileX } from 'lucide-react'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth } from 'date-fns'
@@ -733,6 +733,20 @@ export default function ImportarPage() {
               ? 'Importação em andamento…'
               : 'Importar via Google Apps Script'}
         </button>
+
+        {/* Indicador direto: encontrou arquivo CSV ou não — sempre visível quando já há um resultado */}
+        {scriptExecucao?.status !== 'running' && scriptExecucao?.resumo && (
+          <div className="mt-3">
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${
+              scriptExecucao.resumo.arquivoEncontrado
+                ? 'bg-green-50 text-green-700 border-green-100'
+                : 'bg-gray-100 text-gray-500 border-gray-200'
+            }`}>
+              {scriptExecucao.resumo.arquivoEncontrado ? <FileCheck className="w-3.5 h-3.5" /> : <FileX className="w-3.5 h-3.5" />}
+              {scriptExecucao.resumo.arquivoEncontrado ? 'Arquivo CSV encontrado' : 'Nenhum arquivo CSV encontrado'}
+            </span>
+          </div>
+        )}
 
         {/* Rodando */}
         {scriptExecucao?.status === 'running' && (
