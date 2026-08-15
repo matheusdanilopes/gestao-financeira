@@ -240,6 +240,10 @@ function formatarDecorrido(iso: string | null | undefined, agora: number): strin
 
 const ORIGEM_LABELS: Record<string, string> = { api: 'nosso app', job: 'gatilho automático do Apps Script' }
 
+// Tempo máximo fazendo polling do status antes de desistir (evita ficar consultando
+// pra sempre se o Apps Script travar em "running").
+const POLL_MAX_MS = 10 * 60 * 1000
+
 type TipoCartao = 'nubank' | 'cartao1' | 'cartao2'
 
 const CARTAO_LABELS: Record<TipoCartao, string> = {
@@ -288,6 +292,8 @@ export default function ImportarPage() {
   const [agoraTick, setAgoraTick] = useState(() => Date.now())
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pollScriptRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pollInicioRef = useRef<number | null>(null)
+  const consultarStatusScriptRef = useRef<(agendarProximo: boolean) => Promise<void>>(async () => {})
   const { categorizando, categorizadoMsg, categorizar } = useCategorizacao()
 
   // Usuário acessou a tela de importação → limpa notificações de importação concluída
@@ -375,6 +381,18 @@ export default function ImportarPage() {
       clearTimeout(pollScriptRef.current)
       pollScriptRef.current = null
     }
+    pollInicioRef.current = null
+  }, [])
+
+  // Agenda o próximo poll, mas desiste depois de POLL_MAX_MS para não ficar
+  // consultando pra sempre caso o Apps Script fique preso em "running".
+  const agendarProximoPoll = useCallback(() => {
+    if (pollInicioRef.current == null) pollInicioRef.current = Date.now()
+    if (Date.now() - pollInicioRef.current > POLL_MAX_MS) {
+      pollScriptRef.current = null
+      return
+    }
+    pollScriptRef.current = setTimeout(() => consultarStatusScriptRef.current(true), 4000)
   }, [])
 
   const consultarStatusScript = useCallback(async (agendarProximo: boolean) => {
@@ -385,9 +403,7 @@ export default function ImportarPage() {
       setScriptExecucao(execucao)
 
       if (execucao?.status === 'running') {
-        if (agendarProximo) {
-          pollScriptRef.current = setTimeout(() => consultarStatusScript(true), 4000)
-        }
+        if (agendarProximo) agendarProximoPoll()
         return
       }
       if (execucao?.status === 'success') {
@@ -395,11 +411,24 @@ export default function ImportarPage() {
         carregarAtividades()
       }
       pararPollingScript()
-    } catch { /* silencioso — tentativa seguinte do polling cobre falhas passageiras */ }
-  }, [pararPollingScript])
+    } catch {
+      // Falha passageira (rede, JSON inválido etc.) — tenta de novo mais adiante
+      // em vez de deixar o polling morrer silenciosamente.
+      if (agendarProximo) agendarProximoPoll()
+    }
+  }, [pararPollingScript, agendarProximoPoll])
+
+  // Mantém uma ref sempre atualizada para o setTimeout recursivo acima poder
+  // chamar a versão mais recente sem precisar declará-la antes de si mesma.
+  useEffect(() => {
+    consultarStatusScriptRef.current = consultarStatusScript
+  }, [consultarStatusScript])
 
   useEffect(() => {
-    consultarStatusScript(false)
+    // agendarProximo=true também aqui: se a página carregar com uma execução já
+    // em andamento (ex.: disparada pelo gatilho de tempo do Apps Script), o
+    // polling precisa continuar até ela terminar, não parar após a 1ª checagem.
+    consultarStatusScript(true)
     return () => pararPollingScript()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -428,7 +457,7 @@ export default function ImportarPage() {
         // Já existe uma execução em andamento (pode ter sido disparada por outro
         // acionamento ou pelo gatilho de tempo do Apps Script) — não é um erro.
         setScriptExecucao(data.status ?? { status: 'running' })
-        pollScriptRef.current = setTimeout(() => consultarStatusScript(true), 4000)
+        agendarProximoPoll()
         return
       }
       if (!res.ok || !data.success) throw new Error(data.error ?? 'Erro desconhecido')
@@ -436,7 +465,7 @@ export default function ImportarPage() {
       // Disparo aceito — a execução real roda em background; acompanha via polling.
       setAgoraTick(Date.now())
       setScriptExecucao({ status: 'running', iniciadoEm: new Date().toISOString(), origem: 'api' })
-      pollScriptRef.current = setTimeout(() => consultarStatusScript(true), 4000)
+      agendarProximoPoll()
     } catch (e) {
       setScriptErro(e instanceof Error ? e.message : String(e))
     } finally {
