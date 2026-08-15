@@ -6,12 +6,54 @@ export const maxDuration = 60
 const CARTOES_VALIDOS = ['nubank', 'cartao1', 'cartao2'] as const
 type CartaoValido = typeof CARTOES_VALIDOS[number]
 
+interface ArquivoDetalhe {
+  assunto: string | null
+  arquivo: string | null
+  enviado: boolean
+  tentativas?: number
+  erro: string | null
+}
+
+interface ResumoImportacao {
+  emailsEncontrados: number
+  arquivoEncontrado: boolean
+  totalArquivosCsv: number
+  arquivosEnviadosComSucesso: number
+  arquivosComFalha: number
+  detalhes: ArquivoDetalhe[]
+  sucessoGeral: boolean
+}
+
+interface ExecucaoStatus {
+  status: 'running' | 'success' | 'error'
+  origem: 'api' | 'job'
+  iniciadoEm: string
+  finalizadoEm: string | null
+  resumo?: ResumoImportacao
+  erro?: string
+}
+
+// Corpo devolvido pelo Web App do Apps Script. O campo "status" no nível raiz
+// é o HTTP status code; após o JSON.parse só sobra a última chave repetida
+// ("status"), que é o objeto ExecucaoStatus aninhado — por isso o código
+// sempre usa response.status (HTTP real) para o código numérico.
+interface RespostaAppsScript {
+  sucesso?: boolean
+  mensagem?: string
+  erro?: string
+  emExecucao?: boolean
+  arquivoEncontrado?: boolean
+  envioComSucesso?: boolean
+  resumo?: ResumoImportacao
+  status?: ExecucaoStatus | null
+}
+
 // Consulta rápida (não dispara nada) para saber se já existe uma execução em andamento.
 async function consultarStatusScript(scriptUrl: string) {
   const url = new URL(scriptUrl)
   url.searchParams.set('action', 'status')
   const response = await fetch(url.toString())
-  const data = await response.json().catch(() => null)
+  const data: RespostaAppsScript | null = await response.json().catch(() => null)
   return { httpStatus: response.status, data }
 }
 
@@ -76,16 +118,24 @@ export async function POST(req: NextRequest) {
         { status: 409 }
       )
     }
+    // Token inválido/ausente é erro de configuração, não algo que o disparo em
+    // background resolveria — falha rápido em vez de tentar (e falhar de novo) depois.
+    if (httpStatus === 401) {
+      return NextResponse.json(
+        { success: false, error: data?.erro ?? 'Token inválido ao autenticar no Google Apps Script.' },
+        { status: 401 }
+      )
+    }
   } catch {
-    // Se a checagem de status falhar, segue com o disparo normalmente — o próprio
-    // Apps Script recusa com 409 se já estiver rodando.
+    // Se a checagem de status falhar (ex.: rede), segue com o disparo normalmente —
+    // o próprio Apps Script recusa com 409 se já estiver rodando.
   }
 
   // O Web App do Apps Script lê a planilha e envia os dados para /api/nubank/importar —
   // isso pode ultrapassar o timeout da function na plataforma de deploy. Disparamos em
   // background via after() e respondemos de imediato para o cliente nunca receber uma
-  // página de erro de timeout no lugar de JSON. O andamento real é acompanhado via
-  // polling de GET /api/import/google-apps-script (action=status).
+  // página de erro de timeout no lugar de JSON. O andamento real (incluindo o resumo de
+  // negócio) é acompanhado via polling de GET /api/import/google-apps-script (action=status).
   after(async () => {
     try {
       const response = await fetch(scriptUrl, {
@@ -93,12 +143,31 @@ export async function POST(req: NextRequest) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cartao }),
       })
-      if (!response.ok && response.status !== 409) {
-        const texto = await response.text()
+      if (response.status === 409) return
+
+      const data: RespostaAppsScript | null = await response.json().catch(() => null)
+
+      if (!response.ok) {
         await supabase.from('activity_logs').insert({
           acao: 'importar',
           tabela: 'transacoes_nubank',
-          descricao: `ERRO: Google Apps Script retornou ${response.status}: ${texto.slice(0, 300)}`,
+          descricao: `ERRO: Google Apps Script retornou ${response.status}: ${data?.erro ?? 'erro desconhecido'}`,
+        })
+        return
+      }
+
+      // HTTP 200 ainda pode representar falha parcial/total no envio dos CSVs
+      // encontrados — os arquivos que falharam nunca chegam a /api/nubank/importar,
+      // então não geram log próprio. Registra aqui para manter o histórico completo.
+      if (data?.envioComSucesso === false && (data.resumo?.arquivosComFalha ?? 0) > 0) {
+        const falhas = data.resumo!.detalhes
+          .filter(d => !d.enviado)
+          .map(d => `${d.arquivo ?? d.assunto ?? 'arquivo'}: ${d.erro ?? 'erro desconhecido'}`)
+          .join('; ')
+        await supabase.from('activity_logs').insert({
+          acao: 'importar',
+          tabela: 'transacoes_nubank',
+          descricao: `ERRO: Falha ao enviar ${data.resumo!.arquivosComFalha} de ${data.resumo!.totalArquivosCsv} arquivo(s) do Google Apps Script: ${falhas}`,
         })
       }
     } catch (error) {

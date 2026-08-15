@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import ModalPortal from '@/components/ModalPortal'
-import { Upload, CheckCircle2, XCircle, Sparkles, Clock, AlertCircle, ShieldCheck, Trash2, Code2, Copy, Check, X, FileSpreadsheet, RotateCcw, Search, Calendar } from 'lucide-react'
+import { Upload, CheckCircle2, XCircle, Sparkles, Clock, AlertCircle, ShieldCheck, Trash2, Code2, Copy, Check, X, FileSpreadsheet, RotateCcw, Search, Calendar, Info, ChevronDown, ChevronUp } from 'lucide-react'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth } from 'date-fns'
@@ -142,11 +142,30 @@ interface DiagnosticoParcelas {
   divergencias: DivergenciaParcela[]
 }
 
+interface ArquivoDetalheScript {
+  assunto: string | null
+  arquivo: string | null
+  enviado: boolean
+  tentativas?: number
+  erro: string | null
+}
+
+interface ResumoImportacaoScript {
+  emailsEncontrados: number
+  arquivoEncontrado: boolean
+  totalArquivosCsv: number
+  arquivosEnviadosComSucesso: number
+  arquivosComFalha: number
+  detalhes: ArquivoDetalheScript[]
+  sucessoGeral: boolean
+}
+
 interface StatusExecucaoScript {
   status: 'running' | 'success' | 'error' | null
   origem?: 'api' | 'job'
   iniciadoEm?: string | null
   finalizadoEm?: string | null
+  resumo?: ResumoImportacaoScript
   erro?: string
 }
 
@@ -157,7 +176,47 @@ interface RespostaScript {
   error?: string
   erro?: string
   emExecucao?: boolean
+  arquivoEncontrado?: boolean
+  envioComSucesso?: boolean
+  resumo?: ResumoImportacaoScript
   status?: StatusExecucaoScript | null
+}
+
+type CenarioScript =
+  | 'sucesso-total'
+  | 'sucesso-parcial'
+  | 'nada-para-importar'
+  | 'email-sem-anexo'
+  | 'erro'
+  | 'generico'
+
+function classificarCenarioScript(execucao: StatusExecucaoScript): { cenario: CenarioScript; mensagem: string } {
+  if (execucao.status === 'error') {
+    return { cenario: 'erro', mensagem: execucao.erro || 'Erro desconhecido na execução do Google Apps Script.' }
+  }
+
+  const resumo = execucao.resumo
+  if (!resumo) {
+    return { cenario: 'generico', mensagem: 'Importação via Google Apps Script concluída com sucesso.' }
+  }
+
+  if (!resumo.arquivoEncontrado) {
+    return resumo.emailsEncontrados === 0
+      ? { cenario: 'nada-para-importar', mensagem: 'Nenhum e-mail novo para importar.' }
+      : { cenario: 'email-sem-anexo', mensagem: 'E-mail encontrado, mas sem anexo CSV.' }
+  }
+
+  if (resumo.sucessoGeral) {
+    return {
+      cenario: 'sucesso-total',
+      mensagem: `${resumo.arquivosEnviadosComSucesso} arquivo(s) importado(s) com sucesso.`,
+    }
+  }
+
+  return {
+    cenario: 'sucesso-parcial',
+    mensagem: `Importação com falhas: ${resumo.arquivosEnviadosComSucesso} enviado(s), ${resumo.arquivosComFalha} com erro.`,
+  }
 }
 
 function formatarHora(iso: string | null | undefined): string {
@@ -167,6 +226,16 @@ function formatarHora(iso: string | null | undefined): string {
   } catch {
     return iso
   }
+}
+
+function formatarDecorrido(iso: string | null | undefined, agora: number): string {
+  if (!iso) return ''
+  const inicio = new Date(iso).getTime()
+  if (Number.isNaN(inicio)) return ''
+  const segundos = Math.max(0, Math.floor((agora - inicio) / 1000))
+  if (segundos < 60) return `${segundos}s`
+  const minutos = Math.floor(segundos / 60)
+  return `${minutos}m ${segundos % 60}s`
 }
 
 const ORIGEM_LABELS: Record<string, string> = { api: 'nosso app', job: 'gatilho automático do Apps Script' }
@@ -213,9 +282,10 @@ export default function ImportarPage() {
   const [modalApiAberto, setModalApiAberto] = useState(false)
   const [copiado, setCopiado] = useState<string | null>(null)
   const [disparandoScript, setDisparandoScript] = useState(false)
-  const [scriptResultado, setScriptResultado] = useState<string | null>(null)
   const [scriptErro, setScriptErro] = useState<string | null>(null)
   const [scriptExecucao, setScriptExecucao] = useState<StatusExecucaoScript | null>(null)
+  const [scriptDetalhesAbertos, setScriptDetalhesAbertos] = useState(false)
+  const [agoraTick, setAgoraTick] = useState(() => Date.now())
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pollScriptRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { categorizando, categorizadoMsg, categorizar } = useCategorizacao()
@@ -321,12 +391,8 @@ export default function ImportarPage() {
         return
       }
       if (execucao?.status === 'success') {
-        setScriptResultado(data.mensagem || 'Importação via Google Apps Script concluída com sucesso.')
         setScriptErro(null)
         carregarAtividades()
-      } else if (execucao?.status === 'error') {
-        setScriptErro(execucao.erro || data.erro || 'Erro desconhecido na execução do Google Apps Script.')
-        setScriptResultado(null)
       }
       pararPollingScript()
     } catch { /* silencioso — tentativa seguinte do polling cobre falhas passageiras */ }
@@ -338,10 +404,17 @@ export default function ImportarPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Enquanto uma execução está rodando, atualiza o "tempo decorrido" no aviso.
+  useEffect(() => {
+    if (scriptExecucao?.status !== 'running') return
+    const id = setInterval(() => setAgoraTick(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [scriptExecucao?.status])
+
   async function dispararGoogleAppsScript() {
     setDisparandoScript(true)
-    setScriptResultado(null)
     setScriptErro(null)
+    setScriptDetalhesAbertos(false)
     pararPollingScript()
     try {
       const res = await fetch('/api/import/google-apps-script', {
@@ -361,7 +434,8 @@ export default function ImportarPage() {
       if (!res.ok || !data.success) throw new Error(data.error ?? 'Erro desconhecido')
 
       // Disparo aceito — a execução real roda em background; acompanha via polling.
-      setScriptExecucao({ status: 'running' })
+      setAgoraTick(Date.now())
+      setScriptExecucao({ status: 'running', iniciadoEm: new Date().toISOString(), origem: 'api' })
       pollScriptRef.current = setTimeout(() => consultarStatusScript(true), 4000)
     } catch (e) {
       setScriptErro(e instanceof Error ? e.message : String(e))
@@ -369,6 +443,11 @@ export default function ImportarPage() {
       setDisparandoScript(false)
     }
   }
+
+  const cenarioScript = useMemo(() => {
+    if (!scriptExecucao || scriptExecucao.status === 'running') return null
+    return classificarCenarioScript(scriptExecucao)
+  }, [scriptExecucao])
 
   function copiarTexto(chave: string, texto: string) {
     navigator.clipboard.writeText(texto).catch(() => {})
@@ -655,23 +734,86 @@ export default function ImportarPage() {
               : 'Importar via Google Apps Script'}
         </button>
 
+        {/* Rodando */}
         {scriptExecucao?.status === 'running' && (
           <div className="mt-3 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3 text-sm text-blue-700 flex items-center gap-2.5">
-            <Clock className="w-4 h-4 shrink-0 text-blue-500 animate-pulse" />
+            <span className="w-4 h-4 shrink-0 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin" />
             <span>
-              Importação já em andamento (iniciada às {formatarHora(scriptExecucao.iniciadoEm)}
-              {scriptExecucao.origem ? ` por ${ORIGEM_LABELS[scriptExecucao.origem] ?? scriptExecucao.origem}` : ''}).
-              Verifique novamente em alguns instantes.
+              Importação em andamento — iniciada às {formatarHora(scriptExecucao.iniciadoEm)}
+              {scriptExecucao.origem ? ` (${ORIGEM_LABELS[scriptExecucao.origem] ?? scriptExecucao.origem})` : ''}
+              {formatarDecorrido(scriptExecucao.iniciadoEm, agoraTick) && ` · há ${formatarDecorrido(scriptExecucao.iniciadoEm, agoraTick)}`}.
+              {' '}Verifique novamente em alguns instantes.
             </span>
           </div>
         )}
-        {scriptExecucao?.status !== 'running' && scriptResultado && (
+
+        {/* Sucesso total */}
+        {cenarioScript?.cenario === 'sucesso-total' && (
           <div className="mt-3 bg-green-50 border border-green-100 rounded-2xl px-4 py-3 text-sm text-green-700 flex items-center gap-2.5">
             <CheckCircle2 className="w-4 h-4 shrink-0 text-green-600" />
-            {scriptResultado}
+            {cenarioScript.mensagem}
           </div>
         )}
-        {scriptExecucao?.status !== 'running' && scriptErro && (
+
+        {/* Nada para importar — estado neutro, não é erro */}
+        {cenarioScript?.cenario === 'nada-para-importar' && (
+          <div className="mt-3 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm text-gray-500 flex items-center gap-2.5">
+            <Info className="w-4 h-4 shrink-0 text-gray-400" />
+            {cenarioScript.mensagem}
+          </div>
+        )}
+
+        {/* E-mail encontrado mas sem CSV anexado — aviso */}
+        {cenarioScript?.cenario === 'email-sem-anexo' && (
+          <div className="mt-3 bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 text-sm text-amber-700 flex items-center gap-2.5">
+            <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+            {cenarioScript.mensagem}
+          </div>
+        )}
+
+        {/* Sucesso parcial — alguns arquivos falharam */}
+        {cenarioScript?.cenario === 'sucesso-parcial' && (
+          <div className="mt-3 bg-amber-50 border border-amber-200 rounded-2xl p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                <span className="text-sm font-semibold text-amber-900">{cenarioScript.mensagem}</span>
+              </div>
+              <button
+                onClick={() => setScriptDetalhesAbertos(v => !v)}
+                className="text-xs text-amber-700 font-semibold shrink-0 flex items-center gap-0.5 underline underline-offset-2 hover:opacity-70 transition-opacity"
+              >
+                {scriptDetalhesAbertos ? 'Ocultar' : 'Ver detalhes'}
+                {scriptDetalhesAbertos ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+            {scriptDetalhesAbertos && (
+              <div className="mt-3 space-y-2">
+                {scriptExecucao?.resumo?.detalhes.filter(d => !d.enviado).map((d, i) => (
+                  <div key={i} className="bg-white rounded-xl p-3 text-xs border border-amber-100">
+                    <p className="font-semibold text-gray-800 truncate">{d.arquivo ?? d.assunto ?? 'Arquivo'}</p>
+                    {d.assunto && d.arquivo && <p className="text-gray-400 mt-0.5">{d.assunto}</p>}
+                    <p className="text-red-600 mt-1">
+                      {d.erro ?? 'Erro desconhecido'}
+                      {d.tentativas ? ` (após ${d.tentativas} tentativa(s))` : ''}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Erro na execução (Apps Script rodou e falhou) */}
+        {cenarioScript?.cenario === 'erro' && (
+          <div className="mt-3 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-sm text-red-700 flex items-center gap-2.5">
+            <XCircle className="w-4 h-4 shrink-0 text-red-500" />
+            {cenarioScript.mensagem}
+          </div>
+        )}
+
+        {/* Erro ao disparar (configuração, token ou rede) — antes de qualquer execução */}
+        {scriptErro && (
           <div className="mt-3 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-sm text-red-700 flex items-center gap-2.5">
             <XCircle className="w-4 h-4 shrink-0 text-red-500" />
             {scriptErro}
