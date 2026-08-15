@@ -49,12 +49,19 @@ interface RespostaAppsScript {
 }
 
 // Consulta rápida (não dispara nada) para saber se já existe uma execução em andamento.
+// Lê como texto primeiro (em vez de response.json() direto) para conseguir devolver o
+// corpo bruto quando não for JSON válido — essencial pra diagnosticar (ex.: o Apps
+// Script devolvendo uma página de erro/HTML em vez do JSON esperado).
 async function consultarStatusScript(scriptUrl: string) {
   const url = new URL(scriptUrl)
   url.searchParams.set('action', 'status')
   const response = await fetch(url.toString())
-  const data: RespostaAppsScript | null = await response.json().catch(() => null)
-  return { httpStatus: response.status, data }
+  const raw = await response.text()
+  let data: RespostaAppsScript | null = null
+  try {
+    data = JSON.parse(raw)
+  } catch { /* corpo não é JSON — data fica null, raw carrega o diagnóstico */ }
+  return { httpStatus: response.status, data, raw }
 }
 
 export async function GET(req: NextRequest) {
@@ -70,8 +77,14 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const { httpStatus, data } = await consultarStatusScript(scriptUrl)
-    return NextResponse.json(data ?? { erro: 'Resposta inválida do Google Apps Script.' }, { status: httpStatus })
+    const { httpStatus, data, raw } = await consultarStatusScript(scriptUrl)
+    if (!data) {
+      return NextResponse.json(
+        { erro: `O Google Apps Script devolveu uma resposta que não é JSON (HTTP ${httpStatus}).`, corpoBruto: raw.slice(0, 800) },
+        { status: httpStatus || 502 }
+      )
+    }
+    return NextResponse.json(data, { status: httpStatus })
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
     return NextResponse.json({ erro: `Falha ao consultar status do Google Apps Script: ${msg}` }, { status: 502 })

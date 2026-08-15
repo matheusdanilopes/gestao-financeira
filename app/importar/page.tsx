@@ -178,6 +178,7 @@ interface RespostaScript {
   mensagem?: string
   error?: string
   erro?: string
+  corpoBruto?: string
   emExecucao?: boolean
   arquivoEncontrado?: boolean
   envioComSucesso?: boolean
@@ -448,6 +449,19 @@ export default function ImportarPage() {
           setScriptErro(null)
           carregarAtividades()
         }
+        pararPollingScript()
+        return
+      }
+
+      // Resposta trouxe só um campo de erro (ex.: o Apps Script devolveu algo que
+      // não é JSON válido, ou o proxy falhou) — trata como erro definitivo em vez
+      // de continuar tentando pra sempre um problema que não vai se resolver sozinho.
+      if (typeof data.erro === 'string') {
+        aguardandoResultadoRef.current = false
+        setScriptExecucao({
+          status: 'error',
+          erro: data.corpoBruto ? `${data.erro} Resposta: ${data.corpoBruto.slice(0, 300)}` : data.erro,
+        })
         pararPollingScript()
         return
       }
