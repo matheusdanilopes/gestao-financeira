@@ -142,6 +142,35 @@ interface DiagnosticoParcelas {
   divergencias: DivergenciaParcela[]
 }
 
+interface StatusExecucaoScript {
+  status: 'running' | 'success' | 'error' | null
+  origem?: 'api' | 'job'
+  iniciadoEm?: string | null
+  finalizadoEm?: string | null
+  erro?: string
+}
+
+interface RespostaScript {
+  success?: boolean
+  sucesso?: boolean
+  mensagem?: string
+  error?: string
+  erro?: string
+  emExecucao?: boolean
+  status?: StatusExecucaoScript | null
+}
+
+function formatarHora(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  try {
+    return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return iso
+  }
+}
+
+const ORIGEM_LABELS: Record<string, string> = { api: 'nosso app', job: 'gatilho automático do Apps Script' }
+
 type TipoCartao = 'nubank' | 'cartao1' | 'cartao2'
 
 const CARTAO_LABELS: Record<TipoCartao, string> = {
@@ -186,7 +215,9 @@ export default function ImportarPage() {
   const [disparandoScript, setDisparandoScript] = useState(false)
   const [scriptResultado, setScriptResultado] = useState<string | null>(null)
   const [scriptErro, setScriptErro] = useState<string | null>(null)
+  const [scriptExecucao, setScriptExecucao] = useState<StatusExecucaoScript | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const pollScriptRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { categorizando, categorizadoMsg, categorizar } = useCategorizacao()
 
   // Usuário acessou a tela de importação → limpa notificações de importação concluída
@@ -269,19 +300,69 @@ export default function ImportarPage() {
     }
   }
 
+  const pararPollingScript = useCallback(() => {
+    if (pollScriptRef.current) {
+      clearTimeout(pollScriptRef.current)
+      pollScriptRef.current = null
+    }
+  }, [])
+
+  const consultarStatusScript = useCallback(async (agendarProximo: boolean) => {
+    try {
+      const res = await fetch('/api/import/google-apps-script')
+      const data: RespostaScript = await res.json()
+      const execucao = data.status ?? null
+      setScriptExecucao(execucao)
+
+      if (execucao?.status === 'running') {
+        if (agendarProximo) {
+          pollScriptRef.current = setTimeout(() => consultarStatusScript(true), 4000)
+        }
+        return
+      }
+      if (execucao?.status === 'success') {
+        setScriptResultado(data.mensagem || 'Importação via Google Apps Script concluída com sucesso.')
+        setScriptErro(null)
+        carregarAtividades()
+      } else if (execucao?.status === 'error') {
+        setScriptErro(execucao.erro || data.erro || 'Erro desconhecido na execução do Google Apps Script.')
+        setScriptResultado(null)
+      }
+      pararPollingScript()
+    } catch { /* silencioso — tentativa seguinte do polling cobre falhas passageiras */ }
+  }, [pararPollingScript])
+
+  useEffect(() => {
+    consultarStatusScript(false)
+    return () => pararPollingScript()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   async function dispararGoogleAppsScript() {
     setDisparandoScript(true)
     setScriptResultado(null)
     setScriptErro(null)
+    pararPollingScript()
     try {
       const res = await fetch('/api/import/google-apps-script', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cartao: cartaoSelecionado }),
       })
-      const data = await res.json()
+      const data: RespostaScript = await res.json()
+
+      if (res.status === 409 || data.emExecucao) {
+        // Já existe uma execução em andamento (pode ter sido disparada por outro
+        // acionamento ou pelo gatilho de tempo do Apps Script) — não é um erro.
+        setScriptExecucao(data.status ?? { status: 'running' })
+        pollScriptRef.current = setTimeout(() => consultarStatusScript(true), 4000)
+        return
+      }
       if (!res.ok || !data.success) throw new Error(data.error ?? 'Erro desconhecido')
-      setScriptResultado('Importação via Google Apps Script acionada com sucesso.')
+
+      // Disparo aceito — a execução real roda em background; acompanha via polling.
+      setScriptExecucao({ status: 'running' })
+      pollScriptRef.current = setTimeout(() => consultarStatusScript(true), 4000)
     } catch (e) {
       setScriptErro(e instanceof Error ? e.message : String(e))
     } finally {
@@ -563,20 +644,34 @@ export default function ImportarPage() {
         </p>
         <button
           onClick={dispararGoogleAppsScript}
-          disabled={disparandoScript}
+          disabled={disparandoScript || scriptExecucao?.status === 'running'}
           className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white py-3 rounded-2xl font-semibold hover:bg-emerald-700 transition-all disabled:opacity-50 active:scale-[0.98] shadow-sm"
         >
-          <FileSpreadsheet className={`w-4 h-4 ${disparandoScript ? 'animate-pulse' : ''}`} />
-          {disparandoScript ? 'Acionando Web App…' : 'Importar via Google Apps Script'}
+          <FileSpreadsheet className={`w-4 h-4 ${disparandoScript || scriptExecucao?.status === 'running' ? 'animate-pulse' : ''}`} />
+          {disparandoScript
+            ? 'Acionando Web App…'
+            : scriptExecucao?.status === 'running'
+              ? 'Importação em andamento…'
+              : 'Importar via Google Apps Script'}
         </button>
 
-        {scriptResultado && (
+        {scriptExecucao?.status === 'running' && (
+          <div className="mt-3 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3 text-sm text-blue-700 flex items-center gap-2.5">
+            <Clock className="w-4 h-4 shrink-0 text-blue-500 animate-pulse" />
+            <span>
+              Importação já em andamento (iniciada às {formatarHora(scriptExecucao.iniciadoEm)}
+              {scriptExecucao.origem ? ` por ${ORIGEM_LABELS[scriptExecucao.origem] ?? scriptExecucao.origem}` : ''}).
+              Verifique novamente em alguns instantes.
+            </span>
+          </div>
+        )}
+        {scriptExecucao?.status !== 'running' && scriptResultado && (
           <div className="mt-3 bg-green-50 border border-green-100 rounded-2xl px-4 py-3 text-sm text-green-700 flex items-center gap-2.5">
             <CheckCircle2 className="w-4 h-4 shrink-0 text-green-600" />
             {scriptResultado}
           </div>
         )}
-        {scriptErro && (
+        {scriptExecucao?.status !== 'running' && scriptErro && (
           <div className="mt-3 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-sm text-red-700 flex items-center gap-2.5">
             <XCircle className="w-4 h-4 shrink-0 text-red-500" />
             {scriptErro}
