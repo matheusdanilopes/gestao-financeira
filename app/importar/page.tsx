@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import ModalPortal from '@/components/ModalPortal'
-import { Upload, CheckCircle2, XCircle, Sparkles, Clock, AlertCircle, ShieldCheck, Trash2, Code2, Copy, Check, X, FileSpreadsheet, RotateCcw, Search, Calendar } from 'lucide-react'
+import { Upload, CheckCircle2, XCircle, Sparkles, Clock, AlertCircle, ShieldCheck, Trash2, Code2, Copy, Check, X, FileSpreadsheet, RotateCcw, Search, Calendar, Info, ChevronDown, ChevronUp, FileCheck, FileX } from 'lucide-react'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth } from 'date-fns'
@@ -142,6 +142,112 @@ interface DiagnosticoParcelas {
   divergencias: DivergenciaParcela[]
 }
 
+interface ArquivoDetalheScript {
+  assunto: string | null
+  arquivo: string | null
+  enviado: boolean
+  tentativas?: number
+  erro: string | null
+}
+
+interface ResumoImportacaoScript {
+  emailsEncontrados: number
+  arquivoEncontrado: boolean
+  totalArquivosCsv: number
+  arquivosEnviadosComSucesso: number
+  arquivosComFalha: number
+  detalhes: ArquivoDetalheScript[]
+  sucessoGeral: boolean
+}
+
+interface StatusExecucaoScript {
+  status: 'running' | 'success' | 'error' | null
+  origem?: 'api' | 'job'
+  iniciadoEm?: string | null
+  finalizadoEm?: string | null
+  resumo?: ResumoImportacaoScript
+  erro?: string
+  // Mensagem pronta vinda do nível raiz da resposta, usada quando o Apps Script
+  // não manda o objeto de execução completo (fora do contrato documentado).
+  mensagem?: string
+}
+
+interface RespostaScript {
+  success?: boolean
+  sucesso?: boolean
+  mensagem?: string
+  error?: string
+  erro?: string
+  corpoBruto?: string
+  emExecucao?: boolean
+  arquivoEncontrado?: boolean
+  envioComSucesso?: boolean
+  resumo?: ResumoImportacaoScript
+  status?: StatusExecucaoScript | null
+}
+
+type CenarioScript =
+  | 'sucesso-total'
+  | 'sucesso-parcial'
+  | 'nada-para-importar'
+  | 'email-sem-anexo'
+  | 'erro'
+  | 'generico'
+
+function classificarCenarioScript(execucao: StatusExecucaoScript): { cenario: CenarioScript; mensagem: string } {
+  if (execucao.status === 'error') {
+    return { cenario: 'erro', mensagem: execucao.erro || 'Erro desconhecido na execução do Google Apps Script.' }
+  }
+
+  const resumo = execucao.resumo
+  if (!resumo) {
+    return { cenario: 'generico', mensagem: execucao.mensagem || 'Importação via Google Apps Script concluída com sucesso.' }
+  }
+
+  if (!resumo.arquivoEncontrado) {
+    return resumo.emailsEncontrados === 0
+      ? { cenario: 'nada-para-importar', mensagem: 'Nenhum e-mail novo para importar.' }
+      : { cenario: 'email-sem-anexo', mensagem: 'E-mail encontrado, mas sem anexo CSV.' }
+  }
+
+  if (resumo.sucessoGeral) {
+    return {
+      cenario: 'sucesso-total',
+      mensagem: `${resumo.arquivosEnviadosComSucesso} arquivo(s) importado(s) com sucesso.`,
+    }
+  }
+
+  return {
+    cenario: 'sucesso-parcial',
+    mensagem: `Importação com falhas: ${resumo.arquivosEnviadosComSucesso} enviado(s), ${resumo.arquivosComFalha} com erro.`,
+  }
+}
+
+function formatarHora(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  try {
+    return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return iso
+  }
+}
+
+function formatarDecorrido(iso: string | null | undefined, agora: number): string {
+  if (!iso) return ''
+  const inicio = new Date(iso).getTime()
+  if (Number.isNaN(inicio)) return ''
+  const segundos = Math.max(0, Math.floor((agora - inicio) / 1000))
+  if (segundos < 60) return `${segundos}s`
+  const minutos = Math.floor(segundos / 60)
+  return `${minutos}m ${segundos % 60}s`
+}
+
+const ORIGEM_LABELS: Record<string, string> = { api: 'nosso app', job: 'gatilho automático do Apps Script' }
+
+// Tempo máximo fazendo polling do status antes de desistir (evita ficar consultando
+// pra sempre se o Apps Script travar em "running").
+const POLL_MAX_MS = 10 * 60 * 1000
+
 type TipoCartao = 'nubank' | 'cartao1' | 'cartao2'
 
 const CARTAO_LABELS: Record<TipoCartao, string> = {
@@ -184,9 +290,19 @@ export default function ImportarPage() {
   const [modalApiAberto, setModalApiAberto] = useState(false)
   const [copiado, setCopiado] = useState<string | null>(null)
   const [disparandoScript, setDisparandoScript] = useState(false)
-  const [scriptResultado, setScriptResultado] = useState<string | null>(null)
   const [scriptErro, setScriptErro] = useState<string | null>(null)
+  const [scriptExecucao, setScriptExecucao] = useState<StatusExecucaoScript | null>(null)
+  const [scriptDetalhesAbertos, setScriptDetalhesAbertos] = useState(false)
+  const [agoraTick, setAgoraTick] = useState(() => Date.now())
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const pollScriptRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pollInicioRef = useRef<number | null>(null)
+  const consultarStatusScriptRef = useRef<(agendarProximo: boolean) => Promise<void>>(async () => {})
+  // true entre o momento em que disparamos/detectamos uma execução e o momento em
+  // que um poll traz um resultado definitivo (success/error) — evita que um poll
+  // que ainda não viu o status "running" propagado (corrida com o Apps Script)
+  // seja interpretado como "não tem nada acontecendo".
+  const aguardandoResultadoRef = useRef(false)
   const { categorizando, categorizadoMsg, categorizar } = useCategorizacao()
 
   // Usuário acessou a tela de importação → limpa notificações de importação concluída
@@ -269,25 +385,172 @@ export default function ImportarPage() {
     }
   }
 
+  const pararPollingScript = useCallback(() => {
+    if (pollScriptRef.current) {
+      clearTimeout(pollScriptRef.current)
+      pollScriptRef.current = null
+    }
+    pollInicioRef.current = null
+  }, [])
+
+  // Agenda o próximo poll, mas desiste depois de POLL_MAX_MS para não ficar
+  // consultando pra sempre caso o Apps Script fique preso em "running". Ao desistir,
+  // avisa em vez de deixar a UI congelada silenciosamente em "rodando".
+  const agendarProximoPoll = useCallback(() => {
+    if (pollInicioRef.current == null) pollInicioRef.current = Date.now()
+    if (Date.now() - pollInicioRef.current > POLL_MAX_MS) {
+      pollScriptRef.current = null
+      aguardandoResultadoRef.current = false
+      setScriptErro('Não foi possível confirmar o resultado da importação após alguns minutos. Toque em "Verificar status agora" ou tente novamente.')
+      return
+    }
+    pollScriptRef.current = setTimeout(() => consultarStatusScriptRef.current(true), 4000)
+  }, [])
+
+  const consultarStatusScript = useCallback(async (agendarProximo: boolean) => {
+    try {
+      const res = await fetch('/api/import/google-apps-script')
+      const data: RespostaScript = await res.json()
+      // Em teoria data.status é sempre o objeto de execução aninhado, mas na prática
+      // já vimos o Apps Script devolver só o número do HTTP status ali (fora do
+      // contrato documentado) — nesse caso ignora e usa o fallback abaixo.
+      const statusBruto: unknown = data.status
+      const execucao: StatusExecucaoScript | null =
+        statusBruto && typeof statusBruto === 'object' ? (statusBruto as StatusExecucaoScript) : null
+
+      if (execucao?.status === 'running' || data.emExecucao) {
+        aguardandoResultadoRef.current = true
+        setScriptExecucao(execucao ?? { status: 'running' })
+        if (agendarProximo) agendarProximoPoll()
+        return
+      }
+      if (execucao?.status === 'success' || execucao?.status === 'error') {
+        aguardandoResultadoRef.current = false
+        setScriptExecucao(execucao)
+        if (execucao.status === 'success') {
+          setScriptErro(null)
+          carregarAtividades()
+        }
+        pararPollingScript()
+        return
+      }
+
+      // O Apps Script respondeu sem o objeto de execução aninhado — usa
+      // sucesso/erro/mensagem do nível raiz como sinal em vez de ficar esperando
+      // pra sempre um formato que essa implementação não está devolvendo.
+      if (typeof data.sucesso === 'boolean') {
+        aguardandoResultadoRef.current = false
+        setScriptExecucao({
+          status: data.sucesso ? 'success' : 'error',
+          erro: data.sucesso ? undefined : (data.erro ?? data.mensagem),
+          mensagem: data.mensagem,
+        })
+        if (data.sucesso) {
+          setScriptErro(null)
+          carregarAtividades()
+        }
+        pararPollingScript()
+        return
+      }
+
+      // Resposta trouxe só um campo de erro (ex.: o Apps Script devolveu algo que
+      // não é JSON válido, ou o proxy falhou) — trata como erro definitivo em vez
+      // de continuar tentando pra sempre um problema que não vai se resolver sozinho.
+      if (typeof data.erro === 'string') {
+        aguardandoResultadoRef.current = false
+        setScriptExecucao({
+          status: 'error',
+          erro: data.corpoBruto ? `${data.erro} Resposta: ${data.corpoBruto.slice(0, 300)}` : data.erro,
+        })
+        pararPollingScript()
+        return
+      }
+
+      // Nenhum sinal aproveitável. Se acabamos de disparar ou detectar uma execução,
+      // pode ser só o Apps Script ainda não ter propagado o "running" — mantém o
+      // aviso atual e continua tentando em vez de sumir com tudo de repente.
+      if (aguardandoResultadoRef.current) {
+        if (agendarProximo) agendarProximoPoll()
+        return
+      }
+      setScriptExecucao(null)
+      pararPollingScript()
+    } catch {
+      // Falha passageira (rede, JSON inválido etc.) — tenta de novo mais adiante
+      // em vez de deixar o polling morrer silenciosamente.
+      if (agendarProximo) agendarProximoPoll()
+    }
+  }, [pararPollingScript, agendarProximoPoll])
+
+  // Mantém uma ref sempre atualizada para o setTimeout recursivo acima poder
+  // chamar a versão mais recente sem precisar declará-la antes de si mesma.
+  useEffect(() => {
+    consultarStatusScriptRef.current = consultarStatusScript
+  }, [consultarStatusScript])
+
+  useEffect(() => {
+    // agendarProximo=true também aqui: se a página carregar com uma execução já
+    // em andamento (ex.: disparada pelo gatilho de tempo do Apps Script), o
+    // polling precisa continuar até ela terminar, não parar após a 1ª checagem.
+    consultarStatusScript(true)
+    return () => pararPollingScript()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function verificarStatusScriptAgora() {
+    pararPollingScript()
+    aguardandoResultadoRef.current = true
+    setScriptErro(null)
+    consultarStatusScript(true)
+  }
+
+  // Enquanto uma execução está rodando, atualiza o "tempo decorrido" no aviso.
+  useEffect(() => {
+    if (scriptExecucao?.status !== 'running') return
+    const id = setInterval(() => setAgoraTick(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [scriptExecucao?.status])
+
   async function dispararGoogleAppsScript() {
     setDisparandoScript(true)
-    setScriptResultado(null)
     setScriptErro(null)
+    setScriptDetalhesAbertos(false)
+    pararPollingScript()
     try {
       const res = await fetch('/api/import/google-apps-script', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cartao: cartaoSelecionado }),
       })
-      const data = await res.json()
+      const data: RespostaScript = await res.json()
+
+      if (res.status === 409 || data.emExecucao) {
+        // Já existe uma execução em andamento (pode ter sido disparada por outro
+        // acionamento ou pelo gatilho de tempo do Apps Script) — não é um erro.
+        aguardandoResultadoRef.current = true
+        setScriptExecucao(data.status ?? { status: 'running' })
+        agendarProximoPoll()
+        return
+      }
       if (!res.ok || !data.success) throw new Error(data.error ?? 'Erro desconhecido')
-      setScriptResultado('Importação via Google Apps Script acionada com sucesso.')
+
+      // Disparo aceito — a execução real roda em background; acompanha via polling.
+      aguardandoResultadoRef.current = true
+      setAgoraTick(Date.now())
+      setScriptExecucao({ status: 'running', iniciadoEm: new Date().toISOString(), origem: 'api' })
+      agendarProximoPoll()
     } catch (e) {
+      aguardandoResultadoRef.current = false
       setScriptErro(e instanceof Error ? e.message : String(e))
     } finally {
       setDisparandoScript(false)
     }
   }
+
+  const cenarioScript = useMemo(() => {
+    if (!scriptExecucao || scriptExecucao.status === 'running') return null
+    return classificarCenarioScript(scriptExecucao)
+  }, [scriptExecucao])
 
   function copiarTexto(chave: string, texto: string) {
     navigator.clipboard.writeText(texto).catch(() => {})
@@ -563,19 +826,118 @@ export default function ImportarPage() {
         </p>
         <button
           onClick={dispararGoogleAppsScript}
-          disabled={disparandoScript}
+          disabled={disparandoScript || scriptExecucao?.status === 'running'}
           className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white py-3 rounded-2xl font-semibold hover:bg-emerald-700 transition-all disabled:opacity-50 active:scale-[0.98] shadow-sm"
         >
-          <FileSpreadsheet className={`w-4 h-4 ${disparandoScript ? 'animate-pulse' : ''}`} />
-          {disparandoScript ? 'Acionando Web App…' : 'Importar via Google Apps Script'}
+          <FileSpreadsheet className={`w-4 h-4 ${disparandoScript || scriptExecucao?.status === 'running' ? 'animate-pulse' : ''}`} />
+          {disparandoScript
+            ? 'Acionando Web App…'
+            : scriptExecucao?.status === 'running'
+              ? 'Importação em andamento…'
+              : 'Importar via Google Apps Script'}
         </button>
 
-        {scriptResultado && (
-          <div className="mt-3 bg-green-50 border border-green-100 rounded-2xl px-4 py-3 text-sm text-green-700 flex items-center gap-2.5">
-            <CheckCircle2 className="w-4 h-4 shrink-0 text-green-600" />
-            {scriptResultado}
+        {/* Indicador direto: encontrou arquivo CSV ou não — sempre visível quando já há um resultado */}
+        {scriptExecucao?.status !== 'running' && scriptExecucao?.resumo && (
+          <div className="mt-3">
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${
+              scriptExecucao.resumo.arquivoEncontrado
+                ? 'bg-green-50 text-green-700 border-green-100'
+                : 'bg-gray-100 text-gray-500 border-gray-200'
+            }`}>
+              {scriptExecucao.resumo.arquivoEncontrado ? <FileCheck className="w-3.5 h-3.5" /> : <FileX className="w-3.5 h-3.5" />}
+              {scriptExecucao.resumo.arquivoEncontrado ? 'Arquivo CSV encontrado' : 'Nenhum arquivo CSV encontrado'}
+            </span>
           </div>
         )}
+
+        {/* Rodando */}
+        {scriptExecucao?.status === 'running' && (
+          <div className="mt-3 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3 text-sm text-blue-700 flex items-start gap-2.5">
+            <span className="w-4 h-4 shrink-0 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin mt-0.5" />
+            <div className="flex-1">
+              <span>
+                Importação em andamento — iniciada às {formatarHora(scriptExecucao.iniciadoEm)}
+                {scriptExecucao.origem ? ` (${ORIGEM_LABELS[scriptExecucao.origem] ?? scriptExecucao.origem})` : ''}
+                {formatarDecorrido(scriptExecucao.iniciadoEm, agoraTick) && ` · há ${formatarDecorrido(scriptExecucao.iniciadoEm, agoraTick)}`}.
+                {' '}Verifique novamente em alguns instantes.
+              </span>
+              <button
+                onClick={verificarStatusScriptAgora}
+                className="block mt-1.5 text-xs font-semibold text-blue-700 underline underline-offset-2 hover:opacity-70 transition-opacity"
+              >
+                Verificar status agora
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Sucesso total */}
+        {cenarioScript?.cenario === 'sucesso-total' && (
+          <div className="mt-3 bg-green-50 border border-green-100 rounded-2xl px-4 py-3 text-sm text-green-700 flex items-center gap-2.5">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-green-600" />
+            {cenarioScript.mensagem}
+          </div>
+        )}
+
+        {/* Nada para importar — estado neutro, não é erro */}
+        {cenarioScript?.cenario === 'nada-para-importar' && (
+          <div className="mt-3 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm text-gray-500 flex items-center gap-2.5">
+            <Info className="w-4 h-4 shrink-0 text-gray-400" />
+            {cenarioScript.mensagem}
+          </div>
+        )}
+
+        {/* E-mail encontrado mas sem CSV anexado — aviso */}
+        {cenarioScript?.cenario === 'email-sem-anexo' && (
+          <div className="mt-3 bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 text-sm text-amber-700 flex items-center gap-2.5">
+            <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+            {cenarioScript.mensagem}
+          </div>
+        )}
+
+        {/* Sucesso parcial — alguns arquivos falharam */}
+        {cenarioScript?.cenario === 'sucesso-parcial' && (
+          <div className="mt-3 bg-amber-50 border border-amber-200 rounded-2xl p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                <span className="text-sm font-semibold text-amber-900">{cenarioScript.mensagem}</span>
+              </div>
+              <button
+                onClick={() => setScriptDetalhesAbertos(v => !v)}
+                className="text-xs text-amber-700 font-semibold shrink-0 flex items-center gap-0.5 underline underline-offset-2 hover:opacity-70 transition-opacity"
+              >
+                {scriptDetalhesAbertos ? 'Ocultar' : 'Ver detalhes'}
+                {scriptDetalhesAbertos ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+            {scriptDetalhesAbertos && (
+              <div className="mt-3 space-y-2">
+                {scriptExecucao?.resumo?.detalhes.filter(d => !d.enviado).map((d, i) => (
+                  <div key={i} className="bg-white rounded-xl p-3 text-xs border border-amber-100">
+                    <p className="font-semibold text-gray-800 truncate">{d.arquivo ?? d.assunto ?? 'Arquivo'}</p>
+                    {d.assunto && d.arquivo && <p className="text-gray-400 mt-0.5">{d.assunto}</p>}
+                    <p className="text-red-600 mt-1">
+                      {d.erro ?? 'Erro desconhecido'}
+                      {d.tentativas ? ` (após ${d.tentativas} tentativa(s))` : ''}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Erro na execução (Apps Script rodou e falhou) */}
+        {cenarioScript?.cenario === 'erro' && (
+          <div className="mt-3 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-sm text-red-700 flex items-center gap-2.5">
+            <XCircle className="w-4 h-4 shrink-0 text-red-500" />
+            {cenarioScript.mensagem}
+          </div>
+        )}
+
+        {/* Erro ao disparar (configuração, token ou rede) — antes de qualquer execução */}
         {scriptErro && (
           <div className="mt-3 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-sm text-red-700 flex items-center gap-2.5">
             <XCircle className="w-4 h-4 shrink-0 text-red-500" />
