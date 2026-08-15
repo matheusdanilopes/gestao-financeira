@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import ModalPortal from '@/components/ModalPortal'
 import { Upload, CheckCircle2, XCircle, Sparkles, Clock, AlertCircle, ShieldCheck, Trash2, Code2, Copy, Check, X, FileSpreadsheet, RotateCcw, Search, Calendar, Info, ChevronDown, ChevronUp, FileCheck, FileX } from 'lucide-react'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
+import { useImportacaoScript, type StatusExecucaoScript } from '@/components/ImportacaoScriptProvider'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth } from 'date-fns'
 import FilterSelect from '@/components/FilterSelect'
@@ -142,50 +143,6 @@ interface DiagnosticoParcelas {
   divergencias: DivergenciaParcela[]
 }
 
-interface ArquivoDetalheScript {
-  assunto: string | null
-  arquivo: string | null
-  enviado: boolean
-  tentativas?: number
-  erro: string | null
-}
-
-interface ResumoImportacaoScript {
-  emailsEncontrados: number
-  arquivoEncontrado: boolean
-  totalArquivosCsv: number
-  arquivosEnviadosComSucesso: number
-  arquivosComFalha: number
-  detalhes: ArquivoDetalheScript[]
-  sucessoGeral: boolean
-}
-
-interface StatusExecucaoScript {
-  status: 'running' | 'success' | 'error' | null
-  origem?: 'api' | 'job'
-  iniciadoEm?: string | null
-  finalizadoEm?: string | null
-  resumo?: ResumoImportacaoScript
-  erro?: string
-  // Mensagem pronta vinda do nível raiz da resposta, usada quando o Apps Script
-  // não manda o objeto de execução completo (fora do contrato documentado).
-  mensagem?: string
-}
-
-interface RespostaScript {
-  success?: boolean
-  sucesso?: boolean
-  mensagem?: string
-  error?: string
-  erro?: string
-  corpoBruto?: string
-  emExecucao?: boolean
-  arquivoEncontrado?: boolean
-  envioComSucesso?: boolean
-  resumo?: ResumoImportacaoScript
-  status?: StatusExecucaoScript | null
-}
-
 type CenarioScript =
   | 'sucesso-total'
   | 'sucesso-parcial'
@@ -244,10 +201,6 @@ function formatarDecorrido(iso: string | null | undefined, agora: number): strin
 
 const ORIGEM_LABELS: Record<string, string> = { api: 'nosso app', job: 'gatilho automático do Apps Script' }
 
-// Tempo máximo fazendo polling do status antes de desistir (evita ficar consultando
-// pra sempre se o Apps Script travar em "running").
-const POLL_MAX_MS = 10 * 60 * 1000
-
 type TipoCartao = 'nubank' | 'cartao1' | 'cartao2'
 
 const CARTAO_LABELS: Record<TipoCartao, string> = {
@@ -289,21 +242,18 @@ export default function ImportarPage() {
   const [resultadoCorrecaoParcelas, setResultadoCorrecaoParcelas] = useState<{ corrigidos: number; mensagem: string } | null>(null)
   const [modalApiAberto, setModalApiAberto] = useState(false)
   const [copiado, setCopiado] = useState<string | null>(null)
-  const [disparandoScript, setDisparandoScript] = useState(false)
-  const [scriptErro, setScriptErro] = useState<string | null>(null)
-  const [scriptExecucao, setScriptExecucao] = useState<StatusExecucaoScript | null>(null)
   const [scriptDetalhesAbertos, setScriptDetalhesAbertos] = useState(false)
   const [agoraTick, setAgoraTick] = useState(() => Date.now())
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const pollScriptRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pollInicioRef = useRef<number | null>(null)
-  const consultarStatusScriptRef = useRef<(agendarProximo: boolean) => Promise<void>>(async () => {})
-  // true entre o momento em que disparamos/detectamos uma execução e o momento em
-  // que um poll traz um resultado definitivo (success/error) — evita que um poll
-  // que ainda não viu o status "running" propagado (corrida com o Apps Script)
-  // seja interpretado como "não tem nada acontecendo".
-  const aguardandoResultadoRef = useRef(false)
+  const scriptStatusAnteriorRef = useRef<StatusExecucaoScript['status']>(null)
   const { categorizando, categorizadoMsg, categorizar } = useCategorizacao()
+  const {
+    disparando: disparandoScript,
+    erro: scriptErro,
+    execucao: scriptExecucao,
+    disparar: dispararScript,
+    verificarStatusAgora: verificarStatusScriptAgora,
+  } = useImportacaoScript()
 
   // Usuário acessou a tela de importação → limpa notificações de importação concluída
   useEffect(() => {
@@ -385,124 +335,17 @@ export default function ImportarPage() {
     }
   }
 
-  const pararPollingScript = useCallback(() => {
-    if (pollScriptRef.current) {
-      clearTimeout(pollScriptRef.current)
-      pollScriptRef.current = null
-    }
-    pollInicioRef.current = null
-  }, [])
+  // O acionamento e o polling do status vivem no ImportacaoScriptProvider (montado
+  // na raiz do app), não neste componente — assim eles sobrevivem à navegação para
+  // outra tela em vez de morrer junto com o unmount desta página.
 
-  // Agenda o próximo poll, mas desiste depois de POLL_MAX_MS para não ficar
-  // consultando pra sempre caso o Apps Script fique preso em "running". Ao desistir,
-  // avisa em vez de deixar a UI congelada silenciosamente em "rodando".
-  const agendarProximoPoll = useCallback(() => {
-    if (pollInicioRef.current == null) pollInicioRef.current = Date.now()
-    if (Date.now() - pollInicioRef.current > POLL_MAX_MS) {
-      pollScriptRef.current = null
-      aguardandoResultadoRef.current = false
-      setScriptErro('Não foi possível confirmar o resultado da importação após alguns minutos. Toque em "Verificar status agora" ou tente novamente.')
-      return
-    }
-    pollScriptRef.current = setTimeout(() => consultarStatusScriptRef.current(true), 4000)
-  }, [])
-
-  const consultarStatusScript = useCallback(async (agendarProximo: boolean) => {
-    try {
-      const res = await fetch('/api/import/google-apps-script')
-      const data: RespostaScript = await res.json()
-      // Em teoria data.status é sempre o objeto de execução aninhado, mas na prática
-      // já vimos o Apps Script devolver só o número do HTTP status ali (fora do
-      // contrato documentado) — nesse caso ignora e usa o fallback abaixo.
-      const statusBruto: unknown = data.status
-      const execucao: StatusExecucaoScript | null =
-        statusBruto && typeof statusBruto === 'object' ? (statusBruto as StatusExecucaoScript) : null
-
-      if (execucao?.status === 'running' || data.emExecucao) {
-        aguardandoResultadoRef.current = true
-        setScriptExecucao(execucao ?? { status: 'running' })
-        if (agendarProximo) agendarProximoPoll()
-        return
-      }
-      if (execucao?.status === 'success' || execucao?.status === 'error') {
-        aguardandoResultadoRef.current = false
-        setScriptExecucao(execucao)
-        if (execucao.status === 'success') {
-          setScriptErro(null)
-          carregarAtividades()
-        }
-        pararPollingScript()
-        return
-      }
-
-      // O Apps Script respondeu sem o objeto de execução aninhado — usa
-      // sucesso/erro/mensagem do nível raiz como sinal em vez de ficar esperando
-      // pra sempre um formato que essa implementação não está devolvendo.
-      if (typeof data.sucesso === 'boolean') {
-        aguardandoResultadoRef.current = false
-        setScriptExecucao({
-          status: data.sucesso ? 'success' : 'error',
-          erro: data.sucesso ? undefined : (data.erro ?? data.mensagem),
-          mensagem: data.mensagem,
-        })
-        if (data.sucesso) {
-          setScriptErro(null)
-          carregarAtividades()
-        }
-        pararPollingScript()
-        return
-      }
-
-      // Resposta trouxe só um campo de erro (ex.: o Apps Script devolveu algo que
-      // não é JSON válido, ou o proxy falhou) — trata como erro definitivo em vez
-      // de continuar tentando pra sempre um problema que não vai se resolver sozinho.
-      if (typeof data.erro === 'string') {
-        aguardandoResultadoRef.current = false
-        setScriptExecucao({
-          status: 'error',
-          erro: data.corpoBruto ? `${data.erro} Resposta: ${data.corpoBruto.slice(0, 300)}` : data.erro,
-        })
-        pararPollingScript()
-        return
-      }
-
-      // Nenhum sinal aproveitável. Se acabamos de disparar ou detectar uma execução,
-      // pode ser só o Apps Script ainda não ter propagado o "running" — mantém o
-      // aviso atual e continua tentando em vez de sumir com tudo de repente.
-      if (aguardandoResultadoRef.current) {
-        if (agendarProximo) agendarProximoPoll()
-        return
-      }
-      setScriptExecucao(null)
-      pararPollingScript()
-    } catch {
-      // Falha passageira (rede, JSON inválido etc.) — tenta de novo mais adiante
-      // em vez de deixar o polling morrer silenciosamente.
-      if (agendarProximo) agendarProximoPoll()
-    }
-  }, [pararPollingScript, agendarProximoPoll])
-
-  // Mantém uma ref sempre atualizada para o setTimeout recursivo acima poder
-  // chamar a versão mais recente sem precisar declará-la antes de si mesma.
+  // Recarrega a lista de atividades assim que uma execução transita para "success".
   useEffect(() => {
-    consultarStatusScriptRef.current = consultarStatusScript
-  }, [consultarStatusScript])
-
-  useEffect(() => {
-    // agendarProximo=true também aqui: se a página carregar com uma execução já
-    // em andamento (ex.: disparada pelo gatilho de tempo do Apps Script), o
-    // polling precisa continuar até ela terminar, não parar após a 1ª checagem.
-    consultarStatusScript(true)
-    return () => pararPollingScript()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  function verificarStatusScriptAgora() {
-    pararPollingScript()
-    aguardandoResultadoRef.current = true
-    setScriptErro(null)
-    consultarStatusScript(true)
-  }
+    if (scriptExecucao?.status === 'success' && scriptStatusAnteriorRef.current !== 'success') {
+      carregarAtividades()
+    }
+    scriptStatusAnteriorRef.current = scriptExecucao?.status ?? null
+  }, [scriptExecucao?.status])
 
   // Enquanto uma execução está rodando, atualiza o "tempo decorrido" no aviso.
   useEffect(() => {
@@ -511,40 +354,9 @@ export default function ImportarPage() {
     return () => clearInterval(id)
   }, [scriptExecucao?.status])
 
-  async function dispararGoogleAppsScript() {
-    setDisparandoScript(true)
-    setScriptErro(null)
+  function dispararGoogleAppsScript() {
     setScriptDetalhesAbertos(false)
-    pararPollingScript()
-    try {
-      const res = await fetch('/api/import/google-apps-script', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cartao: cartaoSelecionado }),
-      })
-      const data: RespostaScript = await res.json()
-
-      if (res.status === 409 || data.emExecucao) {
-        // Já existe uma execução em andamento (pode ter sido disparada por outro
-        // acionamento ou pelo gatilho de tempo do Apps Script) — não é um erro.
-        aguardandoResultadoRef.current = true
-        setScriptExecucao(data.status ?? { status: 'running' })
-        agendarProximoPoll()
-        return
-      }
-      if (!res.ok || !data.success) throw new Error(data.error ?? 'Erro desconhecido')
-
-      // Disparo aceito — a execução real roda em background; acompanha via polling.
-      aguardandoResultadoRef.current = true
-      setAgoraTick(Date.now())
-      setScriptExecucao({ status: 'running', iniciadoEm: new Date().toISOString(), origem: 'api' })
-      agendarProximoPoll()
-    } catch (e) {
-      aguardandoResultadoRef.current = false
-      setScriptErro(e instanceof Error ? e.message : String(e))
-    } finally {
-      setDisparandoScript(false)
-    }
+    dispararScript(cartaoSelecionado)
   }
 
   const cenarioScript = useMemo(() => {
