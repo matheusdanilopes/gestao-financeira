@@ -49,6 +49,56 @@ export function calcularProjetoFatura(
   }
 }
 
+function primeiroDiaMes(mesReferenciaISO: string, deltaMeses: number): string {
+  const [ano, mes] = mesReferenciaISO.split('-').map(Number)
+  return format(new Date(ano, mes - 1 + deltaMeses, 1), 'yyyy-MM-dd')
+}
+
+/**
+ * Igual a `calcularProjetoFatura`, mas corrige o resultado da fórmula usando as
+ * datas de fechamento reais registradas manualmente (tabela `faturas`), quando
+ * disponíveis.
+ *
+ * Por que isso existe: a fórmula `vencimento - 7 + ajuste` é uma aproximação.
+ * Na virada de fatura, o fechamento real do NuBank pode cair um ou dois dias
+ * antes/depois do estimado (varia com fim de semana/feriado), fazendo com que
+ * uma compra do último dia do ciclo seja classificada por ele numa fatura e
+ * pela fórmula na fatura vizinha — gerando divergência entre o valor do
+ * NuBank e o do app justamente nas compras perto do corte.
+ *
+ * `fechamentosRegistrados` mapeia mes_referencia ('yyyy-MM-dd', primeiro dia
+ * do mês da fatura) → data_fechamento real ('yyyy-MM-dd'), como cadastrado em
+ * Configurações e persistido na tabela `faturas`.
+ */
+export function calcularProjetoFaturaComOverride(
+  dataCompra: Date,
+  diaVencimento: number,
+  ajusteFechamento: number = 0,
+  fechamentosRegistrados?: Map<string, string>
+): string {
+  const calculado = calcularProjetoFatura(dataCompra, diaVencimento, ajusteFechamento)
+  if (!fechamentosRegistrados || fechamentosRegistrados.size === 0) return calculado
+
+  const dataCompraISO = format(dataCompra, 'yyyy-MM-dd')
+
+  // A compra já atingiu (ou passou) o fechamento real registrado para a fatura
+  // calculada → na verdade pertence à fatura seguinte.
+  const fechamentoDaCalculada = fechamentosRegistrados.get(calculado)
+  if (fechamentoDaCalculada && dataCompraISO >= fechamentoDaCalculada) {
+    return primeiroDiaMes(calculado, 1)
+  }
+
+  // A compra é anterior ao fechamento real registrado para a fatura anterior
+  // (o início da janela da fatura calculada) → na verdade pertence à fatura anterior.
+  const mesAnterior = primeiroDiaMes(calculado, -1)
+  const fechamentoDaAnterior = fechamentosRegistrados.get(mesAnterior)
+  if (fechamentoDaAnterior && dataCompraISO < fechamentoDaAnterior) {
+    return mesAnterior
+  }
+
+  return calculado
+}
+
 /**
  * Retorna o dia de fechamento exibível para o usuário.
  */

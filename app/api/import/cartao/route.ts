@@ -41,6 +41,17 @@ export async function POST(req: NextRequest) {
       get(`ajuste_fechamento_${cartao}`, get('ajuste_fechamento', '0'))
     )
 
+    // Datas de fechamento reais cadastradas manualmente (Configurações → Faturas),
+    // usadas para corrigir a fórmula vencimento-7+ajuste nas compras próximas da
+    // virada de fatura — ver calcularProjetoFaturaComOverride em lib/fatura.ts.
+    const { data: faturasRegistradas } = await supabase
+      .from('faturas')
+      .select('mes_referencia, data_fechamento')
+      .eq('cartao', cartao)
+    const fechamentosRegistrados = new Map<string, string>(
+      (faturasRegistradas ?? []).map((f: { mes_referencia: string; data_fechamento: string }): [string, string] => [f.mes_referencia, f.data_fechamento])
+    )
+
     // Busca o responsável padrão cadastrado no planejamento para este cartão.
     // Se todos os itens [CARTAOx] apontarem para a mesma pessoa, usa como padrão;
     // caso contrário (cartão compartilhado ou sem cadastro), mantém a lógica pela descrição.
@@ -64,7 +75,7 @@ export async function POST(req: NextRequest) {
       .find(Boolean) || undefined
 
     const csvText = await file.text()
-    const transacoes = processarCSV(csvText, diaVencimento, ajusteFechamento, cartao, responsavelPadrao)
+    const transacoes = processarCSV(csvText, diaVencimento, ajusteFechamento, cartao, responsavelPadrao, fechamentosRegistrados)
     await aplicarResponsavelDeParcelaAnterior(supabase, transacoes)
 
     const transacoesNormais = transacoes.filter(t => !t.is_estorno)
