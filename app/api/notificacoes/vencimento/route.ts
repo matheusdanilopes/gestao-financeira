@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import webpush from 'web-push'
 import { requireCronSecret } from '@/lib/serverAuth'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
+import { removerPrefixoCartao } from '@/lib/tipoCartao'
 import { format, addDays, startOfDay } from 'date-fns'
 
 const VAPID_PUBLIC  = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
@@ -12,11 +13,8 @@ if (VAPID_PUBLIC && VAPID_PRIVATE) {
   webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC, VAPID_PRIVATE)
 }
 
-const PREFIXO_CARTAO_1 = '[CARTAO1] '
-const PREFIXO_CARTAO_2 = '[CARTAO2] '
-
 function limparNomeItem(nome: string): string {
-  return nome.replace(PREFIXO_CARTAO_1, '').replace(PREFIXO_CARTAO_2, '').trim()
+  return removerPrefixoCartao(nome)
 }
 
 function slugItem(nome: string): string {

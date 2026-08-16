@@ -11,9 +11,16 @@ import PageActionButtons from '@/components/PageActionButtons'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { calcularStatusVencimento, verificarVencimentos, type StatusVencimento } from '@/lib/notificacoesVencimento'
 import { log, numericOnly, formatBRL } from '@/lib/logger'
-
-const PREFIXO_CARTAO_1 = '[CARTAO1] '
-const PREFIXO_CARTAO_2 = '[CARTAO2] '
+import {
+  TIPOS_CARTAO,
+  type TipoCartao,
+  tipoCartaoPorItem,
+  aplicarPrefixoCartao,
+  removerPrefixoCartao,
+} from '@/lib/tipoCartao'
+import { CARTAO_TX_POR_TIPO } from '@/lib/faturaEfetiva'
+import { cartaoLabelsDePlanejamento, type CartaoLabels } from '@/lib/cartaoLabels'
+import { RESPONSAVEIS, estiloResponsavel } from '@/lib/responsavelStyle'
 
 const CATEGORIAS_PLANEJAMENTO = [
   'Fixa', 'Extra', 'Cartão', 'Moradia', 'Alimentação',
@@ -87,45 +94,40 @@ function moverVencimentoParaMes(dataVencimento: string | null | undefined, novoM
   }
 }
 
-function tipoCartaoPorItem(item: string): '' | 'cartao1' | 'cartao2' {
-  if (item.startsWith(PREFIXO_CARTAO_1)) return 'cartao1'
-  if (item.startsWith(PREFIXO_CARTAO_2)) return 'cartao2'
-  return ''
-}
-
-function removerPrefixoCartao(item: string) {
-  return item.replace(PREFIXO_CARTAO_1, '').replace(PREFIXO_CARTAO_2, '')
-}
-
-function aplicarPrefixoCartao(item: string, tipo: '' | 'cartao1' | 'cartao2') {
-  if (tipo === 'cartao1') return `${PREFIXO_CARTAO_1}${item}`
-  if (tipo === 'cartao2') return `${PREFIXO_CARTAO_2}${item}`
-  return item
-}
-
-// Uma fatura NuBank é dividida em várias despesas (uma por cartão/responsável:
-// "NuBank Matheus", "NuBank Jeniffer", "NuBank Conjunto"...), mas é paga de uma
-// vez só no banco — por isso a tela agrupa essas despesas para permitir pagar
-// todas com uma única ação, sem perder o registro individual de cada uma.
-function ehItemNuBank(item: string): boolean {
-  return item.toLowerCase().startsWith('nubank ')
-}
-
+// Uma fatura de cartão é lançada como várias despesas — uma por cartão adicional —
+// mas é paga de uma vez só no banco. Por isso a tela agrupa as despesas que
+// compartilham o mesmo cartão, permitindo pagar todas com uma única ação sem perder
+// o registro individual de cada uma.
 type EntradaLista =
   | { tipo: 'individual'; item: ItemPlanejamento }
-  | { tipo: 'fatura'; itens: ItemPlanejamento[] }
+  | { tipo: 'cartao'; tipoCartao: TipoCartao; itens: ItemPlanejamento[] }
 
-function agruparEntradasNuBank(itens: ItemPlanejamento[]): EntradaLista[] {
-  const itensNuBank = itens.filter(i => ehItemNuBank(i.item))
-  if (itensNuBank.length < 2) return itens.map(item => ({ tipo: 'individual', item }))
+function agruparEntradasPorCartao(itens: ItemPlanejamento[]): EntradaLista[] {
+  const porCartao = new Map<TipoCartao, ItemPlanejamento[]>()
+  for (const item of itens) {
+    const tipo = tipoCartaoPorItem(item.item)
+    if (!tipo) continue
+    const lista = porCartao.get(tipo)
+    if (lista) lista.push(item)
+    else porCartao.set(tipo, [item])
+  }
+
+  // Um cartão com uma despesa só não vira grupo — seria uma casca em volta de nada.
+  const agrupaveis = new Set(
+    TIPOS_CARTAO.filter(tipo => (porCartao.get(tipo)?.length ?? 0) >= 2)
+  )
+  if (agrupaveis.size === 0) return itens.map(item => ({ tipo: 'individual', item }))
 
   const entradas: EntradaLista[] = []
-  let faturaInserida = false
+  const jaInserido = new Set<TipoCartao>()
   for (const item of itens) {
-    if (ehItemNuBank(item.item)) {
-      if (!faturaInserida) {
-        entradas.push({ tipo: 'fatura', itens: itensNuBank })
-        faturaInserida = true
+    const tipo = tipoCartaoPorItem(item.item)
+    // O grupo entra na posição da primeira despesa dele, preservando a ordenação
+    // (pendentes antes de pagos) que a lista já aplicou.
+    if (tipo && agrupaveis.has(tipo)) {
+      if (!jaInserido.has(tipo)) {
+        jaInserido.add(tipo)
+        entradas.push({ tipo: 'cartao', tipoCartao: tipo, itens: porCartao.get(tipo)! })
       }
       continue
     }
@@ -148,7 +150,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     item: '',
     responsavel: 'Matheus',
     categoria: 'Fixa',
-    tipo_cartao: '' as '' | 'cartao1' | 'cartao2',
+    tipo_cartao: '' as '' | TipoCartao,
     valor_previsto: '',
     data_vencimento: '',
   })
@@ -162,7 +164,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const pendingNewRef = useRef<string | null>(null)
   const [faturaExpandida, setFaturaExpandida] = useState<Set<string>>(new Set())
-  const [grupoFatura, setGrupoFatura] = useState<ItemPlanejamento[] | null>(null)
+  const [grupoFatura, setGrupoFatura] = useState<{ tipoCartao: TipoCartao; itens: ItemPlanejamento[] } | null>(null)
   const [valoresFatura, setValoresFatura] = useState<Record<string, string>>({})
   const [dataPagamentoFatura, setDataPagamentoFatura] = useState('')
 
@@ -233,12 +235,24 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     }
   }
 
-  function responsavelNuBank(item: string): string | null {
-    const lower = item.toLowerCase()
-    if (lower.startsWith('nubank matheus')) return 'Matheus'
-    if (lower.startsWith('nubank jeniffer')) return 'Jeniffer'
-    if (lower.startsWith('nubank conjunto')) return 'Conjunto'
-    return null
+  /**
+   * Total já lançado no extrato para a fatura daquela despesa — usado para
+   * pré-preencher o valor a pagar. Antes o responsável era adivinhado a partir do
+   * nome do item ("NuBank Conjunto" → Conjunto) e só o cartão principal tinha esse
+   * pré-preenchimento; agora sai da coluna `responsavel` e vale para os três cartões.
+   */
+  async function totalLancadoDaDespesa(item: ItemPlanejamento): Promise<number | null> {
+    const tipo = tipoCartaoPorItem(item.item)
+    if (!tipo || !item.responsavel) return null
+    const mesRefFatura = format(startOfMonth(addMonths(mesSelecionado, 1)), 'yyyy-MM-dd')
+    const { data } = await supabase
+      .from('transacoes_nubank')
+      .select('valor')
+      .eq('projeto_fatura', mesRefFatura)
+      .eq('cartao', CARTAO_TX_POR_TIPO[tipo])
+      .eq('responsavel', item.responsavel)
+    if (!data || data.length === 0) return null
+    return data.reduce((acc, t) => acc + t.valor, 0)
   }
 
   async function abrirModalPagamento(item: ItemPlanejamento) {
@@ -247,40 +261,18 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     setDataPagamento(format(new Date(), 'yyyy-MM-dd'))
     setModalAberto('pagar')
 
-    const responsavel = responsavelNuBank(item.item)
-    if (responsavel) {
-      const mesRefFatura = format(startOfMonth(addMonths(mesSelecionado, 1)), 'yyyy-MM-dd')
-      const { data } = await supabase
-        .from('transacoes_nubank')
-        .select('valor')
-        .eq('projeto_fatura', mesRefFatura)
-        .eq('responsavel', responsavel)
-      if (data && data.length > 0) {
-        const total = data.reduce((acc, t) => acc + t.valor, 0)
-        setValorReal(total.toFixed(2).replace('.', ','))
-      }
-    }
+    const total = await totalLancadoDaDespesa(item)
+    if (total !== null) setValorReal(total.toFixed(2).replace('.', ','))
   }
 
-  async function abrirModalPagarFatura(grupo: ItemPlanejamento[]) {
-    setGrupoFatura(grupo)
+  async function abrirModalPagarFatura(tipoCartao: TipoCartao, grupo: ItemPlanejamento[]) {
+    setGrupoFatura({ tipoCartao, itens: grupo })
     setDataPagamentoFatura(format(new Date(), 'yyyy-MM-dd'))
 
     const valoresIniciais: Record<string, string> = {}
     await Promise.all(grupo.map(async (item) => {
-      valoresIniciais[item.id] = item.valor_previsto.toFixed(2).replace('.', ',')
-      const responsavel = responsavelNuBank(item.item)
-      if (!responsavel) return
-      const mesRefFatura = format(startOfMonth(addMonths(mesSelecionado, 1)), 'yyyy-MM-dd')
-      const { data } = await supabase
-        .from('transacoes_nubank')
-        .select('valor')
-        .eq('projeto_fatura', mesRefFatura)
-        .eq('responsavel', responsavel)
-      if (data && data.length > 0) {
-        const total = data.reduce((acc, t) => acc + t.valor, 0)
-        valoresIniciais[item.id] = total.toFixed(2).replace('.', ',')
-      }
+      const total = await totalLancadoDaDespesa(item)
+      valoresIniciais[item.id] = (total ?? item.valor_previsto).toFixed(2).replace('.', ',')
     }))
 
     setValoresFatura(valoresIniciais)
@@ -290,7 +282,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
   async function confirmarPagarFatura() {
     if (!grupoFatura) return
     const dpagamento = dataPagamentoFatura || format(new Date(), 'yyyy-MM-dd')
-    const atualizacoes = grupoFatura.map((item) => ({
+    const atualizacoes = grupoFatura.itens.map((item) => ({
       id: item.id,
       valorNumerico: parseFloat((valoresFatura[item.id] || '').replace(',', '.')),
     }))
@@ -299,7 +291,8 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
       return
     }
 
-    const grupoOriginal = grupoFatura
+    const grupoOriginal = grupoFatura.itens
+    const nomeCartao = labelsCartao[grupoFatura.tipoCartao]
     const idsGrupo = new Set(atualizacoes.map(a => a.id))
 
     setModalAberto(null)
@@ -317,7 +310,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     const algumErro = resultados.some(r => r.error)
 
     if (!algumErro) {
-      log('pagar', 'planejamento', `Fatura NuBank paga (${atualizacoes.length} cartões): ${formatBRL(totalFatura)}`, totalFatura)
+      log('pagar', 'planejamento', `Fatura ${nomeCartao} paga (${atualizacoes.length} cartões): ${formatBRL(totalFatura)}`, totalFatura)
       showToast(`Fatura paga! Total: ${formatarMoeda(totalFatura)}`)
     } else {
       setItens(prev => prev.map(i => {
@@ -328,7 +321,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     }
   }
 
-  async function desfazerFatura(grupo: ItemPlanejamento[]) {
+  async function desfazerFatura(tipoCartao: TipoCartao, grupo: ItemPlanejamento[]) {
     const ids = grupo.map(i => i.id)
 
     setItens(prev => prev.map(i => ids.includes(i.id) ? { ...i, pago: false, valor_real: null, data_pagamento: null } : i))
@@ -339,7 +332,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
       .in('id', ids)
 
     if (!error) {
-      log('editar', 'planejamento', `Pagamento da fatura NuBank desfeito (${ids.length} cartões)`)
+      log('editar', 'planejamento', `Pagamento da fatura ${labelsCartao[tipoCartao]} desfeito (${ids.length} cartões)`)
       showToast('Pagamento da fatura removido')
     } else {
       setItens(prev => prev.map(i => {
@@ -557,12 +550,18 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
       item: removerPrefixoCartao(itemEdit.item ?? ''),
       responsavel: itemEdit.responsavel ?? 'Matheus',
       categoria: itemEdit.categoria ?? 'Fixa',
-      tipo_cartao: tipoCartaoPorItem(itemEdit.item ?? ''),
+      // Uma linha legada ("NuBank Matheus") é hidratada como 'principal', então
+      // simplesmente salvar a edição já a converte para o prefixo novo.
+      tipo_cartao: tipoCartaoPorItem(itemEdit.item ?? '') ?? '',
       valor_previsto: (itemEdit.valor_previsto ?? 0).toString(),
       data_vencimento: itemEdit.data_vencimento ?? format(startOfMonth(mesSelecionado), 'yyyy-MM-dd'),
     })
     setModalAberto('editar')
   }
+
+  // Nomes reais dos cartões, tirados das próprias linhas do mês já carregadas
+  // ("[CARTAO1] PicPay" → "PicPay") — sem query extra.
+  const labelsCartao: CartaoLabels = useMemo(() => cartaoLabelsDePlanejamento(itens), [itens])
 
   const totalPrevisto = useMemo(
     () => itens.reduce((acc, item) => acc + item.valor_previsto, 0),
@@ -619,9 +618,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
       >
         <div
           className={`px-4 py-3 transition-[background-color,color,opacity] duration-200 border-l-4 ${
-            item.responsavel === 'Jeniffer'
-              ? 'border-l-pink-400'
-              : 'border-l-blue-400'
+            estiloResponsavel(item.responsavel).borda
           } ${item.pago ? 'bg-gray-50/60 dark:bg-white/[0.04]' : 'bg-white'} ${isOnline ? 'cursor-pointer active:bg-gray-50 dark:active:bg-white/[0.06] hover:bg-gray-50/50 dark:hover:bg-white/[0.06]' : ''} ${exitingIds.has(item.id) ? 'item-exit' : newItemId === item.id ? 'item-new' : ''} ${highlightId === item.id ? 'state-highlight' : ''}`}
           onClick={() => { if (isOnline) abrirModalEditar(item) }}
           role={isOnline ? 'button' : undefined}
@@ -642,7 +639,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
                 <span className="text-[10px] text-gray-400">{item.responsavel}</span>
                 {tipoCartao && (
                   <span className="inline-flex items-center gap-0.5 text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">
-                    <CreditCard className="w-2.5 h-2.5" /> {tipoCartao === 'cartao1' ? 'Cartão 1' : 'Cartão 2'}
+                    <CreditCard className="w-2.5 h-2.5" /> {labelsCartao[tipoCartao]}
                   </span>
                 )}
                 <StatusBadge status={calcularStatusVencimento(item.data_pagamento, item.data_vencimento)} />
@@ -703,14 +700,23 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     )
   }
 
-  function renderFaturaGrupo(grupo: ItemPlanejamento[]) {
-    const groupKey = grupo.map(i => i.id).join('-')
+  function renderGrupoCartao(tipoCartao: TipoCartao, grupo: ItemPlanejamento[]) {
+    const nomeCartao = labelsCartao[tipoCartao]
+    const groupKey = `${tipoCartao}-${grupo.map(i => i.id).join('-')}`
     const expandido = faturaExpandida.has(groupKey)
     const totalPrevistoGrupo = grupo.reduce((acc, i) => acc + i.valor_previsto, 0)
     const totalPagoGrupo = grupo.reduce((acc, i) => acc + (i.pago ? (i.valor_real ?? i.valor_previsto) : 0), 0)
     const todosPagos = grupo.every(i => i.pago)
     const algunsPagos = grupo.some(i => i.pago)
-    const nomesCartoes = grupo.map(i => removerPrefixoCartao(i.item).replace(/^nubank\s*/i, '')).filter(Boolean)
+    // "[PRINCIPAL] NuBank Matheus" → "Matheus": tira o prefixo e, se sobrar o nome do
+    // próprio cartão na frente, tira também — senão o chip repetiria "NuBank NuBank".
+    const nomesCartoes = grupo
+      .map(i => {
+        const nome = removerPrefixoCartao(i.item)
+        const semCartao = nome.replace(new RegExp(`^${nomeCartao}\\s*`, 'i'), '').trim()
+        return semCartao || nome
+      })
+      .filter(Boolean)
 
     function alternarExpansao() {
       setFaturaExpandida(prev => {
@@ -721,14 +727,14 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     }
 
     return (
-      <div key={`fatura-${groupKey}`}>
+      <div key={`cartao-${groupKey}`}>
         <div
           className={`px-4 py-3 transition-colors duration-200 border-l-4 border-l-purple-400 ${todosPagos ? 'bg-gray-50/60 dark:bg-white/[0.04]' : 'bg-white'} cursor-pointer active:bg-gray-50 dark:active:bg-white/[0.06] hover:bg-gray-50/50 dark:hover:bg-white/[0.06]`}
           onClick={alternarExpansao}
           role="button"
           tabIndex={0}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alternarExpansao() } }}
-          aria-label={`${expandido ? 'Recolher' : 'Expandir'} fatura NuBank`}
+          aria-label={`${expandido ? 'Recolher' : 'Expandir'} fatura ${nomeCartao}`}
           aria-expanded={expandido}
         >
           <div className="flex items-center gap-3">
@@ -737,7 +743,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
                 <p className={`text-sm font-medium truncate ${todosPagos ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
-                  Fatura NuBank
+                  Fatura {nomeCartao}
                 </p>
                 <div className="text-right shrink-0">
                   <p className={`text-sm font-semibold num ${todosPagos ? 'text-gray-400' : 'text-gray-800'}`}>
@@ -765,7 +771,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
             <div className="mt-2.5 pl-5" onClick={(e) => e.stopPropagation()}>
               {!todosPagos ? (
                 <button
-                  onClick={() => abrirModalPagarFatura(grupo.filter(i => !i.pago))}
+                  onClick={() => abrirModalPagarFatura(tipoCartao, grupo.filter(i => !i.pago))}
                   className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-green-50 text-green-600 text-xs font-bold hover:bg-green-100 active:bg-green-200 transition"
                   aria-label="Pagar fatura completa"
                 >
@@ -773,7 +779,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
                 </button>
               ) : (
                 <button
-                  onClick={() => desfazerFatura(grupo)}
+                  onClick={() => desfazerFatura(tipoCartao, grupo)}
                   className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-amber-50 text-amber-600 text-xs font-bold hover:bg-amber-100 transition"
                 >
                   <RotateCcw className="w-4 h-4" /> Desfazer pagamento da fatura
@@ -971,8 +977,10 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
 
                 {/* Itens do grupo */}
                 <div className="divide-y divide-gray-100">
-                  {agruparEntradasNuBank(grupoItens).map((entrada) =>
-                    entrada.tipo === 'individual' ? renderLinhaItem(entrada.item) : renderFaturaGrupo(entrada.itens)
+                  {agruparEntradasPorCartao(grupoItens).map((entrada) =>
+                    entrada.tipo === 'individual'
+                      ? renderLinhaItem(entrada.item)
+                      : renderGrupoCartao(entrada.tipoCartao, entrada.itens)
                   )}
                 </div>
               </div>
@@ -1021,13 +1029,13 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
         <ModalPortal>
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4 modal-overlay">
           <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm p-6 shadow-float modal-sheet sm:modal-center max-h-[85vh] overflow-y-auto">
-            <h3 className="text-lg font-bold mb-1">Pagar fatura NuBank</h3>
+            <h3 className="text-lg font-bold mb-1">Pagar fatura {labelsCartao[grupoFatura.tipoCartao]}</h3>
             <p className="text-sm text-gray-500 mb-4">
-              {grupoFatura.length} cartão{grupoFatura.length > 1 ? 'ões' : ''} nesta fatura
+              {grupoFatura.itens.length} cartão{grupoFatura.itens.length > 1 ? 'ões' : ''} nesta fatura
             </p>
 
             <div className="space-y-3 mb-4">
-              {grupoFatura.map((item) => (
+              {grupoFatura.itens.map((item) => (
                 <div key={item.id}>
                   <label className="text-xs font-medium text-gray-600 mb-1.5 block">
                     {removerPrefixoCartao(item.item)}
@@ -1047,7 +1055,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
             <div className="flex items-center justify-between px-3 py-2.5 bg-gray-50 rounded-xl mb-4">
               <span className="text-xs font-medium text-gray-500">Total da fatura</span>
               <span className="text-sm font-bold text-gray-800 num">
-                {formatarMoeda(grupoFatura.reduce((acc, item) => acc + (parseFloat((valoresFatura[item.id] || '0').replace(',', '.')) || 0), 0))}
+                {formatarMoeda(grupoFatura.itens.reduce((acc, item) => acc + (parseFloat((valoresFatura[item.id] || '0').replace(',', '.')) || 0), 0))}
               </span>
             </div>
 
@@ -1056,7 +1064,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
               type="date"
               value={dataPagamentoFatura}
               onChange={(e) => setDataPagamentoFatura(e.target.value)}
-              min={grupoFatura[0]?.mes_referencia}
+              min={grupoFatura.itens[0]?.mes_referencia}
               max={format(new Date(), 'yyyy-MM-dd')}
               className="w-full border border-gray-200 rounded-xl p-3 text-sm mb-5 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
             />
@@ -1083,8 +1091,9 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
               <div>
                 <label className="text-xs font-medium text-gray-600 mb-1 block">Responsável</label>
                 <select value={formData.responsavel} onChange={(e) => setFormData({ ...formData, responsavel: e.target.value })} className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow bg-white">
-                  <option value="Matheus">Matheus</option>
-                  <option value="Jeniffer">Jeniffer</option>
+                  {RESPONSAVEIS.map(r => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -1097,10 +1106,11 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
               </div>
               <div>
                 <label className="text-xs font-medium text-gray-600 mb-1 block">Cartão</label>
-                <select value={formData.tipo_cartao} onChange={(e) => setFormData({ ...formData, tipo_cartao: e.target.value as '' | 'cartao1' | 'cartao2' })} className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow bg-white">
+                <select value={formData.tipo_cartao} onChange={(e) => setFormData({ ...formData, tipo_cartao: e.target.value as '' | TipoCartao })} className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow bg-white">
                   <option value="">Nenhum</option>
-                  <option value="cartao1">Cartão 1</option>
-                  <option value="cartao2">Cartão 2</option>
+                  {TIPOS_CARTAO.map(tipo => (
+                    <option key={tipo} value={tipo}>{labelsCartao[tipo]}</option>
+                  ))}
                 </select>
               </div>
               <div>

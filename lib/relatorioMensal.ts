@@ -1,14 +1,9 @@
 import { format, startOfMonth } from 'date-fns'
 import { supabase } from './supabaseClient'
 import { calcularSaldoInvestimentos } from './calcularSaldoInvestimentos'
+import { removerPrefixoCartao } from './tipoCartao'
 
 const RECEITA_PREFIXO = '[RECEITA] '
-const PREFIXO_CARTAO_1 = '[CARTAO1] '
-const PREFIXO_CARTAO_2 = '[CARTAO2] '
-
-function removerPrefixoCartao(item: string) {
-  return item.replace(PREFIXO_CARTAO_1, '').replace(PREFIXO_CARTAO_2, '')
-}
 
 export interface RelatorioReceitaItem {
   id: string
