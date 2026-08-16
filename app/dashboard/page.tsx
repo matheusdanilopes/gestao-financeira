@@ -213,12 +213,12 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     ;(nomesPrincipalPorResponsavel[resp] ??= []).push(removerPrefixoCartao(p.item))
   }
 
-  // Um responsável com gasto lançado mas sem linha de planejamento ainda ganha bloco:
-  // sem isso o gasto sumiria do detalhamento mas continuaria no "Total atual".
+  // Um bloco por despesa cadastrada — e só. Semear esta lista também com os
+  // responsáveis das transações criava um bloco em branco (previsto R$ 0, exibido
+  // como "Excesso") para quem tem compra lançada mas nenhuma despesa do principal.
+  // O gasto desse responsável continua no "Total atual" e no saldo; ele só não
+  // ganha barra própria enquanto não existir uma despesa para ele.
   const responsaveisPrincipal = new Set<string>(Object.keys(previstoPrincipalPorResponsavel))
-  for (const t of transacoesFatura) {
-    if (t.responsavel) responsaveisPrincipal.add(t.responsavel)
-  }
 
   const receitaTotal = calcularReceitaTotal(planRows)
   const faturaEhPrevisto = totalRealizado === 0
@@ -395,14 +395,15 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     })
     .filter(b => b.previsto > 0 || b.atual > 0 || b.projecaoParcelas > 0)
 
-  // Totais por pessoa consolidando principal + cartões extras — continuam por
-  // responsável mesmo com a lista de "Outros cartões" agregada por cartão.
+  // Totais consolidando principal + cartões extras. São tiles POR PESSOA: "Conjunto"
+  // não é uma pessoa e já aparece na barra da fatura logo acima, então um tile dele
+  // aqui só duplicaria o número e apertaria a grade para três colunas.
   const totaisPorResponsavel: TotalResponsavel[] = ordenarResponsaveis(
     [...new Set([
       ...principalBlocks.map(b => b.responsavel),
       ...planRows.filter(p => { const t = tipoCartaoPorItem(p.item); return t === 'cartao1' || t === 'cartao2' })
         .map(p => p.responsavel || '').filter(Boolean),
-    ])],
+    ])].filter(r => r !== 'Conjunto'),
     'Matheus'
   ).map(responsavel => {
     const bloco = principalBlocks.find(b => b.responsavel === responsavel)
@@ -931,7 +932,7 @@ export default function Dashboard() {
                       </>
                     )}
                     {fatura.totaisPorResponsavel.length > 0 && (
-                      <div className={`grid gap-2 ${fatura.totaisPorResponsavel.length > 2 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                      <div className="grid grid-cols-2 gap-2">
                         {fatura.totaisPorResponsavel.map((t) => {
                           const cor = estiloResponsavel(t.responsavel)
                           return (
