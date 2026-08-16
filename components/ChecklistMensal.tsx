@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, subMonths, addMonths, parseISO } from 'date-fns'
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { ptBR } from 'date-fns/locale'
-import { CheckCircle2, AlertCircle, CreditCard, RotateCcw, WifiOff, Bell, Calendar, Receipt } from 'lucide-react'
+import { CheckCircle2, AlertCircle, CreditCard, RotateCcw, WifiOff, Bell, Calendar, Receipt, ChevronDown } from 'lucide-react'
 import PageActionButtons from '@/components/PageActionButtons'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { calcularStatusVencimento, verificarVencimentos, type StatusVencimento } from '@/lib/notificacoesVencimento'
@@ -103,6 +103,37 @@ function aplicarPrefixoCartao(item: string, tipo: '' | 'cartao1' | 'cartao2') {
   return item
 }
 
+// Uma fatura NuBank é dividida em várias despesas (uma por cartão/responsável:
+// "NuBank Matheus", "NuBank Jeniffer", "NuBank Conjunto"...), mas é paga de uma
+// vez só no banco — por isso a tela agrupa essas despesas para permitir pagar
+// todas com uma única ação, sem perder o registro individual de cada uma.
+function ehItemNuBank(item: string): boolean {
+  return item.toLowerCase().startsWith('nubank ')
+}
+
+type EntradaLista =
+  | { tipo: 'individual'; item: ItemPlanejamento }
+  | { tipo: 'fatura'; itens: ItemPlanejamento[] }
+
+function agruparEntradasNuBank(itens: ItemPlanejamento[]): EntradaLista[] {
+  const itensNuBank = itens.filter(i => ehItemNuBank(i.item))
+  if (itensNuBank.length < 2) return itens.map(item => ({ tipo: 'individual', item }))
+
+  const entradas: EntradaLista[] = []
+  let faturaInserida = false
+  for (const item of itens) {
+    if (ehItemNuBank(item.item)) {
+      if (!faturaInserida) {
+        entradas.push({ tipo: 'fatura', itens: itensNuBank })
+        faturaInserida = true
+      }
+      continue
+    }
+    entradas.push({ tipo: 'individual', item })
+  }
+  return entradas
+}
+
 export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
   const [itens, setItens] = useState<ItemPlanejamento[]>([])
   const [filtroStatus, setFiltroStatus] = useState<'' | 'pago' | 'pendente'>('')
@@ -130,6 +161,10 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
   const [newItemId, setNewItemId] = useState<string | null>(null)
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const pendingNewRef = useRef<string | null>(null)
+  const [faturaExpandida, setFaturaExpandida] = useState<Set<string>>(new Set())
+  const [grupoFatura, setGrupoFatura] = useState<ItemPlanejamento[] | null>(null)
+  const [valoresFatura, setValoresFatura] = useState<Record<string, string>>({})
+  const [dataPagamentoFatura, setDataPagamentoFatura] = useState('')
 
   const mesRefStr = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
 
@@ -224,6 +259,94 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
         const total = data.reduce((acc, t) => acc + t.valor, 0)
         setValorReal(total.toFixed(2).replace('.', ','))
       }
+    }
+  }
+
+  async function abrirModalPagarFatura(grupo: ItemPlanejamento[]) {
+    setGrupoFatura(grupo)
+    setDataPagamentoFatura(format(new Date(), 'yyyy-MM-dd'))
+
+    const valoresIniciais: Record<string, string> = {}
+    await Promise.all(grupo.map(async (item) => {
+      valoresIniciais[item.id] = item.valor_previsto.toFixed(2).replace('.', ',')
+      const responsavel = responsavelNuBank(item.item)
+      if (!responsavel) return
+      const mesRefFatura = format(startOfMonth(addMonths(mesSelecionado, 1)), 'yyyy-MM-dd')
+      const { data } = await supabase
+        .from('transacoes_nubank')
+        .select('valor')
+        .eq('projeto_fatura', mesRefFatura)
+        .eq('responsavel', responsavel)
+      if (data && data.length > 0) {
+        const total = data.reduce((acc, t) => acc + t.valor, 0)
+        valoresIniciais[item.id] = total.toFixed(2).replace('.', ',')
+      }
+    }))
+
+    setValoresFatura(valoresIniciais)
+    setModalAberto('pagarFatura')
+  }
+
+  async function confirmarPagarFatura() {
+    if (!grupoFatura) return
+    const dpagamento = dataPagamentoFatura || format(new Date(), 'yyyy-MM-dd')
+    const atualizacoes = grupoFatura.map((item) => ({
+      id: item.id,
+      valorNumerico: parseFloat((valoresFatura[item.id] || '').replace(',', '.')),
+    }))
+    if (atualizacoes.some(a => isNaN(a.valorNumerico) || a.valorNumerico < 0)) {
+      showToast('Informe valores válidos para todos os cartões', 'erro')
+      return
+    }
+
+    const grupoOriginal = grupoFatura
+    const idsGrupo = new Set(atualizacoes.map(a => a.id))
+
+    setModalAberto(null)
+    setGrupoFatura(null)
+    setValoresFatura({})
+    setItens(prev => prev.map(i => idsGrupo.has(i.id)
+      ? { ...i, pago: true, valor_real: atualizacoes.find(a => a.id === i.id)!.valorNumerico, data_pagamento: dpagamento }
+      : i
+    ))
+
+    const resultados = await Promise.all(atualizacoes.map(({ id, valorNumerico }) =>
+      supabase.from('planejamento').update({ pago: true, valor_real: valorNumerico, data_pagamento: dpagamento }).eq('id', id)
+    ))
+    const totalFatura = atualizacoes.reduce((acc, a) => acc + a.valorNumerico, 0)
+    const algumErro = resultados.some(r => r.error)
+
+    if (!algumErro) {
+      log('pagar', 'planejamento', `Fatura NuBank paga (${atualizacoes.length} cartões): ${formatBRL(totalFatura)}`, totalFatura)
+      showToast(`Fatura paga! Total: ${formatarMoeda(totalFatura)}`)
+    } else {
+      setItens(prev => prev.map(i => {
+        const original = grupoOriginal.find(g => g.id === i.id)
+        return original ? { ...i, pago: original.pago, valor_real: original.valor_real, data_pagamento: original.data_pagamento } : i
+      }))
+      showToast('Erro ao registrar pagamento da fatura', 'erro')
+    }
+  }
+
+  async function desfazerFatura(grupo: ItemPlanejamento[]) {
+    const ids = grupo.map(i => i.id)
+
+    setItens(prev => prev.map(i => ids.includes(i.id) ? { ...i, pago: false, valor_real: null, data_pagamento: null } : i))
+
+    const { error } = await supabase
+      .from('planejamento')
+      .update({ pago: false, valor_real: null, data_pagamento: null })
+      .in('id', ids)
+
+    if (!error) {
+      log('editar', 'planejamento', `Pagamento da fatura NuBank desfeito (${ids.length} cartões)`)
+      showToast('Pagamento da fatura removido')
+    } else {
+      setItens(prev => prev.map(i => {
+        const original = grupo.find(g => g.id === i.id)
+        return original ? { ...i, pago: original.pago, valor_real: original.valor_real, data_pagamento: original.data_pagamento } : i
+      }))
+      showToast('Erro ao desfazer pagamento da fatura', 'erro')
     }
   }
 
@@ -485,6 +608,190 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
       })
   }, [itensFiltrados])
 
+  function renderLinhaItem(item: ItemPlanejamento) {
+    const tipoCartao = tipoCartaoPorItem(item.item)
+    const diff = item.pago && item.valor_real !== null ? Math.abs(item.valor_real - item.valor_previsto) : 0
+    return (
+      <SwipeableItem
+        key={item.id}
+        onDelete={() => { setItemSelecionado(item); setModalAberto('excluir') }}
+        disabled={!isOnline}
+      >
+        <div
+          className={`px-4 py-3 transition-[background-color,color,opacity] duration-200 border-l-4 ${
+            item.responsavel === 'Jeniffer'
+              ? 'border-l-pink-400'
+              : 'border-l-blue-400'
+          } ${item.pago ? 'bg-gray-50/60 dark:bg-white/[0.04]' : 'bg-white'} ${isOnline ? 'cursor-pointer active:bg-gray-50 dark:active:bg-white/[0.06] hover:bg-gray-50/50 dark:hover:bg-white/[0.06]' : ''} ${exitingIds.has(item.id) ? 'item-exit' : newItemId === item.id ? 'item-new' : ''} ${highlightId === item.id ? 'state-highlight' : ''}`}
+          onClick={() => { if (isOnline) abrirModalEditar(item) }}
+          role={isOnline ? 'button' : undefined}
+          tabIndex={isOnline ? 0 : undefined}
+          onKeyDown={isOnline ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirModalEditar(item) } } : undefined}
+          aria-label={isOnline ? `Editar ${removerPrefixoCartao(item.item)}` : undefined}
+        >
+          <div className="flex items-center gap-3">
+            {/* Status dot */}
+            <div className={`w-2 h-2 rounded-full shrink-0 ${item.pago ? 'bg-green-500' : 'bg-gray-300'}`} />
+
+            {/* Info */}
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-medium truncate transition-colors duration-200 ${item.pago ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
+                {removerPrefixoCartao(item.item)}
+              </p>
+              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                <span className="text-[10px] text-gray-400">{item.responsavel}</span>
+                {tipoCartao && (
+                  <span className="inline-flex items-center gap-0.5 text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">
+                    <CreditCard className="w-2.5 h-2.5" /> {tipoCartao === 'cartao1' ? 'Cartão 1' : 'Cartão 2'}
+                  </span>
+                )}
+                <StatusBadge status={calcularStatusVencimento(item.data_pagamento, item.data_vencimento)} />
+                {item.data_vencimento && !item.data_pagamento && (
+                  <span className="inline-flex items-center gap-0.5 text-[10px] text-gray-400">
+                    <Calendar className="w-2.5 h-2.5" />
+                    {format(parseISO(item.data_vencimento), 'dd/MM')}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Valores */}
+            <div className="text-right shrink-0 mr-1">
+              <p className={`text-sm font-semibold num ${item.pago ? 'text-gray-400' : 'text-gray-800'}`}>
+                {formatarMoeda(item.valor_previsto)}
+              </p>
+              {item.pago && (
+                <p className={`text-xs font-medium num ${diff > 0.01 ? 'text-red-500' : 'text-emerald-600'}`}>
+                  ✓ {formatarMoeda(item.valor_real ?? item.valor_previsto)}
+                </p>
+              )}
+            </div>
+
+            {/* Ação de pagamento */}
+            {isOnline && (
+              <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                {!item.pago ? (
+                  <button
+                    onClick={() => abrirModalPagamento(item)}
+                    className="p-1.5 rounded-xl text-green-600 hover:bg-green-100 active:bg-green-200 transition"
+                    aria-label="Registrar pagamento"
+                  >
+                    <CheckCircle2 className="w-5 h-5" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => { setItemSelecionado(item); setModalAberto('desfazer') }}
+                    className={`p-1.5 rounded-lg text-amber-500 hover:bg-amber-50 transition ${successId === item.id ? 'btn-success' : ''}`}
+                    title="Desfazer pagamento"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Alerta de diferença */}
+          {diff > 0.01 && (
+            <div className="mt-1.5 ml-5 flex items-center gap-1 text-xs text-red-500">
+              <AlertCircle className="w-3 h-3" />
+              Diferença de {formatarMoeda(diff)} em relação ao previsto
+            </div>
+          )}
+        </div>
+      </SwipeableItem>
+    )
+  }
+
+  function renderFaturaGrupo(grupo: ItemPlanejamento[]) {
+    const groupKey = grupo.map(i => i.id).join('-')
+    const expandido = faturaExpandida.has(groupKey)
+    const totalPrevistoGrupo = grupo.reduce((acc, i) => acc + i.valor_previsto, 0)
+    const totalPagoGrupo = grupo.reduce((acc, i) => acc + (i.pago ? (i.valor_real ?? i.valor_previsto) : 0), 0)
+    const todosPagos = grupo.every(i => i.pago)
+    const algunsPagos = grupo.some(i => i.pago)
+    const nomesCartoes = grupo.map(i => removerPrefixoCartao(i.item).replace(/^nubank\s*/i, '')).filter(Boolean)
+
+    function alternarExpansao() {
+      setFaturaExpandida(prev => {
+        const next = new Set(prev)
+        if (next.has(groupKey)) next.delete(groupKey); else next.add(groupKey)
+        return next
+      })
+    }
+
+    return (
+      <div key={`fatura-${groupKey}`}>
+        <div
+          className={`px-4 py-3 transition-colors duration-200 border-l-4 border-l-purple-400 ${todosPagos ? 'bg-gray-50/60 dark:bg-white/[0.04]' : 'bg-white'} cursor-pointer active:bg-gray-50 dark:active:bg-white/[0.06] hover:bg-gray-50/50 dark:hover:bg-white/[0.06]`}
+          onClick={alternarExpansao}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alternarExpansao() } }}
+          aria-label={`${expandido ? 'Recolher' : 'Expandir'} fatura NuBank`}
+          aria-expanded={expandido}
+        >
+          <div className="flex items-center gap-3">
+            <div className={`w-2 h-2 rounded-full shrink-0 ${todosPagos ? 'bg-green-500' : algunsPagos ? 'bg-amber-400' : 'bg-gray-300'}`} />
+
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-medium truncate ${todosPagos ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
+                Fatura NuBank
+              </p>
+              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                <span className="inline-flex items-center gap-0.5 text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">
+                  <CreditCard className="w-2.5 h-2.5" /> {grupo.length} cartões
+                </span>
+                <span className="text-[10px] text-gray-400 truncate">{nomesCartoes.join(' · ')}</span>
+              </div>
+            </div>
+
+            <div className="text-right shrink-0 mr-1">
+              <p className={`text-sm font-semibold num ${todosPagos ? 'text-gray-400' : 'text-gray-800'}`}>
+                {formatarMoeda(totalPrevistoGrupo)}
+              </p>
+              {algunsPagos && (
+                <p className="text-xs font-medium num text-emerald-600">
+                  ✓ {formatarMoeda(totalPagoGrupo)}
+                </p>
+              )}
+            </div>
+
+            {isOnline && (
+              <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                {!todosPagos ? (
+                  <button
+                    onClick={() => abrirModalPagarFatura(grupo.filter(i => !i.pago))}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-green-50 text-green-600 text-[11px] font-bold hover:bg-green-100 active:bg-green-200 transition"
+                    aria-label="Pagar fatura completa"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Pagar tudo
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => desfazerFatura(grupo)}
+                    className="p-1.5 rounded-lg text-amber-500 hover:bg-amber-50 transition"
+                    title="Desfazer pagamento da fatura"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            )}
+
+            <ChevronDown className={`w-4 h-4 text-gray-300 shrink-0 transition-transform duration-200 ${expandido ? 'rotate-180' : ''}`} />
+          </div>
+        </div>
+
+        {expandido && (
+          <div className="pl-3 bg-gray-50/50 dark:bg-white/[0.02] divide-y divide-gray-100 border-t border-gray-100">
+            {grupo.map(renderLinhaItem)}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-3">
 
@@ -664,100 +971,9 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
 
                 {/* Itens do grupo */}
                 <div className="divide-y divide-gray-100">
-                  {grupoItens.map((item) => {
-                    const tipoCartao = tipoCartaoPorItem(item.item)
-                    const diff = item.pago && item.valor_real !== null ? Math.abs(item.valor_real - item.valor_previsto) : 0
-                    return (
-                      <SwipeableItem
-                        key={item.id}
-                        onDelete={() => { setItemSelecionado(item); setModalAberto('excluir') }}
-                        disabled={!isOnline}
-                      >
-                        <div
-                          className={`px-4 py-3 transition-[background-color,color,opacity] duration-200 border-l-4 ${
-                            item.responsavel === 'Jeniffer'
-                              ? 'border-l-pink-400'
-                              : 'border-l-blue-400'
-                          } ${item.pago ? 'bg-gray-50/60 dark:bg-white/[0.04]' : 'bg-white'} ${isOnline ? 'cursor-pointer active:bg-gray-50 dark:active:bg-white/[0.06] hover:bg-gray-50/50 dark:hover:bg-white/[0.06]' : ''} ${exitingIds.has(item.id) ? 'item-exit' : newItemId === item.id ? 'item-new' : ''} ${highlightId === item.id ? 'state-highlight' : ''}`}
-                          onClick={() => { if (isOnline) abrirModalEditar(item) }}
-                          role={isOnline ? 'button' : undefined}
-                          tabIndex={isOnline ? 0 : undefined}
-                          onKeyDown={isOnline ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirModalEditar(item) } } : undefined}
-                          aria-label={isOnline ? `Editar ${removerPrefixoCartao(item.item)}` : undefined}
-                        >
-                          <div className="flex items-center gap-3">
-                            {/* Status dot */}
-                            <div className={`w-2 h-2 rounded-full shrink-0 ${item.pago ? 'bg-green-500' : 'bg-gray-300'}`} />
-
-                            {/* Info */}
-                            <div className="flex-1 min-w-0">
-                              <p className={`text-sm font-medium truncate transition-colors duration-200 ${item.pago ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
-                                {removerPrefixoCartao(item.item)}
-                              </p>
-                              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                <span className="text-[10px] text-gray-400">{item.responsavel}</span>
-                                {tipoCartao && (
-                                  <span className="inline-flex items-center gap-0.5 text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">
-                                    <CreditCard className="w-2.5 h-2.5" /> {tipoCartao === 'cartao1' ? 'Cartão 1' : 'Cartão 2'}
-                                  </span>
-                                )}
-                                <StatusBadge status={calcularStatusVencimento(item.data_pagamento, item.data_vencimento)} />
-                                {item.data_vencimento && !item.data_pagamento && (
-                                  <span className="inline-flex items-center gap-0.5 text-[10px] text-gray-400">
-                                    <Calendar className="w-2.5 h-2.5" />
-                                    {format(parseISO(item.data_vencimento), 'dd/MM')}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Valores */}
-                            <div className="text-right shrink-0 mr-1">
-                              <p className={`text-sm font-semibold num ${item.pago ? 'text-gray-400' : 'text-gray-800'}`}>
-                                {formatarMoeda(item.valor_previsto)}
-                              </p>
-                              {item.pago && (
-                                <p className={`text-xs font-medium num ${diff > 0.01 ? 'text-red-500' : 'text-emerald-600'}`}>
-                                  ✓ {formatarMoeda(item.valor_real ?? item.valor_previsto)}
-                                </p>
-                              )}
-                            </div>
-
-                            {/* Ação de pagamento */}
-                            {isOnline && (
-                              <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-                                {!item.pago ? (
-                                  <button
-                                    onClick={() => abrirModalPagamento(item)}
-                                    className="p-1.5 rounded-xl text-green-600 hover:bg-green-100 active:bg-green-200 transition"
-                                    aria-label="Registrar pagamento"
-                                  >
-                                    <CheckCircle2 className="w-5 h-5" />
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={() => { setItemSelecionado(item); setModalAberto('desfazer') }}
-                                    className={`p-1.5 rounded-lg text-amber-500 hover:bg-amber-50 transition ${successId === item.id ? 'btn-success' : ''}`}
-                                    title="Desfazer pagamento"
-                                  >
-                                    <RotateCcw className="w-4 h-4" />
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Alerta de diferença */}
-                          {diff > 0.01 && (
-                            <div className="mt-1.5 ml-5 flex items-center gap-1 text-xs text-red-500">
-                              <AlertCircle className="w-3 h-3" />
-                              Diferença de {formatarMoeda(diff)} em relação ao previsto
-                            </div>
-                          )}
-                        </div>
-                      </SwipeableItem>
-                    )
-                  })}
+                  {agruparEntradasNuBank(grupoItens).map((entrada) =>
+                    entrada.tipo === 'individual' ? renderLinhaItem(entrada.item) : renderFaturaGrupo(entrada.itens)
+                  )}
                 </div>
               </div>
             )
@@ -794,6 +1010,59 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
             <div className="flex gap-3">
               <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]">Cancelar</button>
               <button onClick={() => marcarComoPago(itemSelecionado.id)} className="flex-1 py-3 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 transition-all active:scale-[0.97] shadow-sm">Confirmar</button>
+            </div>
+          </div>
+        </div>
+        </ModalPortal>
+      )}
+
+      {/* Modal: Pagar fatura NuBank completa (1 ação → paga as N despesas do grupo) */}
+      {modalAberto === 'pagarFatura' && grupoFatura && (
+        <ModalPortal>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4 modal-overlay">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm p-6 shadow-float modal-sheet sm:modal-center max-h-[85vh] overflow-y-auto">
+            <h3 className="text-lg font-bold mb-1">Pagar fatura NuBank</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              {grupoFatura.length} cartão{grupoFatura.length > 1 ? 'ões' : ''} nesta fatura
+            </p>
+
+            <div className="space-y-3 mb-4">
+              {grupoFatura.map((item) => (
+                <div key={item.id}>
+                  <label className="text-xs font-medium text-gray-600 mb-1.5 block">
+                    {removerPrefixoCartao(item.item)}
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder={`Previsto: ${formatarMoeda(item.valor_previsto)}`}
+                    value={valoresFatura[item.id] ?? ''}
+                    onChange={(e) => setValoresFatura(prev => ({ ...prev, [item.id]: numericOnly(e.target.value) }))}
+                    className="w-full border border-gray-200 rounded-xl p-3 text-base font-semibold focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-between px-3 py-2.5 bg-gray-50 rounded-xl mb-4">
+              <span className="text-xs font-medium text-gray-500">Total da fatura</span>
+              <span className="text-sm font-bold text-gray-800 num">
+                {formatarMoeda(grupoFatura.reduce((acc, item) => acc + (parseFloat((valoresFatura[item.id] || '0').replace(',', '.')) || 0), 0))}
+              </span>
+            </div>
+
+            <label className="text-xs font-medium text-gray-600 mb-1.5 block">Data de pagamento</label>
+            <input
+              type="date"
+              value={dataPagamentoFatura}
+              onChange={(e) => setDataPagamentoFatura(e.target.value)}
+              min={grupoFatura[0]?.mes_referencia}
+              max={format(new Date(), 'yyyy-MM-dd')}
+              className="w-full border border-gray-200 rounded-xl p-3 text-sm mb-5 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+            />
+            <div className="flex gap-3">
+              <button onClick={() => { setModalAberto(null); setGrupoFatura(null) }} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]">Cancelar</button>
+              <button onClick={confirmarPagarFatura} className="flex-1 py-3 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 transition-all active:scale-[0.97] shadow-sm">Confirmar</button>
             </div>
           </div>
         </div>
