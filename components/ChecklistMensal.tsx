@@ -735,52 +735,52 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
             <div className={`w-2 h-2 rounded-full shrink-0 ${todosPagos ? 'bg-green-500' : algunsPagos ? 'bg-amber-400' : 'bg-gray-300'}`} />
 
             <div className="flex-1 min-w-0">
-              <p className={`text-sm font-medium truncate ${todosPagos ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
-                Fatura NuBank
-              </p>
-              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                <span className="inline-flex items-center gap-0.5 text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">
+              <div className="flex items-center justify-between gap-2">
+                <p className={`text-sm font-medium truncate ${todosPagos ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
+                  Fatura NuBank
+                </p>
+                <div className="text-right shrink-0">
+                  <p className={`text-sm font-semibold num ${todosPagos ? 'text-gray-400' : 'text-gray-800'}`}>
+                    {formatarMoeda(totalPrevistoGrupo)}
+                  </p>
+                  {algunsPagos && (
+                    <p className="text-xs font-medium num text-emerald-600">
+                      ✓ {formatarMoeda(totalPagoGrupo)}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                <span className="inline-flex items-center gap-0.5 text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full shrink-0">
                   <CreditCard className="w-2.5 h-2.5" /> {grupo.length} cartões
                 </span>
                 <span className="text-[10px] text-gray-400 truncate">{nomesCartoes.join(' · ')}</span>
               </div>
             </div>
 
-            <div className="text-right shrink-0 mr-1">
-              <p className={`text-sm font-semibold num ${todosPagos ? 'text-gray-400' : 'text-gray-800'}`}>
-                {formatarMoeda(totalPrevistoGrupo)}
-              </p>
-              {algunsPagos && (
-                <p className="text-xs font-medium num text-emerald-600">
-                  ✓ {formatarMoeda(totalPagoGrupo)}
-                </p>
-              )}
-            </div>
-
-            {isOnline && (
-              <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-                {!todosPagos ? (
-                  <button
-                    onClick={() => abrirModalPagarFatura(grupo.filter(i => !i.pago))}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-green-50 text-green-600 text-[11px] font-bold hover:bg-green-100 active:bg-green-200 transition"
-                    aria-label="Pagar fatura completa"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Pagar tudo
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => desfazerFatura(grupo)}
-                    className="p-1.5 rounded-lg text-amber-500 hover:bg-amber-50 transition"
-                    title="Desfazer pagamento da fatura"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            )}
-
             <ChevronDown className={`w-4 h-4 text-gray-300 shrink-0 transition-transform duration-200 ${expandido ? 'rotate-180' : ''}`} />
           </div>
+
+          {isOnline && (
+            <div className="mt-2.5 pl-5" onClick={(e) => e.stopPropagation()}>
+              {!todosPagos ? (
+                <button
+                  onClick={() => abrirModalPagarFatura(grupo.filter(i => !i.pago))}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-green-50 text-green-600 text-xs font-bold hover:bg-green-100 active:bg-green-200 transition"
+                  aria-label="Pagar fatura completa"
+                >
+                  <CheckCircle2 className="w-4 h-4" /> Pagar fatura completa
+                </button>
+              ) : (
+                <button
+                  onClick={() => desfazerFatura(grupo)}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-amber-50 text-amber-600 text-xs font-bold hover:bg-amber-100 transition"
+                >
+                  <RotateCcw className="w-4 h-4" /> Desfazer pagamento da fatura
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {expandido && (
