@@ -81,6 +81,52 @@ function formatarMoeda(v: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
 }
 
+/** "1.234,56" (como o usuário digita) → 1234.56. Devolve 0 para entrada vazia/inválida. */
+function parseValor(texto: string | undefined | null): number {
+  const limpo = String(texto ?? '').replace(/\./g, '').replace(',', '.')
+  const n = parseFloat(limpo)
+  return Number.isFinite(n) ? n : 0
+}
+
+function formatarValorInput(v: number): string {
+  return v.toFixed(2).replace('.', ',')
+}
+
+/**
+ * Distribui `total` entre as despesas proporcionalmente aos valores atuais delas,
+ * garantindo que a soma bata exatamente com o total (sem centavo sobrando).
+ *
+ * A conta é feita em centavos e o resto é distribuído pelo método do maior resto —
+ * arredondar cada parcela isoladamente deixaria a soma fora do total, e é
+ * justamente isso que a tela precisa evitar: o que foi pago ao banco é o total.
+ *
+ * Quando não há base (todas as despesas zeradas), divide em partes iguais.
+ */
+function ratearTotal(total: number, bases: number[]): number[] {
+  const n = bases.length
+  if (n === 0) return []
+
+  const totalCents = Math.round(Math.max(0, total) * 100)
+  const basesCents = bases.map(b => Math.round(Math.max(0, b) * 100))
+  const somaBases = basesCents.reduce((acc, b) => acc + b, 0)
+
+  const pesos = somaBases > 0 ? basesCents : new Array(n).fill(1)
+  const somaPesos = somaBases > 0 ? somaBases : n
+
+  const exatos = pesos.map(p => (totalCents * p) / somaPesos)
+  const cents = exatos.map(Math.floor)
+
+  let resto = totalCents - cents.reduce((acc, c) => acc + c, 0)
+  const porMaiorResto = exatos
+    .map((valor, i) => ({ i, frac: valor - Math.floor(valor) }))
+    .sort((a, b) => b.frac - a.frac)
+  for (let k = 0; resto > 0; k++, resto--) {
+    cents[porMaiorResto[k % n].i]++
+  }
+
+  return cents.map(c => c / 100)
+}
+
 function moverVencimentoParaMes(dataVencimento: string | null | undefined, novoMes: Date): string | null {
   if (!dataVencimento) return null
   try {
@@ -166,6 +212,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
   const [faturaExpandida, setFaturaExpandida] = useState<Set<string>>(new Set())
   const [grupoFatura, setGrupoFatura] = useState<{ tipoCartao: TipoCartao; itens: ItemPlanejamento[] } | null>(null)
   const [valoresFatura, setValoresFatura] = useState<Record<string, string>>({})
+  const [totalFatura, setTotalFatura] = useState('')
   const [dataPagamentoFatura, setDataPagamentoFatura] = useState('')
 
   const mesRefStr = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
@@ -272,11 +319,42 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     const valoresIniciais: Record<string, string> = {}
     await Promise.all(grupo.map(async (item) => {
       const total = await totalLancadoDaDespesa(item)
-      valoresIniciais[item.id] = (total ?? item.valor_previsto).toFixed(2).replace('.', ',')
+      valoresIniciais[item.id] = formatarValorInput(total ?? item.valor_previsto)
     }))
 
     setValoresFatura(valoresIniciais)
+    setTotalFatura(formatarValorInput(
+      grupo.reduce((acc, item) => acc + parseValor(valoresIniciais[item.id]), 0)
+    ))
     setModalAberto('pagarFatura')
+  }
+
+  /**
+   * O total é o que de fato saiu da conta; os valores por cartão são um detalhamento
+   * dele. Ao digitar o total, as despesas são rateadas proporcionalmente ao que o
+   * extrato mostrou — o que corrige de uma vez diferenças de anuidade, juros ou IOF
+   * que aparecem na fatura mas não em nenhuma compra.
+   */
+  function alterarTotalFatura(texto: string) {
+    setTotalFatura(texto)
+    if (!grupoFatura) return
+    const bases = grupoFatura.itens.map(item => parseValor(valoresFatura[item.id]))
+    const rateado = ratearTotal(parseValor(texto), bases)
+    setValoresFatura(prev => {
+      const proximo = { ...prev }
+      grupoFatura.itens.forEach((item, i) => { proximo[item.id] = formatarValorInput(rateado[i]) })
+      return proximo
+    })
+  }
+
+  /** Editar um cartão específico é o caminho inverso: o total passa a ser a soma. */
+  function alterarValorDespesaFatura(id: string, texto: string) {
+    if (!grupoFatura) return
+    const proximo = { ...valoresFatura, [id]: texto }
+    setValoresFatura(proximo)
+    setTotalFatura(formatarValorInput(
+      grupoFatura.itens.reduce((acc, item) => acc + parseValor(proximo[item.id]), 0)
+    ))
   }
 
   async function confirmarPagarFatura() {
@@ -284,9 +362,9 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     const dpagamento = dataPagamentoFatura || format(new Date(), 'yyyy-MM-dd')
     const atualizacoes = grupoFatura.itens.map((item) => ({
       id: item.id,
-      valorNumerico: parseFloat((valoresFatura[item.id] || '').replace(',', '.')),
+      valorNumerico: parseValor(valoresFatura[item.id]),
     }))
-    if (atualizacoes.some(a => isNaN(a.valorNumerico) || a.valorNumerico < 0)) {
+    if (atualizacoes.some(a => a.valorNumerico < 0)) {
       showToast('Informe valores válidos para todos os cartões', 'erro')
       return
     }
@@ -298,6 +376,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     setModalAberto(null)
     setGrupoFatura(null)
     setValoresFatura({})
+    setTotalFatura('')
     setItens(prev => prev.map(i => idsGrupo.has(i.id)
       ? { ...i, pago: true, valor_real: atualizacoes.find(a => a.id === i.id)!.valorNumerico, data_pagamento: dpagamento }
       : i
@@ -306,12 +385,12 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     const resultados = await Promise.all(atualizacoes.map(({ id, valorNumerico }) =>
       supabase.from('planejamento').update({ pago: true, valor_real: valorNumerico, data_pagamento: dpagamento }).eq('id', id)
     ))
-    const totalFatura = atualizacoes.reduce((acc, a) => acc + a.valorNumerico, 0)
+    const totalPagoFatura = atualizacoes.reduce((acc, a) => acc + a.valorNumerico, 0)
     const algumErro = resultados.some(r => r.error)
 
     if (!algumErro) {
-      log('pagar', 'planejamento', `Fatura ${nomeCartao} paga (${atualizacoes.length} cartões): ${formatBRL(totalFatura)}`, totalFatura)
-      showToast(`Fatura paga! Total: ${formatarMoeda(totalFatura)}`)
+      log('pagar', 'planejamento', `Fatura ${nomeCartao} paga (${atualizacoes.length} cartões): ${formatBRL(totalPagoFatura)}`, totalPagoFatura)
+      showToast(`Fatura paga! Total: ${formatarMoeda(totalPagoFatura)}`)
     } else {
       setItens(prev => prev.map(i => {
         const original = grupoOriginal.find(g => g.id === i.id)
@@ -1034,29 +1113,50 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
               {grupoFatura.itens.length} cartão{grupoFatura.itens.length > 1 ? 'ões' : ''} nesta fatura
             </p>
 
-            <div className="space-y-3 mb-4">
-              {grupoFatura.itens.map((item) => (
-                <div key={item.id}>
-                  <label className="text-xs font-medium text-gray-600 mb-1.5 block">
-                    {removerPrefixoCartao(item.item)}
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    placeholder={`Previsto: ${formatarMoeda(item.valor_previsto)}`}
-                    value={valoresFatura[item.id] ?? ''}
-                    onChange={(e) => setValoresFatura(prev => ({ ...prev, [item.id]: numericOnly(e.target.value) }))}
-                    className="w-full border border-gray-200 rounded-xl p-3 text-base font-semibold focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
-                  />
-                </div>
-              ))}
-            </div>
+            <label className="text-xs font-medium text-gray-600 mb-1.5 block">
+              Valor total pago da fatura (R$)
+            </label>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={totalFatura}
+              onChange={(e) => alterarTotalFatura(numericOnly(e.target.value))}
+              className="w-full border border-gray-200 rounded-xl p-3 text-lg font-semibold mb-1.5 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+              autoFocus
+            />
+            <p className="text-[11px] text-gray-400 mb-4">
+              Ao alterar o total, os valores por cartão são recalculados
+              proporcionalmente e somam exatamente esse valor.
+            </p>
 
-            <div className="flex items-center justify-between px-3 py-2.5 bg-gray-50 rounded-xl mb-4">
-              <span className="text-xs font-medium text-gray-500">Total da fatura</span>
-              <span className="text-sm font-bold text-gray-800 num">
-                {formatarMoeda(grupoFatura.itens.reduce((acc, item) => acc + (parseFloat((valoresFatura[item.id] || '0').replace(',', '.')) || 0), 0))}
-              </span>
+            <div className="space-y-3 mb-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                Detalhamento por cartão
+              </p>
+              {grupoFatura.itens.map((item) => {
+                const valor = parseValor(valoresFatura[item.id])
+                const diff = valor - item.valor_previsto
+                return (
+                  <div key={item.id}>
+                    <label className="text-xs font-medium text-gray-600 mb-1.5 block">
+                      {removerPrefixoCartao(item.item)}
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      placeholder={`Previsto: ${formatarMoeda(item.valor_previsto)}`}
+                      value={valoresFatura[item.id] ?? ''}
+                      onChange={(e) => alterarValorDespesaFatura(item.id, numericOnly(e.target.value))}
+                      className="w-full border border-gray-200 rounded-xl p-3 text-base font-semibold focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+                    />
+                    {Math.abs(diff) > 0.005 && (
+                      <p className={`text-[11px] mt-1 num ${diff > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                        {diff > 0 ? '+' : '−'}{formatarMoeda(Math.abs(diff))} vs. previsto
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
             </div>
 
             <label className="text-xs font-medium text-gray-600 mb-1.5 block">Data de pagamento</label>
@@ -1069,7 +1169,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
               className="w-full border border-gray-200 rounded-xl p-3 text-sm mb-5 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
             />
             <div className="flex gap-3">
-              <button onClick={() => { setModalAberto(null); setGrupoFatura(null) }} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]">Cancelar</button>
+              <button onClick={() => { setModalAberto(null); setGrupoFatura(null); setTotalFatura('') }} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]">Cancelar</button>
               <button onClick={confirmarPagarFatura} className="flex-1 py-3 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 transition-all active:scale-[0.97] shadow-sm">Confirmar</button>
             </div>
           </div>
