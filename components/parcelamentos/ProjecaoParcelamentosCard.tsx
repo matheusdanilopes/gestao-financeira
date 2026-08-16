@@ -8,7 +8,7 @@ import { ptBR } from 'date-fns/locale'
 import { TrendingUp, ArrowRight } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { InfoPopover } from '@/components/InfoPopover'
-import { buscarCartaoLabels, type CartaoLabels } from '@/lib/cartaoLabels'
+import { buscarCartaoLabels, CARTAO_LABELS_PADRAO, type CartaoLabels } from '@/lib/cartaoLabels'
 import { RESPONSAVEL_STYLE } from '@/lib/responsavelStyle'
 import type { RelatorioCartoes } from '@/lib/relatorioCartoes'
 
@@ -18,7 +18,6 @@ const GraficoProjecao = dynamic(() => import('@/components/GraficoProjecao'), {
 })
 const DrawerDetalhes = dynamic(() => import('@/components/DrawerDetalhes'), { ssr: false })
 
-const CARTAO_LABELS_PADRAO: CartaoLabels = { nubank: 'NuBank', cartao1: 'Cartão 1', cartao2: 'Cartão 2' }
 
 function capitalizar(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)

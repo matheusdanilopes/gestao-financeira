@@ -2,6 +2,7 @@
 
 import { format, subMonths, addMonths, addDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { ehDespesaReal } from '@/lib/tipoCartao'
 import type {
   EnrichedData,
   FinancialInsightsContext,
@@ -19,13 +20,12 @@ import type {
 // Exported so other consumers of `planejamento` (e.g. the chat context's
 // recurring-fixed-expense detection) don't have to re-derive this list and
 // risk treating a settlement/tracking row as a real recurring bill.
-const PLAN_EXCLUDE_ITEMS = new Set(['NuBank Matheus', 'NuBank Jeniffer', 'NuBank Jeniffer Conjunto', 'Receita Total'])
-
+//
+// This used to be a hardcoded, case-sensitive Set that also omitted
+// "NuBank Conjunto" — that row was counted as a real expense here while the
+// dashboard excluded it. Delegating to the shared helper fixes both.
 export function isPlanejamentoDespesaReal(item: string): boolean {
-  return !PLAN_EXCLUDE_ITEMS.has(item)
-    && !item.startsWith('[RECEITA]')
-    && !item.startsWith('[CARTAO1]')
-    && !item.startsWith('[CARTAO2]')
+  return ehDespesaReal(item)
 }
 
 const fmtMes = (yyyyMM: string) => {

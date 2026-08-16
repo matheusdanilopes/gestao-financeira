@@ -5,7 +5,7 @@ import { format, startOfMonth } from 'date-fns'
 import { Lightbulb, ChevronDown, ChevronUp, Plus, X } from 'lucide-react'
 import { formatBRL } from '@/lib/logger'
 import { supabase } from '@/lib/supabaseClient'
-import { buscarCartaoLabels, type CartaoLabels } from '@/lib/cartaoLabels'
+import { buscarCartaoLabels, CARTAO_LABELS_PADRAO, type CartaoLabels } from '@/lib/cartaoLabels'
 
 interface Sugestao {
   descricao: string
@@ -33,7 +33,7 @@ export default function SugestoesAssinaturas({ onAdicionarAssinatura: _onAdicion
   const [sugestoes, setSugestoes] = useState<Sugestao[]>([])
   const [carregando, setCarregando] = useState(false)
   const [expandido, setExpandido] = useState(false)
-  const [cartaoLabels, setCartaoLabels] = useState<CartaoLabels>({ nubank: 'NuBank', cartao1: 'Cartão 1', cartao2: 'Cartão 2' })
+  const [cartaoLabels, setCartaoLabels] = useState<CartaoLabels>(CARTAO_LABELS_PADRAO)
   const [ignoradas, setIgnoradas] = useState<Set<string>>(() => {
     try {
       const raw = localStorage.getItem('assinaturas-sugestoes-ignoradas')

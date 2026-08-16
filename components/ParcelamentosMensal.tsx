@@ -9,7 +9,8 @@ import { supabase } from '@/lib/supabaseClient'
 import { formatBRL } from '@/lib/logger'
 import FilterSelect from '@/components/FilterSelect'
 import EmptyState from '@/components/EmptyState'
-import { buscarCartaoLabels, type CartaoLabels } from '@/lib/cartaoLabels'
+import { buscarCartaoLabels, CARTAO_LABELS_PADRAO, type CartaoLabels } from '@/lib/cartaoLabels'
+import { ehLinhaDeCartao } from '@/lib/tipoCartao'
 import { RESPONSAVEIS, RESPONSAVEL_STYLE, type Responsavel } from '@/lib/responsavelStyle'
 import { buscarBaseContratos } from '@/lib/relatorioCartoes'
 import { itensDoMes } from '@/lib/parcelamentoProjecao'
@@ -24,7 +25,6 @@ interface Props {
 
 type Origem = 'nubank' | 'cartao1' | 'cartao2' | 'planejamento'
 
-const CARTAO_LABELS_PADRAO: CartaoLabels = { nubank: 'NuBank', cartao1: 'Cartão 1', cartao2: 'Cartão 2' }
 
 function origemLabel(o: Origem, cartaoLabels: CartaoLabels): string {
   if (o === 'planejamento') return 'Planejado'
@@ -260,23 +260,14 @@ export default function ParcelamentosMensal({ mesAtual, onResumo }: Props) {
       // (NuBank + Cartão 1 + Cartão 2), igual ao que a tela de Despesas mostra.
       // É o denominador do campo "%": quanto do limite representa da fatura prevista.
       const despesas = planejamentoMes ?? []
-      const nubankPrevistoPor = (nome: string) =>
-        Number(despesas.find(p => String(p.item ?? '').trim().toLowerCase() === nome)?.valor_previsto ?? 0)
-      const cartaoPrevistoPor = (responsavel: string, prefixo: string) =>
-        despesas
-          .filter(p => String(p.item ?? '').startsWith(prefixo) && p.responsavel === responsavel)
-          .reduce((soma, p) => soma + Number(p.valor_previsto ?? 0), 0)
-
+      // Uma regra só: soma o previsto de TODAS as linhas de cartão do responsável.
+      // Antes o principal precisava de um ternário sobre quatro nomes literais
+      // ("nubank jeniffer conjunto"…) porque o responsável vivia dentro do nome.
       const pMap: Record<string, number> = {}
       for (const responsavel of RESPONSAVEIS) {
-        const nubankPrevisto = responsavel === 'Matheus'
-          ? nubankPrevistoPor('nubank matheus')
-          : responsavel === 'Jeniffer'
-            ? nubankPrevistoPor('nubank jeniffer') + nubankPrevistoPor('nubank jeniffer conjunto')
-            : nubankPrevistoPor('nubank conjunto')
-        pMap[responsavel] = nubankPrevisto
-          + cartaoPrevistoPor(responsavel, '[CARTAO1]')
-          + cartaoPrevistoPor(responsavel, '[CARTAO2]')
+        pMap[responsavel] = despesas
+          .filter(p => ehLinhaDeCartao(String(p.item ?? '')) && p.responsavel === responsavel)
+          .reduce((soma, p) => soma + Number(p.valor_previsto ?? 0), 0)
       }
 
       const pctMap: Record<string, string> = {}

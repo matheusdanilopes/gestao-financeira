@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { format, startOfMonth, addMonths, addDays, differenceInCalendarDays, parseISO } from 'date-fns'
 import { requireAuth } from '@/lib/serverAuth'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
+import { tipoCartaoPorItem } from '@/lib/tipoCartao'
 
 const RESPONSAVEIS = ['Matheus', 'Jeniffer', 'Conjunto'] as const
 type Responsavel = typeof RESPONSAVEIS[number]
@@ -19,7 +20,7 @@ function nomeDoUsuario(email: string | undefined): 'Matheus' | 'Jeniffer' {
 // na tela de Despesas (ChecklistMensal.tsx) — mesmo prefixo usado lá.
 function faturaEstaPaga(itensPlanejamento: { item: string; valor_previsto: number; pago: boolean }[]): boolean {
   const itensNubank = itensPlanejamento.filter(
-    p => String(p.item ?? '').trim().toLowerCase().startsWith('nubank') && Number(p.valor_previsto ?? 0) > 0
+    p => tipoCartaoPorItem(p.item) === 'principal' && Number(p.valor_previsto ?? 0) > 0
   )
   if (itensNubank.length === 0) return false
   return itensNubank.every(p => p.pago === true)
@@ -75,7 +76,7 @@ export async function GET(req: NextRequest) {
     const buscarPlanejamentoNubank = async (mes: string) =>
       (await supabase
         .from('planejamento')
-        .select('item, valor_previsto, pago')
+        .select('item, valor_previsto, pago, responsavel')
         .eq('mes_referencia', mes)
         .not('item', 'ilike', '[CARTAO1]%')
         .not('item', 'ilike', '[CARTAO2]%')).data ?? []
@@ -222,12 +223,16 @@ export async function GET(req: NextRequest) {
     }
     const gasto = RESPONSAVEIS.reduce((soma, r) => soma + (gastoPorResponsavel[r] ?? 0), 0)
 
-    const findPrevisto = (nome: string) =>
-      Number((planejamentoMes ?? []).find(p => String(p.item ?? '').trim().toLowerCase() === nome)?.valor_previsto ?? 0)
+    // Previsto do cartão principal por responsável. Antes vinha de quatro nomes
+    // literais ("nubank jeniffer conjunto" etc.); agora sai da coluna responsavel.
+    const previstoPrincipalDe = (responsavel: string) =>
+      (planejamentoMes ?? [])
+        .filter(p => tipoCartaoPorItem(p.item) === 'principal' && p.responsavel === responsavel)
+        .reduce((soma, p) => soma + Number(p.valor_previsto ?? 0), 0)
     const previstoPorResponsavel: Record<Responsavel, number> = {
-      Matheus: findPrevisto('nubank matheus'),
-      Jeniffer: findPrevisto('nubank jeniffer') + findPrevisto('nubank jeniffer conjunto'),
-      Conjunto: findPrevisto('nubank conjunto'),
+      Matheus: previstoPrincipalDe('Matheus'),
+      Jeniffer: previstoPrincipalDe('Jeniffer'),
+      Conjunto: previstoPrincipalDe('Conjunto'),
     }
     const previsto = RESPONSAVEIS.reduce((soma, r) => soma + previstoPorResponsavel[r], 0)
 

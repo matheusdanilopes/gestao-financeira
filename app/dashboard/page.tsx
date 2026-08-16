@@ -7,7 +7,7 @@ import { format, startOfMonth, endOfMonth, addMonths, subMonths, isSameMonth } f
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
 import { valorEfetivoNoMes } from '@/lib/assinaturaValor'
 import { classificarTipoGasto, somarValorFatura, type TipoGasto } from '@/lib/composicaoFatura'
-import { AlertTriangle, BarChart2, BarChart3, CreditCard, Wallet, PiggyBank, TrendingUp, TrendingDown, Minus, LineChart, Activity } from 'lucide-react'
+import { BarChart2, BarChart3, CreditCard, Wallet, PiggyBank, TrendingUp, TrendingDown, Minus, LineChart, Activity } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
 import MonthSelector from '@/components/MonthSelector'
@@ -78,6 +78,16 @@ const GraficoAnual = dynamic(() => import('@/components/GraficoAnual'), {
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { usePrefetchPages } from '@/lib/usePrefetchPages'
 import { formatBRL as fmt } from '@/lib/logger'
+import { tipoCartaoPorItem, removerPrefixoCartao, ehLinhaDeReceita } from '@/lib/tipoCartao'
+import {
+  calcularResumoSaldo, calcularReceitaTotal,
+  type PlanejamentoSaldoRow, type TransacaoSaldoRow,
+} from '@/lib/faturaEfetiva'
+import { cartaoLabelsDePlanejamento } from '@/lib/cartaoLabels'
+import { estiloResponsavel, ordenarResponsaveis } from '@/lib/responsavelStyle'
+import BlocoFaturaPrincipal, {
+  type BlocoPrincipal, type ProjecaoItem, type ComposicaoGastos, type AssinDivergente,
+} from '@/components/BlocoFaturaPrincipal'
 
 // Isola a chamada do hook (fetch + Realtime) num componente à parte, montado só
 // quando o card de insights é exibido — chamar useInsights() direto no Dashboard
@@ -87,77 +97,32 @@ function DashboardInsights() {
   return <InsightsCard state={insightsState} title="Insights por IA" />
 }
 
-function isNuBankItem(item: string): boolean {
-  const lower = item.trim().toLowerCase()
-  return lower === 'nubank matheus' || lower === 'nubank jeniffer' ||
-         lower === 'nubank jeniffer conjunto' || lower === 'nubank conjunto'
+/** Um cartão extra (Cartão 1/2): agregado por cartão, não por responsável. */
+interface BlocoCartaoExtra {
+  tipo: 'cartao1' | 'cartao2'
+  label: string
+  responsavelDono: string | null
+  previsto: number
+  atual: number
 }
 
-// Traduz o valor "atual" de uma barra em segmentos empilháveis (percentual da largura da barra).
-function calcularSegmentosBarra(atual: number, previsto: number, composicao: { existente: number; novo: number; assinatura: number }) {
-  const pct = previsto > 0 ? Math.min(100, (atual / previsto) * 100) : 0
-  if (atual <= 0) return { pct, existente: 0, novo: 0, assinatura: 0 }
-  return {
-    pct,
-    existente: (composicao.existente / atual) * pct,
-    novo: (composicao.novo / atual) * pct,
-    assinatura: (composicao.assinatura / atual) * pct,
-  }
-}
-
-interface CartaoItem {
-  nome: string
+interface TotalResponsavel {
   responsavel: string
   previsto: number
-  pago: number
+  atual: number
 }
 
-interface ProjecaoItem {
-  descricao: string
-  valor: number
-  responsavel: string
-  cartao: string
-  parcela_atual: number
-  total_parcelas: number
-}
-
-interface ComposicaoGastos {
-  existente: number
-  novo: number
-  assinatura: number
-}
 
 interface FaturaState {
   totalRealizado: number
-  matheusAtual: number
-  matheusPrevisto: number
-  matheusProjecaoParcelas: number
-  matheusProjecaoItens: ProjecaoItem[]
-  matheusComposicao: ComposicaoGastos
-  jenifferAtual: number
-  jenifferPrevisto: number
-  jenifferProjecaoParcelas: number
-  jenifferProjecaoItens: ProjecaoItem[]
-  jenifferComposicao: ComposicaoGastos
-  conjuntoAtual: number
-  conjuntoPrevisto: number
-  conjuntoProjecaoParcelas: number
-  conjuntoProjecaoItens: ProjecaoItem[]
-  conjuntoComposicao: ComposicaoGastos
-  conjuntoItemExiste: boolean
-  sobraMatheus: number
-  sobraJeniffer: number
-  sobraConjunto: number
-  cartao1Items: CartaoItem[]
-  cartao2Items: CartaoItem[]
-  cartao1AtualMatheus: number
-  cartao1AtualJeniffer: number
-  cartao2AtualMatheus: number
-  cartao2AtualJeniffer: number
-  cartao1Previsto: number
-  cartao2Previsto: number
+  principalBlocks: BlocoPrincipal[]
+  cartoesExtras: BlocoCartaoExtra[]
+  totaisPorResponsavel: TotalResponsavel[]
   cartao1Nome: string
   cartao2Nome: string
+  cartao1Previsto: number
+  cartao2Previsto: number
+  principalPrevistoPorResponsavel: Record<string, number>
 }
 
 interface ResumoCaixaState {
@@ -177,11 +142,6 @@ interface DashboardData {
   fatura: FaturaState
   resumoCaixa: ResumoCaixaState
   investimentos: { id: string; descricao: string; percentual: number; aportado: number }[]
-  assinaturasNaopagas: { matheus: number; jeniffer: number }
-  assinaturasDivergentes: {
-    matheus: { nome: string; valorEsperado: number; valorCobrado: number; diff: number }[]
-    jeniffer: { nome: string; valorEsperado: number; valorCobrado: number; diff: number }[]
-  }
   dataFechamentoNubank: string | null
 }
 
@@ -217,10 +177,6 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
       .lte('projeto_fatura', mesRefFatura).order('projeto_fatura', { ascending: false }).limit(1),
   ])
 
-  function findNuBank(name: string) {
-    return planejamento?.find(p => p.item.trim().toLowerCase() === name)
-  }
-
   // Separa transações por cartão (filtro feito no cliente para evitar 3 queries paralelas)
   const transacoesFatura = todasTransacoesFatura?.filter(t => t.cartao === 'nubank') ?? []
   const transacoesC1 = todasTransacoesFatura?.filter(t => t.cartao === 'cartao1') ?? []
@@ -240,58 +196,41 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     || format(calcularDataFechamentoDaFatura(mesRefFaturaDate, diaVencNubank, ajusteNubank), 'yyyy-MM-dd')
 
   const totalRealizado = somarValorFatura(transacoesFatura ?? [])
-  const matheusAtual = somarValorFatura((transacoesFatura ?? []).filter(t => t.responsavel === 'Matheus'))
-  const jenifferAtual = somarValorFatura((transacoesFatura ?? []).filter(t => t.responsavel === 'Jeniffer'))
-  const conjuntoAtual = somarValorFatura((transacoesFatura ?? []).filter(t => t.responsavel === 'Conjunto'))
 
-  const matheusPrevisto = findNuBank('nubank matheus')?.valor_previsto || 0
-  const jenifferPrevisto =
-    (findNuBank('nubank jeniffer')?.valor_previsto || 0) +
-    (findNuBank('nubank jeniffer conjunto')?.valor_previsto || 0)
-  const conjuntoPrevisto = findNuBank('nubank conjunto')?.valor_previsto || 0
+  const planRows = (planejamento || []) as PlanejamentoSaldoRow[]
+  const labelsCartao = cartaoLabelsDePlanejamento(planRows)
 
-  const toCartaoItem = (p: { item: string; responsavel: string | null; valor_previsto: number | null; valor_real: number | null }, prefixo: string): CartaoItem => ({
-    nome: p.item.replace(prefixo, '').trim(),
-    responsavel: p.responsavel || '',
-    previsto: p.valor_previsto ?? 0,
-    pago: p.valor_real ?? p.valor_previsto ?? 0,
-  })
+  // Cada linha [PRINCIPAL] é um cartão adicional da fatura. O responsável da linha é
+  // o que liga a despesa às transações importadas — antes isso era adivinhado a
+  // partir do nome do item ("NuBank Conjunto") em quatro literais hardcoded.
+  const linhasPrincipal = planRows.filter(p => tipoCartaoPorItem(p.item) === 'principal')
 
-  const cartao1PlanejamentoItems: CartaoItem[] = (planejamento || [])
-    .filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO1]'))
-    .map(p => toCartaoItem(p, '[CARTAO1]'))
+  const previstoPrincipalPorResponsavel: Record<string, number> = {}
+  const nomesPrincipalPorResponsavel: Record<string, string[]> = {}
+  for (const p of linhasPrincipal) {
+    const resp = p.responsavel || 'Sem responsável'
+    previstoPrincipalPorResponsavel[resp] = (previstoPrincipalPorResponsavel[resp] ?? 0) + (p.valor_previsto ?? 0)
+    ;(nomesPrincipalPorResponsavel[resp] ??= []).push(removerPrefixoCartao(p.item))
+  }
 
-  const cartao2PlanejamentoItems: CartaoItem[] = (planejamento || [])
-    .filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]'))
-    .map(p => toCartaoItem(p, '[CARTAO2]'))
+  // Um bloco por despesa cadastrada — e só. Semear esta lista também com os
+  // responsáveis das transações criava um bloco em branco (previsto R$ 0, exibido
+  // como "Excesso") para quem tem compra lançada mas nenhuma despesa do principal.
+  // O gasto desse responsável continua no "Total atual" e no saldo; ele só não
+  // ganha barra própria enquanto não existir uma despesa para ele.
+  const responsaveisPrincipal = new Set<string>(Object.keys(previstoPrincipalPorResponsavel))
 
-  const cartao1TotalMatheus = somarValorFatura((transacoesC1 || []).filter(t => t.responsavel === 'Matheus'))
-  const cartao1TotalJeniffer = somarValorFatura((transacoesC1 || []).filter(t => t.responsavel === 'Jeniffer'))
-  const cartao2TotalMatheus = somarValorFatura((transacoesC2 || []).filter(t => t.responsavel === 'Matheus'))
-  const cartao2TotalJeniffer = somarValorFatura((transacoesC2 || []).filter(t => t.responsavel === 'Jeniffer'))
-
-  const receitaBase = planejamento?.find(p => p.item === 'Receita Total')?.valor_previsto || 0
-  const receitasExtras = planejamento
-    ?.filter(p => typeof p.item === 'string' && p.item.startsWith('[RECEITA]'))
-    .reduce((acc, p) => acc + p.valor_previsto, 0) || 0
-  const receitaTotal = receitaBase + receitasExtras
-
-  const totalPlanejado = (planejamento || [])
-    .filter(p => {
-      const item = typeof p.item === 'string' ? p.item : ''
-      return !item.startsWith('[RECEITA]') && item !== 'Receita Total'
-    })
-    .reduce((acc, p) => acc + (p.valor_previsto || 0), 0)
-
-  const nuBankPrevisto = matheusPrevisto + jenifferPrevisto + conjuntoPrevisto
+  const receitaTotal = calcularReceitaTotal(planRows)
   const faturaEhPrevisto = totalRealizado === 0
 
-  let matheusProjecaoParcelas = 0
-  let jenifferProjecaoParcelas = 0
-  let conjuntoProjecaoParcelas = 0
-  const matheusProjecaoItens: ProjecaoItem[] = []
-  const jenifferProjecaoItens: ProjecaoItem[] = []
-  const conjuntoProjecaoItens: ProjecaoItem[] = []
+  // Projeção de parcelas por responsável. Antes eram três acumuladores fixos com um
+  // if/else encadeado; num mapa, um quarto responsável simplesmente funciona.
+  const projecaoPorResponsavel = new Map<string, { valor: number; itens: ProjecaoItem[] }>()
+  const projecaoDe = (responsavel: string) => {
+    let entrada = projecaoPorResponsavel.get(responsavel)
+    if (!entrada) { entrada = { valor: 0, itens: [] }; projecaoPorResponsavel.set(responsavel, entrada) }
+    return entrada
+  }
   if (faturaEhPrevisto) {
     const mesProjecao = startOfMonth(addMonths(mes, 1))
 
@@ -341,71 +280,44 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
             ? descricao.replace(/parcela\s+\d+\/\d+/i, `Parcela ${parcelaNoMes}/${total}`)
             : descricao.replace(/\b\d{1,2}\/\d{1,2}\b/, `${parcelaNoMes}/${total}`)
           const item: ProjecaoItem = { descricao: descAjustada, valor, responsavel, cartao: 'nubank', parcela_atual: parcelaNoMes, total_parcelas: total }
-          if (responsavel === 'Matheus') { matheusProjecaoParcelas += valor; matheusProjecaoItens.push(item) }
-          if (responsavel === 'Jeniffer') { jenifferProjecaoParcelas += valor; jenifferProjecaoItens.push(item) }
-          if (responsavel === 'Conjunto') { conjuntoProjecaoParcelas += valor; conjuntoProjecaoItens.push(item) }
+          const entrada = projecaoDe(responsavel)
+          entrada.valor += valor
+          entrada.itens.push(item)
+          responsaveisPrincipal.add(responsavel)
         }
       }
     }
   }
 
-  const cartao1TotalAtual = cartao1TotalMatheus + cartao1TotalJeniffer
-  const cartao2TotalAtual = cartao2TotalMatheus + cartao2TotalJeniffer
-  const cartao1PrevTotal = cartao1PlanejamentoItems.reduce((s, i) => s + i.previsto, 0)
-  const cartao2PrevTotal = cartao2PlanejamentoItems.reduce((s, i) => s + i.previsto, 0)
+  // Cartões extras: agregados por CARTÃO, não por cartão × responsável. Uma despesa
+  // nova em Cartão 1 sobe o total daquela linha em vez de criar uma linha nova.
+  const cartoesExtras: BlocoCartaoExtra[] = (['cartao1', 'cartao2'] as const).map(tipo => {
+    const linhas = planRows.filter(p => tipoCartaoPorItem(p.item) === tipo)
+    const tx = tipo === 'cartao1' ? transacoesC1 : transacoesC2
+    const donos = new Set(linhas.map(p => p.responsavel || '').filter(Boolean))
+    return {
+      tipo,
+      label: labelsCartao[tipo],
+      responsavelDono: donos.size === 1 ? [...donos][0] : null,
+      previsto: linhas.reduce((acc, p) => acc + (p.valor_previsto ?? 0), 0),
+      atual: somarValorFatura(tx),
+    }
+  }).filter(c => c.previsto > 0 || c.atual > 0)
 
-  const nubankMatheusRow = findNuBank('nubank matheus')
-  const nubankJenifferRow = findNuBank('nubank jeniffer')
-  const nubankJenifferConjRow = findNuBank('nubank jeniffer conjunto')
-  const nubankConjuntoRow = findNuBank('nubank conjunto')
+  // Saldo, contas fixas e fatura efetiva vêm de lib/faturaEfetiva — a mesma conta que
+  // Finanças e o pré-cache usam, em vez das três cópias que existiam antes.
+  const {
+    faturaEfetiva,
+    contasFixas: contasFixasAtual,
+    temLancamentosEfetivos,
+    totalGastos,
+    saldo: sobraLiquida,
+    saldoPrevisto,
+  } = calcularResumoSaldo(planRows, (todasTransacoesFatura || []) as TransacaoSaldoRow[])
 
-  const nubankMatheusEfetivo = nubankMatheusRow?.pago
-    ? (nubankMatheusRow.valor_real ?? nubankMatheusRow.valor_previsto)
-    : matheusAtual > 0 ? matheusAtual : matheusPrevisto
-
-  const jenifferNubankPago = !!(nubankJenifferRow?.pago || nubankJenifferConjRow?.pago)
-  const nubankJenifferEfetivo = jenifferNubankPago
-    ? ((nubankJenifferRow?.pago ? (nubankJenifferRow.valor_real ?? nubankJenifferRow.valor_previsto) : 0) +
-       (nubankJenifferConjRow?.pago ? (nubankJenifferConjRow.valor_real ?? nubankJenifferConjRow.valor_previsto) : 0))
-    : jenifferAtual > 0 ? jenifferAtual : jenifferPrevisto
-
-  const cartao1PaidRows = (planejamento || []).filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO1]') && p.pago)
-  const cartao1Efetivo = cartao1PaidRows.length > 0
-    ? cartao1PaidRows.reduce((s, p) => s + (p.valor_real ?? p.valor_previsto), 0)
-    : cartao1TotalAtual > 0 ? cartao1TotalAtual : cartao1PrevTotal
-
-  const cartao2PaidRows = (planejamento || []).filter(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]') && p.pago)
-  const cartao2Efetivo = cartao2PaidRows.length > 0
-    ? cartao2PaidRows.reduce((s, p) => s + (p.valor_real ?? p.valor_previsto), 0)
-    : cartao2TotalAtual > 0 ? cartao2TotalAtual : cartao2PrevTotal
-
-  const nubankTemDados = totalRealizado > 0 || !!nubankMatheusRow?.pago || !!nubankJenifferRow?.pago || !!nubankJenifferConjRow?.pago
-  const cartao1TemDados = cartao1TotalAtual > 0 || cartao1PaidRows.length > 0
-  const cartao2TemDados = cartao2TotalAtual > 0 || cartao2PaidRows.length > 0
-  const temLancamentosEfetivos = nubankTemDados || cartao1TemDados || cartao2TemDados
-
-  const conjuntoEfetivo = nubankConjuntoRow?.pago
-    ? (nubankConjuntoRow.valor_real ?? conjuntoPrevisto)
-    : conjuntoAtual > 0 ? conjuntoAtual : conjuntoPrevisto
-  const faturaEfetiva = nubankMatheusEfetivo + nubankJenifferEfetivo + conjuntoEfetivo + cartao1Efetivo + cartao2Efetivo
-  const saldoPrevisto = receitaTotal - totalPlanejado
-
-  const despesasItems = (planejamento || []).filter(p => {
-    const item = typeof p.item === 'string' ? p.item : ''
-    return !item.startsWith('[RECEITA]') && item !== 'Receita Total'
-  })
-
-  const contasFixasAtual = despesasItems
-    .filter(p => {
-      const item = typeof p.item === 'string' ? p.item : ''
-      return !isNuBankItem(item) && !item.startsWith('[CARTAO1]') && !item.startsWith('[CARTAO2]')
-    })
-    .reduce((acc, p) => acc + (p.pago ? (p.valor_real ?? p.valor_previsto) : p.valor_previsto), 0)
-
+  const despesasItems = planRows.filter(p => !ehLinhaDeReceita(p.item))
   const todasDespesasPagas = despesasItems.length > 0 && despesasItems.every(p => p.pago)
 
-  const totalGastos = contasFixasAtual + faturaEfetiva
-  const sobraLiquida = receitaTotal - totalGastos
   const percentualComprometimento = receitaTotal > 0 ? (totalGastos / receitaTotal) * 100 : 0
 
   type AssinaturaRow = { id: string; nome: string; valor: number; responsavel: string; ativa: boolean; moeda: string }
@@ -427,11 +339,8 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     assinAtivas
       .filter((a: AssinaturaRow) => a.responsavel === responsavel && !txFaturaList.some((tx: TransacaoRow) => tx.descricao?.toLowerCase().includes(a.nome.toLowerCase())))
       .reduce((sum: number, a: AssinaturaRow) => sum + valorAssinaturaNoMes(a), 0)
-  const assinNaoPagaMatheus = calcNaoPaga('Matheus')
-  const assinNaoPagaJeniffer = calcNaoPaga('Jeniffer')
-
-  type AssinDivergente = { nome: string; valorEsperado: number; valorCobrado: number; diff: number }
-  const calcDivergente = (responsavel: string): AssinDivergente[] =>
+  type AssinDivergenteLocal = AssinDivergente
+  const calcDivergente = (responsavel: string): AssinDivergenteLocal[] =>
     assinAtivas
       .filter((a: AssinaturaRow) => a.responsavel === responsavel)
       .flatMap((a: AssinaturaRow) => {
@@ -449,8 +358,6 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
         )
         return [{ nome: a.nome, valorEsperado, valorCobrado: best.valor, diff: best.valor - valorEsperado }]
       })
-  const divergentesMatheus  = calcDivergente('Matheus')
-  const divergentesJeniffer = calcDivergente('Jeniffer')
 
   // Decompõe o valor gasto (atual) de cada responsável em: parcelas pré-existentes (2/X em diante),
   // novas parcelas/compras à vista (1/X) e assinaturas — para exibir sobreposto na barra da fatura.
@@ -464,30 +371,65 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     }
     return { existente, novo, assinatura }
   }
-  const composicaoMatheus  = montarComposicao('Matheus')
-  const composicaoJeniffer = montarComposicao('Jeniffer')
-  const composicaoConjunto = montarComposicao('Conjunto')
+
+  // Um bloco por cartão adicional do principal. Todas as funções acima já são
+  // parametrizadas por responsável, então cada bloco é só uma chamada de cada.
+  const principalBlocks: BlocoPrincipal[] = ordenarResponsaveis([...responsaveisPrincipal], 'Matheus')
+    .map(responsavel => {
+      const previsto = previstoPrincipalPorResponsavel[responsavel] ?? 0
+      const atual = somarValorFatura(transacoesFatura.filter(t => (t.responsavel || '') === responsavel))
+      const projecao = projecaoPorResponsavel.get(responsavel) ?? { valor: 0, itens: [] }
+      const assinaturasNaoPagas = calcNaoPaga(responsavel)
+      return {
+        responsavel,
+        nomes: nomesPrincipalPorResponsavel[responsavel] ?? [],
+        previsto,
+        atual,
+        projecaoParcelas: projecao.valor,
+        projecaoItens: projecao.itens,
+        composicao: montarComposicao(responsavel),
+        assinaturasNaoPagas,
+        assinaturasDivergentes: calcDivergente(responsavel),
+        sobra: previsto - atual - projecao.valor - assinaturasNaoPagas,
+      }
+    })
+    .filter(b => b.previsto > 0 || b.atual > 0 || b.projecaoParcelas > 0)
+
+  // Totais consolidando principal + cartões extras. São tiles POR PESSOA: "Conjunto"
+  // não é uma pessoa e já aparece na barra da fatura logo acima, então um tile dele
+  // aqui só duplicaria o número e apertaria a grade para três colunas.
+  const totaisPorResponsavel: TotalResponsavel[] = ordenarResponsaveis(
+    [...new Set([
+      ...principalBlocks.map(b => b.responsavel),
+      ...planRows.filter(p => { const t = tipoCartaoPorItem(p.item); return t === 'cartao1' || t === 'cartao2' })
+        .map(p => p.responsavel || '').filter(Boolean),
+    ])].filter(r => r !== 'Conjunto'),
+    'Matheus'
+  ).map(responsavel => {
+    const bloco = principalBlocks.find(b => b.responsavel === responsavel)
+    const linhasExtras = planRows.filter(p => {
+      const t = tipoCartaoPorItem(p.item)
+      return (t === 'cartao1' || t === 'cartao2') && (p.responsavel || '') === responsavel
+    })
+    const txExtras = [...transacoesC1, ...transacoesC2].filter(t => (t.responsavel || '') === responsavel)
+    return {
+      responsavel,
+      previsto: (bloco?.previsto ?? 0) + linhasExtras.reduce((acc, p) => acc + (p.valor_previsto ?? 0), 0),
+      atual: (bloco?.atual ?? 0) + somarValorFatura(txExtras),
+    }
+  }).filter(t => t.previsto > 0 || t.atual > 0)
 
   return {
     fatura: {
-      totalRealizado, matheusAtual, matheusPrevisto, matheusProjecaoParcelas, matheusProjecaoItens,
-      matheusComposicao: composicaoMatheus,
-      jenifferAtual, jenifferPrevisto, jenifferProjecaoParcelas, jenifferProjecaoItens,
-      jenifferComposicao: composicaoJeniffer,
-      conjuntoAtual, conjuntoPrevisto, conjuntoProjecaoParcelas, conjuntoProjecaoItens,
-      conjuntoComposicao: composicaoConjunto,
-      conjuntoItemExiste: !!nubankConjuntoRow,
-      sobraMatheus: matheusPrevisto - matheusAtual - matheusProjecaoParcelas - assinNaoPagaMatheus,
-      sobraJeniffer: jenifferPrevisto - jenifferAtual - jenifferProjecaoParcelas - assinNaoPagaJeniffer,
-      sobraConjunto: conjuntoPrevisto - conjuntoAtual - conjuntoProjecaoParcelas,
-      cartao1Items: cartao1PlanejamentoItems,
-      cartao2Items: cartao2PlanejamentoItems,
-      cartao1AtualMatheus: cartao1TotalMatheus, cartao1AtualJeniffer: cartao1TotalJeniffer,
-      cartao2AtualMatheus: cartao2TotalMatheus, cartao2AtualJeniffer: cartao2TotalJeniffer,
-      cartao1Previsto: cartao1PlanejamentoItems.reduce((s, i) => s + i.previsto, 0),
-      cartao2Previsto: cartao2PlanejamentoItems.reduce((s, i) => s + i.previsto, 0),
-      cartao1Nome: cartao1PlanejamentoItems[0]?.nome || 'Cartão 1',
-      cartao2Nome: cartao2PlanejamentoItems[0]?.nome || 'Cartão 2',
+      totalRealizado,
+      principalBlocks,
+      cartoesExtras,
+      totaisPorResponsavel,
+      cartao1Nome: labelsCartao.cartao1,
+      cartao2Nome: labelsCartao.cartao2,
+      cartao1Previsto: cartoesExtras.find(c => c.tipo === 'cartao1')?.previsto ?? 0,
+      cartao2Previsto: cartoesExtras.find(c => c.tipo === 'cartao2')?.previsto ?? 0,
+      principalPrevistoPorResponsavel: previstoPrincipalPorResponsavel,
     },
     resumoCaixa: {
       receitaTotal, contasFixas: contasFixasAtual,
@@ -496,25 +438,20 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
       todasDespesasPagas,
     },
     investimentos: (invData || []).map(i => ({ ...i, aportado: aportadoMap[i.id] || 0 })),
-    assinaturasNaopagas: { matheus: assinNaoPagaMatheus, jeniffer: assinNaoPagaJeniffer },
-    assinaturasDivergentes: { matheus: divergentesMatheus, jeniffer: divergentesJeniffer },
     dataFechamentoNubank,
   }
 }
 
-const COMPOSICAO_INICIAL: ComposicaoGastos = { existente: 0, novo: 0, assinatura: 0 }
-
 const FATURA_INICIAL: FaturaState = {
-  totalRealizado: 0, matheusAtual: 0, matheusPrevisto: 0, matheusProjecaoParcelas: 0, matheusProjecaoItens: [],
-  matheusComposicao: COMPOSICAO_INICIAL,
-  jenifferAtual: 0, jenifferPrevisto: 0, jenifferProjecaoParcelas: 0, jenifferProjecaoItens: [],
-  jenifferComposicao: COMPOSICAO_INICIAL,
-  conjuntoAtual: 0, conjuntoPrevisto: 0, conjuntoProjecaoParcelas: 0, conjuntoProjecaoItens: [],
-  conjuntoComposicao: COMPOSICAO_INICIAL,
-  conjuntoItemExiste: false,
-  sobraMatheus: 0, sobraJeniffer: 0, sobraConjunto: 0, cartao1Items: [], cartao2Items: [],
-  cartao1AtualMatheus: 0, cartao1AtualJeniffer: 0, cartao2AtualMatheus: 0, cartao2AtualJeniffer: 0,
-  cartao1Previsto: 0, cartao2Previsto: 0, cartao1Nome: 'Cartão 1', cartao2Nome: 'Cartão 2',
+  totalRealizado: 0,
+  principalBlocks: [],
+  cartoesExtras: [],
+  totaisPorResponsavel: [],
+  cartao1Nome: 'Cartão 1',
+  cartao2Nome: 'Cartão 2',
+  cartao1Previsto: 0,
+  cartao2Previsto: 0,
+  principalPrevistoPorResponsavel: {},
 }
 
 const RESUMO_INICIAL: ResumoCaixaState = {
@@ -531,8 +468,6 @@ export default function Dashboard() {
     fatura: FATURA_INICIAL,
     resumoCaixa: RESUMO_INICIAL,
     investimentos: [],
-    assinaturasNaopagas: { matheus: 0, jeniffer: 0 },
-    assinaturasDivergentes: { matheus: [], jeniffer: [] },
     dataFechamentoNubank: null,
   })
 
@@ -590,7 +525,7 @@ export default function Dashboard() {
     if (novaAba === 'graficos') setGraficosAbertos(true)
   }, [])
 
-  const { fatura, resumoCaixa, investimentos, assinaturasNaopagas, assinaturasDivergentes, dataFechamentoNubank } = dados
+  const { fatura, resumoCaixa, investimentos, dataFechamentoNubank } = dados
 
   const applyData = useCallback((data: unknown) => {
     setDados(data as DashboardData)
@@ -602,7 +537,7 @@ export default function Dashboard() {
   )
 
   const { status, isOnline } = useGlobalSync({
-    cacheKey: `dashboard:${format(mesAtual, 'yyyy-MM')}`,
+    cacheKey: `dashboard-v2:${format(mesAtual, 'yyyy-MM')}`,
     tables: ['transacoes_nubank', 'planejamento', 'investimentos', 'investimentos_aportes'],
     fetcher,
     onData: applyData,
@@ -613,7 +548,7 @@ export default function Dashboard() {
     if (!isOnline) return
 
     const prefetch = async (mes: Date) => {
-      const storageKey = `datasync:dashboard:${format(mes, 'yyyy-MM')}`
+      const storageKey = `datasync:dashboard-v2:${format(mes, 'yyyy-MM')}`
       if (localStorage.getItem(storageKey)) return
       try {
         const data = await carregarDados(mes)
@@ -647,14 +582,6 @@ export default function Dashboard() {
     [resumoCaixa.percentualComprometimento]
   )
 
-  const matheusSobraWarning = useMemo(() =>
-    fatura.sobraMatheus >= 0 && fatura.matheusPrevisto > 0 && (fatura.sobraMatheus / fatura.matheusPrevisto) * 100 <= 10,
-    [fatura.sobraMatheus, fatura.matheusPrevisto]
-  )
-  const jenifferSobraWarning = useMemo(() =>
-    fatura.sobraJeniffer >= 0 && fatura.jenifferPrevisto > 0 && (fatura.sobraJeniffer / fatura.jenifferPrevisto) * 100 <= 10,
-    [fatura.sobraJeniffer, fatura.jenifferPrevisto]
-  )
   const saldoAtualWarning = useMemo(() =>
     resumoCaixa.sobraLiquida >= 0 && resumoCaixa.receitaTotal > 0 && (resumoCaixa.sobraLiquida / resumoCaixa.receitaTotal) * 100 <= 10,
     [resumoCaixa.sobraLiquida, resumoCaixa.receitaTotal]
@@ -682,36 +609,18 @@ export default function Dashboard() {
     [investimentos]
   )
 
-  const cartaoExtrasData = useMemo(() => {
-    if (fatura.cartao1Items.length === 0 && fatura.cartao2Items.length === 0) return null
-    const c1M = fatura.cartao1Items.filter(i => i.responsavel === 'Matheus')
-    const c1J = fatura.cartao1Items.filter(i => i.responsavel === 'Jeniffer')
-    const c2M = fatura.cartao2Items.filter(i => i.responsavel === 'Matheus')
-    const c2J = fatura.cartao2Items.filter(i => i.responsavel === 'Jeniffer')
-    const c1Total = fatura.cartao1AtualMatheus + fatura.cartao1AtualJeniffer
-    const c2Total = fatura.cartao2AtualMatheus + fatura.cartao2AtualJeniffer
-    const outrosCards = [
-      ...(c1M.length > 0 ? [{ label: fatura.cartao1Nome, responsavel: 'Matheus', atual: fatura.cartao1AtualMatheus, previsto: c1M.reduce((s, i) => s + i.previsto, 0) }] : []),
-      ...(c1J.length > 0 ? [{ label: fatura.cartao1Nome, responsavel: 'Jeniffer', atual: fatura.cartao1AtualJeniffer, previsto: c1J.reduce((s, i) => s + i.previsto, 0) }] : []),
-      ...(c2M.length > 0 ? [{ label: fatura.cartao2Nome, responsavel: 'Matheus', atual: fatura.cartao2AtualMatheus, previsto: c2M.reduce((s, i) => s + i.previsto, 0) }] : []),
-      ...(c2J.length > 0 ? [{ label: fatura.cartao2Nome, responsavel: 'Jeniffer', atual: fatura.cartao2AtualJeniffer, previsto: c2J.reduce((s, i) => s + i.previsto, 0) }] : []),
-    ].filter(c => c.atual > 0 || c.previsto > 0)
-    const matheusCardsAtual = outrosCards.filter(c => c.responsavel === 'Matheus').reduce((s, c) => s + c.atual, 0)
-    const matheusCardsPrevisto = outrosCards.filter(c => c.responsavel === 'Matheus').reduce((s, c) => s + c.previsto, 0)
-    const jenifferCardsAtual = outrosCards.filter(c => c.responsavel === 'Jeniffer').reduce((s, c) => s + c.atual, 0)
-    const jenifferCardsPrevisto = outrosCards.filter(c => c.responsavel === 'Jeniffer').reduce((s, c) => s + c.previsto, 0)
-    const matheusTotalPrevisto = fatura.matheusPrevisto + matheusCardsPrevisto
-    const matheusTotalAtual = fatura.matheusAtual + matheusCardsAtual
-    const matheusRestante = matheusTotalPrevisto - matheusTotalAtual
-    const matheusPct = matheusTotalPrevisto > 0 ? Math.min(100, (matheusTotalAtual / matheusTotalPrevisto) * 100) : 0
-    const matheusResumoWarning = matheusRestante >= 0 && matheusTotalPrevisto > 0 && (matheusRestante / matheusTotalPrevisto) * 100 <= 10
-    const jenifferTotalPrevisto = fatura.jenifferPrevisto + jenifferCardsPrevisto
-    const jenifferTotalAtual = fatura.jenifferAtual + jenifferCardsAtual
-    const jenifferRestante = jenifferTotalPrevisto - jenifferTotalAtual
-    const jenifferPct = jenifferTotalPrevisto > 0 ? Math.min(100, (jenifferTotalAtual / jenifferTotalPrevisto) * 100) : 0
-    const jenifferResumoWarning = jenifferRestante >= 0 && jenifferTotalPrevisto > 0 && (jenifferRestante / jenifferTotalPrevisto) * 100 <= 10
-    return { outrosCards, matheusTotalPrevisto, matheusTotalAtual, matheusRestante, matheusPct, matheusResumoWarning, jenifferTotalPrevisto, jenifferTotalAtual, jenifferRestante, jenifferPct, jenifferResumoWarning }
-  }, [fatura])
+  // Blocos do principal na ordem de exibição: usuário logado primeiro.
+  const blocosPrincipal = useMemo(
+    () => ordenarResponsaveis(fatura.principalBlocks.map(b => b.responsavel), isMatheus ? 'Matheus' : 'Jeniffer')
+      .map(r => fatura.principalBlocks.find(b => b.responsavel === r)!)
+      .filter(Boolean),
+    [fatura.principalBlocks, isMatheus]
+  )
+
+  const totalProjecaoParcelas = useMemo(
+    () => fatura.principalBlocks.reduce((acc, b) => acc + b.projecaoParcelas, 0),
+    [fatura.principalBlocks]
+  )
 
   const hora = new Date().getHours()
   const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
@@ -962,7 +871,6 @@ export default function Dashboard() {
                 <div className="mb-6 pb-5 border-b border-gray-100">
                   <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Total atual</p>
                   {(() => {
-                    const totalProjecaoParcelas = fatura.matheusProjecaoParcelas + fatura.jenifferProjecaoParcelas + fatura.conjuntoProjecaoParcelas
                     const totalExibido = fatura.totalRealizado > 0 ? fatura.totalRealizado : totalProjecaoParcelas
                     const totalStr = fmt(totalExibido)
                     const commaIdx = totalStr.lastIndexOf(',')
@@ -976,9 +884,7 @@ export default function Dashboard() {
                         {fatura.totalRealizado === 0 && totalProjecaoParcelas > 0 && (
                           <button
                             type="button"
-                            onClick={() => abrirDetalhesProjecao('Todos', totalProjecaoParcelas, [
-                              ...fatura.matheusProjecaoItens, ...fatura.jenifferProjecaoItens, ...fatura.conjuntoProjecaoItens,
-                            ])}
+                            onClick={() => abrirDetalhesProjecao('Todos', totalProjecaoParcelas, fatura.principalBlocks.flatMap(b => b.projecaoItens))}
                             className="text-[10px] text-orange-500 font-medium underline decoration-dotted underline-offset-2 mt-1"
                           >
                             soma das parcelas previstas
@@ -989,244 +895,61 @@ export default function Dashboard() {
                   })()}
                 </div>
 
-                {/* Blocos Matheus / Jeniffer — ordem conforme usuário logado */}
-                {(() => {
-                  const matheusBlock = (
-                    <div key="matheus" className="mb-2">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-                          <span className="text-sm font-semibold text-gray-800">Matheus</span>
-                        </div>
-                        <span className="text-sm font-medium text-gray-700 num">
-                          {fmt(fatura.matheusAtual)} / {fatura.matheusPrevisto > 0 ? fatura.matheusPrevisto.toLocaleString('pt-BR') : '–'}
-                        </span>
-                      </div>
-                      {(() => {
-                        const seg = calcularSegmentosBarra(fatura.matheusAtual, fatura.matheusPrevisto, fatura.matheusComposicao)
-                        return (
-                          <button
-                            type="button"
-                            onClick={fatura.matheusAtual > 0 ? () => abrirComposicaoFatura('Matheus', fatura.matheusAtual, fatura.matheusComposicao) : undefined}
-                            className={`fatura-track flex w-full h-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-full overflow-hidden mb-0.5 ${fatura.matheusAtual > 0 ? 'cursor-pointer' : 'cursor-default'}`}
-                            aria-label="Ver composição da fatura de Matheus"
-                          >
-                            <div key={`ex-${fatura.matheusAtual}`} className="h-full bg-blue-800 bar-enter" style={{ '--bar-w': `${seg.existente}%` } as React.CSSProperties} />
-                            <div key={`no-${fatura.matheusAtual}`} className="h-full bg-blue-500 bar-enter" style={{ '--bar-w': `${seg.novo}%` } as React.CSSProperties} />
-                            <div key={`as-${fatura.matheusAtual}`} className="h-full bg-blue-300 bar-enter" style={{ '--bar-w': `${seg.assinatura}%` } as React.CSSProperties} />
-                          </button>
-                        )
-                      })()}
-                      <div className="flex items-center justify-between mb-1">
-                        {fatura.matheusProjecaoParcelas > 0 ? (
-                          <button
-                            type="button"
-                            onClick={() => abrirDetalhesProjecao('Matheus', fatura.matheusProjecaoParcelas, fatura.matheusProjecaoItens)}
-                            className="text-[11px] text-orange-500 font-medium underline decoration-dotted underline-offset-2"
-                          >
-                            parc. prev. − {fmt(fatura.matheusProjecaoParcelas)}
-                          </button>
-                        ) : (
-                          <span className="text-[11px] text-gray-400">{matheusSobraWarning ? 'limite quase no teto' : ''}</span>
-                        )}
-                        <span className="text-[11px] text-gray-400 num">{fatura.matheusPrevisto > 0 ? Math.min(100, (fatura.matheusAtual / fatura.matheusPrevisto) * 100).toFixed(0) : 0}%</span>
-                      </div>
-                      {assinaturasDivergentes.matheus.length > 0 && (
-                        <div className="mb-1">
-                          {assinaturasDivergentes.matheus.map((d) => (
-                            <div key={d.nome} className="flex justify-between text-[11px] gap-1 text-amber-600">
-                              <span className="truncate shrink" title={d.nome}>⚠ {d.nome}</span>
-                              <span className="font-medium num shrink-0 whitespace-nowrap">{d.diff > 0 ? '+' : ''}{fmt(d.diff)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      <div className="flex items-center justify-between gap-2">
-                        <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
-                          fatura.sobraMatheus < 0 ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' : matheusSobraWarning ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                        }`}>
-                          {fatura.sobraMatheus < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso {fmt(Math.abs(fatura.sobraMatheus))}</> : matheusSobraWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção {fmt(Math.abs(fatura.sobraMatheus))}</> : <>✓ Restante {fmt(Math.abs(fatura.sobraMatheus))}</>}
-                        </div>
-                        {assinaturasNaopagas.matheus > 0 && (
-                          <span className="text-[11px] text-indigo-500 num shrink-0">Assin. {fmt(assinaturasNaopagas.matheus)}</span>
-                        )}
-                      </div>
-                    </div>
-                  )
+                {/* Um bloco por cartão adicional do principal — a lista vem dos dados,
+                    então adicionar/remover uma despesa adiciona/remove um bloco. */}
+                {blocosPrincipal.map((bloco, i) => (
+                  <React.Fragment key={bloco.responsavel}>
+                    {i > 0 && <div className="border-t border-gray-100 my-2" />}
+                    <BlocoFaturaPrincipal
+                      bloco={bloco}
+                      onComposicao={abrirComposicaoFatura}
+                      onProjecao={abrirDetalhesProjecao}
+                    />
+                  </React.Fragment>
+                ))}
 
-                  const jenifferBlock = (
-                    <div key="jeniffer" className="mb-2">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-2 h-2 rounded-full bg-pink-500 shrink-0" />
-                          <span className="text-sm font-semibold text-gray-800">Jeniffer</span>
-                        </div>
-                        <span className="text-sm font-medium text-gray-700 num">
-                          {fmt(fatura.jenifferAtual)} / {fatura.jenifferPrevisto > 0 ? fatura.jenifferPrevisto.toLocaleString('pt-BR') : '–'}
-                        </span>
-                      </div>
-                      {(() => {
-                        const seg = calcularSegmentosBarra(fatura.jenifferAtual, fatura.jenifferPrevisto, fatura.jenifferComposicao)
-                        return (
-                          <button
-                            type="button"
-                            onClick={fatura.jenifferAtual > 0 ? () => abrirComposicaoFatura('Jeniffer', fatura.jenifferAtual, fatura.jenifferComposicao) : undefined}
-                            className={`fatura-track flex w-full h-2.5 bg-pink-100 dark:bg-pink-900/30 rounded-full overflow-hidden mb-0.5 ${fatura.jenifferAtual > 0 ? 'cursor-pointer' : 'cursor-default'}`}
-                            aria-label="Ver composição da fatura de Jeniffer"
-                          >
-                            <div key={`ex-${fatura.jenifferAtual}`} className="h-full bg-pink-800 bar-enter" style={{ '--bar-w': `${seg.existente}%` } as React.CSSProperties} />
-                            <div key={`no-${fatura.jenifferAtual}`} className="h-full bg-pink-500 bar-enter" style={{ '--bar-w': `${seg.novo}%` } as React.CSSProperties} />
-                            <div key={`as-${fatura.jenifferAtual}`} className="h-full bg-pink-300 bar-enter" style={{ '--bar-w': `${seg.assinatura}%` } as React.CSSProperties} />
-                          </button>
-                        )
-                      })()}
-                      <div className="flex items-center justify-between mb-1">
-                        {fatura.jenifferProjecaoParcelas > 0 ? (
-                          <button
-                            type="button"
-                            onClick={() => abrirDetalhesProjecao('Jeniffer', fatura.jenifferProjecaoParcelas, fatura.jenifferProjecaoItens)}
-                            className="text-[11px] text-orange-500 font-medium underline decoration-dotted underline-offset-2"
-                          >
-                            parc. prev. − {fmt(fatura.jenifferProjecaoParcelas)}
-                          </button>
-                        ) : (
-                          <span className="text-[11px] text-gray-400">{jenifferSobraWarning ? 'limite quase no teto' : ''}</span>
-                        )}
-                        <span className="text-[11px] text-gray-400 num">{fatura.jenifferPrevisto > 0 ? Math.min(100, (fatura.jenifferAtual / fatura.jenifferPrevisto) * 100).toFixed(0) : 0}%</span>
-                      </div>
-                      {assinaturasDivergentes.jeniffer.length > 0 && (
-                        <div className="mb-1">
-                          {assinaturasDivergentes.jeniffer.map((d) => (
-                            <div key={d.nome} className="flex justify-between text-[11px] gap-1 text-amber-600">
-                              <span className="truncate shrink" title={d.nome}>⚠ {d.nome}</span>
-                              <span className="font-medium num shrink-0 whitespace-nowrap">{d.diff > 0 ? '+' : ''}{fmt(d.diff)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      <div className="flex items-center justify-between gap-2">
-                        <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
-                          fatura.sobraJeniffer < 0 ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' : jenifferSobraWarning ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' : 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300'
-                        }`}>
-                          {fatura.sobraJeniffer < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso {fmt(Math.abs(fatura.sobraJeniffer))}</> : jenifferSobraWarning ? <><AlertTriangle className="w-3 h-3" /> Atenção {fmt(Math.abs(fatura.sobraJeniffer))}</> : <>✓ Restante {fmt(Math.abs(fatura.sobraJeniffer))}</>}
-                        </div>
-                        {assinaturasNaopagas.jeniffer > 0 && (
-                          <span className="text-[11px] text-indigo-500 num shrink-0">Assin. {fmt(assinaturasNaopagas.jeniffer)}</span>
-                        )}
-                      </div>
-                    </div>
-                  )
-
-                  const [primeiro, segundo] = isMatheus ? [matheusBlock, jenifferBlock] : [jenifferBlock, matheusBlock]
-                  return (
-                    <>
-                      {primeiro}
-                      <div className="border-t border-gray-100 my-2" />
-                      {segundo}
-                    </>
-                  )
-                })()}
-
-                {/* Conjunto NuBank */}
-                {(fatura.conjuntoAtual > 0 || fatura.conjuntoPrevisto > 0 || fatura.conjuntoItemExiste) && (
+                {/* Outros cartões — uma linha por cartão: uma despesa nova sobe o
+                    total da linha em vez de criar uma linha nova. */}
+                {(fatura.cartoesExtras.length > 0 || fatura.totaisPorResponsavel.length > 0) && (
                   <>
-                    <div className="border-t border-gray-100 my-2" />
-                    <div className="mb-2">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
-                          <span className="text-sm font-semibold text-gray-800">Conjunto</span>
-                        </div>
-                        {fatura.conjuntoPrevisto > 0 && (
-                          <span className="text-sm font-medium text-gray-700 num">
-                            {fmt(fatura.conjuntoAtual)} / {fatura.conjuntoPrevisto.toLocaleString('pt-BR')}
-                          </span>
-                        )}
-                      </div>
-                      {fatura.conjuntoPrevisto > 0 && (
-                        <>
-                          {(() => {
-                            const seg = calcularSegmentosBarra(fatura.conjuntoAtual, fatura.conjuntoPrevisto, fatura.conjuntoComposicao)
-                            return (
-                              <button
-                                type="button"
-                                onClick={fatura.conjuntoAtual > 0 ? () => abrirComposicaoFatura('Conjunto', fatura.conjuntoAtual, fatura.conjuntoComposicao) : undefined}
-                                className={`fatura-track flex w-full h-2.5 bg-purple-100 dark:bg-purple-900/30 rounded-full overflow-hidden mb-0.5 ${fatura.conjuntoAtual > 0 ? 'cursor-pointer' : 'cursor-default'}`}
-                                aria-label="Ver composição da fatura Conjunto"
-                              >
-                                <div key={`ex-${fatura.conjuntoAtual}`} className="h-full bg-purple-800 bar-enter" style={{ '--bar-w': `${seg.existente}%` } as React.CSSProperties} />
-                                <div key={`no-${fatura.conjuntoAtual}`} className="h-full bg-purple-500 bar-enter" style={{ '--bar-w': `${seg.novo}%` } as React.CSSProperties} />
-                                <div key={`as-${fatura.conjuntoAtual}`} className="h-full bg-purple-300 bar-enter" style={{ '--bar-w': `${seg.assinatura}%` } as React.CSSProperties} />
-                              </button>
-                            )
-                          })()}
-                          <div className="flex items-center justify-between mb-1">
-                            {fatura.conjuntoProjecaoParcelas > 0 ? (
-                              <button
-                                type="button"
-                                onClick={() => abrirDetalhesProjecao('Conjunto', fatura.conjuntoProjecaoParcelas, fatura.conjuntoProjecaoItens)}
-                                className="text-[11px] text-orange-500 font-medium underline decoration-dotted underline-offset-2"
-                              >
-                                parc. prev. − {fmt(fatura.conjuntoProjecaoParcelas)}
-                              </button>
-                            ) : <span />}
-                            <span className="text-[11px] text-gray-400 num">{Math.min(100, (fatura.conjuntoAtual / fatura.conjuntoPrevisto) * 100).toFixed(0)}%</span>
-                          </div>
-                          <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
-                            fatura.sobraConjunto < 0 ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' : (fatura.sobraConjunto / fatura.conjuntoPrevisto) * 100 <= 10 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
-                          }`}>
-                            {fatura.sobraConjunto < 0 ? <><AlertTriangle className="w-3 h-3" /> Excesso {fmt(Math.abs(fatura.sobraConjunto))}</> : (fatura.sobraConjunto / fatura.conjuntoPrevisto) * 100 <= 10 ? <><AlertTriangle className="w-3 h-3" /> Atenção {fmt(Math.abs(fatura.sobraConjunto))}</> : <>✓ Restante {fmt(Math.abs(fatura.sobraConjunto))}</>}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </>
-                )}
-
-                {/* Outros cartões */}
-                {cartaoExtrasData && (() => {
-                  const { outrosCards, matheusTotalPrevisto, matheusTotalAtual, jenifferTotalPrevisto, jenifferTotalAtual } = cartaoExtrasData
-                  return (
-                    <>
-                      <div className="border-t border-gray-100 mt-4 mb-3" />
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Outros cartões</p>
-                      <div className="space-y-2 mb-4">
-                        {outrosCards.map((card, i) => {
-                          const isMatheus = card.responsavel === 'Matheus'
-                          return (
-                            <div key={i} className="flex items-center justify-between py-2.5 px-3 bg-gray-50 dark:bg-white/5 rounded-xl">
-                              <div className="flex items-center gap-2">
-                                <div className={`w-2 h-2 rounded-full shrink-0 ${isMatheus ? 'bg-blue-500' : 'bg-pink-500'}`} />
-                                <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{card.label}</span>
+                    {fatura.cartoesExtras.length > 0 && (
+                      <>
+                        <div className="border-t border-gray-100 mt-4 mb-3" />
+                        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Outros cartões</p>
+                        <div className="space-y-2 mb-4">
+                          {fatura.cartoesExtras.map((card) => (
+                            <div key={card.tipo} className="flex items-center justify-between py-2.5 px-3 bg-gray-50 dark:bg-white/5 rounded-xl">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className={`w-2 h-2 rounded-full shrink-0 ${estiloResponsavel(card.responsavelDono).ponto}`} />
+                                <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{card.label}</span>
                               </div>
-                              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 num">
+                              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 num shrink-0">
                                 {fmt(card.atual)} <span className="font-normal text-gray-400">/ {card.previsto > 0 ? card.previsto.toLocaleString('pt-BR') : '–'}</span>
                               </span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                    {fatura.totaisPorResponsavel.length > 0 && (
+                      <div className="grid grid-cols-2 gap-2">
+                        {fatura.totaisPorResponsavel.map((t) => {
+                          const cor = estiloResponsavel(t.responsavel)
+                          return (
+                            <div key={t.responsavel} className={`${cor.tileFundo} rounded-2xl p-3`}>
+                              <div className="flex items-center gap-1.5 mb-1.5 min-w-0">
+                                <div className={`w-2 h-2 rounded-full shrink-0 ${cor.ponto}`} />
+                                <span className={`text-[11px] font-semibold truncate ${cor.tileTexto}`}>{t.responsavel} total</span>
+                              </div>
+                              <p className="text-xl font-bold text-gray-900 num">{fmt(t.atual)}</p>
+                              <p className="text-[11px] text-gray-400 num mt-0.5">de {fmt(t.previsto)}</p>
                             </div>
                           )
                         })}
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-blue-50 rounded-2xl p-3">
-                          <div className="flex items-center gap-1.5 mb-1.5">
-                            <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-                            <span className="text-[11px] font-semibold text-blue-600">Matheus total</span>
-                          </div>
-                          <p className="text-xl font-bold text-gray-900 num">{fmt(matheusTotalAtual)}</p>
-                          <p className="text-[11px] text-gray-400 num mt-0.5">de {fmt(matheusTotalPrevisto)}</p>
-                        </div>
-                        <div className="bg-pink-50 rounded-2xl p-3">
-                          <div className="flex items-center gap-1.5 mb-1.5">
-                            <div className="w-2 h-2 rounded-full bg-pink-500 shrink-0" />
-                            <span className="text-[11px] font-semibold text-pink-600">Jeniffer total</span>
-                          </div>
-                          <p className="text-xl font-bold text-gray-900 num">{fmt(jenifferTotalAtual)}</p>
-                          <p className="text-[11px] text-gray-400 num mt-0.5">de {fmt(jenifferTotalPrevisto)}</p>
-                        </div>
-                      </div>
-                    </>
-                  )
-                })()}
+                    )}
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -1373,7 +1096,7 @@ export default function Dashboard() {
                 cartao2Nome={fatura.cartao2Nome}
                 visao={visaoGastosDiarios}
                 onVisaoChange={setVisaoGastosDiarios}
-                previsto={{ matheus: fatura.matheusPrevisto, jeniffer: fatura.jenifferPrevisto, cartao1: fatura.cartao1Previsto, cartao2: fatura.cartao2Previsto }}
+                previsto={{ matheus: fatura.principalPrevistoPorResponsavel.Matheus ?? 0, jeniffer: fatura.principalPrevistoPorResponsavel.Jeniffer ?? 0, cartao1: fatura.cartao1Previsto, cartao2: fatura.cartao2Previsto }}
                 dataFechamentoFatura={dataFechamentoNubank}
               />
             </div>
