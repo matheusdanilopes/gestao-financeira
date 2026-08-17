@@ -1,4 +1,4 @@
-import { format } from 'date-fns'
+import { format, differenceInCalendarDays } from 'date-fns'
 
 /**
  * Calcula o projeto_fatura (mês de cobrança) de uma transação.
@@ -105,4 +105,31 @@ export function calcularDataFechamentoDaFaturaISO(
   ajusteFechamento: number = 0
 ): string {
   return format(calcularDataFechamentoDaFatura(mesReferencia, diaVencimento, ajusteFechamento), 'yyyy-MM-dd')
+}
+
+/**
+ * Verifica se uma compra caiu nos 2 últimos dias do ciclo de uma fatura —
+ * os 2 dias imediatamente anteriores ao fechamento calculado pela fórmula.
+ * É nessa janela que o fechamento real do NuBank mais diverge da estimativa
+ * (fim de semana/feriado), fazendo a compra do último dia "migrar" para a
+ * fatura seguinte no extrato real.
+ */
+export function estaNosUltimosDoisDiasDoCiclo(
+  dataCompra: Date,
+  mesReferenciaISO: string,
+  diaVencimento: number,
+  ajusteFechamento: number = 0
+): boolean {
+  const mesReferencia = new Date(mesReferenciaISO + 'T12:00:00')
+  const fechamento = calcularDataFechamentoDaFatura(mesReferencia, diaVencimento, ajusteFechamento)
+  const diasAteFechamento = differenceInCalendarDays(fechamento, dataCompra)
+  return diasAteFechamento >= 1 && diasAteFechamento <= 2
+}
+
+/**
+ * Retorna o mes_referencia ('yyyy-MM-dd') da fatura seguinte a uma fatura.
+ */
+export function proximaFatura(mesReferenciaISO: string): string {
+  const [ano, mes] = mesReferenciaISO.split('-').map(Number)
+  return format(new Date(ano, mes, 1), 'yyyy-MM-dd')
 }

@@ -19,6 +19,9 @@ interface EstadoAnteriorConciliacao {
   status: string
   valor: number
   valor_final: number | null
+  /** Só presentes quando a conciliação também corrigiu a fatura da compra (virada de ciclo) — ver lib/conciliacao.ts */
+  data_compra?: string
+  projeto_fatura?: string
 }
 
 interface LinhaValidacaoRow {
@@ -155,9 +158,14 @@ export async function PATCH(
       if (!linha.transacao_id || !estadoAnterior) {
         return NextResponse.json({ error: 'Não há estado anterior registrado para desfazer esta conciliação.' }, { status: 409 })
       }
+      const restauracao: Record<string, unknown> = { status: estadoAnterior.status, valor_final: estadoAnterior.valor_final }
+      if (estadoAnterior.data_compra && estadoAnterior.projeto_fatura) {
+        restauracao.data_compra = estadoAnterior.data_compra
+        restauracao.projeto_fatura = estadoAnterior.projeto_fatura
+      }
       const { data: restaurado, error } = await supabase
         .from('transacoes_nubank')
-        .update({ status: estadoAnterior.status, valor_final: estadoAnterior.valor_final })
+        .update(restauracao)
         .eq('id', linha.transacao_id)
         .eq('status', 'CONCILIADO')
         .select('id')
@@ -176,10 +184,18 @@ export async function PATCH(
       if (!linha.transacao_id) {
         return NextResponse.json({ error: 'Nenhuma transação associada a esta linha.' }, { status: 409 })
       }
-      const valorConciliado = (linha.dados_linha as { valor?: number }).valor ?? linha.valor ?? 0
+      const dadosLinha = linha.dados_linha as { valor?: number; data_compra?: string; projeto_fatura?: string }
+      const valorConciliado = dadosLinha.valor ?? linha.valor ?? 0
+      const reaplicacao: Record<string, unknown> = { status: 'CONCILIADO', valor_final: valorConciliado }
+      // Só reaplica data_compra/projeto_fatura se a conciliação original também tiver
+      // corrigido a fatura (estado_anterior guardou os valores prévios nesse caso).
+      if (estadoAnterior?.data_compra && dadosLinha.data_compra && dadosLinha.projeto_fatura) {
+        reaplicacao.data_compra = dadosLinha.data_compra
+        reaplicacao.projeto_fatura = dadosLinha.projeto_fatura
+      }
       const { data: reconciliado, error } = await supabase
         .from('transacoes_nubank')
-        .update({ status: 'CONCILIADO', valor_final: valorConciliado })
+        .update(reaplicacao)
         .eq('id', linha.transacao_id)
         .eq('status', estadoAnterior?.status ?? 'PENDENTE')
         .select('id')
