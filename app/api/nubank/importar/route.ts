@@ -10,6 +10,7 @@ import { categorizarTransacoes } from '@/lib/categorizarTransacoes'
 import { notificarImportacao } from '@/lib/pushImportacao'
 import { conciliarTransacao, conciliarEstorno, aplicarResponsavelDeParcelaAnterior } from '@/lib/conciliacao'
 import { validarDivergenciaFatura } from '@/lib/validacaoFatura'
+import { corrigirComprasDaViradaNaPrimeiraImportacao } from '@/lib/faturaVirada'
 import { sincronizarAssinaturasMoedaEstrangeira, AssinaturaSincronizada } from '@/lib/assinaturasSync'
 import { LinhaValidacaoInsert, linhaDeTransacao, linhaDeEstorno } from '@/lib/importValidacao'
 
@@ -89,12 +90,19 @@ async function salvarTransacoes(
   supabase: ReturnType<typeof criarSupabaseServer>,
   transacoes: TransacaoNubank[],
   cartao: string = 'nubank',
-  nomeCartao?: string
+  nomeCartao?: string,
+  diaVencimento: number = 10,
+  ajusteFechamento: number = 0
 ) {
   await aplicarResponsavelDeParcelaAnterior(supabase, transacoes)
 
   const transacoesNormais = transacoes.filter(t => !t.is_estorno)
   const estornos = transacoes.filter(t => t.is_estorno)
+
+  // Corrige, só na primeira importação de cada fatura, as compras dos 2
+  // últimos dias do ciclo que a fórmula colocou na fatura errada em
+  // relação ao fechamento real cadastrado — ver lib/faturaVirada.ts.
+  await corrigirComprasDaViradaNaPrimeiraImportacao(supabase, transacoesNormais, cartao, diaVencimento, ajusteFechamento)
 
   let novosMatheus = 0
   let novosJeniffer = 0
@@ -338,7 +346,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: msg }, { status: 422 })
     }
 
-    const resultadoImportacao = await salvarTransacoes(supabase, transacoes, cartao, nomeCartao)
+    const resultadoImportacao = await salvarTransacoes(supabase, transacoes, cartao, nomeCartao, diaVencimento, ajusteFechamento)
 
     // purchaseDates e linhas são excluídos da resposta pública propositalmente: purchaseDates
     // só é usado pelo push (já disparado em background dentro de salvarTransacoes); linhas

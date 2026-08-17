@@ -4,6 +4,7 @@ import { processarCSV } from '@/lib/csvparser'
 import { notificarImportacao } from '@/lib/pushImportacao'
 import { conciliarTransacao, conciliarEstorno, aplicarResponsavelDeParcelaAnterior } from '@/lib/conciliacao'
 import { validarDivergenciaFatura } from '@/lib/validacaoFatura'
+import { corrigirComprasDaViradaNaPrimeiraImportacao } from '@/lib/faturaVirada'
 import { sincronizarAssinaturasMoedaEstrangeira, AssinaturaSincronizada } from '@/lib/assinaturasSync'
 import { LinhaValidacaoInsert, linhaDeTransacao, linhaDeEstorno } from '@/lib/importValidacao'
 
@@ -69,6 +70,11 @@ export async function POST(req: NextRequest) {
 
     const transacoesNormais = transacoes.filter(t => !t.is_estorno)
     const estornos = transacoes.filter(t => t.is_estorno)
+
+    // Corrige, só na primeira importação de cada fatura, as compras dos 2
+    // últimos dias do ciclo que a fórmula colocou na fatura errada em
+    // relação ao fechamento real cadastrado — ver lib/faturaVirada.ts.
+    await corrigirComprasDaViradaNaPrimeiraImportacao(supabase, transacoesNormais, cartao, diaVencimento, ajusteFechamento)
 
     if (transacoesNormais.length === 0 && estornos.length === 0) {
       return NextResponse.json({
