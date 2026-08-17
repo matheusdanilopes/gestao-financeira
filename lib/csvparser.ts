@@ -1,7 +1,7 @@
 import Papa from 'papaparse'
 import { createHash } from 'crypto'
 import { format } from 'date-fns'
-import { calcularProjetoFaturaComOverride } from '@/lib/fatura'
+import { calcularProjetoFatura } from '@/lib/fatura'
 
 type CsvRow = Record<string, string | number | undefined>
 
@@ -149,8 +149,7 @@ export function processarCSV(
   diaVencimento: number = 10,
   ajusteFechamento: number = 0,
   cartao: string = 'nubank',
-  responsavelPadrao?: 'Matheus' | 'Jeniffer' | 'Conjunto',
-  fechamentosRegistrados?: Map<string, string>
+  responsavelPadrao?: 'Matheus' | 'Jeniffer' | 'Conjunto'
 ): TransacaoNubank[] {
   // Remove BOM UTF-8 nos dois formatos possíveis (UTF-8 puro ou lido como Latin-1)
   const csvLimpo = csvText
@@ -211,7 +210,7 @@ export function processarCSV(
 
     // Calcula projeto_fatura com a lógica de ciclo de vencimento
     const dataCompra = new Date(dataISO + 'T12:00:00') // meio-dia para evitar problemas de fuso
-    let projetoFatura = calcularProjetoFaturaComOverride(dataCompra, diaVencimento, ajusteFechamento, fechamentosRegistrados)
+    let projetoFatura = calcularProjetoFatura(dataCompra, diaVencimento, ajusteFechamento)
 
     let hash_linha: string
     let parcela_atual: number | null = null
@@ -257,8 +256,7 @@ export function processarTransacoesJSON(
   transacoes: TransacaoInputJSON[],
   diaVencimento: number = 10,
   ajusteFechamento: number = 0,
-  cartao: string = 'nubank',
-  fechamentosRegistrados?: Map<string, string>
+  cartao: string = 'nubank'
 ): TransacaoNubank[] {
   function sanitizar(str: string): string {
     return str
@@ -300,7 +298,7 @@ export function processarTransacoesJSON(
       descricao.toLowerCase().includes('jeniffer') ? 'Jeniffer' : 'Matheus'
 
     const dataCompra = new Date(dataISO + 'T12:00:00')
-    let projetoFatura = calcularProjetoFaturaComOverride(dataCompra, diaVencimento, ajusteFechamento, fechamentosRegistrados)
+    let projetoFatura = calcularProjetoFatura(dataCompra, diaVencimento, ajusteFechamento)
 
     let hash_linha: string
     let parcela_atual: number | null = null

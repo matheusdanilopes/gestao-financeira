@@ -267,17 +267,6 @@ export async function POST(req: NextRequest) {
     const diaVencimento = parseInt(get(`dia_vencimento_${cartao}`, get('dia_vencimento', '10')))
     const ajusteFechamento = parseInt(get(`ajuste_fechamento_${cartao}`, get('ajuste_fechamento', '0')))
 
-    // Datas de fechamento reais cadastradas manualmente (Configurações → Faturas),
-    // usadas para corrigir a fórmula vencimento-7+ajuste nas compras próximas da
-    // virada de fatura — ver calcularProjetoFaturaComOverride em lib/fatura.ts.
-    const { data: faturasRegistradas } = await supabase
-      .from('faturas')
-      .select('mes_referencia, data_fechamento')
-      .eq('cartao', cartao)
-    const fechamentosRegistrados = new Map<string, string>(
-      (faturasRegistradas ?? []).map((f: { mes_referencia: string; data_fechamento: string }): [string, string] => [f.mes_referencia, f.data_fechamento])
-    )
-
     const contentType = req.headers.get('content-type') ?? ''
     let transacoes: TransacaoNubank[]
 
@@ -301,7 +290,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: msg }, { status: 400 })
       }
       const csvText = await file.text()
-      transacoes = processarCSV(csvText, diaVencimento, ajusteFechamento, cartao, undefined, fechamentosRegistrados)
+      transacoes = processarCSV(csvText, diaVencimento, ajusteFechamento, cartao)
     } else {
       let body: Record<string, unknown>
       try {
@@ -324,14 +313,13 @@ export async function POST(req: NextRequest) {
       }
 
       if (typeof body?.csv === 'string') {
-        transacoes = processarCSV(body.csv, diaVencimento, ajusteFechamento, cartao, undefined, fechamentosRegistrados)
+        transacoes = processarCSV(body.csv, diaVencimento, ajusteFechamento, cartao)
       } else if (Array.isArray(body?.transacoes)) {
         transacoes = processarTransacoesJSON(
           body.transacoes as TransacaoInputJSON[],
           diaVencimento,
           ajusteFechamento,
-          cartao,
-          fechamentosRegistrados
+          cartao
         )
       } else {
         const msg = 'Body deve conter "csv" (string com conteúdo CSV) ou "transacoes" (array de objetos).'
