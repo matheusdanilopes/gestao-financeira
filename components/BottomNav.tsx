@@ -361,12 +361,12 @@ export default memo(function BottomNav() {
   const [openDesktopMenu, setOpenDesktopMenu] = useState<NavModuleKey | null>(null)
   const [fabSheetOpen, setFabSheetOpen] = useState(false)
   const { categorizando } = useCategorizacao()
-  const { execucao: execucaoImportacao } = useImportacaoScript()
+  const { execucaoManual: execucaoImportacao } = useImportacaoScript()
   const isOnline = useOnline()
 
-  // Faixa de status da importação: só aparece para execuções disparadas manualmente
-  // pela tela de importação (origem 'api') — nunca para o gatilho automático do
-  // Apps Script (origem 'job'), que não deve gerar aviso em toda a navegação.
+  // Faixa de status da importação: só aparece para execuções de fato disparadas pelo
+  // botão da tela de importação (execucaoManual) — nunca para as detectadas de forma
+  // passiva ao carregar o app, que incluem o gatilho automático do Apps Script.
   const statusImportacao = execucaoImportacao?.status
   const importExecKey = `${statusImportacao ?? ''}|${execucaoImportacao?.iniciadoEm ?? ''}|${execucaoImportacao?.finalizadoEm ?? ''}`
   const [importDispensado, setImportDispensado] = useState(false)
@@ -384,7 +384,6 @@ export default memo(function BottomNav() {
 
   const mostrarFaixaImportacao =
     pathname !== '/importar' &&
-    execucaoImportacao?.origem === 'api' &&
     !importDispensado &&
     (statusImportacao === 'running' || statusImportacao === 'success' || statusImportacao === 'error')
 
