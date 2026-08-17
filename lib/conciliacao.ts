@@ -30,8 +30,9 @@ export interface ResultadoConciliacao {
   matchExistenteId?: string | null
   /** id da notificação conciliacao_conflito criada (só quando acao='conflito') */
   notificacaoId?: string | null
-  /** estado do registro conciliado antes desta linha sobrescrever valor/valor_final/status (só acao='conciliado') */
-  estadoAnterior?: { status: string; valor: number; valor_final: number | null } | null
+  /** estado do registro conciliado antes desta linha sobrescrever valor/valor_final/status (só acao='conciliado').
+   *  data_compra/projeto_fatura só aparecem quando a data também foi corrigida (ver conciliarTransacao). */
+  estadoAnterior?: { status: string; valor: number; valor_final: number | null; data_compra?: string; projeto_fatura?: string } | null
   /** snapshot do registro já existente que fez esta linha ser duplicada/conflito (explica por que não foi importada) */
   registroConflitante?: RegistroConflitante | null
 }
@@ -56,6 +57,7 @@ interface TransacaoMatch {
   data_compra: string
   status: string
   valor_final: number | null
+  projeto_fatura: string
 }
 
 async function buscarMatchNomeData(
@@ -68,7 +70,7 @@ async function buscarMatchNomeData(
 
   const { data, error } = await supabase
     .from('transacoes_nubank')
-    .select('id, descricao, valor, data_compra, status, valor_final')
+    .select('id, descricao, valor, data_compra, status, valor_final, projeto_fatura')
     .eq('cartao', cartao)
     .gte('data_compra', dataInicio)
     .lte('data_compra', dataFim)
@@ -77,7 +79,7 @@ async function buscarMatchNomeData(
   if (error?.message?.includes('data_compra')) {
     const { data: data2 } = await supabase
       .from('transacoes_nubank')
-      .select('id, descricao, valor, data, status, valor_final')
+      .select('id, descricao, valor, data, status, valor_final, projeto_fatura')
       .eq('cartao', cartao)
       .gte('data', dataInicio)
       .lte('data', dataFim)
@@ -133,6 +135,18 @@ export async function inserirRegistro(
     return { id: null, ok: false }
   }
   throw new Error('Erro ao salvar: ' + result.error.message)
+}
+
+async function atualizarRegistroConciliado(
+  supabase: SupabaseClient,
+  matchId: string,
+  payload: Record<string, unknown>
+): Promise<void> {
+  const { error } = await supabase.from('transacoes_nubank').update(payload).eq('id', matchId)
+  if (error?.message?.includes('data_compra') && 'data_compra' in payload) {
+    const { data_compra, ...resto } = payload
+    await supabase.from('transacoes_nubank').update({ ...resto, data: data_compra }).eq('id', matchId)
+  }
 }
 
 async function criarNotificacaoConflito(
@@ -357,17 +371,37 @@ export async function conciliarTransacao(
       // Match completo (nome + data + valor dentro da tolerância): a fonte mais recente
       // (CSV ou API) é autoridade sobre o valor final da compra — atualiza valor_final
       // e marca como CONCILIADO em ambos os casos.
-      console.log(`[conciliacao] conciliado (match nome+data+valor, origem=${origem}) desc="${item.descricao}" data=${item.data_compra} valor=${item.valor}`)
-      await supabase
-        .from('transacoes_nubank')
-        .update({ valor_final: item.valor, status: 'CONCILIADO' })
-        .eq('id', match.id)
+      //
+      // Além disso, o NuBank às vezes revisa a data de uma compra já importada entre uma
+      // exportação e outra (ex.: uma compra do dia 24 aparece como dia 25 numa reimportação
+      // — o dia do fechamento). Quando isso muda o projeto_fatura calculado pela fórmula
+      // (item.projeto_fatura, já calculado a partir de item.data_compra por quem chamou),
+      // a transação existente é corrigida para a fatura certa em vez de ficar presa na
+      // fatura antiga — sem isso o valor da fatura no app diverge do NuBank exatamente
+      // nesse tipo de compra de virada.
+      const faturaMudou = item.projeto_fatura !== match.projeto_fatura
+      const atualizacao: Record<string, unknown> = { valor_final: item.valor, status: 'CONCILIADO' }
+      if (faturaMudou) {
+        atualizacao.data_compra = item.data_compra
+        atualizacao.projeto_fatura = item.projeto_fatura
+      }
+
+      console.log(
+        `[conciliacao] conciliado (match nome+data+valor, origem=${origem}) desc="${item.descricao}" data=${item.data_compra} valor=${item.valor}` +
+        (faturaMudou ? ` | fatura corrigida: ${match.projeto_fatura} → ${item.projeto_fatura} (data ${match.data_compra} → ${item.data_compra})` : '')
+      )
+      await atualizarRegistroConciliado(supabase, match.id, atualizacao)
       return {
         acao: 'conciliado',
         inseriu: false,
         matchExistenteId: match.id,
         transacaoId: match.id,
-        estadoAnterior: { status: match.status, valor: match.valor, valor_final: match.valor_final },
+        estadoAnterior: {
+          status: match.status,
+          valor: match.valor,
+          valor_final: match.valor_final,
+          ...(faturaMudou ? { data_compra: match.data_compra, projeto_fatura: match.projeto_fatura } : {}),
+        },
       }
     }
 
