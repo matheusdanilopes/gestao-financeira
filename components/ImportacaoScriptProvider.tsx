@@ -52,6 +52,15 @@ interface ImportacaoScriptContextType {
   disparando: boolean
   erro: string | null
   execucao: StatusExecucaoScript | null
+  /**
+   * Espelha `execucao`, mas só é preenchido quando a execução foi de fato disparada
+   * pelo botão desta tela (ver `disparar`) — nunca pela checagem passiva de mount, que
+   * também detecta execuções do gatilho de tempo do Apps Script. O campo `origem` que o
+   * próprio Apps Script reporta não é confiável para essa distinção (execuções do
+   * gatilho de tempo às vezes vêm marcadas como 'api'), então usamos esta flag local
+   * como fonte da verdade para qualquer indicador global (fora de /importar).
+   */
+  execucaoManual: StatusExecucaoScript | null
   disparar: (cartao: TipoCartaoScript) => Promise<void>
   verificarStatusAgora: () => void
 }
@@ -60,6 +69,7 @@ const ImportacaoScriptContext = createContext<ImportacaoScriptContextType>({
   disparando: false,
   erro: null,
   execucao: null,
+  execucaoManual: null,
   disparar: async () => {},
   verificarStatusAgora: () => {},
 })
@@ -79,9 +89,13 @@ export function ImportacaoScriptProvider({ children }: { children: React.ReactNo
   const [disparando, setDisparando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [execucao, setExecucao] = useState<StatusExecucaoScript | null>(null)
+  const [execucaoManual, setExecucaoManual] = useState<StatusExecucaoScript | null>(null)
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pollInicioRef = useRef<number | null>(null)
   const consultarRef = useRef<(agendarProximo: boolean) => Promise<void>>(async () => {})
+  // Marca se a cadeia de polling em andamento pertence a um disparo manual (botão
+  // desta tela) ou à checagem passiva de mount — só a primeira alimenta execucaoManual.
+  const origemPollingRef = useRef<'manual' | 'passivo'>('passivo')
   // true entre o momento em que disparamos/detectamos uma execução e o momento em
   // que um poll traz um resultado definitivo (success/error) — evita que um poll
   // que ainda não viu o status "running" propagado (corrida com o Apps Script)
@@ -110,6 +124,14 @@ export function ImportacaoScriptProvider({ children }: { children: React.ReactNo
     pollRef.current = setTimeout(() => consultarRef.current(true), 4000)
   }, [])
 
+  // Aplica uma execução detectada tanto ao estado geral (usado por /importar) quanto,
+  // quando a cadeia de polling atual pertence a um disparo manual, ao espelho
+  // execucaoManual (usado pelo indicador global fora de /importar).
+  const aplicarExecucao = useCallback((exec: StatusExecucaoScript | null) => {
+    setExecucao(exec)
+    if (origemPollingRef.current === 'manual') setExecucaoManual(exec)
+  }, [])
+
   const consultarStatus = useCallback(async (agendarProximo: boolean) => {
     try {
       const res = await fetch('/api/import/google-apps-script')
@@ -123,13 +145,13 @@ export function ImportacaoScriptProvider({ children }: { children: React.ReactNo
 
       if (exec?.status === 'running' || data.emExecucao) {
         aguardandoResultadoRef.current = true
-        setExecucao(exec ?? { status: 'running' })
+        aplicarExecucao(exec ?? { status: 'running' })
         if (agendarProximo) agendarProximoPoll()
         return
       }
       if (exec?.status === 'success' || exec?.status === 'error') {
         aguardandoResultadoRef.current = false
-        setExecucao(exec)
+        aplicarExecucao(exec)
         if (exec.status === 'success') setErro(null)
         pararPolling()
         return
@@ -140,7 +162,7 @@ export function ImportacaoScriptProvider({ children }: { children: React.ReactNo
       // pra sempre um formato que essa implementação não está devolvendo.
       if (typeof data.sucesso === 'boolean') {
         aguardandoResultadoRef.current = false
-        setExecucao({
+        aplicarExecucao({
           status: data.sucesso ? 'success' : 'error',
           erro: data.sucesso ? undefined : (data.erro ?? data.mensagem),
           mensagem: data.mensagem,
@@ -155,7 +177,7 @@ export function ImportacaoScriptProvider({ children }: { children: React.ReactNo
       // de continuar tentando pra sempre um problema que não vai se resolver sozinho.
       if (typeof data.erro === 'string') {
         aguardandoResultadoRef.current = false
-        setExecucao({
+        aplicarExecucao({
           status: 'error',
           erro: data.corpoBruto ? `${data.erro} Resposta: ${data.corpoBruto.slice(0, 300)}` : data.erro,
         })
@@ -170,14 +192,14 @@ export function ImportacaoScriptProvider({ children }: { children: React.ReactNo
         if (agendarProximo) agendarProximoPoll()
         return
       }
-      setExecucao(null)
+      aplicarExecucao(null)
       pararPolling()
     } catch {
       // Falha passageira (rede, JSON inválido etc.) — tenta de novo mais adiante
       // em vez de deixar o polling morrer silenciosamente.
       if (agendarProximo) agendarProximoPoll()
     }
-  }, [pararPolling, agendarProximoPoll])
+  }, [pararPolling, agendarProximoPoll, aplicarExecucao])
 
   // Mantém uma ref sempre atualizada para o setTimeout recursivo acima poder
   // chamar a versão mais recente sem precisar declará-la antes de si mesma.
@@ -189,6 +211,7 @@ export function ImportacaoScriptProvider({ children }: { children: React.ReactNo
   // ao carregar (ex.: disparada pelo gatilho de tempo do Apps Script) — continua o
   // polling até ela terminar, independente de qual tela o usuário está.
   useEffect(() => {
+    origemPollingRef.current = 'passivo'
     consultarStatus(true)
     return () => pararPolling()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -214,10 +237,12 @@ export function ImportacaoScriptProvider({ children }: { children: React.ReactNo
       const data: RespostaScript = await res.json()
 
       if (res.status === 409 || data.emExecucao) {
-        // Já existe uma execução em andamento (pode ter sido disparada por outro
-        // acionamento ou pelo gatilho de tempo do Apps Script) — não é um erro.
+        // Já existe uma execução em andamento — não foi este clique que a
+        // disparou (pode ter sido outro acionamento ou o gatilho de tempo do Apps
+        // Script), então não marca como manual para o indicador global.
+        origemPollingRef.current = 'passivo'
         aguardandoResultadoRef.current = true
-        setExecucao(data.status ?? { status: 'running' })
+        aplicarExecucao(data.status ?? { status: 'running' })
         agendarProximoPoll()
         return
       }
@@ -225,8 +250,10 @@ export function ImportacaoScriptProvider({ children }: { children: React.ReactNo
 
       // Disparo aceito — a execução real roda em background; acompanha via polling,
       // que continua rodando aqui no provider mesmo que o usuário saia da tela.
+      // Marcada como manual: este clique é quem iniciou a execução.
+      origemPollingRef.current = 'manual'
       aguardandoResultadoRef.current = true
-      setExecucao({ status: 'running', iniciadoEm: new Date().toISOString(), origem: 'api' })
+      aplicarExecucao({ status: 'running', iniciadoEm: new Date().toISOString(), origem: 'api' })
       agendarProximoPoll()
     } catch (e) {
       aguardandoResultadoRef.current = false
@@ -234,10 +261,10 @@ export function ImportacaoScriptProvider({ children }: { children: React.ReactNo
     } finally {
       setDisparando(false)
     }
-  }, [pararPolling, agendarProximoPoll])
+  }, [pararPolling, agendarProximoPoll, aplicarExecucao])
 
   return (
-    <ImportacaoScriptContext.Provider value={{ disparando, erro, execucao, disparar, verificarStatusAgora }}>
+    <ImportacaoScriptContext.Provider value={{ disparando, erro, execucao, execucaoManual, disparar, verificarStatusAgora }}>
       {children}
     </ImportacaoScriptContext.Provider>
   )
