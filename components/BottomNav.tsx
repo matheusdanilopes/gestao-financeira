@@ -3,13 +3,14 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  LayoutDashboard, Sparkles, Plus, MoreHorizontal, WifiOff, ChevronDown, ShoppingBasket,
+  LayoutDashboard, Sparkles, Plus, MoreHorizontal, WifiOff, ChevronDown, ShoppingBasket, FileSpreadsheet, X,
 } from 'lucide-react'
 import { memo, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabaseClient'
 import { AUTH_DISABLED } from '@/lib/authConfig'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
+import { useImportacaoScript } from '@/components/ImportacaoScriptProvider'
 import { useOnline } from '@/lib/useOnline'
 import ModalPortal from '@/components/ModalPortal'
 import FabQuickLaunchSheet from '@/components/FabQuickLaunchSheet'
@@ -37,6 +38,22 @@ const ROTAS_LISTAS   = ['/wishlist', '/lista-mercado', '/listas-compras']
 const ROTAS_RELATORIOS = ['/relatorios', '/analytics']
 // União de tudo que hoje mora dentro do popover "Extras" no mobile.
 const ROTAS_EXTRAS = [...ROTAS_LISTAS, ...ROTAS_RELATORIOS, '/chat', '/configuracoes']
+
+// Sucesso some sozinho depois de um tempo — erro fica visível até o usuário
+// dispensar ou visitar /importar, onde o painel completo assume.
+const IMPORT_BAND_AUTO_HIDE_MS = 8000
+
+const IMPORT_BAND_ESTILOS: Record<'running' | 'success' | 'error', string> = {
+  running: 'bg-blue-50 border-blue-100 text-blue-600',
+  success: 'bg-green-50 border-green-100 text-green-600',
+  error: 'bg-red-50 border-red-100 text-red-600',
+}
+
+const IMPORT_BAND_TEXTOS: Record<'running' | 'success' | 'error', string> = {
+  running: 'Importando dados…',
+  success: 'Importação concluída',
+  error: 'Falha na importação',
+}
 
 function rotaAtiva(pathname: string | null, rotas: readonly string[]) {
   if (!pathname) return false
@@ -344,7 +361,32 @@ export default memo(function BottomNav() {
   const [openDesktopMenu, setOpenDesktopMenu] = useState<NavModuleKey | null>(null)
   const [fabSheetOpen, setFabSheetOpen] = useState(false)
   const { categorizando } = useCategorizacao()
+  const { execucao: execucaoImportacao } = useImportacaoScript()
   const isOnline = useOnline()
+
+  // Faixa de status da importação: só aparece para execuções disparadas manualmente
+  // pela tela de importação (origem 'api') — nunca para o gatilho automático do
+  // Apps Script (origem 'job'), que não deve gerar aviso em toda a navegação.
+  const statusImportacao = execucaoImportacao?.status
+  const importExecKey = `${statusImportacao ?? ''}|${execucaoImportacao?.iniciadoEm ?? ''}|${execucaoImportacao?.finalizadoEm ?? ''}`
+  const [importDispensado, setImportDispensado] = useState(false)
+  const [ultimaImportExecKey, setUltimaImportExecKey] = useState(importExecKey)
+  if (importExecKey !== ultimaImportExecKey) {
+    setUltimaImportExecKey(importExecKey)
+    setImportDispensado(false)
+  }
+
+  useEffect(() => {
+    if (statusImportacao !== 'success') return
+    const id = setTimeout(() => setImportDispensado(true), IMPORT_BAND_AUTO_HIDE_MS)
+    return () => clearTimeout(id)
+  }, [statusImportacao, execucaoImportacao?.finalizadoEm])
+
+  const mostrarFaixaImportacao =
+    pathname !== '/importar' &&
+    execucaoImportacao?.origem === 'api' &&
+    !importDispensado &&
+    (statusImportacao === 'running' || statusImportacao === 'success' || statusImportacao === 'error')
 
   // Prefetch rotas dos sub-menus assim que o usuário os abre —
   // antecipa o RSC fetch antes do tap no item, tornando a navegação mais rápida.
@@ -464,6 +506,27 @@ export default memo(function BottomNav() {
           <Sparkles className="w-3 h-3 animate-pulse" />
           Categorizando com IA…
         </div>
+      )}
+
+      {mostrarFaixaImportacao && statusImportacao && (
+        <Link
+          href="/importar"
+          className={`flex items-center justify-center gap-1.5 border-b py-1.5 text-xs font-medium transition-colors ${IMPORT_BAND_ESTILOS[statusImportacao]}`}
+        >
+          {statusImportacao === 'running'
+            ? <span className="w-3 h-3 shrink-0 rounded-full border-2 border-current border-t-transparent animate-spin" />
+            : <FileSpreadsheet className="w-3 h-3 shrink-0" aria-hidden="true" />}
+          {IMPORT_BAND_TEXTOS[statusImportacao]}
+          {statusImportacao !== 'running' && (
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setImportDispensado(true) }}
+              className="ml-0.5 opacity-60 hover:opacity-100 transition-opacity"
+              aria-label="Dispensar aviso de importação"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </Link>
       )}
 
       {/* Indicador discreto de modo offline */}
