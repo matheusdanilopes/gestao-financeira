@@ -8,7 +8,13 @@ import {
 } from '@/lib/csvparser'
 import { categorizarTransacoes } from '@/lib/categorizarTransacoes'
 import { notificarImportacao } from '@/lib/pushImportacao'
-import { conciliarTransacao, conciliarEstorno, aplicarResponsavelDeParcelaAnterior } from '@/lib/conciliacao'
+import {
+  conciliarTransacao,
+  conciliarEstorno,
+  aplicarResponsavelDeParcelaAnterior,
+  construirContextoConciliacao,
+  construirContextoEstornos,
+} from '@/lib/conciliacao'
 import { validarDivergenciaFatura } from '@/lib/validacaoFatura'
 import { corrigirComprasDaViradaNaPrimeiraImportacao } from '@/lib/faturaVirada'
 import { sincronizarAssinaturasMoedaEstrangeira, AssinaturaSincronizada } from '@/lib/assinaturasSync'
@@ -121,11 +127,17 @@ async function salvarTransacoes(
   const faturaStats: Record<string, StatsFatura> = {}
   for (const f of mesesNoArquivo) faturaStats[f] = { noCSV: 0, inseridas: 0, ignoradas: 0, totalNoBanco: 0 }
 
+  // Pré-carrega, em poucas queries em lote (em vez de 1 query por transação), o
+  // dedupe por hash e os candidatos de match nome+data usados por conciliarTransacao
+  // — ver lib/conciliacao.ts. A decisão tomada para cada linha é idêntica à anterior;
+  // só o número de round-trips ao banco muda.
+  const contexto = await construirContextoConciliacao(supabase, transacoesNormais)
+
   for (const item of transacoesNormais) {
     const stats = faturaStats[item.projeto_fatura]
     stats.noCSV++
 
-    const resultado = await conciliarTransacao(supabase, item, 'api')
+    const resultado = await conciliarTransacao(supabase, item, 'api', contexto)
     const linha = linhaDeTransacao(item, resultado)
     if (linha) linhas.push(linha)
 
@@ -162,8 +174,13 @@ async function salvarTransacoes(
     }
   }
 
+  // Construído após o loop acima terminar, para que os candidatos já reflitam as
+  // transações normais recém-inseridas/atualizadas (mesma garantia que as queries
+  // por item ofereciam antes).
+  const contextoEstorno = await construirContextoEstornos(supabase, estornos)
+
   for (const estorno of estornos) {
-    const resultado = await conciliarEstorno(supabase, estorno)
+    const resultado = await conciliarEstorno(supabase, estorno, contextoEstorno)
     linhas.push(linhaDeEstorno(estorno, resultado))
 
     if (resultado.acao === 'aplicado')   estornosAplicados++
@@ -191,7 +208,7 @@ async function salvarTransacoes(
 
   let assinaturasAtualizadas: AssinaturaSincronizada[] = []
   try {
-    for (const fatura of mesesNoArquivo) {
+    await Promise.all(mesesNoArquivo.map(async fatura => {
       const { count } = await supabase
         .from('transacoes_nubank')
         .select('*', { count: 'exact', head: true })
@@ -199,7 +216,7 @@ async function salvarTransacoes(
         .eq('cartao', cartao)
         .eq('is_estorno', false)
       faturaStats[fatura].totalNoBanco = count ?? 0
-    }
+    }))
 
     await validarDivergenciaFatura(supabase, faturaStats, transacoesNormais, cartao, nomeCartao)
 
