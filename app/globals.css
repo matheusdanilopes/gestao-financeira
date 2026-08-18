@@ -370,7 +370,7 @@ button, a, [role="button"] {
 }
 .page-enter {
   animation: fade-up 0.08s ease-out;
-  will-change: opacity, transform;
+  will-change: opacity;
 }
 
 /* ─── Dashboard badge (Previsão / Histórico) ─────────────────────────────── */

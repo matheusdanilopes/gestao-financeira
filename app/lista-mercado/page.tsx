@@ -67,6 +67,15 @@ function carregarHistorico(): string[] {
   } catch { return [] }
 }
 
+// Máscara de moeda "centavos primeiro": o usuário digita só números e a
+// vírgula decimal aparece sozinha (ex: digitar 1250 vira "12,50").
+function maskMoeda(raw: string): string {
+  const digitos = raw.replace(/\D/g, '')
+  if (!digitos) return ''
+  const centavos = parseInt(digitos, 10)
+  return (centavos / 100).toFixed(2).replace('.', ',')
+}
+
 function parsearInput(text: string): { nome: string; quantidade: number } {
   const match = text.match(/^(.+?)\s+(\d+)x?$/i)
   if (match) {
@@ -147,7 +156,7 @@ function BottomSheetPreco({
                   type="text"
                   inputMode="decimal"
                   value={valor}
-                  onChange={e => setValor(e.target.value)}
+                  onChange={e => setValor(maskMoeda(e.target.value))}
                   onKeyDown={e => e.key === 'Escape' && onClose()}
                   placeholder="0,00"
                   className="w-full pl-10 pr-4 py-3.5 rounded-2xl border border-gray-200 text-sm font-semibold text-gray-900
@@ -303,7 +312,7 @@ function BottomSheetConfirmarCompra({
                   type="text"
                   inputMode="decimal"
                   value={preco}
-                  onChange={e => setPreco(e.target.value)}
+                  onChange={e => setPreco(maskMoeda(e.target.value))}
                   onKeyDown={e => e.key === 'Escape' && onClose()}
                   placeholder="0,00"
                   className="w-full pl-10 pr-4 py-3.5 rounded-2xl border border-gray-200 text-sm font-semibold text-gray-900
@@ -460,7 +469,7 @@ function BottomSheetFinalizarCompra({
                 type="text"
                 inputMode="decimal"
                 value={valor}
-                onChange={e => setValor(e.target.value)}
+                onChange={e => setValor(maskMoeda(e.target.value))}
                 onKeyDown={e => e.key === 'Escape' && onClose()}
                 placeholder="0,00"
                 className="w-full pl-10 pr-4 py-3.5 rounded-2xl border border-gray-200 text-sm font-semibold text-gray-900
@@ -773,41 +782,14 @@ function SubtotalBar({
   totalItens: number
   onFinalizar: () => void
 }) {
-  const [visible, setVisible] = useState(true)
-  const lastYRef = useRef(0)
-  const tickingRef = useRef(false)
-
-  useEffect(() => {
-    function handleScroll() {
-      if (tickingRef.current) return
-      tickingRef.current = true
-      requestAnimationFrame(() => {
-        const y = window.scrollY
-        const delta = y - lastYRef.current
-        if (delta > 12) setVisible(false)
-        else if (delta < -8) setVisible(true)
-        lastYRef.current = y
-        tickingRef.current = false
-      })
-    }
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
-
   if (totalItens === 0) return null
 
   const progress = compradosCount / totalItens
 
   return (
     <div
-      className="fixed bottom-16 left-0 right-0 z-40 px-3 pb-2 pointer-events-none"
-      style={{
-        transform: visible ? 'translateY(0)' : 'translateY(96px)',
-        transition: visible
-          ? 'transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1)'
-          : 'transform 0.20s ease-in',
-        willChange: 'transform',
-      }}
+      className="fixed left-0 right-0 z-40 px-3 pb-2 pointer-events-none"
+      style={{ bottom: 'calc(4rem + var(--safe-bottom))' }}
     >
       <div className="max-w-md md:max-w-2xl lg:max-w-5xl xl:max-w-7xl mx-auto">
         <div className="subtotal-bar rounded-2xl overflow-hidden pointer-events-auto">
