@@ -782,27 +782,6 @@ function SubtotalBar({
   totalItens: number
   onFinalizar: () => void
 }) {
-  const [visible, setVisible] = useState(true)
-  const lastYRef = useRef(0)
-  const tickingRef = useRef(false)
-
-  useEffect(() => {
-    function handleScroll() {
-      if (tickingRef.current) return
-      tickingRef.current = true
-      requestAnimationFrame(() => {
-        const y = window.scrollY
-        const delta = y - lastYRef.current
-        if (delta > 12) setVisible(false)
-        else if (delta < -8) setVisible(true)
-        lastYRef.current = y
-        tickingRef.current = false
-      })
-    }
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
-
   if (totalItens === 0) return null
 
   const progress = compradosCount / totalItens
@@ -810,14 +789,7 @@ function SubtotalBar({
   return (
     <div
       className="fixed left-0 right-0 z-40 px-3 pb-2 pointer-events-none"
-      style={{
-        bottom: 'calc(4rem + var(--safe-bottom))',
-        transform: visible ? 'translateY(0)' : 'translateY(96px)',
-        transition: visible
-          ? 'transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1)'
-          : 'transform 0.20s ease-in',
-        willChange: 'transform',
-      }}
+      style={{ bottom: 'calc(4rem + var(--safe-bottom))' }}
     >
       <div className="max-w-md md:max-w-2xl lg:max-w-5xl xl:max-w-7xl mx-auto">
         <div className="subtotal-bar rounded-2xl overflow-hidden pointer-events-auto">
