@@ -640,7 +640,7 @@ export default function Dashboard() {
         <div className="flex items-center mb-2 pr-20">
           <div>
             <p className="text-[11px] font-medium text-gray-400 leading-none">{saudacao}</p>
-            <h1 className="text-lg font-bold text-gray-900 leading-tight mt-0.5">Dashboard</h1>
+            <h1 className="font-display italic text-xl text-gray-900 leading-tight mt-0.5">Dashboard</h1>
             <UltimaImportacaoInfo />
           </div>
         </div>
@@ -704,7 +704,7 @@ export default function Dashboard() {
 
                 {/* Main balance value */}
                 <div className="mb-4">
-                  <p key={heroSaldo} className={`text-4xl lg:text-5xl font-bold num value-tight value-update ${heroColor}`}>
+                  <p key={heroSaldo} className={`font-display text-4xl lg:text-5xl font-semibold num value-tight value-update ${heroColor}`}>
                     {fmt(heroSaldo)}
                   </p>
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1.5">

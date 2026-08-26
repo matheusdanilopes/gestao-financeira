@@ -61,23 +61,22 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      {/* Background decoration */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
-        <div className="absolute -top-40 -right-40 w-[480px] h-[480px] rounded-full bg-primary-100 opacity-50 blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-[480px] h-[480px] rounded-full bg-violet-100 opacity-40 blur-3xl" />
-        {/* Terceiro blob sutil no centro */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-indigo-50 opacity-30 blur-3xl" />
-      </div>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 relative overflow-hidden">
+      {/* Pauta de livro-razão — assinatura visual do app, não um blob decorativo */}
+      <div className="absolute inset-0 ledger-lines pointer-events-none" aria-hidden />
+      <div className="absolute left-1/2 -translate-x-[92px] top-0 bottom-0 w-px ledger-margin-rule pointer-events-none hidden sm:block" aria-hidden />
 
       <div className="bg-white rounded-3xl shadow-card-md border border-gray-100 w-full max-w-sm p-8 relative page-enter">
-        {/* Logo */}
-        <div className="flex flex-col items-center mb-8 gap-1">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-primary-600 flex items-center justify-center mb-3 shadow-md">
-            <TrendingUp className="w-7 h-7 text-white" strokeWidth={2} />
+        {/* Selo */}
+        <div className="flex flex-col items-center mb-8 gap-2">
+          <div className="w-16 h-16 rounded-full bg-primary-50 ring-1 ring-primary-200 flex items-center justify-center mb-1 relative">
+            <div className="absolute inset-1.5 rounded-full border border-dashed border-primary-200" aria-hidden />
+            <TrendingUp className="w-6 h-6 text-primary-600" strokeWidth={2} />
           </div>
-          <h1 className="text-xl font-bold text-gray-900 tracking-tight">Gestão Financeira</h1>
-          <p className="text-sm text-gray-500">Matheus &amp; Jeniffer</p>
+          <h1 className="font-display italic text-[26px] leading-none text-gray-900 tracking-tight">
+            Gestão Financeira
+          </h1>
+          <p className="text-xs text-gray-400 uppercase tracking-[0.16em] mt-1">Matheus &amp; Jeniffer</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
