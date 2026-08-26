@@ -999,7 +999,6 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
             setModalAberto('adicionar')
           }}
           onImport={abrirModalImportar}
-          importColorClass="bg-orange-500 text-white hover:bg-orange-600"
         />
       )}
 

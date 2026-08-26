@@ -234,7 +234,7 @@ export default function RelatorioMensalPage() {
           >
             <ArrowLeft className="w-5 h-5 text-gray-600" strokeWidth={2} />
           </button>
-          <h1 className="text-xl font-bold text-gray-900">Relatório Gerencial Mensal</h1>
+          <h1 className="font-display italic text-xl font-semibold text-gray-900">Relatório Gerencial Mensal</h1>
         </div>
         <MonthSelector value={mesAtual} onChange={setMesAtual} />
       </div>

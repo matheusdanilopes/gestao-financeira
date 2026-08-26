@@ -1233,7 +1233,7 @@ function WishlistContent() {
             <Heart className="w-5 h-5 text-pink-500" strokeWidth={1.8} />
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-bold text-gray-900 leading-none">Wishlist Familiar</h1>
+            <h1 className="font-display italic text-lg font-semibold text-gray-900 leading-none">Wishlist Familiar</h1>
             <p className="text-xs text-gray-400 mt-0.5">
               {ativos.length} {ativos.length === 1 ? 'desejo' : 'desejos'}
               {historico.length > 0 && (

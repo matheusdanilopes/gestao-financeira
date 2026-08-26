@@ -340,7 +340,7 @@ export default function ListasComprasPage() {
             <Crown className="w-5 h-5 text-amber-600 dark:text-amber-400" strokeWidth={1.8} />
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-bold text-gray-900 dark:text-white leading-none">Listas da Princesa</h1>
+            <h1 className="font-display italic text-lg font-semibold text-gray-900 dark:text-white leading-none">Listas da Princesa</h1>
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
               {ativas.length} {ativas.length === 1 ? 'lista ativa' : 'listas ativas'}
               {arquivadas.length > 0 && ` · ${arquivadas.length} arquivada${arquivadas.length > 1 ? 's' : ''}`}

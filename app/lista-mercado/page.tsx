@@ -1052,7 +1052,7 @@ export default function ListaMercadoPage() {
             <ShoppingBasket className="w-5 h-5 text-emerald-600" strokeWidth={1.8} />
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-bold text-gray-900 leading-none">Lista de Mercado</h1>
+            <h1 className="font-display italic text-lg font-semibold text-gray-900 leading-none">Lista de Mercado</h1>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               <p className="text-xs text-gray-400">
                 {pendentes.length} {pendentes.length === 1 ? 'item pendente' : 'itens pendentes'}

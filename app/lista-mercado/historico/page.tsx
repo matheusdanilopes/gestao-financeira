@@ -173,7 +173,7 @@ export default function HistoricoComprasPage() {
               <History className="w-4 h-4 text-green-600" strokeWidth={1.8} />
             </div>
             <div className="min-w-0">
-              <h1 className="text-base font-bold text-gray-900 leading-none">Histórico de Compras</h1>
+              <h1 className="font-display italic text-base font-semibold text-gray-900 leading-none">Histórico de Compras</h1>
               {filtrado.length > 0 && !loading && (
                 <p className="text-[11px] text-gray-400 mt-0.5">
                   {filtrado.length} {filtrado.length === 1 ? 'compra' : 'compras'} · {formatBRL(totalPeriodo)}

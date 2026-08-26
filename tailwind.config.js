@@ -17,17 +17,15 @@ module.exports = {
         display: ['var(--font-fraunces)', 'ui-serif', 'Georgia', 'serif'],
       },
       colors: {
-        // Petróleo profundo — substitui o indigo/roxo genérico de SaaS por uma cor
-        // com identidade própria de "livro-razão": confiável, mas não bancária-fria.
         primary: {
-          50:  '#EAF4F2',
-          100: '#D2E7E3',
-          200: '#A6D0C7',
-          400: '#3F9686',
-          500: '#227C6D',
-          600: '#0F6B60',
-          700: '#0B544C',
-          900: '#062E2A',
+          50:  '#eef2ff',
+          100: '#e0e7ff',
+          200: '#c7d2fe',
+          400: '#818cf8',
+          500: '#6366f1',
+          600: '#4f46e5',
+          700: '#4338ca',
+          900: '#1e1b4b',
         },
         // Latão/dourado — acento premium, usado com moderação (metas atingidas,
         // destaques de wishlist, toques de celebração).

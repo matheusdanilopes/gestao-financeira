@@ -624,7 +624,7 @@ export default function ComprasPage() {
       <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 z-[10]">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Compras</h1>
+            <h1 className="font-display italic text-xl font-semibold text-gray-900">Compras</h1>
             <UltimaImportacaoInfo />
           </div>
         </div>

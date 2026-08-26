@@ -12,8 +12,8 @@
   --color-border:      rgba(28, 23, 18, 0.07);
   --color-text:        #1c1917;
   --color-muted:       #756e63;
-  --color-primary:     #0f6b60;
-  --color-primary-50:  #eaf4f2;
+  --color-primary:     #4f46e5;
+  --color-primary-50:  #eef2ff;
   --color-brass:       #b8863c;
   --shadow-sm: 0 1px 2px rgba(28,23,18,0.05), 0 4px 12px rgba(28,23,18,0.06);
   --shadow-md: 0 2px 4px rgba(28,23,18,0.06), 0 8px 24px rgba(28,23,18,0.09);
@@ -42,8 +42,8 @@
   --color-border:      rgba(255, 255, 255, 0.08);
   --color-text:        #f1eee7;
   --color-muted:       #9c978c;
-  --color-primary:     #4fbeb0;
-  --color-primary-50:  #10302c;
+  --color-primary:     #818cf8;
+  --color-primary-50:  #1e1b4b;
   --color-brass:       #d9ab5f;
   --shadow-sm: 0 2px 8px rgba(0,0,0,0.30), 0 1px 2px rgba(0,0,0,0.20);
   --shadow-md: 0 4px 16px rgba(0,0,0,0.40), 0 2px 4px rgba(0,0,0,0.20);
@@ -112,7 +112,7 @@ body.theme-transition {
 .dark .bg-violet-50       { background-color: #2e1065 !important; }
 .dark .bg-violet-100      { background-color: #3b0764 !important; }
 .dark .bg-primary-50      { background-color: var(--color-primary-50) !important; }
-.dark .bg-primary-100     { background-color: #1c3d38 !important; }
+.dark .bg-primary-100     { background-color: #312e81 !important; }
 
 /* Trilho das barras de progresso da fatura — precisa de mais contraste contra os
    segmentos preenchidos (bg-*-800/500/200) do que os overrides genéricos de
@@ -163,10 +163,10 @@ body.theme-transition {
 .dark .text-indigo-500  { color: #a5b4fc !important; }
 .dark .text-violet-700  { color: #c4b5fd !important; }
 .dark .text-violet-600  { color: #a78bfa !important; }
-.dark .text-primary-700 { color: #7fd4c4 !important; }
+.dark .text-primary-700 { color: #a5b4fc !important; }
 .dark .text-primary-600 { color: var(--color-primary) !important; }
-.dark .text-primary-500 { color: #4fbeb0 !important; }
-.dark .text-primary-400 { color: #8fd9cd !important; }
+.dark .text-primary-500 { color: #818cf8 !important; }
+.dark .text-primary-400 { color: #a5b4fc !important; }
 
 /* Bordas */
 .dark .border-gray-50   { border-color: var(--color-surface) !important; }
@@ -179,8 +179,8 @@ body.theme-transition {
 .dark .border-amber-200   { border-color: #78350f !important; }
 .dark .border-amber-100   { border-color: #451a03 !important; }
 .dark .border-indigo-100  { border-color: #312e81 !important; }
-.dark .border-primary-100 { border-color: #1c3d38 !important; }
-.dark .border-primary-200 { border-color: #2f5d54 !important; }
+.dark .border-primary-100 { border-color: #312e81 !important; }
+.dark .border-primary-200 { border-color: #4338ca !important; }
 .dark .border-blue-200    { border-color: #1d4ed8 !important; }
 .dark .border-pink-200    { border-color: #9d174d !important; }
 .dark .border-t         { border-color: var(--color-border) !important; }
@@ -192,7 +192,7 @@ body.theme-transition {
 .dark .active\:bg-gray-50:active  { background-color: var(--color-bg) !important; }
 .dark .active\:bg-gray-100:active { background-color: var(--color-surface-2) !important; }
 .dark .hover\:bg-primary-50:hover  { background-color: var(--color-primary-50) !important; }
-.dark .hover\:bg-primary-100:hover { background-color: #1c3d38 !important; }
+.dark .hover\:bg-primary-100:hover { background-color: #312e81 !important; }
 .dark .hover\:bg-amber-50:hover    { background-color: #451a03 !important; }
 .dark .hover\:bg-amber-100:hover   { background-color: #78350f !important; }
 .dark .hover\:bg-orange-50:hover   { background-color: #431407 !important; }
@@ -405,10 +405,10 @@ button, a, [role="button"] {
 
 /* ─── FAB Premium ─────────────────────────────────────────────────────────── */
 .fab-premium {
-  background: linear-gradient(145deg, #3f9686 0%, #0f6b60 55%, #0b544c 100%);
+  background: linear-gradient(145deg, #6366f1 0%, #4f46e5 55%, #4338ca 100%);
   box-shadow:
-    0 6px 24px rgba(15, 107, 96, 0.45),
-    0 3px 10px rgba(15, 107, 96, 0.28),
+    0 6px 24px rgba(79, 70, 229, 0.50),
+    0 3px 10px rgba(79, 70, 229, 0.30),
     0 1px 3px rgba(0, 0, 0, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.22),
     inset 0 -1px 0 rgba(0, 0, 0, 0.10);
@@ -421,8 +421,8 @@ button, a, [role="button"] {
 .fab-premium:active {
   transform: translateY(2px) scale(0.91);
   box-shadow:
-    0 2px 12px rgba(15, 107, 96, 0.32),
-    0 1px 4px rgba(15, 107, 96, 0.18),
+    0 2px 12px rgba(79, 70, 229, 0.35),
+    0 1px 4px rgba(79, 70, 229, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
     inset 0 2px 4px rgba(0, 0, 0, 0.12);
 }
@@ -435,10 +435,10 @@ button, a, [role="button"] {
     inset 0 -1px 0 rgba(0, 0, 0, 0.15);
 }
 .dark .fab-premium {
-  background: linear-gradient(145deg, #6cc9bb 0%, #4fbeb0 55%, #227c6d 100%);
+  background: linear-gradient(145deg, #818cf8 0%, #6366f1 55%, #4f46e5 100%);
   box-shadow:
-    0 6px 24px rgba(79, 190, 176, 0.45),
-    0 3px 10px rgba(79, 190, 176, 0.30),
+    0 6px 24px rgba(99, 102, 241, 0.55),
+    0 3px 10px rgba(99, 102, 241, 0.35),
     0 1px 3px rgba(0, 0, 0, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.18),
     inset 0 -1px 0 rgba(0, 0, 0, 0.20);
@@ -625,8 +625,8 @@ html {
   outline: none;
 }
 .input-base:focus {
-  border-color: #3f9686;
-  box-shadow: 0 0 0 3px rgba(15, 107, 96, 0.14);
+  border-color: #818cf8;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
 }
 .dark .input-base {
   background: var(--color-surface-2);
@@ -634,8 +634,8 @@ html {
   color: var(--color-text);
 }
 .dark .input-base:focus {
-  border-color: #4fbeb0;
-  box-shadow: 0 0 0 3px rgba(79, 190, 176, 0.20);
+  border-color: #818cf8;
+  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.18);
 }
 
 /* ─── Camera OCR scan line ───────────────────────────────────────────────── */

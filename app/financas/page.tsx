@@ -193,7 +193,7 @@ function FinancasContent() {
       <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 px-4 md:px-6 lg:px-8 z-[10] space-y-3">
         {/* Título + seletor de mês */}
         <div>
-          <h1 className="text-xl font-bold text-gray-900 mb-3">
+          <h1 className="font-display italic text-xl font-semibold text-gray-900 mb-3">
             {TAB_CONFIG[abaAtual].label}
           </h1>
           <MonthSelector value={mesAtual} onChange={setMesAtual} />

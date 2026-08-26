@@ -430,7 +430,6 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
           onAdd={() => setModalAberto('adicionar')}
           onImport={importarMesAnterior}
           isImporting={importando}
-          importColorClass="bg-primary-600 text-white hover:bg-primary-700"
         />
       )}
 
