@@ -9,6 +9,13 @@ import { TrendingUp, CirclePlus, History, Trash2, X, WifiOff } from 'lucide-reac
 import PageActionButtons from '@/components/PageActionButtons'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { log, numericOnly, formatBRL } from '@/lib/logger'
+import {
+  atualizarRegistrosFuturos,
+  excluirRegistrosFuturos,
+  criarRegistrosFuturos,
+  MESES_FUTUROS_PADRAO,
+  MESES_FUTUROS_MAXIMO,
+} from '@/lib/registrosFuturos'
 
 const RECEITA_PREFIXO = '[RECEITA] '
 
@@ -53,6 +60,8 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
   }, [autoOpen])
   const [itemSelecionado, setItemSelecionado] = useState<ItemReceita | null>(null)
   const [formData, setFormData] = useState({ item: '', responsavel: 'Matheus', valor_previsto: '' })
+  const [aplicarFuturos, setAplicarFuturos] = useState(false)
+  const [quantidadeMesesFuturos, setQuantidadeMesesFuturos] = useState(String(MESES_FUTUROS_PADRAO))
 
   // Modais de recebimento parcial
   const [modalRecebimento, setModalRecebimento] = useState<ItemReceita | null>(null)
@@ -197,7 +206,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
     }
   }
 
-  async function excluir(id: string) {
+  async function excluir(id: string, tambemFuturos: boolean) {
     const item = itens.find(i => i.id === id)
     setModalAberto(null)
 
@@ -210,6 +219,18 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
     const { error } = await supabase.from('planejamento').delete().eq('id', id)
     if (!error) {
       log('excluir', 'receitas', `Excluída: ${item ? paraNomeExibicao(item.item) : id}`)
+      if (tambemFuturos && item) {
+        try {
+          const removidos = await excluirRegistrosFuturos(
+            'planejamento',
+            { item: item.item, responsavel: item.responsavel },
+            mesSelecionado
+          )
+          if (removidos > 0) showToast(`Receita excluída (e ${removidos} ocorrência(s) futura(s))`)
+        } catch {
+          showToast('Receita excluída, mas houve erro ao excluir as ocorrências futuras', 'erro')
+        }
+      }
       refetch()
     } else {
       clearTimeout(removeTimer)
@@ -226,6 +247,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
       responsavel: formData.responsavel,
       valor_previsto: valor,
     }
+    const tambemFuturos = aplicarFuturos
     if (modalAberto === 'adicionar') {
       const mesRef = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
       const tempId = `temp-${Date.now()}`
@@ -238,28 +260,45 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
         pago: false,
         mes_referencia: mesRef,
       }
-
-      // Feedback imediato: fecha modal e adiciona item otimisticamente
-      setModalAberto(null)
-      setItemSelecionado(null)
-      setFormData({ item: '', responsavel: 'Matheus', valor_previsto: '' })
-      setItens(prev => [...prev, itemOtimista])
-      setNewItemId(tempId)
-      setTimeout(() => setNewItemId(null), 400)
-
-      // Persiste em background
-      const { data: insertData } = await supabase.from('planejamento').insert([{
+      const novoItem = {
         ...payload,
         categoria: 'Extra',
         mes_referencia: mesRef,
         pago: false,
         valor_real: null,
-      }]).select()
+      }
+      const quantidade = Math.min(
+        MESES_FUTUROS_MAXIMO,
+        Math.max(1, parseInt(quantidadeMesesFuturos, 10) || MESES_FUTUROS_PADRAO)
+      )
+
+      // Feedback imediato: fecha modal e adiciona item otimisticamente
+      setModalAberto(null)
+      setItemSelecionado(null)
+      setFormData({ item: '', responsavel: 'Matheus', valor_previsto: '' })
+      setAplicarFuturos(false)
+      setItens(prev => [...prev, itemOtimista])
+      setNewItemId(tempId)
+      setTimeout(() => setNewItemId(null), 400)
+
+      // Persiste em background
+      const { data: insertData } = await supabase.from('planejamento').insert([novoItem]).select()
       if (insertData?.[0]) {
         const realId = insertData[0].id
         setItens(prev => prev.map(i => i.id === tempId ? { ...itemOtimista, id: realId } : i))
       }
       log('inserir', 'receitas', `Nova receita: ${formData.item} — ${formatBRL(valor)}`, valor)
+
+      if (tambemFuturos) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { mes_referencia, ...base } = novoItem
+        try {
+          await criarRegistrosFuturos('planejamento', base, mesSelecionado, quantidade)
+          showToast(`Receita adicionada e repetida nos próximos ${quantidade} mês(es)`)
+        } catch {
+          showToast('Receita adicionada, mas houve erro ao repetir nos meses futuros', 'erro')
+        }
+      }
 
     } else if (itemSelecionado) {
       const id = itemSelecionado.id
@@ -269,11 +308,25 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
       setModalAberto(null)
       setItemSelecionado(null)
       setFormData({ item: '', responsavel: 'Matheus', valor_previsto: '' })
+      setAplicarFuturos(false)
       setItens(prev => prev.map(i => i.id === id ? { ...i, ...payload } : i))
 
       const { error } = await supabase.from('planejamento').update(payload).eq('id', id)
       if (!error) {
         log('editar', 'receitas', `Editada: ${formData.item} — ${formatBRL(valor)}`, valor, originalItem.valor_previsto)
+        if (tambemFuturos) {
+          try {
+            const alterados = await atualizarRegistrosFuturos(
+              'planejamento',
+              { item: originalItem.item, responsavel: originalItem.responsavel },
+              mesSelecionado,
+              payload
+            )
+            if (alterados > 0) showToast(`Receita editada (e ${alterados} ocorrência(s) futura(s))`)
+          } catch {
+            showToast('Receita editada, mas houve erro ao aplicar aos meses futuros', 'erro')
+          }
+        }
       } else {
         // Reverte em caso de erro
         setItens(prev => prev.map(i => i.id === id ? originalItem : i))
@@ -345,6 +398,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
       responsavel: item.responsavel,
       valor_previsto: String(item.valor_previsto),
     })
+    setAplicarFuturos(false)
     setModalAberto('editar')
   }
 
@@ -427,7 +481,11 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
       {/* Botões de ação */}
       {isOnline && (
         <PageActionButtons
-          onAdd={() => setModalAberto('adicionar')}
+          onAdd={() => {
+            setAplicarFuturos(false)
+            setQuantidadeMesesFuturos(String(MESES_FUTUROS_PADRAO))
+            setModalAberto('adicionar')
+          }}
           onImport={importarMesAnterior}
           isImporting={importando}
           importColorClass="bg-primary-600 text-white hover:bg-primary-700"
@@ -463,7 +521,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
             return (
               <SwipeableItem
                 key={item.id}
-                onDelete={() => { setItemSelecionado(item); setModalAberto('excluir') }}
+                onDelete={() => { setItemSelecionado(item); setAplicarFuturos(false); setModalAberto('excluir') }}
                 disabled={!isOnline}
               >
                 <div
@@ -780,6 +838,30 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
                   onChange={(e) => setFormData({ ...formData, valor_previsto: numericOnly(e.target.value) })}
                 />
               </div>
+              <div className="bg-gray-50 rounded-xl p-3">
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={aplicarFuturos}
+                    onChange={(e) => setAplicarFuturos(e.target.checked)}
+                    className="w-4 h-4 rounded accent-green-600"
+                  />
+                  {modalAberto === 'adicionar' ? 'Repetir nos meses futuros' : 'Aplicar também aos meses futuros'}
+                </label>
+                {modalAberto === 'adicionar' && aplicarFuturos && (
+                  <div className="mt-2">
+                    <label className="text-xs font-medium text-gray-600 mb-1 block">Por quantos meses</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={MESES_FUTUROS_MAXIMO}
+                      value={quantidadeMesesFuturos}
+                      onChange={(e) => setQuantidadeMesesFuturos(e.target.value)}
+                      className="w-full border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600">
@@ -800,14 +882,23 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4">
           <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-float">
             <h3 className="text-lg font-bold mb-2">Excluir receita</h3>
-            <p className="text-sm text-gray-500 mb-6">
+            <p className="text-sm text-gray-500 mb-4">
               Tem certeza que deseja excluir <span className="font-semibold text-gray-800">&quot;{paraNomeExibicao(itemSelecionado.item)}&quot;</span>?
             </p>
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer bg-gray-50 rounded-xl p-3 mb-6">
+              <input
+                type="checkbox"
+                checked={aplicarFuturos}
+                onChange={(e) => setAplicarFuturos(e.target.checked)}
+                className="w-4 h-4 rounded accent-red-500"
+              />
+              Excluir também dos meses futuros
+            </label>
             <div className="flex gap-3">
               <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600">
                 Cancelar
               </button>
-              <button onClick={() => excluir(itemSelecionado.id)} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-semibold">
+              <button onClick={() => excluir(itemSelecionado.id, aplicarFuturos)} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-semibold">
                 Excluir
               </button>
             </div>
