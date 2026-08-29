@@ -21,6 +21,13 @@ import {
 import { CARTAO_TX_POR_TIPO } from '@/lib/faturaEfetiva'
 import { cartaoLabelsDePlanejamento, type CartaoLabels } from '@/lib/cartaoLabels'
 import { RESPONSAVEIS, estiloResponsavel } from '@/lib/responsavelStyle'
+import {
+  atualizarRegistrosFuturos,
+  excluirRegistrosFuturos,
+  criarRegistrosFuturos,
+  MESES_FUTUROS_PADRAO,
+  MESES_FUTUROS_MAXIMO,
+} from '@/lib/registrosFuturos'
 
 const CATEGORIAS_PLANEJAMENTO = [
   'Fixa', 'Extra', 'Cartão', 'Moradia', 'Alimentação',
@@ -201,6 +208,8 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     data_vencimento: '',
   })
   const [dataPagamento, setDataPagamento] = useState('')
+  const [aplicarFuturos, setAplicarFuturos] = useState(false)
+  const [quantidadeMesesFuturos, setQuantidadeMesesFuturos] = useState(String(MESES_FUTUROS_PADRAO))
   const [importandoMesAnterior, setImportandoMesAnterior] = useState(false)
   const [previewImport, setPreviewImport] = useState<{ itens: ItemPlanejamento[]; mesOrigem: string } | null>(null)
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null)
@@ -442,7 +451,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     }
   }
 
-  async function excluirItem(id: string) {
+  async function excluirItem(id: string, tambemFuturos: boolean) {
     const item = itens.find(i => i.id === id)
 
     setModalAberto(null)
@@ -455,7 +464,20 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     const { error } = await supabase.from('planejamento').delete().eq('id', id)
     if (!error) {
       log('excluir', 'planejamento', `Excluído: ${item ? removerPrefixoCartao(item.item) : id}`)
-      showToast('Item excluído')
+      if (tambemFuturos && item) {
+        try {
+          const removidos = await excluirRegistrosFuturos(
+            'planejamento',
+            { item: item.item, responsavel: item.responsavel },
+            mesSelecionado
+          )
+          showToast(removidos > 0 ? `Item excluído (e ${removidos} ocorrência(s) futura(s))` : 'Item excluído')
+        } catch {
+          showToast('Item excluído, mas houve erro ao excluir as ocorrências futuras', 'erro')
+        }
+      } else {
+        showToast('Item excluído')
+      }
     } else {
       clearTimeout(removeTimer)
       setExitingIds(prev => { const s = new Set(prev); s.delete(id); return s })
@@ -482,15 +504,35 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     }
     const id = itemSelecionado.id
     const originalItem = itemSelecionado
+    const tambemFuturos = aplicarFuturos
 
     // Feedback imediato: fecha modal e atualiza lista sem aguardar resposta do servidor
     setModalAberto(null)
     setItemSelecionado(null)
+    setAplicarFuturos(false)
     setItens(prev => prev.map(i => i.id === id ? { ...i, ...updates } : i))
 
     const { error } = await supabase.from('planejamento').update(updates).eq('id', id)
     if (!error) {
       log('editar', 'planejamento', `Editado: ${formData.item} — ${formatBRL(valor)}`, valor, originalItem.valor_previsto)
+      if (tambemFuturos) {
+        // Data de vencimento não é propagada: é específica de cada mês (o dia
+        // pode ser reaproveitado, mas o mês/ano de cada linha futura precisa
+        // ser preservado, o que uma única atualização em massa não permite).
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { data_vencimento, ...updatesFuturos } = updates
+        try {
+          const alterados = await atualizarRegistrosFuturos(
+            'planejamento',
+            { item: originalItem.item, responsavel: originalItem.responsavel },
+            mesSelecionado,
+            updatesFuturos
+          )
+          if (alterados > 0) showToast(`Item editado (e ${alterados} ocorrência(s) futura(s))`)
+        } catch {
+          showToast('Item editado, mas houve erro ao aplicar aos meses futuros', 'erro')
+        }
+      }
     } else {
       // Reverte em caso de erro
       setItens(prev => prev.map(i => i.id === id ? originalItem : i))
@@ -528,8 +570,15 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
       parcela_atual: null,
       total_parcelas: null,
     }
+    const tambemFuturos = aplicarFuturos
+    const quantidade = Math.min(
+      MESES_FUTUROS_MAXIMO,
+      Math.max(1, parseInt(quantidadeMesesFuturos, 10) || MESES_FUTUROS_PADRAO)
+    )
+
     setModalAberto(null)
     setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', tipo_cartao: '', valor_previsto: '', data_vencimento: '' })
+    setAplicarFuturos(false)
     setItens(prev => [...prev, itemOtimista])
     setNewItemId(tempId)
     setTimeout(() => setNewItemId(null), 400)
@@ -545,6 +594,19 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
         ))
       }
       log('inserir', 'planejamento', `Novo item: ${formData.item} — ${formatBRL(valor)}`, valor)
+
+      if (tambemFuturos) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { mes_referencia, ...base } = novoItem
+        try {
+          await criarRegistrosFuturos('planejamento', base, mesSelecionado, quantidade, (mes) => ({
+            data_vencimento: moverVencimentoParaMes(novoItem.data_vencimento, mes),
+          }))
+          showToast(`Item adicionado e repetido nos próximos ${quantidade} mês(es)`)
+        } catch {
+          showToast('Item adicionado, mas houve erro ao repetir nos meses futuros', 'erro')
+        }
+      }
     } else {
       // Reverte em caso de erro
       setItens(prev => prev.filter(i => i.id !== tempId))
@@ -635,6 +697,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
       valor_previsto: (itemEdit.valor_previsto ?? 0).toString(),
       data_vencimento: itemEdit.data_vencimento ?? format(startOfMonth(mesSelecionado), 'yyyy-MM-dd'),
     })
+    setAplicarFuturos(false)
     setModalAberto('editar')
   }
 
@@ -692,7 +755,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     return (
       <SwipeableItem
         key={item.id}
-        onDelete={() => { setItemSelecionado(item); setModalAberto('excluir') }}
+        onDelete={() => { setItemSelecionado(item); setAplicarFuturos(false); setModalAberto('excluir') }}
         disabled={!isOnline}
       >
         <div
@@ -996,6 +1059,8 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
         <PageActionButtons
           onAdd={() => {
             setFormData({ item: '', responsavel: 'Matheus', categoria: 'Fixa', tipo_cartao: '', valor_previsto: '', data_vencimento: format(startOfMonth(mesSelecionado), 'yyyy-MM-dd') })
+            setAplicarFuturos(false)
+            setQuantidadeMesesFuturos(String(MESES_FUTUROS_PADRAO))
             setModalAberto('adicionar')
           }}
           onImport={abrirModalImportar}
@@ -1229,6 +1294,36 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
                   className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
                 />
               </div>
+              <div className="bg-gray-50 rounded-xl p-3">
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={aplicarFuturos}
+                    onChange={(e) => setAplicarFuturos(e.target.checked)}
+                    className="w-4 h-4 rounded accent-primary-600"
+                  />
+                  {modalAberto === 'adicionar' ? 'Repetir nos meses futuros' : 'Aplicar também aos meses futuros'}
+                </label>
+                {modalAberto === 'adicionar' ? (
+                  aplicarFuturos && (
+                    <div className="mt-2">
+                      <label className="text-xs font-medium text-gray-600 mb-1 block">Por quantos meses</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={MESES_FUTUROS_MAXIMO}
+                        value={quantidadeMesesFuturos}
+                        onChange={(e) => setQuantidadeMesesFuturos(e.target.value)}
+                        className="w-full border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+                      />
+                    </div>
+                  )
+                ) : (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Atualiza descrição, responsável, categoria e valor de todas as ocorrências futuras deste item (a data de vencimento de cada mês não é alterada).
+                  </p>
+                )}
+              </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]">Cancelar</button>
@@ -1302,12 +1397,21 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4 modal-overlay">
           <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm p-6 shadow-float modal-sheet sm:modal-center">
             <h3 className="text-lg font-bold mb-2">Excluir item</h3>
-            <p className="text-sm text-gray-500 mb-6">
+            <p className="text-sm text-gray-500 mb-4">
               Tem certeza que deseja excluir <span className="font-semibold text-gray-800">&quot;{removerPrefixoCartao(itemSelecionado.item)}&quot;</span>?
             </p>
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer bg-gray-50 rounded-xl p-3 mb-6">
+              <input
+                type="checkbox"
+                checked={aplicarFuturos}
+                onChange={(e) => setAplicarFuturos(e.target.checked)}
+                className="w-4 h-4 rounded accent-red-500"
+              />
+              Excluir também dos meses futuros
+            </label>
             <div className="flex gap-3">
               <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]">Cancelar</button>
-              <button onClick={() => excluirItem(itemSelecionado.id)} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 transition-all active:scale-[0.97] shadow-sm">Excluir</button>
+              <button onClick={() => excluirItem(itemSelecionado.id, aplicarFuturos)} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 transition-all active:scale-[0.97] shadow-sm">Excluir</button>
             </div>
           </div>
         </div>

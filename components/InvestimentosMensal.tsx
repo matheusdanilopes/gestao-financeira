@@ -10,6 +10,13 @@ import { PiggyBank, CirclePlus, History, Trash2, X, WifiOff } from 'lucide-react
 import PageActionButtons from '@/components/PageActionButtons'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { log, numericOnly, formatBRL } from '@/lib/logger'
+import {
+  atualizarRegistrosFuturos,
+  excluirRegistrosFuturos,
+  criarRegistrosFuturos,
+  MESES_FUTUROS_PADRAO,
+  MESES_FUTUROS_MAXIMO,
+} from '@/lib/registrosFuturos'
 
 interface Investimento {
   id: string
@@ -45,6 +52,8 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
   const [itemSelecionado, setItemSelecionado] = useState<Investimento | null>(null)
   const [formData, setFormData] = useState({ descricao: '', percentual: '', valor: '' })
   const [ultimoCampo, setUltimoCampo] = useState<'percentual' | 'valor'>('percentual')
+  const [aplicarFuturos, setAplicarFuturos] = useState(false)
+  const [quantidadeMesesFuturos, setQuantidadeMesesFuturos] = useState(String(MESES_FUTUROS_PADRAO))
   useEffect(() => {
     if (autoOpen) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -184,6 +193,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
     }
 
     const mesRef = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
+    const tambemFuturos = aplicarFuturos
 
     if (modalAberto === 'adicionar') {
       const tempId = `temp-${Date.now()}`
@@ -194,6 +204,10 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
         mes_referencia: mesRef,
         created_at: new Date().toISOString(),
       }
+      const quantidade = Math.min(
+        MESES_FUTUROS_MAXIMO,
+        Math.max(1, parseInt(quantidadeMesesFuturos, 10) || MESES_FUTUROS_PADRAO)
+      )
 
       // Feedback imediato: fecha modal e adiciona item otimisticamente
       fecharModal()
@@ -214,6 +228,20 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
           ))
         }
         log('inserir', 'investimentos', `Novo investimento: ${formData.descricao.trim()} — ${pct}%`)
+
+        if (tambemFuturos) {
+          try {
+            await criarRegistrosFuturos(
+              'investimentos',
+              { descricao: formData.descricao.trim(), percentual: pct },
+              mesSelecionado,
+              quantidade
+            )
+            showToast(`Investimento adicionado e repetido nos próximos ${quantidade} mês(es)`)
+          } catch {
+            showToast('Investimento adicionado, mas houve erro ao repetir nos meses futuros', 'erro')
+          }
+        }
       } else {
         setItens(prev => prev.filter(i => i.id !== tempId))
         showToast('Erro ao adicionar', 'erro')
@@ -235,6 +263,19 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
         .eq('id', id)
       if (!error) {
         log('editar', 'investimentos', `Editado: ${formData.descricao.trim()} — ${pct}%`)
+        if (tambemFuturos) {
+          try {
+            const alterados = await atualizarRegistrosFuturos(
+              'investimentos',
+              { descricao: originalItem.descricao },
+              mesSelecionado,
+              { descricao: formData.descricao.trim(), percentual: pct }
+            )
+            if (alterados > 0) showToast(`Atualizado (e ${alterados} ocorrência(s) futura(s))`)
+          } catch {
+            showToast('Atualizado, mas houve erro ao aplicar aos meses futuros', 'erro')
+          }
+        }
       } else {
         // Reverte em caso de erro
         setItens(prev => prev.map(i => i.id === id ? originalItem : i))
@@ -243,7 +284,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
     }
   }
 
-  async function excluir(id: string) {
+  async function excluir(id: string, tambemFuturos: boolean) {
     const item = itens.find(i => i.id === id)
     fecharModal()
 
@@ -256,8 +297,21 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
     const { error } = await supabase.from('investimentos').delete().eq('id', id)
     if (!error) {
       log('excluir', 'investimentos', `Excluído: ${item?.descricao ?? id}`)
+      if (tambemFuturos && item) {
+        try {
+          const removidos = await excluirRegistrosFuturos(
+            'investimentos',
+            { descricao: item.descricao },
+            mesSelecionado
+          )
+          showToast(removidos > 0 ? `Excluído (e ${removidos} ocorrência(s) futura(s))` : 'Excluído')
+        } catch {
+          showToast('Excluído, mas houve erro ao excluir as ocorrências futuras', 'erro')
+        }
+      } else {
+        showToast('Excluído')
+      }
       refetch()
-      showToast('Excluído')
     } else {
       clearTimeout(removeTimer)
       setExitingIds(prev => { const s = new Set(prev); s.delete(id); return s })
@@ -274,6 +328,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
       valor: saldo > 0 ? (saldo * item.percentual / 100).toFixed(2) : '',
     })
     setUltimoCampo('percentual')
+    setAplicarFuturos(false)
     setModalAberto('editar')
   }
 
@@ -281,6 +336,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
     setModalAberto(null)
     setItemSelecionado(null)
     setFormData({ descricao: '', percentual: '', valor: '' })
+    setAplicarFuturos(false)
   }
 
   // ── Aportes ──────────────────────────────────────────────────
@@ -477,7 +533,12 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
       {/* Botões */}
       {isOnline && (
         <PageActionButtons
-          onAdd={() => { setUltimoCampo('percentual'); setModalAberto('adicionar') }}
+          onAdd={() => {
+            setUltimoCampo('percentual')
+            setAplicarFuturos(false)
+            setQuantidadeMesesFuturos(String(MESES_FUTUROS_PADRAO))
+            setModalAberto('adicionar')
+          }}
           onImport={abrirModalImportar}
           addDisabled={totalPercentual >= 100}
           addColorClass="bg-violet-600 text-white hover:bg-violet-700"
@@ -513,7 +574,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
             return (
               <SwipeableItem
                 key={item.id}
-                onDelete={() => { setItemSelecionado(item); setModalAberto('excluir') }}
+                onDelete={() => { setItemSelecionado(item); setAplicarFuturos(false); setModalAberto('excluir') }}
                 disabled={!isOnline}
               >
                 <div
@@ -808,6 +869,30 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
                   onChange={(e) => handleValorChange(e.target.value)}
                 />
               </div>
+              <div className="bg-gray-50 rounded-xl p-3">
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={aplicarFuturos}
+                    onChange={(e) => setAplicarFuturos(e.target.checked)}
+                    className="w-4 h-4 rounded accent-violet-600"
+                  />
+                  {modalAberto === 'adicionar' ? 'Repetir nos meses futuros' : 'Aplicar também aos meses futuros'}
+                </label>
+                {modalAberto === 'adicionar' && aplicarFuturos && (
+                  <div className="mt-2">
+                    <label className="text-xs font-medium text-gray-600 mb-1 block">Por quantos meses</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={MESES_FUTUROS_MAXIMO}
+                      value={quantidadeMesesFuturos}
+                      onChange={(e) => setQuantidadeMesesFuturos(e.target.value)}
+                      className="w-full border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={fecharModal} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600">
@@ -832,14 +917,23 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
               Tem certeza que deseja excluir{' '}
               <span className="font-semibold text-gray-800">&quot;{itemSelecionado.descricao}&quot;</span>?
             </p>
-            <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 mb-6">
+            <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 mb-4">
               Todos os aportes registrados também serão excluídos.
             </p>
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer bg-gray-50 rounded-xl p-3 mb-6">
+              <input
+                type="checkbox"
+                checked={aplicarFuturos}
+                onChange={(e) => setAplicarFuturos(e.target.checked)}
+                className="w-4 h-4 rounded accent-red-500"
+              />
+              Excluir também dos meses futuros
+            </label>
             <div className="flex gap-3">
               <button onClick={fecharModal} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600">
                 Cancelar
               </button>
-              <button onClick={() => excluir(itemSelecionado.id)} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-semibold">
+              <button onClick={() => excluir(itemSelecionado.id, aplicarFuturos)} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-semibold">
                 Excluir
               </button>
             </div>
