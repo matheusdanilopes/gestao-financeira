@@ -86,7 +86,7 @@ function LinhaResponsavel({
 export default function AlertaFaturaModal({ aberto, dados, onFechar }: Props) {
   if (!aberto || !dados) return null
 
-  const { parcelamento, fatura } = dados
+  const { parcelamento, fatura, proximoMes } = dados
   // porResponsavel já vem ordenado com o usuário logado primeiro (ver app/api/alertas-fatura/route.ts).
   const responsavelAtual = parcelamento.porResponsavel[0]?.responsavel ?? fatura.porResponsavel[0]?.responsavel
 
@@ -108,7 +108,14 @@ export default function AlertaFaturaModal({ aberto, dados, onFechar }: Props) {
                 <h2 id="alerta-fatura-titulo" className="text-base font-bold text-gray-900 dark:text-gray-100 leading-tight">
                   Resumo do cartão
                 </h2>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Fatura NuBank</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Fatura NuBank
+                  {proximoMes && (
+                    <span className="ml-1.5 inline-block px-1.5 py-0.5 rounded-full bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 text-[10px] font-semibold align-middle">
+                      Próximo mês
+                    </span>
+                  )}
+                </p>
               </div>
             </div>
 
@@ -162,7 +169,7 @@ export default function AlertaFaturaModal({ aberto, dados, onFechar }: Props) {
               <div className="flex items-center gap-1.5 mb-2">
                 <Calendar className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Fatura atual
+                  {proximoMes ? 'Próxima fatura' : 'Fatura atual'}
                 </p>
               </div>
               {fatura.percentual !== null ? (

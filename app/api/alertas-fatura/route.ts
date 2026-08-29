@@ -41,6 +41,9 @@ interface FaturaPorResponsavel {
 }
 
 export interface AlertasFaturaResponse {
+  // true quando a fatura Nubank do mês corrente já está paga e os dados abaixo
+  // (parcelamento e fatura) passaram a se referir ao próximo mês.
+  proximoMes: boolean
   parcelamento: {
     percentual: number | null
     comprometido: number
@@ -81,8 +84,9 @@ export async function GET(req: NextRequest) {
         .not('item', 'ilike', '[CARTAO1]%')
         .not('item', 'ilike', '[CARTAO2]%')).data ?? []
 
+    const mesAtualRef = format(startOfMonth(hoje), 'yyyy-MM-dd')
     let mesBase = hoje
-    let mesRef = format(startOfMonth(mesBase), 'yyyy-MM-dd')
+    let mesRef = mesAtualRef
     let planejamentoMes = await buscarPlanejamentoNubank(mesRef)
 
     if (faturaEstaPaga(planejamentoMes)) {
@@ -90,6 +94,7 @@ export async function GET(req: NextRequest) {
       mesRef = format(startOfMonth(mesBase), 'yyyy-MM-dd')
       planejamentoMes = await buscarPlanejamentoNubank(mesRef)
     }
+    const proximoMes = mesRef !== mesAtualRef
 
     const mesRefFaturaDate = startOfMonth(addMonths(mesBase, 1))
     const mesRefFatura = format(mesRefFaturaDate, 'yyyy-MM-dd')
@@ -261,6 +266,7 @@ export async function GET(req: NextRequest) {
     const diasAteVencimento = differenceInCalendarDays(dataVencimentoDate, hoje)
 
     const response: AlertasFaturaResponse = {
+      proximoMes,
       parcelamento: { percentual: pctParcelamento, comprometido, limite, falta, porResponsavel: parcelamentoPorResponsavel },
       fatura: {
         percentual: pctGasto,
