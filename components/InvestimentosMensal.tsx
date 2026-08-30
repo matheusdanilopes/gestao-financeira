@@ -9,7 +9,8 @@ import { ptBR } from 'date-fns/locale'
 import { PiggyBank, CirclePlus, History, Trash2, X, WifiOff } from 'lucide-react'
 import PageActionButtons from '@/components/PageActionButtons'
 import { SwipeableItem } from '@/components/SwipeableItem'
-import { log, numericOnly, formatBRL } from '@/lib/logger'
+import { log } from '@/lib/logger'
+import { numericOnly, formatBRL } from '@/lib/format'
 import {
   atualizarRegistrosFuturos,
   excluirRegistrosFuturos,
@@ -56,7 +57,6 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
   const [quantidadeMesesFuturos, setQuantidadeMesesFuturos] = useState(String(MESES_FUTUROS_PADRAO))
   useEffect(() => {
     if (autoOpen) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUltimoCampo('percentual')
       setModalAberto('adicionar')
     }
@@ -132,7 +132,6 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
     if (ultimoCampo === 'percentual') {
       const pct = parseFloat(formData.percentual.replace(',', '.'))
       if (!isNaN(pct) && saldo > 0)
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setFormData(f => ({ ...f, valor: (saldo * pct / 100).toFixed(2) }))
     } else {
       const val = parseFloat(formData.valor.replace(',', '.'))
@@ -435,7 +434,6 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
     })
   }, [itens, filtroStatus, saldo, aportes])
 
-  const pctBar = Math.min(totalPercentual, 100)
   const progressoGeralPct = totalMeta > 0 ? Math.min((totalAportadoGeral / totalMeta) * 100, 100) : 0
 
   return (

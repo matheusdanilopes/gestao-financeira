@@ -65,7 +65,7 @@ Responda APENAS com o número ou null.`
         generationConfig: { temperature: 0, maxOutputTokens: 16 },
       }),
     })
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: 'Gemini indisponível' }, { status: 502 })
   }
 

@@ -15,7 +15,7 @@ import {
 import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { AlertCircle, PiggyBank } from 'lucide-react'
-import { formatBRL } from '@/lib/logger'
+import { formatBRL } from '@/lib/format'
 import { supabase } from '@/lib/supabaseClient'
 import type { TooltipItem, Plugin } from 'chart.js'
 import { useIsDark } from '@/lib/useIsDark'

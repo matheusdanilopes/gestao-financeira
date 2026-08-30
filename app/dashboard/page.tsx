@@ -77,7 +77,7 @@ const GraficoAnual = dynamic(() => import('@/components/GraficoAnual'), {
 })
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { usePrefetchPages } from '@/lib/usePrefetchPages'
-import { formatBRL as fmt } from '@/lib/logger'
+import { formatBRL as fmt } from '@/lib/format'
 import { tipoCartaoPorItem, removerPrefixoCartao, ehLinhaDeReceita } from '@/lib/tipoCartao'
 import {
   calcularResumoSaldo, calcularReceitaTotal,
@@ -1095,7 +1095,6 @@ export default function Dashboard() {
                 cartao1Nome={fatura.cartao1Nome}
                 cartao2Nome={fatura.cartao2Nome}
                 visao={visaoGastosDiarios}
-                onVisaoChange={setVisaoGastosDiarios}
                 previsto={{ matheus: fatura.principalPrevistoPorResponsavel.Matheus ?? 0, jeniffer: fatura.principalPrevistoPorResponsavel.Jeniffer ?? 0, cartao1: fatura.cartao1Previsto, cartao2: fatura.cartao2Previsto }}
                 dataFechamentoFatura={dataFechamentoNubank}
               />

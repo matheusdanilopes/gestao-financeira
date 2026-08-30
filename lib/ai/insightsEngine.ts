@@ -40,22 +40,6 @@ function sumValor(lista: Transacao[]) {
   return lista.reduce((a, t) => a + t.valor, 0)
 }
 
-function topCategories(lista: Transacao[], total: number, n = 6): CategoryMetric[] {
-  const acc: Record<string, number> = {}
-  for (const t of lista) {
-    const cat = t.categoria || 'Sem categoria'
-    acc[cat] = (acc[cat] ?? 0) + t.valor
-  }
-  return Object.entries(acc)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, n)
-    .map(([categoria, valor]) => ({
-      categoria,
-      valor,
-      percentual: total > 0 ? (valor / total) * 100 : 0,
-    }))
-}
-
 // Always use projeto_fatura (billing month) so the AI sees the same numbers
 // as the app. Using data (purchase date) causes a mismatch when the billing
 // cycle closes mid-month: purchases made after cut-off belong to the next bill.
@@ -394,9 +378,7 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
 // ─── Rule-based fallback insights (no AI required) ───────────────────────────
 
 import type { InsightItem } from '@/lib/insightsTypes'
-
-const fmtR2 = (v: number) =>
-  v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 })
+import { formatBRL } from '@/lib/format'
 
 const signPct2 = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
 
@@ -425,8 +407,8 @@ export function generateFallbackInsights(ins: FinancialInsightsContext): Insight
         ? `Compras no cartão ${signPct2(vsH)} abaixo do padrão`
         : `Compras no cartão dentro do padrão`,
       detalhe: ins.mediaCartaoHistorica > 0
-        ? `${fmtR2(ins.totalGastos)} em compras vs média de ${fmtR2(ins.mediaCartaoHistorica)}/mês`
-        : `${fmtR2(ins.totalGastos)} em compras vs ${fmtR2(ins.totalCartaoAnterior)} em ${ins.mesAnterior}`,
+        ? `${formatBRL(ins.totalGastos)} em compras vs média de ${formatBRL(ins.mediaCartaoHistorica)}/mês`
+        : `${formatBRL(ins.totalGastos)} em compras vs ${formatBRL(ins.totalCartaoAnterior)} em ${ins.mesAnterior}`,
       recomendacao: alto
         ? `Identifique os gastos extras e avalie o que pode ser cortado`
         : baixo
@@ -444,7 +426,7 @@ export function generateFallbackInsights(ins: FinancialInsightsContext): Insight
     items.push({
       icone: subindo ? '📈' : '💳',
       titulo: `${top.categoria} lidera os gastos${subindo ? ` (${signPct2(top.variacao!)} ↑)` : ''}`,
-      detalhe: `${fmtR2(top.valor)} — ${top.percentual.toFixed(0)}% do total${top.variacao !== undefined ? ` vs ${fmtR2(top.anterior ?? 0)} no mês anterior` : ''}`,
+      detalhe: `${formatBRL(top.valor)} — ${top.percentual.toFixed(0)}% do total${top.variacao !== undefined ? ` vs ${formatBRL(top.anterior ?? 0)} no mês anterior` : ''}`,
       recomendacao: subindo
         ? `Revise os gastos em ${top.categoria} — crescimento acima do esperado`
         : top.percentual > 30
@@ -467,8 +449,8 @@ export function generateFallbackInsights(ins: FinancialInsightsContext): Insight
       items.push({
         icone: '🔴',
         titulo: `${ins.itensVencidos.length} despesa${plural ? 's' : ''} vencida${plural ? 's' : ''} sem pagamento`,
-        detalhe: `${fmtR2(totalVencido)} em atraso — venceu ${ins.itensVencidos[0].item}${plural ? ` e mais ${ins.itensVencidos.length - 1}` : ''}`,
-        recomendacao: `Quite imediatamente: ${ins.itensVencidos[0].item} (${fmtR2(ins.itensVencidos[0].valor)})`,
+        detalhe: `${formatBRL(totalVencido)} em atraso — venceu ${ins.itensVencidos[0].item}${plural ? ` e mais ${ins.itensVencidos.length - 1}` : ''}`,
+        recomendacao: `Quite imediatamente: ${ins.itensVencidos[0].item} (${formatBRL(ins.itensVencidos[0].valor)})`,
         nivel: 'alerta',
         action: { label: 'Ver planejamento', route: '/financas?tab=despesas' },
       })
@@ -480,8 +462,8 @@ export function generateFallbackInsights(ins: FinancialInsightsContext): Insight
       items.push({
         icone: '📅',
         titulo: `${ins.itensVencendo7d.length} despesa${plural ? 's' : ''} vence${plural ? 'm' : ''} esta semana`,
-        detalhe: `${fmtR2(totalVencendo)} a pagar em 7 dias — ${proximos}`,
-        recomendacao: `Reserve ${fmtR2(totalVencendo)} para quitar ${plural ? 'essas despesas' : 'essa despesa'} no prazo`,
+        detalhe: `${formatBRL(totalVencendo)} a pagar em 7 dias — ${proximos}`,
+        recomendacao: `Reserve ${formatBRL(totalVencendo)} para quitar ${plural ? 'essas despesas' : 'essa despesa'} no prazo`,
         nivel: 'sugestao',
         action: { label: 'Ver planejamento', route: '/financas?tab=despesas' },
       })
@@ -489,7 +471,7 @@ export function generateFallbackInsights(ins: FinancialInsightsContext): Insight
       items.push({
         icone: '✅',
         titulo: `Todas as despesas quitadas`,
-        detalhe: `Orçamento de ${fmtR2(ins.totalOrcado)} totalmente executado`,
+        detalhe: `Orçamento de ${formatBRL(ins.totalOrcado)} totalmente executado`,
         recomendacao: `Ótima execução orçamentária este mês`,
         nivel: 'positivo',
         action: { label: 'Ver planejamento', route: '/financas?tab=despesas' },
@@ -500,9 +482,9 @@ export function generateFallbackInsights(ins: FinancialInsightsContext): Insight
       items.push({
         icone: pct >= 60 ? '📋' : '🎯',
         titulo: `${pct}% do orçamento pago em ${ins.mesAtual}`,
-        detalhe: `${fmtR2(ins.totalPago)} pago de ${fmtR2(ins.totalOrcado)} — ${fmtR2(aberto)} pendente`,
+        detalhe: `${formatBRL(ins.totalPago)} pago de ${formatBRL(ins.totalOrcado)} — ${formatBRL(aberto)} pendente`,
         recomendacao: proximoPendente
-          ? `Priorize: ${proximoPendente.item} (${fmtR2(proximoPendente.valor)})`
+          ? `Priorize: ${proximoPendente.item} (${formatBRL(proximoPendente.valor)})`
           : `Quite as despesas em aberto antes do fechamento do mês`,
         nivel: ins.diaAtual >= 25 && pct < 70 ? 'alerta' : 'sugestao',
         action: { label: 'Ver planejamento', route: '/financas?tab=despesas' },
@@ -512,7 +494,7 @@ export function generateFallbackInsights(ins: FinancialInsightsContext): Insight
       items.push({
         icone: '🔄',
         titulo: `${ins.assinaturasAtivas} assinaturas ativas`,
-        detalhe: `${fmtR2(ins.totalAssinaturas)}/mês em serviços recorrentes`,
+        detalhe: `${formatBRL(ins.totalAssinaturas)}/mês em serviços recorrentes`,
         recomendacao: `Revise assinaturas pouco utilizadas para reduzir custos fixos`,
         nivel: ins.totalAssinaturas > ins.mediaMensalHistorica * 0.15 ? 'alerta' : 'info',
         action: { label: 'Ver assinaturas', route: '/assinaturas' },
@@ -522,7 +504,7 @@ export function generateFallbackInsights(ins: FinancialInsightsContext): Insight
     items.push({
       icone: '🔄',
       titulo: `${ins.assinaturasAtivas} assinaturas ativas`,
-      detalhe: `${fmtR2(ins.totalAssinaturas)}/mês em serviços recorrentes`,
+      detalhe: `${formatBRL(ins.totalAssinaturas)}/mês em serviços recorrentes`,
       recomendacao: `Revise assinaturas pouco utilizadas para reduzir custos fixos`,
       nivel: ins.totalAssinaturas > ins.mediaMensalHistorica * 0.15 ? 'alerta' : 'info',
     })
@@ -538,7 +520,7 @@ export function generateFallbackInsights(ins: FinancialInsightsContext): Insight
         : taxa < 0
         ? `Gastos ${Math.abs(taxa).toFixed(0)}% acima da renda`
         : `${taxa.toFixed(0)}% da renda poupada`,
-      detalhe: `Sobra: ${fmtR2(ins.sobraLiquida)} de ${fmtR2(ins.rendaMensal)} de renda mensal`,
+      detalhe: `Sobra: ${formatBRL(ins.sobraLiquida)} de ${formatBRL(ins.rendaMensal)} de renda mensal`,
       recomendacao: taxa >= 20
         ? `Ótima margem! Considere aportar a sobra em investimentos`
         : taxa < 0
@@ -557,7 +539,7 @@ export function generateFallbackInsights(ins: FinancialInsightsContext): Insight
         : isBaixa
         ? `Tendência de queda nos gastos`
         : `Gastos estáveis nos últimos 6 meses`,
-      detalhe: `${signPct2(ins.tendenciaPct)} nos últimos 3 meses — média histórica: ${fmtR2(ins.mediaMensalHistorica)}/mês`,
+      detalhe: `${signPct2(ins.tendenciaPct)} nos últimos 3 meses — média histórica: ${formatBRL(ins.mediaMensalHistorica)}/mês`,
       recomendacao: isAlta
         ? `Planeje uma revisão de orçamento para o próximo mês`
         : isBaixa
@@ -570,7 +552,7 @@ export function generateFallbackInsights(ins: FinancialInsightsContext): Insight
     items.push({
       icone: '💡',
       titulo: `Maior compra do mês`,
-      detalhe: `${g.descricao.slice(0, 35)} — ${fmtR2(g.valor)} em ${g.categoria}`,
+      detalhe: `${g.descricao.slice(0, 35)} — ${formatBRL(g.valor)} em ${g.categoria}`,
       recomendacao: `Verifique se esta compra estava prevista no orçamento`,
       nivel: 'info',
       action: { label: 'Ver compras', route: '/compras' },

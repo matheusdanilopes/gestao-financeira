@@ -13,7 +13,7 @@ import {
 import type { TooltipItem } from 'chart.js'
 import { format, startOfMonth } from 'date-fns'
 import { AlertCircle, BarChart3 } from 'lucide-react'
-import { formatBRL } from '@/lib/logger'
+import { formatBRL } from '@/lib/format'
 import { supabase } from '@/lib/supabaseClient'
 import { useIsDark } from '@/lib/useIsDark'
 import { CHART_ANIMATION, tooltipCfg, axisColors } from '@/lib/chartTheme'

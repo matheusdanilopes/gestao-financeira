@@ -85,6 +85,9 @@ export function useDataSync({
   // Geração do fetch: descarta resultados de fetches anteriores quando um novo começa.
   // Evita que fetches "zumbi" (pendentes após timeout) atualizem o estado.
   const fetchGenRef = useRef(0)
+  // Última versão serializada dos dados em cache, para comparar sem reparsear
+  // o localStorage a cada fetch. Resetada ao trocar de cacheKey.
+  const lastSerializedRef = useRef<string | null>(null)
 
   // Usa refs para callbacks e tables — evita que mudanças de referência
   // disparem reconexões desnecessárias do Realtime ou re-adição de listeners.
@@ -104,26 +107,36 @@ export function useDataSync({
     try {
       const raw = localStorage.getItem(`datasync:${cacheKey}`)
       if (!raw) return null
-      return JSON.parse(raw).data ?? null
+      const data = JSON.parse(raw).data ?? null
+      // Guarda a forma serializada para que o writeCache seguinte compare
+      // strings direto, sem reparsear/reserializar o que está no storage.
+      lastSerializedRef.current = data === null ? null : JSON.stringify(data)
+      return data
     } catch {
       return null
     }
   }, [cacheKey])
 
-  // Retorna true se os dados foram de fato persistidos (i.e., mudaram)
+  // Retorna true se os dados foram de fato persistidos (i.e., mudaram).
+  // A comparação usa lastSerializedRef em vez de reler o localStorage: antes
+  // cada fetch (inclusive o polling de 45s) fazia 1 parse + 2 stringify do
+  // payload inteiro só para descobrir que nada mudou — agora é 1 stringify.
   const writeCache = useCallback((data: unknown): boolean => {
     if (typeof window === 'undefined' || data === undefined) return false
     try {
       const newStr = JSON.stringify(data)
-      const existing = localStorage.getItem(`datasync:${cacheKey}`)
-      if (existing) {
-        const parsed = JSON.parse(existing)
-        if (JSON.stringify(parsed.data) === newStr) return false // dados inalterados
+      if (lastSerializedRef.current === null) {
+        // Sem baseline em memória (ex: primeiro write após um readCache vazio):
+        // recupera do storage uma única vez.
+        const existing = localStorage.getItem(`datasync:${cacheKey}`)
+        if (existing) lastSerializedRef.current = JSON.stringify(JSON.parse(existing).data)
       }
+      if (lastSerializedRef.current === newStr) return false // dados inalterados
       localStorage.setItem(
         `datasync:${cacheKey}`,
         JSON.stringify({ data, ts: Date.now() })
       )
+      lastSerializedRef.current = newStr
       return true
     } catch {
       // localStorage cheio ou indisponível — sem crash
@@ -279,6 +292,7 @@ export function useDataSync({
     //     após isMountedRef ser resetado/re-setado pelo cleanup + nova inicialização.
     fetchGenRef.current++
     isFetchingRef.current = false
+    lastSerializedRef.current = null
 
     // 1. Serve cache imediatamente (stale-while-revalidate)
     const cached = readCache()

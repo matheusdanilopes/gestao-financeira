@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, type FormEvent, type ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  ShoppingBasket, Plus, Minus, Check, X, Pencil, ChevronDown, ChevronUp,
+  ShoppingBasket, Plus, Minus, Check, Pencil, ChevronDown, ChevronUp,
   WifiOff, RefreshCw, AlertCircle, History, Camera,
 } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
@@ -12,7 +12,7 @@ import { CameraOCR } from '@/components/CameraOCR'
 import { useListaMercado, type ItemMercado } from '@/lib/useListaMercado'
 import { type PendingOp } from '@/lib/offlineQueue'
 import { useHistoricoCompras } from '@/lib/useHistoricoCompras'
-import { formatBRL } from '@/lib/logger'
+import { formatBRL } from '@/lib/format'
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 

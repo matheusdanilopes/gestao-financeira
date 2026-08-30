@@ -456,9 +456,7 @@ export default memo(function BottomNav() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setOpenMenu(null)
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOpenDesktopMenu(null)
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFabSheetOpen(false)
   }, [pathname])
 

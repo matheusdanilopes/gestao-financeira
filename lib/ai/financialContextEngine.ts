@@ -24,11 +24,11 @@ import {
 } from './financialValidationEngine'
 import { buildContracts, buildContratosExtras, extrairParcelamento, type TransacaoRowParcelamento, type PlanejamentoRowParcelamento } from '../parcelamentoProjecao'
 import type { EnrichedData, FinancialInsightsContext, Transacao, Planejamento, TelaAtual } from './types'
+import { formatBRLCompacto } from '@/lib/format'
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
-const R = (n: number) =>
-  n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 })
+const R = formatBRLCompacto
 
 const pct = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`
 

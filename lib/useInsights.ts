@@ -162,7 +162,7 @@ export function useInsights(): InsightsState {
           if (isMountedRef.current) setChangedIndices([])
         }, NEW_BADGE_DURATION_MS)
       }
-    } catch (err) {
+    } catch {
       if (!isMountedRef.current) return
       setStatus(prev => prev === 'loading' ? 'error' : 'fresh')
       if (background) setRefreshFailed(true)

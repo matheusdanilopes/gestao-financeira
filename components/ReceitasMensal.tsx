@@ -8,7 +8,8 @@ import { useGlobalSync } from '@/lib/useGlobalSync'
 import { TrendingUp, CirclePlus, History, Trash2, X, WifiOff } from 'lucide-react'
 import PageActionButtons from '@/components/PageActionButtons'
 import { SwipeableItem } from '@/components/SwipeableItem'
-import { log, numericOnly, formatBRL } from '@/lib/logger'
+import { log } from '@/lib/logger'
+import { numericOnly, formatBRL } from '@/lib/format'
 import {
   atualizarRegistrosFuturos,
   excluirRegistrosFuturos,
@@ -54,7 +55,6 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
   const [modalAberto, setModalAberto] = useState<string | null>(null)
   useEffect(() => {
     if (autoOpen) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setModalAberto('adicionar')
     }
   }, [autoOpen])
@@ -290,7 +290,6 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
       log('inserir', 'receitas', `Nova receita: ${formData.item} — ${formatBRL(valor)}`, valor)
 
       if (tambemFuturos) {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { mes_referencia, ...base } = novoItem
         try {
           await criarRegistrosFuturos('planejamento', base, mesSelecionado, quantidade)
@@ -361,7 +360,6 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
       const idsExistentes = (existentes || []).map(i => i.id)
 
       // 2. Insere as receitas do mês anterior primeiro — se falhar, os dados existentes são preservados
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const inserts = itensAnteriores.map(({ id, mes_referencia, pago, valor_real, data_pagamento, created_at, parcela_atual, total_parcelas, ...resto }) => ({
         ...resto,
         mes_referencia: mesAtual,

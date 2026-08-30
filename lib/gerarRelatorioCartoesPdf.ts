@@ -1,6 +1,6 @@
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { formatBRL } from './logger'
+import { formatBRL } from './format'
 import { RELATORIO_CARTOES_EXPLICACOES, type RelatorioCartoes, type MesGasto } from './relatorioCartoes'
 
 const MARGIN_X = 14

@@ -7,7 +7,7 @@
 
 import React from 'react'
 import { AlertTriangle } from 'lucide-react'
-import { formatBRL as fmt } from '@/lib/logger'
+import { formatBRL as fmt } from '@/lib/format'
 import { estiloResponsavel } from '@/lib/responsavelStyle'
 
 export interface ComposicaoGastos {

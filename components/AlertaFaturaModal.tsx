@@ -4,7 +4,7 @@ import { CreditCard, Layers, Calendar } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import ModalPortal from '@/components/ModalPortal'
-import { formatBRL } from '@/lib/logger'
+import { formatBRL } from '@/lib/format'
 import type { AlertasFaturaResponse } from '@/app/api/alertas-fatura/route'
 
 interface Props {

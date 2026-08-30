@@ -7,7 +7,6 @@ import {
   enqueueOp,
   dequeueOp,
   getAllOps,
-  pendingOpsCount,
   clearOpsForItem,
   clearQueue,
   incrementOpRetries,

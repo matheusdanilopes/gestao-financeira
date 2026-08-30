@@ -15,7 +15,7 @@ import { format, startOfMonth, addMonths, addDays, eachDayOfInterval } from 'dat
 import { ptBR } from 'date-fns/locale'
 import { Activity, AlertCircle } from 'lucide-react'
 import FilterSelect from '@/components/FilterSelect'
-import { formatBRL } from '@/lib/logger'
+import { formatBRL } from '@/lib/format'
 import { supabase } from '@/lib/supabaseClient'
 import type { Plugin } from 'chart.js'
 import { useIsDark } from '@/lib/useIsDark'
@@ -178,7 +178,6 @@ interface Props {
   cartao1Nome?: string
   cartao2Nome?: string
   visao: Visao
-  onVisaoChange: (v: Visao) => void
   previsto?: PrevistoPorFiltro
   dataFechamentoFatura?: string | null
 }
@@ -188,7 +187,6 @@ export default function GraficoGastosDiarios({
   cartao1Nome = 'Cartão 1',
   cartao2Nome = 'Cartão 2',
   visao,
-  onVisaoChange,
   previsto,
   dataFechamentoFatura,
 }: Props) {

@@ -13,6 +13,20 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    rules: {
+      // Descartes intencionais em destructuring/catch (`const { _id, ...resto }`)
+      // deixam de virar aviso, para que os avisos restantes sejam sempre código
+      // realmente morto.
+      "@typescript-eslint/no-unused-vars": ["warn", {
+        argsIgnorePattern: "^_",
+        varsIgnorePattern: "^_",
+        caughtErrorsIgnorePattern: "^_",
+        destructuredArrayIgnorePattern: "^_",
+        ignoreRestSiblings: true,
+      }],
+    },
+  },
 ]);
 
 export default eslintConfig;

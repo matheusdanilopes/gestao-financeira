@@ -66,7 +66,7 @@ Regras: nome max 60 chars. descricao max 100 chars ou null. preco em reais como 
   let json: unknown
   try {
     json = await res.json()
-  } catch (e) {
+  } catch {
     return { erro: `Resposta Gemini não é JSON` }
   }
 
@@ -92,7 +92,7 @@ Regras: nome max 60 chars. descricao max 100 chars ou null. preco em reais como 
       descricao: parsed.descricao ? String(parsed.descricao).slice(0, 100) : null,
       preco: precoRaw && isFinite(precoRaw) && precoRaw > 0 ? precoRaw : null,
     }
-  } catch (e) {
+  } catch {
     return { erro: 'Parse falhou' }
   }
 }

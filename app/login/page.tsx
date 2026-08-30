@@ -53,7 +53,7 @@ export default function LoginPage() {
 
       router.replace('/dashboard')
       router.refresh()
-    } catch (_err) {
+    } catch {
       setErro('Não foi possível concluir o login. Verifique sua conexão.')
     } finally {
       setLoading(false)

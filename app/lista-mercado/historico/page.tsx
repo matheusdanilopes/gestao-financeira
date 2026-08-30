@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { useHistoricoCompras, type RegistroCompra } from '@/lib/useHistoricoCompras'
-import { formatBRL } from '@/lib/logger'
+import { formatBRL } from '@/lib/format'
 import { format, subDays, startOfMonth, startOfYear, isAfter, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 

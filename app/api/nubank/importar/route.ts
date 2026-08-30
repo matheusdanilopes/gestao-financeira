@@ -368,7 +368,6 @@ export async function POST(req: NextRequest) {
     // purchaseDates e linhas são excluídos da resposta pública propositalmente: purchaseDates
     // só é usado pelo push (já disparado em background dentro de salvarTransacoes); linhas
     // carrega o payload interno de cada transação e vai só pra import_validacoes, não pro cliente.
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { hashesImportados, purchaseDates, linhas, ...importacaoPublica } = resultadoImportacao
 
     const mesesStr = importacaoPublica.mesesReprocessados.map(m => m.substring(0, 7)).join(', ')

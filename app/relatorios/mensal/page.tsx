@@ -7,7 +7,7 @@ import MonthSelector from '@/components/MonthSelector'
 import EmptyState from '@/components/EmptyState'
 import { useMes } from '@/components/MesProvider'
 import { buscarRelatorioMensal, RELATORIO_EXPLICACOES, type RelatorioMensal } from '@/lib/relatorioMensal'
-import { formatBRL } from '@/lib/logger'
+import { formatBRL } from '@/lib/format'
 
 function RelatorioSkeleton() {
   return (

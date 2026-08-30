@@ -7,7 +7,7 @@ import { ptBR } from 'date-fns/locale'
 import { ArrowLeft, FileDown, FileSpreadsheet, History, TrendingUp, Layers, CreditCard, AlertTriangle } from 'lucide-react'
 import EmptyState from '@/components/EmptyState'
 import { buscarRelatorioCartoes, RELATORIO_CARTOES_EXPLICACOES, type RelatorioCartoes, type MesGasto } from '@/lib/relatorioCartoes'
-import { formatBRL } from '@/lib/logger'
+import { formatBRL } from '@/lib/format'
 
 const ORIGEM_LABEL: Record<string, string> = {
   nubank: 'NuBank',

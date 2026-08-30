@@ -16,7 +16,7 @@ import {
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { AlertCircle } from 'lucide-react'
-import { formatBRL } from '@/lib/logger'
+import { formatBRL } from '@/lib/format'
 import { supabase } from '@/lib/supabaseClient'
 import { useIsDark } from '@/lib/useIsDark'
 import { CHART_ANIMATION, tooltipCfg, axisColors } from '@/lib/chartTheme'
@@ -184,7 +184,7 @@ export default function GraficoAnual({ ano }: Props) {
         boxHeight: 8,
         callbacks: {
           label: (ctx: TooltipItem<'bar'>) =>
-            `  ${ctx.dataset.label}: ${(ctx.parsed.y ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
+            `  ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y ?? 0)}`,
         },
       },
     },

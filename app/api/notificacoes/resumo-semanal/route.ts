@@ -3,6 +3,7 @@ import webpush from 'web-push'
 import { requireCronSecret } from '@/lib/serverAuth'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
 import { subDays, startOfDay, format } from 'date-fns'
+import { formatBRL } from '@/lib/format'
 
 const VAPID_PUBLIC  = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY ?? ''
@@ -99,10 +100,6 @@ export async function POST(req: NextRequest) {
     return usuario.split('@')[0]
   }
 
-  function brl(val: number): string {
-    return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-  }
-
   function calcResumo(lista: Transacao[]): { totalGasto: number; topCategoria: string; topValor: number; totalTransacoes: number } {
     const totalGasto = lista.reduce((acc, t) => acc + t.valor, 0)
     const totalTransacoes = lista.length
@@ -133,12 +130,12 @@ export async function POST(req: NextRequest) {
     const anterior = totalAnteriorPorResponsavel.get(sub.usuario) ?? 0
     const nome = primeiroNome(sub.usuario)
     const trend = tendencia(totalGasto, anterior)
-    const topInfo = topCategoria ? `${topCategoria} foi o maior gasto (${brl(topValor)})` : ''
+    const topInfo = topCategoria ? `${topCategoria} foi o maior gasto (${formatBRL(topValor)})` : ''
     const partes = [trend, topInfo, `${totalTransacoes} compra${totalTransacoes !== 1 ? 's' : ''} no total`].filter(Boolean)
     return [{
       sub,
       msg: {
-        title: `${nome}, sua semana custou ${brl(totalGasto)}`,
+        title: `${nome}, sua semana custou ${formatBRL(totalGasto)}`,
         body: partes.join(' · '),
         url: '/compras',
         tag: 'resumo-semanal',

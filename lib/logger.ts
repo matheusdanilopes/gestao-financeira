@@ -36,17 +36,3 @@ export function log(
     }
   })()
 }
-
-export function numericOnly(value: string): string {
-  return value.replace(/[^0-9,.]/g, '')
-}
-
-/** Converts any value to a finite number, returning fallback (default 0) for NaN/Infinity/null/undefined */
-export function safeNum(v: unknown, fallback = 0): number {
-  const n = Number(v)
-  return Number.isFinite(n) ? n : fallback
-}
-
-export function formatBRL(value: number): string {
-  return (Number.isFinite(value) ? value : 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}

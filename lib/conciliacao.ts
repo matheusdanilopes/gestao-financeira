@@ -1,7 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { TransacaoNubank, normalizarDescricaoParaHash } from '@/lib/csvparser'
 import { descricoesParecidas, normalizarDescricaoSemParcela } from '@/lib/descricaoSimilaridade'
-import { formatBRL } from '@/lib/logger'
+import { formatBRL } from '@/lib/format'
 
 function adicionarDias(dataISO: string, dias: number): string {
   const d = new Date(dataISO + 'T12:00:00')

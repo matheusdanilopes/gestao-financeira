@@ -41,8 +41,6 @@ const CAT_COLORS = [
 
 const MES_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 
-const fmtBRL = (v: number) =>
-  v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 })
 
 export function useAnalyticsData(filters: AnalyticsFilters) {
   const [rows, setRows] = useState<AnalyticsMensalRow[]>([])
@@ -342,12 +340,11 @@ export function useAnalyticsData(filters: AnalyticsFilters) {
     plannedVsPaidData,
     remainingByMonthData,
     cardCategoryTreemap,
-    fmtBRL,
     CAT_COLORS,
   }
 }
 
-export { fmtBRL, CAT_COLORS, MES_PT }
+export { CAT_COLORS, MES_PT }
 
 // Re-export default date range helpers
 export function defaultDateFrom() {

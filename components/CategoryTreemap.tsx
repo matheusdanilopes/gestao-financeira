@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react'
-import { formatBRL } from '@/lib/logger'
+import { formatBRL } from '@/lib/format'
 import { LayoutGrid, Hash, TrendingUp, X } from 'lucide-react'
 import { addMonths, format, startOfMonth } from 'date-fns'
 import { supabase } from '@/lib/supabaseClient'

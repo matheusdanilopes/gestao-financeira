@@ -1,6 +1,5 @@
 import Papa from 'papaparse'
 import { createHash } from 'crypto'
-import { format } from 'date-fns'
 import { calcularProjetoFatura } from '@/lib/fatura'
 
 type CsvRow = Record<string, string | number | undefined>
@@ -210,7 +209,7 @@ export function processarCSV(
 
     // Calcula projeto_fatura com a lógica de ciclo de vencimento
     const dataCompra = new Date(dataISO + 'T12:00:00') // meio-dia para evitar problemas de fuso
-    let projetoFatura = calcularProjetoFatura(dataCompra, diaVencimento, ajusteFechamento)
+    const projetoFatura = calcularProjetoFatura(dataCompra, diaVencimento, ajusteFechamento)
 
     let hash_linha: string
     let parcela_atual: number | null = null
@@ -298,7 +297,7 @@ export function processarTransacoesJSON(
       descricao.toLowerCase().includes('jeniffer') ? 'Jeniffer' : 'Matheus'
 
     const dataCompra = new Date(dataISO + 'T12:00:00')
-    let projetoFatura = calcularProjetoFatura(dataCompra, diaVencimento, ajusteFechamento)
+    const projetoFatura = calcularProjetoFatura(dataCompra, diaVencimento, ajusteFechamento)
 
     let hash_linha: string
     let parcela_atual: number | null = null
