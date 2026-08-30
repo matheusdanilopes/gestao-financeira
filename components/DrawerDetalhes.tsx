@@ -3,7 +3,7 @@
 import { X } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
 import { useState, useMemo, useEffect } from 'react'
-import { formatBRL } from '@/lib/logger'
+import { formatBRL } from '@/lib/format'
 
 type CampoFiltro = 'responsavel' | 'tipo' | 'cartao' | 'categoria' | 'descricao'
 

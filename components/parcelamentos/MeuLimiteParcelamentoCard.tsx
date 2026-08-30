@@ -5,7 +5,7 @@ import { Gauge } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { AUTH_DISABLED } from '@/lib/authConfig'
 import { nomeDoUsuario } from '@/lib/notificacoes'
-import { formatBRL } from '@/lib/logger'
+import { formatBRL } from '@/lib/format'
 import { RESPONSAVEL_STYLE, type Responsavel } from '@/lib/responsavelStyle'
 
 export type ResumoLimitePorPessoa = Record<Responsavel, { limite: number; gasto: number }>

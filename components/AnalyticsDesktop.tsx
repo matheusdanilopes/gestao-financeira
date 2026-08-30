@@ -28,6 +28,7 @@ import {
 } from '@/lib/useAnalyticsData'
 import { useIsDark } from '@/lib/useIsDark'
 import { CHART_ANIMATION, tooltipCfg } from '@/lib/chartTheme'
+import { formatBRL } from '@/lib/format'
 
 ChartJS.register(
   CategoryScale,
@@ -259,9 +260,6 @@ export default function AnalyticsDesktop() {
   // ── Format helpers ────────────────────────────────────────────────────────
   const fmtCompact = (v: number) =>
     v >= 1000 ? `R$ ${(v / 1000).toFixed(1)}k` : `R$ ${v.toFixed(0)}`
-
-  const fmtFull = (v: number) =>
-    v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
   // ── Sort indicator icon ───────────────────────────────────────────────────
   const SortIcon = ({ k }: { k: SortKey }) =>
@@ -553,8 +551,8 @@ export default function AnalyticsDesktop() {
                           />
                         </div>
                         <div className="flex justify-between text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">
-                          <span>Gasto: {b.gasto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                          <span>Previsto: {b.previsto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                          <span>Gasto: {formatBRL(b.gasto)}</span>
+                          <span>Previsto: {formatBRL(b.previsto)}</span>
                         </div>
                       </div>
                     ))}
@@ -655,7 +653,7 @@ export default function AnalyticsDesktop() {
                                   </span>
                                 </td>
                                 <td className="px-4 py-2.5 text-right font-bold text-gray-800 dark:text-gray-100 tabular-nums text-xs whitespace-nowrap num">
-                                  {fmtFull(row.total_gasto)}
+                                  {formatBRL(row.total_gasto)}
                                 </td>
                                 <td className="px-4 py-2.5 text-right text-gray-400 dark:text-gray-500 tabular-nums text-xs font-medium">
                                   {row.contagem}
@@ -665,7 +663,7 @@ export default function AnalyticsDesktop() {
                                     <span className="text-gray-300 dark:text-gray-600">—</span>
                                   ) : (
                                     <span className={desvio > 0 ? 'text-red-500' : desvio < 0 ? 'text-emerald-500' : 'text-gray-400'}>
-                                      {desvio > 0 ? '+' : ''}{fmtFull(desvio)}
+                                      {desvio > 0 ? '+' : ''}{formatBRL(desvio)}
                                     </span>
                                   )}
                                 </td>

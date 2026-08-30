@@ -2,7 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js'
 import { labelCartao } from '@/lib/pushImportacao'
 import { TransacaoNubank, normalizarDescricaoParaHash } from '@/lib/csvparser'
 import { descricoesParecidas } from '@/lib/descricaoSimilaridade'
-import { formatBRL } from '@/lib/logger'
+import { formatBRL } from '@/lib/format'
 
 export interface StatsFaturaValidacao {
   noCSV: number

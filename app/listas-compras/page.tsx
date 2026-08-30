@@ -9,15 +9,9 @@ import {
 import { BottomSheet } from '@/components/BottomSheet'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { useListasCompras, type ListaComMeta } from '@/lib/useListasCompras'
-import { formatBRL } from '@/lib/logger'
+import { formatBRL } from '@/lib/format'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function nomeCurto(email: string | null): string {
-  if (!email) return ''
-  const parte = email.split('@')[0].split('.')[0].split('_')[0]
-  return parte.charAt(0).toUpperCase() + parte.slice(1)
-}
 
 // ── Input Nova Lista ──────────────────────────────────────────────────────────
 
@@ -121,7 +115,7 @@ function BottomSheetAcoes({
 
           {confirmarExclusao ? (
             <div className="rounded-2xl bg-red-50 dark:bg-red-900/20 p-4">
-              <p className="text-sm font-bold text-gray-900 dark:text-white mb-1">Excluir "{lista.nome}"?</p>
+              <p className="text-sm font-bold text-gray-900 dark:text-white mb-1">Excluir &ldquo;{lista.nome}&rdquo;?</p>
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Essa ação não pode ser desfeita.</p>
               <div className="flex gap-2">
                 <button

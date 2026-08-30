@@ -1,6 +1,6 @@
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { formatBRL } from './logger'
+import { formatBRL } from './format'
 import { RELATORIO_EXPLICACOES, type RelatorioMensal } from './relatorioMensal'
 
 const MARGIN_X = 14

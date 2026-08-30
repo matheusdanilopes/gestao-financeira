@@ -8,7 +8,7 @@ import { useImportacaoScript, type StatusExecucaoScript } from '@/components/Imp
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth } from 'date-fns'
 import FilterSelect from '@/components/FilterSelect'
-import { numericOnly } from '@/lib/logger'
+import { numericOnly } from '@/lib/format'
 
 interface StatsFatura {
   noCSV: number

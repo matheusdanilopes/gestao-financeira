@@ -9,7 +9,7 @@ import { RealizarButton } from '@/components/RealizarButton'
 import { fireWishlistConfetti } from '@/lib/confetti'
 import { useWishlist, type WishlistItem } from '@/lib/useWishlist'
 import { supabase } from '@/lib/supabaseClient'
-import { formatBRL } from '@/lib/logger'
+import { formatBRL } from '@/lib/format'
 import { fileToBase64, abortTimeout, compressImage, callAnalyze } from '@/lib/imageUtils'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -1208,7 +1208,6 @@ function WishlistContent() {
     if (!activeToast) return
     setActiveToast(null)
     await desfazerRealizado(activeToast.id)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeToast, desfazerRealizado])
 
   function handleFecharToast() {

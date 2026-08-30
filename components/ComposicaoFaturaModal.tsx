@@ -2,7 +2,7 @@
 
 import { X } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
-import { formatBRL } from '@/lib/logger'
+import { formatBRL } from '@/lib/format'
 import type { TipoGasto } from '@/lib/composicaoFatura'
 
 export interface ComposicaoFaturaDados {

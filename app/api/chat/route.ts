@@ -316,10 +316,11 @@ async function gerarResumo(
 async function carregarContextoConversa(
   supabase: ReturnType<typeof criarSupabaseServer>,
   apiKey: string,
-  conversationId: string,
-  userId: string
+  conversationId: string
 ): Promise<Array<{ role: string; content: string }>> {
-  // Always scope message loading to conversations owned by this user
+  // conversationId já vem validado por garantirConversa(), que só devolve uma
+  // conversa cujo user_id confere (ou cria uma nova) — por isso as consultas
+  // abaixo filtram apenas por conversation_id.
   const { count } = await supabase
     .from('messages')
     .select('*', { count: 'exact', head: true })
@@ -416,7 +417,7 @@ export async function POST(req: NextRequest) {
 
     conversation_id = await garantirConversa(supabase, conversation_id ?? null, userId)
 
-    const contextoConversa = await carregarContextoConversa(supabase, apiKey, conversation_id, userId)
+    const contextoConversa = await carregarContextoConversa(supabase, apiKey, conversation_id)
 
     const conteudoUsuario = dadosSafe
       ? `Pergunta: ${perguntaSafe}\n\nDados adicionais:\n${dadosSafe}`

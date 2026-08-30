@@ -10,7 +10,8 @@ import { CheckCircle2, AlertCircle, CreditCard, RotateCcw, WifiOff, Bell, Calend
 import PageActionButtons from '@/components/PageActionButtons'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { calcularStatusVencimento, verificarVencimentos, type StatusVencimento } from '@/lib/notificacoesVencimento'
-import { log, numericOnly, formatBRL } from '@/lib/logger'
+import { log } from '@/lib/logger'
+import { numericOnly, formatBRL } from '@/lib/format'
 import {
   TIPOS_CARTAO,
   type TipoCartao,
@@ -82,10 +83,6 @@ function StatusBadge({ status }: { status: StatusVencimento }) {
 interface Props {
   mesSelecionado: Date
   autoOpen?: boolean
-}
-
-function formatarMoeda(v: number): string {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
 }
 
 /** "1.234,56" (como o usuário digita) → 1234.56. Devolve 0 para entrada vazia/inválida. */
@@ -281,7 +278,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
       setSuccessId(id)
       setTimeout(() => setSuccessId(null), 400)
       if (diff > 0.01) {
-        showToast(`Diferença de ${formatarMoeda(diff)} em relação ao previsto`, 'erro')
+        showToast(`Diferença de ${formatBRL(diff)} em relação ao previsto`, 'erro')
       } else {
         showToast('Pagamento registrado!')
       }
@@ -399,7 +396,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
 
     if (!algumErro) {
       log('pagar', 'planejamento', `Fatura ${nomeCartao} paga (${atualizacoes.length} cartões): ${formatBRL(totalPagoFatura)}`, totalPagoFatura)
-      showToast(`Fatura paga! Total: ${formatarMoeda(totalPagoFatura)}`)
+      showToast(`Fatura paga! Total: ${formatBRL(totalPagoFatura)}`)
     } else {
       setItens(prev => prev.map(i => {
         const original = grupoOriginal.find(g => g.id === i.id)
@@ -519,7 +516,6 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
         // Data de vencimento não é propagada: é específica de cada mês (o dia
         // pode ser reaproveitado, mas o mês/ano de cada linha futura precisa
         // ser preservado, o que uma única atualização em massa não permite).
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { data_vencimento, ...updatesFuturos } = updates
         try {
           const alterados = await atualizarRegistrosFuturos(
@@ -596,7 +592,6 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
       log('inserir', 'planejamento', `Novo item: ${formData.item} — ${formatBRL(valor)}`, valor)
 
       if (tambemFuturos) {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { mes_referencia, ...base } = novoItem
         try {
           await criarRegistrosFuturos('planejamento', base, mesSelecionado, quantidade, (mes) => ({
@@ -651,7 +646,6 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
         .not('item', 'ilike', '[RECEITA]%')
       const idsExistentes = (existentes || []).map(i => i.id)
 
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const novosItens = previewImport.itens.map(({ id, mes_referencia, pago, valor_real, data_pagamento, created_at, parcela_atual, total_parcelas, data_vencimento, ...resto }) => ({
         ...resto,
         mes_referencia: mesAtualStr,
@@ -797,11 +791,11 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
             {/* Valores */}
             <div className="text-right shrink-0 mr-1">
               <p className={`text-sm font-semibold num ${item.pago ? 'text-gray-400' : 'text-gray-800'}`}>
-                {formatarMoeda(item.valor_previsto)}
+                {formatBRL(item.valor_previsto)}
               </p>
               {item.pago && (
                 <p className={`text-xs font-medium num ${diff > 0.01 ? 'text-red-500' : 'text-emerald-600'}`}>
-                  ✓ {formatarMoeda(item.valor_real ?? item.valor_previsto)}
+                  ✓ {formatBRL(item.valor_real ?? item.valor_previsto)}
                 </p>
               )}
             </div>
@@ -834,7 +828,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
           {diff > 0.01 && (
             <div className="mt-1.5 ml-5 flex items-center gap-1 text-xs text-red-500">
               <AlertCircle className="w-3 h-3" />
-              Diferença de {formatarMoeda(diff)} em relação ao previsto
+              Diferença de {formatBRL(diff)} em relação ao previsto
             </div>
           )}
         </div>
@@ -889,11 +883,11 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
                 </p>
                 <div className="text-right shrink-0">
                   <p className={`text-sm font-semibold num ${todosPagos ? 'text-gray-400' : 'text-gray-800'}`}>
-                    {formatarMoeda(totalPrevistoGrupo)}
+                    {formatBRL(totalPrevistoGrupo)}
                   </p>
                   {algunsPagos && (
                     <p className="text-xs font-medium num text-emerald-600">
-                      ✓ {formatarMoeda(totalPagoGrupo)}
+                      ✓ {formatBRL(totalPagoGrupo)}
                     </p>
                   )}
                 </div>
@@ -994,17 +988,17 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
         <div className="grid grid-cols-3 gap-2 mb-3.5">
           <div className="bg-gray-50 rounded-2xl p-2.5 text-center">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">Previsto</p>
-            <p className="text-xs font-bold text-gray-800 break-all leading-tight num">{formatarMoeda(totalPrevisto)}</p>
+            <p className="text-xs font-bold text-gray-800 break-all leading-tight num">{formatBRL(totalPrevisto)}</p>
           </div>
           <div className="bg-primary-50 rounded-2xl p-2.5 text-center">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-primary-500 mb-0.5">Pago</p>
-            <p className="text-xs font-bold text-primary-700 break-all leading-tight num">{formatarMoeda(totalPago)}</p>
+            <p className="text-xs font-bold text-primary-700 break-all leading-tight num">{formatBRL(totalPago)}</p>
           </div>
           <div className={`rounded-2xl p-2.5 text-center ${totalPendente <= 0.009 ? 'bg-green-50' : 'bg-red-50'}`}>
             <p className={`text-[10px] font-semibold uppercase tracking-wide mb-0.5 ${totalPendente <= 0.009 ? 'text-green-500' : 'text-red-500'}`}>A pagar</p>
             {totalPendente <= 0.009
               ? <p className="text-xs font-bold text-green-600 leading-tight">Quitado</p>
-              : <p className="text-xs font-bold text-red-600 break-all leading-tight num">{formatarMoeda(totalPendente)}</p>
+              : <p className="text-xs font-bold text-red-600 break-all leading-tight num">{formatBRL(totalPendente)}</p>
             }
           </div>
         </div>
@@ -1106,7 +1100,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
                       {pendentesGrupo > 0 ? `${pendentesGrupo} pendente${pendentesGrupo > 1 ? 's' : ''}` : 'Tudo pago ✓'}
                     </span>
                   </div>
-                  <span className="text-xs font-semibold text-gray-700 num">{formatarMoeda(subtotalGrupo)}</span>
+                  <span className="text-xs font-semibold text-gray-700 num">{formatBRL(subtotalGrupo)}</span>
                 </div>
 
                 {/* Barra de progresso da categoria */}
@@ -1144,7 +1138,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
             <input
               type="text"
               inputMode="decimal"
-              placeholder={`Previsto: ${formatarMoeda(itemSelecionado.valor_previsto)}`}
+              placeholder={`Previsto: ${formatBRL(itemSelecionado.valor_previsto)}`}
               value={valorReal}
               onChange={(e) => setValorReal(numericOnly(e.target.value))}
               className="w-full border border-gray-200 rounded-xl p-3 text-lg font-semibold mb-4 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
@@ -1209,14 +1203,14 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
                     <input
                       type="text"
                       inputMode="decimal"
-                      placeholder={`Previsto: ${formatarMoeda(item.valor_previsto)}`}
+                      placeholder={`Previsto: ${formatBRL(item.valor_previsto)}`}
                       value={valoresFatura[item.id] ?? ''}
                       onChange={(e) => alterarValorDespesaFatura(item.id, numericOnly(e.target.value))}
                       className="w-full border border-gray-200 rounded-xl p-3 text-base font-semibold focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
                     />
                     {Math.abs(diff) > 0.005 && (
                       <p className={`text-[11px] mt-1 num ${diff > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                        {diff > 0 ? '+' : '−'}{formatarMoeda(Math.abs(diff))} vs. previsto
+                        {diff > 0 ? '+' : '−'}{formatBRL(Math.abs(diff))} vs. previsto
                       </p>
                     )}
                   </div>
@@ -1362,7 +1356,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
                     <span className="truncate max-w-[180px] text-gray-700">
                       {removerPrefixoCartao(i.item)}{parcelaLabel}
                     </span>
-                    <span className="text-gray-500 shrink-0 ml-2">{formatarMoeda(i.valor_previsto)}</span>
+                    <span className="text-gray-500 shrink-0 ml-2">{formatBRL(i.valor_previsto)}</span>
                   </div>
                 )
               })}
@@ -1429,7 +1423,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
             </p>
             {itemSelecionado.valor_real !== null && (
               <p className="text-sm text-gray-400 mb-5">
-                Valor registrado: {formatarMoeda(itemSelecionado.valor_real)}
+                Valor registrado: {formatBRL(itemSelecionado.valor_real)}
               </p>
             )}
             <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-5">

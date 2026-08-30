@@ -14,9 +14,9 @@ import { ptBR } from 'date-fns/locale'
 import { CATEGORIAS_PADRAO } from '../categorias'
 import { getMesEfetivo as mesEfetivo, isPlanejamentoDespesaReal } from './insightsEngine'
 import type { EnrichedData } from './types'
+import { formatBRLCompacto } from '@/lib/format'
 
-const R = (n: number) =>
-  n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 })
+const R = formatBRLCompacto
 
 const fmtMes = (yyyyMM: string) => {
   try { return format(new Date(yyyyMM + '-02'), 'MMM/yy', { locale: ptBR }).toUpperCase() }

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { format, startOfMonth, addMonths } from 'date-fns'
 import { Target } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
-import { formatBRL } from '@/lib/logger'
+import { formatBRL } from '@/lib/format'
 import FilterSelect from '@/components/FilterSelect'
 
 type FiltroResponsavel = 'todos' | 'Matheus' | 'Jeniffer' | 'Conjunto'

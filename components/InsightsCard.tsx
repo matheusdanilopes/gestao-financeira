@@ -178,7 +178,7 @@ function InsightsCarousel({ insights, changedIndices }: { insights: InsightItem[
     setActiveIdx(0)
     setNextIdx(null)
     setPhase('idle')
-  }, [insightsKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [insightsKey])
 
   // Agenda a próxima transição sempre que activeIdx muda ou volta para 'idle'
   useEffect(() => {
@@ -200,7 +200,7 @@ function InsightsCarousel({ insights, changedIndices }: { insights: InsightItem[
       clearTimeout(outerTimer)
       if (innerTimerRef.current) clearTimeout(innerTimerRef.current)
     }
-  }, [activeIdx, insights.length]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeIdx, insights.length])
 
   const isAnimating = phase === 'animating'
   const displayIdx  = isAnimating && nextIdx !== null ? nextIdx : activeIdx

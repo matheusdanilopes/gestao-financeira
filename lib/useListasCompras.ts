@@ -36,12 +36,46 @@ export type ItemListaCompras = {
   data_compra: string | null
 }
 
+type TotaisLista = {
+  totalItens: number
+  totalPendentes: number
+  totalPrevisto: number
+  totalPago: number
+}
+
 type ItemMeta = {
   lista_id: string
   preco_previsto: number | null
   preco_pago: number | null
   status: string
   quantidade: number
+}
+
+/**
+ * Agrega os itens por lista numa única passada.
+ *
+ * Antes cada lista varria o array inteiro de itens 5x (um filter + 3 reduces
+ * sobre o resultado), o que dava O(listas x itens) — perceptível em contas com
+ * muitas listas, já que os itens de todas elas vêm no mesmo array.
+ */
+function agregarItensPorLista(itens: ItemMeta[]): Map<string, TotaisLista> {
+  const porLista = new Map<string, TotaisLista>()
+  for (const item of itens) {
+    let t = porLista.get(item.lista_id)
+    if (!t) {
+      t = { totalItens: 0, totalPendentes: 0, totalPrevisto: 0, totalPago: 0 }
+      porLista.set(item.lista_id, t)
+    }
+    t.totalItens++
+    if (item.status === 'pendente') t.totalPendentes++
+    else if (item.status === 'comprado') t.totalPago += (item.preco_pago ?? 0) * item.quantidade
+    t.totalPrevisto += (item.preco_previsto ?? 0) * item.quantidade
+  }
+  return porLista
+}
+
+const TOTAIS_VAZIOS: TotaisLista = {
+  totalItens: 0, totalPendentes: 0, totalPrevisto: 0, totalPago: 0,
 }
 
 async function getUsuario(): Promise<string | null> {
@@ -102,20 +136,18 @@ export function useListasCompras() {
     },
   })
 
-  const listasComMeta: ListaComMeta[] = useMemo(() => listas.map(lista => {
-    const itens = itensMeta.filter(i => i.lista_id === lista.id)
-    const totalSublistas = sublistasMeta.filter(s => s.parent_id === lista.id).length
-    return {
-      ...lista,
-      totalItens: itens.length,
-      totalPendentes: itens.filter(i => i.status === 'pendente').length,
-      totalPrevisto: itens.reduce((s, i) => s + (i.preco_previsto ?? 0) * i.quantidade, 0),
-      totalPago: itens
-        .filter(i => i.status === 'comprado')
-        .reduce((s, i) => s + (i.preco_pago ?? 0) * i.quantidade, 0),
-      totalSublistas,
+  const listasComMeta: ListaComMeta[] = useMemo(() => {
+    const totaisPorLista = agregarItensPorLista(itensMeta)
+    const sublistasPorParent = new Map<string, number>()
+    for (const s of sublistasMeta) {
+      sublistasPorParent.set(s.parent_id, (sublistasPorParent.get(s.parent_id) ?? 0) + 1)
     }
-  }), [listas, itensMeta, sublistasMeta])
+    return listas.map(lista => ({
+      ...lista,
+      ...(totaisPorLista.get(lista.id) ?? TOTAIS_VAZIOS),
+      totalSublistas: sublistasPorParent.get(lista.id) ?? 0,
+    }))
+  }, [listas, itensMeta, sublistasMeta])
 
   const ativas = useMemo(() => listasComMeta.filter(l => l.status === 'ativa'), [listasComMeta])
   const arquivadas = useMemo(() => listasComMeta.filter(l => l.status === 'arquivada'), [listasComMeta])
@@ -230,19 +262,14 @@ export function useSublistasLista(parentId: string) {
     },
   })
 
-  const sublistasComMeta: ListaComMeta[] = useMemo(() => sublistas.map(sub => {
-    const itens = itensMeta.filter(i => i.lista_id === sub.id)
-    return {
+  const sublistasComMeta: ListaComMeta[] = useMemo(() => {
+    const totaisPorLista = agregarItensPorLista(itensMeta)
+    return sublistas.map(sub => ({
       ...sub,
-      totalItens: itens.length,
-      totalPendentes: itens.filter(i => i.status === 'pendente').length,
-      totalPrevisto: itens.reduce((s, i) => s + (i.preco_previsto ?? 0) * i.quantidade, 0),
-      totalPago: itens
-        .filter(i => i.status === 'comprado')
-        .reduce((s, i) => s + (i.preco_pago ?? 0) * i.quantidade, 0),
+      ...(totaisPorLista.get(sub.id) ?? TOTAIS_VAZIOS),
       totalSublistas: 0,
-    }
-  }), [sublistas, itensMeta])
+    }))
+  }, [sublistas, itensMeta])
   const isLoading = sync.status === 'loading'
 
   const criarSublista = useCallback(async (nome: string) => {

@@ -12,7 +12,8 @@ import EmptyState from '@/components/EmptyState'
 import UltimaImportacaoInfo from '@/components/UltimaImportacaoInfo'
 import { addMonths, subMonths, format, startOfMonth, isToday, isYesterday, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { log, numericOnly, formatBRL } from '@/lib/logger'
+import { log } from '@/lib/logger'
+import { numericOnly, formatBRL } from '@/lib/format'
 import { useMes } from '@/components/MesProvider'
 import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
 import FilterSelect from '@/components/FilterSelect'
@@ -134,7 +135,6 @@ export default function ComprasPage() {
   const router = useRouter()
   const { mesAtual: mesGlobal, setMesAtual } = useMes()
   const mesAtual = addMonths(mesGlobal, 1)
-  const isMesAtual = format(mesAtual, 'yyyy-MM') === format(addMonths(new Date(), 1), 'yyyy-MM')
 
   // Parâmetros de deep link vindos da notificação de importação
   const searchParams = useSearchParams()
