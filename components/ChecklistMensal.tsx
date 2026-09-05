@@ -26,9 +26,11 @@ import {
   atualizarRegistrosFuturos,
   excluirRegistrosFuturos,
   criarRegistrosFuturos,
+  camposAlterados,
   MESES_FUTUROS_PADRAO,
   MESES_FUTUROS_MAXIMO,
 } from '@/lib/registrosFuturos'
+import { ajustarVencimentoParaMes, moverVencimentoParaMes } from '@/lib/diasUteis'
 
 const CATEGORIAS_PLANEJAMENTO = [
   'Fixa', 'Extra', 'Cartão', 'Moradia', 'Alimentação',
@@ -129,19 +131,6 @@ function ratearTotal(total: number, bases: number[]): number[] {
   }
 
   return cents.map(c => c / 100)
-}
-
-function moverVencimentoParaMes(dataVencimento: string | null | undefined, novoMes: Date): string | null {
-  if (!dataVencimento) return null
-  try {
-    const dia = parseISO(dataVencimento).getDate()
-    const ano = novoMes.getFullYear()
-    const mes = novoMes.getMonth()
-    const diasNoMes = new Date(ano, mes + 1, 0).getDate()
-    return format(new Date(ano, mes, Math.min(dia, diasNoMes)), 'yyyy-MM-dd')
-  } catch {
-    return null
-  }
 }
 
 // Uma fatura de cartão é lançada como várias despesas — uma por cartão adicional —
@@ -513,20 +502,40 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     if (!error) {
       log('editar', 'planejamento', `Editado: ${formData.item} — ${formatBRL(valor)}`, valor, originalItem.valor_previsto)
       if (tambemFuturos) {
-        // Data de vencimento não é propagada: é específica de cada mês (o dia
-        // pode ser reaproveitado, mas o mês/ano de cada linha futura precisa
-        // ser preservado, o que uma única atualização em massa não permite).
-        const { data_vencimento, ...updatesFuturos } = updates
-        try {
-          const alterados = await atualizarRegistrosFuturos(
-            'planejamento',
-            { item: originalItem.item, responsavel: originalItem.responsavel },
-            mesSelecionado,
-            updatesFuturos
-          )
-          if (alterados > 0) showToast(`Item editado (e ${alterados} ocorrência(s) futura(s))`)
-        } catch {
-          showToast('Item editado, mas houve erro ao aplicar aos meses futuros', 'erro')
+        // Só os campos que mudaram nesta edição são propagados — o que ficou
+        // igual pode ter sido personalizado mês a mês e não deve ser sobrescrito.
+        const alteracoes = camposAlterados(
+          {
+            item: originalItem.item,
+            responsavel: originalItem.responsavel,
+            categoria: originalItem.categoria,
+            valor_previsto: originalItem.valor_previsto,
+            data_vencimento: originalItem.data_vencimento,
+          },
+          updates
+        )
+        // A data de vencimento não pode ser copiada literalmente: cada mês
+        // futuro recebe o mesmo dia dentro do próprio mês, adiantado para o
+        // próximo dia útil quando cai em fim de semana ou feriado nacional.
+        const vencimentoMudou = 'data_vencimento' in alteracoes
+        const { data_vencimento: novoVencimento, ...updatesFuturos } = alteracoes
+        if (vencimentoMudou || Object.keys(updatesFuturos).length > 0) {
+          try {
+            const alterados = await atualizarRegistrosFuturos(
+              'planejamento',
+              { item: originalItem.item, responsavel: originalItem.responsavel },
+              mesSelecionado,
+              updatesFuturos,
+              vencimentoMudou
+                ? (mes) => ({
+                    data_vencimento: ajustarVencimentoParaMes(novoVencimento, mes, mesSelecionado),
+                  })
+                : undefined
+            )
+            if (alterados > 0) showToast(`Item editado (e ${alterados} ocorrência(s) futura(s))`)
+          } catch {
+            showToast('Item editado, mas houve erro ao aplicar aos meses futuros', 'erro')
+          }
         }
       }
     } else {
@@ -595,7 +604,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
         const { mes_referencia, ...base } = novoItem
         try {
           await criarRegistrosFuturos('planejamento', base, mesSelecionado, quantidade, (mes) => ({
-            data_vencimento: moverVencimentoParaMes(novoItem.data_vencimento, mes),
+            data_vencimento: ajustarVencimentoParaMes(novoItem.data_vencimento, mes, mesSelecionado),
           }))
           showToast(`Item adicionado e repetido nos próximos ${quantidade} mês(es)`)
         } catch {
@@ -654,7 +663,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
         data_pagamento: null,
         parcela_atual: parcela_atual ? parcela_atual + 1 : null,
         total_parcelas: total_parcelas ?? null,
-        data_vencimento: moverVencimentoParaMes(data_vencimento, mesSelecionado),
+        data_vencimento: moverVencimentoParaMes(data_vencimento, mesSelecionado, parseISO(mes_referencia)),
       }))
 
       if (novosItens.length > 0) {
@@ -1314,7 +1323,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
                   )
                 ) : (
                   <p className="text-xs text-gray-400 mt-1">
-                    Atualiza descrição, responsável, categoria e valor de todas as ocorrências futuras deste item (a data de vencimento de cada mês não é alterada).
+                    Aplica às ocorrências futuras deste item apenas os campos que você alterou aqui. Se a data de vencimento mudar, ela avança um mês a cada ocorrência, mantendo o dia e adiantando para o próximo dia útil quando cair em fim de semana ou feriado nacional.
                   </p>
                 )}
               </div>

@@ -15,6 +15,7 @@ import {
   atualizarRegistrosFuturos,
   excluirRegistrosFuturos,
   criarRegistrosFuturos,
+  camposAlterados,
   MESES_FUTUROS_PADRAO,
   MESES_FUTUROS_MAXIMO,
 } from '@/lib/registrosFuturos'
@@ -263,16 +264,24 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
       if (!error) {
         log('editar', 'investimentos', `Editado: ${formData.descricao.trim()} — ${pct}%`)
         if (tambemFuturos) {
-          try {
-            const alterados = await atualizarRegistrosFuturos(
-              'investimentos',
-              { descricao: originalItem.descricao },
-              mesSelecionado,
-              { descricao: formData.descricao.trim(), percentual: pct }
-            )
-            if (alterados > 0) showToast(`Atualizado (e ${alterados} ocorrência(s) futura(s))`)
-          } catch {
-            showToast('Atualizado, mas houve erro ao aplicar aos meses futuros', 'erro')
+          // Só o que mudou nesta edição é propagado: um campo que ficou igual
+          // pode ter sido personalizado mês a mês e não deve ser sobrescrito.
+          const alteracoes = camposAlterados(
+            { descricao: originalItem.descricao, percentual: originalItem.percentual },
+            { descricao: formData.descricao.trim(), percentual: pct }
+          )
+          if (Object.keys(alteracoes).length > 0) {
+            try {
+              const alterados = await atualizarRegistrosFuturos(
+                'investimentos',
+                { descricao: originalItem.descricao },
+                mesSelecionado,
+                alteracoes
+              )
+              if (alterados > 0) showToast(`Atualizado (e ${alterados} ocorrência(s) futura(s))`)
+            } catch {
+              showToast('Atualizado, mas houve erro ao aplicar aos meses futuros', 'erro')
+            }
           }
         }
       } else {
@@ -877,18 +886,24 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
                   />
                   {modalAberto === 'adicionar' ? 'Repetir nos meses futuros' : 'Aplicar também aos meses futuros'}
                 </label>
-                {modalAberto === 'adicionar' && aplicarFuturos && (
-                  <div className="mt-2">
-                    <label className="text-xs font-medium text-gray-600 mb-1 block">Por quantos meses</label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={MESES_FUTUROS_MAXIMO}
-                      value={quantidadeMesesFuturos}
-                      onChange={(e) => setQuantidadeMesesFuturos(e.target.value)}
-                      className="w-full border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
-                    />
-                  </div>
+                {modalAberto === 'adicionar' ? (
+                  aplicarFuturos && (
+                    <div className="mt-2">
+                      <label className="text-xs font-medium text-gray-600 mb-1 block">Por quantos meses</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={MESES_FUTUROS_MAXIMO}
+                        value={quantidadeMesesFuturos}
+                        onChange={(e) => setQuantidadeMesesFuturos(e.target.value)}
+                        className="w-full border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+                      />
+                    </div>
+                  )
+                ) : (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Aplica às ocorrências futuras deste investimento apenas os campos que você alterou aqui.
+                  </p>
                 )}
               </div>
             </div>
