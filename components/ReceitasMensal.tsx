@@ -14,6 +14,7 @@ import {
   atualizarRegistrosFuturos,
   excluirRegistrosFuturos,
   criarRegistrosFuturos,
+  camposAlterados,
   MESES_FUTUROS_PADRAO,
   MESES_FUTUROS_MAXIMO,
 } from '@/lib/registrosFuturos'
@@ -314,16 +315,28 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
       if (!error) {
         log('editar', 'receitas', `Editada: ${formData.item} — ${formatBRL(valor)}`, valor, originalItem.valor_previsto)
         if (tambemFuturos) {
-          try {
-            const alterados = await atualizarRegistrosFuturos(
-              'planejamento',
-              { item: originalItem.item, responsavel: originalItem.responsavel },
-              mesSelecionado,
-              payload
-            )
-            if (alterados > 0) showToast(`Receita editada (e ${alterados} ocorrência(s) futura(s))`)
-          } catch {
-            showToast('Receita editada, mas houve erro ao aplicar aos meses futuros', 'erro')
+          // Só o que mudou nesta edição é propagado: um campo que ficou igual
+          // pode ter sido personalizado mês a mês e não deve ser sobrescrito.
+          const alteracoes = camposAlterados(
+            {
+              item: originalItem.item,
+              responsavel: originalItem.responsavel,
+              valor_previsto: originalItem.valor_previsto,
+            },
+            payload
+          )
+          if (Object.keys(alteracoes).length > 0) {
+            try {
+              const alterados = await atualizarRegistrosFuturos(
+                'planejamento',
+                { item: originalItem.item, responsavel: originalItem.responsavel },
+                mesSelecionado,
+                alteracoes
+              )
+              if (alterados > 0) showToast(`Receita editada (e ${alterados} ocorrência(s) futura(s))`)
+            } catch {
+              showToast('Receita editada, mas houve erro ao aplicar aos meses futuros', 'erro')
+            }
           }
         }
       } else {
@@ -846,18 +859,24 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
                   />
                   {modalAberto === 'adicionar' ? 'Repetir nos meses futuros' : 'Aplicar também aos meses futuros'}
                 </label>
-                {modalAberto === 'adicionar' && aplicarFuturos && (
-                  <div className="mt-2">
-                    <label className="text-xs font-medium text-gray-600 mb-1 block">Por quantos meses</label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={MESES_FUTUROS_MAXIMO}
-                      value={quantidadeMesesFuturos}
-                      onChange={(e) => setQuantidadeMesesFuturos(e.target.value)}
-                      className="w-full border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-                    />
-                  </div>
+                {modalAberto === 'adicionar' ? (
+                  aplicarFuturos && (
+                    <div className="mt-2">
+                      <label className="text-xs font-medium text-gray-600 mb-1 block">Por quantos meses</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={MESES_FUTUROS_MAXIMO}
+                        value={quantidadeMesesFuturos}
+                        onChange={(e) => setQuantidadeMesesFuturos(e.target.value)}
+                        className="w-full border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                      />
+                    </div>
+                  )
+                ) : (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Aplica às ocorrências futuras desta receita apenas os campos que você alterou aqui.
+                  </p>
                 )}
               </div>
             </div>
