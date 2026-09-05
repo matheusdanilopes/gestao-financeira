@@ -527,7 +527,9 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
               mesSelecionado,
               updatesFuturos,
               vencimentoMudou
-                ? (mes) => ({ data_vencimento: ajustarVencimentoParaMes(novoVencimento, mes) })
+                ? (mes) => ({
+                    data_vencimento: ajustarVencimentoParaMes(novoVencimento, mes, mesSelecionado),
+                  })
                 : undefined
             )
             if (alterados > 0) showToast(`Item editado (e ${alterados} ocorrência(s) futura(s))`)
@@ -602,7 +604,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
         const { mes_referencia, ...base } = novoItem
         try {
           await criarRegistrosFuturos('planejamento', base, mesSelecionado, quantidade, (mes) => ({
-            data_vencimento: ajustarVencimentoParaMes(novoItem.data_vencimento, mes),
+            data_vencimento: ajustarVencimentoParaMes(novoItem.data_vencimento, mes, mesSelecionado),
           }))
           showToast(`Item adicionado e repetido nos próximos ${quantidade} mês(es)`)
         } catch {
@@ -661,7 +663,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
         data_pagamento: null,
         parcela_atual: parcela_atual ? parcela_atual + 1 : null,
         total_parcelas: total_parcelas ?? null,
-        data_vencimento: moverVencimentoParaMes(data_vencimento, mesSelecionado),
+        data_vencimento: moverVencimentoParaMes(data_vencimento, mesSelecionado, parseISO(mes_referencia)),
       }))
 
       if (novosItens.length > 0) {
@@ -1321,7 +1323,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
                   )
                 ) : (
                   <p className="text-xs text-gray-400 mt-1">
-                    Aplica às ocorrências futuras deste item apenas os campos que você alterou aqui. Se a data de vencimento mudar, cada mês futuro recebe o mesmo dia, adiantado para o próximo dia útil quando cair em fim de semana ou feriado nacional.
+                    Aplica às ocorrências futuras deste item apenas os campos que você alterou aqui. Se a data de vencimento mudar, ela avança um mês a cada ocorrência, mantendo o dia e adiantando para o próximo dia útil quando cair em fim de semana ou feriado nacional.
                   </p>
                 )}
               </div>

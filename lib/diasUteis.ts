@@ -1,4 +1,4 @@
-import { addDays, format, parseISO } from 'date-fns'
+import { addDays, addMonths, differenceInCalendarMonths, format, parseISO, startOfMonth } from 'date-fns'
 
 // Feriados nacionais fixos (dia/mês) — Leis 662/1949, 6.802/1980 e 14.759/2023.
 const FERIADOS_FIXOS: Array<{ mes: number; dia: number; desde?: number; nome: string }> = [
@@ -81,19 +81,49 @@ export function proximoDiaUtil(data: Date): Date {
 }
 
 /**
- * Mesma data de vencimento em outro mês, preservando o dia (limitado ao último
- * dia do mês de destino). Não considera dia útil — use `ajustarVencimentoParaMes`
+ * Quantos meses o vencimento fica à frente do mês de referência da linha. Uma
+ * despesa de setembro pode vencer em 05/10 (deslocamento +1) — é o caso comum
+ * das faturas de cartão. Esse deslocamento faz parte da configuração do item e
+ * precisa acompanhá-lo ao ser copiado para outro mês: em outubro a mesma conta
+ * vence em 05/11, não de novo em 05/10.
+ */
+export function deslocamentoDoVencimento(
+  dataVencimento: string | null | undefined,
+  mesReferencia: Date | null | undefined
+): number {
+  if (!dataVencimento || !mesReferencia) return 0
+  try {
+    return differenceInCalendarMonths(
+      startOfMonth(parseISO(dataVencimento)),
+      startOfMonth(mesReferencia)
+    )
+  } catch {
+    return 0
+  }
+}
+
+/**
+ * Mesma data de vencimento para a linha de `novoMes`, preservando o dia
+ * (limitado ao último dia do mês de destino) e o deslocamento em relação a
+ * `mesReferenciaBase` — o `mes_referencia` da linha de onde a data veio. Sem
+ * `mesReferenciaBase` o deslocamento é zero, ou seja, o vencimento cai no
+ * próprio `novoMes`. Não considera dia útil — use `ajustarVencimentoParaMes`
  * quando a data precisar ser pagável.
  */
 export function moverVencimentoParaMes(
   dataVencimento: string | null | undefined,
-  novoMes: Date
+  novoMes: Date,
+  mesReferenciaBase?: Date | null
 ): string | null {
   if (!dataVencimento) return null
   try {
     const dia = parseISO(dataVencimento).getDate()
-    const ano = novoMes.getFullYear()
-    const mes = novoMes.getMonth()
+    const destino = addMonths(
+      startOfMonth(novoMes),
+      deslocamentoDoVencimento(dataVencimento, mesReferenciaBase)
+    )
+    const ano = destino.getFullYear()
+    const mes = destino.getMonth()
     const diasNoMes = new Date(ano, mes + 1, 0).getDate()
     return format(new Date(ano, mes, Math.min(dia, diasNoMes)), 'yyyy-MM-dd')
   } catch {
@@ -102,16 +132,18 @@ export function moverVencimentoParaMes(
 }
 
 /**
- * Vencimento correspondente a `novoMes`: mesmo dia do mês, adiantado para o
- * próximo dia útil quando cai em fim de semana ou feriado nacional. O ajuste é
- * sempre para frente porque antecipar deixaria a conta vencida antes da data
+ * Vencimento da linha de `novoMes`: mesmo dia e mesmo deslocamento em relação a
+ * `mesReferenciaBase` (ver `moverVencimentoParaMes`), adiantado para o próximo
+ * dia útil quando cai em fim de semana ou feriado nacional. O ajuste é sempre
+ * para frente porque antecipar deixaria a conta vencida antes da data
  * combinada; um vencimento no fim do mês pode, por isso, cair no mês seguinte.
  */
 export function ajustarVencimentoParaMes(
   dataVencimento: string | null | undefined,
-  novoMes: Date
+  novoMes: Date,
+  mesReferenciaBase?: Date | null
 ): string | null {
-  const movido = moverVencimentoParaMes(dataVencimento, novoMes)
+  const movido = moverVencimentoParaMes(dataVencimento, novoMes, mesReferenciaBase)
   if (!movido) return null
   return format(proximoDiaUtil(parseISO(movido)), 'yyyy-MM-dd')
 }
