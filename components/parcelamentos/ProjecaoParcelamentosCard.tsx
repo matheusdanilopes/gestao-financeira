@@ -4,13 +4,13 @@ import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { format, startOfMonth } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
 import { TrendingUp, ArrowRight } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { InfoPopover } from '@/components/InfoPopover'
 import { buscarCartaoLabels, CARTAO_LABELS_PADRAO, type CartaoLabels } from '@/lib/cartaoLabels'
 import { RESPONSAVEL_STYLE } from '@/lib/responsavelStyle'
 import type { RelatorioCartoes } from '@/lib/relatorioCartoes'
+import { formatarMes } from '@/lib/relatoriosFormat'
 
 const GraficoProjecao = dynamic(() => import('@/components/GraficoProjecao'), {
   ssr: false,
@@ -18,14 +18,6 @@ const GraficoProjecao = dynamic(() => import('@/components/GraficoProjecao'), {
 })
 const DrawerDetalhes = dynamic(() => import('@/components/DrawerDetalhes'), { ssr: false })
 
-
-function capitalizar(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
-
-function formatarMes(mes: Date): string {
-  return capitalizar(format(mes, 'MMM/yyyy', { locale: ptBR }))
-}
 
 interface Props {
   mesAtual: Date
