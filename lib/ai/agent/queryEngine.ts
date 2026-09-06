@@ -79,8 +79,52 @@ export function normalizar(s: string): string {
 // Nada vindo do modelo é usado cru: valores inválidos são descartados
 // silenciosamente (viram "sem filtro") em vez de gerar erro.
 
-const RESPONSAVEIS_VALIDOS = ['Matheus', 'Jeniffer']
 const CARTOES_VALIDOS = ['nubank', 'cartao1', 'cartao2']
+
+// ─── Mês do app × mês de projeto_fatura ──────────────────────────────────────
+// O app guarda cada compra sob `projeto_fatura`, o mês em que ela será COBRADA.
+// Mas o Dashboard — a tela onde o usuário lê os totais — mostra, para o mês M
+// do seletor, a fatura de projeto_fatura M+1 (a que FECHA durante M). Ou seja:
+// a fatura em formação pertence ao mês CORRENTE no vocabulário do app, não ao
+// mês seguinte.
+//
+// Esta é a fonte de um erro real: o agente falava em "fatura de outubro" para a
+// mesma fatura que o Dashboard rotula "Setembro", e o usuário lia como número
+// errado. Toda API deste módulo fala o mês do app; a tradução para
+// projeto_fatura acontece só aqui dentro.
+//
+// (A tela de Compras usa a convenção oposta — mês do seletor = projeto_fatura.
+// Entre as duas, a do Dashboard é a que casa com a linguagem natural: a fatura
+// de setembro é a que contém as compras feitas em setembro.)
+
+const somarMeses = (mes: string, delta: number): string => {
+  const [ano, m] = mes.split('-').map(Number)
+  return format(addMonths(new Date(ano, m - 1, 1), delta), 'yyyy-MM')
+}
+
+/** Mês do app (seletor do Dashboard) → projeto_fatura correspondente. */
+export const faturaDoMes = (mesApp: string): string => somarMeses(mesApp, 1)
+
+/** projeto_fatura → mês do app em que essa fatura aparece. */
+export const mesDaFatura = (projetoFatura: string): string => somarMeses(projetoFatura, -1)
+
+/** Rótulo de uma transação no vocabulário do app. */
+const mesAppDaTransacao = (t: Transacao): string => mesDaFatura(mesEfetivo(t))
+
+/**
+ * Responsáveis existentes NOS DADOS, não uma lista fixa.
+ *
+ * Havia um enum fixo ['Matheus','Jeniffer'] aqui — que descartava em silêncio
+ * um filtro por "Conjunto" (um responsável real, com R$ 1.068,04 na fatura do
+ * print do usuário) e devolvia o total de todo mundo como se fosse dele.
+ */
+function responsaveisConhecidos(data: EnrichedData): string[] {
+  const set = new Set<string>()
+  for (const t of data.transacoes) if (t.responsavel) set.add(t.responsavel)
+  for (const p of data.planejamento) if (p.responsavel) set.add(p.responsavel)
+  for (const a of data.assinaturas) if (a.responsavel) set.add(a.responsavel)
+  return [...set].sort()
+}
 
 /** Aceita 'YYYY-MM' ou 'YYYY-MM-DD'; devolve sempre 'YYYY-MM'. */
 export function normalizarMes(mes?: string | null): string | undefined {
@@ -112,7 +156,8 @@ function normalizarEnum(valor: unknown, validos: string[]): string | undefined {
   return validos.find(v => normalizar(v) === alvo)
 }
 
-export const normalizarResponsavel = (v?: unknown) => normalizarEnum(v, RESPONSAVEIS_VALIDOS)
+export const normalizarResponsavel = (v: unknown, data: EnrichedData) =>
+  normalizarEnum(v, responsaveisConhecidos(data))
 
 /** Aceita tanto o id interno ('cartao1') quanto o nome exibido ('PicPay'). */
 export function normalizarCartao(v: unknown, data: EnrichedData): string | undefined {
@@ -206,18 +251,26 @@ function mesesEntre(inicio: string, fim: string): string[] {
 
 export interface Referencias {
   hoje: Date
-  /** Mês-calendário corrente (YYYY-MM) — base do planejamento e das receitas. */
-  mesCalendario: string
-  /** Fatura em formação (YYYY-MM) — addMonths(hoje, 1). */
-  mesFatura: string
+  /**
+   * Mês corrente no vocabulário do app (YYYY-MM). Vale para TUDO: contas fixas,
+   * receitas e também a fatura de cartão em formação — é o mês que o usuário vê
+   * no seletor do Dashboard.
+   */
+  mesApp: string
+  /** Mês do app anterior — última fatura fechada e contas fixas do mês passado. */
+  mesAppAnterior: string
+  /** projeto_fatura da fatura em formação. Uso interno; nunca vai para o texto. */
+  faturaEmFormacao: string
   diaAtual: number
 }
 
 export function construirReferencias(hoje = new Date()): Referencias {
+  const mesApp = format(hoje, 'yyyy-MM')
   return {
     hoje,
-    mesCalendario: format(hoje, 'yyyy-MM'),
-    mesFatura: format(addMonths(hoje, 1), 'yyyy-MM'),
+    mesApp,
+    mesAppAnterior: somarMeses(mesApp, -1),
+    faturaEmFormacao: faturaDoMes(mesApp),
     diaAtual: hoje.getDate(),
   }
 }
@@ -241,7 +294,7 @@ export interface FiltroTransacoes {
 export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, refs: Referencias): string {
   const busca = typeof f.busca === 'string' && f.busca.trim() ? normalizar(f.busca) : undefined
   const categoria = normalizarCategoria(f.categoria)
-  const responsavel = normalizarResponsavel(f.responsavel)
+  const responsavel = normalizarResponsavel(f.responsavel, data)
   const cartao = normalizarCartao(f.cartao, data)
   const mesInicio = normalizarMes(f.mesInicio)
   const mesFim = normalizarMes(f.mesFim)
@@ -249,13 +302,21 @@ export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, ref
   const valorMax = Number.isFinite(f.valorMaximo) ? Number(f.valorMaximo) : undefined
   const labels = cartaoLabelsFromPlanejamento(data.planejamento)
 
+  // Os meses chegam no vocabulário do app e são traduzidos para projeto_fatura
+  // antes de tocar nos dados.
+  const faturaInicio = mesInicio ? faturaDoMes(mesInicio) : undefined
+  const faturaFim = mesFim ? faturaDoMes(mesFim) : undefined
+
   const filtros = descreverFiltros([
     busca && `descrição contém "${f.busca}"`,
     categoria && `categoria=${categoria}`,
     responsavel && `responsável=${responsavel}`,
     cartao && `cartão=${nomeCartao(cartao, labels)}`,
-    mesInicio && `fatura de ${fmtMes(mesInicio)}`,
-    mesFim && `fatura até ${fmtMes(mesFim)}`,
+    // "a partir de" / "até" explícitos: um intervalo aberto rotulado como um
+    // mês só fazia o total de vários meses ser lido como o de um.
+    mesInicio && mesFim && mesInicio === mesFim && `mês ${fmtMes(mesInicio)}`,
+    mesInicio && (!mesFim || mesInicio !== mesFim) && `a partir de ${fmtMes(mesInicio)}`,
+    mesFim && (!mesInicio || mesInicio !== mesFim) && `até ${fmtMes(mesFim)}`,
     valorMin !== undefined && `valor ≥ ${R(valorMin)}`,
     valorMax !== undefined && `valor ≤ ${R(valorMax)}`,
     f.apenasParceladas === true && 'somente parceladas',
@@ -263,8 +324,8 @@ export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, ref
 
   const encontradas = data.transacoes.filter(t => {
     const m = mesEfetivo(t)
-    if (mesInicio && m < mesInicio) return false
-    if (mesFim && m > mesFim) return false
+    if (faturaInicio && m < faturaInicio) return false
+    if (faturaFim && m > faturaFim) return false
     if (categoria && (t.categoria ?? '') !== categoria) return false
     if (responsavel && t.responsavel !== responsavel) return false
     if (cartao && (t.cartao ?? 'nubank') !== cartao) return false
@@ -287,14 +348,27 @@ export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, ref
 
   const total = encontradas.reduce((s, t) => s + t.valor, 0)
   const ticket = total / encontradas.length
+  const nMeses = contarMeses(encontradas, mesAppDaTransacao)
 
   const linhas: string[] = [
     cabecalho,
     `Total: ${R(total)} em ${encontradas.length} transação(ões) · ticket médio ${R(ticket)}`,
   ]
 
-  if (contarMeses(encontradas, mesEfetivo) > 1) {
-    linhas.push(`Por mês de fatura: ${linhasPorMes(encontradas, mesEfetivo, t => t.valor)}`)
+  if (nMeses > 1) {
+    // O total acima soma vários meses. Sem este aviso o modelo tende a
+    // apresentá-lo como se fosse de um mês só.
+    linhas.push(`ATENÇÃO: este total soma ${nMeses} meses. Para falar de um mês, use o valor da linha abaixo.`)
+    linhas.push(`Por mês: ${linhasPorMes(encontradas, mesAppDaTransacao, t => t.valor)}`)
+  }
+
+  // A quebra por cartão é obrigatória quando há mais de um: o Dashboard mostra
+  // "Fatura NuBank" isolada, então um total somando todos os cartões não bate
+  // com o número que o usuário tem na tela.
+  const cartoesPresentes = new Set(encontradas.map(t => t.cartao ?? 'nubank'))
+  if (cartoesPresentes.size > 1) {
+    const mapa = agrupar(encontradas, t => nomeCartao(t.cartao, labels), t => t.valor)
+    linhas.push(`Por cartão (o card "Fatura NuBank" do app mostra SÓ a linha do Nubank): ${linhasAgrupamento(mapa, total)}`)
   }
 
   const grupo = f.agruparPor
@@ -305,10 +379,6 @@ export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, ref
   if (grupo === 'responsavel' || (!grupo && !responsavel && encontradas.length > 3)) {
     const mapa = agrupar(encontradas, t => t.responsavel || 'Sem responsável', t => t.valor)
     linhas.push(`Por responsável: ${linhasAgrupamento(mapa, total)}`)
-  }
-  if (grupo === 'cartao') {
-    const mapa = agrupar(encontradas, t => nomeCartao(t.cartao, labels), t => t.valor)
-    linhas.push(`Por cartão: ${linhasAgrupamento(mapa, total)}`)
   }
   if (grupo === 'descricao') {
     const mapa = agrupar(encontradas, t => t.descricao.slice(0, 32), t => t.valor)
@@ -322,12 +392,12 @@ export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, ref
     const parc = t.total_parcelas && t.total_parcelas > 1 ? ` [${t.parcela_atual}/${t.total_parcelas}]` : ''
     linhas.push(
       `  • ${t.descricao.slice(0, 38)}${parc} — ${R(t.valor)} — ${fmtData(t.data)} — ` +
-      `${t.responsavel || '—'} — ${nomeCartao(t.cartao, labels)} — ${t.categoria ?? 'sem categoria'} — fatura ${fmtMes(mesEfetivo(t))}`
+      `${t.responsavel || '—'} — ${nomeCartao(t.cartao, labels)} — ${t.categoria ?? 'sem categoria'} — mês ${fmtMes(mesAppDaTransacao(t))}`
     )
   }
 
-  if (!mesFim && encontradas.some(t => mesEfetivo(t) === refs.mesFatura)) {
-    linhas.push(`Obs.: a fatura de ${fmtMes(refs.mesFatura)} ainda está em formação (hoje é dia ${refs.diaAtual}).`)
+  if (encontradas.some(t => mesEfetivo(t) === refs.faturaEmFormacao)) {
+    linhas.push(`Obs.: a fatura de ${fmtMes(refs.mesApp)} ainda está em formação (hoje é dia ${refs.diaAtual}) — o valor ainda vai subir.`)
   }
 
   return linhas.join('\n')
@@ -358,7 +428,7 @@ const mesDe = (p: Planejamento) => (p.mes_referencia ?? '').substring(0, 7)
 export function consultarPlanejamento(data: EnrichedData, f: FiltroPlanejamento, refs: Referencias): string {
   const busca = typeof f.busca === 'string' && f.busca.trim() ? normalizar(f.busca) : undefined
   const categoria = normalizarCategoria(f.categoria)
-  const responsavel = normalizarResponsavel(f.responsavel)
+  const responsavel = normalizarResponsavel(f.responsavel, data)
   const mesInicio = normalizarMes(f.mesInicio)
   const mesFim = normalizarMes(f.mesFim)
   const status: StatusPlanejamento =
@@ -456,7 +526,7 @@ export interface FiltroReceitas {
 export function consultarReceitas(data: EnrichedData, f: FiltroReceitas, refs: Referencias): string {
   const mesInicio = normalizarMes(f.mesInicio)
   const mesFim = normalizarMes(f.mesFim)
-  const responsavel = normalizarResponsavel(f.responsavel)
+  const responsavel = normalizarResponsavel(f.responsavel, data)
   const status = f.status && ['todos', 'recebido', 'aberto'].includes(f.status) ? f.status : 'todos'
 
   const filtros = descreverFiltros([
@@ -503,7 +573,7 @@ export function consultarReceitas(data: EnrichedData, f: FiltroReceitas, refs: R
     const valor = p.pago && p.valor_real != null ? `${R(p.valor_real)} (previsto ${R(p.valor_previsto)})` : R(p.valor_previsto)
     linhas.push(`  • ${nome(p).slice(0, 38)} — ${valor} — ${fmtMes(mesDe(p))} — ${p.pago ? 'recebido' : 'a receber'} — ${p.responsavel ?? 'compartilhado'}`)
   }
-  linhas.push(`Referência: mês corrente é ${fmtMes(refs.mesCalendario)}.`)
+  linhas.push(`Referência: o mês corrente é ${fmtMes(refs.mesApp)}.`)
 
   return linhas.join('\n')
 }
@@ -522,7 +592,9 @@ export function consultarAssinaturas(data: EnrichedData, f: FiltroAssinaturas): 
   const busca = typeof f.busca === 'string' && f.busca.trim() ? normalizar(f.busca) : undefined
   const status = f.status && ['ativas', 'canceladas', 'todas'].includes(f.status) ? f.status : 'ativas'
   const categoria = normalizarCategoria(f.categoria)
-  const responsavel = typeof f.responsavel === 'string' ? f.responsavel.trim() : undefined
+  // Mesmo normalizador das outras consultas: um nome que não existe vira
+  // "sem filtro" em vez de casar com nada e devolver lista vazia.
+  const responsavel = normalizarResponsavel(f.responsavel, data)
   const cartao = normalizarCartao(f.cartao, data)
   const labels = cartaoLabelsFromPlanejamento(data.planejamento)
 
@@ -649,7 +721,10 @@ interface ResumoMes {
 
 function calcularResumoMes(data: EnrichedData, mes: string, totalAssinaturas: number): ResumoMes {
   const labels = cartaoLabelsFromPlanejamento(data.planejamento)
-  const txs = data.transacoes.filter(t => mesEfetivo(t) === mes)
+  // O mês do app M reúne a fatura de projeto_fatura M+1 com as contas fixas e
+  // receitas de mes_referencia M — exatamente o pareamento do Dashboard. Antes
+  // isto casava fatura(M) com fixas(M), somando períodos diferentes.
+  const txs = data.transacoes.filter(t => mesEfetivo(t) === faturaDoMes(mes))
   const fixas = data.planejamento.filter(p => ehDespesaPlanejada(p) && mesDe(p) === mes)
   const receitas = data.planejamento.filter(p => (p.item ?? '').startsWith(RECEITA_PREFIXO) && mesDe(p) === mes)
 
@@ -672,13 +747,13 @@ export function resumoMensal(
 ): string {
   const totalAssinaturas = data.assinaturas.filter(a => a.ativa).reduce((s, a) => s + a.valor, 0)
 
-  const inicio = normalizarMes(params.mesInicio) ?? normalizarMes(params.mesFim) ?? refs.mesFatura
+  const inicio = normalizarMes(params.mesInicio) ?? normalizarMes(params.mesFim) ?? refs.mesApp
   const fim = normalizarMes(params.mesFim) ?? inicio
   const meses = (inicio <= fim ? mesesEntre(inicio, fim) : mesesEntre(fim, inicio)).slice(-12)
 
   const linhas: string[] = [
     `CONSULTA: resumo consolidado de ${fmtMes(meses[0])} a ${fmtMes(meses[meses.length - 1])}`,
-    'Convenção: "fatura" refere-se ao mês de cobrança do cartão; "fixas" e "receitas" ao mês de referência do planejamento.',
+    'Cada linha é um mês do app: a fatura que fecha nesse mês somada às contas fixas e receitas do mesmo mês — o mesmo recorte do Dashboard.',
   ]
 
   for (const mes of meses) {
@@ -694,8 +769,8 @@ export function resumoMensal(
   }
 
   linhas.push(`Assinaturas ativas (recorrência já embutida nas faturas): ${R(totalAssinaturas)}/mês.`)
-  if (meses.includes(refs.mesFatura)) {
-    linhas.push(`Atenção: a fatura de ${fmtMes(refs.mesFatura)} ainda está em formação (hoje é dia ${refs.diaAtual}) — o valor tende a subir até o fechamento.`)
+  if (meses.includes(refs.mesApp)) {
+    linhas.push(`Atenção: a fatura de ${fmtMes(refs.mesApp)} ainda está em formação (hoje é dia ${refs.diaAtual}) — o valor tende a subir até o fechamento.`)
   }
 
   return linhas.join('\n')
@@ -712,7 +787,7 @@ export interface FiltroComparacao {
 }
 
 export function compararPeriodos(data: EnrichedData, f: FiltroComparacao, refs: Referencias): string {
-  const aIni = normalizarMes(f.periodoAInicio) ?? refs.mesFatura
+  const aIni = normalizarMes(f.periodoAInicio) ?? refs.mesApp
   const aFim = normalizarMes(f.periodoAFim) ?? aIni
   const bIni = normalizarMes(f.periodoBInicio) ?? format(subMonths(new Date(aIni + '-02'), 1), 'yyyy-MM')
   const bFim = normalizarMes(f.periodoBFim) ?? bIni
@@ -723,8 +798,8 @@ export function compararPeriodos(data: EnrichedData, f: FiltroComparacao, refs: 
   const labels = cartaoLabelsFromPlanejamento(data.planejamento)
   const noIntervalo = (mes: string, ini: string, fim: string) => mes >= ini && mes <= fim
 
-  const txA = data.transacoes.filter(t => noIntervalo(mesEfetivo(t), aIni, aFim))
-  const txB = data.transacoes.filter(t => noIntervalo(mesEfetivo(t), bIni, bFim))
+  const txA = data.transacoes.filter(t => noIntervalo(mesAppDaTransacao(t), aIni, aFim))
+  const txB = data.transacoes.filter(t => noIntervalo(mesAppDaTransacao(t), bIni, bFim))
 
   const totalA = txA.reduce((s, t) => s + t.valor, 0)
   const totalB = txB.reduce((s, t) => s + t.valor, 0)
@@ -764,8 +839,8 @@ export function compararPeriodos(data: EnrichedData, f: FiltroComparacao, refs: 
     }
   }
 
-  if ([aIni, aFim, bIni, bFim].includes(refs.mesFatura)) {
-    linhas.push(`Atenção: ${fmtMes(refs.mesFatura)} é a fatura em formação — a comparação com um mês fechado é parcial.`)
+  if ([aIni, aFim, bIni, bFim].includes(refs.mesApp)) {
+    linhas.push(`Atenção: ${fmtMes(refs.mesApp)} é a fatura em formação — a comparação com um mês já fechado é parcial.`)
   }
 
   return linhas.join('\n')
@@ -827,11 +902,13 @@ export function projecaoFutura(data: EnrichedData, params: { meses?: number }, r
   ]
 
   for (let i = 0; i < nMeses; i++) {
+    // mesRef é a data de projeto_fatura usada na matemática dos contratos;
+    // o rótulo mostrado é o mês do app correspondente (uma casa atrás).
     const mesRef = startOfMonth(addMonths(refs.hoje, 1 + i))
-    const rotulo = fmtMes(format(mesRef, 'yyyy-MM'))
+    const rotulo = fmtMes(somarMeses(refs.mesApp, i))
 
     if (i === 0) {
-      const r = calcularResumoMes(data, refs.mesFatura, totalAssinaturas)
+      const r = calcularResumoMes(data, refs.mesApp, totalAssinaturas)
       const totalReal = r.faturaTotal + r.fixasPrevistas
       linhas.push(`${rotulo}: ${R(totalReal)} — dado REAL já lançado (fatura ${R(r.faturaTotal)} + fixas ${R(r.fixasPrevistas)}), não é projeção.`)
       continue
@@ -857,7 +934,7 @@ export function projecaoFutura(data: EnrichedData, params: { meses?: number }, r
   }
 
   const receitasFuturas = data.planejamento
-    .filter(p => (p.item ?? '').startsWith(RECEITA_PREFIXO) && mesDe(p) > refs.mesCalendario)
+    .filter(p => (p.item ?? '').startsWith(RECEITA_PREFIXO) && mesDe(p) > refs.mesApp)
     .sort((a, b) => mesDe(a).localeCompare(mesDe(b)))
     .slice(0, 8)
 
@@ -875,7 +952,7 @@ export function projecaoFutura(data: EnrichedData, params: { meses?: number }, r
 export function listarDimensoes(data: EnrichedData, refs: Referencias): string {
   const labels = cartaoLabelsFromPlanejamento(data.planejamento)
 
-  const mesesTx = [...new Set(data.transacoes.map(mesEfetivo).filter(Boolean))].sort()
+  const mesesTx = [...new Set(data.transacoes.map(mesAppDaTransacao).filter(Boolean))].sort()
   const mesesPl = [...new Set(data.planejamento.map(mesDe).filter(Boolean))].sort()
 
   const categoriasUsadas = new Map<string, number>()
@@ -884,12 +961,12 @@ export function listarDimensoes(data: EnrichedData, refs: Referencias): string {
     categoriasUsadas.set(c, (categoriasUsadas.get(c) ?? 0) + 1)
   }
   const cartoesUsados = [...new Set(data.transacoes.map(t => t.cartao ?? 'nubank'))]
-  const responsaveis = [...new Set(data.transacoes.map(t => t.responsavel).filter(Boolean))]
+  const responsaveis = responsaveisConhecidos(data)
 
   return [
     'CONSULTA: dimensões disponíveis nos dados (use estes valores exatos nos filtros)',
-    `Hoje: ${format(refs.hoje, "dd/MM/yyyy", { locale: ptBR })} · mês-calendário ${refs.mesCalendario} · fatura em formação ${refs.mesFatura}`,
-    `Transações de cartão: ${data.transacoes.length} registros, faturas de ${mesesTx[0] ?? '—'} a ${mesesTx[mesesTx.length - 1] ?? '—'}`,
+    `Hoje: ${format(refs.hoje, "dd/MM/yyyy", { locale: ptBR })} · mês corrente ${refs.mesApp}`,
+    `Compras de cartão: ${data.transacoes.length} registros, meses de ${mesesTx[0] ?? '—'} a ${mesesTx[mesesTx.length - 1] ?? '—'}`,
     `Planejamento: ${data.planejamento.length} registros, referências de ${mesesPl[0] ?? '—'} a ${mesesPl[mesesPl.length - 1] ?? '—'}`,
     `Categorias com lançamentos: ${[...categoriasUsadas.entries()].sort((a, b) => b[1] - a[1]).map(([c, n]) => `${c} (${n})`).join(' · ')}`,
     `Categorias válidas no sistema: ${CATEGORIAS_PADRAO.join(' · ')}`,
@@ -908,7 +985,7 @@ export function consultarEstornos(data: EnrichedData, params: { mesInicio?: stri
   const labels = cartaoLabelsFromPlanejamento(data.planejamento)
 
   const encontrados = data.estornos.filter(e => {
-    const m = (e.projeto_fatura ?? '').substring(0, 7)
+    const m = mesDaFatura((e.projeto_fatura ?? '').substring(0, 7))
     if (mesInicio && m < mesInicio) return false
     if (mesFim && m > mesFim) return false
     return true
@@ -924,7 +1001,7 @@ export function consultarEstornos(data: EnrichedData, params: { mesInicio?: stri
     'Estornos JÁ ESTÃO EXCLUÍDOS dos totais de fatura — servem para explicar por que uma compra sumiu ou o valor caiu.',
   ]
   for (const e of encontrados.slice(0, MAX_ITENS_LISTA)) {
-    linhas.push(`  • ${e.descricao.slice(0, 38)} — ${R(Math.abs(e.valor))} — ${fmtData(e.data)} — ${nomeCartao(e.cartao, labels)} — fatura ${fmtMes((e.projeto_fatura ?? '').substring(0, 7))} — ${e.status}`)
+    linhas.push(`  • ${e.descricao.slice(0, 38)} — ${R(Math.abs(e.valor))} — ${fmtData(e.data)} — ${nomeCartao(e.cartao, labels)} — mês ${fmtMes(mesDaFatura((e.projeto_fatura ?? '').substring(0, 7)))} — ${e.status}`)
   }
   return linhas.join('\n')
 }

@@ -9,9 +9,10 @@
  * menos chance de o modelo "não achar" um dado que recebeu.
  */
 
-import { format, addMonths } from 'date-fns'
+import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { formatBRL } from '../../format'
+import { cartaoLabelsFromPlanejamento, nomeCartao } from '../insightsEngine'
 import type { EnrichedData, FinancialInsightsContext, TelaAtual, ValidationCertificate } from '../types'
 import { fmtMes, type Referencias } from './queryEngine'
 
@@ -37,11 +38,13 @@ const TELAS: Partial<Record<TelaAtual, string>> = {
 const IDENTIDADE = `Você é o analista financeiro pessoal de Matheus e Jeniffer, um casal que administra as finanças em conjunto neste app. Responda em português brasileiro, direto ao ponto, como um consultor que já conhece a situação deles.`
 
 const MODELO_DE_DADOS = `COMO OS DADOS SÃO ORGANIZADOS
-- COMPRA: lançamento individual no cartão de crédito. É a maior fonte de gasto. Toda compra pertence a uma FATURA mensal — e a fatura NÃO é o mês da compra: uma compra feita depois do fechamento cai na fatura do mês seguinte. Todo filtro por mês nas compras usa o mês da FATURA.
+- COMPRA: lançamento individual no cartão de crédito. É a maior fonte de gasto. Cada compra entra na fatura do mês em que ela foi feita; uma compra feita depois do fechamento entra na fatura do mês seguinte. Você não precisa fazer essa conta: as ferramentas já recebem e devolvem o mês do app.
 - PARCELA: fração mensal de uma compra parcelada (ex.: 3/10). Não confunda com assinatura.
 - DESPESA PLANEJADA (ou conta fixa): item do orçamento mensal — aluguel, energia, internet, boleto. Não passa necessariamente pelo cartão. Tem vencimento e pode estar paga ou em aberto.
 - RECEITA: entrada de dinheiro (salário, freelance, reembolso), com mês de referência e status de recebimento.
 - ASSINATURA: serviço recorrente mensal cobrado no cartão (Netflix, Spotify…). Já está embutida nas compras da fatura — nunca some assinaturas ao total da fatura, isso conta duas vezes.
+- CARTÕES: existe mais de um (Nubank e outros). O card principal do app mostra a fatura de UM cartão por vez, então um total somando todos não bate com a tela. Sempre diga de qual cartão é o número, ou deixe claro que está somando todos.
+- RESPONSÁVEIS: não são só as duas pessoas — despesas conjuntas aparecem com responsável próprio (ex.: "Conjunto"). Use listar_dimensoes para ver os valores reais antes de filtrar por pessoa.
 - INVESTIMENTO / APORTE: carteira e depósitos feitos nela.
 - ESTORNO: compra cancelada. Já foi removida do total da fatura.
 Nunca some receitas junto com despesas ao calcular "total gasto".`
@@ -67,6 +70,44 @@ const FORMATO = `COMO RESPONDER
 
 // ─── Snapshot ────────────────────────────────────────────────────────────────
 
+/**
+ * Fatura do mês corrente, quebrada por cartão e por responsável — o mesmo
+ * recorte que o Dashboard desenha, para que todo número citado bata com a tela.
+ */
+function linhasDaFatura(data: EnrichedData, refs: Referencias): string[] {
+  const labels = cartaoLabelsFromPlanejamento(data.planejamento)
+  const daFatura = data.transacoes.filter(t => (t.projeto_fatura ?? '').substring(0, 7) === refs.faturaEmFormacao)
+  if (daFatura.length === 0) return [`Fatura de ${fmtMes(refs.mesApp)}: nenhuma compra lançada ainda.`]
+
+  const porCartao = new Map<string, { total: number; porResponsavel: Map<string, number> }>()
+  for (const t of daFatura) {
+    const cartao = nomeCartao(t.cartao, labels)
+    const atual = porCartao.get(cartao) ?? { total: 0, porResponsavel: new Map<string, number>() }
+    atual.total += t.valor
+    const resp = t.responsavel || 'Sem responsável'
+    atual.porResponsavel.set(resp, (atual.porResponsavel.get(resp) ?? 0) + t.valor)
+    porCartao.set(cartao, atual)
+  }
+
+  const totalGeral = daFatura.reduce((s, t) => s + t.valor, 0)
+  const ordenados = [...porCartao.entries()].sort((a, b) => b[1].total - a[1].total)
+
+  const linhas = [
+    `FATURA DE ${fmtMes(refs.mesApp)} (mês corrente, ainda em formação — hoje é dia ${refs.diaAtual}):`,
+  ]
+  for (const [cartao, info] of ordenados) {
+    const pessoas = [...info.porResponsavel.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([nome, valor]) => `${nome} ${R(valor)}`)
+      .join(' · ')
+    linhas.push(`  ${cartao}: ${R(info.total)} → ${pessoas}`)
+  }
+  if (ordenados.length > 1) {
+    linhas.push(`  Todos os cartões somados: ${R(totalGeral)} — mas o card "Fatura ${ordenados[0][0]}" do app mostra só ${R(ordenados[0][1].total)}. Ao citar um valor, diga de qual cartão ele é.`)
+  }
+  return linhas
+}
+
 export function buildSnapshot(
   data: EnrichedData,
   m: FinancialInsightsContext,
@@ -74,40 +115,23 @@ export function buildSnapshot(
 ): string {
   const linhas: string[] = ['SNAPSHOT DO MOMENTO (números já apurados — use direto, sem consultar)']
 
-  // Dois cuidados aqui, ambos fáceis de errar e de virar número trocado na
-  // resposta ao usuário:
-  //  1. Os rótulos vêm de `refs`, não de m.mesAtual/m.mesAnterior — aqueles já
-  //     chegam formatados ("SET/2026") e nomeiam o mês-calendário, enquanto os
-  //     totais de fatura são apurados sobre o período de COBRANÇA.
-  //  2. m.totalGastos é só cartão, mas m.totalGastosAnterior (e variacaoGastos)
-  //     já somam cartão + contas fixas. Comparar um com o outro seria
-  //     comparar coisas diferentes, então cada par é apresentado separado.
-  const variacaoCartao = m.totalCartaoAnterior > 0
-    ? ((m.totalGastos - m.totalCartaoAnterior) / m.totalCartaoAnterior) * 100
-    : undefined
+  // A fatura é montada aqui a partir das transações, e não dos totais agregados
+  // de computeInsights, por um motivo concreto: o Dashboard mostra "Fatura
+  // NuBank" com o valor de UM cartão, enquanto m.totalGastos/gastoMatheus somam
+  // todos. Foi assim que o assistente respondeu R$ 5.977,11 para o Matheus
+  // enquanto a tela dele dizia R$ 3.241,74 (a diferença era o PicPay). Com a
+  // quebra por cartão × responsável, cada número tem um lugar na tela.
+  linhas.push(...linhasDaFatura(data, refs))
 
-  linhas.push(
-    `Fatura de cartão em formação (${fmtMes(refs.mesFatura)}): ${R(m.totalGastos)}` +
-    (m.totalCartaoAnterior > 0
-      ? ` · última fatura fechada (${fmtMes(refs.mesCalendario)}): ${R(m.totalCartaoAnterior)}${variacaoCartao !== undefined ? ` (${pct(variacaoCartao)})` : ''}`
-      : '') +
-    (m.mediaCartaoHistorica > 0 ? ` · média histórica de fatura: ${R(m.mediaCartaoHistorica)}` : '')
-  )
-
+  // m.totalGastos é só cartão, mas m.totalGastosAnterior (e variacaoGastos) já
+  // somam cartão + contas fixas — por isso este par vai separado do de cima.
   if (m.totalOrcado > 0 || m.totalGastosAnterior > 0) {
     linhas.push(
-      `Total do mês (fatura + contas fixas): ${R(m.totalGastos + m.totalOrcado)}` +
-      (m.totalGastosAnterior > 0 ? ` · período anterior: ${R(m.totalGastosAnterior)} (${pct(m.variacaoGastos)})` : '') +
+      `Total do mês (todos os cartões + contas fixas): ${R(m.totalGastos + m.totalOrcado)}` +
+      (m.totalGastosAnterior > 0 ? ` · mês anterior: ${R(m.totalGastosAnterior)} (${pct(m.variacaoGastos)})` : '') +
       (m.mediaMensalHistorica > 0 ? ` · média mensal 6m: ${R(m.mediaMensalHistorica)}` : '')
     )
   }
-
-  // gastoPorCartao já vem chaveado pelo nome exibido do cartão (computeInsights).
-  const porCartao = Object.entries(m.gastoPorCartao ?? {})
-  if (porCartao.length > 0) {
-    linhas.push(`Fatura por cartão: ${porCartao.map(([c, v]) => `${c} ${R(v)}`).join(' · ')}`)
-  }
-  linhas.push(`Fatura por responsável: Matheus ${R(m.gastoMatheus)} · Jeniffer ${R(m.gastoJeniffer)}`)
 
   if (m.topCategorias.length > 0) {
     linhas.push(`Maiores categorias da fatura: ${m.topCategorias.slice(0, 4).map(c => `${c.categoria} ${R(c.valor)} (${c.percentual.toFixed(0)}%${c.variacao !== undefined ? `, ${pct(c.variacao)} vs mês ant.` : ''})`).join(' · ')}`)
@@ -115,7 +139,7 @@ export function buildSnapshot(
 
   if (m.totalOrcado > 0) {
     linhas.push(
-      `Contas fixas de ${fmtMes(refs.mesCalendario)}: orçado ${R(m.totalOrcado)} · pago ${R(m.totalPago)} · em aberto ${R(m.despesasEmAberto)}` +
+      `Contas fixas de ${fmtMes(refs.mesApp)}: orçado ${R(m.totalOrcado)} · pago ${R(m.totalPago)} · em aberto ${R(m.despesasEmAberto)}` +
       (m.itensVencidos.length > 0 ? ` · ⚠️ ${m.itensVencidos.length} vencida(s) somando ${R(m.itensVencidos.reduce((s, i) => s + i.valor, 0))}` : '')
     )
   }
@@ -177,10 +201,9 @@ export function buildSystemPrompt({
   const temporal = [
     'REFERÊNCIAS DE TEMPO',
     `Hoje é ${dataHoje} (dia ${refs.diaAtual}).`,
-    `Mês corrente (contas fixas e receitas): ${refs.mesCalendario}.`,
-    `Fatura em formação (compras de cartão): ${refs.mesFatura} — fecha no mês que vem, então ainda vai crescer.`,
-    `Fatura fechada mais recente: ${format(addMonths(refs.hoje, 0), 'yyyy-MM')}.`,
-    'Sempre passe meses às ferramentas no formato YYYY-MM.',
+    `Mês corrente: ${refs.mesApp}. Mês anterior: ${refs.mesAppAnterior}.`,
+    'Um mês só quer dizer uma coisa aqui, e é a mesma que o app mostra no seletor de mês: a fatura de cartão que FECHA naquele mês, mais as contas fixas e as receitas daquele mês. A fatura do mês corrente ainda está em formação e vai crescer até fechar.',
+    'Passe sempre meses no formato YYYY-MM. Para falar de UM mês, mande mesInicio E mesFim com o mesmo valor — só mesInicio significa "daquele mês em diante" e soma vários meses.',
   ].join('\n')
 
   const qualidade = certificate.problemas.length > 0

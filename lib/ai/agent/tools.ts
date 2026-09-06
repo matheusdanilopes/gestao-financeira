@@ -53,7 +53,15 @@ const str = (description: string, values?: string[]): Schema =>
 const num = (description: string): Schema => ({ type: 'NUMBER', description })
 const bool = (description: string): Schema => ({ type: 'BOOLEAN', description })
 
-const MES = 'Mês no formato YYYY-MM.'
+// Um único vocabulário de mês em todas as ferramentas: o mês do seletor do app
+// (a fatura que FECHA nesse mês + contas fixas + receitas do mesmo mês).
+const MES = 'Mês no formato YYYY-MM, no vocabulário do app (a fatura que fecha nesse mês).'
+const UM_MES = 'Para um mês só, mande mesInicio e mesFim iguais; só mesInicio significa "desse mês em diante".'
+
+// Sem enum de responsável: existem mais valores que as duas pessoas (despesas
+// conjuntas têm responsável próprio) e um enum fixo fazia o filtro ser
+// descartado em silêncio, devolvendo o total de todo mundo.
+const RESPONSAVEL = 'Nome exato do responsável, como aparece em listar_dimensoes (ex.: uma das pessoas, ou o rótulo usado para gastos conjuntos).'
 const AGRUPAR = ['mes', 'categoria', 'responsavel', 'cartao', 'descricao']
 
 // ─── Declarações ─────────────────────────────────────────────────────────────
@@ -70,18 +78,19 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
     name: 'consultar_transacoes',
     description:
       'Consulta compras no cartão de crédito (a principal fonte de gastos). Combina busca por texto na descrição do ' +
-      'estabelecimento, categoria, responsável, cartão, faixa de valor e intervalo de meses de fatura. Retorna totais, ' +
-      'agrupamentos e os maiores lançamentos — nunca a lista completa. ' +
-      'Use para "quanto gastei com X", "compras no iFood", "maior compra do mês", "parcelamentos ativos".',
+      'estabelecimento, categoria, responsável, cartão, faixa de valor e intervalo de meses. Retorna totais, ' +
+      'agrupamentos (inclusive por cartão) e os maiores lançamentos — nunca a lista completa. ' +
+      'Use para "quanto gastei com X", "compras no iFood", "maior compra do mês", "parcelamentos ativos". ' +
+      'Quando houver mais de um cartão, cite de qual é o número que você usar.',
     parameters: {
       type: 'OBJECT',
       properties: {
         busca: str('Texto procurado na descrição do estabelecimento (ex.: "ifood", "uber", "posto"). Ignora acentos e maiúsculas.'),
         categoria: str('Categoria financeira exata (ex.: Alimentação, Transporte). Use listar_dimensoes se não souber.'),
-        responsavel: str('Quem fez a compra.', ['Matheus', 'Jeniffer']),
+        responsavel: str(`Quem fez a compra. ${RESPONSAVEL}`),
         cartao: str('Cartão usado.', ['nubank', 'cartao1', 'cartao2']),
-        mesInicio: str(`Primeiro mês de FATURA do intervalo. ${MES}`),
-        mesFim: str(`Último mês de FATURA do intervalo. ${MES}`),
+        mesInicio: str(`Primeiro mês do intervalo. ${MES} ${UM_MES}`),
+        mesFim: str(`Último mês do intervalo. ${MES}`),
         valorMinimo: num('Considera apenas compras com valor maior ou igual a este.'),
         valorMaximo: num('Considera apenas compras com valor menor ou igual a este.'),
         apenasParceladas: bool('true = retorna somente compras parceladas.'),
@@ -101,9 +110,9 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
       properties: {
         busca: str('Texto procurado no nome do item (ex.: "aluguel", "energia").'),
         categoria: str('Categoria financeira exata.'),
-        responsavel: str('Responsável pelo pagamento.', ['Matheus', 'Jeniffer']),
-        mesInicio: str(`Primeiro mês de referência. ${MES}`),
-        mesFim: str(`Último mês de referência. ${MES}`),
+        responsavel: str(`Responsável pelo pagamento. ${RESPONSAVEL}`),
+        mesInicio: str(`Primeiro mês do intervalo. ${MES} ${UM_MES}`),
+        mesFim: str(`Último mês do intervalo. ${MES}`),
         status: str('Filtro de situação: pago, aberto (não pago), vencido (não pago e já passou do vencimento) ou todos.', ['todos', 'pago', 'aberto', 'vencido']),
         agruparPor: str('Dimensão extra de agrupamento.', AGRUPAR),
         limite: { type: 'INTEGER', description: 'Quantos itens individuais listar (1 a 15).' },
@@ -120,7 +129,7 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
       properties: {
         mesInicio: str(`Primeiro mês de referência. ${MES}`),
         mesFim: str(`Último mês de referência. ${MES}`),
-        responsavel: str('Quem recebe.', ['Matheus', 'Jeniffer']),
+        responsavel: str(`Quem recebe. ${RESPONSAVEL}`),
         status: str('Filtro de situação do recebimento.', ['todos', 'recebido', 'aberto']),
       },
     },
@@ -136,7 +145,7 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
         busca: str('Texto procurado no nome do serviço.'),
         status: str('Quais assinaturas incluir.', ['ativas', 'canceladas', 'todas']),
         categoria: str('Categoria da assinatura (ex.: Streaming, Música, Jogos, Tecnologia).'),
-        responsavel: str('Responsável pela assinatura (Matheus, Jeniffer ou Compartilhado).'),
+        responsavel: str(`Responsável pela assinatura. ${RESPONSAVEL}`),
         cartao: str('Cartão em que é cobrada.', ['nubank', 'cartao1', 'cartao2']),
       },
     },
@@ -157,8 +166,9 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
   {
     name: 'resumo_mensal',
     description:
-      'Fecha a conta de um ou mais meses: fatura de cartão por cartão + contas fixas + receitas + assinaturas, ' +
-      'com sobra ou déficit. É a ferramenta certa para "como fechou o mês", "quanto sobrou", "estou no azul".',
+      'Fecha a conta de um ou mais meses do app: fatura de cartão (por cartão) + contas fixas + receitas + assinaturas, ' +
+      'com sobra ou déficit — o mesmo recorte do Dashboard. É a ferramenta certa para "como fechou o mês", ' +
+      '"quanto sobrou", "estou no azul".',
     parameters: {
       type: 'OBJECT',
       properties: {
