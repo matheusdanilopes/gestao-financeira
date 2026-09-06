@@ -2,20 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { format, subMonths } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
 import { Calculator, ChevronDown, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { formatBRL } from '@/lib/format'
 import { resolverLimiteEfetivo, type LimiteParcelamentoRow } from '@/lib/limitesParcelamentos'
 import { RESPONSAVEIS, RESPONSAVEL_STYLE, type Responsavel } from '@/lib/responsavelStyle'
 import type { RelatorioCartoes, MesGasto } from '@/lib/relatorioCartoes'
-
-function capitalizar(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
-
-function formatarMes(mes: Date): string {
-  return capitalizar(format(mes, 'MMM/yyyy', { locale: ptBR }))
-}
+import { formatarMes } from '@/lib/relatoriosFormat'
 
 function valorPorResponsavel(mesGasto: MesGasto, responsavel: Responsavel): number {
   if (responsavel === 'Matheus') return mesGasto.matheus
