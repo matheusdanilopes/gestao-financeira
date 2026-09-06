@@ -1,513 +1,235 @@
+/**
+ * POST /api/chat — turno do assistente financeiro, em streaming (SSE).
+ *
+ * Fluxo:
+ *   auth → conversa → dataset validado → prompt → loop do agente → SSE
+ *
+ * Por que SSE e não JSON: com ferramentas encadeadas um turno pode levar
+ * dezenas de segundos. Respondendo em bloco, o usuário fica olhando um spinner
+ * e, se o limite da função estourar, a plataforma devolve HTML — que o cliente
+ * lia como "erro de conexão". Em streaming o texto aparece conforme é gerado e
+ * qualquer falha vira um evento `error` explícito no mesmo canal.
+ *
+ * Eventos emitidos (cada um `event: <tipo>` + `data: <json>`):
+ *   meta    { conversation_id }
+ *   status  { texto }          progresso legível ("Consultando compras…")
+ *   tool    { nome, rotulo }   ferramenta executada (trilha de auditoria)
+ *   delta   { texto }          pedaço da resposta
+ *   reset   {}                 descarte o texto parcial desta rodada
+ *   done    { texto, ferramentas }
+ *   error   { codigo, mensagem, diaria?, segundos? }
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
-import { criarSupabaseServer } from '@/lib/supabaseServer'
-import { buildChatContext, buildDomainExtra, KNOWN_DOMAINS, type ContextDomain } from '@/lib/ai/financialContextEngine'
-import { consultarTransacoes, consultarPlanejamento } from '@/lib/ai/consultaTool'
-import { buildSystemPrompt } from '@/lib/ai/prompts'
-import { CATEGORIAS_PADRAO } from '@/lib/categorias'
-import type { TelaAtual, EnrichedData, FinancialInsightsContext } from '@/lib/ai/types'
+import { fetchEnrichedData } from '@/lib/ai/contextBuilder'
+import { validateFinancialData } from '@/lib/ai/financialValidationEngine'
+import { computeInsights } from '@/lib/ai/insightsEngine'
+import { construirReferencias } from '@/lib/ai/agent/queryEngine'
+import { buildSystemPrompt, buildBlockedPrompt } from '@/lib/ai/agent/systemPrompt'
+import { executarAgente, type AgentEvent } from '@/lib/ai/agent/runAgent'
+import { GeminiError } from '@/lib/ai/agent/geminiClient'
+import { garantirConversa, carregarContexto, salvarMensagem } from '@/lib/ai/agent/conversation'
+import type { TelaAtual } from '@/lib/ai/types'
 
-// The retry loop below can take up to ~58s in the worst case (backoff +
-// timeouts on repeated 503s) — without this, the route falls back to the
-// platform default, which is too short and would let a slow retry get
-// killed mid-flight (surfacing as a non-JSON "erro de conexão" to the user).
-export const maxDuration = 60
+// O loop do agente pode encadear consultas; o orçamento interno (ORCAMENTO_MS)
+// fica abaixo deste limite para sempre degradar com uma resposta em vez de ser
+// morto no meio pela plataforma.
+export const maxDuration = 90
 
-const GEMINI_MODEL = 'gemini-2.5-flash'
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
+const ORCAMENTO_MS = 75_000
+const LIMITE_PERGUNTA = 2_000
+const LIMITE_DADOS_EXTRA = 4_000
 
-const WINDOW_SIZE = 15
-const SUMMARY_TRIGGER = 20
-
-// ─── Fase C/E: busca sob demanda via function-calling nativo do Gemini ───────
-// Só habilitada em follow-ups com dataset validado (ver toolsEnabled no POST
-// handler). Todo parâmetro é validado/normalizado em consultaTool.ts e
-// financialContextEngine.ts antes de tocar em qualquer dado — nunca SQL
-// bruto, apenas filtros estruturados sobre o EnrichedData já buscado e
-// validado neste turno (sem nova consulta ao banco, sem role/credencial
-// nova). Ver "Fase E" do plano para o porquê de não ser um run_sql aberto.
-const FINANCIAL_TOOL = {
-  functionDeclarations: [
-    {
-      name: 'buscar_dados_financeiros',
-      description:
-        'Busca dados financeiros adicionais compactos para um ou mais domínios quando o contexto já fornecido não é suficiente para responder com precisão.',
-      parameters: {
-        type: 'OBJECT',
-        properties: {
-          dominios: {
-            type: 'ARRAY',
-            items: { type: 'STRING', enum: KNOWN_DOMAINS },
-          },
-        },
-        required: ['dominios'],
-      },
-    },
-    {
-      name: 'consultar_transacoes',
-      description:
-        'Consulta transações de cartão com filtros combinados (categoria, responsável, cartão, intervalo de meses) quando buscar_dados_financeiros não cobrir a combinação exata perguntada. Retorna um resumo compacto (total, por mês, maiores itens) — nunca a lista completa.',
-      parameters: {
-        type: 'OBJECT',
-        properties: {
-          categoria: { type: 'STRING', enum: CATEGORIAS_PADRAO },
-          responsavel: { type: 'STRING', enum: ['Matheus', 'Jeniffer'] },
-          cartao: { type: 'STRING', enum: ['nubank', 'cartao1', 'cartao2'] },
-          mesInicio: { type: 'STRING', description: 'Mês inicial no formato YYYY-MM' },
-          mesFim: { type: 'STRING', description: 'Mês final no formato YYYY-MM' },
-        },
-      },
-    },
-    {
-      name: 'consultar_planejamento',
-      description:
-        'Consulta despesas fixas planejadas com filtros combinados (categoria, responsável, intervalo de meses, se já foi pago) quando buscar_dados_financeiros não cobrir a combinação exata perguntada. Retorna um resumo compacto — nunca a lista completa.',
-      parameters: {
-        type: 'OBJECT',
-        properties: {
-          categoria: { type: 'STRING', enum: CATEGORIAS_PADRAO },
-          responsavel: { type: 'STRING', enum: ['Matheus', 'Jeniffer'] },
-          mesInicio: { type: 'STRING', description: 'Mês inicial no formato YYYY-MM' },
-          mesFim: { type: 'STRING', description: 'Mês final no formato YYYY-MM' },
-          pago: { type: 'BOOLEAN' },
-        },
-      },
-    },
-  ],
+function sse(tipo: string, payload: unknown): string {
+  return `event: ${tipo}\ndata: ${JSON.stringify(payload)}\n\n`
 }
 
-// Dispatches a functionCall by name to its handler, all operating on the
-// EnrichedData/metrics already fetched this turn — returns null for an
-// unknown/hallucinated tool name so the caller can fall back gracefully.
-function executarTool(
-  name: string,
-  args: Record<string, unknown>,
-  data: EnrichedData,
-  metrics: FinancialInsightsContext,
-  pergunta: string,
-  hoje: Date
-): string | null {
-  const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined)
-
-  switch (name) {
-    case 'buscar_dados_financeiros': {
-      const requested = Array.isArray(args?.dominios)
-        ? (args.dominios as unknown[]).filter((d): d is string => typeof d === 'string')
-        : []
-      const valid = requested.filter((d): d is ContextDomain => (KNOWN_DOMAINS as string[]).includes(d))
-      const extra = valid
-        .map(d => buildDomainExtra(d, data, metrics, pergunta, hoje))
-        .filter(Boolean)
-        .join('\n\n')
-      return extra || 'Nenhum dado adicional disponível para os domínios solicitados.'
+function descreverErro(err: unknown): {
+  codigo: string
+  mensagem: string
+  diaria?: boolean
+  segundos?: number | null
+} {
+  if (err instanceof GeminiError) {
+    switch (err.codigo) {
+      case 'QUOTA':
+        return {
+          codigo: 'QUOTA',
+          diaria: err.detalhes?.diaria ?? false,
+          segundos: err.detalhes?.segundos ?? null,
+          mensagem: err.detalhes?.diaria
+            ? 'A cota diária da IA foi atingida. Ela volta a responder amanhã.'
+            : err.detalhes?.segundos
+              ? `Muitas perguntas em pouco tempo. Tente de novo em ${err.detalhes.segundos}s.`
+              : 'Muitas perguntas em pouco tempo. Aguarde alguns segundos e tente de novo.',
+        }
+      case 'OVERLOADED':
+        return { codigo: 'OVERLOADED', mensagem: 'O serviço de IA está congestionado. Já tentei algumas vezes — tente de novo em instantes.' }
+      case 'TIMEOUT':
+        return { codigo: 'TIMEOUT', mensagem: 'A consulta demorou mais do que o esperado. Tente perguntar de novo, de preferência de forma mais específica.' }
+      case 'CONFIG':
+        return { codigo: 'CONFIG', mensagem: 'A IA recusou a requisição (configuração da chave ou do modelo). Verifique a GEMINI_API_KEY.' }
     }
-
-    case 'consultar_transacoes':
-      return consultarTransacoes(data, {
-        categoria: str(args?.categoria),
-        responsavel: str(args?.responsavel),
-        cartao: str(args?.cartao),
-        mesInicio: str(args?.mesInicio),
-        mesFim: str(args?.mesFim),
-      })
-
-    case 'consultar_planejamento':
-      return consultarPlanejamento(data, {
-        categoria: str(args?.categoria),
-        responsavel: str(args?.responsavel),
-        mesInicio: str(args?.mesInicio),
-        mesFim: str(args?.mesFim),
-        pago: typeof args?.pago === 'boolean' ? args.pago : undefined,
-      })
-
-    default:
-      return null
   }
+  return { codigo: 'INTERNO', mensagem: 'Algo falhou ao montar a resposta. Tente novamente em instantes.' }
 }
-
-// ─── Gemini ───────────────────────────────────────────────────────────────────
-
-interface GeminiPart {
-  text?: string
-  functionCall?: { name: string; args: Record<string, unknown> }
-  functionResponse?: { name: string; response: { name: string; content: unknown } }
-}
-
-interface GeminiContent {
-  role: string
-  parts: GeminiPart[]
-}
-
-type GeminiResult =
-  | { type: 'text'; text: string }
-  | { type: 'functionCall'; name: string; args: Record<string, unknown> }
-
-function buildContents(
-  systemPrompt: string,
-  mensagens: Array<{ role: string; content: string }>
-): GeminiContent[] {
-  return [
-    { role: 'user', parts: [{ text: systemPrompt }] },
-    {
-      role: 'model',
-      parts: [{ text: 'Entendido. Analisei os dados financeiros e estou pronto para responder com precisão.' }],
-    },
-    ...mensagens.map(m => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }],
-    })),
-  ]
-}
-
-async function geminiChat(
-  apiKey: string,
-  contents: GeminiContent[],
-  opts: { tools?: Array<typeof FINANCIAL_TOOL>; deadlineMs: number }
-): Promise<GeminiResult> {
-  const body = JSON.stringify({
-    contents,
-    ...(opts.tools ? { tools: opts.tools } : {}),
-    generationConfig: { maxOutputTokens: 8192, temperature: 0.6 },
-  })
-
-  // Gemini occasionally returns transient 502/503 ("model overloaded") under
-  // load — the preview model used here is especially prone to this. Without a
-  // retry, a single blip surfaces to the user as "não consegui responder
-  // agora" even though the very next attempt would have worked. Google's own
-  // guidance for UNAVAILABLE/503 is exponential backoff, so retries grow
-  // 1.5s → 3s → 6s instead of the flat delay used for other transient errors.
-  //
-  // deadlineMs is a wall-clock budget shared across BOTH calls of a possible
-  // function-calling round trip (Fase C) — without it, two independent
-  // per-call retry budgets could together exceed the platform's maxDuration
-  // and get killed mid-flight instead of degrading gracefully.
-  const MAX_RETRIES = 3
-  const ATTEMPT_TIMEOUT_MS = 12_000
-  let lastError: Error | null = null
-  let lastStatusOverloaded = false
-
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    if (Date.now() >= opts.deadlineMs) break
-
-    if (attempt > 0) {
-      const delay = lastStatusOverloaded ? 1500 * 2 ** (attempt - 1) : attempt * 800
-      const remaining = opts.deadlineMs - Date.now()
-      if (remaining <= 0) break
-      await new Promise(r => setTimeout(r, Math.min(delay, remaining)))
-    }
-
-    const controller = new AbortController()
-    const timeoutMs = Math.max(1000, Math.min(ATTEMPT_TIMEOUT_MS, opts.deadlineMs - Date.now()))
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-
-    let res: Response
-    try {
-      res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
-        signal: controller.signal,
-      })
-    } catch (err) {
-      // Timeout/abort or network failure — retry like a transient server error
-      // instead of letting the platform-level function timeout kill the whole
-      // request (which returns a non-JSON page the client can't parse).
-      lastError = err instanceof Error ? err : new Error('Falha de rede ao chamar o Gemini')
-      lastStatusOverloaded = false
-      continue
-    } finally {
-      clearTimeout(timeoutId)
-    }
-
-    if (res.ok) {
-      const data = await res.json()
-      const parts = data.candidates?.[0]?.content?.parts ?? []
-      const fnPart = parts.find((p: GeminiPart) => p.functionCall)
-      if (fnPart?.functionCall) {
-        return { type: 'functionCall', name: fnPart.functionCall.name, args: fnPart.functionCall.args ?? {} }
-      }
-      const text = parts.find((p: GeminiPart) => typeof p.text === 'string')?.text ?? ''
-      if (text) return { type: 'text', text }
-      // Empty text with no thrown error (e.g. safety block, MAX_TOKENS with no
-      // content yet) — treat as a failure worth retrying instead of silently
-      // returning a blank assistant bubble.
-      lastError = new Error(`Gemini retornou resposta vazia (finishReason=${data.candidates?.[0]?.finishReason ?? 'UNKNOWN'})`)
-      lastStatusOverloaded = false
-      continue
-    }
-
-    const text = await res.text()
-    if (res.status === 429) {
-      const retryMatch = text.match(/"retryDelay":\s*"(\d+)s"/)
-      const segundos = retryMatch ? parseInt(retryMatch[1]) : null
-      const diaria = text.includes('GenerateRequestsPerDayPerProjectPerModel')
-      throw Object.assign(new Error('QUOTA_429'), { diaria, segundos })
-    }
-    // Don't retry on definitive client errors — only transient server errors
-    if (res.status === 400 || res.status === 403 || res.status === 404) {
-      throw new Error(text)
-    }
-    lastError = new Error(text)
-    lastStatusOverloaded = res.status === 503 || res.status === 502 || res.status === 504
-    // 502/503/504 → retry
-  }
-
-  if (lastStatusOverloaded) {
-    throw Object.assign(new Error('MODEL_OVERLOADED'), { cause: lastError })
-  }
-  throw lastError ?? new Error('Gemini: falha após retentativas')
-}
-
-// ─── Conversation Management ──────────────────────────────────────────────────
-
-async function garantirConversa(
-  supabase: ReturnType<typeof criarSupabaseServer>,
-  conversationId: string | null,
-  userId: string
-): Promise<string> {
-  if (conversationId) {
-    // Verify conversation belongs to this user before loading
-    const { data } = await supabase
-      .from('conversations')
-      .select('id')
-      .eq('id', conversationId)
-      .eq('user_id', userId)
-      .single()
-    if (data?.id) return data.id
-  }
-
-  const { data, error } = await supabase
-    .from('conversations')
-    .insert({ user_id: userId })
-    .select('id')
-    .single()
-
-  if (error || !data?.id) throw new Error('Falha ao criar conversa: ' + (error?.message ?? 'unknown'))
-  return data.id
-}
-
-async function gerarResumo(
-  apiKey: string,
-  mensagens: Array<{ role: string; content: string }>
-): Promise<string> {
-  const texto = mensagens
-    .map(m => `${m.role === 'user' ? 'Usuário' : 'Assistente'}: ${m.content}`)
-    .join('\n\n')
-
-  const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{
-        role: 'user',
-        parts: [{
-          text: `Resuma de forma concisa (máximo 250 palavras) os pontos principais desta conversa financeira, preservando todos os valores numéricos e conclusões importantes:\n\n${texto}\n\nResumo:`,
-        }],
-      }],
-      generationConfig: { maxOutputTokens: 1024, temperature: 0.3 },
-    }),
-  })
-
-  if (!res.ok) return '(histórico anterior não disponível)'
-  const data = await res.json()
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '(histórico anterior não disponível)'
-}
-
-async function carregarContextoConversa(
-  supabase: ReturnType<typeof criarSupabaseServer>,
-  apiKey: string,
-  conversationId: string
-): Promise<Array<{ role: string; content: string }>> {
-  // conversationId já vem validado por garantirConversa(), que só devolve uma
-  // conversa cujo user_id confere (ou cria uma nova) — por isso as consultas
-  // abaixo filtram apenas por conversation_id.
-  const { count } = await supabase
-    .from('messages')
-    .select('*', { count: 'exact', head: true })
-    .eq('conversation_id', conversationId)
-    .neq('role', 'system')
-
-  const total = count ?? 0
-
-  const { data: recentData } = await supabase
-    .from('messages')
-    .select('role, content')
-    .eq('conversation_id', conversationId)
-    .neq('role', 'system')
-    .order('created_at', { ascending: false })
-    .limit(WINDOW_SIZE)
-
-  const recent = (recentData ?? []).reverse()
-
-  if (total <= WINDOW_SIZE) return recent
-
-  const { data: summaryData } = await supabase
-    .from('messages')
-    .select('content')
-    .eq('conversation_id', conversationId)
-    .eq('role', 'system')
-    .ilike('content', '[RESUMO]%')
-    .order('created_at', { ascending: false })
-    .limit(1)
-
-  if (summaryData?.[0]?.content)
-    return [{ role: 'system', content: summaryData[0].content }, ...recent]
-
-  if (total <= SUMMARY_TRIGGER) return recent
-
-  const { data: allData } = await supabase
-    .from('messages')
-    .select('role, content')
-    .eq('conversation_id', conversationId)
-    .neq('role', 'system')
-    .order('created_at', { ascending: true })
-
-  const allMessages = allData ?? []
-  const oldMessages = allMessages.slice(0, allMessages.length - WINDOW_SIZE)
-  if (oldMessages.length === 0) return recent
-
-  const summaryText = await gerarResumo(apiKey, oldMessages)
-  const resumoContent = `[RESUMO] ${summaryText}`
-
-  await supabase.from('messages').insert({
-    conversation_id: conversationId,
-    role: 'system',
-    content: resumoContent,
-  })
-
-  return [{ role: 'system', content: resumoContent }, ...recent]
-}
-
-// ─── POST Handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: 'GEMINI_API_KEY não configurada', errorCode: 'CONFIG' },
+      { status: 500 }
+    )
+  }
+
+  const { user, supabase, unauthorized } = await requireAuth(req)
+  if (unauthorized) return unauthorized
+
+  let body: {
+    pergunta?: string
+    dados?: string
+    tela?: TelaAtual
+    conversation_id?: string
+    /** true quando o cliente está repetindo uma pergunta que já foi gravada. */
+    reenvio?: boolean
+  }
   try {
-    const apiKey = process.env.GEMINI_API_KEY
-    if (!apiKey) {
-      return NextResponse.json({ error: 'GEMINI_API_KEY não configurada' }, { status: 500 })
-    }
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Corpo inválido' }, { status: 400 })
+  }
 
-    const { user, supabase, unauthorized } = await requireAuth(req)
-    if (unauthorized) return unauthorized
+  const pergunta = body.pergunta?.trim().slice(0, LIMITE_PERGUNTA)
+  if (!pergunta) {
+    return NextResponse.json({ error: 'pergunta é obrigatória' }, { status: 400 })
+  }
+  const dadosExtra = body.dados?.trim().slice(0, LIMITE_DADOS_EXTRA)
+  const conteudoUsuario = dadosExtra ? `${pergunta}\n\nContexto da tela:\n${dadosExtra}` : pergunta
 
-    const body = await req.json()
+  const deadlineMs = Date.now() + ORCAMENTO_MS
 
-    // user_id always comes from the authenticated session — never from the request body
-    const userId = user.id
-
-    const {
-      pergunta,
-      dados,
-      tela,
-    } = body as {
-      pergunta?: string
-      dados?: string
-      tela?: TelaAtual
-      conversation_id?: string
-    }
-    let { conversation_id } = body as { conversation_id?: string }
-
-    if (!pergunta?.trim()) {
-      return NextResponse.json({ error: 'pergunta é obrigatória' }, { status: 400 })
-    }
-
-    // Sanitise user input length to prevent prompt injection via oversized payloads
-    const perguntaSafe = pergunta.trim().slice(0, 2000)
-    const dadosSafe = dados?.trim().slice(0, 5000)
-
-    conversation_id = await garantirConversa(supabase, conversation_id ?? null, userId)
-
-    const contextoConversa = await carregarContextoConversa(supabase, apiKey, conversation_id)
-
-    const conteudoUsuario = dadosSafe
-      ? `Pergunta: ${perguntaSafe}\n\nDados adicionais:\n${dadosSafe}`
-      : perguntaSafe
-
-    await supabase.from('messages').insert({
-      conversation_id,
-      role: 'user',
-      content: conteudoUsuario,
-    })
-
-    const mensagensParaIA = [
-      ...contextoConversa.filter(m => m.role !== 'system'),
-      { role: 'user', content: conteudoUsuario },
-    ]
-
-    const summaryPreamble = contextoConversa.find(m => m.role === 'system')
-
-    const isFirstMessage = contextoConversa.filter(m => m.role !== 'system').length === 0
-    // Fase B: 1-message lookback for short-range topic continuity (e.g. "e por
-    // categoria?" right after a cartão question) — bounded to the immediately
-    // preceding user turn, not the whole history.
-    const perguntaAnterior = contextoConversa.filter(m => m.role === 'user').at(-1)?.content
-
-    const ctxResult = await buildChatContext({ userId, pergunta: perguntaSafe, isFirstMessage, tela, perguntaAnterior })
-    const systemPrompt = buildSystemPrompt(ctxResult.context, summaryPreamble?.content)
-
-    // Fase C: only offer the on-demand data tool on follow-ups with a
-    // validated dataset — on the first message the full context already
-    // covers most cases, and a blocked/compromised dataset must never be
-    // "topped up" via a tool call.
-    const toolsEnabled = !isFirstMessage && !ctxResult.blocked
-    const deadlineMs = Date.now() + 50_000
-    const contents = buildContents(systemPrompt, mensagensParaIA)
-
-    const first = await geminiChat(apiKey, contents, {
-      tools: toolsEnabled ? [FINANCIAL_TOOL] : undefined,
-      deadlineMs,
-    })
-
-    const respostaGenerica = 'Não consegui montar uma resposta completa agora — pode reformular a pergunta?'
-
-    let resposta: string
-    if (first.type === 'text') {
-      resposta = first.text
-    } else if (first.type === 'functionCall' && ctxResult.data && ctxResult.metrics && ctxResult.hoje) {
-      const functionResponseContent = executarTool(
-        first.name, first.args, ctxResult.data, ctxResult.metrics, perguntaSafe, ctxResult.hoje
-      )
-
-      if (functionResponseContent === null) {
-        resposta = respostaGenerica
-      } else {
-        const followupContents: GeminiContent[] = [
-          ...contents,
-          { role: 'model', parts: [{ functionCall: { name: first.name, args: first.args } }] },
-          {
-            role: 'function',
-            parts: [{ functionResponse: { name: first.name, response: { name: first.name, content: functionResponseContent } } }],
-          },
-        ]
-        // No `tools` on the follow-up call: structurally prevents a second
-        // function call, bounding this to at most two Gemini calls per turn.
-        const second = await geminiChat(apiKey, followupContents, { deadlineMs })
-        resposta = second.type === 'text' ? second.text : respostaGenerica
-      }
-    } else {
-      resposta = respostaGenerica
-    }
-
-    await supabase.from('messages').insert({
-      conversation_id,
-      role: 'assistant',
-      content: resposta,
-    })
-
-    return NextResponse.json({ resposta, conversation_id })
+  // Tudo que pode falhar ANTES do primeiro byte é resolvido aqui, para que o
+  // cliente receba um JSON de erro com status HTTP correto em vez de um stream
+  // que morre na primeira linha.
+  let conversationId: string
+  try {
+    conversationId = await garantirConversa(supabase, body.conversation_id ?? null, user.id)
   } catch (err) {
-    console.error('[chat]', err instanceof Error ? err.message : 'unknown error')
-    if (err instanceof Error && err.message === 'QUOTA_429') {
-      const e = err as Error & { diaria?: boolean; segundos?: number | null }
-      return NextResponse.json({
-        errorCode: 'QUOTA_429',
-        diaria: e.diaria ?? false,
-        segundos: e.segundos ?? null,
-      }, { status: 429 })
-    }
-    if (err instanceof Error && err.message === 'MODEL_OVERLOADED') {
-      return NextResponse.json({ errorCode: 'MODEL_OVERLOADED' }, { status: 503 })
-    }
-    return NextResponse.json({ error: 'Erro interno no servidor' }, { status: 500 })
+    console.error('[chat] conversa:', err instanceof Error ? err.message : err)
+    return NextResponse.json({ error: 'Não foi possível abrir a conversa' }, { status: 500 })
+  }
+
+  const encoder = new TextEncoder()
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const enviar = (tipo: string, payload: unknown) => {
+        try { controller.enqueue(encoder.encode(sse(tipo, payload))) }
+        catch { /* cliente desconectou */ }
+      }
+
+      try {
+        enviar('meta', { conversation_id: conversationId })
+
+        const contexto = await carregarContexto(supabase, apiKey, conversationId, deadlineMs)
+
+        // Grava a pergunta antes de chamar o modelo: se o turno falhar no meio,
+        // a conversa persiste coerente e o usuário pode simplesmente repetir.
+        // Num reenvio ela já está gravada — regravar duplicaria o histórico.
+        if (body.reenvio !== true) {
+          await salvarMensagem(supabase, conversationId, 'user', conteudoUsuario)
+        }
+
+        enviar('status', { texto: 'Lendo seus dados financeiros' })
+
+        // Força leitura fresca na primeira mensagem da conversa: o usuário pode
+        // ter acabado de lançar uma despesa em outra tela.
+        const brutos = await fetchEnrichedData(user.id, contexto.ehPrimeiraMensagem)
+        const { validatedData, certificate } = validateFinancialData(brutos)
+        const refs = construirReferencias()
+
+        const bloqueado = !certificate.certificado
+        const systemPrompt = bloqueado
+          ? buildBlockedPrompt(certificate)
+          : buildSystemPrompt({
+              data: validatedData,
+              metrics: computeInsights(validatedData),
+              refs,
+              certificate,
+              tela: body.tela,
+              resumoConversa: contexto.resumo,
+            })
+
+        let textoFinal = ''
+        let ferramentas: string[] = []
+
+        // Num reenvio a pergunta já veio no histórico carregado — remover a
+        // duplicata evita dois turnos 'user' idênticos e seguidos no prompt.
+        const historico = body.reenvio === true
+          ? contexto.mensagens.filter((m, i, arr) =>
+              !(i === arr.length - 1 && m.role === 'user' && m.content === conteudoUsuario))
+          : contexto.mensagens
+
+        for await (const evento of executarAgente({
+          apiKey,
+          systemPrompt,
+          historico,
+          pergunta: conteudoUsuario,
+          data: validatedData,
+          refs,
+          semFerramentas: bloqueado,
+          deadlineMs,
+        })) {
+          despachar(evento, enviar)
+          if (evento.type === 'done') {
+            textoFinal = evento.texto
+            ferramentas = evento.ferramentas
+          }
+        }
+
+        if (textoFinal) {
+          await salvarMensagem(supabase, conversationId, 'assistant', textoFinal)
+        }
+        enviar('done', { texto: textoFinal, ferramentas })
+      } catch (err) {
+        console.error('[chat]', err instanceof Error ? err.message : err)
+        enviar('error', descreverErro(err))
+      } finally {
+        try { controller.close() } catch { /* já fechado */ }
+      }
+    },
+  })
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      // Evita buffering em proxies (o stream chegaria de uma vez só no fim).
+      'X-Accel-Buffering': 'no',
+    },
+  })
+}
+
+/** Traduz um evento do agente para o canal SSE (o `done` é emitido pela rota). */
+function despachar(evento: AgentEvent, enviar: (tipo: string, payload: unknown) => void) {
+  switch (evento.type) {
+    case 'status':
+      enviar('status', { texto: evento.texto })
+      break
+    case 'tool':
+      enviar('tool', { nome: evento.nome, rotulo: evento.rotulo })
+      break
+    case 'delta':
+      enviar('delta', { texto: evento.texto })
+      break
+    case 'reset':
+      enviar('reset', {})
+      break
+    case 'done':
+      // Emitido pela rota depois de persistir a mensagem.
+      break
   }
 }

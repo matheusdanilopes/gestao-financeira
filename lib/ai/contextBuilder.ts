@@ -13,8 +13,9 @@ import type { EnrichedData } from './types'
 const _userCache = new Map<string, { data: EnrichedData; ts: number }>()
 // Kept short on purpose: the AI must reflect changes made moments ago (new
 // expense, payment, import) without serving a stale snapshot for minutes.
-// buildChatContext() also forces a bypass on the first message of every
-// conversation, so this TTL only bounds staleness within a single chat.
+// A rota de chat também força a leitura fresca na primeira mensagem de cada
+// conversa, então este TTL só limita o quanto o dado envelhece dentro de um
+// mesmo turno de conversa.
 const CACHE_TTL_MS = 60 * 1000
 const MAX_CACHE_ENTRIES = 10 // prevent unbounded memory growth
 
