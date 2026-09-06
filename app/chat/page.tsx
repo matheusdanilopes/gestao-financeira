@@ -166,7 +166,21 @@ export default function ChatPage() {
       </header>
 
       {/* ── Conversa ── */}
-      <main ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-4 pt-6 pb-28 space-y-5">
+      {/* O padding inferior generoso existe só para o último balão não ficar
+          atrás do composer fixo. Na tela de boas-vindas ele não tem função e
+          era justamente o que, somado ao min-h-full do conteúdo, empurrava o
+          topo para fora da área visível. */}
+      <main
+        ref={scrollRef}
+        // space-y-5 separa balões; na tela vazia ele só dava 20px de margem ao
+        // sentinela de scroll do fim da lista, criando uma rolagem fantasma.
+        className={`flex-1 min-h-0 overflow-y-auto scrollbar-hide px-4 ${
+          // Na tela vazia o padding inferior compensa a altura do composer,
+          // que flutua por cima do main: sem ele o "centralizado" fica visualmente
+          // baixo, encostando no campo de digitação.
+          vazio ? 'pt-3 pb-20' : 'pt-6 pb-28 space-y-5'
+        }`}
+      >
         {chat.carregandoHistorico ? (
           <div className="space-y-4 pt-4">
             {[...Array(3)].map((_, i) => (
