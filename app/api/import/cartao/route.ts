@@ -3,11 +3,9 @@ import { requireAuth } from '@/lib/serverAuth'
 import { processarCSV } from '@/lib/csvparser'
 import { notificarImportacao } from '@/lib/pushImportacao'
 import {
-  conciliarTransacao,
-  conciliarEstorno,
+  conciliarLote,
+  conciliarEstornosLote,
   aplicarResponsavelDeParcelaAnterior,
-  construirContextoConciliacao,
-  construirContextoEstornos,
 } from '@/lib/conciliacao'
 import { validarDivergenciaFatura } from '@/lib/validacaoFatura'
 import { corrigirComprasDaViradaNaPrimeiraImportacao } from '@/lib/faturaVirada'
@@ -36,7 +34,17 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const { data: configs } = await supabase.from('configuracoes').select('chave, valor')
+    // Busca o responsável padrão cadastrado no planejamento para este cartão.
+    // Se todos os itens [CARTAOx] apontarem para a mesma pessoa, usa como padrão;
+    // caso contrário (cartão compartilhado ou sem cadastro), mantém a lógica pela descrição.
+    const prefixoPlanejamento = cartao === 'cartao1' ? '[CARTAO1]' : '[CARTAO2]'
+
+    // Duas leituras independentes — vão juntas em vez de uma esperar a outra.
+    const [{ data: configs }, { data: planos }] = await Promise.all([
+      supabase.from('configuracoes').select('chave, valor'),
+      supabase.from('planejamento').select('item, responsavel').ilike('item', `${prefixoPlanejamento}%`),
+    ])
+
     const get = (chave: string, fallback: string) =>
       configs?.find((c: { chave: string; valor: string }) => c.chave === chave)?.valor ?? fallback
 
@@ -47,15 +55,6 @@ export async function POST(req: NextRequest) {
     const ajusteFechamento = parseInt(
       get(`ajuste_fechamento_${cartao}`, get('ajuste_fechamento', '0'))
     )
-
-    // Busca o responsável padrão cadastrado no planejamento para este cartão.
-    // Se todos os itens [CARTAOx] apontarem para a mesma pessoa, usa como padrão;
-    // caso contrário (cartão compartilhado ou sem cadastro), mantém a lógica pela descrição.
-    const prefixoPlanejamento = cartao === 'cartao1' ? '[CARTAO1]' : '[CARTAO2]'
-    const { data: planos } = await supabase
-      .from('planejamento')
-      .select('item, responsavel')
-      .ilike('item', `${prefixoPlanejamento}%`)
 
     const responsaveisUnicos = [
       ...new Set((planos ?? []).map((p: { item: string; responsavel: string | null }) => p.responsavel).filter(Boolean))
@@ -72,15 +71,19 @@ export async function POST(req: NextRequest) {
 
     const csvText = await file.text()
     const transacoes = processarCSV(csvText, diaVencimento, ajusteFechamento, cartao, responsavelPadrao)
-    await aplicarResponsavelDeParcelaAnterior(supabase, transacoes)
 
     const transacoesNormais = transacoes.filter(t => !t.is_estorno)
     const estornos = transacoes.filter(t => t.is_estorno)
 
-    // Corrige, só na primeira importação de cada fatura, as compras dos 2
-    // últimos dias do ciclo que a fórmula colocou na fatura errada em
-    // relação ao fechamento real cadastrado — ver lib/faturaVirada.ts.
-    await corrigirComprasDaViradaNaPrimeiraImportacao(supabase, transacoesNormais, cartao, diaVencimento, ajusteFechamento)
+    // Os dois ajustes pré-importação mexem em campos diferentes das mesmas linhas
+    // (responsavel × projeto_fatura) e não dependem um do outro — rodam juntos.
+    // O segundo corrige, só na primeira importação de cada fatura, as compras dos 2
+    // últimos dias do ciclo que a fórmula colocou na fatura errada em relação ao
+    // fechamento real cadastrado — ver lib/faturaVirada.ts.
+    await Promise.all([
+      aplicarResponsavelDeParcelaAnterior(supabase, transacoes),
+      corrigirComprasDaViradaNaPrimeiraImportacao(supabase, transacoesNormais, cartao, diaVencimento, ajusteFechamento),
+    ])
 
     if (transacoesNormais.length === 0 && estornos.length === 0) {
       return NextResponse.json({
@@ -108,16 +111,16 @@ export async function POST(req: NextRequest) {
     const faturaStats: Record<string, StatsFatura> = {}
     for (const f of mesesNoArquivo) faturaStats[f] = { noCSV: 0, inseridas: 0, ignoradas: 0, totalNoBanco: 0 }
 
-    // Pré-carrega em lote o dedupe por hash e os candidatos de match nome+data
-    // usados por conciliarTransacao (ver lib/conciliacao.ts) — mesma decisão por
-    // linha, com bem menos round-trips ao banco.
-    const contexto = await construirContextoConciliacao(supabase, transacoesNormais)
+    // Decide e grava o lote inteiro de uma vez: as decisões saem de um contexto
+    // pré-carregado (nenhuma ida ao banco por linha) e as escritas vão agrupadas
+    // em poucos comandos — ver lib/conciliacao.ts.
+    const resultados = await conciliarLote(supabase, transacoesNormais, 'csv')
 
-    for (const item of transacoesNormais) {
+    transacoesNormais.forEach((item, indice) => {
       const stats = faturaStats[item.projeto_fatura]
       stats.noCSV++
 
-      const resultado = await conciliarTransacao(supabase, item, 'csv', contexto)
+      const resultado = resultados[indice]
       const linha = linhaDeTransacao(item, resultado)
       if (linha) linhas.push(linha)
 
@@ -152,80 +155,85 @@ export async function POST(req: NextRequest) {
           stats.ignoradas++
           break
       }
-    }
+    })
 
-    const contextoEstorno = await construirContextoEstornos(supabase, estornos)
+    // Depois das compras normais: o contexto dos estornos é montado do banco e
+    // precisa enxergar o que acabou de ser importado.
+    const resultadosEstornos = await conciliarEstornosLote(supabase, estornos)
 
-    for (const estorno of estornos) {
-      const resultado = await conciliarEstorno(supabase, estorno, contextoEstorno)
+    estornos.forEach((estorno, indice) => {
+      const resultado = resultadosEstornos[indice]
       linhas.push(linhaDeEstorno(estorno, resultado))
       if (resultado.acao === 'aplicado')   estornosAplicados++
       if (resultado.acao === 'registrado') estornosRegistrados++
-    }
+    })
 
-    // Push de sucesso: dispara assim que os dados que ele precisa já estão prontos —
-    // antes da recontagem por fatura, de validarDivergenciaFatura e da sincronização de
-    // assinaturas, que não alimentam o payload da notificação. Chamada síncrona (não
-    // after()): after() só dispara depois que TODA a resposta HTTP termina de ser
-    // processada, então embrulhar aqui não adiantaria a entrega.
-    try {
-      await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, conflitos, cartao, nomeCartao, {
+    // Etapas pós-importação, todas em paralelo: nenhuma depende do resultado da
+    // outra e juntas custavam meia dúzia de round-trips em série no fim do request.
+    // O push continua sendo disparado aqui (e não em after(), que só roda depois da
+    // resposta inteira ser processada) — agora ele apenas divide o tempo de espera
+    // com a recontagem, a validação de divergência e a sincronização de assinaturas.
+    let assinaturasAtualizadas: AssinaturaSincronizada[] = []
+
+    await Promise.all([
+      // 1. Push de sucesso.
+      notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, conflitos, cartao, nomeCartao, {
         purchaseDates,
         projetoFaturas: mesesNoArquivo,
         importTs,
         estornosAplicados,
         estornosRegistrados,
-      })
-    } catch (err) {
-      console.error('[import/cartao] push sucesso falhou:', err)
-    }
+      }).catch(err => console.error('[import/cartao] push sucesso falhou:', err)),
 
-    let assinaturasAtualizadas: AssinaturaSincronizada[] = []
-    try {
-      await Promise.all(mesesNoArquivo.map(async fatura => {
-        const { count } = await supabase
-          .from('transacoes_nubank')
-          .select('*', { count: 'exact', head: true })
-          .eq('projeto_fatura', fatura)
-          .eq('cartao', cartao)
-          .eq('is_estorno', false)
-        faturaStats[fatura].totalNoBanco = count ?? 0
-      }))
+      // 2. Recontagem por fatura + alerta de divergência.
+      (async () => {
+        await Promise.all(mesesNoArquivo.map(async fatura => {
+          const { count } = await supabase
+            .from('transacoes_nubank')
+            .select('*', { count: 'exact', head: true })
+            .eq('projeto_fatura', fatura)
+            .eq('cartao', cartao)
+            .eq('is_estorno', false)
+          faturaStats[fatura].totalNoBanco = count ?? 0
+        }))
+        await validarDivergenciaFatura(supabase, faturaStats, transacoesNormais, cartao, nomeCartao)
+      })().catch(err => {
+        // Falha aqui não deve derrubar a resposta HTTP nem disparar um push de erro
+        // contraditório — o push de sucesso acima já foi (ou está sendo) enviado.
+        console.error('[import/cartao] Falha pós-import (recontagem/validação):', err)
+      }),
 
-      await validarDivergenciaFatura(supabase, faturaStats, transacoesNormais, cartao, nomeCartao)
+      // 3. Sincronização de assinaturas em moeda estrangeira.
+      sincronizarAssinaturasMoedaEstrangeira(supabase, cartao, mesesNoArquivo)
+        .then(resultado => { assinaturasAtualizadas = resultado })
+        .catch(err => console.error('[import/cartao] Falha pós-import (assinaturas):', err)),
 
-      assinaturasAtualizadas = await sincronizarAssinaturasMoedaEstrangeira(supabase, cartao, mesesNoArquivo)
-    } catch (postImportError) {
-      // Falha aqui não deve derrubar a resposta HTTP nem disparar um push de erro
-      // contraditório — o push de sucesso acima já foi (ou está sendo) enviado.
-      console.error('[import/cartao] Falha pós-import (recontagem/validação/assinaturas):', postImportError)
-    }
+      // 4. Log de atividade + detalhes por linha (mesmo mecanismo do endpoint via API),
+      //    pra essa importação aparecer em "Atividades Recentes" com os detalhes de
+      //    validação por linha, igual à importação via API/Google Sheets.
+      (async () => {
+        const mesesStr = mesesNoArquivo.map(m => m.substring(0, 7)).join(', ')
+        const { data: logRow, error: erroLog } = await supabase.from('activity_logs').insert({
+          acao: 'importar',
+          tabela: 'transacoes_nubank',
+          descricao: `${verdadeiramenteNovas} novas em ${nomeCartao ?? cartao} via upload (${novosMatheus}M + ${novosJeniffer}J)${mesesStr ? ' · ' + mesesStr : ''}`,
+          valor: totalValor,
+        }).select('id').single()
 
-    // Registra o log de atividade + detalhes por linha (mesmo mecanismo do endpoint via
-    // API), pra essa importação aparecer em "Atividades Recentes" com os detalhes de
-    // validação por linha, igual à importação via API/Google Sheets.
-    try {
-      const mesesStr = mesesNoArquivo.map(m => m.substring(0, 7)).join(', ')
-      const { data: logRow, error: erroLog } = await supabase.from('activity_logs').insert({
-        acao: 'importar',
-        tabela: 'transacoes_nubank',
-        descricao: `${verdadeiramenteNovas} novas em ${nomeCartao ?? cartao} via upload (${novosMatheus}M + ${novosJeniffer}J)${mesesStr ? ' · ' + mesesStr : ''}`,
-        valor: totalValor,
-      }).select('id').single()
+        if (erroLog) {
+          console.error('[import/cartao] Falha ao registrar log de atividade:', erroLog.message)
+          return
+        }
+        if (!logRow?.id || linhas.length === 0) return
 
-      if (erroLog) {
-        console.error('[import/cartao] Falha ao registrar log de atividade:', erroLog.message)
-      } else if (logRow?.id && linhas.length > 0) {
         const { error: erroValidacoes } = await supabase.from('import_validacoes').insert(
           linhas.map(l => ({ ...l, log_id: logRow.id }))
         )
         if (erroValidacoes) {
           console.error('[import/cartao] Falha ao salvar detalhes de validação:', erroValidacoes.message, erroValidacoes.details, erroValidacoes.hint)
         }
-      }
-    } catch (err) {
-      console.error('[import/cartao] Exceção ao registrar log/detalhes:', err)
-    }
+      })().catch(err => console.error('[import/cartao] Exceção ao registrar log/detalhes:', err)),
+    ])
 
     return NextResponse.json({
       success: true,
