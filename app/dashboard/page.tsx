@@ -7,6 +7,7 @@ import { format, startOfMonth, endOfMonth, addMonths, subMonths, isSameMonth } f
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
 import { valorEfetivoNoMes } from '@/lib/assinaturaValor'
 import { classificarTipoGasto, somarValorFatura, type TipoGasto } from '@/lib/composicaoFatura'
+import { identificarAssinaturasNaFatura } from '@/lib/assinaturaMatch'
 import { BarChart2, BarChart3, CreditCard, Wallet, PiggyBank, TrendingUp, TrendingDown, Minus, LineChart, Activity } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
@@ -165,13 +166,13 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     // Não filtra ESTORNO/ESTORNADO aqui: precisamos do status e do conciliacao_ref
     // para tratar estornos sem par (crédito não conciliado com a compra original)
     // corretamente em somarValorFatura — ver comentário na função.
-    supabase.from('transacoes_nubank').select('valor, responsavel, descricao, cartao, parcela_atual, total_parcelas, status, conciliacao_ref').eq('projeto_fatura', mesRefFatura),
+    supabase.from('transacoes_nubank').select('valor, responsavel, descricao, cartao, data_compra, parcela_atual, total_parcelas, status, conciliacao_ref').eq('projeto_fatura', mesRefFatura),
     supabase.from('planejamento').select('item, responsavel, valor_previsto, pago, valor_real').eq('mes_referencia', mesRef),
     // Busca aportes embutidos para eliminar a query sequencial posterior
     supabase.from('investimentos').select('id, descricao, percentual, investimentos_aportes(valor)').eq('mes_referencia', mesRef).order('created_at', { ascending: true }),
     supabase.from('configuracoes').select('chave, valor').in('chave', ['dia_vencimento', 'ajuste_fechamento']),
     supabase.from('faturas').select('data_fechamento').eq('cartao', 'nubank').eq('mes_referencia', mesRefFatura).limit(1),
-    supabase.from('assinaturas').select('id, nome, valor, responsavel, ativa, moeda').eq('cartao', 'nubank'),
+    supabase.from('assinaturas').select('id, nome, valor, responsavel, ativa, moeda, dia_cobranca').eq('cartao', 'nubank'),
     supabase.from('assinaturas_historico').select('assinatura_id, valor, vigente_desde, criado_em'),
     supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'nubank')
       .lte('projeto_fatura', mesRefFatura).order('projeto_fatura', { ascending: false }).limit(1),
@@ -320,8 +321,8 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
 
   const percentualComprometimento = receitaTotal > 0 ? (totalGastos / receitaTotal) * 100 : 0
 
-  type AssinaturaRow = { id: string; nome: string; valor: number; responsavel: string; ativa: boolean; moeda: string }
-  type TransacaoRow = { valor: number; responsavel: string | null; descricao: string | null; parcela_atual?: number | null; total_parcelas?: number | null }
+  type AssinaturaRow = { id: string; nome: string; valor: number; responsavel: string; ativa: boolean; moeda: string; dia_cobranca?: number | null }
+  type TransacaoRow = { valor: number; responsavel: string | null; descricao: string | null; data_compra?: string | null; parcela_atual?: number | null; total_parcelas?: number | null }
   const assinAtivas = (assinaturasData || []).filter((a: AssinaturaRow) => a.ativa)
   // Composição (barras existente/novo/assinatura) e checagem de assinaturas usam só os
   // lançamentos "reais" da fatura — estornos (créditos) e compras já estornadas não fazem
@@ -335,28 +336,46 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const cutoffHistorico = format(endOfMonth(mes), 'yyyy-MM-dd')
   const valorAssinaturaNoMes = (a: AssinaturaRow) =>
     valorEfetivoNoMes(a.id, a.valor, cutoffHistorico, historicoValores)
+  // Identificação compartilhada com a tela de Assinaturas (lib/assinaturaMatch.ts):
+  // nome por tokens, valor dentro da faixa plausível, compra não parcelada, dia de
+  // cobrança e uma transação por assinatura. Antes bastava a descrição conter o nome —
+  // uma compra avulsa no mesmo estabelecimento zerava a "assinatura não paga" e ainda
+  // aparecia como divergência de valor até a cobrança certa entrar na fatura.
+  const identificacaoAssinaturas = identificarAssinaturasNaFatura(
+    assinAtivas.map((a: AssinaturaRow) => ({
+      id: a.id,
+      nome: a.nome,
+      moeda: a.moeda,
+      diaCobranca: a.dia_cobranca ?? null,
+      valorEsperado: valorAssinaturaNoMes(a),
+    })),
+    txFaturaList.map((t: TransacaoRow) => ({
+      descricao: t.descricao,
+      valor: t.valor,
+      dataCompra: t.data_compra ?? null,
+      parcelaAtual: t.parcela_atual ?? null,
+      totalParcelas: t.total_parcelas ?? null,
+    })),
+  )
   const calcNaoPaga = (responsavel: string) =>
     assinAtivas
-      .filter((a: AssinaturaRow) => a.responsavel === responsavel && !txFaturaList.some((tx: TransacaoRow) => tx.descricao?.toLowerCase().includes(a.nome.toLowerCase())))
+      .filter((a: AssinaturaRow) =>
+        a.responsavel === responsavel &&
+        identificacaoAssinaturas.get(a.id)?.status === 'nao_encontrada')
       .reduce((sum: number, a: AssinaturaRow) => sum + valorAssinaturaNoMes(a), 0)
   type AssinDivergenteLocal = AssinDivergente
   const calcDivergente = (responsavel: string): AssinDivergenteLocal[] =>
     assinAtivas
       .filter((a: AssinaturaRow) => a.responsavel === responsavel)
       .flatMap((a: AssinaturaRow) => {
-        const nome = a.nome.toLowerCase()
-        const matches = txFaturaList.filter((tx: TransacaoRow) =>
-          tx.descricao?.toLowerCase().includes(nome)
-        )
-        if (matches.length === 0) return []
-        const valorEsperado = valorAssinaturaNoMes(a)
-        // Assinaturas em moeda estrangeira oscilam com o câmbio: tolerância percentual em vez de fixa.
-        const tolerancia = a.moeda !== 'BRL' ? valorEsperado * 0.05 : 0.05
-        if (matches.some((tx: TransacaoRow) => Math.abs(tx.valor - valorEsperado) <= tolerancia)) return []
-        const best = matches.reduce((prev: TransacaoRow, cur: TransacaoRow) =>
-          Math.abs(cur.valor - valorEsperado) < Math.abs(prev.valor - valorEsperado) ? cur : prev
-        )
-        return [{ nome: a.nome, valorEsperado, valorCobrado: best.valor, diff: best.valor - valorEsperado }]
+        const identificacao = identificacaoAssinaturas.get(a.id)
+        if (!identificacao || identificacao.status !== 'valor_divergente') return []
+        return [{
+          nome: a.nome,
+          valorEsperado: valorAssinaturaNoMes(a),
+          valorCobrado: identificacao.valorCobrado ?? 0,
+          diff: identificacao.diferenca ?? 0,
+        }]
       })
 
   // Decompõe o valor gasto (atual) de cada responsável em: parcelas pré-existentes (2/X em diante),
@@ -364,7 +383,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   function montarComposicao(responsavel: string): ComposicaoGastos {
     let existente = 0, novo = 0, assinatura = 0
     for (const t of txFaturaList.filter((tx: TransacaoRow) => tx.responsavel === responsavel)) {
-      const tipo = classificarTipoGasto(t.descricao, t.parcela_atual, t.total_parcelas, t.responsavel, assinAtivas)
+      const tipo = classificarTipoGasto(t.descricao, t.parcela_atual, t.total_parcelas, t.responsavel, assinAtivas, t.valor)
       if (tipo === 'assinatura') assinatura += t.valor
       else if (tipo === 'existente') existente += t.valor
       else novo += t.valor

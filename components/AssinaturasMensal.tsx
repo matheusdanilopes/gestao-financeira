@@ -19,6 +19,12 @@ import { numericOnly, formatBRL } from '@/lib/format'
 import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
 import { valorEfetivoNoMes } from '@/lib/assinaturaValor'
 import { ativaEfetivaNoMes, HistoricoStatusEntry } from '@/lib/assinaturaStatus'
+import {
+  identificarAssinaturasNaFatura,
+  explicarDescarte,
+  type IdentificacaoAssinatura,
+  type StatusAssinatura,
+} from '@/lib/assinaturaMatch'
 
 interface Assinatura {
   id: string
@@ -49,7 +55,14 @@ interface TransacaoSimples {
   valor: number
   cartao: string
   projeto_fatura: string
+  data_compra: string | null
+  parcela_atual: number | null
+  total_parcelas: number | null
 }
+
+// Campos que a identificação usa além do nome: data (proximidade do dia de
+// cobrança) e parcelamento (assinatura não é cobrada em N/M).
+const CAMPOS_TRANSACAO = 'descricao, valor, cartao, projeto_fatura, data_compra, parcela_atual, total_parcelas'
 
 interface Props {
   mesSelecionado: Date
@@ -75,7 +88,7 @@ const FORM_VAZIO = {
   valorOrigem: '',
 }
 
-type StatusTx = 'detectada' | 'valor_divergente' | 'nao_encontrada' | 'inativa'
+type StatusTx = StatusAssinatura
 
 export default function AssinaturasMensal({ mesSelecionado }: Props) {
   const [itens, setItens] = useState<Assinatura[]>([])
@@ -141,7 +154,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       supabase.from('assinaturas').select('*').order('nome', { ascending: true }),
       supabase
         .from('transacoes_nubank')
-        .select('descricao, valor, cartao, projeto_fatura')
+        .select(CAMPOS_TRANSACAO)
         .eq('projeto_fatura', nextMesRefStr)
         .neq('status', 'ESTORNO')
         .neq('status', 'ESTORNADO'),
@@ -204,30 +217,76 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     setVerificando(true)
     const { data } = await supabase
       .from('transacoes_nubank')
-      .select('descricao, valor, cartao, projeto_fatura')
+      .select(CAMPOS_TRANSACAO)
       .eq('projeto_fatura', nextMesRefStr)
+      .neq('status', 'ESTORNO')
+      .neq('status', 'ESTORNADO')
     setTransacoes(data || [])
     setVerificando(false)
     const ativas = itens.filter(i => ativaNoMes(i, mesSelecionado, statusHistorico))
-    const detectadas = ativas.filter(i => {
-      const nome = i.nome.toLowerCase()
-      return (data || []).some(tx => tx.cartao === i.cartao && tx.descricao.toLowerCase().includes(nome))
-    }).length
-    showToast(`${detectadas} de ${ativas.length} assinatura(s) encontrada(s) na fatura de ${mesFmt}`)
+    const resultado = identificarNaFatura(ativas, data || [])
+    const detectadas = ativas.filter(i => resultado.get(i.id)?.status !== 'nao_encontrada').length
+    const ignoradas = ativas.reduce((acc, i) => acc + (resultado.get(i.id)?.descartadas.length ?? 0), 0)
+    showToast(
+      `${detectadas} de ${ativas.length} assinatura(s) encontrada(s) na fatura de ${mesFmt}` +
+      (ignoradas > 0 ? ` · ${ignoradas} compra(s) parecida(s) ignorada(s)` : '')
+    )
+  }
+
+  // Casa as assinaturas ativas com os lançamentos da fatura pelas regras
+  // compartilhadas (nome por tokens + valor plausível + não parcelada + dia de
+  // cobrança + uma transação por assinatura). Antes bastava a descrição conter o
+  // nome, e uma compra avulsa no mesmo estabelecimento (ex.: cupons do iFood)
+  // ocupava o lugar da cobrança real da assinatura.
+  const identificarNaFatura = useCallback(
+    (assinaturas: Assinatura[], txs: TransacaoSimples[]) =>
+      identificarAssinaturasNaFatura(
+        assinaturas.map(a => ({
+          id: a.id,
+          nome: a.nome,
+          cartao: a.cartao,
+          moeda: a.moeda,
+          diaCobranca: a.dia_cobranca,
+          valorEsperado: valorEfetivoNoMes(
+            a.id,
+            a.valor,
+            format(endOfMonth(mesSelecionado), 'yyyy-MM-dd'),
+            historico,
+          ),
+        })),
+        txs.map(t => ({
+          ...t,
+          dataCompra: t.data_compra,
+          parcelaAtual: t.parcela_atual,
+          totalParcelas: t.total_parcelas,
+        })),
+      ),
+    [mesSelecionado, historico],
+  )
+
+  // "Ativas" no mês selecionado (não necessariamente o estado atual — uma assinatura
+  // reativada hoje continua contando como inativa em meses passados em que estava pausada).
+  const itensAtivosNoMes = useMemo(
+    () => itens.filter(i => ativaNoMes(i, mesSelecionado, statusHistorico)),
+    [itens, mesSelecionado, statusHistorico]
+  )
+
+  const identificacoes = useMemo(
+    () => identificarNaFatura(itensAtivosNoMes, transacoes),
+    [identificarNaFatura, itensAtivosNoMes, transacoes]
+  )
+
+  type IdentificacaoTx = IdentificacaoAssinatura<TransacaoSimples & {
+    dataCompra: string | null; parcelaAtual: number | null; totalParcelas: number | null
+  }>
+
+  function identificacaoDe(assinatura: Assinatura): IdentificacaoTx | null {
+    return identificacoes.get(assinatura.id) ?? null
   }
 
   function statusTransacao(assinatura: Assinatura): StatusTx {
     if (!ativaNoMes(assinatura, mesSelecionado, statusHistorico)) return 'inativa'
-    const nome = assinatura.nome.toLowerCase()
-    const matches = transacoes.filter(
-      tx => tx.cartao === assinatura.cartao && tx.descricao.toLowerCase().includes(nome)
-    )
-    if (matches.length === 0) return 'nao_encontrada'
-    const valorEsperado = valorParaMes(assinatura, mesSelecionado, historico)
-    // Assinaturas em moeda estrangeira oscilam com o câmbio: tolerância percentual em vez de fixa.
-    const tolerancia = assinatura.moeda !== 'BRL' ? valorEsperado * 0.05 : 0.05
-    const valorOk = matches.some(tx => Math.abs(tx.valor - valorEsperado) <= tolerancia)
-    return valorOk ? 'detectada' : 'valor_divergente'
+    return identificacoes.get(assinatura.id)?.status ?? 'nao_encontrada'
   }
 
   const filtrosAtivos = (filtroCartao !== 'todos' ? 1 : 0) + (filtroDescricao !== '' ? 1 : 0) + (filtroStatus !== 'todas' ? 1 : 0) + (filtroFatura !== 'todas' ? 1 : 0)
@@ -243,14 +302,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       return true
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itens, filtroCartao, filtroResponsavel, filtroDescricao, filtroStatus, filtroFatura, transacoes, mesSelecionado, statusHistorico])
-
-  // "Ativas" no mês selecionado (não necessariamente o estado atual — uma assinatura
-  // reativada hoje continua contando como inativa em meses passados em que estava pausada).
-  const itensAtivosNoMes = useMemo(
-    () => itens.filter(i => ativaNoMes(i, mesSelecionado, statusHistorico)),
-    [itens, mesSelecionado, statusHistorico]
-  )
+  }, [itens, filtroCartao, filtroResponsavel, filtroDescricao, filtroStatus, filtroFatura, identificacoes, mesSelecionado, statusHistorico])
 
   const totalAtivo = useMemo(
     () => itensAtivosNoMes.reduce((acc, i) => acc + valorParaMes(i, mesSelecionado, historico), 0),
@@ -273,15 +325,15 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
   }), [itensAtivosNoMes])
 
   const detectadasCount = useMemo(
-    () => itensAtivosNoMes.filter(i => statusTransacao(i) === 'detectada').length,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [itensAtivosNoMes, transacoes, mesSelecionado, historico]
+    () => itensAtivosNoMes.filter(i => identificacoes.get(i.id)?.status === 'detectada').length,
+    [itensAtivosNoMes, identificacoes]
   )
 
   const detectadasValor = useMemo(
-    () => itensAtivosNoMes.filter(i => statusTransacao(i) === 'detectada').reduce((acc, i) => acc + valorParaMes(i, mesSelecionado, historico), 0),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [itensAtivosNoMes, transacoes, mesSelecionado, historico]
+    () => itensAtivosNoMes
+      .filter(i => identificacoes.get(i.id)?.status === 'detectada')
+      .reduce((acc, i) => acc + valorParaMes(i, mesSelecionado, historico), 0),
+    [itensAtivosNoMes, identificacoes, mesSelecionado, historico]
   )
 
   const itensPorCartao = useMemo(() => {
@@ -690,6 +742,10 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
             <div className="divide-y divide-gray-50">
               {grupo.map(item => {
                 const status = statusTransacao(item)
+                const identificacao = identificacaoDe(item)
+                // Compra que cita o nome mas foi recusada como cobrança da assinatura:
+                // mostrar o motivo evita a impressão de que o app "não viu" o lançamento.
+                const descartada = status === 'nao_encontrada' ? identificacao?.descartadas[0] : undefined
                 const ativoNoMesAtual = ativaNoMes(item, mesSelecionado, statusHistorico)
                 return (
                   <SwipeableItem
@@ -731,6 +787,20 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                           {item.dia_cobranca ? ` · dia ${item.dia_cobranca}` : ''}
                           {item.observacao ? ` · ${item.observacao}` : ''}
                         </p>
+                        {status === 'valor_divergente' && identificacao?.valorCobrado != null && (
+                          <p className="text-[11px] text-amber-600 mt-0.5 leading-tight num">
+                            cobrado R$ {identificacao.valorCobrado.toFixed(2)} nesta fatura
+                          </p>
+                        )}
+                        {descartada && (
+                          <p
+                            className="text-[11px] text-gray-400 mt-0.5 leading-tight"
+                            title={`"${descartada.transacao.descricao}" — R$ ${descartada.transacao.valor.toFixed(2)}`}
+                          >
+                            R$ {descartada.transacao.valor.toFixed(2)} no mesmo lugar não contou
+                            {` (${explicarDescarte(descartada.motivo)})`}
+                          </p>
+                        )}
                       </div>
                       <div className="text-right shrink-0">
                         <p className={`text-[15px] font-bold num ${ativoNoMesAtual ? 'text-primary-700' : 'text-gray-400'}`}>

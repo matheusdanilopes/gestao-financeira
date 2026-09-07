@@ -1,3 +1,6 @@
+import { extrairParcela } from './parcelaDescricao'
+import { transacaoEhCobrancaDeAssinatura } from './assinaturaMatch'
+
 // Classificação do que compõe o valor gasto de uma fatura NuBank: parcelas de
 // compras de meses anteriores (2/X em diante), novas parcelas/compras à vista
 // (1/X) e assinaturas. Compartilhado entre o Dashboard (cálculo das barras) e
@@ -29,45 +32,19 @@ export function somarValorFatura<T extends TransacaoParaTotal>(transacoes: T[]):
   }, 0)
 }
 
+export { extrairParcela }
+export type { ParcelaInfo } from './parcelaDescricao'
+
 export type TipoGasto = 'existente' | 'novo' | 'assinatura'
-
-export interface ParcelaInfo {
-  atual: number
-  total: number
-}
-
-export function extrairParcela(
-  descricao?: string | null,
-  parcelaAtual?: number | null,
-  totalParcelas?: number | null
-): ParcelaInfo | null {
-  if (parcelaAtual && totalParcelas) {
-    const atual = Number(parcelaAtual)
-    const total = Number(totalParcelas)
-    if (atual >= 1 && total >= atual) return { atual, total }
-  }
-  const desc = String(descricao || '')
-  const matchParcela = desc.match(/parcela\s*(\d+)\s*\/\s*(\d+)/i)
-  if (matchParcela) {
-    const atual = Number(matchParcela[1])
-    const total = Number(matchParcela[2])
-    if (atual >= 1 && total >= atual) return { atual, total }
-  }
-  // Sem limite de dígitos nem checagem de sanidade, esta regex casaria qualquer
-  // "12/2024" (data) ou código embutido na descrição como se fosse parcela —
-  // mesma classe de bug já corrigida em lib/csvparser.ts (extrairParcela).
-  const matchSlash = desc.match(/\b(\d{1,2})\/(\d{1,2})\b/)
-  if (matchSlash) {
-    const atual = Number(matchSlash[1])
-    const total = Number(matchSlash[2])
-    if (atual >= 1 && total >= atual && total >= 2) return { atual, total }
-  }
-  return null
-}
 
 export interface AssinaturaAtiva {
   nome: string
   responsavel: string
+  /** Valor vigente da assinatura. Quando informado, uma compra no mesmo
+   *  estabelecimento com valor fora da faixa plausível deixa de ser contada
+   *  como assinatura (ex.: cupons avulsos do iFood x iFood Club). */
+  valor?: number | null
+  moeda?: string | null
 }
 
 export function classificarTipoGasto(
@@ -75,11 +52,15 @@ export function classificarTipoGasto(
   parcelaAtual: number | null | undefined,
   totalParcelas: number | null | undefined,
   responsavel: string | null | undefined,
-  assinaturasAtivas: AssinaturaAtiva[]
+  assinaturasAtivas: AssinaturaAtiva[],
+  valor?: number | null
 ): TipoGasto {
-  const desc = (descricao || '').toLowerCase()
-  const ehAssinatura = assinaturasAtivas.some(
-    a => a.responsavel === responsavel && desc.includes(a.nome.toLowerCase())
+  // Mesmas regras da identificação na tela de Assinaturas (lib/assinaturaMatch.ts):
+  // nome por tokens sobre texto normalizado, compra não parcelada e valor dentro
+  // da faixa plausível — evita que uma compra avulsa entre como assinatura.
+  const ehAssinatura = transacaoEhCobrancaDeAssinatura(
+    { descricao, valor, parcelaAtual, totalParcelas },
+    assinaturasAtivas.filter(a => a.responsavel === responsavel)
   )
   if (ehAssinatura) return 'assinatura'
   const parcela = extrairParcela(descricao, parcelaAtual, totalParcelas)

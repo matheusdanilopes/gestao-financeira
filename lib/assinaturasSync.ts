@@ -1,6 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { subMonths, startOfMonth, endOfMonth, format } from 'date-fns'
 import { valorEfetivoNoMes, HistoricoValorEntry } from '@/lib/assinaturaValor'
+import { identificarAssinaturasNaFatura, TOLERANCIA_CAMBIO } from '@/lib/assinaturaMatch'
 
 export interface AssinaturaSincronizada {
   nome: string
@@ -13,6 +14,11 @@ export interface AssinaturaSincronizada {
  * encontrado nas transações importadas, quando dentro da margem de 5% de
  * tolerância (mesma regra usada em statusTransacao/calcDivergente). Não faz
  * conversão de câmbio nenhuma — só usa o valor já confirmado no extrato.
+ *
+ * A cobrança é escolhida pela identificação compartilhada (lib/assinaturaMatch.ts),
+ * então uma compra avulsa no mesmo estabelecimento não reescreve o valor da
+ * assinatura: só entra aqui o lançamento aceito como a cobrança recorrente E
+ * dentro da tolerância de câmbio.
  */
 export async function sincronizarAssinaturasMoedaEstrangeira(
   supabase: SupabaseClient,
@@ -23,7 +29,7 @@ export async function sincronizarAssinaturasMoedaEstrangeira(
 
   const { data: assinaturas } = await supabase
     .from('assinaturas')
-    .select('id, nome, valor, moeda')
+    .select('id, nome, valor, moeda, dia_cobranca')
     .eq('cartao', cartao)
     .eq('ativa', true)
     .neq('moeda', 'BRL')
@@ -38,7 +44,7 @@ export async function sincronizarAssinaturasMoedaEstrangeira(
       .in('assinatura_id', ids),
     supabase
       .from('transacoes_nubank')
-      .select('descricao, valor, projeto_fatura')
+      .select('descricao, valor, projeto_fatura, data_compra, parcela_atual, total_parcelas')
       .eq('cartao', cartao)
       .in('projeto_fatura', projetosFatura)
       .neq('status', 'ESTORNO')
@@ -56,24 +62,36 @@ export async function sincronizarAssinaturasMoedaEstrangeira(
     const vigenteFim = cutoff
     const txsDaFatura = transacoes.filter(t => t.projeto_fatura === projetoFatura)
 
+    const identificacoes = identificarAssinaturasNaFatura(
+      assinaturas.map(a => ({
+        id: a.id,
+        nome: a.nome,
+        moeda: a.moeda,
+        diaCobranca: a.dia_cobranca ?? null,
+        valorEsperado: valorEfetivoNoMes(a.id, a.valor, cutoff, historico),
+      })),
+      txsDaFatura.map(t => ({
+        descricao: t.descricao,
+        valor: t.valor,
+        dataCompra: t.data_compra ?? null,
+        parcelaAtual: t.parcela_atual ?? null,
+        totalParcelas: t.total_parcelas ?? null,
+      })),
+    )
+
     for (const assinatura of assinaturas) {
-      const nome = assinatura.nome.toLowerCase()
-      const matches = txsDaFatura.filter(t => t.descricao?.toLowerCase().includes(nome))
-      if (matches.length === 0) continue
+      const cobranca = identificacoes.get(assinatura.id)?.transacao
+      if (!cobranca) continue
 
       const valorEsperado = valorEfetivoNoMes(assinatura.id, assinatura.valor, cutoff, historico)
-      const tolerancia = valorEsperado * 0.05
-      const dentro = matches.filter(t => Math.abs(t.valor - valorEsperado) <= tolerancia)
-      if (dentro.length === 0) continue
-
-      const melhor = dentro.reduce((best, cur) =>
-        Math.abs(cur.valor - valorEsperado) < Math.abs(best.valor - valorEsperado) ? cur : best
-      )
+      // Só a oscilação de câmbio (5%) é sincronizada automaticamente. Uma diferença
+      // maior pode ser reajuste de plano ou compra errada — decisão do usuário.
+      if (Math.abs(cobranca.valor - valorEsperado) > valorEsperado * TOLERANCIA_CAMBIO) continue
 
       // Já bate com o valor registrado — nada a sincronizar.
-      if (Math.abs(melhor.valor - valorEsperado) < 0.005) continue
+      if (Math.abs(cobranca.valor - valorEsperado) < 0.005) continue
 
-      const valorNovo = melhor.valor
+      const valorNovo = cobranca.valor
 
       const { error: delErr } = await supabase
         .from('assinaturas_historico')

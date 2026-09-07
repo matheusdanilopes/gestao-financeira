@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
 import { format, subMonths, startOfMonth } from 'date-fns'
 import { extrairParcela } from '@/lib/csvparser'
+import { aderenciaNome } from '@/lib/assinaturaMatch'
 
 const MIN_MESES_CONSECUTIVOS = 3
 // Assinaturas têm valor estável. Acima desse limite de variação (relativa ao valor médio)
@@ -99,9 +100,11 @@ export async function GET(req: NextRequest) {
   for (const [, g] of grupos) {
     if (g.meses.size < MIN_MESES_CONSECUTIVOS) continue
 
-    const descLower = g.descricao.toLowerCase()
+    // Mesmo casamento de nome da identificação na fatura (tokens sobre texto
+    // normalizado), para não sugerir de novo algo que já está cadastrado só
+    // porque a descrição do extrato tem prefixo de adquirente ("IFD*IFOOD CLUB").
     const jaExiste = assinaturasAtivas.some(
-      (a) => a.cartao === g.cartao && descLower.includes(a.nome)
+      (a) => a.cartao === g.cartao && aderenciaNome(a.nome, g.descricao) !== null
     )
     if (jaExiste) continue
 
