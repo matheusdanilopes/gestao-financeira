@@ -153,7 +153,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const mesRefFatura = format(startOfMonth(addMonths(mes, 1)), 'yyyy-MM-dd')
 
   const [
-    { data: todasTransacoesFatura },
+    { data: todasTransacoesFatura, error: erroTransacoesFatura },
     { data: planejamento },
     { data: invData },
     { data: nubankConfigs },
@@ -166,7 +166,10 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     // Não filtra ESTORNO/ESTORNADO aqui: precisamos do status e do conciliacao_ref
     // para tratar estornos sem par (crédito não conciliado com a compra original)
     // corretamente em somarValorFatura — ver comentário na função.
-    supabase.from('transacoes_nubank').select('valor, responsavel, descricao, cartao, data_compra, parcela_atual, total_parcelas, status, conciliacao_ref').eq('projeto_fatura', mesRefFatura),
+    // NÃO nomear 'data_compra' aqui: no schema legado a coluna é 'data', e um nome
+    // inexistente derruba o SELECT inteiro — a fatura viria vazia e o mês apareceria
+    // sem compras. Ver o fallback de lib/conciliacao.ts (inserirRegistro).
+    supabase.from('transacoes_nubank').select('valor, responsavel, descricao, cartao, parcela_atual, total_parcelas, status, conciliacao_ref').eq('projeto_fatura', mesRefFatura),
     supabase.from('planejamento').select('item, responsavel, valor_previsto, pago, valor_real').eq('mes_referencia', mesRef),
     // Busca aportes embutidos para eliminar a query sequencial posterior
     supabase.from('investimentos').select('id, descricao, percentual, investimentos_aportes(valor)').eq('mes_referencia', mesRef).order('created_at', { ascending: true }),
@@ -177,6 +180,12 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'nubank')
       .lte('projeto_fatura', mesRefFatura).order('projeto_fatura', { ascending: false }).limit(1),
   ])
+
+  // Sem isto, uma falha na query (coluna inexistente, RLS) renderiza o mês inteiro
+  // como se não houvesse compras, sem nenhum rastro no console.
+  if (erroTransacoesFatura) {
+    console.error('[dashboard] Falha ao buscar as transações da fatura:', erroTransacoesFatura)
+  }
 
   // Separa transações por cartão (filtro feito no cliente para evitar 3 queries paralelas)
   const transacoesFatura = todasTransacoesFatura?.filter(t => t.cartao === 'nubank') ?? []
@@ -322,7 +331,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const percentualComprometimento = receitaTotal > 0 ? (totalGastos / receitaTotal) * 100 : 0
 
   type AssinaturaRow = { id: string; nome: string; valor: number; responsavel: string; ativa: boolean; moeda: string; dia_cobranca?: number | null }
-  type TransacaoRow = { valor: number; responsavel: string | null; descricao: string | null; data_compra?: string | null; parcela_atual?: number | null; total_parcelas?: number | null }
+  type TransacaoRow = { valor: number; responsavel: string | null; descricao: string | null; data_compra?: string | null; data?: string | null; parcela_atual?: number | null; total_parcelas?: number | null }
   const assinAtivas = (assinaturasData || []).filter((a: AssinaturaRow) => a.ativa)
   // Composição (barras existente/novo/assinatura) e checagem de assinaturas usam só os
   // lançamentos "reais" da fatura — estornos (créditos) e compras já estornadas não fazem
@@ -352,7 +361,10 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     txFaturaList.map((t: TransacaoRow) => ({
       descricao: t.descricao,
       valor: t.valor,
-      dataCompra: t.data_compra ?? null,
+      // A data não é pedida no select (ver acima); quando não vier, a proximidade do
+      // dia de cobrança simplesmente não entra na decisão — valor, parcelamento e
+      // exclusividade continuam valendo.
+      dataCompra: t.data_compra ?? t.data ?? null,
       parcelaAtual: t.parcela_atual ?? null,
       totalParcelas: t.total_parcelas ?? null,
     })),

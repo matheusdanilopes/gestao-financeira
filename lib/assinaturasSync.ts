@@ -44,7 +44,11 @@ export async function sincronizarAssinaturasMoedaEstrangeira(
       .in('assinatura_id', ids),
     supabase
       .from('transacoes_nubank')
-      .select('descricao, valor, projeto_fatura, data_compra, parcela_atual, total_parcelas')
+      // Sem 'data_compra' no select: o nome da coluna varia por schema (é 'data' no
+      // legado) e um nome inexistente derruba o SELECT inteiro. Sem a data, a
+      // identificação decide por valor, parcelamento e nome — o que basta aqui,
+      // já que a sincronização só aceita diferença dentro da faixa de câmbio.
+      .select('descricao, valor, projeto_fatura, parcela_atual, total_parcelas')
       .eq('cartao', cartao)
       .in('projeto_fatura', projetosFatura)
       .neq('status', 'ESTORNO')
@@ -73,7 +77,7 @@ export async function sincronizarAssinaturasMoedaEstrangeira(
       txsDaFatura.map(t => ({
         descricao: t.descricao,
         valor: t.valor,
-        dataCompra: t.data_compra ?? null,
+        dataCompra: null,
         parcelaAtual: t.parcela_atual ?? null,
         totalParcelas: t.total_parcelas ?? null,
       })),

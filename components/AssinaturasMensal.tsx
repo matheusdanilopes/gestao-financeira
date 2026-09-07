@@ -55,14 +55,19 @@ interface TransacaoSimples {
   valor: number
   cartao: string
   projeto_fatura: string
-  data_compra: string | null
+  data_compra?: string | null
+  /** Schema legado: a data da compra vive em `data` em vez de `data_compra`. */
+  data?: string | null
   parcela_atual: number | null
   total_parcelas: number | null
 }
 
-// Campos que a identificação usa além do nome: data (proximidade do dia de
-// cobrança) e parcelamento (assinatura não é cobrada em N/M).
-const CAMPOS_TRANSACAO = 'descricao, valor, cartao, projeto_fatura, data_compra, parcela_atual, total_parcelas'
+// '*' em vez da lista de colunas porque a identificação usa a data da compra
+// (proximidade do dia de cobrança) e o nome dessa coluna varia por schema
+// ('data_compra' ou 'data' — ver o fallback de lib/conciliacao.ts). Nomear a
+// coluna errada derruba o SELECT inteiro e a fatura viria vazia. É a mesma
+// leitura que a tela de Compras já faz para o mesmo mês.
+const CAMPOS_TRANSACAO = '*'
 
 interface Props {
   mesSelecionado: Date
@@ -150,7 +155,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
   const mesFmt = format(mesSelecionado, 'MMMM', { locale: ptBR })
 
   const fetcher = useCallback(async () => {
-    const [{ data: assinaturasData }, { data: transacoesData }, { data: planejamentoData }, { data: historicoData }, { data: statusHistoricoData }] = await Promise.all([
+    const [{ data: assinaturasData }, { data: transacoesData, error: erroTransacoes }, { data: planejamentoData }, { data: historicoData }, { data: statusHistoricoData }] = await Promise.all([
       supabase.from('assinaturas').select('*').order('nome', { ascending: true }),
       supabase
         .from('transacoes_nubank')
@@ -162,6 +167,10 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       supabase.from('assinaturas_historico').select('*').order('vigente_desde', { ascending: true }),
       supabase.from('assinaturas_status_historico').select('*').order('vigente_desde', { ascending: true }),
     ])
+    // Sem isto, uma falha na query deixaria toda assinatura como "não encontrada"
+    // sem nenhum rastro de que a fatura sequer foi lida.
+    if (erroTransacoes) console.error('[assinaturas] Falha ao buscar as transações da fatura:', erroTransacoes)
+
     const c1 = (planejamentoData || []).find(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO1]'))?.item?.replace('[CARTAO1]', '').trim()
     const c2 = (planejamentoData || []).find(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]'))?.item?.replace('[CARTAO2]', '').trim()
 
@@ -256,7 +265,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
         })),
         txs.map(t => ({
           ...t,
-          dataCompra: t.data_compra,
+          dataCompra: t.data_compra ?? t.data ?? null,
           parcelaAtual: t.parcela_atual,
           totalParcelas: t.total_parcelas,
         })),
