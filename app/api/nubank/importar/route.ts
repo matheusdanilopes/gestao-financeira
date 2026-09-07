@@ -9,11 +9,9 @@ import {
 import { categorizarTransacoes } from '@/lib/categorizarTransacoes'
 import { notificarImportacao } from '@/lib/pushImportacao'
 import {
-  conciliarTransacao,
-  conciliarEstorno,
+  conciliarLote,
+  conciliarEstornosLote,
   aplicarResponsavelDeParcelaAnterior,
-  construirContextoConciliacao,
-  construirContextoEstornos,
 } from '@/lib/conciliacao'
 import { validarDivergenciaFatura } from '@/lib/validacaoFatura'
 import { corrigirComprasDaViradaNaPrimeiraImportacao } from '@/lib/faturaVirada'
@@ -100,15 +98,18 @@ async function salvarTransacoes(
   diaVencimento: number = 10,
   ajusteFechamento: number = 0
 ) {
-  await aplicarResponsavelDeParcelaAnterior(supabase, transacoes)
-
   const transacoesNormais = transacoes.filter(t => !t.is_estorno)
   const estornos = transacoes.filter(t => t.is_estorno)
 
-  // Corrige, só na primeira importação de cada fatura, as compras dos 2
-  // últimos dias do ciclo que a fórmula colocou na fatura errada em
-  // relação ao fechamento real cadastrado — ver lib/faturaVirada.ts.
-  await corrigirComprasDaViradaNaPrimeiraImportacao(supabase, transacoesNormais, cartao, diaVencimento, ajusteFechamento)
+  // Os dois ajustes pré-importação mexem em campos diferentes das mesmas linhas
+  // (responsavel × projeto_fatura) e não dependem um do outro — rodam juntos.
+  // O segundo corrige, só na primeira importação de cada fatura, as compras dos 2
+  // últimos dias do ciclo que a fórmula colocou na fatura errada em relação ao
+  // fechamento real cadastrado — ver lib/faturaVirada.ts.
+  await Promise.all([
+    aplicarResponsavelDeParcelaAnterior(supabase, transacoes),
+    corrigirComprasDaViradaNaPrimeiraImportacao(supabase, transacoesNormais, cartao, diaVencimento, ajusteFechamento),
+  ])
 
   let novosMatheus = 0
   let novosJeniffer = 0
@@ -127,17 +128,16 @@ async function salvarTransacoes(
   const faturaStats: Record<string, StatsFatura> = {}
   for (const f of mesesNoArquivo) faturaStats[f] = { noCSV: 0, inseridas: 0, ignoradas: 0, totalNoBanco: 0 }
 
-  // Pré-carrega, em poucas queries em lote (em vez de 1 query por transação), o
-  // dedupe por hash e os candidatos de match nome+data usados por conciliarTransacao
-  // — ver lib/conciliacao.ts. A decisão tomada para cada linha é idêntica à anterior;
-  // só o número de round-trips ao banco muda.
-  const contexto = await construirContextoConciliacao(supabase, transacoesNormais)
+  // Decide e grava o lote inteiro de uma vez: as decisões saem de um contexto
+  // pré-carregado (nenhuma ida ao banco por linha) e as escritas vão agrupadas em
+  // poucos comandos — ver lib/conciliacao.ts.
+  const resultados = await conciliarLote(supabase, transacoesNormais, 'api')
 
-  for (const item of transacoesNormais) {
+  transacoesNormais.forEach((item, indice) => {
     const stats = faturaStats[item.projeto_fatura]
     stats.noCSV++
 
-    const resultado = await conciliarTransacao(supabase, item, 'api', contexto)
+    const resultado = resultados[indice]
     const linha = linhaDeTransacao(item, resultado)
     if (linha) linhas.push(linha)
 
@@ -172,60 +172,58 @@ async function salvarTransacoes(
         stats.ignoradas++
         break
     }
-  }
+  })
 
-  // Construído após o loop acima terminar, para que os candidatos já reflitam as
-  // transações normais recém-inseridas/atualizadas (mesma garantia que as queries
-  // por item ofereciam antes).
-  const contextoEstorno = await construirContextoEstornos(supabase, estornos)
+  // Depois das compras normais: o contexto dos estornos é montado do banco e
+  // precisa enxergar o que acabou de ser importado.
+  const resultadosEstornos = await conciliarEstornosLote(supabase, estornos)
 
-  for (const estorno of estornos) {
-    const resultado = await conciliarEstorno(supabase, estorno, contextoEstorno)
+  estornos.forEach((estorno, indice) => {
+    const resultado = resultadosEstornos[indice]
     linhas.push(linhaDeEstorno(estorno, resultado))
 
     if (resultado.acao === 'aplicado')   estornosAplicados++
     if (resultado.acao === 'registrado') estornosRegistrados++
-  }
+  })
 
-  // Push de sucesso: dispara assim que os dados que ele precisa (verdadeiramenteNovas,
-  // conflitos, purchaseDates, estornos) já estão prontos — antes da recontagem por fatura,
-  // de validarDivergenciaFatura e da sincronização de assinaturas, que não alimentam o
-  // payload da notificação. Chamada síncrona (não after()): after() só dispara depois que
-  // TODA a resposta HTTP termina de ser processada, então embrulhar aqui não adiantaria a
-  // entrega — só faria esperar pelas mesmas três etapas de um jeito mais indireto.
+  // Etapas pós-importação, todas em paralelo: nenhuma depende do resultado da outra
+  // e juntas custavam meia dúzia de round-trips em série no fim do request. O push
+  // continua sendo disparado aqui (e não em after(), que só roda depois da resposta
+  // inteira ser processada) — agora ele apenas divide o tempo de espera com a
+  // recontagem, a validação de divergência e a sincronização de assinaturas.
   const importTs = Date.now()
-  try {
-    await notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, conflitos, cartao, nomeCartao, {
+  let assinaturasAtualizadas: AssinaturaSincronizada[] = []
+
+  await Promise.all([
+    notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, conflitos, cartao, nomeCartao, {
       purchaseDates,
       projetoFaturas: mesesNoArquivo,
       importTs,
       estornosAplicados,
       estornosRegistrados,
-    })
-  } catch (err) {
-    console.error('[nubank/importar] push sucesso falhou:', err)
-  }
+    }).catch(err => console.error('[nubank/importar] push sucesso falhou:', err)),
 
-  let assinaturasAtualizadas: AssinaturaSincronizada[] = []
-  try {
-    await Promise.all(mesesNoArquivo.map(async fatura => {
-      const { count } = await supabase
-        .from('transacoes_nubank')
-        .select('*', { count: 'exact', head: true })
-        .eq('projeto_fatura', fatura)
-        .eq('cartao', cartao)
-        .eq('is_estorno', false)
-      faturaStats[fatura].totalNoBanco = count ?? 0
-    }))
+    (async () => {
+      await Promise.all(mesesNoArquivo.map(async fatura => {
+        const { count } = await supabase
+          .from('transacoes_nubank')
+          .select('*', { count: 'exact', head: true })
+          .eq('projeto_fatura', fatura)
+          .eq('cartao', cartao)
+          .eq('is_estorno', false)
+        faturaStats[fatura].totalNoBanco = count ?? 0
+      }))
+      await validarDivergenciaFatura(supabase, faturaStats, transacoesNormais, cartao, nomeCartao)
+    })().catch(err => {
+      // Falha aqui não deve derrubar a resposta HTTP nem disparar um push de erro
+      // contraditório — o push de sucesso acima já foi (ou está sendo) enviado.
+      console.error('[nubank/importar] Falha pós-import (recontagem/validação):', err)
+    }),
 
-    await validarDivergenciaFatura(supabase, faturaStats, transacoesNormais, cartao, nomeCartao)
-
-    assinaturasAtualizadas = await sincronizarAssinaturasMoedaEstrangeira(supabase, cartao, mesesNoArquivo)
-  } catch (postImportError) {
-    // Falha aqui não deve derrubar a resposta HTTP nem disparar um push de erro
-    // contraditório — o push de sucesso acima já foi (ou está sendo) enviado.
-    console.error('[nubank/importar] Falha pós-import (recontagem/validação/assinaturas):', postImportError)
-  }
+    sincronizarAssinaturasMoedaEstrangeira(supabase, cartao, mesesNoArquivo)
+      .then(resultado => { assinaturasAtualizadas = resultado })
+      .catch(err => console.error('[nubank/importar] Falha pós-import (assinaturas):', err)),
+  ])
 
   return {
     totalLidas: transacoes.length,

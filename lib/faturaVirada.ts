@@ -55,15 +55,18 @@ export async function corrigirComprasDaViradaNaPrimeiraImportacao(
   if (fechamentosRegistrados.size === 0) return
 
   const faturasPrimeiraImportacao = new Set<string>()
-  for (const fatura of faturasCandidatas) {
-    if (!fechamentosRegistrados.has(fatura)) continue
-    const { count } = await supabase
-      .from('transacoes_nubank')
-      .select('*', { count: 'exact', head: true })
-      .eq('projeto_fatura', fatura)
-      .eq('cartao', cartao)
-    if ((count ?? 0) === 0) faturasPrimeiraImportacao.add(fatura)
-  }
+  await Promise.all(
+    faturasCandidatas
+      .filter(fatura => fechamentosRegistrados.has(fatura))
+      .map(async fatura => {
+        const { count } = await supabase
+          .from('transacoes_nubank')
+          .select('*', { count: 'exact', head: true })
+          .eq('projeto_fatura', fatura)
+          .eq('cartao', cartao)
+        if ((count ?? 0) === 0) faturasPrimeiraImportacao.add(fatura)
+      })
+  )
   if (faturasPrimeiraImportacao.size === 0) return
 
   for (const t of candidatas) {
