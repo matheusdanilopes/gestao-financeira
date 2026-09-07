@@ -329,7 +329,7 @@ export default function ComprasPage() {
   async function carregarAssinaturasAtivas() {
     const { data } = await supabase
       .from('assinaturas')
-      .select('nome, responsavel')
+      .select('nome, responsavel, valor, moeda')
       .eq('cartao', 'nubank')
       .eq('ativa', true)
     setAssinaturasAtivas(data || [])
@@ -444,7 +444,7 @@ export default function ComprasPage() {
   // nova ou assinatura), para que o filtro "Tipo de gasto" mostre exatamente os
   // lançamentos que compõem cada card do modal de composição.
   const tipoGastoDe = useCallback((c: Compra): TipoGasto =>
-    classificarTipoGasto(c.descricao, c.parcela_atual, c.total_parcelas, c.responsavel, assinaturasAtivas),
+    classificarTipoGasto(c.descricao, c.parcela_atual, c.total_parcelas, c.responsavel, assinaturasAtivas, c.valor),
   [assinaturasAtivas])
 
   function handleFiltroDescricaoChange(value: string) {
