@@ -1,6 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { subMonths, startOfMonth, endOfMonth, format } from 'date-fns'
 import { valorEfetivoNoMes, HistoricoValorEntry } from '@/lib/assinaturaValor'
+import { transacoesDaAssinatura, type VinculoAssinatura } from '@/lib/assinaturaVinculo'
 
 export interface AssinaturaSincronizada {
   nome: string
@@ -31,22 +32,30 @@ export async function sincronizarAssinaturasMoedaEstrangeira(
   if (!assinaturas || assinaturas.length === 0) return []
 
   const ids = assinaturas.map(a => a.id)
-  const [{ data: historicoData }, { data: transacoesData }] = await Promise.all([
+  const [{ data: historicoData }, { data: transacoesData }, { data: vinculosData }] = await Promise.all([
     supabase
       .from('assinaturas_historico')
       .select('assinatura_id, valor, vigente_desde, criado_em')
       .in('assinatura_id', ids),
     supabase
       .from('transacoes_nubank')
-      .select('descricao, valor, projeto_fatura')
+      .select('id, descricao, valor, projeto_fatura')
       .eq('cartao', cartao)
       .in('projeto_fatura', projetosFatura)
       .neq('status', 'ESTORNO')
       .neq('status', 'ESTORNADO'),
+    // Correções manuais de vínculo: uma compra que o usuário já desvinculou não
+    // pode voltar a redefinir o valor da assinatura na sincronização.
+    supabase
+      .from('assinaturas_vinculos')
+      .select('assinatura_id, transacao_id, projeto_fatura, tipo')
+      .in('assinatura_id', ids)
+      .in('projeto_fatura', projetosFatura),
   ])
 
   const historico: HistoricoValorEntry[] = historicoData || []
   const transacoes = transacoesData || []
+  const vinculos: VinculoAssinatura[] = vinculosData || []
   const resultado: AssinaturaSincronizada[] = []
 
   for (const projetoFatura of projetosFatura) {
@@ -55,10 +64,10 @@ export async function sincronizarAssinaturasMoedaEstrangeira(
     const vigenteDe = format(mesReferencia, 'yyyy-MM-dd')
     const vigenteFim = cutoff
     const txsDaFatura = transacoes.filter(t => t.projeto_fatura === projetoFatura)
+    const vinculosDaFatura = vinculos.filter(v => v.projeto_fatura === projetoFatura)
 
     for (const assinatura of assinaturas) {
-      const nome = assinatura.nome.toLowerCase()
-      const matches = txsDaFatura.filter(t => t.descricao?.toLowerCase().includes(nome))
+      const matches = transacoesDaAssinatura(assinatura, txsDaFatura, vinculosDaFatura)
       if (matches.length === 0) continue
 
       const valorEsperado = valorEfetivoNoMes(assinatura.id, assinatura.valor, cutoff, historico)

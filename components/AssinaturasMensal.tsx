@@ -10,6 +10,7 @@ import {
   Repeat, Plus, X, WifiOff,
   CheckCircle2, AlertTriangle, XCircle, MinusCircle,
   CreditCard, Search, SlidersHorizontal, History, PauseCircle,
+  Link2, Link2Off, RotateCcw,
 } from 'lucide-react'
 import FilterSelect from '@/components/FilterSelect'
 import { SwipeableItem } from '@/components/SwipeableItem'
@@ -19,6 +20,10 @@ import { numericOnly, formatBRL } from '@/lib/format'
 import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
 import { valorEfetivoNoMes } from '@/lib/assinaturaValor'
 import { ativaEfetivaNoMes, HistoricoStatusEntry } from '@/lib/assinaturaStatus'
+import {
+  transacoesDaAssinatura, temVinculoManual, mapaVinculos, casaPorNome,
+  type VinculoAssinatura,
+} from '@/lib/assinaturaVinculo'
 
 interface Assinatura {
   id: string
@@ -45,10 +50,13 @@ interface HistoricoValor {
 }
 
 interface TransacaoSimples {
+  id: string
   descricao: string
   valor: number
   cartao: string
   projeto_fatura: string
+  data_compra: string | null
+  data: string | null
 }
 
 interface Props {
@@ -82,6 +90,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
   const [transacoes, setTransacoes] = useState<TransacaoSimples[]>([])
   const [historico, setHistorico] = useState<HistoricoValor[]>([])
   const [statusHistorico, setStatusHistorico] = useState<HistoricoStatusEntry[]>([])
+  const [vinculos, setVinculos] = useState<VinculoAssinatura[]>([])
   const [cartaoLabels, setCartaoLabels] = useState<CartaoLabels>(CARTAO_LABELS_DEFAULT)
   const [verificando, setVerificando] = useState(false)
 
@@ -99,11 +108,13 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       .catch(() => {}) // mantém CATEGORIAS_PADRAO como fallback
   }, [])
 
-  const [modalAberto, setModalAberto] = useState<'adicionar' | 'editar' | 'excluir' | 'desativar' | null>(null)
+  const [modalAberto, setModalAberto] = useState<'adicionar' | 'editar' | 'excluir' | 'desativar' | 'vinculo' | null>(null)
   const [itemSelecionado, setItemSelecionado] = useState<Assinatura | null>(null)
   const [formData, setFormData] = useState(FORM_VAZIO)
   const [tipoDesativacao, setTipoDesativacao] = useState<'definitiva' | 'temporaria'>('definitiva')
   const [dataRetorno, setDataRetorno] = useState('')
+  const [buscaVinculo, setBuscaVinculo] = useState('')
+  const [salvandoVinculo, setSalvandoVinculo] = useState(false)
 
   // Escuta eventos de pré-preenchimento via sugestões de recorrências
   useEffect(() => {
@@ -137,17 +148,21 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
   const mesFmt = format(mesSelecionado, 'MMMM', { locale: ptBR })
 
   const fetcher = useCallback(async () => {
-    const [{ data: assinaturasData }, { data: transacoesData }, { data: planejamentoData }, { data: historicoData }, { data: statusHistoricoData }] = await Promise.all([
+    const [{ data: assinaturasData }, { data: transacoesData }, { data: planejamentoData }, { data: historicoData }, { data: statusHistoricoData }, { data: vinculosData }] = await Promise.all([
       supabase.from('assinaturas').select('*').order('nome', { ascending: true }),
       supabase
         .from('transacoes_nubank')
-        .select('descricao, valor, cartao, projeto_fatura')
+        .select('id, descricao, valor, cartao, projeto_fatura, data_compra, data')
         .eq('projeto_fatura', nextMesRefStr)
         .neq('status', 'ESTORNO')
         .neq('status', 'ESTORNADO'),
       supabase.from('planejamento').select('item').eq('mes_referencia', mesRefStr),
       supabase.from('assinaturas_historico').select('*').order('vigente_desde', { ascending: true }),
       supabase.from('assinaturas_status_historico').select('*').order('vigente_desde', { ascending: true }),
+      supabase
+        .from('assinaturas_vinculos')
+        .select('id, assinatura_id, transacao_id, projeto_fatura, tipo')
+        .eq('projeto_fatura', nextMesRefStr),
     ])
     const c1 = (planejamentoData || []).find(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO1]'))?.item?.replace('[CARTAO1]', '').trim()
     const c2 = (planejamentoData || []).find(p => typeof p.item === 'string' && p.item.startsWith('[CARTAO2]'))?.item?.replace('[CARTAO2]', '').trim()
@@ -169,20 +184,22 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       transacoes: transacoesData || [],
       historico: historicoData || [],
       statusHistorico: statusHistoricoData || [],
+      vinculos: vinculosData || [],
       cartaoLabels: { nubank: 'NuBank', cartao1: c1 || 'Cartão 1', cartao2: c2 || 'Cartão 2' },
     }
   }, [mesRefStr, nextMesRefStr])
 
   const { isOnline, refetch } = useGlobalSync({
     cacheKey: `assinaturas:${mesRefStr}`,
-    tables: ['assinaturas', 'transacoes_nubank', 'planejamento', 'assinaturas_historico', 'assinaturas_status_historico'],
+    tables: ['assinaturas', 'transacoes_nubank', 'planejamento', 'assinaturas_historico', 'assinaturas_status_historico', 'assinaturas_vinculos'],
     fetcher,
     onData: (raw) => {
-      const d = raw as { assinaturas: Assinatura[]; transacoes: TransacaoSimples[]; historico: HistoricoValor[]; statusHistorico: HistoricoStatusEntry[]; cartaoLabels: CartaoLabels }
+      const d = raw as { assinaturas: Assinatura[]; transacoes: TransacaoSimples[]; historico: HistoricoValor[]; statusHistorico: HistoricoStatusEntry[]; vinculos: VinculoAssinatura[]; cartaoLabels: CartaoLabels }
       setItens(d.assinaturas)
       setTransacoes(d.transacoes)
       setHistorico(d.historico || [])
       setStatusHistorico(d.statusHistorico || [])
+      setVinculos(d.vinculos || [])
       setCartaoLabels(d.cartaoLabels)
     },
   })
@@ -204,24 +221,25 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     setVerificando(true)
     const { data } = await supabase
       .from('transacoes_nubank')
-      .select('descricao, valor, cartao, projeto_fatura')
+      .select('id, descricao, valor, cartao, projeto_fatura, data_compra, data')
       .eq('projeto_fatura', nextMesRefStr)
-    setTransacoes(data || [])
+    const txs = (data || []) as TransacaoSimples[]
+    setTransacoes(txs)
     setVerificando(false)
     const ativas = itens.filter(i => ativaNoMes(i, mesSelecionado, statusHistorico))
-    const detectadas = ativas.filter(i => {
-      const nome = i.nome.toLowerCase()
-      return (data || []).some(tx => tx.cartao === i.cartao && tx.descricao.toLowerCase().includes(nome))
-    }).length
+    const detectadas = ativas.filter(i => txsDaAssinatura(i, txs).length > 0).length
     showToast(`${detectadas} de ${ativas.length} assinatura(s) encontrada(s) na fatura de ${mesFmt}`)
+  }
+
+  /** Lançamentos da fatura do mês que representam esta assinatura: casamento
+   *  automático por cartão + nome, respeitando as correções manuais de vínculo. */
+  function txsDaAssinatura(assinatura: Assinatura, lista: TransacaoSimples[] = transacoes): TransacaoSimples[] {
+    return transacoesDaAssinatura(assinatura, lista, vinculos, tx => tx.cartao === assinatura.cartao)
   }
 
   function statusTransacao(assinatura: Assinatura): StatusTx {
     if (!ativaNoMes(assinatura, mesSelecionado, statusHistorico)) return 'inativa'
-    const nome = assinatura.nome.toLowerCase()
-    const matches = transacoes.filter(
-      tx => tx.cartao === assinatura.cartao && tx.descricao.toLowerCase().includes(nome)
-    )
+    const matches = txsDaAssinatura(assinatura)
     if (matches.length === 0) return 'nao_encontrada'
     const valorEsperado = valorParaMes(assinatura, mesSelecionado, historico)
     // Assinaturas em moeda estrangeira oscilam com o câmbio: tolerância percentual em vez de fixa.
@@ -243,7 +261,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       return true
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itens, filtroCartao, filtroResponsavel, filtroDescricao, filtroStatus, filtroFatura, transacoes, mesSelecionado, statusHistorico])
+  }, [itens, filtroCartao, filtroResponsavel, filtroDescricao, filtroStatus, filtroFatura, transacoes, vinculos, mesSelecionado, statusHistorico])
 
   // "Ativas" no mês selecionado (não necessariamente o estado atual — uma assinatura
   // reativada hoje continua contando como inativa em meses passados em que estava pausada).
@@ -275,13 +293,13 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
   const detectadasCount = useMemo(
     () => itensAtivosNoMes.filter(i => statusTransacao(i) === 'detectada').length,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [itensAtivosNoMes, transacoes, mesSelecionado, historico]
+    [itensAtivosNoMes, transacoes, vinculos, mesSelecionado, historico]
   )
 
   const detectadasValor = useMemo(
     () => itensAtivosNoMes.filter(i => statusTransacao(i) === 'detectada').reduce((acc, i) => acc + valorParaMes(i, mesSelecionado, historico), 0),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [itensAtivosNoMes, transacoes, mesSelecionado, historico]
+    [itensAtivosNoMes, transacoes, vinculos, mesSelecionado, historico]
   )
 
   const itensPorCartao = useMemo(() => {
@@ -485,6 +503,88 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     refetch()
   }
 
+  // ── Vínculo assinatura ↔ lançamento da fatura ──────────────────────────────
+  // A detecção é automática por nome, e às vezes captura a compra errada (uma
+  // compra avulsa na mesma loja, por exemplo). Aqui o usuário desfaz esse
+  // vínculo ou aponta a compra certa, sem precisar esperar a cobrança correta
+  // cair para o valor voltar a bater.
+
+  function abrirVinculo(item: Assinatura) {
+    setItemSelecionado(item)
+    setBuscaVinculo('')
+    setModalAberto('vinculo')
+  }
+
+  async function gravarVinculo(assinaturaId: string, transacaoId: string, tipo: 'ignorado' | 'manual') {
+    setSalvandoVinculo(true)
+    // Uma transação só pode ter um papel por assinatura: regravar substitui o anterior.
+    await supabase.from('assinaturas_vinculos')
+      .delete()
+      .eq('assinatura_id', assinaturaId)
+      .eq('transacao_id', transacaoId)
+    const { data, error } = await supabase.from('assinaturas_vinculos')
+      .insert([{ assinatura_id: assinaturaId, transacao_id: transacaoId, projeto_fatura: nextMesRefStr, tipo }])
+      .select()
+      .single()
+    setSalvandoVinculo(false)
+    if (error || !data) {
+      showToast('Erro ao atualizar vínculo', 'erro')
+      return
+    }
+    setVinculos(prev => [
+      ...prev.filter(v => !(v.assinatura_id === assinaturaId && v.transacao_id === transacaoId)),
+      data as VinculoAssinatura,
+    ])
+    showToast(tipo === 'ignorado' ? 'Compra desvinculada' : 'Compra vinculada')
+    refetch()
+  }
+
+  async function desvincular(assinatura: Assinatura, tx: TransacaoSimples) {
+    const tipoAtual = mapaVinculos(assinatura.id, vinculos).get(tx.id)
+    // Um vínculo manual em compra que a detecção automática NÃO pegaria some com
+    // um simples delete. Se a descrição casa com o nome da assinatura, apagar o
+    // vínculo faria a compra voltar sozinha — nesse caso marcamos como ignorada.
+    const voltariaSozinha = tx.cartao === assinatura.cartao && casaPorNome(assinatura, tx)
+    if (tipoAtual === 'manual' && !voltariaSozinha) {
+      await removerVinculo(assinatura.id, tx.id)
+      log('editar', 'assinaturas', `Compra desvinculada de ${assinatura.nome}: ${tx.descricao}`, tx.valor)
+      return
+    }
+    await gravarVinculo(assinatura.id, tx.id, 'ignorado')
+    log('editar', 'assinaturas', `Compra desvinculada de ${assinatura.nome}: ${tx.descricao}`, tx.valor)
+  }
+
+  async function vincular(assinatura: Assinatura, tx: TransacaoSimples) {
+    await gravarVinculo(assinatura.id, tx.id, 'manual')
+    log('editar', 'assinaturas', `Compra vinculada a ${assinatura.nome}: ${tx.descricao}`, tx.valor)
+  }
+
+  async function removerVinculo(assinaturaId: string, transacaoId: string) {
+    setSalvandoVinculo(true)
+    const { error } = await supabase.from('assinaturas_vinculos')
+      .delete()
+      .eq('assinatura_id', assinaturaId)
+      .eq('transacao_id', transacaoId)
+    setSalvandoVinculo(false)
+    if (error) { showToast('Erro ao atualizar vínculo', 'erro'); return }
+    setVinculos(prev => prev.filter(v => !(v.assinatura_id === assinaturaId && v.transacao_id === transacaoId)))
+    showToast('Vínculo removido')
+    refetch()
+  }
+
+  async function restaurarVinculoAutomatico(assinatura: Assinatura) {
+    setSalvandoVinculo(true)
+    const { error } = await supabase.from('assinaturas_vinculos')
+      .delete()
+      .eq('assinatura_id', assinatura.id)
+      .eq('projeto_fatura', nextMesRefStr)
+    setSalvandoVinculo(false)
+    if (error) { showToast('Erro ao restaurar detecção', 'erro'); return }
+    setVinculos(prev => prev.filter(v => v.assinatura_id !== assinatura.id || v.projeto_fatura !== nextMesRefStr))
+    showToast('Detecção automática restaurada')
+    refetch()
+  }
+
   function abrirEditar(item: Assinatura) {
     setItemSelecionado(item)
     setFormData({
@@ -507,6 +607,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     setFormData(FORM_VAZIO)
     setTipoDesativacao('definitiva')
     setDataRetorno('')
+    setBuscaVinculo('')
   }
 
   function StatusBadge({ status }: { status: StatusTx }) {
@@ -705,7 +806,19 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                       onKeyDown={isOnline ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirEditar(item) } } : undefined}
                       aria-label={isOnline ? `Editar ${item.nome}` : undefined}
                     >
-                      <StatusBadge status={status} />
+                      {isOnline ? (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); abrirVinculo(item) }}
+                          title="Ver e corrigir a compra vinculada na fatura"
+                          aria-label={`Vínculo de ${item.nome} na fatura`}
+                          className="shrink-0 p-1 -m-1 rounded-lg hover:bg-gray-100 dark:hover:bg-white/[0.08] transition-colors"
+                        >
+                          <StatusBadge status={status} />
+                        </button>
+                      ) : (
+                        <StatusBadge status={status} />
+                      )}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <p className={`text-[15px] font-semibold truncate leading-snug ${
@@ -716,6 +829,15 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                           <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400 shrink-0 font-medium">
                             {item.categoria}
                           </span>
+                          {temVinculoManual(item.id, vinculos) && (
+                            <span
+                              className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-primary-50 text-primary-600 shrink-0 font-medium"
+                              title="Vínculo ajustado manualmente neste mês"
+                            >
+                              <Link2 className="w-3 h-3" />
+                              vínculo manual
+                            </span>
+                          )}
                           {!item.ativa && item.pausada_ate && (
                             <span
                               className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 shrink-0 font-medium"
@@ -971,6 +1093,19 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
               )
             })()}
 
+            {modalAberto === 'editar' && itemSelecionado && (
+              <button
+                type="button"
+                onClick={() => abrirVinculo(itemSelecionado)}
+                className="w-full mt-4 py-3 rounded-2xl border border-gray-200 text-sm font-semibold text-gray-600
+                           hover:bg-gray-50 dark:hover:bg-white/[0.06] transition-colors active:scale-[0.97]
+                           flex items-center justify-center gap-2"
+              >
+                <Link2 className="w-4 h-4 text-primary-500" />
+                Vínculo na fatura de <span className="capitalize">{mesFmt}</span>
+              </button>
+            )}
+
             <div className="flex gap-3 mt-6">
               <button
                 onClick={fecharModal}
@@ -989,6 +1124,164 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
         </div>
         </ModalPortal>
       )}
+
+      {/* Modal: vínculo com a compra da fatura */}
+      {modalAberto === 'vinculo' && itemSelecionado && (() => {
+        const assinatura = itemSelecionado
+        const mapa = mapaVinculos(assinatura.id, vinculos)
+        const vinculadas = txsDaAssinatura(assinatura)
+        const idsVinculados = new Set(vinculadas.map(t => t.id))
+        const valorEsperado = valorParaMes(assinatura, mesSelecionado, historico)
+        const tolerancia = assinatura.moeda !== 'BRL' ? valorEsperado * 0.05 : 0.05
+        const busca = buscaVinculo.trim().toLowerCase()
+        const candidatas = transacoes
+          .filter(t => t.cartao === assinatura.cartao && !idsVinculados.has(t.id))
+          .filter(t => busca === '' || (t.descricao || '').toLowerCase().includes(busca))
+          .sort((a, b) => (a.descricao || '').localeCompare(b.descricao || ''))
+        const temAjuste = temVinculoManual(assinatura.id, vinculos)
+
+        const dataTx = (t: TransacaoSimples) => {
+          const iso = (t.data_compra || t.data || '').toString().substring(0, 10)
+          return iso.length === 10 ? format(new Date(iso + 'T12:00:00'), 'dd/MM') : ''
+        }
+
+        return (
+          <ModalPortal>
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] p-4 modal-overlay">
+            <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm p-6 max-h-[90vh] overflow-y-auto shadow-float modal-sheet sm:modal-center">
+              <div className="flex items-start justify-between mb-1">
+                <div className="min-w-0">
+                  <h3 className="text-lg font-bold leading-tight truncate">Vínculo na fatura</h3>
+                  <p className="text-xs text-gray-400 mt-0.5 truncate">
+                    <span className="capitalize">{mesFmt}</span> · {assinatura.nome}
+                  </p>
+                </div>
+                <button onClick={fecharModal} className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 transition-all hover:rotate-90 duration-200 shrink-0">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <p className="text-xs text-gray-400 mt-3 leading-relaxed">
+                A compra é detectada automaticamente pela descrição. Se a errada foi capturada,
+                desvincule aqui e aponte a certa — sem esperar a próxima cobrança.
+              </p>
+
+              <div className="mt-5">
+                <p className="text-xs font-semibold text-gray-500 mb-2">
+                  Compra vinculada ({vinculadas.length})
+                </p>
+                {vinculadas.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-gray-200 px-4 py-5 text-center">
+                    <p className="text-sm text-gray-400">Nenhuma compra vinculada neste mês</p>
+                  </div>
+                ) : (
+                  <ul className="space-y-2">
+                    {vinculadas.map(tx => {
+                      const bate = Math.abs(tx.valor - valorEsperado) <= tolerancia
+                      return (
+                        <li
+                          key={tx.id}
+                          className="flex items-center gap-3 rounded-2xl border border-gray-200 px-3.5 py-3"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-800 truncate">{tx.descricao}</p>
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              {dataTx(tx)}
+                              {mapa.get(tx.id) === 'manual' ? ' · vinculada manualmente' : ' · detectada pela descrição'}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className={`text-sm font-bold num ${bate ? 'text-gray-800' : 'text-amber-600'}`}>
+                              {formatBRL(tx.valor)}
+                            </p>
+                            {!bate && (
+                              <p className="text-[10px] text-amber-500 leading-tight">
+                                esperado {formatBRL(valorEsperado)}
+                              </p>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => desvincular(assinatura, tx)}
+                            disabled={salvandoVinculo}
+                            title="Desvincular esta compra"
+                            aria-label={`Desvincular ${tx.descricao}`}
+                            className="shrink-0 p-2 rounded-xl text-red-400 hover:bg-red-50 hover:text-red-500 transition-colors active:scale-90 disabled:opacity-40"
+                          >
+                            <Link2Off className="w-4 h-4" />
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </div>
+
+              <div className="mt-5">
+                <p className="text-xs font-semibold text-gray-500 mb-2">Vincular outra compra da fatura</p>
+                <div className="relative mb-2">
+                  <Search className="w-4 h-4 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    className="w-full border border-gray-200 rounded-2xl pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+                    placeholder="Buscar na fatura…"
+                    value={buscaVinculo}
+                    onChange={e => setBuscaVinculo(e.target.value)}
+                  />
+                </div>
+                {candidatas.length === 0 ? (
+                  <p className="text-xs text-gray-400 px-1 py-2">
+                    Nenhum lançamento em {cartaoLabels[assinatura.cartao as keyof CartaoLabels] || assinatura.cartao} para este mês.
+                  </p>
+                ) : (
+                  <ul className="max-h-56 overflow-y-auto divide-y divide-gray-50 rounded-2xl border border-gray-100">
+                    {candidatas.map(tx => (
+                      <li key={tx.id}>
+                        <button
+                          type="button"
+                          onClick={() => vincular(assinatura, tx)}
+                          disabled={salvandoVinculo}
+                          className="w-full flex items-center gap-3 px-3.5 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-white/[0.06] transition-colors disabled:opacity-40"
+                        >
+                          <Link2 className="w-4 h-4 text-primary-500 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-gray-800 truncate">{tx.descricao}</p>
+                            <p className="text-[11px] text-gray-400 leading-tight">
+                              {dataTx(tx)}
+                              {mapa.get(tx.id) === 'ignorado' ? ' · desvinculada' : ''}
+                            </p>
+                          </div>
+                          <span className="text-sm font-semibold text-gray-600 num shrink-0">{formatBRL(tx.valor)}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              {temAjuste && (
+                <button
+                  type="button"
+                  onClick={() => restaurarVinculoAutomatico(assinatura)}
+                  disabled={salvandoVinculo}
+                  className="w-full mt-5 py-3 rounded-2xl bg-gray-100 font-semibold text-gray-600 text-sm hover:bg-gray-200 transition-colors active:scale-[0.97] flex items-center justify-center gap-2 disabled:opacity-40"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Restaurar detecção automática
+                </button>
+              )}
+
+              <button
+                onClick={fecharModal}
+                className="w-full mt-3 py-3 rounded-2xl bg-primary-600 text-white font-semibold hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm"
+              >
+                Concluído
+              </button>
+            </div>
+          </div>
+          </ModalPortal>
+        )
+      })()}
 
       {/* Modal: excluir */}
       {modalAberto === 'excluir' && itemSelecionado && (

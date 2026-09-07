@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, endOfMonth, addMonths, subMonths, isSameMonth } from 'date-fns'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
 import { valorEfetivoNoMes } from '@/lib/assinaturaValor'
+import { transacoesDaAssinatura, type VinculoAssinatura } from '@/lib/assinaturaVinculo'
 import { classificarTipoGasto, somarValorFatura, type TipoGasto } from '@/lib/composicaoFatura'
 import { BarChart2, BarChart3, CreditCard, Wallet, PiggyBank, TrendingUp, TrendingDown, Minus, LineChart, Activity } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
@@ -159,13 +160,14 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     { data: faturaRegistradaData },
     { data: assinaturasData },
     { data: assinaturasHistoricoData },
+    { data: assinaturasVinculosData },
     { data: maxFaturaRowData },
   ] = await Promise.all([
     // Busca todas as transações do período em uma única query e separa por cartão no cliente
     // Não filtra ESTORNO/ESTORNADO aqui: precisamos do status e do conciliacao_ref
     // para tratar estornos sem par (crédito não conciliado com a compra original)
     // corretamente em somarValorFatura — ver comentário na função.
-    supabase.from('transacoes_nubank').select('valor, responsavel, descricao, cartao, parcela_atual, total_parcelas, status, conciliacao_ref').eq('projeto_fatura', mesRefFatura),
+    supabase.from('transacoes_nubank').select('id, valor, responsavel, descricao, cartao, parcela_atual, total_parcelas, status, conciliacao_ref').eq('projeto_fatura', mesRefFatura),
     supabase.from('planejamento').select('item, responsavel, valor_previsto, pago, valor_real').eq('mes_referencia', mesRef),
     // Busca aportes embutidos para eliminar a query sequencial posterior
     supabase.from('investimentos').select('id, descricao, percentual, investimentos_aportes(valor)').eq('mes_referencia', mesRef).order('created_at', { ascending: true }),
@@ -173,6 +175,8 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     supabase.from('faturas').select('data_fechamento').eq('cartao', 'nubank').eq('mes_referencia', mesRefFatura).limit(1),
     supabase.from('assinaturas').select('id, nome, valor, responsavel, ativa, moeda').eq('cartao', 'nubank'),
     supabase.from('assinaturas_historico').select('assinatura_id, valor, vigente_desde, criado_em'),
+    // Correções manuais de vínculo assinatura ↔ compra da fatura (ver lib/assinaturaVinculo)
+    supabase.from('assinaturas_vinculos').select('assinatura_id, transacao_id, projeto_fatura, tipo').eq('projeto_fatura', mesRefFatura),
     supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'nubank')
       .lte('projeto_fatura', mesRefFatura).order('projeto_fatura', { ascending: false }).limit(1),
   ])
@@ -321,7 +325,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const percentualComprometimento = receitaTotal > 0 ? (totalGastos / receitaTotal) * 100 : 0
 
   type AssinaturaRow = { id: string; nome: string; valor: number; responsavel: string; ativa: boolean; moeda: string }
-  type TransacaoRow = { valor: number; responsavel: string | null; descricao: string | null; parcela_atual?: number | null; total_parcelas?: number | null }
+  type TransacaoRow = { id: string; valor: number; responsavel: string | null; descricao: string | null; parcela_atual?: number | null; total_parcelas?: number | null }
   const assinAtivas = (assinaturasData || []).filter((a: AssinaturaRow) => a.ativa)
   // Composição (barras existente/novo/assinatura) e checagem de assinaturas usam só os
   // lançamentos "reais" da fatura — estornos (créditos) e compras já estornadas não fazem
@@ -335,19 +339,21 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const cutoffHistorico = format(endOfMonth(mes), 'yyyy-MM-dd')
   const valorAssinaturaNoMes = (a: AssinaturaRow) =>
     valorEfetivoNoMes(a.id, a.valor, cutoffHistorico, historicoValores)
+  // Casamento assinatura ↔ compra da fatura respeitando os vínculos corrigidos à mão
+  // (uma compra desvinculada deixa de contar como "assinatura paga" aqui também).
+  const vinculosAssinaturas: VinculoAssinatura[] = assinaturasVinculosData || []
+  const txsDaAssinatura = (a: AssinaturaRow) =>
+    transacoesDaAssinatura(a, txFaturaList, vinculosAssinaturas)
   const calcNaoPaga = (responsavel: string) =>
     assinAtivas
-      .filter((a: AssinaturaRow) => a.responsavel === responsavel && !txFaturaList.some((tx: TransacaoRow) => tx.descricao?.toLowerCase().includes(a.nome.toLowerCase())))
+      .filter((a: AssinaturaRow) => a.responsavel === responsavel && txsDaAssinatura(a).length === 0)
       .reduce((sum: number, a: AssinaturaRow) => sum + valorAssinaturaNoMes(a), 0)
   type AssinDivergenteLocal = AssinDivergente
   const calcDivergente = (responsavel: string): AssinDivergenteLocal[] =>
     assinAtivas
       .filter((a: AssinaturaRow) => a.responsavel === responsavel)
       .flatMap((a: AssinaturaRow) => {
-        const nome = a.nome.toLowerCase()
-        const matches = txFaturaList.filter((tx: TransacaoRow) =>
-          tx.descricao?.toLowerCase().includes(nome)
-        )
+        const matches = txsDaAssinatura(a)
         if (matches.length === 0) return []
         const valorEsperado = valorAssinaturaNoMes(a)
         // Assinaturas em moeda estrangeira oscilam com o câmbio: tolerância percentual em vez de fixa.
