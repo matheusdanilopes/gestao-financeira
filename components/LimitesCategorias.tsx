@@ -14,6 +14,9 @@ interface Props {
   mesAtual: Date
   cartao1Nome?: string
   cartao2Nome?: string
+  /** true quando renderizado dentro de outro card (ex.: painel de Categorias):
+   *  omite a moldura e o cabeçalho próprios para não aninhar dois cards. */
+  embutido?: boolean
 }
 
 interface CategoriaLimite {
@@ -29,7 +32,7 @@ interface TransacaoRaw {
   cartao: string | null
 }
 
-export default function LimitesCategorias({ mesAtual, cartao1Nome = 'Cartão 1', cartao2Nome = 'Cartão 2' }: Props) {
+export default function LimitesCategorias({ mesAtual, cartao1Nome = 'Cartão 1', cartao2Nome = 'Cartão 2', embutido = false }: Props) {
   const [rawData, setRawData]         = useState<TransacaoRaw[]>([])
   const [limitesMap, setLimitesMap]   = useState<Record<string, number>>({})
   const [carregando, setCarregando]   = useState(true)
@@ -95,17 +98,24 @@ export default function LimitesCategorias({ mesAtual, cartao1Nome = 'Cartão 1',
     return { categoria, limite, gasto }
   })
 
-  if (carregando || itens.length === 0) return null
+  if (carregando) {
+    return embutido ? <div className="h-40 skeleton rounded-2xl" /> : null
+  }
 
-  return (
-    <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center">
-          <Target className="w-4 h-4 text-amber-600" />
-        </div>
-        <h2 className="text-base font-semibold text-gray-800">Limites de Orçamento</h2>
-      </div>
+  // Embutido num painel com abas, sumir deixaria a aba em branco sem explicação —
+  // fora dele, o card inteiro continua oculto quando não há limite configurado.
+  if (itens.length === 0 && !embutido) return null
 
+  const conteudo = itens.length === 0 ? (
+    <div className="h-40 flex flex-col items-center justify-center gap-2 text-gray-400 text-center px-4">
+      <Target className="w-8 h-8 opacity-30" />
+      <span className="text-sm">Nenhum limite de categoria configurado</span>
+      <a href="/configuracoes" className="text-xs text-amber-600 underline">
+        Definir limites
+      </a>
+    </div>
+  ) : (
+    <>
       <div className="flex gap-2 mb-4">
         <FilterSelect
           value={filtroResp}
@@ -155,6 +165,20 @@ export default function LimitesCategorias({ mesAtual, cartao1Nome = 'Cartão 1',
           )
         })}
       </div>
+    </>
+  )
+
+  if (embutido) return conteudo
+
+  return (
+    <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center">
+          <Target className="w-4 h-4 text-amber-600" />
+        </div>
+        <h2 className="text-base font-semibold text-gray-800">Limites de Orçamento</h2>
+      </div>
+      {conteudo}
     </div>
   )
 }

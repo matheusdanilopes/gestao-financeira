@@ -3,6 +3,7 @@
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react'
 import { formatBRL } from '@/lib/format'
 import { LayoutGrid, Hash, TrendingUp, X } from 'lucide-react'
+import { InfoPopover } from '@/components/InfoPopover'
 import { addMonths, format, startOfMonth } from 'date-fns'
 import { supabase } from '@/lib/supabaseClient'
 
@@ -138,9 +139,12 @@ interface Props {
    */
   mesAtual?: Date
   loading?: boolean
+  /** true quando renderizado dentro de outro card (ex.: painel de Categorias):
+   *  omite a moldura e o cabeçalho próprios para não aninhar dois cards. */
+  embutido?: boolean
 }
 
-export default function CategoryTreemap({ compras: comprasProp, mesAtual, loading: loadingProp }: Props) {
+export default function CategoryTreemap({ compras: comprasProp, mesAtual, loading: loadingProp, embutido = false }: Props) {
   const [mode, setMode] = useState<'value' | 'count'>('value')
   const [selected, setSelected] = useState<PlacedBlock | null>(null)
   const [cW, setCW] = useState(0)
@@ -252,12 +256,12 @@ export default function CategoryTreemap({ compras: comprasProp, mesAtual, loadin
 
   if (loading) {
     return (
-      <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-white/[0.06] shadow-card mb-4">
-        <div className="px-4 pt-3 pb-2 flex items-center justify-between">
+      <div className={embutido ? '' : 'bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-white/[0.06] shadow-card'}>
+        <div className={`pb-2 flex items-center justify-between ${embutido ? 'pt-1' : 'px-4 pt-3'}`}>
           <div className="h-3 w-24 bg-gray-200 dark:bg-white/[0.08] rounded-full animate-pulse" />
           <div className="h-6 w-28 bg-gray-100 dark:bg-white/[0.05] rounded-xl animate-pulse" />
         </div>
-        <div className="mx-3 mb-3 grid grid-cols-12 gap-1.5 animate-pulse" style={{ height: TREEMAP_H }}>
+        <div className={`mb-3 grid grid-cols-12 gap-1.5 animate-pulse ${embutido ? '' : 'mx-3'}`} style={{ height: TREEMAP_H }}>
           <div className="col-span-5 bg-gray-200 dark:bg-white/[0.08] rounded-xl" />
           <div className="col-span-3 bg-gray-100 dark:bg-white/[0.05] rounded-xl" />
           <div className="col-span-4 bg-gray-200 dark:bg-white/[0.08] rounded-xl" />
@@ -269,17 +273,37 @@ export default function CategoryTreemap({ compras: comprasProp, mesAtual, loadin
     )
   }
 
-  if (!compras.length) return null
-
-  return (
-    <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-white/[0.06] shadow-card mb-4 overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 pt-3 pb-2">
-        <div className="flex items-center gap-1.5">
+  if (!compras.length) {
+    const vazio = (
+      <div className="h-40 flex flex-col items-center justify-center gap-2 text-gray-400 text-center">
+        <LayoutGrid className="w-8 h-8 opacity-30" />
+        <span className="text-sm">Nenhuma compra importada nesta fatura</span>
+      </div>
+    )
+    if (embutido) return vazio
+    return (
+      <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-white/[0.06] shadow-card p-4">
+        <div className="flex items-center gap-1.5 mb-3">
           <LayoutGrid className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
           <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
             Categorias da Fatura
           </span>
+        </div>
+        {vazio}
+      </div>
+    )
+  }
+
+  return (
+    <div className={embutido ? 'overflow-hidden' : 'bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-white/[0.06] shadow-card overflow-hidden'}>
+      {/* Header */}
+      <div className={`flex items-center justify-between pb-2 ${embutido ? 'pt-1' : 'px-4 pt-3'}`}>
+        <div className="flex items-center gap-1.5">
+          {!embutido && <LayoutGrid className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />}
+          <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
+            {embutido ? 'Compras importadas' : 'Categorias da Fatura'}
+          </span>
+          <InfoPopover texto="Divide as compras efetivamente importadas da fatura do mês por categoria — diferente da aba 'Planejado', que usa o planejamento (previsto x pago). O tamanho de cada bloco é proporcional ao valor (ou à quantidade de compras). Toque num bloco para ver os detalhes." />
         </div>
         <div className="flex rounded-xl overflow-hidden border border-gray-200 dark:border-white/[0.1]">
           <button
@@ -310,7 +334,7 @@ export default function CategoryTreemap({ compras: comprasProp, mesAtual, loadin
       {/* Treemap canvas */}
       <div
         ref={containerCb}
-        className="relative mx-3 mb-3 rounded-2xl overflow-hidden bg-gray-50 dark:bg-white/[0.03]"
+        className={`relative mb-3 rounded-2xl overflow-hidden bg-gray-50 dark:bg-white/[0.03] ${embutido ? '' : 'mx-3'}`}
         style={{ height: TREEMAP_H }}
       >
         {cW > 0 &&
@@ -389,7 +413,7 @@ export default function CategoryTreemap({ compras: comprasProp, mesAtual, loadin
       {/* Detail card */}
       {selected && (
         <div
-          className="mx-3 mb-3 rounded-2xl p-3.5"
+          className={`mb-3 rounded-2xl p-3.5 ${embutido ? '' : 'mx-3'}`}
           style={{ backgroundColor: selected.color + '18' }}
         >
           <div className="flex items-start gap-2.5">

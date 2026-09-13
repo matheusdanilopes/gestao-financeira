@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Chart } from 'react-chartjs-2'
 import type { ChartData, TooltipItem } from 'chart.js'
 import {
@@ -15,7 +15,7 @@ import {
 } from 'chart.js'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, CalendarRange } from 'lucide-react'
 import { formatBRL } from '@/lib/format'
 import { supabase } from '@/lib/supabaseClient'
 import { useIsDark } from '@/lib/useIsDark'
@@ -32,9 +32,12 @@ interface PlanejamentoRow {
 }
 
 interface MonthData {
-  receita: number
-  despesas: number
-  saldo: number
+  /** null = mês futuro ainda sem nenhum lançamento — não vira zero no gráfico */
+  receita: number | null
+  despesas: number | null
+  saldo: number | null
+  /** O mês tem ao menos um lançamento no planejamento */
+  temDados: boolean
 }
 
 interface Props {
@@ -51,77 +54,88 @@ export default function GraficoAnual({ ano }: Props) {
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const { isDark } = useIsDark()
+  // Descarta respostas de requisições antigas (troca de ano / retry rápido)
+  const reqId = useRef(0)
 
-  useEffect(() => {
-    let cancelled = false
+  const carregar = useCallback(async () => {
+    const id = ++reqId.current
+    setCarregando(true)
+    setErro(null)
+    try {
+      const { data, error } = await supabase
+        .from('planejamento')
+        .select('mes_referencia, item, valor_previsto, valor_real, pago')
+        .gte('mes_referencia', `${ano}-01-01`)
+        .lte('mes_referencia', `${ano}-12-31`)
 
-    async function carregar() {
-      setCarregando(true)
-      setErro(null)
-      try {
-        const { data, error } = await supabase
-          .from('planejamento')
-          .select('mes_referencia, item, valor_previsto, valor_real, pago')
-          .gte('mes_referencia', `${ano}-01-01`)
-          .lte('mes_referencia', `${ano}-12-31`)
+      if (error) throw error
+      if (id !== reqId.current) return
 
-        if (error) throw error
-        if (cancelled) return
+      const rows: PlanejamentoRow[] = data ?? []
 
-        const rows: PlanejamentoRow[] = data ?? []
+      // Build per-month maps
+      const receitaByMonth = new Map<string, number>()
+      const despesasPagosByMonth = new Map<string, number>()
+      const despesasPrevistosByMonth = new Map<string, number>()
 
-        // Build per-month maps
-        const receitaByMonth = new Map<string, number>()
-        const despesasPagosByMonth = new Map<string, number>()
-        const despesasPrevistosByMonth = new Map<string, number>()
+      for (const row of rows) {
+        const mes = row.mes_referencia.slice(0, 7) // "YYYY-MM"
+        const item = String(row.item ?? '')
+        const previsto = row.valor_previsto ?? 0
+        const real = row.valor_real ?? 0
+        const pago = Boolean(row.pago)
 
-        for (const row of rows) {
-          const mes = row.mes_referencia.slice(0, 7) // "YYYY-MM"
-          const item = String(row.item ?? '')
-          const previsto = row.valor_previsto ?? 0
-          const real = row.valor_real ?? 0
-          const pago = Boolean(row.pago)
-
-          if (isReceitaItem(item)) {
-            receitaByMonth.set(mes, (receitaByMonth.get(mes) ?? 0) + previsto)
-          } else {
-            if (pago) {
-              despesasPagosByMonth.set(mes, (despesasPagosByMonth.get(mes) ?? 0) + real)
-            }
-            despesasPrevistosByMonth.set(mes, (despesasPrevistosByMonth.get(mes) ?? 0) + previsto)
+        if (isReceitaItem(item)) {
+          receitaByMonth.set(mes, (receitaByMonth.get(mes) ?? 0) + previsto)
+        } else {
+          if (pago) {
+            despesasPagosByMonth.set(mes, (despesasPagosByMonth.get(mes) ?? 0) + real)
           }
+          despesasPrevistosByMonth.set(mes, (despesasPrevistosByMonth.get(mes) ?? 0) + previsto)
         }
-
-        const newLabels: string[] = []
-        const newData: MonthData[] = []
-
-        for (let m = 1; m <= 12; m++) {
-          const mesKey = `${ano}-${String(m).padStart(2, '0')}`
-          const date = new Date(ano, m - 1, 1)
-          const label = format(date, 'MMM', { locale: ptBR })
-          newLabels.push(label.charAt(0).toUpperCase() + label.slice(1))
-
-          const receita = receitaByMonth.get(mesKey) ?? 0
-          const paidDespesas = despesasPagosByMonth.get(mesKey) ?? 0
-          const prevDespesas = despesasPrevistosByMonth.get(mesKey) ?? 0
-          const despesas = paidDespesas > 0 ? paidDespesas : prevDespesas
-          const saldo = receita - despesas
-
-          newData.push({ receita, despesas, saldo })
-        }
-
-        setLabels(newLabels)
-        setMonthData(newData)
-      } catch {
-        if (!cancelled) setErro('Não foi possível carregar os dados anuais.')
-      } finally {
-        if (!cancelled) setCarregando(false)
       }
-    }
 
-    carregar()
-    return () => { cancelled = true }
+      const newLabels: string[] = []
+      const newData: MonthData[] = []
+      const mesCorrente = format(new Date(), 'yyyy-MM')
+
+      for (let m = 1; m <= 12; m++) {
+        const mesKey = `${ano}-${String(m).padStart(2, '0')}`
+        const date = new Date(ano, m - 1, 1)
+        const label = format(date, 'MMM', { locale: ptBR })
+        newLabels.push(label.charAt(0).toUpperCase() + label.slice(1))
+
+        const temLancamento =
+          receitaByMonth.has(mesKey) ||
+          despesasPagosByMonth.has(mesKey) ||
+          despesasPrevistosByMonth.has(mesKey)
+
+        // Mês futuro sem nada planejado ainda: fica como lacuna no gráfico em vez
+        // de virar um zero que puxa a linha de saldo para baixo.
+        if (!temLancamento && mesKey > mesCorrente) {
+          newData.push({ receita: null, despesas: null, saldo: null, temDados: false })
+          continue
+        }
+
+        const receita = receitaByMonth.get(mesKey) ?? 0
+        const paidDespesas = despesasPagosByMonth.get(mesKey) ?? 0
+        const prevDespesas = despesasPrevistosByMonth.get(mesKey) ?? 0
+        const despesas = paidDespesas > 0 ? paidDespesas : prevDespesas
+        const saldo = receita - despesas
+
+        newData.push({ receita, despesas, saldo, temDados: temLancamento })
+      }
+
+      setLabels(newLabels)
+      setMonthData(newData)
+    } catch {
+      if (id === reqId.current) setErro('Não foi possível carregar os dados anuais.')
+    } finally {
+      if (id === reqId.current) setCarregando(false)
+    }
   }, [ano])
+
+  useEffect(() => { carregar() }, [carregar])
 
   const { txt, grid } = axisColors(isDark)
 
@@ -184,7 +198,9 @@ export default function GraficoAnual({ ano }: Props) {
         boxHeight: 8,
         callbacks: {
           label: (ctx: TooltipItem<'bar'>) =>
-            `  ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y ?? 0)}`,
+            ctx.parsed.y == null
+              ? ''
+              : `  ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y)}`,
         },
       },
     },
@@ -196,7 +212,13 @@ export default function GraficoAnual({ ano }: Props) {
       y: {
         grid: { color: grid, lineWidth: 1 },
         ticks: {
-          callback: (v: number | string) => `R$${(Number(v) / 1000).toFixed(0)}k`,
+          callback: (v: number | string) => {
+            const n = Number(v)
+            if (n === 0) return 'R$0'
+            return Math.abs(n) >= 1000
+              ? `${n < 0 ? '-' : ''}R$${(Math.abs(n) / 1000).toFixed(0)}k`
+              : `${n < 0 ? '-' : ''}R$${Math.abs(n).toFixed(0)}`
+          },
           font: { size: 10 },
           color: txt,
           maxTicksLimit: 5,
@@ -205,9 +227,10 @@ export default function GraficoAnual({ ano }: Props) {
     },
   }), [isDark, txt, grid])
 
-  const totalReceita = monthData.reduce((s: number, d: MonthData) => s + d.receita, 0)
-  const totalDespesas = monthData.reduce((s: number, d: MonthData) => s + d.despesas, 0)
+  const totalReceita = monthData.reduce((s: number, d: MonthData) => s + (d.receita ?? 0), 0)
+  const totalDespesas = monthData.reduce((s: number, d: MonthData) => s + (d.despesas ?? 0), 0)
   const totalSaldo = totalReceita - totalDespesas
+  const mesesComDados = monthData.filter((d: MonthData) => d.temDados).length
 
   if (carregando) {
     return <div className="h-64 animate-pulse bg-gray-100 rounded-2xl" />
@@ -219,11 +242,20 @@ export default function GraficoAnual({ ano }: Props) {
         <AlertCircle className="w-7 h-7 opacity-70" />
         <span className="text-sm text-gray-500">{erro}</span>
         <button
-          onClick={() => { setCarregando(true); setErro(null) }}
+          onClick={carregar}
           className="text-xs text-primary-500 hover:text-primary-600 underline transition-colors"
         >
           Tentar novamente
         </button>
+      </div>
+    )
+  }
+
+  if (mesesComDados === 0) {
+    return (
+      <div className="h-48 flex flex-col items-center justify-center gap-2 text-gray-400">
+        <CalendarRange className="w-8 h-8 opacity-30" />
+        <span className="text-sm">Nenhum lançamento registrado em {ano}</span>
       </div>
     )
   }
@@ -250,6 +282,10 @@ export default function GraficoAnual({ ano }: Props) {
           </p>
         </div>
       </div>
+
+      <p className="text-[10px] text-gray-400 text-center mt-2">
+        Acumulado de {mesesComDados} {mesesComDados === 1 ? 'mês' : 'meses'} com lançamentos em {ano}
+      </p>
     </div>
   )
 }

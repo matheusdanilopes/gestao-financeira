@@ -42,7 +42,9 @@ function rgba(c: { r: number; g: number; b: number }, a = 1) {
 
 interface DadosInvestimento {
   labels: string[]
-  realizado: number[]
+  /** null em mês futuro sem aporte — a linha "Realizado" para no último mês real
+   *  em vez de despencar para zero. */
+  realizado: (number | null)[]
   meta: number[]
 }
 
@@ -150,11 +152,13 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual, ativo = true }:
           desMap.set(mes, (desMap.get(mes) || 0) + valor)
       }
 
-      const realizado: number[] = []
+      const realizado: (number | null)[] = []
       const meta: number[] = []
 
       for (const mes of mesesRef) {
-        realizado.push(aportesMap.get(mes) || 0)
+        const aporte = aportesMap.get(mes)
+        // Mês futuro ainda sem aporte registrado: lacuna, não zero.
+        realizado.push(aporte != null ? aporte : (mes > hojeRef ? null : 0))
         const pct   = pctMap.get(mes) || 0
         const saldo = (recMap.get(mes) || 0) - (desMap.get(mes) || 0)
         meta.push(pct > 0 && saldo > 0 ? (saldo * pct) / 100 : 0)
@@ -206,6 +210,7 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual, ativo = true }:
         {
           label: 'Realizado',
           data: dados.realizado,
+          spanGaps: false,
           borderColor: rgba(VIOLET),
           backgroundColor: 'transparent', // filled by gradientPlugin
           borderWidth: 2,
@@ -257,7 +262,8 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual, ativo = true }:
           usePointStyle: false,
           callbacks: {
             title: (items: TooltipItem<'line'>[]) => items[0]?.label ?? '',
-            label: (ctx: TooltipItem<'line'>) => `  ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y ?? 0)}`,
+            label: (ctx: TooltipItem<'line'>) =>
+              ctx.parsed.y == null ? '' : `  ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y)}`,
           },
         },
       },
@@ -323,7 +329,7 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual, ativo = true }:
 
   const hasData =
     dados !== null &&
-    (dados.realizado.some(v => v > 0) || dados.meta.some(v => v > 0))
+    (dados.realizado.some(v => (v ?? 0) > 0) || dados.meta.some(v => v > 0))
 
   if (!hasData) {
     return (
@@ -341,10 +347,36 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual, ativo = true }:
 
   if (!chartData) return null
 
+  const totalAportado = dados.realizado.reduce<number>((s, v) => s + (v ?? 0), 0)
+  const totalMeta     = dados.meta.reduce((s, v) => s + v, 0)
+  const pctMeta       = totalMeta > 0 ? (totalAportado / totalMeta) * 100 : null
+
   return (
     <div>
       <div className="h-56 md:h-64 lg:h-72">
         <Line data={chartData} options={options} plugins={plugins} />
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 mt-3">
+        <div className="text-center">
+          <p className="text-[10px] text-gray-400 uppercase tracking-wide">Aportado</p>
+          <p className="text-sm font-bold text-violet-600 num">{formatBRL(totalAportado)}</p>
+        </div>
+        <div className="text-center">
+          <p className="text-[10px] text-gray-400 uppercase tracking-wide">Meta do período</p>
+          <p className="text-sm font-bold text-teal-700 num">{formatBRL(totalMeta)}</p>
+        </div>
+        <div className="text-center">
+          <p className="text-[10px] text-gray-400 uppercase tracking-wide">Da meta</p>
+          <p className={`text-sm font-bold num ${
+            pctMeta === null ? 'text-gray-400'
+              : pctMeta >= 100 ? 'text-emerald-600'
+              : pctMeta >= 70 ? 'text-amber-500'
+              : 'text-red-500'
+          }`}>
+            {pctMeta === null ? '—' : `${pctMeta.toFixed(0)}%`}
+          </p>
+        </div>
       </div>
     </div>
   )
