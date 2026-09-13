@@ -221,12 +221,25 @@ export default function GraficoEvolucaoMensal({ mesAtual, ativo = true }: Props)
           usePointStyle: true,
           callbacks: {
             title: (items: TooltipItem<'line'>[]) => items[0]?.label ?? '',
-            label: (ctx: TooltipItem<'line'>) => {
-              const total = (dados?.receitas ?? []).reduce((s, v) => s + v, 0) +
-                            (dados?.despesas ?? []).reduce((s, v) => s + v, 0)
-              const pct = total > 0 ? ((ctx.parsed.y ?? 0) / total * 100).toFixed(1) : null
-              const suffix = pct ? ` (${pct}%)` : ''
-              return `  ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y ?? 0)}${suffix}`
+            label: (ctx: TooltipItem<'line'>) =>
+              `  ${ctx.dataset.label}: ${formatBRL(ctx.parsed.y ?? 0)}`,
+            // Saldo do mês e variação da despesa contra o mês anterior — bem mais
+            // útil que a antiga "% do total do período", que não significava nada.
+            afterBody: (items: TooltipItem<'line'>[]) => {
+              const i = items[0]?.dataIndex ?? -1
+              if (i < 0 || !dados) return []
+              const receita = dados.receitas[i] ?? 0
+              const despesa = dados.despesas[i] ?? 0
+              const saldo = receita - despesa
+              const linhas = ['', `  Saldo: ${saldo >= 0 ? '+' : '−'}${formatBRL(Math.abs(saldo))}`]
+              const despesaAnterior = i > 0 ? dados.despesas[i - 1] ?? 0 : 0
+              if (despesaAnterior > 0) {
+                const variacao = ((despesa - despesaAnterior) / despesaAnterior) * 100
+                linhas.push(
+                  `  Despesa vs. mês anterior: ${variacao >= 0 ? '+' : ''}${variacao.toFixed(1)}%`
+                )
+              }
+              return linhas
             },
           },
         },

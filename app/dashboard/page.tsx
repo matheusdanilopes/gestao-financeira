@@ -8,7 +8,7 @@ import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
 import { valorEfetivoNoMes } from '@/lib/assinaturaValor'
 import { classificarTipoGasto, somarValorFatura, type TipoGasto } from '@/lib/composicaoFatura'
 import { identificarAssinaturasNaFatura } from '@/lib/assinaturaMatch'
-import { BarChart2, BarChart3, CreditCard, Wallet, PiggyBank, TrendingUp, TrendingDown, Minus, LineChart, Activity } from 'lucide-react'
+import { BarChart2, BarChart3, CreditCard, Wallet, PiggyBank, Scale, TrendingUp, TrendingDown, Minus, LineChart, Activity } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
 import MonthSelector from '@/components/MonthSelector'
@@ -41,6 +41,14 @@ const GraficoGastosDiarios = dynamic(() => import('@/components/GraficoGastosDia
 })
 
 const CategoryTreemap = dynamic(() => import('@/components/CategoryTreemap'), { ssr: false })
+
+const GraficoVariacaoCategorias = dynamic(
+  () => import('@/components/GraficoVariacaoCategorias'),
+  {
+    ssr: false,
+    loading: () => <div className="h-64 skeleton rounded-2xl" />,
+  }
+)
 
 const GraficoCategoriasDespesas = dynamic(
   () => import('@/components/GraficoCategoriasDespesas'),
@@ -555,6 +563,21 @@ export default function Dashboard() {
     setAba(novaAba)
     if (novaAba === 'graficos') setGraficosAbertos(true)
   }, [])
+
+  // Toque numa coluna de "Categorias de Despesas" → drawer com os lançamentos
+  // do planejamento que compõem aquela categoria no mês.
+  const abrirDetalhesCategoria = useCallback(
+    (categoria: string, valor: number, itens: Record<string, unknown>[]) => {
+      setDetalhesPonto({
+        serie: categoria,
+        mes: format(mesAtual, "MMMM 'de' yyyy", { locale: ptBR }),
+        valor,
+        itens,
+      })
+      setDrawerAberto(true)
+    },
+    [mesAtual],
+  )
 
   const { fatura, resumoCaixa, investimentos, dataFechamentoNubank } = dados
 
@@ -1144,7 +1167,31 @@ export default function Dashboard() {
                 </h2>
               </div>
               <p className="text-xs text-gray-400 mb-4 ml-10">Maior → menor · Toque para detalhes</p>
-              <GraficoCategoriasDespesas mesAtual={mesAtual} ativo={aba === 'graficos'} />
+              <GraficoCategoriasDespesas
+                mesAtual={mesAtual}
+                ativo={aba === 'graficos'}
+                onCategoriaClicada={abrirDetalhesCategoria}
+              />
+            </div>
+
+            <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center">
+                  <Scale className="w-4 h-4 text-orange-500" />
+                </div>
+                <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
+                  O que mudou no mês
+                  <InfoPopover texto="Compara o gasto de cada categoria nesta fatura com a média das 3 faturas anteriores. Enquanto a fatura está em aberto, a média é ajustada à fração do ciclo já decorrida, para não parecer que tudo caiu. Barras vermelhas indicam gasto acima do normal; verdes, abaixo." />
+                </h2>
+              </div>
+              <p className="text-xs text-gray-400 mb-4 ml-10">
+                Maiores variações vs. média das faturas anteriores
+              </p>
+              <GraficoVariacaoCategorias
+                mesAtual={mesAtual}
+                dataFechamentoFatura={dataFechamentoNubank}
+                ativo={aba === 'graficos'}
+              />
             </div>
 
             <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
@@ -1154,10 +1201,10 @@ export default function Dashboard() {
                 </div>
                 <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
                   Projeção de Parcelamentos
-                  <InfoPopover texto="Total de parcelas previstas para vencer nos próximos 6 meses, separado por pessoa e extras. Calculado a partir das compras parceladas já registradas no NuBank. Toque duas vezes em um ponto do gráfico para ver os detalhes do mês." />
+                  <InfoPopover texto="Total de parcelas já contratadas que vencem nos próximos meses, separado por pessoa e despesas extras. O gráfico vai até o último mês com parcela em aberto. Toque duas vezes em um ponto do gráfico para ver os detalhes do mês." />
                 </h2>
               </div>
-              <p className="text-xs text-gray-400 mb-4 ml-10">Próximos 6 meses · Toque duas vezes no mês para ver detalhes</p>
+              <p className="text-xs text-gray-400 mb-4 ml-10">Parcelas em aberto · Toque duas vezes no mês para ver detalhes</p>
               <GraficoProjecao
                 mesInicio={mesAtual}
                 onPontoClicado={(serie, mes, valor, itens) => {
@@ -1179,7 +1226,7 @@ export default function Dashboard() {
                 </div>
                 <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
                   Evolução Financeira
-                  <InfoPopover texto="Visão mensal das receitas, despesas e investimentos dos últimos 6 meses. Receitas e despesas são baseadas no planejamento do mês; investimentos refletem aportes realizados." />
+                  <InfoPopover texto="Receitas e despesas mês a mês nos últimos 6 meses, com base no planejamento: meses passados usam o valor real dos itens pagos, o mês corrente e os seguintes usam o previsto (trecho tracejado). O tooltip mostra o saldo do mês e a variação da despesa contra o mês anterior." />
                 </h2>
               </div>
               <p className="text-xs text-gray-400 mb-4 ml-10">Últimos 6 meses · Passe o cursor para detalhes</p>
@@ -1205,8 +1252,9 @@ export default function Dashboard() {
                 <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center">
                   <BarChart3 className="w-4 h-4 text-emerald-600" />
                 </div>
-                <h2 className="text-base font-semibold text-gray-800">
-                  Visão Anual {new Date().getFullYear()}
+                <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
+                  Visão Anual {mesAtual.getFullYear()}
+                  <InfoPopover texto="Receitas, despesas e saldo de cada mês do ano selecionado, a partir do planejamento. Meses já pagos usam o valor real; os demais usam o previsto. Meses futuros ainda sem lançamento ficam em branco." />
                 </h2>
               </div>
               <p className="text-xs text-gray-400 mb-4 ml-10">Receitas, despesas e saldo mês a mês</p>

@@ -3,6 +3,7 @@
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react'
 import { formatBRL } from '@/lib/format'
 import { LayoutGrid, Hash, TrendingUp, X } from 'lucide-react'
+import { InfoPopover } from '@/components/InfoPopover'
 import { addMonths, format, startOfMonth } from 'date-fns'
 import { supabase } from '@/lib/supabaseClient'
 
@@ -252,7 +253,7 @@ export default function CategoryTreemap({ compras: comprasProp, mesAtual, loadin
 
   if (loading) {
     return (
-      <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-white/[0.06] shadow-card mb-4">
+      <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-white/[0.06] shadow-card">
         <div className="px-4 pt-3 pb-2 flex items-center justify-between">
           <div className="h-3 w-24 bg-gray-200 dark:bg-white/[0.08] rounded-full animate-pulse" />
           <div className="h-6 w-28 bg-gray-100 dark:bg-white/[0.05] rounded-xl animate-pulse" />
@@ -269,10 +270,25 @@ export default function CategoryTreemap({ compras: comprasProp, mesAtual, loadin
     )
   }
 
-  if (!compras.length) return null
+  if (!compras.length) {
+    return (
+      <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-white/[0.06] shadow-card p-4">
+        <div className="flex items-center gap-1.5 mb-3">
+          <LayoutGrid className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
+          <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
+            Categorias da Fatura
+          </span>
+        </div>
+        <div className="h-40 flex flex-col items-center justify-center gap-2 text-gray-400 text-center">
+          <LayoutGrid className="w-8 h-8 opacity-30" />
+          <span className="text-sm">Nenhuma compra importada nesta fatura</span>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-white/[0.06] shadow-card mb-4 overflow-hidden">
+    <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-white/[0.06] shadow-card overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-3 pb-2">
         <div className="flex items-center gap-1.5">
@@ -280,6 +296,7 @@ export default function CategoryTreemap({ compras: comprasProp, mesAtual, loadin
           <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
             Categorias da Fatura
           </span>
+          <InfoPopover texto="Divide as compras efetivamente importadas da fatura do mês por categoria — diferente do gráfico 'Categorias de Despesas', que usa o planejamento (previsto x pago). O tamanho de cada bloco é proporcional ao valor (ou à quantidade de compras). Toque num bloco para ver os detalhes." />
         </div>
         <div className="flex rounded-xl overflow-hidden border border-gray-200 dark:border-white/[0.1]">
           <button

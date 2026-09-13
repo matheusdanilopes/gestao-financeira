@@ -10,7 +10,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js'
-import type { TooltipItem } from 'chart.js'
+import type { ActiveElement, ChartEvent, TooltipItem } from 'chart.js'
 import { format, startOfMonth } from 'date-fns'
 import { AlertCircle, BarChart3 } from 'lucide-react'
 import { formatBRL } from '@/lib/format'
@@ -51,28 +51,39 @@ interface CategoryData {
   contagem: number   // paid items count
   pctPago: number
   overBudget: boolean
+  /** Lançamentos do planejamento que compõem a categoria — alimenta o drawer de detalhes */
+  itens: Record<string, unknown>[]
 }
 
 interface Props {
   mesAtual: Date
   /** Controla o polling de 60s — false pausa fetch/timers sem desmontar o gráfico (ex: aba oculta). Default: true. */
   ativo?: boolean
+  /** Chamado ao tocar numa coluna — abre o detalhamento dos lançamentos da categoria. */
+  onCategoriaClicada?: (categoria: string, valor: number, itens: Record<string, unknown>[]) => void
 }
 
 type CacheEntry = { categorias: CategoryData[] }
 
-export default function GraficoCategoriasDespesas({ mesAtual, ativo = true }: Props) {
+export default function GraficoCategoriasDespesas({ mesAtual, ativo = true, onCategoriaClicada }: Props) {
   const [dados, setDados] = useState<CacheEntry | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const { isDark } = useIsDark()
   const cache = useRef(new Map<string, CacheEntry>())
 
+  // Refs para o onClick das options não precisar de `dados`/callback nas deps
+  // (rebuild de options re-anima o gráfico inteiro a cada 60s de polling).
+  const dadosRef = useRef<CacheEntry | null>(null)
+  const onCategoriaRef = useRef(onCategoriaClicada)
+  useEffect(() => { onCategoriaRef.current = onCategoriaClicada }, [onCategoriaClicada])
+
   const carregar = useCallback(async () => {
     const mesKey = format(mesAtual, 'yyyy-MM')
     const cached = cache.current.get(mesKey)
     if (cached) {
       setDados(cached)
+      dadosRef.current = cached
     } else {
       setCarregando(true)
     }
@@ -91,6 +102,7 @@ export default function GraficoCategoriasDespesas({ mesAtual, ativo = true }: Pr
 
       const prevMap = new Map<string, number>()
       const pagoMap = new Map<string, { valor: number; contagem: number }>()
+      const itensMap = new Map<string, Record<string, unknown>[]>()
 
       for (const p of (plan ?? [])) {
         const item = String(p.item ?? '')
@@ -102,7 +114,8 @@ export default function GraficoCategoriasDespesas({ mesAtual, ativo = true }: Pr
         if (pv > 0)
           prevMap.set(cat, (prevMap.get(cat) ?? 0) + pv)
 
-        if (p.pago && p.valor_real != null) {
+        const foiPago = Boolean(p.pago) && p.valor_real != null
+        if (foiPago) {
           const vr = Number(p.valor_real)
           if (vr > 0) {
             const e = pagoMap.get(cat) ?? { valor: 0, contagem: 0 }
@@ -110,6 +123,22 @@ export default function GraficoCategoriasDespesas({ mesAtual, ativo = true }: Pr
             e.contagem++
             pagoMap.set(cat, e)
           }
+        }
+
+        // Só entram no detalhamento os lançamentos que realmente somam alguma
+        // barra — linhas zeradas do planejamento virariam ruído no drawer.
+        const valorItem = foiPago ? Number(p.valor_real) : pv
+        if (valorItem > 0) {
+          const lista = itensMap.get(cat) ?? []
+          lista.push({
+            item,
+            categoria: cat,
+            tipo: foiPago ? 'Pago' : 'Previsto',
+            valor: valorItem,
+            valor_previsto: pv,
+            mes_referencia: mesRefAtual,
+          })
+          itensMap.set(cat, lista)
         }
       }
 
@@ -133,9 +162,11 @@ export default function GraficoCategoriasDespesas({ mesAtual, ativo = true }: Pr
         contagem,
         pctPago:    totalPago > 0 ? (pago / totalPago) * 100 : 0,
         overBudget: pago > previsto && previsto > 0,
+        itens:      itensMap.get(label) ?? [],
       }))
 
       const entry: CacheEntry = { categorias }
+      dadosRef.current = entry
       cache.current.set(mesKey, entry)
       if (cache.current.size > 12) {
         const oldest = cache.current.keys().next().value
@@ -264,6 +295,14 @@ export default function GraficoCategoriasDespesas({ mesAtual, ativo = true }: Pr
           border: { display: false },
         },
       },
+      onClick: (_event: ChartEvent, elements: ActiveElement[]) => {
+        const abrir = onCategoriaRef.current
+        if (!abrir || !elements.length) return
+        const cat = dadosRef.current?.categorias[elements[0].index]
+        if (!cat) return
+        const total = cat.itens.reduce((s, i) => s + Number(i.valor ?? 0), 0)
+        abrir(cat.label, total, cat.itens)
+      },
     }
   }, [isDark, dados])
 
@@ -323,7 +362,7 @@ export default function GraficoCategoriasDespesas({ mesAtual, ativo = true }: Pr
   return (
     <div>
       <div className="overflow-x-auto -mx-1 px-1 pb-1">
-        <div style={{ minWidth }} className="h-56 md:h-64 lg:h-72">
+        <div style={{ minWidth }} className={`h-56 md:h-64 lg:h-72 ${onCategoriaClicada ? 'cursor-pointer' : ''}`}>
           <Bar data={chartData} options={options} />
         </div>
       </div>
