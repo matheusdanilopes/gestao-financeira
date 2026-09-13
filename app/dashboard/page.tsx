@@ -8,7 +8,7 @@ import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
 import { valorEfetivoNoMes } from '@/lib/assinaturaValor'
 import { classificarTipoGasto, somarValorFatura, type TipoGasto } from '@/lib/composicaoFatura'
 import { identificarAssinaturasNaFatura } from '@/lib/assinaturaMatch'
-import { BarChart2, BarChart3, CreditCard, Wallet, PiggyBank, Scale, TrendingUp, TrendingDown, Minus, LineChart, Activity } from 'lucide-react'
+import { BarChart2, BarChart3, CalendarRange, CreditCard, Wallet, PiggyBank, Layers, Scale, TrendingUp, TrendingDown, Minus, LineChart, Activity } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
 import MonthSelector from '@/components/MonthSelector'
@@ -40,8 +40,6 @@ const GraficoGastosDiarios = dynamic(() => import('@/components/GraficoGastosDia
   loading: () => <div className="h-48 skeleton rounded-2xl" />,
 })
 
-const CategoryTreemap = dynamic(() => import('@/components/CategoryTreemap'), { ssr: false })
-
 const GraficoVariacaoCategorias = dynamic(
   () => import('@/components/GraficoVariacaoCategorias'),
   {
@@ -50,14 +48,36 @@ const GraficoVariacaoCategorias = dynamic(
   }
 )
 
-const GraficoCategoriasDespesas = dynamic(
-  () => import('@/components/GraficoCategoriasDespesas'),
+const PainelCategorias = dynamic(() => import('@/components/PainelCategorias'), {
+  ssr: false,
+  loading: () => <div className="h-80 skeleton rounded-3xl lg:col-span-2" />,
+})
+
+const GraficoComposicaoFatura = dynamic(
+  () => import('@/components/GraficoComposicaoFatura'),
   {
     ssr: false,
     loading: () => <div className="h-64 skeleton rounded-2xl" />,
   }
 )
+
+const GraficoComparativoAnual = dynamic(
+  () => import('@/components/GraficoComparativoAnual'),
+  {
+    ssr: false,
+    loading: () => <div className="h-64 skeleton rounded-2xl" />,
+  }
+)
+
+const GraficoAlocacaoInvestimentos = dynamic(
+  () => import('@/components/GraficoAlocacaoInvestimentos'),
+  {
+    ssr: false,
+    loading: () => <div className="h-56 skeleton rounded-2xl" />,
+  }
+)
 import { InfoPopover } from '@/components/InfoPopover'
+import LazyRender from '@/components/LazyRender'
 
 const DrawerDetalhes = dynamic(() => import('@/components/DrawerDetalhes'), { ssr: false })
 const ComposicaoFaturaModal = dynamic(() => import('@/components/ComposicaoFaturaModal'), { ssr: false })
@@ -78,8 +98,6 @@ const InsightsCard = dynamic(() => import('@/components/InsightsCard'), {
     </div>
   ),
 })
-const LimitesCategorias = dynamic(() => import('@/components/LimitesCategorias'), { ssr: false })
-
 const GraficoAnual = dynamic(() => import('@/components/GraficoAnual'), {
   ssr: false,
   loading: () => <div className="h-64 skeleton rounded-2xl" />,
@@ -1154,25 +1172,15 @@ export default function Dashboard() {
               />
             </div>
 
-            <LimitesCategorias mesAtual={mesAtual} cartao1Nome={fatura.cartao1Nome} cartao2Nome={fatura.cartao2Nome} />
-
-            <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center">
-                  <BarChart3 className="w-4 h-4 text-indigo-600" />
-                </div>
-                <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
-                  Categorias de Despesas
-                  <InfoPopover texto="Distribuição dos gastos por categoria no mês selecionado. Quando há faturas ou compras importadas, o gráfico usa os valores reais — nunca duplica previsto + real. Toque em uma coluna para ver o detalhamento." />
-                </h2>
-              </div>
-              <p className="text-xs text-gray-400 mb-4 ml-10">Maior → menor · Toque para detalhes</p>
-              <GraficoCategoriasDespesas
-                mesAtual={mesAtual}
-                ativo={aba === 'graficos'}
-                onCategoriaClicada={abrirDetalhesCategoria}
-              />
-            </div>
+            {/* Planejado · Fatura · Limites num único card — antes eram três cards
+                seguidos com fontes de dados diferentes e nada explicando a diferença */}
+            <PainelCategorias
+              mesAtual={mesAtual}
+              cartao1Nome={fatura.cartao1Nome}
+              cartao2Nome={fatura.cartao2Nome}
+              ativo={aba === 'graficos'}
+              onCategoriaClicada={abrirDetalhesCategoria}
+            />
 
             <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
               <div className="flex items-center gap-2 mb-1">
@@ -1187,11 +1195,31 @@ export default function Dashboard() {
               <p className="text-xs text-gray-400 mb-4 ml-10">
                 Maiores variações vs. média das faturas anteriores
               </p>
-              <GraficoVariacaoCategorias
-                mesAtual={mesAtual}
-                dataFechamentoFatura={dataFechamentoNubank}
-                ativo={aba === 'graficos'}
-              />
+              <LazyRender alturaPlaceholder={280}>
+                <GraficoVariacaoCategorias
+                  mesAtual={mesAtual}
+                  dataFechamentoFatura={dataFechamentoNubank}
+                  ativo={aba === 'graficos'}
+                />
+              </LazyRender>
+            </div>
+
+            <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-8 h-8 rounded-xl bg-teal-50 flex items-center justify-center">
+                  <Layers className="w-4 h-4 text-teal-700" />
+                </div>
+                <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
+                  Composição da Fatura
+                  <InfoPopover texto="Quanto de cada fatura do NuBank veio de parcelas contratadas em meses anteriores, de assinaturas recorrentes e de compras novas do mês — ou seja, o quanto já estava comprometido antes do mês começar. A identificação de assinaturas usa o valor vigente hoje, então meses antigos com preço diferente podem cair em 'compras novas'." />
+                </h2>
+              </div>
+              <p className="text-xs text-gray-400 mb-4 ml-10">
+                Últimas 6 faturas do NuBank · Parcelas, assinaturas e compras novas
+              </p>
+              <LazyRender alturaPlaceholder={280}>
+                <GraficoComposicaoFatura mesAtual={mesAtual} ativo={aba === 'graficos'} />
+              </LazyRender>
             </div>
 
             <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
@@ -1205,18 +1233,32 @@ export default function Dashboard() {
                 </h2>
               </div>
               <p className="text-xs text-gray-400 mb-4 ml-10">Parcelas em aberto · Toque duas vezes no mês para ver detalhes</p>
-              <GraficoProjecao
-                mesInicio={mesAtual}
-                onPontoClicado={(serie, mes, valor, itens) => {
-                  setDetalhesPonto({ serie, mes, valor, itens })
-                  setDrawerAberto(true)
-                }}
-                ativo={aba === 'graficos'}
-              />
+              <LazyRender alturaPlaceholder={280}>
+                <GraficoProjecao
+                  mesInicio={mesAtual}
+                  onPontoClicado={(serie, mes, valor, itens) => {
+                    setDetalhesPonto({ serie, mes, valor, itens })
+                    setDrawerAberto(true)
+                  }}
+                  ativo={aba === 'graficos'}
+                />
+              </LazyRender>
             </div>
 
-            <div className="lg:col-span-1">
-              <CategoryTreemap mesAtual={mesAtual} />
+            <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center">
+                  <PiggyBank className="w-4 h-4 text-violet-600" />
+                </div>
+                <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
+                  Alocação dos Aportes
+                  <InfoPopover texto="Como os aportes do mês se dividem entre os investimentos configurados. Sem nenhum aporte registrado, o gráfico mostra a alocação-alvo — o percentual do saldo reservado para cada investimento." />
+                </h2>
+              </div>
+              <p className="text-xs text-gray-400 mb-4 ml-10">Divisão dos aportes do mês</p>
+              <LazyRender alturaPlaceholder={224}>
+                <GraficoAlocacaoInvestimentos mesAtual={mesAtual} ativo={aba === 'graficos'} />
+              </LazyRender>
             </div>
 
             <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
@@ -1230,7 +1272,9 @@ export default function Dashboard() {
                 </h2>
               </div>
               <p className="text-xs text-gray-400 mb-4 ml-10">Últimos 6 meses · Passe o cursor para detalhes</p>
-              <GraficoEvolucaoMensal mesAtual={mesAtual} ativo={aba === 'graficos'} />
+              <LazyRender alturaPlaceholder={280}>
+                <GraficoEvolucaoMensal mesAtual={mesAtual} ativo={aba === 'graficos'} />
+              </LazyRender>
             </div>
 
             <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
@@ -1244,7 +1288,9 @@ export default function Dashboard() {
                 </h2>
               </div>
               <p className="text-xs text-gray-400 mb-4 ml-10">Últimos 6 meses · Realizado vs. Meta</p>
-              <GraficoEvolucaoInvestimentos mesAtual={mesAtual} ativo={aba === 'graficos'} />
+              <LazyRender alturaPlaceholder={280}>
+                <GraficoEvolucaoInvestimentos mesAtual={mesAtual} ativo={aba === 'graficos'} />
+              </LazyRender>
             </div>
 
             <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
@@ -1258,7 +1304,25 @@ export default function Dashboard() {
                 </h2>
               </div>
               <p className="text-xs text-gray-400 mb-4 ml-10">Receitas, despesas e saldo mês a mês</p>
-              <GraficoAnual ano={mesAtual.getFullYear()} />
+              <LazyRender alturaPlaceholder={280}>
+                <GraficoAnual ano={mesAtual.getFullYear()} />
+              </LazyRender>
+            </div>
+
+            <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center">
+                  <CalendarRange className="w-4 h-4 text-indigo-600" />
+                </div>
+                <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
+                  {mesAtual.getFullYear()} vs. {mesAtual.getFullYear() - 1}
+                  <InfoPopover texto="Despesas mês a mês do ano selecionado contra o ano anterior, a partir do planejamento. O total comparado considera só os meses já decorridos nos dois anos — comparar um ano em andamento com um ano fechado exageraria a diferença." />
+                </h2>
+              </div>
+              <p className="text-xs text-gray-400 mb-4 ml-10">Despesas do ano contra o ano anterior</p>
+              <LazyRender alturaPlaceholder={280}>
+                <GraficoComparativoAnual ano={mesAtual.getFullYear()} ativo={aba === 'graficos'} />
+              </LazyRender>
             </div>
 
           </div>
