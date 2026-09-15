@@ -6,9 +6,6 @@ import {
   LayoutDashboard, Sparkles, Plus, MoreHorizontal, WifiOff, ChevronDown, ShoppingBasket, FileSpreadsheet, X,
 } from 'lucide-react'
 import { memo, useEffect, useState } from 'react'
-import type { Session } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabaseClient'
-import { AUTH_DISABLED } from '@/lib/authConfig'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
 import { useImportacaoScript } from '@/components/ImportacaoScriptProvider'
 import { useOnline } from '@/lib/useOnline'
@@ -73,11 +70,6 @@ const DESKTOP_GROUPS: NavModuleKey[] = ['financas', 'cartao', 'listas', 'relator
 
 // Módulos exibidos no popover "Extras" do mobile (tudo que não tem botão próprio).
 const MOBILE_EXTRAS_GROUPS: NavModuleKey[] = ['listas', 'relatorios', 'ia', 'configuracoes']
-
-// Cache de sessão em nível de módulo — persiste entre navegações de rota
-// e evita que cada mount do BottomNav faça um round-trip ao Supabase.
-let _cachedSession: Session | null = null
-let _sessionResolved = false
 
 // ── Sub-menus mobile (popovers fixos, abrem pra cima) ──────────────────────────
 
@@ -354,9 +346,6 @@ export default memo(function BottomNav() {
   const pathname = usePathname()
   const router   = useRouter()
 
-  // Inicializa com a sessão em cache para evitar flash de "não logado"
-  const [session, setSession] = useState<Session | null>(_cachedSession)
-  const [isCheckingSession, setIsCheckingSession] = useState(!_sessionResolved)
   const [openMenu, setOpenMenu] = useState<'financas' | 'cartao' | 'extras' | null>(null)
   const [openDesktopMenu, setOpenDesktopMenu] = useState<NavModuleKey | null>(null)
   const [fabSheetOpen, setFabSheetOpen] = useState(false)
@@ -407,51 +396,6 @@ export default memo(function BottomNav() {
     NAV_MODULES[openDesktopMenu].items.forEach(item => router.prefetch(item.href))
   }, [openDesktopMenu, isOnline, router])
 
-  useEffect(() => {
-    // Se AUTH_DISABLED ou sessão já resolvida, não faz round-trip ao Supabase
-    if (AUTH_DISABLED) {
-      setIsCheckingSession(false)
-      return
-    }
-
-    if (_sessionResolved) {
-      setSession(_cachedSession)
-      setIsCheckingSession(false)
-      return
-    }
-
-    let isMounted = true
-
-    // onAuthStateChange dispara com INITIAL_SESSION imediatamente ao ler a sessão
-    // do storage — elimina o round-trip separado de getSession().
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, currentSession) => {
-      if (!isMounted) return
-      _cachedSession = currentSession
-      _sessionResolved = true
-      setSession(currentSession)
-      setIsCheckingSession(false)
-    })
-
-    // Fallback: agenda timeout só se onAuthStateChange ainda não resolveu
-    // (ex: usuário deslogado). Evita agendamento desnecessário quando a sessão
-    // já foi lida de forma síncrona do storage.
-    let timeout: ReturnType<typeof setTimeout> | undefined
-    if (!_sessionResolved) {
-      timeout = setTimeout(() => {
-        if (isMounted && !_sessionResolved) {
-          _sessionResolved = true
-          setIsCheckingSession(false)
-        }
-      }, 800)
-    }
-
-    return () => {
-      isMounted = false
-      authListener?.subscription?.unsubscribe()
-      if (timeout) clearTimeout(timeout)
-    }
-  }, [])
-
   // Fecha menus ao navegar para outra rota
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -476,17 +420,17 @@ export default memo(function BottomNav() {
 
   const deveExibirMenu = pathname ? ROTAS_COM_MENU.some(r => pathname === r || pathname.startsWith(r + '/')) : false
 
+  // A visibilidade da barra depende só da rota — nunca do estado da sessão.
+  // Quem chega a uma rota do app já passou pelo guard de auth do proxy.ts, que
+  // redireciona para /login quando não há sessão; repetir a checagem aqui só
+  // criava um jeito a mais de a barra sumir. Enquanto a sessão não resolvesse
+  // — e sempre que ela resolvesse como nula — a nav era omitida em todas as
+  // telas. No PWA do iOS isso a fazia desaparecer por completo: num cold start
+  // com token expirado o refresh do Supabase demora mais que o timeout local de
+  // 800ms (o mesmo motivo que levou o proxy.ts a subir o dele de 3s para 8s), e
+  // se ele falhar — blip de rede ao acordar do background — a sessão nunca
+  // chega. Como o documento do PWA vive por dias, a barra não voltava mais.
   if (!deveExibirMenu) return null
-  // Aguarda resolução da sessão para evitar flash de nav sem autenticação.
-  // Offline: não exige sessão — o getSession() falha em rede, mas páginas
-  // cacheadas funcionam normalmente e o usuário precisa do nav para navegar.
-  // Por isso os dois checks abaixo só bloqueiam a renderização quando online:
-  // isCheckingSession fica true de novo a cada cold start/reload (estado do
-  // módulo é resetado), e teria escondido a barra em modo offline por até
-  // 800ms (ou indefinidamente, se o reload de redirecionamento offline
-  // interromper o efeito antes do timeout) mesmo com o usuário sem rede.
-  if (!AUTH_DISABLED && isOnline && isCheckingSession) return null
-  if (!AUTH_DISABLED && isOnline && !session) return null
 
   const isFinancasActive = rotaAtiva(pathname, ROTAS_FINANCAS)
   const isCartaoActive   = rotaAtiva(pathname, ROTAS_CARTAO)
