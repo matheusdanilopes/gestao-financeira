@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import {
-  Bell, X, Check, CheckCheck,
+  Bell, X, CheckCheck,
   PiggyBank, CreditCard, TrendingUp, AlertTriangle, ThumbsUp, ThumbsDown, Heart,
   CheckCircle2, XCircle, Sparkles, Clock, ShoppingBag, ShoppingBasket,
   RefreshCw, AlertCircle, Calendar, BarChart2,
@@ -184,16 +184,61 @@ export default memo(function NotificacoesBell() {
   const [erroConflito, setErroConflito] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  const naoLidas = notificacoes.filter(n => !n.lida).length
+  // conflito_id dos registros CONFLITO_VALOR ainda abertos no banco, entre os conflitos
+  // já marcados como lidos sem decisão (ver conflitoPendente).
+  const [conflitosAbertos, setConflitosAbertos] = useState<Set<string>>(new Set())
+
+  /**
+   * Conflito de valor ainda sem decisão (aprovar/recusar). Não lido e sem `resolucao` basta;
+   * se já foi marcado como lido sem decisão, só conta enquanto o registro CONFLITO_VALOR
+   * continuar aberto — evita ressuscitar notificações antigas cujo conflito já sumiu.
+   */
+  function conflitoPendente(n: Notificacao): boolean {
+    if (n.acao !== 'conciliacao_conflito' || !n.metadata) return false
+    const meta = n.metadata as ConflictMetadata
+    if (meta.resolucao) return false
+    return !n.lida || conflitosAbertos.has(meta.conflito_id)
+  }
+
+  const naoLidas = notificacoes.filter(n => !n.lida || conflitoPendente(n)).length
 
   const carregarNotificacoes = useCallback(async (email: string) => {
-    const { data } = await supabase
-      .from('notificacoes')
-      .select('id, de_usuario, nome_usuario, acao, descricao, valor, lida, created_at, metadata')
-      .neq('de_usuario', email)
-      .order('created_at', { ascending: false })
-      .limit(30)
-    setNotificacoes(data ?? [])
+    const colunas = 'id, de_usuario, nome_usuario, acao, descricao, valor, lida, created_at, metadata'
+    // Conflitos de valor sem decisão entram SEMPRE na lista, mesmo fora das 30 mais
+    // recentes: enquanto não forem aprovados/recusados o registro CONFLITO_VALOR fica
+    // aberto, a reimportação da mesma compra é descartada e o valor novo não chega à fatura.
+    const [recentes, conflitos] = await Promise.all([
+      supabase
+        .from('notificacoes')
+        .select(colunas)
+        .neq('de_usuario', email)
+        .order('created_at', { ascending: false })
+        .limit(30),
+      supabase
+        .from('notificacoes')
+        .select(colunas)
+        .eq('acao', 'conciliacao_conflito')
+        .is('metadata->>resolucao', null)
+        .order('created_at', { ascending: false }),
+    ])
+    const porId = new Map<string, Notificacao>()
+    for (const n of [...(conflitos.data ?? []), ...(recentes.data ?? [])] as Notificacao[]) porId.set(n.id, n)
+
+    const idsConflitoLidos = [...porId.values()]
+      .filter(n => n.acao === 'conciliacao_conflito' && n.lida)
+      .map(n => (n.metadata as ConflictMetadata | null)?.conflito_id)
+      .filter((id): id is string => !!id)
+    if (idsConflitoLidos.length > 0) {
+      const { data: abertos } = await supabase
+        .from('transacoes_nubank')
+        .select('id')
+        .in('id', idsConflitoLidos)
+        .eq('status', 'CONFLITO_VALOR')
+      setConflitosAbertos(new Set((abertos ?? []).map(r => r.id as string)))
+    }
+    setNotificacoes(
+      [...porId.values()].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    )
   }, [])
 
   useEffect(() => {
@@ -322,10 +367,11 @@ export default memo(function NotificacoesBell() {
   }
 
   async function marcarTodasLidas() {
-    const ids = notificacoes.filter(n => !n.lida).map(n => n.id)
+    // Conflitos de valor só saem da lista de pendentes ao serem aprovados/recusados.
+    const ids = notificacoes.filter(n => !n.lida && !conflitoPendente(n)).map(n => n.id)
     if (!ids.length) return
     await supabase.from('notificacoes').update({ lida: true }).in('id', ids)
-    setNotificacoes(prev => prev.map(n => ({ ...n, lida: true })))
+    setNotificacoes(prev => prev.map(n => (ids.includes(n.id) ? { ...n, lida: true } : n)))
     fecharPushPorIds(ids)
   }
 
@@ -339,10 +385,18 @@ export default memo(function NotificacoesBell() {
         body: JSON.stringify({ notificacao_id, acao }),
       })
       if (res.ok) {
+        // Atualiza `resolucao` localmente também (é o que decide se os botões aparecem),
+        // sem depender do UPDATE do Realtime chegar.
         if (acao === 'desfazer') {
-          setNotificacoes(prev => prev.map(n => n.id === notificacao_id ? { ...n, lida: false } : n))
+          setNotificacoes(prev => prev.map(n => {
+            if (n.id !== notificacao_id) return n
+            const { resolucao: _r, ...metaBase } = (n.metadata ?? {}) as ConflictMetadata
+            return { ...n, lida: false, metadata: metaBase }
+          }))
         } else {
-          setNotificacoes(prev => prev.map(n => n.id === notificacao_id ? { ...n, lida: true } : n))
+          setNotificacoes(prev => prev.map(n =>
+            n.id === notificacao_id ? { ...n, lida: true, metadata: { ...(n.metadata ?? {}), resolucao: acao } } : n
+          ))
           fecharPushPorIds([notificacao_id])
         }
       } else {
@@ -508,6 +562,7 @@ export default memo(function NotificacoesBell() {
             ) : (
               notificacoes.map(n => {
                 const isConflito = n.acao === 'conciliacao_conflito'
+                const isConflitoPendente = conflitoPendente(n)
                 const emResolucao = resolvendo[n.id] ?? false
                 const meta = getNotificacaoMeta(n.acao)
                 const isClickavel = !isConflito
@@ -519,7 +574,7 @@ export default memo(function NotificacoesBell() {
                     className={`flex items-start gap-3 px-4 py-3 border-l-[3px] transition-colors duration-100 ${meta.corBorda} ${
                       isClickavel ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50' : ''
                     } ${
-                      n.lida
+                      n.lida && !isConflitoPendente
                         ? 'bg-white dark:bg-gray-900 opacity-55'
                         : meta.corFundo
                     }`}
@@ -539,7 +594,7 @@ export default memo(function NotificacoesBell() {
                         )}
                       </p>
                       {/* Ações inline de conciliação */}
-                      {isConflito && n.metadata && !n.lida && (
+                      {isConflitoPendente && (
                         <div className="flex gap-2 mt-2">
                           <button
                             onClick={(e) => { e.stopPropagation(); resolverConflito(n.id, 'aprovar') }}
@@ -566,7 +621,7 @@ export default memo(function NotificacoesBell() {
                           </button>
                         </div>
                       )}
-                      {isConflito && n.lida && (n.metadata as ConflictMetadata)?.resolucao && (
+                      {isConflito && (n.metadata as ConflictMetadata | null)?.resolucao && (
                         <div className="flex gap-2 mt-2">
                           <button
                             onClick={(e) => { e.stopPropagation(); resolverConflito(n.id, 'desfazer') }}
@@ -593,18 +648,6 @@ export default memo(function NotificacoesBell() {
                         </span>
                       </div>
                     </div>
-                    {/* Botão de marcar como lida (apenas para não-clicáveis sem botões inline) */}
-                    {!n.lida && isConflito && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); marcarComoLida(n.id) }}
-                        className="flex-shrink-0 p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800
-                                   rounded-lg transition-colors active:scale-90 mt-0.5"
-                        title="Marcar como lida"
-                        aria-label="Marcar como lida"
-                      >
-                        <Check className="w-3.5 h-3.5 text-gray-400" />
-                      </button>
-                    )}
                   </div>
                 )
               })

@@ -145,6 +145,15 @@ export async function PATCH(
     if (linha.decisao === 'duplicada' && acaoPedida === 'reaplicar') {
       const { id: novoId, ok } = await inserirRegistro(supabase, { ...linha.dados_linha, status: 'PENDENTE' })
       if (!ok) {
+        // O registro com o mesmo hash pode ser um conflito de valor ainda aberto para esta
+        // mesma linha: aí o valor novo só entra na fatura aprovando/recusando o conflito.
+        const hash = linha.dados_linha.hash_linha as string | undefined
+        const { data: existente } = hash
+          ? await supabase.from('transacoes_nubank').select('status').eq('hash_linha', hash).maybeSingle()
+          : { data: null }
+        if (existente?.status === 'CONFLITO_VALOR') {
+          return NextResponse.json({ error: 'Esta linha já está registrada como conflito de valor aguardando decisão — aprove (atualiza o valor da compra existente) ou recuse (vira compra nova) no sino de notificações.' }, { status: 409 })
+        }
         return NextResponse.json({ error: 'Já existe uma transação com o mesmo hash (reimportação exata da mesma linha) — não é possível inserir de novo.' }, { status: 409 })
       }
       const atualizada = await atualizarLinha(supabase, { decisao: 'inserida', transacao_id: novoId })
