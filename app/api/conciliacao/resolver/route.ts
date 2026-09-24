@@ -50,14 +50,18 @@ export async function POST(req: NextRequest) {
   if (notif.acao !== 'conciliacao_conflito') {
     return NextResponse.json({ error: 'Notificação não é um conflito de conciliação.' }, { status: 422 })
   }
-  if (acao !== 'desfazer' && notif.lida) {
+  const meta = notif.metadata as ConflictMetadata
+
+  // "Resolvido" é ter uma decisão gravada em metadata.resolucao — não o flag `lida`.
+  // Um conflito marcado como lido sem decisão (✓ / "Todas lidas", versões antigas do
+  // sino) continua com o registro CONFLITO_VALOR aberto e precisa poder ser resolvido;
+  // antes ele ficava preso para sempre e o valor novo nunca chegava à fatura.
+  if (acao !== 'desfazer' && meta?.resolucao) {
     return NextResponse.json({ error: 'Conflito já foi resolvido.' }, { status: 409 })
   }
-  if (acao === 'desfazer' && !notif.lida) {
+  if (acao === 'desfazer' && !meta?.resolucao) {
     return NextResponse.json({ error: 'Conflito ainda não foi resolvido.' }, { status: 409 })
   }
-
-  const meta = notif.metadata as ConflictMetadata
   const { original_id, conflito_id, valor_novo } = meta
 
   if (!original_id || !conflito_id) {

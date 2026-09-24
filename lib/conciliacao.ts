@@ -90,35 +90,54 @@ function agruparPorCartao(itens: TransacaoNubank[]): Map<string, TransacaoNubank
   return grupos
 }
 
+// Quantos hashes (64 caracteres cada) vão em cada `.in('hash_linha', ...)`. Sem esse
+// limite, uma importação grande gera uma URL longa demais para o PostgREST/gateway,
+// a query falha e — como o erro era engolido — o índice de hashes vinha VAZIO: linhas
+// já existentes deixavam de ser reconhecidas pelo hash e caíam no match por nome+data,
+// que ignora registros CONFLITO_VALOR. Resultado: a reimportação de uma compra com
+// conflito de valor pendente era descartada como "duplicada" do registro original
+// (valor antigo) e o valor novo nunca chegava à fatura.
+const TAMANHO_LOTE_HASHES = 100
+
 async function buscarHashesEmLote(
   supabase: SupabaseClient,
   hashes: string[]
 ): Promise<Map<string, RegistroConflitante>> {
   const hashIndex = new Map<string, RegistroConflitante>()
-  if (hashes.length === 0) return hashIndex
+  const unicos = [...new Set(hashes)]
 
-  const { data, error } = await supabase
-    .from('transacoes_nubank')
-    .select('id, descricao, valor, data_compra, status, hash_linha')
-    .in('hash_linha', hashes)
+  for (let i = 0; i < unicos.length; i += TAMANHO_LOTE_HASHES) {
+    const lote = unicos.slice(i, i + TAMANHO_LOTE_HASHES)
 
-  const rows = error?.message?.includes('data_compra')
-    ? (
-        await supabase
-          .from('transacoes_nubank')
-          .select('id, descricao, valor, data, status, hash_linha')
-          .in('hash_linha', hashes)
-      ).data?.map(r => ({ ...r, data_compra: r.data })) ?? []
-    : data ?? []
+    const { data, error } = await supabase
+      .from('transacoes_nubank')
+      .select('id, descricao, valor, data_compra, status, hash_linha')
+      .in('hash_linha', lote)
 
-  for (const row of rows) {
-    hashIndex.set(row.hash_linha, {
-      id: row.id,
-      descricao: row.descricao,
-      valor: row.valor,
-      data_compra: row.data_compra,
-      status: row.status,
-    })
+    let rows: Array<RegistroConflitante & { hash_linha: string }>
+    if (error?.message?.includes('data_compra')) {
+      const legado = await supabase
+        .from('transacoes_nubank')
+        .select('id, descricao, valor, data, status, hash_linha')
+        .in('hash_linha', lote)
+      if (legado.error) throw new Error('Erro ao verificar duplicatas por hash: ' + legado.error.message)
+      rows = (legado.data ?? []).map(r => ({ ...r, data_compra: r.data }))
+    } else if (error) {
+      // Falhar a importação é melhor que seguir sem dedupe por hash (ver comentário acima).
+      throw new Error('Erro ao verificar duplicatas por hash: ' + error.message)
+    } else {
+      rows = data ?? []
+    }
+
+    for (const row of rows) {
+      hashIndex.set(row.hash_linha, {
+        id: row.id,
+        descricao: row.descricao,
+        valor: row.valor,
+        data_compra: row.data_compra,
+        status: row.status,
+      })
+    }
   }
   return hashIndex
 }
