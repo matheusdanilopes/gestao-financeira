@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
 import { inserirRegistro } from '@/lib/conciliacao'
+import { gerarHashLinha } from '@/lib/csvparser'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
 
 type Decisao =
@@ -55,6 +56,28 @@ async function registrarLogServidor(
       valor: valor ?? null,
     })
   } catch { /* falha no log nunca deve interromper a resposta */ }
+}
+
+/**
+ * Insere `dadosLinha` como compra nova usando o hash da 2ª, 3ª, ... ocorrência da mesma
+ * combinação data|descrição|valor|cartão, até achar um hash livre. Devolve o id inserido.
+ */
+async function inserirComNovaOcorrencia(
+  supabase: ReturnType<typeof criarSupabaseServer>,
+  dadosLinha: Record<string, unknown>
+): Promise<string | null> {
+  const dataCompra = dadosLinha.data_compra as string | undefined
+  const descricao = dadosLinha.descricao as string | undefined
+  const valor = Number(dadosLinha.valor)
+  const cartao = (dadosLinha.cartao as string | undefined) ?? 'nubank'
+  if (!dataCompra || !descricao || !Number.isFinite(valor)) return null
+
+  for (let ocorrencia = 2; ocorrencia <= 20; ocorrencia++) {
+    const hash = gerarHashLinha(dataCompra, descricao, valor, cartao, ocorrencia)
+    const { id, ok } = await inserirRegistro(supabase, { ...dadosLinha, hash_linha: hash, status: 'PENDENTE' })
+    if (ok) return id
+  }
+  return null
 }
 
 export async function PATCH(
@@ -154,7 +177,17 @@ export async function PATCH(
         if (existente?.status === 'CONFLITO_VALOR') {
           return NextResponse.json({ error: 'Esta linha já está registrada como conflito de valor aguardando decisão — aprove (atualiza o valor da compra existente) ou recuse (vira compra nova) no sino de notificações.' }, { status: 409 })
         }
-        return NextResponse.json({ error: 'Já existe uma transação com o mesmo hash (reimportação exata da mesma linha) — não é possível inserir de novo.' }, { status: 409 })
+        // O usuário pediu explicitamente para inserir esta linha como compra NOVA, mas o hash
+        // dela já está em outro registro (ex.: importado com este valor e depois alterado por
+        // edição manual ou aprovação de conflito). Grava com o hash da próxima ocorrência livre
+        // — o mesmo formato de compras repetidas no mesmo dia (gerarHashLinha com occurrenceIndex).
+        const idReinserido = await inserirComNovaOcorrencia(supabase, linha.dados_linha)
+        if (!idReinserido) {
+          return NextResponse.json({ error: 'Não foi possível gerar um identificador livre para inserir esta compra de novo.' }, { status: 409 })
+        }
+        const atualizada = await atualizarLinha(supabase, { decisao: 'inserida', transacao_id: idReinserido })
+        await registrarLogServidor(supabase, 'inserir', linha.descricao, linha.valor)
+        return NextResponse.json({ linha: atualizada })
       }
       const atualizada = await atualizarLinha(supabase, { decisao: 'inserida', transacao_id: novoId })
       await registrarLogServidor(supabase, 'inserir', linha.descricao, linha.valor)

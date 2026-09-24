@@ -85,7 +85,7 @@ export function normalizarDescricaoParaHash(descricao: string): string {
     .toLowerCase()
 }
 
-function gerarHashLinha(
+export function gerarHashLinha(
   dataISO: string,
   descricao: string,
   valor: number,
