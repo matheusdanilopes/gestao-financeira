@@ -72,6 +72,15 @@ interface TransacaoMatch {
 interface ContextoConciliacao {
   hashIndex: Map<string, RegistroConflitante>
   candidatosPorCartao: Map<string, TransacaoMatch[]>
+  /**
+   * Registros (ids reais ou refs de inserções planejadas) já "reivindicados" por alguma linha
+   * deste lote — pelo hash, por conciliação, por conflito de valor ou por serem a inserção
+   * da própria linha. Garante a regra 1 pra 1: um registro do banco corresponde a no máximo
+   * UMA linha importada. Sem isso, duas compras distintas do mesmo dia (ex.: NuTag R$ 9,41 e
+   * R$ 9,98) casavam com o mesmo registro por nome+data, e a segunda virava conciliação ou
+   * conflito de valor dele — aprovar o conflito fundia as duas numa só.
+   */
+  reivindicados: Set<string>
 }
 
 interface ContextoEstorno {
@@ -157,10 +166,19 @@ async function construirContextoConciliacao(
 ): Promise<ContextoConciliacao> {
   const candidatosPorCartao = new Map<string, TransacaoMatch[]>()
   if (transacoesNormais.length === 0) {
-    return { hashIndex: new Map(), candidatosPorCartao }
+    return { hashIndex: new Map(), candidatosPorCartao, reivindicados: new Set() }
   }
 
   const hashIndex = await buscarHashesEmLote(supabase, transacoesNormais.map(t => t.hash_linha))
+
+  // Pré-passe: todo registro cujo hash é o de uma linha deste lote pertence a ESSA linha,
+  // independentemente da ordem em que as linhas aparecem — reivindicado antes de qualquer
+  // match por nome+data, para que outra linha do lote não o use.
+  const reivindicados = new Set<string>()
+  for (const item of transacoesNormais) {
+    const hashMatch = hashIndex.get(item.hash_linha)
+    if (hashMatch) reivindicados.add(hashMatch.id)
+  }
 
   for (const [cartao, itens] of agruparPorCartao(transacoesNormais)) {
     const datas = itens.map(i => i.data_compra).sort()
@@ -190,7 +208,7 @@ async function construirContextoConciliacao(
     candidatosPorCartao.set(cartao, rows)
   }
 
-  return { hashIndex, candidatosPorCartao }
+  return { hashIndex, candidatosPorCartao, reivindicados }
 }
 
 /**
@@ -248,6 +266,7 @@ function buscarMatchNomeDataEmContexto(contexto: ContextoConciliacao, item: Tran
   const dataFim = adicionarDias(item.data_compra, 3)
   const candidatos = contexto.candidatosPorCartao.get(item.cartao ?? 'nubank') ?? []
   return candidatos
+    .filter(r => !contexto.reivindicados.has(r.id))
     .filter(r => r.data_compra >= dataInicio && r.data_compra <= dataFim)
     .filter(r => descricoesParecidas(r.descricao, item.descricao))
 }
@@ -597,6 +616,7 @@ function planejarInsercaoPendente(
 ): PlanoTransacao {
   const cartao = item.cartao ?? 'nubank'
   const pendencia = novaPendencia(plano, buildPayload(item, { status: 'PENDENTE' }), true)
+  contexto.reivindicados.add(pendencia.ref)
 
   // O contexto passa a enxergar a linha como se já existisse (o insert é garantido
   // logo em seguida) — é o que dá aos próximos itens do lote a mesma visão
@@ -634,9 +654,6 @@ function planejarTransacao(
   conflitosPorOriginal: Map<string, Array<{ id: string; valor: number }>>,
   plano: PlanoLote
 ): PlanoTransacao {
-  // occurrence_index indica a Nª ocorrência desta combinação (data|desc|valor) no lote.
-  // Valor 1 é o caso normal (retrocompatível); >1 significa compra legítima repetida.
-  const occurrenceIndex = (item as TransacaoNubank & { occurrence_index?: number }).occurrence_index ?? 1
   const cartao = item.cartao ?? 'nubank'
 
   // 1. Hash pre-check: se o hash já existe, é reimportação desta linha exata → ignora
@@ -649,7 +666,8 @@ function planejarTransacao(
     }
   }
 
-  // 2. Buscar match por nome (LOWER estrito) + data (±3 dias)
+  // 2. Buscar match por nome (LOWER estrito) + data (±3 dias), só entre registros que
+  //    nenhuma outra linha deste lote reivindicou (regra 1 pra 1 — ver ContextoConciliacao)
   const matches = buscarMatchNomeDataEmContexto(contexto, item)
 
   if (matches.length > 0) {
@@ -659,15 +677,11 @@ function planejarTransacao(
     const diffValor = Math.abs(match.valor - item.valor)
 
     if (diffValor <= 0.05) {
-      // Conta quantos registros próximos já existem no banco para esta combinação.
-      // Se o banco tiver menos do que o índice da ocorrência atual, é uma compra
-      // legítima repetida (ex.: dois IFOODs no mesmo dia) → insere normalmente.
-      const closeMatchCount = matches.filter(m => Math.abs(m.valor - item.valor) <= 0.05).length
-
-      if (closeMatchCount < occurrenceIndex) {
-        console.log(`[conciliacao] inserido (ocorrência ${occurrenceIndex}, ${closeMatchCount} no banco) desc="${item.descricao}" data=${item.data_compra} valor=${item.valor}`)
-        return planejarInsercaoPendente(item, contexto, plano)
-      }
+      // Compras legítimas repetidas (ex.: dois IFOODs iguais no mesmo dia) não precisam de
+      // tratamento especial: a 1ª linha reivindica o registro e a 2ª, sem candidato livre,
+      // cai na inserção (substitui a antiga contagem por occurrence_index, que com a
+      // reivindicação passaria a inserir duplicatas quando o banco já tem as duas).
+      contexto.reivindicados.add(match.id)
 
       // Match completo (nome + data + valor dentro da tolerância): a fonte mais recente
       // (CSV ou API) é autoridade sobre o valor final da compra — atualiza valor_final
@@ -730,6 +744,10 @@ function planejarTransacao(
       return planejarInsercaoPendente(item, contexto, plano)
     }
 
+    // Daqui em diante a linha fica vinculada a este registro (ignorada por conflito já
+    // pendente ou novo conflito de valor) — nenhuma outra linha do lote pode usá-lo.
+    contexto.reivindicados.add(match.id)
+
     // Entre R$0,05 e R$2,00 → só ignora se já existir um conflito pendente para este original
     // COM O MESMO VALOR (reimportação da mesma linha, cujo valor "pendente" do Nubank varia até
     // fechar fatura). Um valor diferente é uma compra distinta e deve gerar seu próprio conflito,
@@ -788,6 +806,11 @@ function planejarTransacao(
   return planejarInsercaoPendente(item, contexto, plano)
 }
 
+function temCorrespondenciaExata(contexto: ContextoConciliacao, item: TransacaoNubank): boolean {
+  if (contexto.hashIndex.has(item.hash_linha)) return true
+  return buscarMatchNomeDataEmContexto(contexto, item).some(m => Math.abs(m.valor - item.valor) <= 0.05)
+}
+
 /**
  * Concilia todas as compras normais de uma importação de uma vez.
  *
@@ -813,9 +836,23 @@ export async function conciliarLote(
   ])
 
   const plano = novoPlano()
-  const planos = transacoesNormais.map(item =>
-    planejarTransacao(item, origem, contexto, conflitosPorOriginal, plano)
-  )
+  // Regra 1 pra 1 (ver ContextoConciliacao.reivindicados): as linhas com correspondência
+  // exata — hash já no banco ou registro livre com valor a até R$ 0,05 — reivindicam seus
+  // registros primeiro; só depois as demais procuram match parcial (conflito de valor).
+  // Assim a ordem do arquivo não deixa uma compra de R$ 9,41 "roubar" como conflito o
+  // registro que é da compra de R$ 9,98 do mesmo dia. Os resultados mantêm a ordem da entrada.
+  const planos: PlanoTransacao[] = new Array(transacoesNormais.length)
+  const adiados: number[] = []
+  transacoesNormais.forEach((item, indice) => {
+    if (temCorrespondenciaExata(contexto, item)) {
+      planos[indice] = planejarTransacao(item, origem, contexto, conflitosPorOriginal, plano)
+    } else {
+      adiados.push(indice)
+    }
+  })
+  for (const indice of adiados) {
+    planos[indice] = planejarTransacao(transacoesNormais[indice], origem, contexto, conflitosPorOriginal, plano)
+  }
 
   // 1. Compras novas — um INSERT em lote.
   await executarInsercoes(supabase, plano.insercoes)
