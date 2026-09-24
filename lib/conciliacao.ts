@@ -19,6 +19,8 @@ export interface RegistroConflitante {
   valor: number
   data_compra: string
   status: string
+  /** Só preenchido no índice de hashes (buscarHashesEmLote) — usado para desfazer a correção de valor. */
+  valor_final?: number | null
 }
 
 export interface ResultadoConciliacao {
@@ -31,8 +33,9 @@ export interface ResultadoConciliacao {
   /** id da notificação conciliacao_conflito criada (só quando acao='conflito') */
   notificacaoId?: string | null
   /** estado do registro conciliado antes desta linha sobrescrever valor/valor_final/status (só acao='conciliado').
-   *  data_compra/projeto_fatura só aparecem quando a data também foi corrigida (ver conciliarTransacao). */
-  estadoAnterior?: { status: string; valor: number; valor_final: number | null; data_compra?: string; projeto_fatura?: string } | null
+   *  data_compra/projeto_fatura só aparecem quando a data também foi corrigida (ver conciliarTransacao);
+   *  valor_corrigido=true quando a conciliação também sobrescreveu `valor` (hash igual, valor divergente — ver planejarTransacao). */
+  estadoAnterior?: { status: string; valor: number; valor_final: number | null; data_compra?: string; projeto_fatura?: string; valor_corrigido?: boolean } | null
   /** snapshot do registro já existente que fez esta linha ser duplicada/conflito (explica por que não foi importada) */
   registroConflitante?: RegistroConflitante | null
 }
@@ -111,14 +114,14 @@ async function buscarHashesEmLote(
 
     const { data, error } = await supabase
       .from('transacoes_nubank')
-      .select('id, descricao, valor, data_compra, status, hash_linha')
+      .select('id, descricao, valor, valor_final, data_compra, status, hash_linha')
       .in('hash_linha', lote)
 
     let rows: Array<RegistroConflitante & { hash_linha: string }>
     if (error?.message?.includes('data_compra')) {
       const legado = await supabase
         .from('transacoes_nubank')
-        .select('id, descricao, valor, data, status, hash_linha')
+        .select('id, descricao, valor, valor_final, data, status, hash_linha')
         .in('hash_linha', lote)
       if (legado.error) throw new Error('Erro ao verificar duplicatas por hash: ' + legado.error.message)
       rows = (legado.data ?? []).map(r => ({ ...r, data_compra: r.data }))
@@ -136,6 +139,7 @@ async function buscarHashesEmLote(
         valor: row.valor,
         data_compra: row.data_compra,
         status: row.status,
+        valor_final: row.valor_final ?? null,
       })
     }
   }
@@ -627,6 +631,9 @@ function planejarInsercaoPendente(
  * nome+data → tolerância de valor), só que resolvida inteiramente sobre o contexto
  * pré-carregado.
  */
+/** Status em que a correção de valor por hash (planejarTransacao, passo 1a) pode ser aplicada. */
+const STATUS_VALOR_CORRIGIVEL = ['PENDENTE', 'CONCILIADO']
+
 function planejarTransacao(
   item: TransacaoNubank,
   origem: OrigemImportacao,
@@ -641,6 +648,33 @@ function planejarTransacao(
 
   // 1. Hash pre-check: se o hash já existe, é reimportação desta linha exata → ignora
   const hashMatch = contexto.hashIndex.get(item.hash_linha) ?? null
+
+  // 1a. Hash igual mas valor salvo diferente: é a MESMA linha do Nubank, mas o `valor` do
+  //     registro mudou depois da importação (edição manual em Compras ou aprovação de um
+  //     conflito de valor — nenhum dos dois recalcula o hash). Descartar como duplicata
+  //     deixava o app com o valor antigo para sempre, divergindo da fatura; aqui vale a
+  //     mesma regra da conciliação: a fonte mais recente é autoridade sobre o valor.
+  //     Fica registrado como "conciliada" com estado_anterior, então dá para desfazer.
+  if (hashMatch && Math.abs(hashMatch.valor - item.valor) > 0.05 && STATUS_VALOR_CORRIGIVEL.includes(hashMatch.status)) {
+    console.log(`[conciliacao] valor corrigido (hash igual, valor ${hashMatch.valor} → ${item.valor}) desc="${item.descricao}" data=${item.data_compra}`)
+    const estadoAnterior = {
+      status: hashMatch.status,
+      valor: hashMatch.valor,
+      valor_final: hashMatch.valor_final ?? null,
+      valor_corrigido: true,
+    }
+    const alvo = hashMatch.id
+    // Mantém o contexto coerente para as próximas linhas do lote (read-after-write).
+    contexto.hashIndex.set(item.hash_linha, { ...hashMatch, valor: item.valor, valor_final: item.valor, status: 'CONCILIADO' })
+    atualizarCandidato(contexto, cartao, alvo, { valor: item.valor, valor_final: item.valor, status: 'CONCILIADO' })
+    return {
+      tipo: 'atualizar',
+      alvo,
+      patch: { valor: item.valor, valor_final: item.valor, status: 'CONCILIADO' },
+      resultado: { acao: 'conciliado', inseriu: false, matchExistenteId: alvo, transacaoId: alvo, estadoAnterior },
+    }
+  }
+
   if (hashMatch) {
     console.log(`[conciliacao] ignorado (hash duplicado) hash=${item.hash_linha.slice(0, 12)} desc="${item.descricao}" data=${item.data_compra} valor=${item.valor}`)
     return {

@@ -89,8 +89,25 @@ const DECISAO_INFO: Record<DecisaoValidacao, { label: string; classes: string }>
   estorno_ignorado: { label: 'Estorno duplicado', classes: 'bg-gray-50 text-gray-500 border-gray-100' },
 }
 
-function acaoParaLinha(decisao: DecisaoValidacao): { label: string; acao: 'reverter' | 'reaplicar'; destrutiva: boolean } | null {
-  switch (decisao) {
+/**
+ * Duplicada pelo hash (mesma linha do Nubank), mas o registro existente está com outro valor —
+ * editado depois da importação ou alterado por aprovação de conflito. Aí "Inserir mesmo
+ * assim" não serve (o hash é único): a ação certa é atualizar o valor do registro existente.
+ */
+function duplicadaComValorDivergente(linha: LinhaValidacao): boolean {
+  const existente = linha.registro_conflitante
+  return (
+    linha.decisao === 'duplicada' && !!existente && linha.valor != null &&
+    (existente.status === 'PENDENTE' || existente.status === 'CONCILIADO') &&
+    Math.abs(Number(existente.valor) - Number(linha.valor)) > 0.05
+  )
+}
+
+function acaoParaLinha(linha: LinhaValidacao): { label: string; acao: 'reverter' | 'reaplicar'; destrutiva: boolean } | null {
+  if (duplicadaComValorDivergente(linha)) {
+    return { label: `Atualizar valor para R$ ${Number(linha.valor).toFixed(2).replace('.', ',')}`, acao: 'reaplicar', destrutiva: false }
+  }
+  switch (linha.decisao) {
     case 'inserida': return { label: 'Remover', acao: 'reverter', destrutiva: true }
     case 'removida': return { label: 'Reinserir', acao: 'reaplicar', destrutiva: false }
     case 'duplicada': return { label: 'Inserir mesmo assim', acao: 'reaplicar', destrutiva: false }
@@ -1480,7 +1497,7 @@ export default function ImportarPage() {
               ) : (
                 detalheLinhasFiltradas!.map(linha => {
                   const info = DECISAO_INFO[linha.decisao]
-                  const acaoDisponivel = acaoParaLinha(linha.decisao)
+                  const acaoDisponivel = acaoParaLinha(linha)
                   const isRevertendo = revertendoId === linha.id
                   return (
                     <div key={linha.id} className="bg-gray-50 border border-gray-100 rounded-2xl p-3 space-y-1.5">

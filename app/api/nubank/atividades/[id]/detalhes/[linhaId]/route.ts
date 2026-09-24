@@ -22,6 +22,8 @@ interface EstadoAnteriorConciliacao {
   /** Só presentes quando a conciliação também corrigiu a fatura da compra (virada de ciclo) — ver lib/conciliacao.ts */
   data_compra?: string
   projeto_fatura?: string
+  /** true quando a conciliação também sobrescreveu `valor` (hash igual, valor divergente) — desfazer restaura `valor` */
+  valor_corrigido?: boolean
 }
 
 interface LinhaValidacaoRow {
@@ -97,7 +99,7 @@ export async function PATCH(
 
   async function atualizarLinha(
     supabaseCliente: ReturnType<typeof criarSupabaseServer>,
-    patch: Partial<Pick<LinhaValidacaoRow, 'decisao' | 'transacao_id'>>
+    patch: Partial<Pick<LinhaValidacaoRow, 'decisao' | 'transacao_id' | 'estado_anterior'>>
   ) {
     const { data, error } = await supabaseCliente
       .from('import_validacoes')
@@ -143,14 +145,55 @@ export async function PATCH(
 
     // --- duplicada -> inserida (forçar inserção mesmo já havendo um match/hash duplicado) ---
     if (linha.decisao === 'duplicada' && acaoPedida === 'reaplicar') {
+      const hash = linha.dados_linha.hash_linha as string | undefined
+      const valorLinha = (linha.dados_linha.valor as number | undefined) ?? linha.valor
+      const { data: existente } = hash
+        ? await supabase
+            .from('transacoes_nubank')
+            .select('id, status, valor, valor_final')
+            .eq('hash_linha', hash)
+            .maybeSingle()
+        : { data: null }
+
+      // Mesma linha do Nubank (hash igual), mas o valor salvo mudou depois da importação
+      // (edição manual ou aprovação de conflito): inserir de novo é impossível (hash único)
+      // e duplicaria a compra — o que corrige a divergência é atualizar o valor do registro.
+      // Registra como "conciliada" com estado_anterior, para poder desfazer.
+      if (
+        existente && valorLinha != null &&
+        (existente.status === 'PENDENTE' || existente.status === 'CONCILIADO') &&
+        Math.abs(Number(existente.valor) - valorLinha) > 0.05
+      ) {
+        const estadoAnterior: EstadoAnteriorConciliacao = {
+          status: existente.status,
+          valor: Number(existente.valor),
+          valor_final: existente.valor_final ?? null,
+          valor_corrigido: true,
+        }
+        const { data: corrigido, error } = await supabase
+          .from('transacoes_nubank')
+          .update({ valor: valorLinha, valor_final: valorLinha, status: 'CONCILIADO' })
+          .eq('id', existente.id)
+          .eq('status', existente.status)
+          .eq('valor', existente.valor)
+          .select('id')
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+        if (!corrigido || corrigido.length === 0) {
+          return NextResponse.json({ error: 'A transação foi alterada enquanto isso — recarregue e tente de novo.' }, { status: 409 })
+        }
+        const atualizada = await atualizarLinha(supabase, {
+          decisao: 'conciliada',
+          transacao_id: existente.id,
+          estado_anterior: estadoAnterior as unknown as Record<string, unknown>,
+        })
+        await registrarLogServidor(supabase, 'editar', linha.descricao, valorLinha)
+        return NextResponse.json({ linha: atualizada })
+      }
+
       const { id: novoId, ok } = await inserirRegistro(supabase, { ...linha.dados_linha, status: 'PENDENTE' })
       if (!ok) {
         // O registro com o mesmo hash pode ser um conflito de valor ainda aberto para esta
         // mesma linha: aí o valor novo só entra na fatura aprovando/recusando o conflito.
-        const hash = linha.dados_linha.hash_linha as string | undefined
-        const { data: existente } = hash
-          ? await supabase.from('transacoes_nubank').select('status').eq('hash_linha', hash).maybeSingle()
-          : { data: null }
         if (existente?.status === 'CONFLITO_VALOR') {
           return NextResponse.json({ error: 'Esta linha já está registrada como conflito de valor aguardando decisão — aprove (atualiza o valor da compra existente) ou recuse (vira compra nova) no sino de notificações.' }, { status: 409 })
         }
@@ -168,6 +211,7 @@ export async function PATCH(
         return NextResponse.json({ error: 'Não há estado anterior registrado para desfazer esta conciliação.' }, { status: 409 })
       }
       const restauracao: Record<string, unknown> = { status: estadoAnterior.status, valor_final: estadoAnterior.valor_final }
+      if (estadoAnterior.valor_corrigido) restauracao.valor = estadoAnterior.valor
       if (estadoAnterior.data_compra && estadoAnterior.projeto_fatura) {
         restauracao.data_compra = estadoAnterior.data_compra
         restauracao.projeto_fatura = estadoAnterior.projeto_fatura
@@ -196,6 +240,7 @@ export async function PATCH(
       const dadosLinha = linha.dados_linha as { valor?: number; data_compra?: string; projeto_fatura?: string }
       const valorConciliado = dadosLinha.valor ?? linha.valor ?? 0
       const reaplicacao: Record<string, unknown> = { status: 'CONCILIADO', valor_final: valorConciliado }
+      if (estadoAnterior?.valor_corrigido) reaplicacao.valor = valorConciliado
       // Só reaplica data_compra/projeto_fatura se a conciliação original também tiver
       // corrigido a fatura (estado_anterior guardou os valores prévios nesse caso).
       if (estadoAnterior?.data_compra && dadosLinha.data_compra && dadosLinha.projeto_fatura) {
