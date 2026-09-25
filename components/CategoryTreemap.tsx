@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react'
-import { formatBRL } from '@/lib/format'
+import { formatBRL, formatDecimal } from '@/lib/format'
 import { LayoutGrid, Hash, TrendingUp, X } from 'lucide-react'
 import { InfoPopover } from '@/components/InfoPopover'
 import { addMonths, format, startOfMonth } from 'date-fns'
@@ -452,7 +452,7 @@ export default function CategoryTreemap({ compras: comprasProp, mesAtual, loadin
                 <div className="bg-white/70 dark:bg-white/[0.08] rounded-xl p-2.5">
                   <p className="text-[9px] text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wide leading-tight">% fatura</p>
                   <p className="text-xs font-bold text-gray-900 dark:text-gray-100 mt-1">
-                    {selected.pct.toFixed(1)}%
+                    {formatDecimal(selected.pct)}%
                   </p>
                 </div>
               </div>

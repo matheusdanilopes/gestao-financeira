@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { format, subMonths } from 'date-fns'
 import { Calculator, ChevronDown, AlertTriangle, CheckCircle2 } from 'lucide-react'
-import { formatBRL } from '@/lib/format'
+import { formatBRL, mascaraMoeda, parseMoeda } from '@/lib/format'
 import { resolverLimiteEfetivo, type LimiteParcelamentoRow } from '@/lib/limitesParcelamentos'
 import { RESPONSAVEIS, RESPONSAVEL_STYLE, type Responsavel } from '@/lib/responsavelStyle'
 import type { RelatorioCartoes, MesGasto } from '@/lib/relatorioCartoes'
@@ -54,7 +54,7 @@ export default function SimuladorParcelamento({ relatorio }: Props) {
       .catch(() => { setLimites([]); setLimitesHorizon(horizonEnd) })
   }, [expandido, relatorio, limitesHorizon])
 
-  const valorNum = parseFloat(valorStr.replace(',', '.'))
+  const valorNum = parseMoeda(valorStr)
   const parcelasNum = parseInt(parcelasStr, 10)
   const simulavel = !!relatorio && limites !== null && !isNaN(valorNum) && valorNum > 0 && !isNaN(parcelasNum) && parcelasNum >= 1
 
@@ -126,12 +126,11 @@ export default function SimuladorParcelamento({ relatorio }: Props) {
             <div className={`flex items-center gap-1.5 bg-white dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 rounded-xl pl-3 pr-2.5 py-2 ${CAMPO_FOCO}`}>
               <span className="text-xs font-medium text-gray-400 dark:text-gray-500 shrink-0">R$</span>
               <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="Valor total"
+                type="text"
+                inputMode="numeric"
+                placeholder="0,00"
                 value={valorStr}
-                onChange={e => setValorStr(e.target.value)}
+                onChange={e => setValorStr(mascaraMoeda(e.target.value))}
                 aria-label="Valor total da compra"
                 className="w-full min-w-0 bg-transparent outline-none text-sm font-semibold text-gray-800 dark:text-gray-100 num"
               />

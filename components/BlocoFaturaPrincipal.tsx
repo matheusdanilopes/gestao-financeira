@@ -82,7 +82,7 @@ export default function BlocoFaturaPrincipal({ bloco, onComposicao, onProjecao }
           <span className="text-sm font-semibold text-gray-800 truncate">{bloco.responsavel}</span>
         </div>
         <span className="text-sm font-medium text-gray-700 num shrink-0">
-          {fmt(bloco.atual)} / {bloco.previsto > 0 ? bloco.previsto.toLocaleString('pt-BR') : '–'}
+          {fmt(bloco.atual)} / {bloco.previsto > 0 ? fmt(bloco.previsto) : '–'}
         </span>
       </div>
 

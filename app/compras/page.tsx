@@ -13,7 +13,7 @@ import UltimaImportacaoInfo from '@/components/UltimaImportacaoInfo'
 import { addMonths, subMonths, format, startOfMonth, isToday, isYesterday, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { log } from '@/lib/logger'
-import { numericOnly, formatBRL } from '@/lib/format'
+import { mascaraMoeda, formatarMoedaInput, parseMoeda, formatBRL } from '@/lib/format'
 import { useMes } from '@/components/MesProvider'
 import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
 import FilterSelect from '@/components/FilterSelect'
@@ -364,7 +364,7 @@ export default function ComprasPage() {
   function abrirEditar(c: Compra) {
     setFormEditar({
       descricao: c.descricao,
-      valor: String(c.valor),
+      valor: formatarMoedaInput(c.valor),
       responsavel: c.responsavel,
       categoria: c.categoria || '',
       data_compra: dataParaInput(c.data_compra || c.data),
@@ -374,7 +374,7 @@ export default function ComprasPage() {
 
   async function salvarEdicao() {
     if (!modalEditar) return
-    const valor = parseFloat(formEditar.valor.replace(',', '.'))
+    const valor = parseMoeda(formEditar.valor)
     if (!formEditar.descricao.trim() || isNaN(valor) || valor <= 0) return
 
     setSalvando(true)
@@ -409,7 +409,7 @@ export default function ComprasPage() {
     }
 
     log('editar', 'transacoes_nubank',
-      `Editado: ${formEditar.descricao.trim()} — R$ ${valor.toFixed(2)} (${formEditar.responsavel})`,
+      `Editado: ${formEditar.descricao.trim()} — ${formatBRL(valor)} (${formEditar.responsavel})`,
       valor,
       modalEditar.valor
     )
@@ -430,7 +430,7 @@ export default function ComprasPage() {
     if (error) { showToast('Erro ao excluir', 'erro'); return }
 
     log('excluir', 'transacoes_nubank',
-      `Excluído: ${modalExcluir.descricao} — R$ ${modalExcluir.valor.toFixed(2)} (${modalExcluir.responsavel})`,
+      `Excluído: ${modalExcluir.descricao} — ${formatBRL(modalExcluir.valor)} (${modalExcluir.responsavel})`,
       modalExcluir.valor
     )
     showToast('Compra excluída')
@@ -472,7 +472,7 @@ export default function ComprasPage() {
         (!filtroResponsavel || c.responsavel === filtroResponsavel) &&
         (!filtroCartao || c.cartao === filtroCartao) &&
         (!filtroDescricao || c.descricao.toLowerCase().includes(filtroDescricao.toLowerCase())) &&
-        (!filtroValorMin || c.valor >= Number(filtroValorMin)) &&
+        (!filtroValorMin || c.valor >= parseMoeda(filtroValorMin)) &&
         (!filtroData || dataStr === filtroData) &&
         (!filtroCategoria || c.categoria === filtroCategoria) &&
         (!filtroParcelamento ||
@@ -503,7 +503,7 @@ export default function ComprasPage() {
       return (
         (!filtroCartao || c.cartao === filtroCartao) &&
         (!filtroDescricao || c.descricao.toLowerCase().includes(filtroDescricao.toLowerCase())) &&
-        (!filtroValorMin || c.valor >= Number(filtroValorMin)) &&
+        (!filtroValorMin || c.valor >= parseMoeda(filtroValorMin)) &&
         (!filtroData || dataStr === filtroData) &&
         (!filtroCategoria || c.categoria === filtroCategoria) &&
         (!filtroParcelamento ||
@@ -735,7 +735,7 @@ export default function ComprasPage() {
                 className="bg-gray-100 dark:bg-gray-700 border border-transparent rounded-xl px-3 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
                 placeholder="Valor mínimo"
                 value={filtroValorMin}
-                onChange={(e) => setFiltroValorMin(numericOnly(e.target.value))}
+                onChange={(e) => setFiltroValorMin(mascaraMoeda(e.target.value))}
               />
               <div className="relative">
                 <input
@@ -1050,7 +1050,7 @@ export default function ComprasPage() {
                   className="w-full border border-gray-200 rounded-2xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
                   placeholder="0,00"
                   value={formEditar.valor}
-                  onChange={(e) => setFormEditar(f => ({ ...f, valor: numericOnly(e.target.value) }))}
+                  onChange={(e) => setFormEditar(f => ({ ...f, valor: mascaraMoeda(e.target.value) }))}
                 />
               </div>
               <div>

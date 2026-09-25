@@ -32,8 +32,43 @@ export function formatBRLCompacto(value: number): string {
   return BRL_SEM_CENTAVOS.format(Number.isFinite(value) ? value : 0)
 }
 
+/** Número com casas fixas e vírgula decimal ("12,5"), para percentuais exibidos em tela. */
+export function formatDecimal(value: number, casas = 1): string {
+  return (Number.isFinite(value) ? value : 0).toFixed(casas).replace('.', ',')
+}
+
 export function numericOnly(value: string): string {
   return value.replace(/[^0-9,.]/g, '')
+}
+
+const MOEDA_INPUT = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
+/**
+ * Máscara de campo em R$: usa só os dígitos digitados, tratando os dois últimos
+ * como centavos, e devolve "0,00", "1,23", "1.234,56"… A vírgula vai se
+ * deslocando conforme o valor é preenchido. Campo sem dígitos (ou só zeros)
+ * vira "", para que apagar com backspace consiga esvaziar o campo.
+ */
+export function mascaraMoeda(value: string): string {
+  const digitos = value.replace(/\D/g, '').replace(/^0+/, '').slice(0, 13)
+  if (!digitos) return ''
+  return MOEDA_INPUT.format(Number(digitos) / 100)
+}
+
+/** Número → texto do campo mascarado ("1.234,56"). null/undefined/NaN viram "". */
+export function formatarMoedaInput(value: number | string | null | undefined): string {
+  if (value === null || value === undefined || value === '') return ''
+  const n = Number(value)
+  return Number.isFinite(n) ? MOEDA_INPUT.format(n) : ''
+}
+
+/** "1.234,56" (texto do campo mascarado) → 1234.56. Vazio/inválido → NaN. */
+export function parseMoeda(value: string | null | undefined): number {
+  const limpo = String(value ?? '').trim().replace(/\./g, '').replace(',', '.')
+  return limpo ? parseFloat(limpo) : NaN
 }
 
 /** Converts any value to a finite number, returning fallback (default 0) for NaN/Infinity/null/undefined */

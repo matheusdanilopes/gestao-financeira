@@ -8,7 +8,7 @@ import { useImportacaoScript, type StatusExecucaoScript } from '@/components/Imp
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth } from 'date-fns'
 import FilterSelect from '@/components/FilterSelect'
-import { numericOnly } from '@/lib/format'
+import { mascaraMoeda, parseMoeda, formatBRL } from '@/lib/format'
 
 interface StatsFatura {
   noCSV: number
@@ -418,7 +418,7 @@ export default function ImportarPage() {
     return detalheLinhas.filter(l =>
       (!busca || l.descricao.toLowerCase().includes(busca)) &&
       (!filtroDecisaoDetalhe || l.decisao === filtroDecisaoDetalhe) &&
-      (!filtroValorMinDetalhe || (l.valor != null && l.valor >= Number(filtroValorMinDetalhe))) &&
+      (!filtroValorMinDetalhe || (l.valor != null && l.valor >= parseMoeda(filtroValorMinDetalhe))) &&
       (!filtroDataDetalhe || l.data_compra === filtroDataDetalhe)
     )
   }, [detalheLinhas, filtroBuscaDetalhe, filtroDecisaoDetalhe, filtroValorMinDetalhe, filtroDataDetalhe])
@@ -824,7 +824,7 @@ export default function ImportarPage() {
           {/* Total */}
           <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3">
             <span className="text-sm text-gray-500">Valor total importado</span>
-            <span className="font-bold text-gray-900 num">R$ {resumo.total}</span>
+            <span className="font-bold text-gray-900 num">{formatBRL(Number(resumo.total))}</span>
           </div>
 
           {resumo.mesesSobrescritos.length > 0 && (
@@ -849,7 +849,7 @@ export default function ImportarPage() {
                   <div key={i} className="flex items-center justify-between bg-amber-50 border border-amber-100 rounded-xl px-3 py-1.5 text-xs">
                     <span className="text-amber-800 font-medium truncate">{a.nome}</span>
                     <span className="text-amber-700 num shrink-0 ml-2">
-                      R$ {a.valorAnterior.toFixed(2)} → R$ {a.valorNovo.toFixed(2)}
+                      {formatBRL(a.valorAnterior)} → {formatBRL(a.valorNovo)}
                     </span>
                   </div>
                 ))}
@@ -1025,7 +1025,7 @@ export default function ImportarPage() {
                       <div key={i} className="bg-white rounded-xl p-3 text-xs space-y-1.5 border border-amber-100">
                         <div className="flex items-center justify-between gap-2">
                           <span className="font-semibold text-gray-800 truncate">{p.descricao}</span>
-                          <span className="text-gray-600 font-mono shrink-0">R$ {Number(p.valor).toFixed(2)}</span>
+                          <span className="text-gray-600 font-mono shrink-0">{formatBRL(Number(p.valor))}</span>
                         </div>
                         <div className="flex items-center gap-1.5 text-gray-400 flex-wrap">
                           <span>{p.data_a}</span>
@@ -1147,7 +1147,7 @@ export default function ImportarPage() {
                       <div key={d.id} className="bg-white rounded-xl p-3 text-xs space-y-1.5 border border-amber-100">
                         <div className="flex items-center justify-between gap-2">
                           <span className="font-semibold text-gray-800 truncate">{d.descricao}</span>
-                          <span className="text-gray-600 font-mono shrink-0">R$ {Number(d.valor).toFixed(2)}</span>
+                          <span className="text-gray-600 font-mono shrink-0">{formatBRL(Number(d.valor))}</span>
                         </div>
                         <div className="flex items-center gap-1.5 text-gray-400 flex-wrap">
                           <span>{d.responsavel ?? '—'}</span>
@@ -1212,7 +1212,7 @@ export default function ImportarPage() {
                     </div>
                     {!isErro && a.valor != null && (
                       <span className="text-sm font-semibold text-green-700 whitespace-nowrap num">
-                        R$ {Number(a.valor).toFixed(2).replace('.', ',')}
+                        {formatBRL(Number(a.valor))}
                       </span>
                     )}
                   </div>
@@ -1445,7 +1445,7 @@ export default function ImportarPage() {
                       className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
                       placeholder="Valor mínimo"
                       value={filtroValorMinDetalhe}
-                      onChange={(e) => setFiltroValorMinDetalhe(numericOnly(e.target.value))}
+                      onChange={(e) => setFiltroValorMinDetalhe(mascaraMoeda(e.target.value))}
                     />
                     <div className="relative">
                       <input
@@ -1488,7 +1488,7 @@ export default function ImportarPage() {
                         <span className="text-sm font-medium text-gray-800 truncate">{linha.descricao}</span>
                         {linha.valor != null && (
                           <span className="text-sm font-semibold text-gray-700 whitespace-nowrap num shrink-0">
-                            R$ {Number(linha.valor).toFixed(2).replace('.', ',')}
+                            {formatBRL(Number(linha.valor))}
                           </span>
                         )}
                       </div>
@@ -1528,7 +1528,7 @@ export default function ImportarPage() {
 
                       {linha.registro_conflitante && (
                         <p className="text-[11px] text-gray-500 bg-white border border-gray-100 rounded-lg px-2 py-1">
-                          Já existe: &quot;{linha.registro_conflitante.descricao}&quot; · R$ {Number(linha.registro_conflitante.valor).toFixed(2).replace('.', ',')} · {new Date(linha.registro_conflitante.data_compra + 'T12:00:00').toLocaleDateString('pt-BR')} · {STATUS_LABELS[linha.registro_conflitante.status] ?? linha.registro_conflitante.status.toLowerCase()}
+                          Já existe: &quot;{linha.registro_conflitante.descricao}&quot; · {formatBRL(Number(linha.registro_conflitante.valor))} · {new Date(linha.registro_conflitante.data_compra + 'T12:00:00').toLocaleDateString('pt-BR')} · {STATUS_LABELS[linha.registro_conflitante.status] ?? linha.registro_conflitante.status.toLowerCase()}
                         </p>
                       )}
 

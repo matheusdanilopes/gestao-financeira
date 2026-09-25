@@ -12,7 +12,7 @@ import { CameraOCR } from '@/components/CameraOCR'
 import { useListaMercado, type ItemMercado } from '@/lib/useListaMercado'
 import { type PendingOp } from '@/lib/offlineQueue'
 import { useHistoricoCompras } from '@/lib/useHistoricoCompras'
-import { formatBRL } from '@/lib/format'
+import { formatBRL, mascaraMoeda, formatarMoedaInput, parseMoeda } from '@/lib/format'
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
@@ -69,13 +69,6 @@ function carregarHistorico(): string[] {
 
 // Máscara de moeda "centavos primeiro": o usuário digita só números e a
 // vírgula decimal aparece sozinha (ex: digitar 1250 vira "12,50").
-function maskMoeda(raw: string): string {
-  const digitos = raw.replace(/\D/g, '')
-  if (!digitos) return ''
-  const centavos = parseInt(digitos, 10)
-  return (centavos / 100).toFixed(2).replace('.', ',')
-}
-
 function parsearInput(text: string): { nome: string; quantidade: number } {
   const match = text.match(/^(.+?)\s+(\d+)x?$/i)
   if (match) {
@@ -99,7 +92,7 @@ function BottomSheetPreco({
   onConfirmar: (preco: number | null) => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const [valor, setValor] = useState(item.preco_unit != null ? String(item.preco_unit).replace('.', ',') : '')
+  const [valor, setValor] = useState(formatarMoedaInput(item.preco_unit))
   const [keyboardOffset, setKeyboardOffset] = useState(0)
   const [cameraAberta, setCameraAberta] = useState(false)
 
@@ -124,8 +117,7 @@ function BottomSheetPreco({
   }, [])
 
   function handleConfirmar() {
-    const num = valor.replace(',', '.').trim()
-    onConfirmar(num ? parseFloat(num) : null)
+    onConfirmar(valor.trim() ? parseMoeda(valor) : null)
     onClose()
   }
 
@@ -156,7 +148,7 @@ function BottomSheetPreco({
                   type="text"
                   inputMode="decimal"
                   value={valor}
-                  onChange={e => setValor(maskMoeda(e.target.value))}
+                  onChange={e => setValor(mascaraMoeda(e.target.value))}
                   onKeyDown={e => e.key === 'Escape' && onClose()}
                   placeholder="0,00"
                   className="w-full pl-10 pr-4 py-3.5 rounded-2xl border border-gray-200 text-sm font-semibold text-gray-900
@@ -228,7 +220,7 @@ function BottomSheetConfirmarCompra({
 }) {
   const precoInputRef = useRef<HTMLInputElement>(null)
   const [qtd, setQtd] = useState(item.quantidade)
-  const [preco, setPreco] = useState(item.preco_unit != null ? String(item.preco_unit).replace('.', ',') : '')
+  const [preco, setPreco] = useState(formatarMoedaInput(item.preco_unit))
   const [keyboardOffset, setKeyboardOffset] = useState(0)
   const [cameraAberta, setCameraAberta] = useState(false)
 
@@ -247,11 +239,11 @@ function BottomSheetConfirmarCompra({
     }
   }, [])
 
-  const precoNum = preco.trim() ? parseFloat(preco.replace(',', '.')) : null
+  const precoNum = preco.trim() ? parseMoeda(preco) : null
   const subtotal = precoNum != null && !isNaN(precoNum) ? qtd * precoNum : null
 
   function handlePrecoCamera(valor: number) {
-    setPreco(valor.toFixed(2).replace('.', ','))
+    setPreco(formatarMoedaInput(valor))
     setCameraAberta(false)
     setTimeout(() => precoInputRef.current?.focus(), 100)
   }
@@ -312,7 +304,7 @@ function BottomSheetConfirmarCompra({
                   type="text"
                   inputMode="decimal"
                   value={preco}
-                  onChange={e => setPreco(maskMoeda(e.target.value))}
+                  onChange={e => setPreco(mascaraMoeda(e.target.value))}
                   onKeyDown={e => e.key === 'Escape' && onClose()}
                   placeholder="0,00"
                   className="w-full pl-10 pr-4 py-3.5 rounded-2xl border border-gray-200 text-sm font-semibold text-gray-900
@@ -391,7 +383,7 @@ function BottomSheetFinalizarCompra({
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [valor, setValor] = useState(
-    totalCalculado > 0 ? totalCalculado.toFixed(2).replace('.', ',') : ''
+    totalCalculado > 0 ? formatarMoedaInput(totalCalculado) : ''
   )
   const [keyboardOffset, setKeyboardOffset] = useState(0)
 
@@ -415,7 +407,7 @@ function BottomSheetFinalizarCompra({
     }
   }, [])
 
-  const valorNum = parseFloat(valor.replace(',', '.'))
+  const valorNum = parseMoeda(valor)
   const valido = !isNaN(valorNum) && valorNum >= 0
 
   return (
@@ -469,7 +461,7 @@ function BottomSheetFinalizarCompra({
                 type="text"
                 inputMode="decimal"
                 value={valor}
-                onChange={e => setValor(maskMoeda(e.target.value))}
+                onChange={e => setValor(mascaraMoeda(e.target.value))}
                 onKeyDown={e => e.key === 'Escape' && onClose()}
                 placeholder="0,00"
                 className="w-full pl-10 pr-4 py-3.5 rounded-2xl border border-gray-200 text-sm font-semibold text-gray-900

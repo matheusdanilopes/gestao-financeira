@@ -11,7 +11,7 @@ import PageActionButtons from '@/components/PageActionButtons'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { calcularStatusVencimento, verificarVencimentos, type StatusVencimento } from '@/lib/notificacoesVencimento'
 import { log } from '@/lib/logger'
-import { numericOnly, formatBRL } from '@/lib/format'
+import { mascaraMoeda, formatarMoedaInput, parseMoeda, formatBRL } from '@/lib/format'
 import {
   TIPOS_CARTAO,
   type TipoCartao,
@@ -94,9 +94,7 @@ function parseValor(texto: string | undefined | null): number {
   return Number.isFinite(n) ? n : 0
 }
 
-function formatarValorInput(v: number): string {
-  return v.toFixed(2).replace('.', ',')
-}
+const formatarValorInput = formatarMoedaInput
 
 /**
  * Distribui `total` entre as despesas proporcionalmente aos valores atuais delas,
@@ -245,7 +243,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
 
   async function marcarComoPago(id: string) {
     if (!valorReal) return
-    const valorNumerico = parseFloat(valorReal.replace(',', '.'))
+    const valorNumerico = parseMoeda(valorReal)
     const item = itens.find(i => i.id === id)
     const diff = item ? Math.abs(valorNumerico - item.valor_previsto) : 0
     const dpagamento = dataPagamento || format(new Date(), 'yyyy-MM-dd')
@@ -304,7 +302,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     setModalAberto('pagar')
 
     const total = await totalLancadoDaDespesa(item)
-    if (total !== null) setValorReal(total.toFixed(2).replace('.', ','))
+    if (total !== null) setValorReal(formatarMoedaInput(total))
   }
 
   async function abrirModalPagarFatura(tipoCartao: TipoCartao, grupo: ItemPlanejamento[]) {
@@ -474,7 +472,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
 
   async function editarItem() {
     if (!itemSelecionado) return
-    const valor = parseFloat(formData.valor_previsto.replace(',', '.'))
+    const valor = parseMoeda(formData.valor_previsto)
     if (!formData.item.trim()) return
     if (isNaN(valor) || valor <= 0) { showToast('Informe um valor válido', 'erro'); return }
     if (formData.categoria !== 'Cartão' && !formData.data_vencimento) {
@@ -546,7 +544,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
   }
 
   async function adicionarItem() {
-    const valor = parseFloat(formData.valor_previsto.replace(',', '.'))
+    const valor = parseMoeda(formData.valor_previsto)
     if (!formData.item.trim()) { showToast('Informe a descrição', 'erro'); return }
     if (isNaN(valor) || valor <= 0) { showToast('Informe um valor válido', 'erro'); return }
     if (formData.categoria !== 'Cartão' && !formData.data_vencimento) {
@@ -697,7 +695,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
       // Uma linha legada ("NuBank Matheus") é hidratada como 'principal', então
       // simplesmente salvar a edição já a converte para o prefixo novo.
       tipo_cartao: tipoCartaoPorItem(itemEdit.item ?? '') ?? '',
-      valor_previsto: (itemEdit.valor_previsto ?? 0).toString(),
+      valor_previsto: formatarMoedaInput(itemEdit.valor_previsto ?? 0),
       data_vencimento: itemEdit.data_vencimento ?? format(startOfMonth(mesSelecionado), 'yyyy-MM-dd'),
     })
     setAplicarFuturos(false)
@@ -1149,7 +1147,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
               inputMode="decimal"
               placeholder={`Previsto: ${formatBRL(itemSelecionado.valor_previsto)}`}
               value={valorReal}
-              onChange={(e) => setValorReal(numericOnly(e.target.value))}
+              onChange={(e) => setValorReal(mascaraMoeda(e.target.value))}
               className="w-full border border-gray-200 rounded-xl p-3 text-lg font-semibold mb-4 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
               autoFocus
             />
@@ -1188,7 +1186,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
               type="text"
               inputMode="decimal"
               value={totalFatura}
-              onChange={(e) => alterarTotalFatura(numericOnly(e.target.value))}
+              onChange={(e) => alterarTotalFatura(mascaraMoeda(e.target.value))}
               className="w-full border border-gray-200 rounded-xl p-3 text-lg font-semibold mb-1.5 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
               autoFocus
             />
@@ -1214,7 +1212,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
                       inputMode="decimal"
                       placeholder={`Previsto: ${formatBRL(item.valor_previsto)}`}
                       value={valoresFatura[item.id] ?? ''}
-                      onChange={(e) => alterarValorDespesaFatura(item.id, numericOnly(e.target.value))}
+                      onChange={(e) => alterarValorDespesaFatura(item.id, mascaraMoeda(e.target.value))}
                       className="w-full border border-gray-200 rounded-xl p-3 text-base font-semibold focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
                     />
                     {Math.abs(diff) > 0.005 && (
@@ -1283,7 +1281,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
               </div>
               <div>
                 <label className="text-xs font-medium text-gray-600 mb-1 block">Valor previsto (R$)</label>
-                <input type="text" inputMode="decimal" value={formData.valor_previsto} onChange={(e) => setFormData({ ...formData, valor_previsto: numericOnly(e.target.value) })} className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow" placeholder="0,00" />
+                <input type="text" inputMode="decimal" value={formData.valor_previsto} onChange={(e) => setFormData({ ...formData, valor_previsto: mascaraMoeda(e.target.value) })} className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow" placeholder="0,00" />
               </div>
               <div>
                 <label className="text-xs font-medium text-gray-600 mb-1 block">

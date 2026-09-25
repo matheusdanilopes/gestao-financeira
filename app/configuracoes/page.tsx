@@ -11,6 +11,7 @@ import {
   User, Mail, Lock, Eye, EyeOff,
 } from 'lucide-react'
 import FilterSelect from '@/components/FilterSelect'
+import { mascaraMoeda, formatarMoedaInput, parseMoeda } from '@/lib/format'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useTheme } from '@/components/ThemeProvider'
@@ -368,7 +369,8 @@ function ConfiguracoesContent() {
     for (const c of configs) {
       if (c.chave.startsWith('limite_cat_')) {
         const catName = c.chave.slice('limite_cat_'.length)
-        limites[catName] = c.valor
+        const valor = parseFloat(c.valor)
+        limites[catName] = valor > 0 ? formatarMoedaInput(valor) : ''
       }
     }
     setCategoriaLimites(limites)
@@ -1098,18 +1100,17 @@ function ConfiguracoesContent() {
                       <div className="flex items-center gap-1.5 mt-1.5">
                         <span className="text-[10px] text-gray-400">Limite/mês:</span>
                         <input
-                          type="number"
-                          min="0"
-                          step="0.01"
+                          type="text"
+                          inputMode="numeric"
                           placeholder="Sem limite"
                           value={categoriaLimites[categoria] ?? ''}
-                          onChange={(e) => setCategoriaLimites(prev => ({ ...prev, [categoria]: e.target.value }))}
+                          onChange={(e) => setCategoriaLimites(prev => ({ ...prev, [categoria]: mascaraMoeda(e.target.value) }))}
                           onBlur={async (e) => {
-                            const val = e.target.value.trim()
+                            const val = parseMoeda(e.target.value)
                             await fetch('/api/configuracoes', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ configuracoes: [{ chave: `limite_cat_${categoria}`, valor: val || '0' }] }),
+                              body: JSON.stringify({ configuracoes: [{ chave: `limite_cat_${categoria}`, valor: String(val > 0 ? val : 0) }] }),
                             })
                           }}
                           className="w-24 bg-gray-50 border border-gray-200 rounded-xl px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary-400 transition-shadow"

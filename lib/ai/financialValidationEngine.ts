@@ -22,6 +22,7 @@ import type {
   ValidationIssue,
   ValidationCertificate,
 } from './types'
+import { formatBRL } from '@/lib/format'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -34,7 +35,7 @@ function normalizarDescricao(desc: string): string {
     .slice(0, 60)
 }
 
-const R = (v: number) => `R$ ${Math.abs(v).toFixed(2).replace('.', ',')}`
+const R = (v: number) => formatBRL(Math.abs(v))
 
 // ─── 1. Duplicate detection (RN14, CA01) ─────────────────────────────────────
 // Só SINALIZA. Remover era pior que o problema: duas "Padaria R$ 12,50" no

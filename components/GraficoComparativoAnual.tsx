@@ -177,7 +177,7 @@ export default function GraficoComparativoAnual({ ano, ativo = true }: Props) {
               const b = dados.atual[i]
               if (a == null || b == null || a === 0) return []
               const variacao = ((b - a) / a) * 100
-              return ['', `  Variação: ${variacao >= 0 ? '+' : ''}${variacao.toFixed(1)}%`]
+              return ['', `  Variação: ${variacao >= 0 ? '+' : ''}${variacao.toFixed(1).replace('.', ',')}%`]
             },
           },
         },

@@ -644,7 +644,7 @@ export function serializeInsightsCompact(ins: FinancialInsightsContext): string 
 }
 
 export function formatInsightsAsText(ins: FinancialInsightsContext): string {
-  const fmtR = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
+  const fmtR = formatBRL
   const signPct = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
 
   const tendStr =
