@@ -37,37 +37,33 @@ function normalizarDescricao(desc: string): string {
 const R = (v: number) => `R$ ${Math.abs(v).toFixed(2).replace('.', ',')}`
 
 // ─── 1. Duplicate detection (RN14, CA01) ─────────────────────────────────────
-
+// Só SINALIZA. Remover era pior que o problema: duas "Padaria R$ 12,50" no
+// mesmo dia são compras legítimas (o import já as distingue pelo índice de
+// ocorrência), e apagá-las deixava o total da IA menor que o da tela. Uma
+// duplicata de verdade é bloqueada no import pelo hash único da linha.
 function detectarDuplicatas(transacoes: Transacao[]): {
   excluirIndices: Set<number>
   issues: ValidationIssue[]
 } {
-  const seen = new Map<string, number>()
-  const excluirIndices = new Set<number>()
-  const issues: ValidationIssue[] = []
-  const jaReportados = new Set<string>()
-
-  for (let i = 0; i < transacoes.length; i++) {
-    const t = transacoes[i]
-    const key = `${normalizarDescricao(t.descricao)}|${t.valor}|${t.data}|${t.responsavel}`
-    if (seen.has(key)) {
-      excluirIndices.add(i)
-      if (!jaReportados.has(key)) {
-        jaReportados.add(key)
-        issues.push({
-          type: 'duplicate',
-          severity: 'warning',
-          descricao: `Duplicata removida: "${t.descricao}" (${t.responsavel}) — ${R(t.valor)} em ${t.data}`,
-          valor: t.valor,
-          transacoes: [t.descricao],
-        })
-      }
-    } else {
-      seen.set(key, i)
-    }
+  const contagem = new Map<string, { t: Transacao; n: number }>()
+  for (const t of transacoes) {
+    const key = `${normalizarDescricao(t.descricao)}|${t.valor}|${t.data}|${t.responsavel}|${t.cartao ?? 'nubank'}|${t.projeto_fatura}`
+    const atual = contagem.get(key)
+    if (atual) atual.n += 1
+    else contagem.set(key, { t, n: 1 })
   }
-
-  return { excluirIndices, issues }
+  const issues: ValidationIssue[] = []
+  for (const { t, n } of contagem.values()) {
+    if (n < 2) continue
+    issues.push({
+      type: 'duplicate',
+      severity: 'info',
+      descricao: `Compra repetida no mesmo dia (mantida, como no app): "${t.descricao}" (${t.responsavel}) — ${n}× ${R(t.valor)} em ${t.data}`,
+      valor: t.valor * (n - 1),
+      transacoes: [t.descricao],
+    })
+  }
+  return { excluirIndices: new Set<number>(), issues }
 }
 
 // ─── 2. Card payment exclusion (RN16, CA02) ──────────────────────────────────
@@ -134,50 +130,62 @@ function detectarResgatesInvestimentos(transacoes: Transacao[]): ValidationIssue
 }
 
 // ─── 6. Installment double-count detection (RN req: parcelamentos) ────────────
-// Detects when both the full purchase total and individual installment entries
-// exist for the same item, which would inflate the computed totals.
+// Sinaliza quando uma compra à vista tem exatamente o valor total de um
+// parcelamento da mesma loja, pessoa e cartão, lançada no mês em que ele
+// começou — o padrão de "lançaram o total E as parcelas".
+//
+// A versão anterior somava TODAS as compras avulsas de mesmo nome em 24 meses,
+// e bastava a soma cair a 5% de parcela × total para marcar erro CRÍTICO — o
+// que bloqueava o chat inteiro. Três compras comuns numa loja que também tinha
+// um parcelamento eram suficientes. Agora é aviso, pontual, e nada é removido:
+// a tela soma as mesmas linhas, e a IA precisa bater com ela.
+function mesesEntreFaturas(a: string, b: string): number {
+  const [ya, ma] = a.substring(0, 7).split('-').map(Number)
+  const [yb, mb] = b.substring(0, 7).split('-').map(Number)
+  return (ya - yb) * 12 + (ma - mb)
+}
 
 function detectarDuplaContagemParcelamentos(transacoes: Transacao[]): {
   excluirIndices: Set<number>
   issues: ValidationIssue[]
 } {
-  const excluirIndices = new Set<number>()
   const issues: ValidationIssue[] = []
+  const chave = (t: Transacao) => `${normalizarDescricao(t.descricao)}|${t.responsavel}|${t.cartao ?? 'nubank'}`
 
-  const byDesc = new Map<string, Array<{ t: Transacao; idx: number }>>()
-  for (let i = 0; i < transacoes.length; i++) {
-    const key = normalizarDescricao(transacoes[i].descricao)
-    if (!byDesc.has(key)) byDesc.set(key, [])
-    byDesc.get(key)!.push({ t: transacoes[i], idx: i })
+  const avulsas = new Map<string, Transacao[]>()
+  for (const t of transacoes) {
+    if (t.total_parcelas && t.total_parcelas > 1) continue
+    const k = chave(t)
+    avulsas.set(k, [...(avulsas.get(k) ?? []), t])
   }
 
-  for (const [, group] of byDesc) {
-    if (group.length < 2) continue
-
-    const singles  = group.filter(({ t }) => !t.total_parcelas || t.total_parcelas <= 1)
-    const parcelas = group.filter(({ t }) => (t.total_parcelas ?? 0) > 1)
-
-    if (singles.length === 0 || parcelas.length === 0) continue
-
-    const totalParcelas = parcelas[0].t.total_parcelas ?? 1
-    const valorParcela  = parcelas[0].t.valor
-    const valorTotal    = valorParcela * totalParcelas
-    const valorSingles  = singles.reduce((s, { t }) => s + t.valor, 0)
-
-    // Tolerance: within 5% implies the single entry IS the full amount
-    if (valorTotal > 0 && Math.abs(valorSingles - valorTotal) / valorTotal < 0.05) {
-      for (const { idx } of singles) excluirIndices.add(idx)
+  const jaReportados = new Set<string>()
+  for (const p of transacoes) {
+    const total = p.total_parcelas ?? 0
+    const atual = p.parcela_atual ?? 0
+    if (total < 2 || atual < 1 || !p.projeto_fatura) continue
+    const candidatas = avulsas.get(chave(p))
+    if (!candidatas) continue
+    const valorTotal = p.valor * total
+    for (const s of candidatas) {
+      if (!s.projeto_fatura) continue
+      // A avulsa precisa cair no mês da 1ª parcela (±1 pelo fechamento).
+      const distancia = mesesEntreFaturas(p.projeto_fatura, s.projeto_fatura) - (atual - 1)
+      if (Math.abs(distancia) > 1) continue
+      if (Math.abs(s.valor - valorTotal) / valorTotal > 0.02) continue
+      const id = `${chave(p)}|${s.projeto_fatura}|${s.valor}`
+      if (jaReportados.has(id)) continue
+      jaReportados.add(id)
       issues.push({
         type: 'installment_double_count',
-        severity: 'critical',
-        descricao: `Dupla contagem evitada: "${group[0].t.descricao}" — total ${R(valorSingles)} + ${parcelas.length} parcela(s) de ${R(valorParcela)}`,
-        valor: valorSingles,
-        transacoes: group.map(({ t }) => t.descricao),
+        severity: 'warning',
+        descricao: `Possível dupla contagem: "${s.descricao}" à vista ${R(s.valor)} e também parcelada em ${total}× de ${R(p.valor)} — confira na tela de Compras`,
+        valor: s.valor,
+        transacoes: [s.descricao, p.descricao],
       })
     }
   }
-
-  return { excluirIndices, issues }
+  return { excluirIndices: new Set<number>(), issues }
 }
 
 // ─── 7. Statistical anomaly detection — informational ────────────────────────

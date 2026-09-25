@@ -81,7 +81,16 @@ interface OpcoesChamada {
   deadlineMs: number
   temperature?: number
   maxOutputTokens?: number
+  /** Tokens de raciocínio interno. 0 desliga (tarefas mecânicas, como resumir). */
+  thinkingBudget?: number
 }
+
+// No Gemini 2.5 o raciocínio interno ("thinking") conta dentro de
+// maxOutputTokens. Com o orçamento dinâmico padrão e teto de 4096, uma pergunta
+// difícil podia gastar quase tudo pensando e devolver a resposta cortada — ou
+// vazia. Agora o raciocínio tem teto próprio e a resposta tem folga.
+const ORCAMENTO_RACIOCINIO = 2048
+const TETO_SAIDA = 8192
 
 function montarCorpo(opts: OpcoesChamada): string {
   return JSON.stringify({
@@ -93,8 +102,10 @@ function montarCorpo(opts: OpcoesChamada): string {
       ? { tools: [{ functionDeclarations: opts.tools }], toolConfig: { functionCallingConfig: { mode: 'AUTO' } } }
       : {}),
     generationConfig: {
-      temperature: opts.temperature ?? 0.4,
-      maxOutputTokens: opts.maxOutputTokens ?? 4096,
+      // Baixa: a tarefa é ler números e explicá-los, não criar texto variado.
+      temperature: opts.temperature ?? 0.2,
+      maxOutputTokens: opts.maxOutputTokens ?? TETO_SAIDA,
+      thinkingConfig: { thinkingBudget: opts.thinkingBudget ?? ORCAMENTO_RACIOCINIO },
     },
   })
 }
@@ -277,7 +288,8 @@ export async function* gerarStream(opts: OpcoesChamada): AsyncGenerator<PedacoSt
 export async function resumirConversa(
   apiKey: string,
   mensagens: Array<{ role: string; content: string }>,
-  deadlineMs: number
+  deadlineMs: number,
+  resumoAnterior?: string
 ): Promise<string | null> {
   const texto = mensagens
     .map(m => `${m.role === 'user' ? 'Usuário' : 'Assistente'}: ${m.content}`)
@@ -289,13 +301,17 @@ export async function resumirConversa(
       apiKey,
       deadlineMs,
       temperature: 0.2,
-      maxOutputTokens: 800,
+      maxOutputTokens: 1000,
+      thinkingBudget: 0,
       contents: [{
         role: 'user',
         parts: [{
           text:
-            'Resuma em no máximo 200 palavras esta conversa sobre finanças pessoais, preservando todos os valores ' +
-            `numéricos, períodos citados e conclusões. Escreva apenas o resumo.\n\n${texto}`,
+            'Resuma em no máximo 250 palavras esta conversa sobre finanças pessoais, preservando os valores ' +
+            'numéricos, os períodos citados, as conclusões e o que o usuário quer acompanhar. Se o assistente foi ' +
+            'corrigido em algum ponto, registre só o valor corrigido. Escreva apenas o resumo.' +
+            (resumoAnterior ? `\n\nResumo do trecho anterior (incorpore-o):\n${resumoAnterior.slice(0, 4000)}` : '') +
+            `\n\nConversa:\n${texto}`,
         }],
       }],
     })

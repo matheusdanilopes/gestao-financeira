@@ -191,7 +191,7 @@ async function callGemini(compactPayload: string, confiabilidade: number, prevTi
 }
 
 export async function GET(req: NextRequest) {
-  const { unauthorized, user } = await requireAuth(req)
+  const { unauthorized, user, supabase } = await requireAuth(req)
   if (unauthorized) return unauthorized
 
   // ?fresh=true forces a real recalculation (manual refresh button): bypasses
@@ -204,7 +204,7 @@ export async function GET(req: NextRequest) {
   const prevTitles = prevRaw ? prevRaw.split('||').filter(Boolean).slice(0, 4) : []
 
   try {
-    const rawData = await fetchEnrichedData(user.id)
+    const rawData = await fetchEnrichedData(user.id, false, supabase)
 
     // Mandatory validation gate (RN11): validate before computing any metric
     const { validatedData, certificate } = validateFinancialData(rawData)

@@ -3,6 +3,7 @@
 import { format, subMonths, addMonths, addDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ehDespesaReal } from '@/lib/tipoCartao'
+import { agoraBrasil } from './tempo'
 import type {
   EnrichedData,
   FinancialInsightsContext,
@@ -67,8 +68,7 @@ export function nomeCartao(cartao: string | null | undefined, labels?: Record<st
   return (labels ?? CARTAO_NOMES)[id] ?? id
 }
 
-export function computeInsights(data: EnrichedData): FinancialInsightsContext {
-  const hoje = new Date()
+export function computeInsights(data: EnrichedData, hoje: Date = agoraBrasil()): FinancialInsightsContext {
   const cartaoLabels = cartaoLabelsFromPlanejamento(data.planejamento)
 
   // Credit-card billing convention (mirrors the dashboard):
@@ -177,11 +177,16 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
     if ((p.mes_referencia ?? '').substring(0, 7) !== mesCalendario) return false
     return isPlanejamentoDespesaReal(typeof p.item === 'string' ? p.item : '')
   })
+  // Pagas contam pelo valor pago (valor_real), como a tela de Finanças; o
+  // "em aberto" é o previsto do que ainda não foi pago.
+  const paga = (p: Planejamento) => Boolean(p.data_pagamento || p.pago)
   const totalOrcado = planAtual.reduce((s, p) => s + p.valor_previsto, 0)
   const totalPago = planAtual
-    .filter(p => p.data_pagamento)
+    .filter(paga)
+    .reduce((s, p) => s + (p.valor_real ?? p.valor_previsto), 0)
+  const despesasEmAberto = planAtual
+    .filter(p => !paga(p))
     .reduce((s, p) => s + p.valor_previsto, 0)
-  const despesasEmAberto = totalOrcado - totalPago
 
   // ── Planning totals for ALL months ───────────────────────────────────────────
   // Same exclusion rules as planAtual, across every mes_referencia.
@@ -231,7 +236,7 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
   const em7diasStr = format(addDays(hoje, 7), 'yyyy-MM-dd')
 
   const itensPlanejamentoEmAberto = planAtual
-    .filter(p => !p.data_pagamento)
+    .filter(p => !paga(p))
     .sort((a, b) => {
       if (a.data_vencimento && b.data_vencimento) return a.data_vencimento.localeCompare(b.data_vencimento)
       return 0
@@ -244,13 +249,13 @@ export function computeInsights(data: EnrichedData): FinancialInsightsContext {
     }))
 
   const itensVencidos = planAtual
-    .filter(p => !p.data_pagamento && p.data_vencimento && p.data_vencimento < hojeStr)
+    .filter(p => !paga(p) && p.data_vencimento && p.data_vencimento < hojeStr)
     .sort((a, b) => (a.data_vencimento ?? '').localeCompare(b.data_vencimento ?? ''))
     .slice(0, 5)
     .map(p => ({ item: p.item, valor: p.valor_previsto, vencimento: p.data_vencimento! }))
 
   const itensVencendo7d = planAtual
-    .filter(p => !p.data_pagamento && p.data_vencimento && p.data_vencimento >= hojeStr && p.data_vencimento <= em7diasStr)
+    .filter(p => !paga(p) && p.data_vencimento && p.data_vencimento >= hojeStr && p.data_vencimento <= em7diasStr)
     .sort((a, b) => (a.data_vencimento ?? '').localeCompare(b.data_vencimento ?? ''))
     .slice(0, 5)
     .map(p => ({ item: p.item, valor: p.valor_previsto, vencimento: p.data_vencimento! }))
