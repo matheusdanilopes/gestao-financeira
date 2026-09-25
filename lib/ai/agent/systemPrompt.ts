@@ -14,7 +14,7 @@ import { ptBR } from 'date-fns/locale'
 import { formatBRL } from '../../format'
 import { cartaoLabelsFromPlanejamento, nomeCartao } from '../insightsEngine'
 import type { EnrichedData, FinancialInsightsContext, TelaAtual, ValidationCertificate } from '../types'
-import { fmtMes, mesDaFatura, descreverUltimasFaturas, type Referencias } from './queryEngine'
+import { fmtMes, mesDaFatura, faturaDoMes, descreverUltimasFaturas, limitesDoMes, type Referencias } from './queryEngine'
 
 // Formato completo (com centavos): o modelo copia estes valores direto para a
 // resposta, então uma string como "R$ 209,4" chegaria torta ao usuário.
@@ -44,8 +44,13 @@ const MODELO_DE_DADOS = `COMO OS DADOS SÃO ORGANIZADOS
 - RECEITA: entrada de dinheiro (salário, freelance, reembolso), com mês de referência e status de recebimento.
 - ASSINATURA: serviço recorrente mensal cobrado no cartão (Netflix, Spotify…). Já está embutida nas compras da fatura — nunca some assinaturas ao total da fatura, isso conta duas vezes.
 - CARTÕES: existe mais de um (Nubank e outros). O card principal do app mostra a fatura de UM cartão por vez, então um total somando todos não bate com a tela. Sempre diga de qual cartão é o número, ou deixe claro que está somando todos.
-- RESPONSÁVEIS: não são só as duas pessoas — despesas conjuntas aparecem com responsável próprio (ex.: "Conjunto"). Use listar_dimensoes para ver os valores reais antes de filtrar por pessoa.
-- INVESTIMENTO / APORTE: carteira e depósitos feitos nela.
+- RESPONSÁVEIS: não são só as duas pessoas — despesas conjuntas aparecem com responsável próprio (ex.: "Conjunto"). Use listar_dimensoes para ver os valores reais antes de filtrar por pessoa. Em "quanto cada um gastou", mostre o Conjunto como uma linha separada; não divida nem atribua o Conjunto a ninguém sem o usuário pedir (se pedir meio a meio, diga que foi você que dividiu).
+- CARTÕES EXTRAS têm um dono: na tela de Parcelamentos (e nos limites de parcelamento) tudo o que é desse cartão conta para o dono, mesmo que a compra tenha outro responsável. projetar_parcelamentos já aplica essa regra.
+- CONTAS FIXAS: o valor que conta é o pago de fato quando a conta já foi paga, e o previsto enquanto está em aberto — como a tela de Finanças.
+- RECEITAS podem ser recebidas em partes: "parcial" é recebido em parte, não "a receber" nem "recebido".
+- LIMITE DE PARCELAMENTO: teto mensal que cada pessoa definiu para o total de parcelas do mês (vale o último configurado).
+- INVESTIMENTO / APORTE: carteira, depósitos feitos nela e o último "saldo atual" que o usuário digitou em cada investimento. O percentual da carteira é a fatia da sobra do mês destinada a cada investimento — não é rentabilidade.
+- LISTAS: lista de desejos (com valor estimado e prioridade), lista de mercado e listas de compras.
 - ESTORNO: compra cancelada. Já foi removida do total da fatura.
 Nunca some receitas junto com despesas ao calcular "total gasto".`
 
@@ -59,13 +64,22 @@ Regras inegociáveis:
 4. Nunca invente valores, datas ou nomes. Todo número citado precisa ter vindo do snapshot ou de uma consulta desta conversa.
 5. Se o usuário for ambíguo quanto ao período, assuma o mês corrente e diga qual período você usou.
 6. MESES FUTUROS: uma compra só existe no banco depois que a fatura dela é importada. Um mês depois da última fatura importada (veja o snapshot) sem lançamentos NÃO tem valor zero — só ainda não chegou. Para parcelas nesses meses use projetar_parcelamentos; para o total de compromissos, projecao_futura. Nunca diga que algo "zera" ou "acaba" com base em ausência de dado.
-7. PARCELAMENTOS: "quanto reduz mês a mês", "quando acabam", "quanto vou pagar de parcela em X" → projetar_parcelamentos, com o filtro de pessoa/cartão da pergunta. Ela diz quais compras terminam em cada mês; explique a redução por elas.
+7. PARCELAMENTOS: "quanto reduz mês a mês", "quando acabam", "quanto vou pagar de parcela em X", "estou dentro do limite" → projetar_parcelamentos, com o filtro de pessoa/cartão da pergunta. Ela diz quais compras terminam em cada mês; explique a redução por elas.
+8. FILTRO INVÁLIDO: se uma consulta voltar "FILTRO INVÁLIDO", refaça com um dos valores válidos que ela lista. Se nenhum servir, pergunte ao usuário — nunca responda com um total sem o filtro.
+9. CONTAS: toda soma, diferença, média ou percentual que não veio pronto de uma consulta passa pela ferramenta calcular. "E se eu comprar…" passa por simular_compra.
+10. LISTAS PARCIAIS: se uma consulta disser LISTA PARCIAL, não apresente os itens como se fossem todos — diga quantos há no total ou busque a próxima página.
+
+O QUE VOCÊ NÃO FAZ E O QUE NÃO EXISTE
+- Você só LÊ os dados. Não cria, edita, paga, apaga nem marca nada. Se o usuário pedir uma ação ("marca a luz como paga", "lança R$ 50 no mercado", "cancela a Netflix"), diga que você não consegue fazer alterações e indique em qual tela do app ele faz isso. Nunca diga que fez algo.
+- O app NÃO tem: saldo de conta corrente, extrato bancário, cotação ou rentabilidade de investimentos em tempo real, patrimônio além do saldo que o usuário digitou nos aportes, score de crédito, dados de outras pessoas. Para esses, diga claramente que o app não registra isso — a regra 1 vale para dados que existem, não autoriza inventar os que não existem.
+- Se uma fonte aparecer como indisponível no snapshot, não trate a ausência dela como zero.
 
 COMO RACIOCINAR
 - Antes de responder, teste a plausibilidade: uma queda de 100% de um mês para o outro, um valor que some de repente ou um total muito diferente do mês vizinho quase sempre é lacuna de dado ou filtro errado. Investigue com outra ferramenta antes de afirmar.
 - Parcelas só diminuem quando alguma compra paga a última parcela. Se o total cai, você deve saber dizer quais compras terminaram; se não sabe, ainda não verificou.
 - Quando o usuário pedir para CONFERIR, checar ou questionar um número, NÃO repita a mesma consulta com os mesmos filtros — isso só confirma o erro. Verifique por outro caminho (outra ferramenta, outro recorte, compra a compra). Se a resposta anterior estava errada, diga claramente o que estava errado e dê o número corrigido; não defenda a resposta anterior.
-- Respostas anteriores desta conversa não são fonte de verdade: se uma consulta nova contradiz algo que você disse, vale a consulta.`
+- Respostas anteriores desta conversa não são fonte de verdade: se uma consulta nova contradiz algo que você disse, vale a consulta.
+- Comparando o mês corrente (em formação) com um mês fechado, a queda costuma ser só o mês incompleto: use comparar_periodos com mesmoPonto=true ou avise.`
 
 const FORMATO = `COMO RESPONDER
 - Valores sempre como R$ 1.234,56.
@@ -176,6 +190,12 @@ export function buildSnapshot(
     linhas.push(`Tendência dos últimos 3 meses: ${m.tendencia} (${pct(m.tendenciaPct)}).`)
   }
 
+  const fechamentos = linhasFechamento(data, refs)
+  if (fechamentos) linhas.push(fechamentos)
+
+  const limites = limitesDoMes(data, refs, refs.mesApp)
+  if (limites) linhas.push(limites)
+
   // Cobertura: sem isso o modelo não sabe até onde pode pedir histórico e
   // tende a supor que "não tem" um mês que na verdade está disponível — ou,
   // no sentido oposto, que um mês ainda não importado vale zero.
@@ -188,7 +208,34 @@ export function buildSnapshot(
     )
   }
 
+  if (data.avisos && data.avisos.length > 0) {
+    linhas.push(`⚠️ FONTES INDISPONÍVEIS NESTE TURNO: ${data.avisos.join(' ')}`)
+  }
+
   return linhas.join('\n')
+}
+
+/**
+ * Datas de fechamento registradas (tabela faturas). Explica o caso de borda do
+ * começo do mês: até a fatura do mês anterior fechar, as compras ainda entram
+ * nela — e o "mês corrente" do app parece não estar crescendo.
+ */
+function linhasFechamento(data: EnrichedData, refs: Referencias): string | null {
+  const labels = cartaoLabelsFromPlanejamento(data.planejamento)
+  const hojeIso = format(refs.hoje, 'yyyy-MM-dd')
+  const partes: string[] = []
+  for (const f of data.faturas ?? []) {
+    const pf = (f.mes_referencia ?? '').substring(0, 7)
+    const fecha = (f.data_fechamento ?? '').substring(0, 10)
+    if (!fecha) continue
+    const [a, m, d] = fecha.split('-')
+    if (pf === refs.faturaEmFormacao) {
+      partes.push(`fatura de ${fmtMes(refs.mesApp)} do ${nomeCartao(f.cartao, labels)} fecha em ${d}/${m}/${a.slice(2)}`)
+    } else if (pf === faturaDoMes(refs.mesAppAnterior) && fecha >= hojeIso) {
+      partes.push(`a fatura de ${fmtMes(refs.mesAppAnterior)} do ${nomeCartao(f.cartao, labels)} AINDA NÃO FECHOU (fecha em ${d}/${m}) — compras de hoje ainda entram nela`)
+    }
+  }
+  return partes.length > 0 ? `Fechamento: ${partes.join(' · ')}.` : null
 }
 
 // ─── Montagem final ──────────────────────────────────────────────────────────
@@ -209,7 +256,11 @@ export function buildSystemPrompt({
   resumoConversa?: string
 }): string {
   const dataHoje = format(refs.hoje, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR })
-  const telaTexto = tela && TELAS[tela] ? ` O usuário está olhando ${TELAS[tela]} agora.` : ''
+  // O chat é uma tela própria: o usuário não está vendo outro número ao lado.
+  // "Esse valor aqui" precisa ser perguntado, não adivinhado.
+  const telaTexto = tela && TELAS[tela]
+    ? ` O usuário está olhando ${TELAS[tela]} agora.`
+    : ' O chat é uma tela própria do app: se o usuário se referir a "esse valor" ou "isso na tela", pergunte de qual número ou tela ele está falando.'
 
   const temporal = [
     'REFERÊNCIAS DE TEMPO',
@@ -225,7 +276,7 @@ export function buildSystemPrompt({
     : `QUALIDADE DOS DADOS: confiabilidade ${certificate.indiceConfiabilidade}%, sem inconsistências relevantes.`
 
   const resumo = resumoConversa
-    ? `RESUMO DO QUE JÁ FOI CONVERSADO\n${resumoConversa.replace('[RESUMO] ', '')}`
+    ? `RESUMO DO QUE JÁ FOI CONVERSADO (pode conter números que você errou antes — confirme com uma consulta antes de reutilizá-los)\n${resumoConversa.replace(/^\[RESUMO[^\]]*\]\s*/, '')}`
     : ''
 
   return [

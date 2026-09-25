@@ -38,10 +38,14 @@ export type AgentEvent =
   /** Fim do turno com o texto completo consolidado. */
   | { type: 'done'; texto: string; ferramentas: string[] }
 
-/** Rodadas em que o modelo ainda pode pedir ferramentas. */
-const MAX_RODADAS_FERRAMENTA = 4
+/**
+ * Rodadas em que o modelo ainda pode pedir ferramentas. Com a calculadora e a
+ * checagem cruzada ("confira") uma pergunta boa usa 3–5; o orçamento de tempo
+ * do turno continua sendo o limite real.
+ */
+const MAX_RODADAS_FERRAMENTA = 6
 /** Teto de chamadas por rodada, para o modelo não disparar um leque enorme. */
-const MAX_CHAMADAS_POR_RODADA = 4
+const MAX_CHAMADAS_POR_RODADA = 5
 
 const RESPOSTA_VAZIA =
   'Não consegui formular a resposta agora. Pode reformular a pergunta ou pedir de outro jeito?'

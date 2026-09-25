@@ -22,7 +22,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
-import { fetchEnrichedData } from '@/lib/ai/contextBuilder'
+import { fetchEnrichedData, DadosIndisponiveisError } from '@/lib/ai/contextBuilder'
 import { validateFinancialData } from '@/lib/ai/financialValidationEngine'
 import { computeInsights } from '@/lib/ai/insightsEngine'
 import { construirReferencias } from '@/lib/ai/agent/queryEngine'
@@ -51,6 +51,10 @@ function descreverErro(err: unknown): {
   diaria?: boolean
   segundos?: number | null
 } {
+  if (err instanceof DadosIndisponiveisError) {
+    // Sem compras ou sem planejamento a análise sairia errada — melhor dizer.
+    return { codigo: 'DADOS', mensagem: 'Não consegui ler seus dados financeiros agora. Tente de novo em instantes.' }
+  }
   if (err instanceof GeminiError) {
     switch (err.codigo) {
       case 'QUOTA':
@@ -146,8 +150,11 @@ export async function POST(req: NextRequest) {
 
         // Força leitura fresca na primeira mensagem da conversa: o usuário pode
         // ter acabado de lançar uma despesa em outra tela.
-        const brutos = await fetchEnrichedData(user.id, contexto.ehPrimeiraMensagem)
+        // Cliente da sessão do usuário (não a anon key crua): é o que permite ler
+        // tabelas protegidas por RLS, como os limites de parcelamento.
+        const brutos = await fetchEnrichedData(user.id, contexto.ehPrimeiraMensagem, supabase)
         const { validatedData, certificate } = validateFinancialData(brutos)
+        // Relógio de Brasília: o servidor roda em UTC e "virava o dia" às 21h.
         const refs = construirReferencias()
 
         const bloqueado = !certificate.certificado
@@ -155,7 +162,7 @@ export async function POST(req: NextRequest) {
           ? buildBlockedPrompt(certificate)
           : buildSystemPrompt({
               data: validatedData,
-              metrics: computeInsights(validatedData),
+              metrics: computeInsights(validatedData, refs.hoje),
               refs,
               certificate,
               tela: body.tela,

@@ -25,7 +25,11 @@ import {
   compararPeriodos,
   projecaoFutura,
   projetarParcelamentos,
+  simularCompra,
+  consultarListas,
+  calcular,
   listarDimensoes,
+  FiltroInvalido,
   type Referencias,
 } from './queryEngine'
 
@@ -96,8 +100,10 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
         valorMinimo: num('Considera apenas compras com valor maior ou igual a este.'),
         valorMaximo: num('Considera apenas compras com valor menor ou igual a este.'),
         apenasParceladas: bool('true = retorna somente compras parceladas.'),
-        agruparPor: str('Dimensão extra de agrupamento no resultado.', AGRUPAR),
-        limite: { type: 'INTEGER', description: 'Quantos lançamentos individuais listar (1 a 15).' },
+        agruparPor: str('Dimensão extra de agrupamento no resultado ("descricao" agrupa por loja, juntando variações do nome).', AGRUPAR),
+        limite: { type: 'INTEGER', description: 'Quantos lançamentos individuais listar por página (1 a 15).' },
+        ordenarPor: str('Ordem da lista de lançamentos: maiores valores (padrão) ou mais recentes.', ['valor', 'data']),
+        pagina: { type: 'INTEGER', description: 'Página da lista de lançamentos (1, 2, 3…), quando o resultado disser LISTA PARCIAL.' },
       },
     },
   },
@@ -132,7 +138,7 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
         mesInicio: str(`Primeiro mês de referência. ${MES}`),
         mesFim: str(`Último mês de referência. ${MES}`),
         responsavel: str(`Quem recebe. ${RESPONSAVEL}`),
-        status: str('Filtro de situação do recebimento.', ['todos', 'recebido', 'aberto']),
+        status: str('Situação: recebido (inteiro), parcial (recebido em parte), aberto (falta receber algo, inclui parciais) ou todos.', ['todos', 'recebido', 'parcial', 'aberto']),
       },
     },
   },
@@ -145,7 +151,7 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
       type: 'OBJECT',
       properties: {
         busca: str('Texto procurado no nome do serviço.'),
-        status: str('Quais assinaturas incluir.', ['ativas', 'canceladas', 'todas']),
+        status: str('Quais assinaturas incluir. "pausadas" = desativadas temporariamente, voltam a cobrar numa data.', ['ativas', 'pausadas', 'canceladas', 'todas']),
         categoria: str('Categoria da assinatura (ex.: Streaming, Música, Jogos, Tecnologia).'),
         responsavel: str(`Responsável pela assinatura. ${RESPONSAVEL}`),
         cartao: str('Cartão em que é cobrada.', ['nubank', 'cartao1', 'cartao2']),
@@ -155,8 +161,8 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
   {
     name: 'consultar_investimentos',
     description:
-      'Consulta a carteira de investimentos e os aportes feitos. ' +
-      'Use para "quanto já investi", "quando foi o último aporte", "qual ativo recebeu mais".',
+      'Consulta a carteira de investimentos: aportes feitos e o último saldo informado pelo usuário em cada investimento. ' +
+      'Use para "quanto já investi", "quanto tenho investido", "quando foi o último aporte", "qual ativo recebeu mais".',
     parameters: {
       type: 'OBJECT',
       properties: {
@@ -182,8 +188,10 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
   {
     name: 'comparar_periodos',
     description:
-      'Compara gastos de cartão entre dois períodos e mostra o que mais variou, item a item da dimensão escolhida. ' +
-      'Use para "gastei mais que mês passado?", "o que puxou a alta", "como está vs o trimestre anterior".',
+      'Compara gastos entre dois períodos e mostra o que mais variou, item a item da dimensão escolhida. Aceita filtro por ' +
+      'pessoa, categoria, cartão e loja. Por padrão só cartão; incluirContasFixas=true soma as contas fixas (a base do ' +
+      '"total do mês"). Com o mês corrente em formação, use mesmoPonto=true para comparar até o mesmo dia do mês anterior. ' +
+      'Use para "gastei mais que mês passado?", "o que puxou a alta", "a Jeniffer gastou mais com mercado?".',
     parameters: {
       type: 'OBJECT',
       properties: {
@@ -191,16 +199,22 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
         periodoAFim: str(`Fim do período A. ${MES} Se omitido, igual ao início.`),
         periodoBInicio: str(`Início do período B (a base de comparação). ${MES} Se omitido, usa o mês anterior ao A.`),
         periodoBFim: str(`Fim do período B. ${MES} Se omitido, igual ao início.`),
-        dimensao: str('Como quebrar a comparação.', ['categoria', 'responsavel', 'cartao', 'total']),
+        dimensao: str('Como quebrar a comparação.', ['categoria', 'responsavel', 'cartao', 'descricao', 'total']),
+        responsavel: str(`Só compras desta pessoa. ${RESPONSAVEL}`),
+        categoria: str('Só esta categoria.'),
+        cartao: str('Só este cartão.', ['nubank', 'cartao1', 'cartao2']),
+        busca: str('Só compras cuja descrição contém este texto (ex.: "ifood").'),
+        incluirContasFixas: bool('true = soma também as contas fixas do planejamento nos dois períodos.'),
+        mesmoPonto: bool('true = no período de comparação, só entram compras feitas até o dia equivalente a hoje (comparação justa com o mês em formação).'),
       },
     },
   },
   {
     name: 'projecao_futura',
     description:
-      'Projeta os meses seguintes somando apenas compromissos já assumidos: parcelas em aberto, contas fixas ' +
-      'recorrentes e assinaturas ativas. Use para "quanto vou pagar nos próximos meses", "consigo bancar X em dezembro", ' +
-      '"quando as parcelas acabam".',
+      'Projeta os próximos meses: fatura real onde já foi importada; depois, parcelas em aberto + contas fixas (as já ' +
+      'cadastradas, ou a média recente) + assinaturas. Traz também um "cenário provável" com o gasto à vista típico, e ' +
+      'os limites de parcelamento. Use para "quanto vou pagar nos próximos meses", "como fica dezembro", "sobra dinheiro em janeiro".',
     parameters: {
       type: 'OBJECT',
       properties: {
@@ -225,8 +239,58 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
         busca: str('Texto na descrição da compra, para acompanhar um parcelamento específico.'),
         mesInicio: str(`Primeiro mês da série. ${MES} Padrão: mês corrente.`),
         meses: { type: 'INTEGER', description: 'Quantos meses mostrar a partir de mesInicio (1 a 24). Padrão: 6.' },
-        incluirContas: bool('true = inclui também contas parceladas do planejamento (fora do cartão). Ignorado quando há filtro de cartão.'),
+        incluirContas: bool('Inclui as contas parceladas do planejamento (padrão: true, como a tela de Parcelamentos). false = só cartões. Ignorado quando há filtro de cartão.'),
       },
+    },
+  },
+  {
+    name: 'simular_compra',
+    description:
+      'Simula uma compra nova ("e se eu comprar X em N vezes?"): soma a parcela aos parcelamentos da pessoa e aos ' +
+      'compromissos do casal em cada mês e compara com o limite de parcelamento. Use para "cabe um celular de 3 mil em 10x?", ' +
+      '"se eu parcelar a viagem em 6x, como fica?", "estouro o limite se comprar isso?".',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        valorTotal: num('Valor total da compra.'),
+        valorParcela: num('Valor de cada parcela (alternativa ao valorTotal).'),
+        parcelas: { type: 'INTEGER', description: 'Número de parcelas (1 = à vista).' },
+        responsavel: str(`Quem faria a compra. ${RESPONSAVEL}`),
+        cartao: str('Cartão em que seria feita.', ['nubank', 'cartao1', 'cartao2']),
+        mesPrimeiraParcela: str(`Mês da 1ª parcela. ${MES} Padrão: mês corrente (compra feita hoje).`),
+        descricao: str('Nome da compra, só para o texto.'),
+      },
+    },
+  },
+  {
+    name: 'consultar_listas',
+    description:
+      'Consulta a lista de desejos (itens que o casal quer comprar, com valor estimado e prioridade), a lista de mercado ' +
+      'e as listas de compras. Use para "quanto custa a lista de desejos", "o que falta comprar no mercado", ' +
+      '"dá para comprar o item X da lista de desejos este mês".',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        tipo: str('Qual lista.', ['desejos', 'mercado', 'compras', 'todas']),
+        busca: str('Texto no nome do item.'),
+      },
+    },
+  },
+  {
+    name: 'calcular',
+    description:
+      'Calculadora exata. Use SEMPRE que precisar somar, subtrair, dividir, tirar média ou percentual de valores que não ' +
+      'vieram prontos de uma consulta — nunca faça conta de cabeça. Aceita + - * / ^, parênteses e %.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        expressoes: {
+          type: 'ARRAY',
+          description: 'Expressões no formato "rótulo: expressão", ex.: "redução: 2261.60 - 2180.17", "variação %: (2180.17 - 2261.60) / 2261.60 * 100". Use ponto como separador decimal.',
+          items: { type: 'STRING' },
+        },
+      },
+      required: ['expressoes'],
     },
   },
   {
@@ -259,6 +323,9 @@ const ROTULOS: Record<string, string> = {
   comparar_periodos: 'Comparando períodos',
   projecao_futura: 'Projetando os próximos meses',
   projetar_parcelamentos: 'Projetando parcelamentos',
+  simular_compra: 'Simulando a compra',
+  consultar_listas: 'Consultando as listas',
+  calcular: 'Calculando',
   consultar_estornos: 'Verificando estornos',
 }
 
@@ -310,6 +377,8 @@ export function executarFerramenta(
           apenasParceladas: asBool(args.apenasParceladas),
           agruparPor: asString(args.agruparPor) as never,
           limite: asNumber(args.limite),
+          ordenarPor: asString(args.ordenarPor) as never,
+          pagina: asNumber(args.pagina),
         }, refs)
 
       case 'consultar_planejamento':
@@ -360,6 +429,12 @@ export function executarFerramenta(
           periodoBInicio: asString(args.periodoBInicio),
           periodoBFim: asString(args.periodoBFim),
           dimensao: asString(args.dimensao) as never,
+          responsavel: asString(args.responsavel),
+          categoria: asString(args.categoria),
+          cartao: asString(args.cartao),
+          busca: asString(args.busca),
+          incluirContasFixas: asBool(args.incluirContasFixas),
+          mesmoPonto: asBool(args.mesmoPonto),
         }, refs)
 
       case 'projecao_futura':
@@ -375,6 +450,23 @@ export function executarFerramenta(
           incluirContas: asBool(args.incluirContas),
         }, refs)
 
+      case 'simular_compra':
+        return simularCompra(data, {
+          valorTotal: asNumber(args.valorTotal),
+          valorParcela: asNumber(args.valorParcela),
+          parcelas: asNumber(args.parcelas),
+          responsavel: asString(args.responsavel),
+          cartao: asString(args.cartao),
+          mesPrimeiraParcela: asString(args.mesPrimeiraParcela),
+          descricao: asString(args.descricao),
+        }, refs)
+
+      case 'consultar_listas':
+        return consultarListas(data, { tipo: asString(args.tipo), busca: asString(args.busca) })
+
+      case 'calcular':
+        return calcular({ expressoes: args.expressoes })
+
       case 'consultar_estornos':
         return consultarEstornos(data, {
           mesInicio: asString(args.mesInicio),
@@ -385,6 +477,9 @@ export function executarFerramenta(
         return `Ferramenta "${nome}" não existe. Ferramentas disponíveis: ${[...NOMES_FERRAMENTAS].join(', ')}. Escolha uma delas.`
     }
   } catch (err) {
+    // Filtro que não casa com nada: a mensagem já diz os valores válidos, e o
+    // modelo deve refazer a chamada — não responder com um total sem filtro.
+    if (err instanceof FiltroInvalido) return `FILTRO INVÁLIDO em "${nome}": ${err.message}`
     const msg = err instanceof Error ? err.message : 'erro desconhecido'
     return `Falha ao executar "${nome}": ${msg}. Tente outra ferramenta ou outros filtros.`
   }

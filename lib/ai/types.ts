@@ -15,6 +15,7 @@ export interface Transacao {
 }
 
 export interface Planejamento {
+  id?: string
   item: string
   responsavel: string | null
   valor_previsto: number
@@ -47,6 +48,8 @@ export interface Assinatura {
   categoria: string
   ativa: boolean
   dia_cobranca?: number | null
+  /** Pausa temporária: a assinatura volta a ser cobrada nesta data. */
+  pausada_ate?: string | null
 }
 
 export interface Investimento {
@@ -61,11 +64,60 @@ export interface AporteInvestimento {
   valor: number
   data_aporte: string
   observacao?: string | null
+  /** Saldo do investimento informado pelo usuário ao registrar este aporte. */
+  saldo_atual?: number | null
 }
 
 export interface Configuracao {
   chave: string
   valor: string
+}
+
+/** Limite mensal de parcelamentos por pessoa (vale até o próximo registro). */
+export interface LimiteParcelamento {
+  mes_referencia: string
+  responsavel: string
+  valor: number
+}
+
+/** Recebimento (possivelmente parcial) de uma receita do planejamento. */
+export interface RecebimentoReceita {
+  planejamento_id: string
+  valor: number
+  data_recebimento: string | null
+}
+
+/** Datas de fechamento registradas por fatura (mes_referencia = projeto_fatura). */
+export interface FaturaFechamento {
+  cartao: string
+  mes_referencia: string
+  data_fechamento: string
+}
+
+export interface ItemDesejo {
+  nome: string
+  valor_estimado: number | null
+  prioridade: string
+  realizado: boolean
+  categoria?: string | null
+  criado_por?: string | null
+}
+
+export interface ItemMercado {
+  nome: string
+  quantidade: number
+  preco_unit: number | null
+  comprado: boolean
+}
+
+export interface ItemListaCompras {
+  lista: string
+  nome: string
+  quantidade: number
+  pessoa: string | null
+  preco_previsto: number | null
+  preco_pago: number | null
+  status: string
 }
 
 export interface EnrichedData {
@@ -76,6 +128,14 @@ export interface EnrichedData {
   aportes: AporteInvestimento[]
   configuracoes: Configuracao[]
   estornos: Estorno[]
+  limites?: LimiteParcelamento[]
+  recebimentos?: RecebimentoReceita[]
+  faturas?: FaturaFechamento[]
+  desejos?: ItemDesejo[]
+  mercado?: ItemMercado[]
+  listasCompras?: ItemListaCompras[]
+  /** Fontes secundárias que falharam ao carregar — o agente precisa saber. */
+  avisos?: string[]
   ts: number
 }
 
