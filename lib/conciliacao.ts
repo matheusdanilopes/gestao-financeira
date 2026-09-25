@@ -386,6 +386,8 @@ function buildPayload(item: TransacaoNubank, extra: Record<string, unknown>): Re
  * descrição igual ignorando o número da parcela atual) — primeiro dentro do próprio
  * lote importado (compra nova, com 1/X e 2/X no mesmo arquivo), depois no banco — e
  * sobrescreve item.responsavel para manter o mesmo responsável em toda a série.
+ * Também herda a `descricao_personalizada` da parcela anterior mais recente que
+ * tiver uma, para que o nome dado pelo usuário continue nas próximas parcelas.
  * Transações sem parcela anterior encontrada mantêm o responsável já calculado
  * (heurística de descrição/responsavelPadrao).
  *
@@ -411,13 +413,18 @@ export async function aplicarResponsavelDeParcelaAnterior(
   // N round-trips para N combinações.
   const { data: registrosBanco } = await supabase
     .from('transacoes_nubank')
-    .select('descricao, responsavel, parcela_atual, cartao, total_parcelas')
+    .select('descricao, descricao_personalizada, responsavel, parcela_atual, cartao, total_parcelas')
     .in('cartao', cartoes)
     .in('total_parcelas', totais)
     .eq('is_estorno', false)
     .order('parcela_atual', { ascending: false })
 
-  type RegistroParcela = { descricao: string; responsavel: string | null; parcela_atual: number }
+  type RegistroParcela = {
+    descricao: string
+    descricao_personalizada: string | null
+    responsavel: string | null
+    parcela_atual: number
+  }
   const parcelasNoBanco = new Map<string, RegistroParcela[]>()
   for (const row of (registrosBanco ?? []) as Array<RegistroParcela & { cartao: string | null; total_parcelas: number }>) {
     const chave = `${row.cartao ?? 'nubank'}|${row.total_parcelas}|${normalizarDescricaoSemParcela(row.descricao)}`
@@ -456,6 +463,13 @@ export async function aplicarResponsavelDeParcelaAnterior(
           | undefined) ?? null
 
     if (responsavelAnterior) item.responsavel = responsavelAnterior
+
+    // Parcelas do próprio lote vêm do arquivo e nunca têm nome personalizado, então
+    // a busca é só no banco: a parcela anterior mais recente que tiver um.
+    const personalizadaAnterior = (parcelasNoBanco.get(chave) ?? []).find(
+      r => r.parcela_atual < item.parcela_atual! && r.descricao_personalizada?.trim()
+    )?.descricao_personalizada
+    if (personalizadaAnterior) item.descricao_personalizada = personalizadaAnterior
   }
 }
 
