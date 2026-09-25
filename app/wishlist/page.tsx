@@ -9,7 +9,7 @@ import { RealizarButton } from '@/components/RealizarButton'
 import { fireWishlistConfetti } from '@/lib/confetti'
 import { useWishlist, type WishlistItem } from '@/lib/useWishlist'
 import { supabase } from '@/lib/supabaseClient'
-import { formatBRL } from '@/lib/format'
+import { formatBRL, mascaraMoeda, formatarMoedaInput, parseMoeda } from '@/lib/format'
 import { fileToBase64, abortTimeout, compressImage, callAnalyze } from '@/lib/imageUtils'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -191,7 +191,7 @@ function ModalWishlist({
   const [form, setForm] = useState<ModalForm>({
     nome:           item?.nome           ?? '',
     emoji:          item?.emoji          ?? '',
-    valor_estimado: item?.valor_estimado != null ? String(item.valor_estimado) : '',
+    valor_estimado: formatarMoedaInput(item?.valor_estimado),
     prioridade:     (item?.prioridade    ?? 'media') as Prioridade,
     categoria:      item?.categoria      ?? '',
     nota:           item?.nota           ?? '',
@@ -234,7 +234,7 @@ function ModalWishlist({
       if (res.ok) {
         const data = await res.json() as { nome?: string; descricao?: string | null; preco?: number | null }
         if (data.nome && !form.nome) setField('nome', data.nome)
-        if (data.preco != null && !form.valor_estimado) setField('valor_estimado', String(data.preco))
+        if (data.preco != null && !form.valor_estimado) setField('valor_estimado', formatarMoedaInput(data.preco))
       }
     } catch { /* identificação opcional */ }
     finally { setIdentificando(false) }
@@ -386,11 +386,10 @@ function ModalWishlist({
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium">R$</span>
                   <input
-                    type="number"
-                    min="0"
-                    step="0.01"
+                    type="text"
+                    inputMode="numeric"
                     value={form.valor_estimado}
-                    onChange={e => setField('valor_estimado', e.target.value)}
+                    onChange={e => setField('valor_estimado', mascaraMoeda(e.target.value))}
                     placeholder="0,00"
                     className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-900
                                placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
@@ -1170,7 +1169,7 @@ function WishlistContent() {
     const campos = {
       nome:           form.nome.trim(),
       emoji:          form.emoji    || null,
-      valor_estimado: form.valor_estimado ? parseFloat(form.valor_estimado) : null,
+      valor_estimado: form.valor_estimado ? parseMoeda(form.valor_estimado) : null,
       prioridade:     form.prioridade,
       categoria:      form.categoria || null,
       nota:           form.nota.trim() || null,

@@ -6,7 +6,7 @@ import { ptBR } from 'date-fns/locale'
 import { Layers, Search, CreditCard, ClipboardList, Sparkles, SlidersHorizontal } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
-import { formatBRL } from '@/lib/format'
+import { formatBRL, mascaraMoeda, formatarMoedaInput, parseMoeda } from '@/lib/format'
 import FilterSelect from '@/components/FilterSelect'
 import EmptyState from '@/components/EmptyState'
 import { buscarCartaoLabels, CARTAO_LABELS_PADRAO, type CartaoLabels } from '@/lib/cartaoLabels'
@@ -185,7 +185,7 @@ export default function ParcelamentosMensal({ mesAtual, onResumo }: Props) {
       for (const l of limitesData) {
         if (oMap[l.responsavel]) continue // já achou a linha mais recente para esse responsável
         lMap[l.responsavel] = Number(l.valor ?? 0)
-        iMap[l.responsavel] = String(l.valor ?? '')
+        iMap[l.responsavel] = formatarMoedaInput(l.valor)
         oMap[l.responsavel] = l.mes_referencia
       }
 
@@ -303,7 +303,7 @@ export default function ParcelamentosMensal({ mesAtual, onResumo }: Props) {
   }, [mesReferencia, mesAtual, onResumo])
 
   async function salvarLimite(responsavel: Responsavel, valorStr: string) {
-    const valor = parseFloat(valorStr.replace(',', '.'))
+    const valor = parseMoeda(valorStr)
     const valorFinal = !isNaN(valor) && valor > 0 ? valor : 0
 
     setSalvando(responsavel)
@@ -322,16 +322,17 @@ export default function ParcelamentosMensal({ mesAtual, onResumo }: Props) {
 
   function aplicarSugestao(responsavel: Responsavel) {
     const valor = Math.max(Math.round(sugestoes[responsavel] ?? 0), Math.round(comprometidoPorPessoa[responsavel] ?? 0))
-    setInputs(prev => ({ ...prev, [responsavel]: String(valor) }))
+    setInputs(prev => ({ ...prev, [responsavel]: formatarMoedaInput(valor) }))
     const previsto = previstoFatura[responsavel] ?? 0
     setInputsPct(prev => ({ ...prev, [responsavel]: previsto > 0 ? String(arredondar((valor / previsto) * 100, 1)) : '' }))
-    salvarLimite(responsavel, String(valor))
+    salvarLimite(responsavel, formatarMoedaInput(valor))
   }
 
-  function alterarValor(responsavel: Responsavel, valorStr: string) {
+  function alterarValor(responsavel: Responsavel, texto: string) {
+    const valorStr = mascaraMoeda(texto)
     setInputs(prev => ({ ...prev, [responsavel]: valorStr }))
     const previsto = previstoFatura[responsavel] ?? 0
-    const valor = parseFloat(valorStr.replace(',', '.'))
+    const valor = parseMoeda(valorStr)
     if (previsto > 0 && !isNaN(valor)) {
       setInputsPct(prev => ({ ...prev, [responsavel]: String(arredondar((valor / previsto) * 100, 1)) }))
     } else if (valorStr === '') {
@@ -344,7 +345,7 @@ export default function ParcelamentosMensal({ mesAtual, onResumo }: Props) {
     const previsto = previstoFatura[responsavel] ?? 0
     const pct = parseFloat(pctStr.replace(',', '.'))
     if (previsto > 0 && !isNaN(pct)) {
-      setInputs(prev => ({ ...prev, [responsavel]: String(arredondar((pct / 100) * previsto, 2)) }))
+      setInputs(prev => ({ ...prev, [responsavel]: formatarMoedaInput(arredondar((pct / 100) * previsto, 2)) }))
     } else if (pctStr === '') {
       setInputs(prev => ({ ...prev, [responsavel]: '' }))
     }
@@ -538,9 +539,8 @@ export default function ParcelamentosMensal({ mesAtual, onResumo }: Props) {
                   <div className={`flex-1 min-w-0 flex items-center gap-1.5 bg-white dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 rounded-xl pl-3 pr-2.5 py-2 ${CAMPO_FOCO}`}>
                     <span className="text-xs font-medium text-gray-400 dark:text-gray-500 shrink-0">R$</span>
                     <input
-                      type="number"
-                      min="0"
-                      step="0.01"
+                      type="text"
+                      inputMode="numeric"
                       placeholder="Sem limite"
                       value={inputs[responsavel] ?? ''}
                       onChange={(e) => alterarValor(responsavel, e.target.value)}

@@ -12,7 +12,7 @@ import { BottomSheet } from '@/components/BottomSheet'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { useItensLista, useSublistasLista, type ItemListaCompras, type ListaComMeta } from '@/lib/useListasCompras'
 import { supabase } from '@/lib/supabaseClient'
-import { formatBRL } from '@/lib/format'
+import { formatBRL, mascaraMoeda, formatarMoedaInput, parseMoeda } from '@/lib/format'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -52,8 +52,7 @@ function labelPessoa(email: string): string {
 }
 
 function parsearPreco(s: string): number | null {
-  const num = s.replace(',', '.').trim()
-  const v = parseFloat(num)
+  const v = parseMoeda(s)
   return isNaN(v) || v < 0 ? null : v
 }
 
@@ -98,7 +97,7 @@ function BottomSheetPrecoPago({
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [valor, setValor] = useState(
-    item.preco_previsto != null ? String(item.preco_previsto).replace('.', ',') : ''
+    formatarMoedaInput(item.preco_previsto)
   )
   const [keyboardOffset, setKeyboardOffset] = useState(0)
 
@@ -144,7 +143,7 @@ function BottomSheetPrecoPago({
                   type="text"
                   inputMode="decimal"
                   value={valor}
-                  onChange={e => setValor(e.target.value)}
+                  onChange={e => setValor(mascaraMoeda(e.target.value))}
                   placeholder="0,00"
                   className="w-full pl-10 pr-4 py-3 text-lg font-semibold text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-800
                              border border-gray-200 dark:border-gray-700 rounded-2xl focus:outline-none focus:ring-2
@@ -198,10 +197,10 @@ function BottomSheetEditarItem({
   const [quantidade, setQuantidade] = useState(item.quantidade)
   const [pessoa, setPessoa] = useState<string | null>(item.pessoa ?? null)
   const [precoPrevisto, setPrecoPrevisto] = useState(
-    item.preco_previsto != null ? String(item.preco_previsto).replace('.', ',') : ''
+    formatarMoedaInput(item.preco_previsto)
   )
   const [precoPago, setPrecoPago] = useState(
-    item.preco_pago != null ? String(item.preco_pago).replace('.', ',') : ''
+    formatarMoedaInput(item.preco_pago)
   )
   const [loading, setLoading] = useState(false)
 
@@ -356,7 +355,7 @@ function BottomSheetEditarItem({
                     type="text"
                     inputMode="decimal"
                     value={precoPrevisto}
-                    onChange={e => setPrecoPrevisto(e.target.value)}
+                    onChange={e => setPrecoPrevisto(mascaraMoeda(e.target.value))}
                     placeholder="0,00"
                     className="w-full pl-8 pr-3 py-2.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-xl
                                focus:outline-none focus:ring-2 focus:ring-primary-400 num"
@@ -373,7 +372,7 @@ function BottomSheetEditarItem({
                     type="text"
                     inputMode="decimal"
                     value={precoPago}
-                    onChange={e => setPrecoPago(e.target.value)}
+                    onChange={e => setPrecoPago(mascaraMoeda(e.target.value))}
                     placeholder="0,00"
                     className="w-full pl-8 pr-3 py-2.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-xl
                                focus:outline-none focus:ring-2 focus:ring-primary-400 num"

@@ -3,6 +3,7 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
 import { Camera, X, RotateCcw, Check, Loader2, AlertCircle, Zap, ZapOff } from 'lucide-react'
 import ModalPortal from './ModalPortal'
+import { mascaraMoeda, formatarMoedaInput, parseMoeda } from '@/lib/format'
 
 type Status = 'requesting' | 'preview' | 'processing' | 'result' | 'error'
 type ErrorKind = 'permission' | 'device' | 'notfound' | 'network'
@@ -95,7 +96,7 @@ export function CameraOCR({ onConfirmar, onClose }: Props) {
       if (preco === null) preco = await tryOCR() // retry silencioso
       if (preco != null) {
         navigator.vibrate?.([50])
-        setPrecoEditado(preco.toFixed(2).replace('.', ','))
+        setPrecoEditado(formatarMoedaInput(preco))
         setStatus('result')
         setTimeout(() => precoInputRef.current?.focus(), 150)
       } else {
@@ -151,7 +152,7 @@ export function CameraOCR({ onConfirmar, onClose }: Props) {
   }, [startCamera])
 
   const confirmar = useCallback(() => {
-    const num = parseFloat(precoEditado.replace(',', '.').trim())
+    const num = parseMoeda(precoEditado)
     if (!isNaN(num) && num > 0) {
       stopStream()
       onConfirmar(num)
@@ -308,7 +309,7 @@ export function CameraOCR({ onConfirmar, onClose }: Props) {
                     type="text"
                     inputMode="decimal"
                     value={precoEditado}
-                    onChange={e => setPrecoEditado(e.target.value)}
+                    onChange={e => setPrecoEditado(mascaraMoeda(e.target.value))}
                     onKeyDown={e => e.key === 'Enter' && confirmar()}
                     className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 text-2xl font-bold
                                text-gray-900 text-center focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent"

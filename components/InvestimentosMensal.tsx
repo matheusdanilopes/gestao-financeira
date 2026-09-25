@@ -10,7 +10,7 @@ import { PiggyBank, CirclePlus, History, Trash2, X, WifiOff } from 'lucide-react
 import PageActionButtons from '@/components/PageActionButtons'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { log } from '@/lib/logger'
-import { numericOnly, formatBRL } from '@/lib/format'
+import { numericOnly, mascaraMoeda, formatarMoedaInput, parseMoeda, formatBRL } from '@/lib/format'
 import {
   atualizarRegistrosFuturos,
   excluirRegistrosFuturos,
@@ -133,9 +133,9 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
     if (ultimoCampo === 'percentual') {
       const pct = parseFloat(formData.percentual.replace(',', '.'))
       if (!isNaN(pct) && saldo > 0)
-        setFormData(f => ({ ...f, valor: (saldo * pct / 100).toFixed(2) }))
+        setFormData(f => ({ ...f, valor: formatarMoedaInput(saldo * pct / 100) }))
     } else {
-      const val = parseFloat(formData.valor.replace(',', '.'))
+      const val = parseMoeda(formData.valor)
       if (!isNaN(val) && saldo > 0)
         setFormData(f => ({ ...f, percentual: (val / saldo * 100).toFixed(2) }))
     }
@@ -171,13 +171,13 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
     const clean = numericOnly(v)
     setUltimoCampo('percentual')
     const pct = parseFloat(clean.replace(',', '.'))
-    setFormData(f => ({ ...f, percentual: clean, valor: !isNaN(pct) && saldo > 0 ? (saldo * pct / 100).toFixed(2) : '' }))
+    setFormData(f => ({ ...f, percentual: clean, valor: !isNaN(pct) && saldo > 0 ? formatarMoedaInput(saldo * pct / 100) : '' }))
   }
 
   function handleValorChange(v: string) {
-    const clean = numericOnly(v)
+    const clean = mascaraMoeda(v)
     setUltimoCampo('valor')
-    const val = parseFloat(clean.replace(',', '.'))
+    const val = parseMoeda(clean)
     setFormData(f => ({ ...f, valor: clean, percentual: !isNaN(val) && saldo > 0 ? (val / saldo * 100).toFixed(2) : '' }))
   }
 
@@ -333,7 +333,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
     setFormData({
       descricao: item.descricao,
       percentual: String(item.percentual),
-      valor: saldo > 0 ? (saldo * item.percentual / 100).toFixed(2) : '',
+      valor: saldo > 0 ? formatarMoedaInput(saldo * item.percentual / 100) : '',
     })
     setUltimoCampo('percentual')
     setAplicarFuturos(false)
@@ -350,9 +350,9 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
   // ── Aportes ──────────────────────────────────────────────────
   async function salvarAporte() {
     if (!modalAporte) return
-    const valor = parseFloat(formAporte.valor.replace(',', '.'))
+    const valor = parseMoeda(formAporte.valor)
     if (isNaN(valor) || valor <= 0) return
-    const saldoAtualInformado = parseFloat(formAporte.saldo_atual.replace(',', '.'))
+    const saldoAtualInformado = parseMoeda(formAporte.saldo_atual)
     const saldoAtualValido = !isNaN(saldoAtualInformado) && saldoAtualInformado >= 0
 
     const { error } = await supabase.from('investimentos_aportes').insert([{
@@ -632,7 +632,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
                             setModalAporte(item)
                             setFormAporte({
                               valor: '',
-                              saldo_atual: ultimoSaldoAtual(item.id)?.toFixed(2) || '',
+                              saldo_atual: formatarMoedaInput(ultimoSaldoAtual(item.id)),
                               data_aporte: format(new Date(), 'yyyy-MM-dd'),
                               observacao: '',
                             })
@@ -698,7 +698,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
                   className="w-full border border-gray-200 rounded-xl p-3 text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-violet-400"
                   placeholder="0,00"
                   value={formAporte.valor}
-                  onChange={(e) => setFormAporte(f => ({ ...f, valor: numericOnly(e.target.value) }))}
+                  onChange={(e) => setFormAporte(f => ({ ...f, valor: mascaraMoeda(e.target.value) }))}
                   autoFocus
                 />
               </div>
@@ -717,9 +717,9 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
                   type="text"
                   inputMode="decimal"
                   className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-violet-400"
-                  placeholder="Ex: 1500,00"
+                  placeholder="Ex: 1.500,00"
                   value={formAporte.saldo_atual}
-                  onChange={(e) => setFormAporte(f => ({ ...f, saldo_atual: numericOnly(e.target.value) }))}
+                  onChange={(e) => setFormAporte(f => ({ ...f, saldo_atual: mascaraMoeda(e.target.value) }))}
                 />
               </div>
               <div>
@@ -812,7 +812,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
                 setModalAporte(modalHistorico)
                 setFormAporte({
                   valor: '',
-                  saldo_atual: ultimoSaldoAtual(modalHistorico.id)?.toFixed(2) || '',
+                  saldo_atual: formatarMoedaInput(ultimoSaldoAtual(modalHistorico.id)),
                   data_aporte: format(new Date(), 'yyyy-MM-dd'),
                   observacao: '',
                 })

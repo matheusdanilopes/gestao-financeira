@@ -9,7 +9,7 @@ import { TrendingUp, CirclePlus, History, Trash2, X, WifiOff } from 'lucide-reac
 import PageActionButtons from '@/components/PageActionButtons'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { log } from '@/lib/logger'
-import { numericOnly, formatBRL } from '@/lib/format'
+import { mascaraMoeda, formatarMoedaInput, parseMoeda, formatBRL } from '@/lib/format'
 import {
   atualizarRegistrosFuturos,
   excluirRegistrosFuturos,
@@ -141,7 +141,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
 
   async function salvarRecebimento() {
     if (!modalRecebimento) return
-    const valor = parseFloat(formRecebimento.valor.replace(',', '.'))
+    const valor = parseMoeda(formRecebimento.valor)
     if (isNaN(valor) || valor <= 0) return
 
     const { error } = await supabase.from('receitas_recebimentos').insert([{
@@ -242,7 +242,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
   }
 
   async function salvar() {
-    const valor = parseFloat(formData.valor_previsto.replace(',', '.'))
+    const valor = parseMoeda(formData.valor_previsto)
     const payload = {
       item: paraNomeInterno(formData.item),
       responsavel: formData.responsavel,
@@ -407,7 +407,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
     setFormData({
       item: paraNomeExibicao(item.item),
       responsavel: item.responsavel,
-      valor_previsto: String(item.valor_previsto),
+      valor_previsto: formatarMoedaInput(item.valor_previsto),
     })
     setAplicarFuturos(false)
     setModalAberto('editar')
@@ -656,7 +656,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
                   className="w-full border border-gray-200 rounded-xl p-3 text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-green-400"
                   placeholder="0,00"
                   value={formRecebimento.valor}
-                  onChange={(e) => setFormRecebimento(f => ({ ...f, valor: numericOnly(e.target.value) }))}
+                  onChange={(e) => setFormRecebimento(f => ({ ...f, valor: mascaraMoeda(e.target.value) }))}
                   autoFocus
                 />
               </div>
@@ -846,7 +846,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
                   className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-green-400"
                   placeholder="0,00"
                   value={formData.valor_previsto}
-                  onChange={(e) => setFormData({ ...formData, valor_previsto: numericOnly(e.target.value) })}
+                  onChange={(e) => setFormData({ ...formData, valor_previsto: mascaraMoeda(e.target.value) })}
                 />
               </div>
               <div className="bg-gray-50 rounded-xl p-3">

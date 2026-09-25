@@ -8,7 +8,7 @@ import { useImportacaoScript, type StatusExecucaoScript } from '@/components/Imp
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth } from 'date-fns'
 import FilterSelect from '@/components/FilterSelect'
-import { numericOnly } from '@/lib/format'
+import { mascaraMoeda, parseMoeda } from '@/lib/format'
 
 interface StatsFatura {
   noCSV: number
@@ -418,7 +418,7 @@ export default function ImportarPage() {
     return detalheLinhas.filter(l =>
       (!busca || l.descricao.toLowerCase().includes(busca)) &&
       (!filtroDecisaoDetalhe || l.decisao === filtroDecisaoDetalhe) &&
-      (!filtroValorMinDetalhe || (l.valor != null && l.valor >= Number(filtroValorMinDetalhe))) &&
+      (!filtroValorMinDetalhe || (l.valor != null && l.valor >= parseMoeda(filtroValorMinDetalhe))) &&
       (!filtroDataDetalhe || l.data_compra === filtroDataDetalhe)
     )
   }, [detalheLinhas, filtroBuscaDetalhe, filtroDecisaoDetalhe, filtroValorMinDetalhe, filtroDataDetalhe])
@@ -1445,7 +1445,7 @@ export default function ImportarPage() {
                       className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
                       placeholder="Valor mínimo"
                       value={filtroValorMinDetalhe}
-                      onChange={(e) => setFiltroValorMinDetalhe(numericOnly(e.target.value))}
+                      onChange={(e) => setFiltroValorMinDetalhe(mascaraMoeda(e.target.value))}
                     />
                     <div className="relative">
                       <input

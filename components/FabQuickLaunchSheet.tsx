@@ -13,6 +13,7 @@ import { notificarWishlist } from '@/lib/notificacoes'
 import { compressImage, abortTimeout, callAnalyze } from '@/lib/imageUtils'
 import { useOnline } from '@/lib/useOnline'
 import { enqueueOp } from '@/lib/offlineQueue'
+import { mascaraMoeda, parseMoeda } from '@/lib/format'
 
 type View = 'menu' | 'wishlist-method' | 'wishlist' | 'wishlist-ai' | 'mercado'
 type AIStatus = 'idle' | 'uploading' | 'done' | 'error'
@@ -68,7 +69,7 @@ function QuickAddWishlist({
       const criado_por = await getUsuario()
       const { data, error } = await supabase.from('wishlist_items').insert([{
         nome:           nome.trim(),
-        valor_estimado: valor ? parseFloat(valor.replace(',', '.')) : null,
+        valor_estimado: valor ? parseMoeda(valor) : null,
         categoria:      categoria || null,
         prioridade,
         favoritado:     false,
@@ -112,14 +113,12 @@ function QuickAddWishlist({
       <div className="input-base flex items-center gap-1.5">
         <span className="text-sm text-gray-400 shrink-0">R$</span>
         <input
-          type="number"
-          inputMode="decimal"
+          type="text"
+          inputMode="numeric"
           value={valor}
-          onChange={e => setValor(e.target.value)}
+          onChange={e => setValor(mascaraMoeda(e.target.value))}
           placeholder="0,00"
           className="flex-1 bg-transparent outline-none min-w-0"
-          min="0"
-          step="0.01"
         />
       </div>
 

@@ -15,7 +15,7 @@ import FilterSelect from '@/components/FilterSelect'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import EmptyState from '@/components/EmptyState'
 import { log } from '@/lib/logger'
-import { numericOnly, formatBRL } from '@/lib/format'
+import { mascaraMoeda, formatarMoedaInput, parseMoeda, formatBRL } from '@/lib/format'
 import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
 import { valorEfetivoNoMes } from '@/lib/assinaturaValor'
 import { ativaEfetivaNoMes, HistoricoStatusEntry } from '@/lib/assinaturaStatus'
@@ -130,7 +130,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       setFormData({
         ...FORM_VAZIO,
         nome: nome ?? '',
-        valor: valor ? String(valor.toFixed(2)) : '',
+        valor: valor ? formatarMoedaInput(valor) : '',
         cartao: cartao || 'nubank',
         responsavel: responsavel || 'Matheus',
       })
@@ -356,13 +356,13 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
 
   async function salvar() {
     const nome = formData.nome.trim()
-    const valor = parseFloat(formData.valor.replace(',', '.'))
+    const valor = parseMoeda(formData.valor)
     if (!nome || isNaN(valor) || valor <= 0) return
 
     const vigenteDe  = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
     const vigenteFim = format(endOfMonth(mesSelecionado),   'yyyy-MM-dd')
     const valorOrigemParsed = formData.moeda !== 'BRL' && formData.valorOrigem
-      ? parseFloat(formData.valorOrigem.replace(',', '.'))
+      ? parseMoeda(formData.valorOrigem)
       : null
     const payload = {
       nome,
@@ -550,14 +550,14 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
     setItemSelecionado(item)
     setFormData({
       nome: item.nome,
-      valor: String(valorParaMes(item, mesSelecionado, historico)),
+      valor: formatarMoedaInput(valorParaMes(item, mesSelecionado, historico)),
       cartao: item.cartao,
       responsavel: item.responsavel,
       dia_cobranca: item.dia_cobranca ? String(item.dia_cobranca) : '',
       categoria: item.categoria,
       observacao: item.observacao || '',
       moeda: item.moeda || 'BRL',
-      valorOrigem: item.valor_origem != null ? String(item.valor_origem) : '',
+      valorOrigem: formatarMoedaInput(item.valor_origem),
     })
     setModalAberto('editar')
   }
@@ -919,7 +919,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                   className="w-full border border-gray-200 rounded-2xl p-3 text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow num"
                   placeholder="0,00"
                   value={formData.valor}
-                  onChange={e => setFormData(f => ({ ...f, valor: numericOnly(e.target.value) }))}
+                  onChange={e => setFormData(f => ({ ...f, valor: mascaraMoeda(e.target.value) }))}
                 />
               </div>
 
@@ -950,7 +950,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                     className="w-full border border-gray-200 rounded-2xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow num"
                     placeholder="Ex: 9,99"
                     value={formData.valorOrigem}
-                    onChange={e => setFormData(f => ({ ...f, valorOrigem: numericOnly(e.target.value) }))}
+                    onChange={e => setFormData(f => ({ ...f, valorOrigem: mascaraMoeda(e.target.value) }))}
                   />
                 </div>
               )}
