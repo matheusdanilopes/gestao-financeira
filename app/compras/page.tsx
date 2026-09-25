@@ -28,6 +28,7 @@ type Compra = {
   data_compra: string | null
   data: string | null
   descricao: string
+  descricao_personalizada?: string | null
   valor: number
   responsavel: string
   parcela_atual: number | null
@@ -42,10 +43,22 @@ type Compra = {
 
 type FormEditar = {
   descricao: string
+  descricao_personalizada: string
   valor: string
   responsavel: string
   categoria: string
   data_compra: string
+}
+
+/** Nome exibido: a descrição personalizada, se houver, senão a original da fatura. */
+function nomeExibido(c: Compra): string {
+  return c.descricao_personalizada?.trim() || c.descricao
+}
+
+function correspondeDescricao(c: Compra, termo: string): boolean {
+  const t = termo.toLowerCase()
+  return c.descricao.toLowerCase().includes(t) ||
+    !!c.descricao_personalizada?.toLowerCase().includes(t)
 }
 
 function dataEfetiva(c: Compra): string {
@@ -173,7 +186,7 @@ export default function ComprasPage() {
   const [modalEditar, setModalEditar] = useState<Compra | null>(null)
   const [modalExcluir, setModalExcluir] = useState<Compra | null>(null)
   const [formEditar, setFormEditar] = useState<FormEditar>({
-    descricao: '', valor: '', responsavel: 'Matheus', categoria: '', data_compra: '',
+    descricao: '', descricao_personalizada: '', valor: '', responsavel: 'Matheus', categoria: '', data_compra: '',
   })
   const [salvando, setSalvando] = useState(false)
   const [filtrosExpandidos, setFiltrosExpandidos] = useState(false)
@@ -364,6 +377,7 @@ export default function ComprasPage() {
   function abrirEditar(c: Compra) {
     setFormEditar({
       descricao: c.descricao,
+      descricao_personalizada: c.descricao_personalizada || '',
       valor: formatarMoedaInput(c.valor),
       responsavel: c.responsavel,
       categoria: c.categoria || '',
@@ -387,6 +401,7 @@ export default function ComprasPage() {
       .from('transacoes_nubank')
       .update({
         descricao: formEditar.descricao.trim(),
+        descricao_personalizada: formEditar.descricao_personalizada.trim() || null,
         valor,
         responsavel: formEditar.responsavel,
         categoria: formEditar.categoria || null,
@@ -409,7 +424,7 @@ export default function ComprasPage() {
     }
 
     log('editar', 'transacoes_nubank',
-      `Editado: ${formEditar.descricao.trim()} — ${formatBRL(valor)} (${formEditar.responsavel})`,
+      `Editado: ${formEditar.descricao_personalizada.trim() || formEditar.descricao.trim()} — ${formatBRL(valor)} (${formEditar.responsavel})`,
       valor,
       modalEditar.valor
     )
@@ -471,7 +486,7 @@ export default function ComprasPage() {
       return (
         (!filtroResponsavel || c.responsavel === filtroResponsavel) &&
         (!filtroCartao || c.cartao === filtroCartao) &&
-        (!filtroDescricao || c.descricao.toLowerCase().includes(filtroDescricao.toLowerCase())) &&
+        (!filtroDescricao || correspondeDescricao(c, filtroDescricao)) &&
         (!filtroValorMin || c.valor >= parseMoeda(filtroValorMin)) &&
         (!filtroData || dataStr === filtroData) &&
         (!filtroCategoria || c.categoria === filtroCategoria) &&
@@ -502,7 +517,7 @@ export default function ComprasPage() {
       const dataStr = dataEfetiva(c)
       return (
         (!filtroCartao || c.cartao === filtroCartao) &&
-        (!filtroDescricao || c.descricao.toLowerCase().includes(filtroDescricao.toLowerCase())) &&
+        (!filtroDescricao || correspondeDescricao(c, filtroDescricao)) &&
         (!filtroValorMin || c.valor >= parseMoeda(filtroValorMin)) &&
         (!filtroData || dataStr === filtroData) &&
         (!filtroCategoria || c.categoria === filtroCategoria) &&
@@ -941,13 +956,13 @@ export default function ComprasPage() {
                           } ${canInteract ? 'cursor-pointer active:bg-gray-50 dark:active:bg-white/[0.06] hover:bg-gray-50/50 dark:hover:bg-white/[0.06]' : 'cursor-default'}`}
                           onClick={() => { if (canInteract) abrirEditar(c) }}
                           role={canInteract ? 'button' : undefined}
-                          aria-label={canInteract ? `Editar ${c.descricao}` : undefined}
+                          aria-label={canInteract ? `Editar ${nomeExibido(c)}` : undefined}
                           tabIndex={canInteract ? 0 : undefined}
                           onKeyDown={canInteract ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirEditar(c) } } : undefined}
                         >
                           <div className="flex-1 min-w-0">
                             <p className={`text-[15px] font-semibold leading-snug truncate ${isEstornado ? 'line-through text-gray-400' : 'text-gray-900'}`}>
-                              {c.descricao}
+                              {nomeExibido(c)}
                             </p>
                             {(metaParts.length > 0 || isParcelado) && (
                               <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
@@ -1034,13 +1049,27 @@ export default function ComprasPage() {
 
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Descrição</label>
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">
+                  Descrição personalizada <span className="font-normal text-gray-400">(opcional)</span>
+                </label>
+                <input
+                  type="text"
+                  className="w-full border border-gray-200 rounded-2xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
+                  placeholder={formEditar.descricao}
+                  value={formEditar.descricao_personalizada}
+                  onChange={(e) => setFormEditar(f => ({ ...f, descricao_personalizada: e.target.value }))}
+                />
+                <p className="text-[11px] text-gray-400 mt-1">Exibida na lista no lugar da descrição original.</p>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Descrição original</label>
                 <input
                   type="text"
                   className="w-full border border-gray-200 rounded-2xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-shadow"
                   value={formEditar.descricao}
                   onChange={(e) => setFormEditar(f => ({ ...f, descricao: e.target.value }))}
                 />
+                <p className="text-[11px] text-gray-400 mt-1">Usada para identificar a compra na importação — evite alterar.</p>
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Valor (R$)</label>
@@ -1130,7 +1159,7 @@ export default function ComprasPage() {
             </div>
             <h3 className="text-lg font-bold text-center mb-1">Excluir compra?</h3>
             <p className="text-sm text-gray-500 text-center mb-1">
-              <span className="font-semibold text-gray-800">{modalExcluir.descricao}</span>
+              <span className="font-semibold text-gray-800">{nomeExibido(modalExcluir)}</span>
             </p>
             <p className="text-sm text-gray-400 text-center mb-6">
               <span className="num">{formatBRL(modalExcluir.valor)}</span> · {modalExcluir.responsavel}

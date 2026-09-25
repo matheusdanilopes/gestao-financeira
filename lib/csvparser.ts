@@ -25,6 +25,9 @@ export interface TransacaoNubank {
   total_parcelas: number | null
   cartao?: string
   is_estorno: boolean
+  /** Nome dado pelo usuário à compra, herdado da parcela anterior na importação
+   *  (ver aplicarResponsavelDeParcelaAnterior). */
+  descricao_personalizada?: string | null
   /** Índice de ocorrência dentro do lote importado (1-based). Usado para deduplição;
    *  não é persistido no banco. */
   occurrence_index?: number
