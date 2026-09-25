@@ -409,7 +409,7 @@ export default function ComprasPage() {
     }
 
     log('editar', 'transacoes_nubank',
-      `Editado: ${formEditar.descricao.trim()} — R$ ${valor.toFixed(2)} (${formEditar.responsavel})`,
+      `Editado: ${formEditar.descricao.trim()} — ${formatBRL(valor)} (${formEditar.responsavel})`,
       valor,
       modalEditar.valor
     )
@@ -430,7 +430,7 @@ export default function ComprasPage() {
     if (error) { showToast('Erro ao excluir', 'erro'); return }
 
     log('excluir', 'transacoes_nubank',
-      `Excluído: ${modalExcluir.descricao} — R$ ${modalExcluir.valor.toFixed(2)} (${modalExcluir.responsavel})`,
+      `Excluído: ${modalExcluir.descricao} — ${formatBRL(modalExcluir.valor)} (${modalExcluir.responsavel})`,
       modalExcluir.valor
     )
     showToast('Compra excluída')

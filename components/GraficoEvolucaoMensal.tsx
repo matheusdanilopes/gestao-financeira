@@ -236,7 +236,7 @@ export default function GraficoEvolucaoMensal({ mesAtual, ativo = true }: Props)
               if (despesaAnterior > 0) {
                 const variacao = ((despesa - despesaAnterior) / despesaAnterior) * 100
                 linhas.push(
-                  `  Despesa vs. mês anterior: ${variacao >= 0 ? '+' : ''}${variacao.toFixed(1)}%`
+                  `  Despesa vs. mês anterior: ${variacao >= 0 ? '+' : ''}${variacao.toFixed(1).replace('.', ',')}%`
                 )
               }
               return linhas

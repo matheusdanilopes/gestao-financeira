@@ -262,7 +262,7 @@ export default function GraficoCategoriasDespesas({ mesAtual, ativo = true, onCa
                 const pct   = (diff / cat.previsto) * 100
                 const sinal = diff >= 0 ? '+' : ''
                 linhas.push(`  Diferença: ${sinal}${formatBRL(diff)}`)
-                linhas.push(`  Variação: ${sinal}${pct.toFixed(1)}%`)
+                linhas.push(`  Variação: ${sinal}${pct.toFixed(1).replace('.', ',')}%`)
               }
               if (cat.previsto > 0)
                 linhas.push(`  % do previsto: ${cat.previsto > 0 ? ((cat.pago / cat.previsto) * 100).toFixed(0) : '—'}%`)

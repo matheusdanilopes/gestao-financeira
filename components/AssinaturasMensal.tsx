@@ -599,12 +599,12 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
             <Repeat className="w-3.5 h-3.5 text-primary-500 dark:text-primary-400" />
             <p className="text-xs text-gray-400 font-medium">Total ativo/mês</p>
           </div>
-          <p className="text-xl font-bold text-primary-700 num leading-none">R$ {totalAtivo.toFixed(2)}</p>
+          <p className="text-xl font-bold text-primary-700 num leading-none">{formatBRL(totalAtivo)}</p>
           <p className="text-xs text-gray-400 mt-1">{itensAtivosNoMes.length} ativa(s)</p>
         </div>
         <div className="bg-white rounded-2xl shadow-card border border-gray-100 p-4 text-center">
           <p className="text-xs text-gray-400 font-medium mb-1.5">Detectado em {mesFmt}</p>
-          <p className="text-xl font-bold text-green-700 num leading-none">R$ {detectadasValor.toFixed(2)}</p>
+          <p className="text-xl font-bold text-green-700 num leading-none">{formatBRL(detectadasValor)}</p>
           <p className="text-xs text-gray-400 mt-1">{detectadasCount}/{itensAtivosNoMes.length} identificadas</p>
         </div>
       </div>
@@ -743,7 +743,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                 <span className="font-semibold text-sm text-gray-700">{cartaoLabels[key]}</span>
               </div>
               <span className="text-sm font-bold text-primary-700 num">
-                R$ {totalGrupoAtivo.toFixed(2)}
+                {formatBRL(totalGrupoAtivo)}
                 <span className="text-xs font-normal text-gray-400 ml-0.5">/mês</span>
               </span>
             </div>
@@ -798,29 +798,29 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                         </p>
                         {status === 'valor_divergente' && identificacao?.valorCobrado != null && (
                           <p className="text-[11px] text-amber-600 mt-0.5 leading-tight num">
-                            cobrado R$ {identificacao.valorCobrado.toFixed(2)} nesta fatura
+                            cobrado {formatBRL(identificacao.valorCobrado)} nesta fatura
                           </p>
                         )}
                         {descartada && (
                           <p
                             className="text-[11px] text-gray-400 mt-0.5 leading-tight"
-                            title={`"${descartada.transacao.descricao}" — R$ ${descartada.transacao.valor.toFixed(2)}`}
+                            title={`"${descartada.transacao.descricao}" — ${formatBRL(descartada.transacao.valor)}`}
                           >
-                            R$ {descartada.transacao.valor.toFixed(2)} no mesmo lugar não contou
+                            {formatBRL(descartada.transacao.valor)} no mesmo lugar não contou
                             {` (${explicarDescarte(descartada.motivo)})`}
                           </p>
                         )}
                       </div>
                       <div className="text-right shrink-0">
                         <p className={`text-[15px] font-bold num ${ativoNoMesAtual ? 'text-primary-700' : 'text-gray-400'}`}>
-                          R$ {valorParaMes(item, mesSelecionado, historico).toFixed(2)}
+                          {formatBRL(valorParaMes(item, mesSelecionado, historico))}
                         </p>
                         {item.moeda !== 'BRL' && item.valor_origem != null && (
                           <p
                             className="text-[10px] text-gray-400 num leading-tight mt-0.5"
                             title="Moeda estrangeira — valor em R$ pode oscilar por câmbio"
                           >
-                            {MOEDA_SIMBOLO[item.moeda] ?? item.moeda} {item.valor_origem.toFixed(2)}
+                            {MOEDA_SIMBOLO[item.moeda] ?? item.moeda} {formatarMoedaInput(item.valor_origem)}
                           </p>
                         )}
                       </div>
@@ -1041,7 +1041,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
                         <span>{format(new Date(h.vigente_desde + 'T12:00:00'), "dd/MM/yyyy")}</span>
                         <span className={`font-semibold num ${idx === 0 ? 'text-primary-600' : 'text-gray-400'}`}>
                           {idx === 0 && <span className="mr-1 text-[10px] text-primary-400">atual</span>}
-                          R$ {Number(h.valor).toFixed(2)}
+                          {formatBRL(Number(h.valor))}
                         </span>
                       </li>
                     ))}

@@ -10,7 +10,7 @@ import { PiggyBank, CirclePlus, History, Trash2, X, WifiOff } from 'lucide-react
 import PageActionButtons from '@/components/PageActionButtons'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { log } from '@/lib/logger'
-import { numericOnly, mascaraMoeda, formatarMoedaInput, parseMoeda, formatBRL } from '@/lib/format'
+import { numericOnly, mascaraMoeda, formatarMoedaInput, parseMoeda, formatBRL, formatDecimal } from '@/lib/format'
 import {
   atualizarRegistrosFuturos,
   excluirRegistrosFuturos,
@@ -137,7 +137,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
     } else {
       const val = parseMoeda(formData.valor)
       if (!isNaN(val) && saldo > 0)
-        setFormData(f => ({ ...f, percentual: (val / saldo * 100).toFixed(2) }))
+        setFormData(f => ({ ...f, percentual: formatDecimal(val / saldo * 100, 2) }))
     }
   }, [saldo])
 
@@ -178,7 +178,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
     const clean = mascaraMoeda(v)
     setUltimoCampo('valor')
     const val = parseMoeda(clean)
-    setFormData(f => ({ ...f, valor: clean, percentual: !isNaN(val) && saldo > 0 ? (val / saldo * 100).toFixed(2) : '' }))
+    setFormData(f => ({ ...f, valor: clean, percentual: !isNaN(val) && saldo > 0 ? formatDecimal(val / saldo * 100, 2) : '' }))
   }
 
   // ── Salvar investimento ──────────────────────────────────────
@@ -188,7 +188,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
 
     const disponivel = percentualDisponivel(itemSelecionado?.id)
     if (pct > disponivel + 0.001) {
-      showToast(`Limite disponível: ${disponivel.toFixed(2)}%`, 'erro')
+      showToast(`Limite disponível: ${formatDecimal(disponivel, 2)}%`, 'erro')
       return
     }
 
@@ -332,7 +332,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
     setItemSelecionado(item)
     setFormData({
       descricao: item.descricao,
-      percentual: String(item.percentual),
+      percentual: String(item.percentual).replace('.', ','),
       valor: saldo > 0 ? formatarMoedaInput(saldo * item.percentual / 100) : '',
     })
     setUltimoCampo('percentual')
@@ -503,8 +503,8 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
             />
           </div>
           <div className="flex justify-between text-[10px] text-gray-400 mt-1.5 tabular-nums">
-            <span>Alocação: {totalPercentual.toFixed(1)}%</span>
-            <span>{Math.max(0, 100 - totalPercentual).toFixed(1)}% disponível para alocar</span>
+            <span>Alocação: {formatDecimal(totalPercentual)}%</span>
+            <span>{formatDecimal(Math.max(0, 100 - totalPercentual))}% disponível para alocar</span>
           </div>
         </div>
 
@@ -597,7 +597,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
                     <div className={`w-2 h-2 rounded-full shrink-0 ${concluido ? 'bg-green-500' : 'bg-violet-400'}`} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-800 truncate">{item.descricao}</p>
-                      <p className="text-xs text-gray-400">{item.percentual.toFixed(2)}% do saldo</p>
+                      <p className="text-xs text-gray-400">{formatDecimal(item.percentual, 2)}% do saldo</p>
                     </div>
                     <div className="text-right shrink-0 mr-1">
                       <p className={`text-sm font-bold ${concluido ? 'text-green-600' : 'text-violet-700'}`}>
@@ -850,7 +850,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
                 <label className="text-xs font-medium text-gray-600 mb-1 block">
                   Percentual do saldo (%)
                   <span className="ml-1 text-gray-400 font-normal">
-                    — disponível: {percentualDisponivel(itemSelecionado?.id).toFixed(2)}%
+                    — disponível: {formatDecimal(percentualDisponivel(itemSelecionado?.id), 2)}%
                   </span>
                 </label>
                 <input
@@ -972,7 +972,7 @@ export default function InvestimentosMensal({ mesSelecionado, saldo, saldoPrevis
                   <div key={i.id} className="flex justify-between text-sm bg-gray-50 rounded-xl px-3 py-2">
                     <span className="text-gray-700">{i.descricao}</span>
                     <span className="text-violet-700 font-medium">
-                      {i.percentual.toFixed(2)}% · {formatBRL(saldo > 0 ? saldo * i.percentual / 100 : 0)}
+                      {formatDecimal(i.percentual, 2)}% ·{formatBRL(saldo > 0 ? saldo * i.percentual / 100 : 0)}
                     </span>
                   </div>
                 ))}

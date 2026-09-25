@@ -256,7 +256,7 @@ export default function GraficoVariacaoCategorias({
               const n = Number(v)
               if (n === 0) return '0'
               const abs = Math.abs(n)
-              const txtValor = abs >= 1000 ? `R$${(abs / 1000).toFixed(1)}k` : `R$${abs.toFixed(0)}`
+              const txtValor = abs >= 1000 ? `R$${(abs / 1000).toFixed(1).replace('.', ',')}k` : `R$${abs.toFixed(0)}`
               return n < 0 ? `-${txtValor}` : `+${txtValor}`
             },
             font: { size: 10 },

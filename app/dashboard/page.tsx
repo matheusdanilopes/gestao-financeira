@@ -104,7 +104,7 @@ const GraficoAnual = dynamic(() => import('@/components/GraficoAnual'), {
 })
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { usePrefetchPages } from '@/lib/usePrefetchPages'
-import { formatBRL as fmt } from '@/lib/format'
+import { formatBRL as fmt, formatDecimal } from '@/lib/format'
 import { tipoCartaoPorItem, removerPrefixoCartao, ehLinhaDeReceita } from '@/lib/tipoCartao'
 import {
   calcularResumoSaldo, calcularReceitaTotal,
@@ -783,7 +783,7 @@ export default function Dashboard() {
                     <div className="flex items-center gap-1">
                       <HeroIcon className={`w-3.5 h-3.5 ${comprometimentoColor}`} />
                       <span className="text-xs text-gray-400">
-                        {resumoCaixa.percentualComprometimento.toFixed(1)}% comprometido
+                        {formatDecimal(resumoCaixa.percentualComprometimento)}% comprometido
                       </span>
                     </div>
                     {resumoCaixa.saldoPrevisto !== heroSaldo && resumoCaixa.receitaTotal > 0 && (
@@ -827,7 +827,7 @@ export default function Dashboard() {
                   <div className="flex justify-between items-center mb-1.5">
                     <span className="text-xs text-gray-500">Comprometimento da renda</span>
                     <span className={`text-xs font-bold num ${comprometimentoColor}`}>
-                      {resumoCaixa.percentualComprometimento.toFixed(1)}%
+                      {formatDecimal(resumoCaixa.percentualComprometimento)}%
                     </span>
                   </div>
                   <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
@@ -996,7 +996,7 @@ export default function Dashboard() {
                                 <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{card.label}</span>
                               </div>
                               <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 num shrink-0">
-                                {fmt(card.atual)} <span className="font-normal text-gray-400">/ {card.previsto > 0 ? card.previsto.toLocaleString('pt-BR') : '–'}</span>
+                                {fmt(card.atual)} <span className="font-normal text-gray-400">/ {card.previsto > 0 ? fmt(card.previsto) : '–'}</span>
                               </span>
                             </div>
                           ))}

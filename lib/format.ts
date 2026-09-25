@@ -32,6 +32,11 @@ export function formatBRLCompacto(value: number): string {
   return BRL_SEM_CENTAVOS.format(Number.isFinite(value) ? value : 0)
 }
 
+/** Número com casas fixas e vírgula decimal ("12,5"), para percentuais exibidos em tela. */
+export function formatDecimal(value: number, casas = 1): string {
+  return (Number.isFinite(value) ? value : 0).toFixed(casas).replace('.', ',')
+}
+
 export function numericOnly(value: string): string {
   return value.replace(/[^0-9,.]/g, '')
 }

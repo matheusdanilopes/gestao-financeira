@@ -28,7 +28,7 @@ import {
 } from '@/lib/useAnalyticsData'
 import { useIsDark } from '@/lib/useIsDark'
 import { CHART_ANIMATION, tooltipCfg } from '@/lib/chartTheme'
-import { formatBRL } from '@/lib/format'
+import { formatBRL, formatDecimal } from '@/lib/format'
 
 ChartJS.register(
   CategoryScale,
@@ -60,7 +60,7 @@ function buildTrendOptions(isDark: boolean): ChartOptions<'line'> {
         displayColors: false,
         callbacks: {
           label: (ctx) =>
-            `  R$ ${(ctx.parsed.y ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+            `  ${formatBRL(ctx.parsed.y ?? 0)}`,
         },
       },
     },
@@ -102,8 +102,8 @@ function buildDonutOptions(isDark: boolean): ChartOptions<'doughnut'> {
         callbacks: {
           label: (ctx) => {
             const total = (ctx.dataset.data as number[]).reduce((a, b) => a + b, 0)
-            const pct = total > 0 ? ((ctx.parsed / total) * 100).toFixed(1) : '0'
-            return `  R$ ${ctx.parsed.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (${pct}%)`
+            const pct = total > 0 ? formatDecimal((ctx.parsed / total) * 100) : '0'
+            return `  ${formatBRL(ctx.parsed)} (${pct}%)`
           },
         },
       },
@@ -137,7 +137,7 @@ function buildBarOptions(isDark: boolean): ChartOptions<'bar'> {
         boxHeight: 8,
         callbacks: {
           label: (ctx) =>
-            `  R$ ${(ctx.parsed.y ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+            `  ${formatBRL(ctx.parsed.y ?? 0)}`,
         },
       },
     },
@@ -259,7 +259,7 @@ export default function AnalyticsDesktop() {
 
   // ── Format helpers ────────────────────────────────────────────────────────
   const fmtCompact = (v: number) =>
-    v >= 1000 ? `R$ ${(v / 1000).toFixed(1)}k` : `R$ ${v.toFixed(0)}`
+    v >= 1000 ? `R$ ${(v / 1000).toFixed(1).replace('.', ',')}k` : `R$ ${v.toFixed(0)}`
 
   // ── Sort indicator icon ───────────────────────────────────────────────────
   const SortIcon = ({ k }: { k: SortKey }) =>
@@ -461,7 +461,7 @@ export default function AnalyticsDesktop() {
                       {(categoryDonutData.labels as string[]).map((label, i) => {
                         const total = (categoryDonutData.datasets[0].data as number[]).reduce((a, b) => a + b, 0)
                         const val = categoryDonutData.datasets[0].data[i] as number
-                        const pct = total > 0 ? ((val / total) * 100).toFixed(1) : '0'
+                        const pct = total > 0 ? formatDecimal((val / total) * 100) : '0'
                         return (
                           <li key={label} className="flex items-center gap-2 min-w-0 group">
                             <span
@@ -524,7 +524,7 @@ export default function AnalyticsDesktop() {
                         />
                         <div className="relative">
                           <div className="text-[11px] font-bold truncate drop-shadow-sm">{c.categoria}</div>
-                          <div className="text-[10px] opacity-80 font-semibold tabular-nums">{c.pct.toFixed(1)}%</div>
+                          <div className="text-[10px] opacity-80 font-semibold tabular-nums">{formatDecimal(c.pct)}%</div>
                         </div>
                       </div>
                     ))}

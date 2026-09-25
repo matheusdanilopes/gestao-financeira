@@ -119,9 +119,9 @@ export default function GraficoAlocacaoInvestimentos({ mesAtual, ativo = true }:
           callbacks: {
             label: (ctx: TooltipItem<'doughnut'>) => {
               const total = (ctx.dataset.data as number[]).reduce((a, b) => a + b, 0)
-              const pct = total > 0 ? ((ctx.parsed / total) * 100).toFixed(1) : '0'
+              const pct = total > 0 ? ((ctx.parsed / total) * 100).toFixed(1).replace('.', ',') : '0'
               return modoMeta
-                ? `  ${ctx.parsed.toFixed(1)}% da meta (${pct}% do plano)`
+                ? `  ${ctx.parsed.toFixed(1).replace('.', ',')}% da meta (${pct}% do plano)`
                 : `  ${formatBRL(ctx.parsed)} (${pct}%)`
             },
           },
