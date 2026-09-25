@@ -81,6 +81,18 @@ interface ContextoConciliacao {
    * conflito de valor dele — aprovar o conflito fundia as duas numa só.
    */
   reivindicados: Set<string>
+  /**
+   * Período de datas (menor e maior data de compra) que o arquivo importado cobre, por
+   * cartão. Dentro dele, um registro do banco cuja linha ainda existe no arquivo já foi
+   * reivindicado pelo hash — os que sobram são compras que de fato mudaram no Nubank
+   * (valor pendente ajustado, data revista) e podem casar por nome+data. FORA dele não
+   * dá para saber se o registro ainda tem linha própria (o arquivo simplesmente não
+   * cobre aquele dia): ali só vale o caso de virada de fatura (mesmo valor, até 1 dia de
+   * diferença). Sem essa restrição, comerciantes com várias cobranças parecidas em dias
+   * próximos (NuTag/pedágio, estacionamento, apps de transporte) tinham uma cobrança de
+   * um arquivo "engolida" por outra, de dias antes, importada em outro arquivo.
+   */
+  coberturaPorCartao: Map<string, { inicio: string; fim: string }>
 }
 
 interface ContextoEstorno {
@@ -166,7 +178,7 @@ async function construirContextoConciliacao(
 ): Promise<ContextoConciliacao> {
   const candidatosPorCartao = new Map<string, TransacaoMatch[]>()
   if (transacoesNormais.length === 0) {
-    return { hashIndex: new Map(), candidatosPorCartao, reivindicados: new Set() }
+    return { hashIndex: new Map(), candidatosPorCartao, reivindicados: new Set(), coberturaPorCartao: new Map() }
   }
 
   const hashIndex = await buscarHashesEmLote(supabase, transacoesNormais.map(t => t.hash_linha))
@@ -180,8 +192,10 @@ async function construirContextoConciliacao(
     if (hashMatch) reivindicados.add(hashMatch.id)
   }
 
+  const coberturaPorCartao = new Map<string, { inicio: string; fim: string }>()
   for (const [cartao, itens] of agruparPorCartao(transacoesNormais)) {
     const datas = itens.map(i => i.data_compra).sort()
+    coberturaPorCartao.set(cartao, { inicio: datas[0], fim: datas[datas.length - 1] })
     const dataInicio = adicionarDias(datas[0], -3)
     const dataFim = adicionarDias(datas[datas.length - 1], 3)
 
@@ -208,7 +222,7 @@ async function construirContextoConciliacao(
     candidatosPorCartao.set(cartao, rows)
   }
 
-  return { hashIndex, candidatosPorCartao, reivindicados }
+  return { hashIndex, candidatosPorCartao, reivindicados, coberturaPorCartao }
 }
 
 /**
@@ -261,14 +275,36 @@ async function construirContextoEstornos(
   return { hashIndex, candidatosPorCartao }
 }
 
+function diasEntre(a: string, b: string): number {
+  return Math.abs(new Date(a + 'T12:00:00').getTime() - new Date(b + 'T12:00:00').getTime()) / 86_400_000
+}
+
 function buscarMatchNomeDataEmContexto(contexto: ContextoConciliacao, item: TransacaoNubank): TransacaoMatch[] {
+  const cartao = item.cartao ?? 'nubank'
   const dataInicio = adicionarDias(item.data_compra, -3)
   const dataFim = adicionarDias(item.data_compra, 3)
-  const candidatos = contexto.candidatosPorCartao.get(item.cartao ?? 'nubank') ?? []
+  const candidatos = contexto.candidatosPorCartao.get(cartao) ?? []
+  const cobertura = contexto.coberturaPorCartao.get(cartao)
   return candidatos
     .filter(r => !contexto.reivindicados.has(r.id))
     .filter(r => r.data_compra >= dataInicio && r.data_compra <= dataFim)
     .filter(r => descricoesParecidas(r.descricao, item.descricao))
+    .filter(r =>
+      // Dentro do período coberto pelo arquivo: candidato normal (ver coberturaPorCartao).
+      !cobertura || (r.data_compra >= cobertura.inicio && r.data_compra <= cobertura.fim) ||
+      // Fora dele: só a virada de fatura — mesmo valor e no máximo 1 dia de diferença.
+      (Math.abs(r.valor - item.valor) <= 0.05 && diasEntre(r.data_compra, item.data_compra) <= 1)
+    )
+}
+
+/**
+ * Maior diferença de valor que ainda vira conflito de valor (acima dela é compra nova):
+ * 5% do valor, limitado a R$ 2,00. Com o limite fixo de R$ 2,00, compras pequenas e
+ * recorrentes do mesmo comerciante (ex.: pedágios NuTag de R$ 8,93 e R$ 9,98) caíam
+ * sempre na faixa de conflito — e aprovar o conflito fundia duas cobranças reais.
+ */
+function limiteConflitoValor(a: number, b: number): number {
+  return Math.min(2.0, Math.max(0.05, 0.05 * Math.max(a, b)))
 }
 
 function adicionarCandidato(contexto: ContextoConciliacao, cartao: string, registro: TransacaoMatch): void {
@@ -671,9 +707,9 @@ function planejarTransacao(
   const matches = buscarMatchNomeDataEmContexto(contexto, item)
 
   if (matches.length > 0) {
-    const match = matches.reduce((best, cur) =>
-      Math.abs(cur.valor - item.valor) < Math.abs(best.valor - item.valor) ? cur : best
-    )
+    // Valor mais próximo; empate → data mais próxima (cobranças iguais em dias próximos).
+    const distancia = (m: TransacaoMatch) => Math.abs(m.valor - item.valor) * 1000 + diasEntre(m.data_compra, item.data_compra)
+    const match = matches.reduce((best, cur) => (distancia(cur) < distancia(best) ? cur : best))
     const diffValor = Math.abs(match.valor - item.valor)
 
     if (diffValor <= 0.05) {
@@ -739,8 +775,8 @@ function planejarTransacao(
     }
 
     // Match parcial: nome + data coincidem, mas valor difere > R$0,05
-    // Acima de R$2,00 de diferença → nova compra direta, sem notificação
-    if (diffValor > 2.00) {
+    // Acima do limite (5% do valor, no máx. R$ 2,00) → nova compra direta, sem notificação
+    if (diffValor > limiteConflitoValor(item.valor, match.valor)) {
       return planejarInsercaoPendente(item, contexto, plano)
     }
 
@@ -748,7 +784,7 @@ function planejarTransacao(
     // pendente ou novo conflito de valor) — nenhuma outra linha do lote pode usá-lo.
     contexto.reivindicados.add(match.id)
 
-    // Entre R$0,05 e R$2,00 → só ignora se já existir um conflito pendente para este original
+    // Entre R$0,05 e o limite → só ignora se já existir um conflito pendente para este original
     // COM O MESMO VALOR (reimportação da mesma linha, cujo valor "pendente" do Nubank varia até
     // fechar fatura). Um valor diferente é uma compra distinta e deve gerar seu próprio conflito,
     // em vez de ser descartada silenciosamente.
