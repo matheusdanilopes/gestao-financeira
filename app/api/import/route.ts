@@ -147,7 +147,7 @@ export async function POST(req: NextRequest) {
             .eq('is_estorno', false)
           faturaStats[fatura].totalNoBanco = count ?? 0
         }))
-        await validarDivergenciaFatura(supabase, faturaStats, transacoesNormais, 'nubank')
+        await validarDivergenciaFatura(supabase, faturaStats, transacoes, 'nubank')
       })().catch(err => {
         // Falha aqui não deve derrubar a resposta HTTP nem disparar um push de erro
         // contraditório — o push de sucesso acima já foi (ou está sendo) enviado.

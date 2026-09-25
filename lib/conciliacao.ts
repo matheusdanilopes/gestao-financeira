@@ -1061,7 +1061,10 @@ function planejarEstorno(
   const dataFim    = adicionarDias(estorno.data_compra, 30)
 
   const candidatos = contexto.candidatosPorCartao.get(cartaoEstorno) ?? []
+  // Regra 1 pra 1 também aqui: uma compra já estornada por outro estorno deste lote
+  // (status atualizado em memória para ESTORNADO) não pode receber um segundo estorno.
   const original = candidatos.find(c =>
+    c.status !== 'ESTORNADO' &&
     c.data_compra >= dataInicio &&
     c.data_compra <= dataFim &&
     normalizarDescricaoParaHash(c.descricao) === descOriginal &&
