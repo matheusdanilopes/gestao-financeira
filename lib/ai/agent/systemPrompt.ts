@@ -14,7 +14,7 @@ import { ptBR } from 'date-fns/locale'
 import { formatBRL } from '../../format'
 import { cartaoLabelsFromPlanejamento, nomeCartao } from '../insightsEngine'
 import type { EnrichedData, FinancialInsightsContext, TelaAtual, ValidationCertificate } from '../types'
-import { fmtMes, type Referencias } from './queryEngine'
+import { fmtMes, mesDaFatura, descreverUltimasFaturas, type Referencias } from './queryEngine'
 
 // Formato completo (com centavos): o modelo copia estes valores direto para a
 // resposta, então uma string como "R$ 209,4" chegaria torta ao usuário.
@@ -57,7 +57,15 @@ Regras inegociáveis:
 2. Se uma consulta voltar vazia, não conclua na hora que o dado não existe: tente outra abordagem (período maior, sem o filtro de categoria, busca por texto na descrição) ou chame listar_dimensoes para ver o que existe de fato. Só depois disso afirme que não há registro.
 3. Encadeie quantas consultas forem necessárias (uma por vez) até ter os números para responder com precisão. Prefira uma consulta a mais do que um chute.
 4. Nunca invente valores, datas ou nomes. Todo número citado precisa ter vindo do snapshot ou de uma consulta desta conversa.
-5. Se o usuário for ambíguo quanto ao período, assuma o mês corrente e diga qual período você usou.`
+5. Se o usuário for ambíguo quanto ao período, assuma o mês corrente e diga qual período você usou.
+6. MESES FUTUROS: uma compra só existe no banco depois que a fatura dela é importada. Um mês depois da última fatura importada (veja o snapshot) sem lançamentos NÃO tem valor zero — só ainda não chegou. Para parcelas nesses meses use projetar_parcelamentos; para o total de compromissos, projecao_futura. Nunca diga que algo "zera" ou "acaba" com base em ausência de dado.
+7. PARCELAMENTOS: "quanto reduz mês a mês", "quando acabam", "quanto vou pagar de parcela em X" → projetar_parcelamentos, com o filtro de pessoa/cartão da pergunta. Ela diz quais compras terminam em cada mês; explique a redução por elas.
+
+COMO RACIOCINAR
+- Antes de responder, teste a plausibilidade: uma queda de 100% de um mês para o outro, um valor que some de repente ou um total muito diferente do mês vizinho quase sempre é lacuna de dado ou filtro errado. Investigue com outra ferramenta antes de afirmar.
+- Parcelas só diminuem quando alguma compra paga a última parcela. Se o total cai, você deve saber dizer quais compras terminaram; se não sabe, ainda não verificou.
+- Quando o usuário pedir para CONFERIR, checar ou questionar um número, NÃO repita a mesma consulta com os mesmos filtros — isso só confirma o erro. Verifique por outro caminho (outra ferramenta, outro recorte, compra a compra). Se a resposta anterior estava errada, diga claramente o que estava errado e dê o número corrigido; não defenda a resposta anterior.
+- Respostas anteriores desta conversa não são fonte de verdade: se uma consulta nova contradiz algo que você disse, vale a consulta.`
 
 const FORMATO = `COMO RESPONDER
 - Valores sempre como R$ 1.234,56.
@@ -169,10 +177,15 @@ export function buildSnapshot(
   }
 
   // Cobertura: sem isso o modelo não sabe até onde pode pedir histórico e
-  // tende a supor que "não tem" um mês que na verdade está disponível.
+  // tende a supor que "não tem" um mês que na verdade está disponível — ou,
+  // no sentido oposto, que um mês ainda não importado vale zero.
   const mesesTx = data.transacoes.map(t => (t.projeto_fatura ?? '').substring(0, 7)).filter(Boolean).sort()
   if (mesesTx.length > 0) {
-    linhas.push(`Cobertura das compras: faturas de ${fmtMes(mesesTx[0])} até ${fmtMes(mesesTx[mesesTx.length - 1])} (${data.transacoes.length} lançamentos consultáveis).`)
+    linhas.push(
+      `Cobertura das compras: meses de ${fmtMes(mesDaFatura(mesesTx[0]))} até ${fmtMes(mesDaFatura(mesesTx[mesesTx.length - 1]))} ` +
+      `(${data.transacoes.length} lançamentos consultáveis). Última fatura importada por cartão: ${descreverUltimasFaturas(data)}. ` +
+      'Meses posteriores ainda não têm lançamentos — para eles, projete (projetar_parcelamentos / projecao_futura).'
+    )
   }
 
   return linhas.join('\n')

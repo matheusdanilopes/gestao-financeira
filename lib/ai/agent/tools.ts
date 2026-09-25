@@ -24,6 +24,7 @@ import {
   resumoMensal,
   compararPeriodos,
   projecaoFutura,
+  projetarParcelamentos,
   listarDimensoes,
   type Referencias,
 } from './queryEngine'
@@ -80,7 +81,8 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
       'Consulta compras no cartão de crédito (a principal fonte de gastos). Combina busca por texto na descrição do ' +
       'estabelecimento, categoria, responsável, cartão, faixa de valor e intervalo de meses. Retorna totais, ' +
       'agrupamentos (inclusive por cartão) e os maiores lançamentos — nunca a lista completa. ' +
-      'Use para "quanto gastei com X", "compras no iFood", "maior compra do mês", "parcelamentos ativos". ' +
+      'Use para "quanto gastei com X", "compras no iFood", "maior compra do mês", "parcelamentos na fatura de agosto". ' +
+      'Só enxerga faturas já importadas: para meses futuros ou evolução de parcelas, use projetar_parcelamentos. ' +
       'Quando houver mais de um cartão, cite de qual é o número que você usar.',
     parameters: {
       type: 'OBJECT',
@@ -207,6 +209,27 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
     },
   },
   {
+    name: 'projetar_parcelamentos',
+    description:
+      'Evolução das compras parceladas mês a mês — por pessoa, por cartão ou por estabelecimento. Nos meses com fatura ' +
+      'já importada usa o valor lançado; depois da última fatura importada, PROJETA avançando cada parcela (3/10 → 4/10…). ' +
+      'Mostra o total de cada mês, quanto reduz de um mês para o outro, quais compras pagam a última parcela em cada mês ' +
+      'e a lista compra a compra com o mês de término. É a ferramenta certa para "quanto reduz mês a mês", ' +
+      '"quando acabam as parcelas do X", "quanto vou pagar de parcela em dezembro", "quanto ainda devo de parcelamento". ' +
+      'consultar_transacoes NÃO serve para meses futuros: ele só vê faturas já importadas e devolveria zero.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        responsavel: str(`Dono das compras parceladas. ${RESPONSAVEL}`),
+        cartao: str('Cartão.', ['nubank', 'cartao1', 'cartao2']),
+        busca: str('Texto na descrição da compra, para acompanhar um parcelamento específico.'),
+        mesInicio: str(`Primeiro mês da série. ${MES} Padrão: mês corrente.`),
+        meses: { type: 'INTEGER', description: 'Quantos meses mostrar a partir de mesInicio (1 a 24). Padrão: 6.' },
+        incluirContas: bool('true = inclui também contas parceladas do planejamento (fora do cartão). Ignorado quando há filtro de cartão.'),
+      },
+    },
+  },
+  {
     name: 'consultar_estornos',
     description:
       'Lista compras estornadas/canceladas. Elas já saíram do total da fatura — use apenas para explicar por que uma ' +
@@ -235,6 +258,7 @@ const ROTULOS: Record<string, string> = {
   resumo_mensal: 'Fechando a conta do mês',
   comparar_periodos: 'Comparando períodos',
   projecao_futura: 'Projetando os próximos meses',
+  projetar_parcelamentos: 'Projetando parcelamentos',
   consultar_estornos: 'Verificando estornos',
 }
 
@@ -244,6 +268,7 @@ export function rotuloFerramenta(nome: string, args: Record<string, unknown> = {
   if (typeof args.busca === 'string' && args.busca.trim()) detalhes.push(`"${args.busca.trim().slice(0, 24)}"`)
   if (typeof args.categoria === 'string' && args.categoria.trim()) detalhes.push(args.categoria.trim().slice(0, 24))
   if (typeof args.responsavel === 'string' && args.responsavel.trim()) detalhes.push(args.responsavel.trim().slice(0, 16))
+  if (typeof args.cartao === 'string' && args.cartao.trim()) detalhes.push(args.cartao.trim().slice(0, 16))
   return detalhes.length > 0 ? `${base} · ${detalhes.join(' · ')}` : base
 }
 
@@ -339,6 +364,16 @@ export function executarFerramenta(
 
       case 'projecao_futura':
         return projecaoFutura(data, { meses: asNumber(args.meses) }, refs)
+
+      case 'projetar_parcelamentos':
+        return projetarParcelamentos(data, {
+          responsavel: asString(args.responsavel),
+          cartao: asString(args.cartao),
+          busca: asString(args.busca),
+          mesInicio: asString(args.mesInicio),
+          meses: asNumber(args.meses),
+          incluirContas: asBool(args.incluirContas),
+        }, refs)
 
       case 'consultar_estornos':
         return consultarEstornos(data, {

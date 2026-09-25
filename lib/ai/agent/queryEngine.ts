@@ -338,11 +338,22 @@ export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, ref
 
   const cabecalho = `CONSULTA: transações de cartão (${filtros})`
 
+  // Pediu um mês cuja fatura ainda não foi importada? Então "nada encontrado"
+  // não é zero — é ausência de dado, e o modelo precisa saber a diferença.
+  const ultimas = ultimaFaturaPorCartao(data.transacoes)
+  const cartoesEscopo = cartao ? [cartao] : Object.keys(ultimas)
+  const menorUltima = cartoesEscopo.map(c => ultimas[c]).filter(Boolean).sort()[0]
+  const faturaAlvo = faturaFim ?? faturaInicio
+  const avisoFuturo = menorUltima && faturaAlvo && faturaAlvo > menorUltima
+    ? `AVISO: faturas importadas: ${descreverUltimasFaturas(data, cartoesEscopo)}. Meses depois disso ainda não têm lançamentos no banco — ` +
+      'a ausência de compras ali NÃO significa valor zero. Para parcelas nesses meses use projetar_parcelamentos; para compromissos em geral, projecao_futura.'
+    : null
+
   if (encontradas.length === 0) {
     return [
       cabecalho,
       'Resultado: nenhuma transação encontrada com esses filtros.',
-      'Isso significa que não há registro — não é falta de acesso aos dados. Considere ampliar o período ou remover um filtro antes de concluir.',
+      avisoFuturo ?? 'Isso significa que não há registro — não é falta de acesso aos dados. Considere ampliar o período ou remover um filtro antes de concluir.',
     ].join('\n')
   }
 
@@ -398,6 +409,10 @@ export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, ref
 
   if (encontradas.some(t => mesEfetivo(t) === refs.faturaEmFormacao)) {
     linhas.push(`Obs.: a fatura de ${fmtMes(refs.mesApp)} ainda está em formação (hoje é dia ${refs.diaAtual}) — o valor ainda vai subir.`)
+  }
+  if (avisoFuturo) linhas.push(avisoFuturo)
+  if (f.apenasParceladas === true) {
+    linhas.push('Para a evolução mês a mês das parcelas (quanto reduz, quando cada compra termina), use projetar_parcelamentos.')
   }
 
   return linhas.join('\n')
@@ -855,13 +870,36 @@ export function compararPeriodos(data: EnrichedData, f: FiltroComparacao, refs: 
  * centavos entre meses cria "contratos" duplicados e infla a projeção.
  */
 function ultimaFaturaSnapshot(transacoes: Transacao[]): Transacao[] {
+  const maxPorCartao = ultimaFaturaPorCartao(transacoes)
+  return transacoes.filter(t => mesEfetivo(t) === maxPorCartao[t.cartao ?? 'nubank'])
+}
+
+/**
+ * projeto_fatura da fatura mais recente IMPORTADA de cada cartão.
+ *
+ * Depois dela não existe nenhuma linha no banco — o que não quer dizer que o
+ * mês será zero. Foi exatamente assim que o agente afirmou que os parcelamentos
+ * do Matheus no Nubank "zeravam" em novembro: a fatura de novembro só não tinha
+ * sido importada ainda, e a consulta de transações voltou vazia.
+ */
+export function ultimaFaturaPorCartao(transacoes: Transacao[]): Record<string, string> {
   const maxPorCartao: Record<string, string> = {}
   for (const t of transacoes) {
     const id = t.cartao ?? 'nubank'
     const mes = mesEfetivo(t)
-    if (!maxPorCartao[id] || mes > maxPorCartao[id]) maxPorCartao[id] = mes
+    if (mes && (!maxPorCartao[id] || mes > maxPorCartao[id])) maxPorCartao[id] = mes
   }
-  return transacoes.filter(t => mesEfetivo(t) === maxPorCartao[t.cartao ?? 'nubank'])
+  return maxPorCartao
+}
+
+/** "Nubank até OUT/26 · PicPay até SET/26" — no vocabulário do app. */
+export function descreverUltimasFaturas(data: EnrichedData, cartoes?: string[]): string {
+  const labels = cartaoLabelsFromPlanejamento(data.planejamento)
+  return Object.entries(ultimaFaturaPorCartao(data.transacoes))
+    .filter(([id]) => !cartoes || cartoes.includes(id))
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([id, pf]) => `${nomeCartao(id, labels)} até ${fmtMes(mesDaFatura(pf))}`)
+    .join(' · ')
 }
 
 /**
@@ -943,7 +981,212 @@ export function projecaoFutura(data: EnrichedData, params: { meses?: number }, r
   }
 
   linhas.push('Escopo: apenas compromissos já assumidos (parcelas em aberto, contas fixas recorrentes e assinaturas ativas). NÃO inclui gastos discricionários futuros — o valor real tende a ser maior.')
+  linhas.push('Para a evolução só dos parcelamentos (por pessoa, por cartão, compra a compra e quando cada uma termina), use projetar_parcelamentos.')
 
+  return linhas.join('\n')
+}
+
+// ─── 8b. Parcelamentos mês a mês (real + projetado) ──────────────────────────
+
+export interface FiltroParcelamentos {
+  responsavel?: string
+  cartao?: string
+  busca?: string
+  mesInicio?: string
+  meses?: number
+  incluirContas?: boolean
+}
+
+/** Diferença em meses entre dois 'YYYY-MM' (a − b). */
+function diffMeses(a: string, b: string): number {
+  const [ya, ma] = a.split('-').map(Number)
+  const [yb, mb] = b.split('-').map(Number)
+  return (ya - yb) * 12 + (ma - mb)
+}
+
+/** Um parcelamento reconstruído, com a parcela 1 ancorada no mês do app. */
+interface ContratoParcela {
+  descricao: string
+  valor: number
+  responsavel: string
+  /** Nome exibido do cartão, ou "Contas fixas" para parcelas do planejamento. */
+  origem: string
+  /** Id do cartão; null para parcelas do planejamento. */
+  cartaoId: string | null
+  /** Mês do app em que caiu a parcela 1. */
+  mesPrimeira: string
+  total: number
+}
+
+const parcelaNoMes = (c: ContratoParcela, mes: string) => diffMeses(mes, c.mesPrimeira) + 1
+const mesUltimaParcela = (c: ContratoParcela) => somarMeses(c.mesPrimeira, c.total - 1)
+
+/**
+ * Evolução dos parcelamentos mês a mês, com a mesma regra da tela de
+ * Parcelamentos: nos meses cuja fatura JÁ foi importada vale o que está
+ * lançado; depois da última fatura importada de cada cartão, as parcelas são
+ * projetadas avançando cada compra parcelada (3/10 → 4/10 → …) até o fim.
+ *
+ * Existe porque consultar_transacoes só enxerga linhas que existem no banco:
+ * perguntado "quanto reduz mês a mês", o agente somou as parcelas lançadas,
+ * encontrou R$ 0 no primeiro mês ainda não importado e anunciou uma queda de
+ * 100% — e, pedido para conferir, repetiu a mesma consulta e confirmou o erro.
+ */
+export function projetarParcelamentos(data: EnrichedData, f: FiltroParcelamentos, refs: Referencias): string {
+  const responsavel = normalizarResponsavel(f.responsavel, data)
+  const cartao = normalizarCartao(f.cartao, data)
+  const busca = typeof f.busca === 'string' && f.busca.trim() ? normalizar(f.busca) : undefined
+  const mesInicio = normalizarMes(f.mesInicio) ?? refs.mesApp
+  const nMeses = Math.min(Math.max(Math.round(Number(f.meses) || 6), 1), 24)
+  // Contas parceladas do planejamento não passam por cartão: só entram quando pedidas.
+  const incluirContas = f.incluirContas === true && !cartao
+  const labels = cartaoLabelsFromPlanejamento(data.planejamento)
+
+  const ultimas = ultimaFaturaPorCartao(data.transacoes)
+  const cartoesEscopo = cartao ? [cartao] : Object.keys(ultimas).sort()
+
+  const filtros = descreverFiltros([
+    responsavel && `responsável=${responsavel}`,
+    cartao && `cartão=${nomeCartao(cartao, labels)}`,
+    busca && `descrição contém "${f.busca}"`,
+    incluirContas && 'inclui contas parceladas do planejamento',
+  ])
+
+  const casaFiltro = (desc: string, resp: string | null | undefined) =>
+    (!responsavel || resp === responsavel) && (!busca || normalizar(desc).includes(busca))
+
+  // Linhas de parcela lançadas nas faturas importadas (fonte dos meses reais).
+  const lancadas = data.transacoes
+    .map(t => ({ t, p: extrairParcelamento(t as unknown as TransacaoRowParcelamento) }))
+    .filter(({ t, p }) =>
+      p && p.total >= 2 &&
+      cartoesEscopo.includes(t.cartao ?? 'nubank') &&
+      casaFiltro(t.descricao, t.responsavel)
+    ) as Array<{ t: Transacao; p: { atual: number; total: number } }>
+
+  // Contratos: a partir da fatura mais recente de cada cartão, como a tela faz.
+  const snapshot = lancadas.filter(({ t }) => mesEfetivo(t) === ultimas[t.cartao ?? 'nubank']).map(({ t }) => t)
+  const contratos: ContratoParcela[] = []
+  for (const { row, parcela } of buildContracts(snapshot as unknown as TransacaoRowParcelamento[]).values()) {
+    const t = row as unknown as Transacao
+    contratos.push({
+      descricao: t.descricao,
+      valor: Number(t.valor ?? 0),
+      responsavel: t.responsavel || '—',
+      origem: nomeCartao(t.cartao, labels),
+      cartaoId: t.cartao ?? 'nubank',
+      mesPrimeira: somarMeses(mesAppDaTransacao(t), -(parcela.atual - 1)),
+      total: parcela.total,
+    })
+  }
+  if (incluirContas) {
+    const despesas = data.planejamento.filter(p => ehDespesaPlanejada(p) && casaFiltro(p.item ?? '', p.responsavel))
+    for (const { row, parcela } of buildContratosExtras(despesas as unknown as PlanejamentoRowParcelamento[]).values()) {
+      const p = row as unknown as Planejamento
+      contratos.push({
+        descricao: p.item ?? '',
+        valor: Number(p.valor_previsto ?? 0),
+        responsavel: p.responsavel || 'compartilhado',
+        origem: 'Contas fixas',
+        cartaoId: null,
+        mesPrimeira: somarMeses(mesDe(p), -(parcela.atual - 1)),
+        total: parcela.total,
+      })
+    }
+  }
+
+  const cabecalho = `CONSULTA: parcelamentos mês a mês (${filtros})`
+  if (cartao && !ultimas[cartao]) {
+    return [cabecalho, `Resultado: o cartão ${nomeCartao(cartao, labels)} não tem nenhuma fatura importada no período carregado.`].join('\n')
+  }
+  if (lancadas.length === 0 && contratos.length === 0) {
+    return [
+      cabecalho,
+      'Resultado: nenhuma compra parcelada encontrada com esses filtros nas faturas importadas.',
+      'Confira o nome do responsável em listar_dimensoes antes de concluir que não há parcelamentos.',
+    ].join('\n')
+  }
+
+  const meses = Array.from({ length: nMeses }, (_, i) => somarMeses(mesInicio, i))
+
+  interface LinhaMes { mes: string; total: number; qtd: number; terminam: number; valorTerminam: number; real: boolean; projetado: boolean }
+  const serie: LinhaMes[] = meses.map(mes => {
+    const linha: LinhaMes = { mes, total: 0, qtd: 0, terminam: 0, valorTerminam: 0, real: false, projetado: false }
+    const fatura = faturaDoMes(mes)
+    const somar = (valor: number, ultima: boolean) => {
+      linha.total += valor
+      linha.qtd += 1
+      if (ultima) { linha.terminam += 1; linha.valorTerminam += valor }
+    }
+
+    for (const id of cartoesEscopo) {
+      if (ultimas[id] && fatura <= ultimas[id]) {
+        linha.real = true
+        for (const { t, p } of lancadas) {
+          if ((t.cartao ?? 'nubank') === id && mesEfetivo(t) === fatura) somar(t.valor, p.atual === p.total)
+        }
+      } else {
+        linha.projetado = true
+        for (const c of contratos) {
+          if (c.cartaoId !== id) continue
+          const n = parcelaNoMes(c, mes)
+          if (n >= 1 && n <= c.total) somar(c.valor, n === c.total)
+        }
+      }
+    }
+    for (const c of contratos) {
+      if (c.cartaoId !== null) continue
+      const n = parcelaNoMes(c, mes)
+      if (n >= 1 && n <= c.total) somar(c.valor, n === c.total)
+    }
+    return linha
+  })
+
+  const linhas: string[] = [
+    cabecalho,
+    `Faturas importadas: ${descreverUltimasFaturas(data, cartoesEscopo)}. Meses depois disso são PROJETADOS a partir das parcelas já contratadas — não é zero só porque a fatura ainda não chegou.`,
+    'Evolução (valor de parcelas em cada mês do app):',
+  ]
+
+  serie.forEach((l, i) => {
+    const fonte = l.real && l.projetado ? 'parte real, parte projetado' : l.real ? 'real (fatura importada)' : 'PROJETADO'
+    const anterior = i > 0 ? serie[i - 1] : undefined
+    const delta = anterior ? l.total - anterior.total : 0
+    const variacao = !anterior
+      ? ''
+      : Math.abs(delta) < 0.005
+        ? ' · sem variação vs mês anterior'
+        : ` · ${delta < 0 ? 'redução' : 'aumento'} de ${R(Math.abs(delta))}` +
+          (anterior.total > 0 ? ` (${pct((delta / anterior.total) * 100)})` : '') + ' vs mês anterior'
+    const fim = l.terminam > 0 ? ` · ${l.terminam} compra(s) pagam aqui a ÚLTIMA parcela (${R(l.valorTerminam)} a menos a partir do mês seguinte)` : ''
+    const formacao = l.mes === refs.mesApp && l.real ? ' · fatura em formação, ainda pode crescer' : ''
+    linhas.push(`  ${fmtMes(l.mes)}: ${R(l.total)} em ${l.qtd} parcela(s) — ${fonte}${variacao}${fim}${formacao}`)
+  })
+
+  // Contratos que ainda têm parcela a partir do primeiro mês pedido.
+  const ativos = contratos
+    .map(c => ({ c, n: Math.max(parcelaNoMes(c, mesInicio), 1) }))
+    .filter(({ c, n }) => n <= c.total)
+    .map(({ c, n }) => ({ c, n, restantes: c.total - n + 1, fim: mesUltimaParcela(c) }))
+    .sort((a, b) => a.fim.localeCompare(b.fim) || b.c.valor - a.c.valor)
+
+  if (ativos.length > 0) {
+    const restante = ativos.reduce((s, a) => s + a.c.valor * a.restantes, 0)
+    const ultimoFim = ativos[ativos.length - 1].fim
+    linhas.push(`Compras parceladas ainda em aberto a partir de ${fmtMes(mesInicio)}: ${ativos.length} · saldo a pagar ${R(restante)} · a última termina em ${fmtMes(ultimoFim)}.`)
+    linhas.push('Compra a compra (ordem de término):')
+    for (const { c, n, restantes, fim } of ativos.slice(0, 25)) {
+      linhas.push(
+        `  • ${c.descricao.slice(0, 38)} — ${R(c.valor)}/mês — parcela ${n}/${c.total} em ${fmtMes(mesInicio)} — ` +
+        `última em ${fmtMes(fim)} (faltam ${restantes}, ${R(c.valor * restantes)}) — ${c.responsavel} — ${c.origem}`
+      )
+    }
+    if (ativos.length > 25) linhas.push(`  [+${ativos.length - 25} compras não exibidas]`)
+  } else {
+    linhas.push(`Nenhuma compra parcelada com parcela em ${fmtMes(mesInicio)} ou depois, segundo a última fatura importada.`)
+  }
+
+  linhas.push('Escopo: apenas parcelas de compras já feitas. Compras parceladas novas entram por cima destes valores.')
   return linhas.join('\n')
 }
 
