@@ -329,27 +329,47 @@ self.addEventListener('push', function (event) {
     requireInteraction: isPersistent,
   }
 
-  event.waitUntil(
-    Promise.all([
-      self.registration.getNotifications({ tag: tag }).then(function (existing) {
-        // Não deixa um resultado menos informativo (ex.: "nenhuma compra nova" de uma
-        // reimportação/retry para o mesmo cartão) sobrescrever no tray uma notificação
-        // anterior mais relevante (ex.: "5 novas compras") que o usuário ainda não viu.
-        const substituiPiorResultado = existing.some(function (n) {
-          const scoreAnterior = typeof (n.data && n.data.score) === 'number' ? n.data.score : 0
-          return scoreAnterior > score
-        })
-        if (substituiPiorResultado) return
-        return self.registration.showNotification(title, options)
-      }).catch(() => {}),
-      self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-        .then(function (clientList) {
-          clientList.forEach(function (client) {
-            client.postMessage({ type: 'PUSH_RECEIVED' })
-          })
-        }),
-    ])
-  )
+  // Todo push precisa terminar em showNotification(). Um push "silencioso" (sem
+  // notificação) viola o userVisibleOnly: o iOS/Safari revoga a assinatura depois
+  // de alguns pushes assim — e as notificações param de chegar com o app fechado,
+  // só voltando quando o app é aberto e a assinatura é renovada. O Chrome, por sua
+  // vez, mostra no lugar um genérico "site atualizado em segundo plano".
+  const exibir = self.registration.getNotifications({ tag: tag })
+    .then(function (existing) {
+      // Não deixa um resultado menos informativo (ex.: "nenhuma compra nova" de uma
+      // reimportação/retry para o mesmo cartão) sobrescrever no tray uma notificação
+      // anterior mais relevante (ex.: "5 novas compras") que o usuário ainda não viu.
+      // Em vez de simplesmente descartar o push, reexibe a notificação anterior
+      // (mesmo conteúdo, sem som/vibração) para cumprir a regra acima.
+      const melhor = existing.find(function (n) {
+        const scoreAnterior = typeof (n.data && n.data.score) === 'number' ? n.data.score : 0
+        return scoreAnterior > score
+      })
+      if (!melhor) return self.registration.showNotification(title, options)
+      return self.registration.showNotification(melhor.title, {
+        body: melhor.body,
+        icon: melhor.icon || options.icon,
+        badge: melhor.badge || options.badge,
+        tag,
+        renotify: false,
+        silent: true,
+        data: melhor.data,
+        requireInteraction: melhor.requireInteraction === true,
+      })
+    })
+    // getNotifications() indisponível/falhou: mostra o push recebido mesmo assim.
+    .catch(function () { return self.registration.showNotification(title, options) })
+    .catch(function () {})
+
+  const avisarClientes = self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    .then(function (clientList) {
+      clientList.forEach(function (client) {
+        client.postMessage({ type: 'PUSH_RECEIVED' })
+      })
+    })
+    .catch(function () {})
+
+  event.waitUntil(Promise.all([exibir, avisarClientes]))
 })
 
 self.addEventListener('message', function (event) {
