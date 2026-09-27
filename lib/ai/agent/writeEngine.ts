@@ -35,6 +35,19 @@ const R = formatBRL
 const RECEITA_PREFIXO = '[RECEITA] '
 const fmtDataBR = (iso: string) => iso.slice(0, 10).split('-').reverse().join('/')
 
+// `planejamento.responsavel` (e as demais tabelas com essa coluna) tem CHECK
+// restrito a estes três valores — um responsavel fora daqui não é "sem
+// filtro", é um INSERT que a auditoria de negócio jamais quer aceitar:
+// falharia na gravação com um erro de constraint em vez de um aviso claro.
+const RESPONSAVEIS_VALIDOS = ['Matheus', 'Jeniffer', 'Conjunto']
+
+/** Casa o texto do modelo com um dos três valores válidos, tolerando acento/caixa. */
+function resolverResponsavel(pedido: string | undefined, padrao: string): string | { erro: string } {
+  const valor = pedido?.trim() || padrao
+  const achado = RESPONSAVEIS_VALIDOS.find(r => normalizar(r) === normalizar(valor))
+  return achado ?? { erro: `Responsável "${valor}" não é válido. Use um destes: ${RESPONSAVEIS_VALIDOS.join(', ')}.` }
+}
+
 function dataValida(valor: unknown, padrao: Date): string {
   if (typeof valor === 'string' && /^\d{4}-\d{2}-\d{2}/.test(valor)) return valor.slice(0, 10)
   return format(padrao, 'yyyy-MM-dd')
@@ -106,7 +119,9 @@ export function proporNovaDespesa(refs: Referencias, a: {
   if (!a.valor || a.valor <= 0) return falha('Informe um valor maior que zero.')
 
   const mes = normalizarMes(a.mes) ?? refs.mesApp
-  const responsavel = a.responsavel?.trim() || 'Matheus'
+  const responsavelResolvido = resolverResponsavel(a.responsavel, 'Matheus')
+  if (typeof responsavelResolvido !== 'string') return falha(responsavelResolvido.erro)
+  const responsavel = responsavelResolvido
   const categoria = a.categoria?.trim() || 'Extra'
   const dataVencimento = a.dataVencimento && /^\d{4}-\d{2}-\d{2}/.test(a.dataVencimento) ? a.dataVencimento.slice(0, 10) : null
 
@@ -134,7 +149,9 @@ export function proporNovaReceita(refs: Referencias, a: {
   if (!a.valor || a.valor <= 0) return falha('Informe um valor maior que zero.')
 
   const mes = normalizarMes(a.mes) ?? refs.mesApp
-  const responsavel = a.responsavel?.trim() || 'Matheus'
+  const responsavelResolvido = resolverResponsavel(a.responsavel, 'Matheus')
+  if (typeof responsavelResolvido !== 'string') return falha(responsavelResolvido.erro)
+  const responsavel = responsavelResolvido
 
   return {
     ok: true,
