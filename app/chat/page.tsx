@@ -9,7 +9,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { History, MoreHorizontal, Plus, Sparkles, Trash2, AlertTriangle, RotateCcw } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { History, MoreHorizontal, Plus, Sparkles, Trash2, AlertTriangle, RotateCcw, Volume2, VolumeX, MicOff } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import NotificacoesBell from '@/components/NotificacoesBell'
@@ -19,6 +20,7 @@ import { ConversationDrawer } from '@/components/chat/ConversationDrawer'
 import { ChatEmptyState } from '@/components/chat/ChatEmptyState'
 import { useChatFinanceiro } from '@/lib/useChatFinanceiro'
 import { useInsights } from '@/lib/useInsights'
+import { useVoice } from '@/lib/useVoice'
 
 const FOLLOWUPS = [
   'O que está puxando esse número?',
@@ -34,11 +36,15 @@ const MARGEM_AUTOSCROLL = 160
 export default function ChatPage() {
   const chat = useChatFinanceiro('geral')
   const { insights } = useInsights()
+  const voz = useVoice()
+  const router = useRouter()
+  const searchParams = useSearchParams()
 
   const [input, setInput] = useState('')
   const [drawerAberto, setDrawerAberto] = useState(false)
   const [menuAberto, setMenuAberto] = useState(false)
   const [headerCompacto, setHeaderCompacto] = useState(false)
+  const [erroVoz, setErroVoz] = useState<string | null>(null)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const fimRef = useRef<HTMLDivElement>(null)
@@ -72,8 +78,50 @@ export default function ChatPage() {
     if (!conteudo || chat.streaming) return
     seguirFimRef.current = true
     setInput('')
+    voz.pararFala()
     void chat.enviar(conteudo)
-  }, [input, chat])
+  }, [input, chat, voz])
+
+  // ── Pergunta por voz ──
+  const onMic = useCallback(() => {
+    if (voz.ouvindo) { voz.pararEscuta(); return }
+    setErroVoz(null)
+    voz.iniciarEscuta({
+      onParcial: texto => setInput(texto),
+      onResultado: texto => {
+        setInput('')
+        enviar(texto)
+      },
+      onErro: mensagem => setErroVoz(mensagem),
+    })
+  }, [voz, enviar])
+
+  // ── Atalho "Perguntar por Voz" do FAB: chega como /chat?voz=1 e já abre
+  // ouvindo, em vez de exigir mais um toque assim que a tela carrega. Some
+  // da URL logo em seguida para não reativar num refresh ou "voltar".
+  const vozAutoIniciadaRef = useRef(false)
+  useEffect(() => {
+    if (vozAutoIniciadaRef.current) return
+    if (searchParams.get('voz') !== '1') return
+    if (!voz.suportaEscuta) return
+    vozAutoIniciadaRef.current = true
+    router.replace('/chat', { scroll: false })
+    // Fora do corpo síncrono do efeito (mesma convenção de lib/useVoice.ts):
+    // onMic() dispara setState (ouvindo) ao iniciar o reconhecimento.
+    Promise.resolve().then(() => onMic())
+  }, [searchParams, voz.suportaEscuta, onMic, router])
+
+  // ── Resposta falada: só a última mensagem de cada turno novo, nunca o
+  // histórico restaurado (que chega de uma vez, crescendo mais que 1). ──
+  const totalMensagensRef = useRef(0)
+  useEffect(() => {
+    const total = chat.mensagens.length
+    const chegouUmaNova = total - totalMensagensRef.current === 1
+    totalMensagensRef.current = total
+    if (!chegouUmaNova || !voz.autoFalar) return
+    const ultima = chat.mensagens[total - 1]
+    if (ultima?.role === 'assistant') voz.falar(ultima.content)
+  }, [chat.mensagens, voz.autoFalar, voz])
 
   const ultimaEhResposta =
     chat.mensagens.length > 0 && chat.mensagens[chat.mensagens.length - 1].role === 'assistant'
@@ -85,8 +133,8 @@ export default function ChatPage() {
         aberto={drawerAberto}
         conversaAtiva={chat.conversationId}
         onFechar={() => setDrawerAberto(false)}
-        onNova={chat.novaConversa}
-        onSelecionar={id => { void chat.abrirConversa(id) }}
+        onNova={() => { voz.pararFala(); chat.novaConversa() }}
+        onSelecionar={id => { voz.pararFala(); void chat.abrirConversa(id) }}
         onExcluir={id => { void chat.excluirConversa(id) }}
         carregar={chat.listarConversas}
       />
@@ -138,12 +186,26 @@ export default function ChatPage() {
                 <div role="menu" className="absolute right-0 top-12 w-52 bg-white dark:bg-gray-900 rounded-2xl shadow-float border border-gray-100 dark:border-gray-700/60 overflow-hidden z-[151] animate-in">
                   <button
                     role="menuitem"
-                    onClick={() => { setMenuAberto(false); chat.novaConversa() }}
+                    onClick={() => { setMenuAberto(false); voz.pararFala(); chat.novaConversa() }}
                     className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-gray-700 dark:text-gray-200 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/60"
                   >
                     <Plus className="w-4 h-4 text-gray-400 shrink-0" />
                     Nova conversa
                   </button>
+                  {voz.suportaFala && (
+                    <button
+                      role="menuitem"
+                      onClick={() => { if (voz.autoFalar) voz.pararFala(); voz.setAutoFalar(!voz.autoFalar) }}
+                      className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-gray-700 dark:text-gray-200 text-left border-t border-gray-100 dark:border-gray-700/60 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/60"
+                    >
+                      {voz.autoFalar ? (
+                        <Volume2 className="w-4 h-4 text-gray-400 shrink-0" />
+                      ) : (
+                        <VolumeX className="w-4 h-4 text-gray-400 shrink-0" />
+                      )}
+                      Respostas por voz: {voz.autoFalar ? 'ligadas' : 'desligadas'}
+                    </button>
+                  )}
                   {chat.conversationId && (
                     <button
                       role="menuitem"
@@ -201,7 +263,9 @@ export default function ChatPage() {
               </div>
             )}
 
-            {chat.mensagens.map(m => <MessageBubble key={m.id} mensagem={m} />)}
+            {chat.mensagens.map(m => (
+              <MessageBubble key={m.id} mensagem={m} onOuvir={voz.suportaFala ? voz.falar : undefined} />
+            ))}
 
             {chat.streaming && (
               <StreamingBubble
@@ -231,6 +295,17 @@ export default function ChatPage() {
               </div>
             )}
 
+            {erroVoz && (
+              <div className="flex gap-2.5 items-start pl-10">
+                <div className="flex-1 rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 px-4 py-2.5">
+                  <div className="flex items-center gap-2.5">
+                    <MicOff className="w-4 h-4 text-gray-400 shrink-0" />
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{erroVoz}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {ultimaEhResposta && !chat.streaming && !chat.erro && (
               <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 pl-10">
                 {FOLLOWUPS.map(chip => (
@@ -254,9 +329,12 @@ export default function ChatPage() {
         valor={input}
         onChange={setInput}
         onEnviar={() => enviar()}
-        onCancelar={chat.cancelar}
+        onCancelar={() => { voz.pararFala(); chat.cancelar() }}
         streaming={chat.streaming}
         desabilitado={chat.carregandoHistorico}
+        suportaEscuta={voz.suportaEscuta}
+        ouvindo={voz.ouvindo}
+        onMic={onMic}
       />
     </div>
   )

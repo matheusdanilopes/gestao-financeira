@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, type FormEvent, type ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Heart, ShoppingBasket, X, ChevronLeft,
+  Heart, ShoppingBasket, Mic, X, ChevronLeft,
   Plus, Minus, Check, Loader2, Camera,
   Image as ImageIcon, Sparkles, PenLine, AlertCircle, RotateCcw,
 } from 'lucide-react'
@@ -14,6 +14,7 @@ import { compressImage, abortTimeout, callAnalyze } from '@/lib/imageUtils'
 import { useOnline } from '@/lib/useOnline'
 import { enqueueOp } from '@/lib/offlineQueue'
 import { mascaraMoeda, parseMoeda } from '@/lib/format'
+import { suportaReconhecimentoVoz } from '@/lib/useVoice'
 
 type View = 'menu' | 'wishlist-method' | 'wishlist' | 'wishlist-ai' | 'mercado'
 type AIStatus = 'idle' | 'uploading' | 'done' | 'error'
@@ -618,7 +619,8 @@ function WishlistAICapture({
 const OPCOES = [
   {
     id:         'wishlist' as const,
-    targetView: 'wishlist-method' as View,
+    targetView: 'wishlist-method' as View | null,
+    href:       null as string | null,
     label:      'Wishlist',
     emoji:      '💖',
     bg:         'bg-pink-50  dark:bg-pink-950/40',
@@ -628,7 +630,8 @@ const OPCOES = [
   },
   {
     id:         'mercado' as const,
-    targetView: 'mercado' as View,
+    targetView: 'mercado' as View | null,
+    href:       null as string | null,
     label:      'Lista de Mercado',
     emoji:      '🛒',
     bg:         'bg-green-50   dark:bg-green-950/40',
@@ -636,13 +639,35 @@ const OPCOES = [
     ring:       'ring-green-100  dark:ring-green-900/50',
     Icon:       ShoppingBasket,
   },
+  {
+    id:         'voz' as const,
+    // Sem view própria na sheet: pergunta por voz reaproveita a tela /chat
+    // inteira (histórico, streaming, resposta falada) em vez de duplicar
+    // esse fluxo aqui dentro — ?voz=1 avisa a tela para já abrir escutando.
+    targetView: null as View | null,
+    href:       '/chat?voz=1' as string | null,
+    label:      'Perguntar por Voz',
+    emoji:      '🎙️',
+    bg:         'bg-violet-50  dark:bg-violet-950/40',
+    cor:        'text-violet-700 dark:text-violet-400',
+    ring:       'ring-violet-100 dark:ring-violet-900/50',
+    Icon:       Mic,
+  },
 ]
 
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function FabQuickLaunchSheet({ onClose }: { onClose: () => void }) {
+  const router = useRouter()
   const isOnline = useOnline()
   const [view, setView] = useState<View>('menu')
+  const [suportaVoz, setSuportaVoz] = useState(false)
+
+  useEffect(() => {
+    // Fora do corpo síncrono do efeito para não disparar
+    // react-hooks/set-state-in-effect (mesma convenção de lib/useVoice.ts).
+    Promise.resolve().then(() => setSuportaVoz(suportaReconhecimentoVoz()))
+  }, [])
 
   // When offline: redirect away from wishlist-related views
   useEffect(() => {
@@ -662,8 +687,11 @@ export default function FabQuickLaunchSheet({ onClose }: { onClose: () => void }
     return () => window.removeEventListener('keydown', handleEsc)
   }, [view, onClose])
 
-  // Offline: filter to only mercado option
-  const opcoesVisiveis = isOnline ? OPCOES : OPCOES.filter(o => o.id === 'mercado')
+  // Offline: só a lista de mercado tem fila offline. "Voz" some quando o
+  // navegador não suporta reconhecimento de fala (ex.: Firefox desktop).
+  const opcoesVisiveis = OPCOES
+    .filter(o => isOnline || o.id === 'mercado')
+    .filter(o => o.id !== 'voz' || suportaVoz)
 
   return (
     <ModalPortal>
@@ -714,11 +742,11 @@ export default function FabQuickLaunchSheet({ onClose }: { onClose: () => void }
                 </div>
 
                 <div className={`grid gap-3 ${opcoesVisiveis.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                  {opcoesVisiveis.map(({ id, targetView, label, emoji, bg, cor, ring }) => (
+                  {opcoesVisiveis.map(({ id, targetView, href, label, emoji, bg, cor, ring }) => (
                     <button
                       key={id}
                       type="button"
-                      onClick={() => setView(targetView)}
+                      onClick={() => { if (href) { onClose(); router.push(href) } else if (targetView) setView(targetView) }}
                       className={`flex flex-col items-center gap-3 p-5 rounded-2xl
                                   ${bg} ring-1 ${ring}
                                   active:scale-[0.96] transition-all duration-150 ease-spring

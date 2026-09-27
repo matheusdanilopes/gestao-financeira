@@ -32,6 +32,19 @@ import {
   FiltroInvalido,
   type Referencias,
 } from './queryEngine'
+import {
+  proporPagamento,
+  proporNovaDespesa,
+  proporNovaReceita,
+  proporRecebimento,
+  proporAporteInvestimento,
+  proporItemMercado,
+  proporItemWishlist,
+  estagiarProposta,
+  confirmarOperacao,
+  cancelarOperacao,
+  type ContextoEscrita,
+} from './writeEngine'
 
 // ─── Schema (subconjunto do OpenAPI aceito pelo Gemini) ──────────────────────
 
@@ -306,6 +319,142 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
       },
     },
   },
+
+  // ── Escrita: só PREPARAM a operação (nunca gravam). Toda propor_* devolve
+  // um resumo que precisa ser mostrado ao usuário antes de confirmar_operacao. ──
+  {
+    name: 'propor_pagamento',
+    description:
+      'Prepara o pagamento de uma despesa JÁ EXISTENTE e em aberto no planejamento (ex.: "paga a luz", "quitei o ' +
+      'aluguel", "marca o cartão como pago"). NÃO grava nada ainda: valida se existe exatamente uma despesa em ' +
+      'aberto com esse nome e devolve um resumo para você mostrar ao usuário e pedir confirmação.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        busca: str('Nome (ou parte do nome) da despesa a pagar, como aparece no planejamento.'),
+        valorPago: num('Valor efetivamente pago.'),
+        dataPagamento: str('Data do pagamento, AAAA-MM-DD. Padrão: hoje.'),
+        mes: str(`Mês da despesa, use para desambiguar quando houver mais de uma parecida. ${MES}`),
+        responsavel: str(`Responsável pela despesa, para desambiguar. ${RESPONSAVEL}`),
+      },
+      required: ['busca', 'valorPago'],
+    },
+  },
+  {
+    name: 'propor_nova_despesa',
+    description:
+      'Prepara uma NOVA conta/despesa no planejamento do mês (ex.: "lança uma conta de internet de 120 reais", ' +
+      '"adiciona uma despesa de mercado de 80 reais"). NÃO grava nada ainda — devolve um resumo para confirmação.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        descricao: str('Nome da despesa (ex.: "Internet", "Mercado").'),
+        valor: num('Valor previsto da despesa.'),
+        categoria: str('Categoria (ex.: Fixa, Extra, Moradia, Alimentação, Transporte, Saúde, Lazer, Outros). Padrão: Extra.'),
+        responsavel: str(`Quem é o responsável. ${RESPONSAVEL} Padrão: Matheus — pergunte se não estiver claro.`),
+        dataVencimento: str('Data de vencimento, AAAA-MM-DD. Sem padrão: se o usuário não disser, fica sem vencimento.'),
+        mes: str(`Mês de referência da despesa. ${MES} Padrão: mês corrente.`),
+      },
+      required: ['descricao', 'valor'],
+    },
+  },
+  {
+    name: 'propor_recebimento',
+    description:
+      'Prepara o registro de um recebimento (total ou parcial) de uma receita JÁ EXISTENTE no planejamento (ex.: ' +
+      '"recebi o salário", "caiu 500 reais do freelance"). NÃO grava nada ainda — devolve um resumo para confirmação.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        busca: str('Nome (ou parte do nome) da receita, como aparece em consultar_receitas.'),
+        valor: num('Valor recebido agora (pode ser parcial).'),
+        dataRecebimento: str('Data do recebimento, AAAA-MM-DD. Padrão: hoje.'),
+        mes: str(`Mês da receita, para desambiguar. ${MES}`),
+        responsavel: str(`Quem recebeu, para desambiguar. ${RESPONSAVEL}`),
+      },
+      required: ['busca', 'valor'],
+    },
+  },
+  {
+    name: 'propor_nova_receita',
+    description:
+      'Prepara uma NOVA receita planejada para um mês (ex.: "cadastra uma receita de freelance de 800 reais em ' +
+      'dezembro"). NÃO grava nada ainda — devolve um resumo para confirmação.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        descricao: str('Nome da receita (ex.: "Freelance", "13º salário").'),
+        valor: num('Valor previsto da receita.'),
+        responsavel: str(`Quem recebe. ${RESPONSAVEL} Padrão: Matheus — pergunte se não estiver claro.`),
+        mes: str(`Mês de referência. ${MES} Padrão: mês corrente.`),
+      },
+      required: ['descricao', 'valor'],
+    },
+  },
+  {
+    name: 'propor_aporte_investimento',
+    description:
+      'Prepara um aporte num investimento JÁ CADASTRADO (ex.: "investi 300 reais na reserva de emergência"). Não ' +
+      'cria investimento novo — se não existir nenhum parecido, diga que é preciso cadastrá-lo primeiro pelo app. ' +
+      'NÃO grava nada ainda — devolve um resumo para confirmação.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        busca: str('Nome do investimento, como aparece em consultar_investimentos.'),
+        valor: num('Valor do aporte.'),
+        dataAporte: str('Data do aporte, AAAA-MM-DD. Padrão: hoje.'),
+        saldoAtual: num('Novo saldo total do investimento, se o usuário informar (opcional).'),
+        observacao: str('Observação livre sobre o aporte (opcional).'),
+      },
+      required: ['busca', 'valor'],
+    },
+  },
+  {
+    name: 'propor_item_lista_mercado',
+    description:
+      'Prepara a adição de um item à lista de mercado (ex.: "coloca leite na lista de mercado"). NÃO grava nada ' +
+      'ainda — devolve um resumo para confirmação.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        nome: str('Nome do item.'),
+        quantidade: num('Quantidade. Padrão: 1.'),
+      },
+      required: ['nome'],
+    },
+  },
+  {
+    name: 'propor_item_wishlist',
+    description:
+      'Prepara a adição de um item à lista de desejos (ex.: "coloca um fone de ouvido de 400 reais na wishlist"). ' +
+      'NÃO grava nada ainda — devolve um resumo para confirmação.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        nome: str('Nome do item.'),
+        valorEstimado: num('Valor estimado (opcional).'),
+        categoria: str('Categoria (ex.: Eletrônicos, Casa, Moda, Viagem, Lazer, Esporte, Saúde, Educação, Outros).'),
+        prioridade: str('Prioridade.', ['alta', 'media', 'baixa']),
+      },
+      required: ['nome'],
+    },
+  },
+  {
+    name: 'confirmar_operacao',
+    description:
+      'Executa de fato a operação pendente mais recente desta conversa (a última que você preparou com um ' +
+      'propor_*). Só chame isto DEPOIS que o usuário confirmar explicitamente numa mensagem dele (ex.: "sim", ' +
+      '"confirma", "pode lançar", "isso mesmo") — nunca na mesma resposta em que você acabou de propor algo, e ' +
+      'nunca porque "parece que é isso que o usuário quer".',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
+  {
+    name: 'cancelar_operacao',
+    description:
+      'Descarta a operação pendente mais recente desta conversa, sem gravar nada. Use quando o usuário recusar, ' +
+      'pedir para mudar algo proposto, ou desistir.',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
 ]
 
 export const NOMES_FERRAMENTAS = new Set(FINANCIAL_TOOLS.map(t => t.name))
@@ -327,6 +476,15 @@ const ROTULOS: Record<string, string> = {
   consultar_listas: 'Consultando as listas',
   calcular: 'Calculando',
   consultar_estornos: 'Verificando estornos',
+  propor_pagamento: 'Preparando pagamento',
+  propor_nova_despesa: 'Preparando nova despesa',
+  propor_recebimento: 'Preparando recebimento',
+  propor_nova_receita: 'Preparando nova receita',
+  propor_aporte_investimento: 'Preparando aporte',
+  propor_item_lista_mercado: 'Preparando item da lista de mercado',
+  propor_item_wishlist: 'Preparando item da wishlist',
+  confirmar_operacao: 'Gravando operação',
+  cancelar_operacao: 'Cancelando operação',
 }
 
 export function rotuloFerramenta(nome: string, args: Record<string, unknown> = {}): string {
@@ -348,17 +506,24 @@ const asNumber = (v: unknown): number | undefined => {
 }
 const asBool = (v: unknown): boolean | undefined => (typeof v === 'boolean' ? v : undefined)
 
+/** Estado de escrita de UM turno (uma chamada a executarAgente) — nunca persiste entre turnos. */
+export interface EstadoTurno {
+  /** true assim que qualquer propor_* for chamado nesta rodada de function-calling. */
+  propostaNesteTurno: boolean
+}
+
 /**
  * Despacha uma chamada de ferramenta. Devolve sempre uma string legível —
  * inclusive para nome desconhecido (alucinação) ou erro interno, para que o
  * loop do agente possa continuar em vez de abortar o turno.
  */
-export function executarFerramenta(
+export async function executarFerramenta(
   nome: string,
   args: Record<string, unknown>,
   data: EnrichedData,
-  refs: Referencias
-): string {
+  refs: Referencias,
+  escrita: { ctx: ContextoEscrita; estado: EstadoTurno }
+): Promise<string> {
   try {
     switch (nome) {
       case 'listar_dimensoes':
@@ -472,6 +637,92 @@ export function executarFerramenta(
           mesInicio: asString(args.mesInicio),
           mesFim: asString(args.mesFim),
         })
+
+      case 'propor_pagamento': {
+        escrita.estado.propostaNesteTurno = true
+        const proposta = proporPagamento(data, refs, {
+          busca: asString(args.busca),
+          valorPago: asNumber(args.valorPago),
+          dataPagamento: asString(args.dataPagamento),
+          mes: asString(args.mes),
+          responsavel: asString(args.responsavel),
+        })
+        return await estagiarProposta(escrita.ctx, proposta)
+      }
+
+      case 'propor_nova_despesa': {
+        escrita.estado.propostaNesteTurno = true
+        const proposta = proporNovaDespesa(refs, {
+          descricao: asString(args.descricao),
+          valor: asNumber(args.valor),
+          categoria: asString(args.categoria),
+          responsavel: asString(args.responsavel),
+          dataVencimento: asString(args.dataVencimento),
+          mes: asString(args.mes),
+        })
+        return await estagiarProposta(escrita.ctx, proposta)
+      }
+
+      case 'propor_recebimento': {
+        escrita.estado.propostaNesteTurno = true
+        const proposta = proporRecebimento(data, refs, {
+          busca: asString(args.busca),
+          valor: asNumber(args.valor),
+          dataRecebimento: asString(args.dataRecebimento),
+          mes: asString(args.mes),
+          responsavel: asString(args.responsavel),
+        })
+        return await estagiarProposta(escrita.ctx, proposta)
+      }
+
+      case 'propor_nova_receita': {
+        escrita.estado.propostaNesteTurno = true
+        const proposta = proporNovaReceita(refs, {
+          descricao: asString(args.descricao),
+          valor: asNumber(args.valor),
+          responsavel: asString(args.responsavel),
+          mes: asString(args.mes),
+        })
+        return await estagiarProposta(escrita.ctx, proposta)
+      }
+
+      case 'propor_aporte_investimento': {
+        escrita.estado.propostaNesteTurno = true
+        const proposta = proporAporteInvestimento(data, refs, {
+          busca: asString(args.busca),
+          valor: asNumber(args.valor),
+          dataAporte: asString(args.dataAporte),
+          saldoAtual: asNumber(args.saldoAtual),
+          observacao: asString(args.observacao),
+        })
+        return await estagiarProposta(escrita.ctx, proposta)
+      }
+
+      case 'propor_item_lista_mercado': {
+        escrita.estado.propostaNesteTurno = true
+        const proposta = proporItemMercado({
+          nome: asString(args.nome),
+          quantidade: asNumber(args.quantidade),
+        })
+        return await estagiarProposta(escrita.ctx, proposta)
+      }
+
+      case 'propor_item_wishlist': {
+        escrita.estado.propostaNesteTurno = true
+        const proposta = proporItemWishlist({
+          nome: asString(args.nome),
+          valorEstimado: asNumber(args.valorEstimado),
+          categoria: asString(args.categoria),
+          prioridade: asString(args.prioridade),
+        })
+        return await estagiarProposta(escrita.ctx, proposta)
+      }
+
+      case 'confirmar_operacao':
+        return await confirmarOperacao(escrita.ctx, escrita.estado.propostaNesteTurno)
+
+      case 'cancelar_operacao':
+        return await cancelarOperacao(escrita.ctx)
 
       default:
         return `Ferramenta "${nome}" não existe. Ferramentas disponíveis: ${[...NOMES_FERRAMENTAS].join(', ')}. Escolha uma delas.`

@@ -188,6 +188,7 @@ export async function POST(req: NextRequest) {
           refs,
           semFerramentas: bloqueado,
           deadlineMs,
+          escrita: { supabase, conversationId, usuario: user.email ?? null },
         })) {
           despachar(evento, enviar)
           if (evento.type === 'done') {
