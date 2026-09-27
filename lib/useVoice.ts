@@ -17,6 +17,17 @@ import { ocuparMicrofone, liberarMicrofone } from './voiceLock'
 
 const CHAVE_AUTO_FALAR = 'chat_falar_respostas'
 
+/**
+ * iOS Safari só libera a síntese de fala se a PRIMEIRA chamada de speak() da
+ * página partir de um toque do usuário — sem isso, falar() funciona quando
+ * chamado direto de um clique (ex.: botão "Ouvir"), mas nunca nas respostas
+ * faladas automaticamente, que chegam depois de um fetch, fora de qualquer
+ * gesto. Falar um utterance mudo no primeiro toque da página destrava a API
+ * para todas as chamadas seguintes, inclusive assíncronas. Flag em módulo
+ * (não em estado do hook): é uma trava da aba inteira, não desta instância.
+ */
+let vozDestravada = false
+
 interface SpeechRecognitionResultLike {
   isFinal: boolean
   [index: number]: { transcript: string }
@@ -106,6 +117,22 @@ export function useVoice() {
         if (salvo !== null) setAutoFalarState(salvo === '1')
       } catch { /* storage indisponível */ }
     })
+  }, [])
+
+  // Destrava a síntese de fala no primeiro toque na página (ver comentário
+  // de vozDestravada). Precisa ser o próprio handler do gesto — não pode
+  // esperar nenhum microtask/Promise, ou o iOS já não conta mais como gesto.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window) || vozDestravada) return
+    function destravar() {
+      if (vozDestravada) return
+      vozDestravada = true
+      const utter = new SpeechSynthesisUtterance(' ')
+      utter.volume = 0
+      window.speechSynthesis.speak(utter)
+    }
+    document.addEventListener('pointerdown', destravar, { once: true, capture: true })
+    return () => document.removeEventListener('pointerdown', destravar, { capture: true })
   }, [])
 
   // A lista de vozes carrega de forma assíncrona em alguns navegadores.

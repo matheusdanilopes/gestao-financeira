@@ -55,7 +55,7 @@ export function Composer({
   const podeEnviar = valor.trim().length > 0 && !streaming && !desabilitado
 
   return (
-    <div className="fixed bottom-16 lg:bottom-0 left-0 right-0 sticky-header border-t border-gray-100 dark:border-gray-700/60 px-3 py-2.5 z-[140]">
+    <div className="fixed bottom-[calc(4rem+var(--safe-bottom))] lg:bottom-0 left-0 right-0 sticky-header border-t border-gray-100 dark:border-gray-700/60 px-3 py-2.5 z-[140]">
       <div className="max-w-md lg:max-w-3xl mx-auto flex gap-2 items-end">
         {ouvindo ? (
           <div className="flex-1 flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl px-4 py-3 text-sm text-red-600 dark:text-red-400">
