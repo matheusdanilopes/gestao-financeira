@@ -171,11 +171,29 @@ export function useVoice() {
 
     const recognition = new Ctor()
     recognition.lang = 'pt-BR'
-    recognition.continuous = false
+    // continuous=false tem um "no-speech" bem agressivo em vários navegadores
+    // (principalmente Chrome no Android): a escuta encerrava sozinha se o
+    // usuário não começasse a falar em menos de ~1-2s, mesmo tocando o
+    // microfone antes. continuous=true é bem mais tolerante nesse início —
+    // o encerramento por silêncio depois de falar é feito à mão abaixo.
+    recognition.continuous = true
     recognition.interimResults = true
     recognition.maxAlternatives = 1
 
     let transcricaoFinal = ''
+    let timeoutSilencio: ReturnType<typeof setTimeout> | null = null
+    let timeoutMaximo: ReturnType<typeof setTimeout> | null = null
+
+    function limparTimeouts() {
+      if (timeoutSilencio) clearTimeout(timeoutSilencio)
+      if (timeoutMaximo) clearTimeout(timeoutMaximo)
+    }
+
+    /** Reagendado a cada novo som reconhecido: ~1.8s de silêncio depois de falar = "terminei". */
+    function agendarParadaPorSilencio() {
+      if (timeoutSilencio) clearTimeout(timeoutSilencio)
+      timeoutSilencio = setTimeout(() => recognition.stop(), 1_800)
+    }
 
     recognition.onresult = ev => {
       let parcial = ''
@@ -186,6 +204,7 @@ export function useVoice() {
         else parcial += texto
       }
       opcoes.onParcial?.((transcricaoFinal + parcial).trim())
+      agendarParadaPorSilencio()
     }
 
     recognition.onerror = ev => {
@@ -198,6 +217,7 @@ export function useVoice() {
     }
 
     recognition.onend = () => {
+      limparTimeouts()
       setOuvindo(false)
       // Só libera se esta ainda é a sessão ativa: um abort() para trocar de
       // sessão (início de uma nova escuta) não pode liberar o lock que a
@@ -212,6 +232,10 @@ export function useVoice() {
     recognitionRef.current = recognition
     setOuvindo(true)
     recognition.start()
+    // Rede de segurança: com continuous=true o navegador não encerra sozinho
+    // por ausência total de fala, então sem isso o microfone ficaria aberto
+    // indefinidamente se o usuário nunca chegar a falar.
+    timeoutMaximo = setTimeout(() => recognition.stop(), 20_000)
   }, [pararFala])
 
   return {
