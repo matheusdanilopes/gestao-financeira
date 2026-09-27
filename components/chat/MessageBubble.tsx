@@ -1,7 +1,7 @@
 'use client'
 
 import { memo } from 'react'
-import { Sparkles, User, Search } from 'lucide-react'
+import { Sparkles, User, Search, Volume2 } from 'lucide-react'
 import { MarkdownMessage } from './MarkdownMessage'
 import type { ChatMessage } from '@/lib/useChatFinanceiro'
 
@@ -41,7 +41,14 @@ const TrilhaFerramentas = memo(function TrilhaFerramentas({ itens }: { itens: st
   )
 })
 
-export const MessageBubble = memo(function MessageBubble({ mensagem }: { mensagem: ChatMessage }) {
+export const MessageBubble = memo(function MessageBubble({
+  mensagem,
+  onOuvir,
+}: {
+  mensagem: ChatMessage
+  /** Presente só quando o navegador suporta síntese de fala. */
+  onOuvir?: (texto: string) => void
+}) {
   const ehUsuario = mensagem.role === 'user'
 
   return (
@@ -55,6 +62,16 @@ export const MessageBubble = memo(function MessageBubble({ mensagem }: { mensage
         }
       >
         {ehUsuario ? mensagem.content : <MarkdownMessage texto={mensagem.content} />}
+        {!ehUsuario && onOuvir && (
+          <button
+            onClick={() => onOuvir(mensagem.content)}
+            aria-label="Ouvir resposta"
+            className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-gray-400 dark:text-gray-500 rounded-full transition-colors hover:text-violet-600 dark:hover:text-violet-400"
+          >
+            <Volume2 className="w-3.5 h-3.5" />
+            Ouvir
+          </button>
+        )}
         {!ehUsuario && mensagem.ferramentas && <TrilhaFerramentas itens={mensagem.ferramentas} />}
       </div>
     </article>
