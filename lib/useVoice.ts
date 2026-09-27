@@ -13,6 +13,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { ocuparMicrofone, liberarMicrofone } from './voiceLock'
 
 const CHAVE_AUTO_FALAR = 'chat_falar_respostas'
 
@@ -120,7 +121,10 @@ export function useVoice() {
   }, [])
 
   useEffect(() => () => {
-    recognitionRef.current?.abort()
+    if (recognitionRef.current) {
+      recognitionRef.current.abort()
+      liberarMicrofone()
+    }
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel()
   }, [])
 
@@ -161,6 +165,9 @@ export function useVoice() {
     }
     recognitionRef.current?.abort()
     pararFala()
+    // Sinaliza a escuta de fundo do "Hey Gestor" para parar imediatamente —
+    // as duas não podem disputar o mesmo microfone ao mesmo tempo.
+    ocuparMicrofone()
 
     const recognition = new Ctor()
     recognition.lang = 'pt-BR'
@@ -192,7 +199,13 @@ export function useVoice() {
 
     recognition.onend = () => {
       setOuvindo(false)
-      recognitionRef.current = null
+      // Só libera se esta ainda é a sessão ativa: um abort() para trocar de
+      // sessão (início de uma nova escuta) não pode liberar o lock que a
+      // sessão nova acabou de reivindicar.
+      if (recognitionRef.current === recognition) {
+        recognitionRef.current = null
+        liberarMicrofone()
+      }
       if (transcricaoFinal.trim()) opcoes.onResultado(transcricaoFinal.trim())
     }
 

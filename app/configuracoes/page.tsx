@@ -8,7 +8,7 @@ import { descricaoFechamento, calcularDataFechamentoDaFaturaISO } from '@/lib/fa
 import {
   Settings, LogOut, Upload, Activity, ChevronDown, Sun, Moon, Monitor,
   Tags, Plus, Pencil, Trash2, Check, CreditCard, CalendarDays, X, Bell, Search,
-  User, Mail, Lock, Eye, EyeOff,
+  User, Mail, Lock, Eye, EyeOff, Mic,
 } from 'lucide-react'
 import FilterSelect from '@/components/FilterSelect'
 import { mascaraMoeda, formatarMoedaInput, parseMoeda } from '@/lib/format'
@@ -17,6 +17,8 @@ import Link from 'next/link'
 import { useTheme } from '@/components/ThemeProvider'
 import { CATEGORIAS_PADRAO, normalizarCategorias, parseCategoriasConfig } from '@/lib/categorias'
 import { PUSH_REFRESH_KEY } from '@/components/NotificacoesBell'
+import { useHeyGestorAtivo } from '@/lib/heyGestorStore'
+import { suportaReconhecimentoVoz } from '@/lib/useVoice'
 
 interface LogEntry {
   id: string
@@ -243,6 +245,13 @@ function ConfiguracoesContent() {
       setAbaAtual(tab)
     }
   }, [searchParams])
+
+  // --- Comando de voz ("Hey Gestor") ---
+  const [heyGestorAtivo, setHeyGestorAtivo] = useHeyGestorAtivo()
+  const [suportaVoz, setSuportaVoz] = useState(false)
+  useEffect(() => {
+    Promise.resolve().then(() => setSuportaVoz(suportaReconhecimentoVoz()))
+  }, [])
 
   // --- Geral ---
   const [cartaoExpandido, setCartaoExpandido] = useState<'nubank' | 'cartao1' | 'cartao2' | null>(null)
@@ -1196,6 +1205,23 @@ function ConfiguracoesContent() {
               ))}
             </div>
           </SettingsCard>
+
+          {/* Comando de voz */}
+          {suportaVoz && (
+            <SettingsCard icon={Mic} title="Comando de voz">
+              <SettingsToggleRow
+                title='Ativar com "Hey Gestor"'
+                description='Diga "Hey Gestor" em qualquer tela do app para abrir o chat já ouvindo a pergunta.'
+                checked={heyGestorAtivo}
+                onChange={setHeyGestorAtivo}
+              />
+              <p className="text-xs text-gray-400 mt-3 leading-relaxed">
+                Só funciona com o app aberto na tela e em primeiro plano — o navegador desliga o microfone quando a
+                aba vai para segundo plano ou a tela bloqueia. Não é um microfone sempre ligado; use com moderação
+                pela bateria.
+              </p>
+            </SettingsCard>
+          )}
 
           {/* Notificações push */}
           <SettingsCard icon={Bell} title="Notificações Push" className="space-y-4">
