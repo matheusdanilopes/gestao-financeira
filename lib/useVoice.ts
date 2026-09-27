@@ -17,6 +17,17 @@ import { ocuparMicrofone, liberarMicrofone } from './voiceLock'
 
 const CHAVE_AUTO_FALAR = 'chat_falar_respostas'
 
+/**
+ * iOS Safari só libera a síntese de fala se a PRIMEIRA chamada de speak() da
+ * página partir de um toque do usuário — sem isso, falar() funciona quando
+ * chamado direto de um clique (ex.: botão "Ouvir"), mas nunca nas respostas
+ * faladas automaticamente, que chegam depois de um fetch, fora de qualquer
+ * gesto. Falar um utterance mudo no primeiro toque da página destrava a API
+ * para todas as chamadas seguintes, inclusive assíncronas. Flag em módulo
+ * (não em estado do hook): é uma trava da aba inteira, não desta instância.
+ */
+let vozDestravada = false
+
 interface SpeechRecognitionResultLike {
   isFinal: boolean
   [index: number]: { transcript: string }
@@ -108,6 +119,22 @@ export function useVoice() {
     })
   }, [])
 
+  // Destrava a síntese de fala no primeiro toque na página (ver comentário
+  // de vozDestravada). Precisa ser o próprio handler do gesto — não pode
+  // esperar nenhum microtask/Promise, ou o iOS já não conta mais como gesto.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window) || vozDestravada) return
+    function destravar() {
+      if (vozDestravada) return
+      vozDestravada = true
+      const utter = new SpeechSynthesisUtterance(' ')
+      utter.volume = 0
+      window.speechSynthesis.speak(utter)
+    }
+    document.addEventListener('pointerdown', destravar, { once: true, capture: true })
+    return () => document.removeEventListener('pointerdown', destravar, { capture: true })
+  }, [])
+
   // A lista de vozes carrega de forma assíncrona em alguns navegadores.
   useEffect(() => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
@@ -171,11 +198,29 @@ export function useVoice() {
 
     const recognition = new Ctor()
     recognition.lang = 'pt-BR'
-    recognition.continuous = false
+    // continuous=false tem um "no-speech" bem agressivo em vários navegadores
+    // (principalmente Chrome no Android): a escuta encerrava sozinha se o
+    // usuário não começasse a falar em menos de ~1-2s, mesmo tocando o
+    // microfone antes. continuous=true é bem mais tolerante nesse início —
+    // o encerramento por silêncio depois de falar é feito à mão abaixo.
+    recognition.continuous = true
     recognition.interimResults = true
     recognition.maxAlternatives = 1
 
     let transcricaoFinal = ''
+    let timeoutSilencio: ReturnType<typeof setTimeout> | null = null
+    let timeoutMaximo: ReturnType<typeof setTimeout> | null = null
+
+    function limparTimeouts() {
+      if (timeoutSilencio) clearTimeout(timeoutSilencio)
+      if (timeoutMaximo) clearTimeout(timeoutMaximo)
+    }
+
+    /** Reagendado a cada novo som reconhecido: ~1.8s de silêncio depois de falar = "terminei". */
+    function agendarParadaPorSilencio() {
+      if (timeoutSilencio) clearTimeout(timeoutSilencio)
+      timeoutSilencio = setTimeout(() => recognition.stop(), 1_800)
+    }
 
     recognition.onresult = ev => {
       let parcial = ''
@@ -186,6 +231,7 @@ export function useVoice() {
         else parcial += texto
       }
       opcoes.onParcial?.((transcricaoFinal + parcial).trim())
+      agendarParadaPorSilencio()
     }
 
     recognition.onerror = ev => {
@@ -198,6 +244,7 @@ export function useVoice() {
     }
 
     recognition.onend = () => {
+      limparTimeouts()
       setOuvindo(false)
       // Só libera se esta ainda é a sessão ativa: um abort() para trocar de
       // sessão (início de uma nova escuta) não pode liberar o lock que a
@@ -212,6 +259,10 @@ export function useVoice() {
     recognitionRef.current = recognition
     setOuvindo(true)
     recognition.start()
+    // Rede de segurança: com continuous=true o navegador não encerra sozinho
+    // por ausência total de fala, então sem isso o microfone ficaria aberto
+    // indefinidamente se o usuário nunca chegar a falar.
+    timeoutMaximo = setTimeout(() => recognition.stop(), 20_000)
   }, [pararFala])
 
   return {
