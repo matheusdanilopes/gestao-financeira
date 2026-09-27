@@ -50,6 +50,15 @@ function obterConstructor(): SpeechRecognitionCtor | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null
 }
 
+/**
+ * Checagem de suporte sem instanciar o hook inteiro — usada por telas que só
+ * precisam decidir se mostram um atalho de voz (ex.: o FAB de lançamento
+ * rápido), sem precisar de toda a lógica de escuta/fala.
+ */
+export function suportaReconhecimentoVoz(): boolean {
+  return obterConstructor() !== null
+}
+
 /** Remove marcação markdown para a fala não soar "asterisco asterisco". */
 function paraFala(texto: string): string {
   return texto

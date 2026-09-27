@@ -9,6 +9,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { History, MoreHorizontal, Plus, Sparkles, Trash2, AlertTriangle, RotateCcw, Volume2, VolumeX, MicOff } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -36,6 +37,8 @@ export default function ChatPage() {
   const chat = useChatFinanceiro('geral')
   const { insights } = useInsights()
   const voz = useVoice()
+  const router = useRouter()
+  const searchParams = useSearchParams()
 
   const [input, setInput] = useState('')
   const [drawerAberto, setDrawerAberto] = useState(false)
@@ -92,6 +95,21 @@ export default function ChatPage() {
       onErro: mensagem => setErroVoz(mensagem),
     })
   }, [voz, enviar])
+
+  // ── Atalho "Perguntar por Voz" do FAB: chega como /chat?voz=1 e já abre
+  // ouvindo, em vez de exigir mais um toque assim que a tela carrega. Some
+  // da URL logo em seguida para não reativar num refresh ou "voltar".
+  const vozAutoIniciadaRef = useRef(false)
+  useEffect(() => {
+    if (vozAutoIniciadaRef.current) return
+    if (searchParams.get('voz') !== '1') return
+    if (!voz.suportaEscuta) return
+    vozAutoIniciadaRef.current = true
+    router.replace('/chat', { scroll: false })
+    // Fora do corpo síncrono do efeito (mesma convenção de lib/useVoice.ts):
+    // onMic() dispara setState (ouvindo) ao iniciar o reconhecimento.
+    Promise.resolve().then(() => onMic())
+  }, [searchParams, voz.suportaEscuta, onMic, router])
 
   // ── Resposta falada: só a última mensagem de cada turno novo, nunca o
   // histórico restaurado (que chega de uma vez, crescendo mais que 1). ──
