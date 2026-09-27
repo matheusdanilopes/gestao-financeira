@@ -22,7 +22,8 @@ import {
   type GeminiContent,
   type ChamadaFerramenta,
 } from './geminiClient'
-import { FINANCIAL_TOOLS, executarFerramenta, rotuloFerramenta } from './tools'
+import { FINANCIAL_TOOLS, executarFerramenta, rotuloFerramenta, type EstadoTurno } from './tools'
+import type { ContextoEscrita } from './writeEngine'
 import type { Referencias } from './queryEngine'
 import type { EnrichedData } from '../types'
 
@@ -65,6 +66,8 @@ export interface AgentInput {
   /** Quando true, nenhuma ferramenta é oferecida (dataset bloqueado na auditoria). */
   semFerramentas?: boolean
   deadlineMs: number
+  /** Necessário para as ferramentas de escrita: propor_*, confirmar_operacao e cancelar_operacao. */
+  escrita: ContextoEscrita
 }
 
 function montarContents(historico: HistoricoMensagem[], pergunta: string): GeminiContent[] {
@@ -82,6 +85,10 @@ export async function* executarAgente(input: AgentInput): AsyncGenerator<AgentEv
   const contents = montarContents(input.historico, input.pergunta)
   const ferramentasUsadas: string[] = []
   let textoFinal = ''
+  // Um por turno (por chamada a executarAgente): garante que confirmar_operacao
+  // só possa agir sobre uma proposta feita numa mensagem ANTERIOR do usuário,
+  // nunca sobre uma que o próprio modelo acabou de fazer nesta mesma resposta.
+  const estadoTurno: EstadoTurno = { propostaNesteTurno: false }
 
   for (let rodada = 0; rodada <= MAX_RODADAS_FERRAMENTA; rodada++) {
     const tempoEsgotado = Date.now() >= input.deadlineMs - 3_000
@@ -165,7 +172,10 @@ export async function* executarAgente(input: AgentInput): AsyncGenerator<AgentEv
       yield { type: 'tool', nome: chamada.name, rotulo }
       ferramentasUsadas.push(chamada.name)
 
-      const resultado = executarFerramenta(chamada.name, chamada.args, input.data, input.refs)
+      const resultado = await executarFerramenta(chamada.name, chamada.args, input.data, input.refs, {
+        ctx: input.escrita,
+        estado: estadoTurno,
+      })
       respostas.push({
         functionResponse: {
           name: chamada.name,
