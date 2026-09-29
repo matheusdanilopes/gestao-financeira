@@ -1,6 +1,7 @@
 import webpush from 'web-push'
 import { nomeDoUsuario } from './notificacoes'
 import { criarSupabaseServer } from './supabaseServer'
+import { notificarTelegramExceto } from './telegram/notificacoes'
 
 type SupabaseServer = ReturnType<typeof criarSupabaseServer>
 
@@ -43,6 +44,8 @@ export async function notificarListaMercadoServer(
       .select('id')
 
     const notifId: string = rows?.[0]?.id ?? ''
+
+    await notificarTelegramExceto('mercado', deUsuario, { titulo: title, corpo: body, caminho: '/lista-mercado' })
 
     const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
     const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY ?? ''

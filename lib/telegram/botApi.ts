@@ -64,10 +64,10 @@ async function chamar<T>(metodo: string, corpo?: Record<string, unknown>): Promi
   return json.result as T
 }
 
-export interface BotaoInline {
-  text: string
-  callback_data: string
-}
+/** Botão sob a mensagem: dispara um callback para o webhook ou abre um link. */
+export type BotaoInline =
+  | { text: string; callback_data: string }
+  | { text: string; url: string }
 
 /**
  * Envia texto já em HTML do Telegram. Se o Telegram recusar a marcação

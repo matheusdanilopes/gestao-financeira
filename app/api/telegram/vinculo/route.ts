@@ -3,6 +3,7 @@
  *
  *   GET    estado atual (e registra o webhook do bot, se ainda não estiver)
  *   POST   gera um código de uso único e o link t.me que o leva ao bot
+ *   PATCH  salva quais notificações chegam pelo Telegram ({ notificacoes })
  *   DELETE desvincula o Telegram
  *
  * Usa a sessão do usuário: a política RLS de telegram_vinculos só deixa cada
@@ -13,6 +14,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
 import { telegramConfigurado, usuarioDoBot, garantirWebhook } from '@/lib/telegram/botApi'
 import { gerarCodigo, VALIDADE_CODIGO_MIN } from '@/lib/telegram/vinculo'
+import { sanitizarPreferencias, type PreferenciasNotificacaoTelegram } from '@/lib/telegram/categoriasNotificacao'
 
 /** Nomes (nunca valores) das variáveis que faltam — para a tela orientar a configuração. */
 function pendencias(): string[] {
@@ -40,6 +42,12 @@ function urlWebhook(req: NextRequest): string | null {
   const host = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? req.headers.get('host')
   if (!host || /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host)) return null
   return `https://${host}/api/telegram/webhook`
+}
+
+/** Coluna de migration_telegram_notificacoes.sql ainda não criada. */
+function colunaNotificacoesAusente(erro: { code?: string; message?: string } | null): boolean {
+  if (!erro) return false
+  return erro.code === '42703' || erro.code === 'PGRST204' || /notificacoes/.test(erro.message ?? '')
 }
 
 function link(bot: string | null, codigo: string): string | null {
@@ -71,11 +79,29 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const { data, error } = await supabase
+  const colunas = 'chat_id, telegram_nome, vinculado_em, codigo, codigo_expira_em'
+  let notificacoesMigracaoPendente = false
+  let { data, error } = await supabase
     .from('telegram_vinculos')
-    .select('chat_id, telegram_nome, vinculado_em, codigo, codigo_expira_em')
+    .select(`${colunas}, notificacoes`)
     .eq('user_id', user.id)
-    .maybeSingle()
+    .maybeSingle<{
+      chat_id: number | null
+      telegram_nome: string | null
+      vinculado_em: string | null
+      codigo: string | null
+      codigo_expira_em: string | null
+      notificacoes?: PreferenciasNotificacaoTelegram | null
+    }>()
+
+  if (colunaNotificacoesAusente(error)) {
+    notificacoesMigracaoPendente = true
+    ;({ data, error } = await supabase
+      .from('telegram_vinculos')
+      .select(colunas)
+      .eq('user_id', user.id)
+      .maybeSingle())
+  }
 
   if (error) {
     if (tabelaAusente(error)) {
@@ -98,6 +124,8 @@ export async function GET(req: NextRequest) {
     vinculadoEm: data?.vinculado_em ?? null,
     codigoExpiraEm: codigoValido ? data!.codigo_expira_em : null,
     link: codigoValido ? link(bot, data!.codigo!) : null,
+    notificacoes: sanitizarPreferencias(data?.notificacoes),
+    notificacoesMigracaoPendente,
   })
 }
 
@@ -138,6 +166,37 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ error: 'Não foi possível gerar o link. Tente de novo.' }, { status: 500 })
+}
+
+export async function PATCH(req: NextRequest) {
+  const { user, supabase, unauthorized } = await requireAuth(req)
+  if (unauthorized) return unauthorized
+
+  let corpo: { notificacoes?: unknown }
+  try {
+    corpo = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
+  }
+  const notificacoes = sanitizarPreferencias(corpo.notificacoes)
+
+  const { data, error } = await supabase
+    .from('telegram_vinculos')
+    .update({ notificacoes })
+    .eq('user_id', user.id)
+    .select('notificacoes')
+    .maybeSingle()
+
+  if (colunaNotificacoesAusente(error)) {
+    return NextResponse.json(
+      { error: 'Rode supabase/migration_telegram_notificacoes.sql no Supabase para escolher as notificações.' },
+      { status: 500 }
+    )
+  }
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!data) return NextResponse.json({ error: 'Conecte o Telegram primeiro.' }, { status: 404 })
+
+  return NextResponse.json({ notificacoes: sanitizarPreferencias(data.notificacoes) })
 }
 
 export async function DELETE(req: NextRequest) {

@@ -1,5 +1,6 @@
 import webpush from 'web-push'
 import { SupabaseClient, createClient } from '@supabase/supabase-js'
+import { notificarTelegram } from './telegram/notificacoes'
 
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY ?? ''
@@ -73,8 +74,6 @@ export async function notificarImportacao(
   nomeCartao?: string,
   contexto?: ContextoImportacao
 ) {
-  if (!VAPID_PUBLIC || !VAPID_PRIVATE) return
-
   const nome = labelCartao(cartao, nomeCartao)
   let title: string
   let body: string
@@ -148,6 +147,19 @@ export async function notificarImportacao(
     score,
     requireInteraction: tipo === 'erro',
   }
+
+  // No Telegram, uma importação sem nada novo (score 0) não vira mensagem: o
+  // gatilho automático roda várias vezes ao dia e encheria a conversa de
+  // "nenhuma compra nova". No push ela só substitui a notificação do cartão.
+  const telegram = tipo === 'erro' || score > 0
+    ? notificarTelegram('importacao', () => ({ titulo: title, corpo: body, caminho: url }))
+    : Promise.resolve(0)
+
+  await Promise.all([telegram, enviarPush(supabase, payload)])
+}
+
+async function enviarPush(supabase: SupabaseClient, payload: Record<string, unknown>) {
+  if (!VAPID_PUBLIC || !VAPID_PRIVATE) return
 
   try {
     // Usa o cliente autenticado passado pela rota (tem sessão de usuário → passa na RLS).

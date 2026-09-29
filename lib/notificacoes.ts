@@ -50,6 +50,7 @@ export function notificar(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           deUsuario,
+          acao,
           payload: {
             title: `${nome} registrou ${labelAcao(acao).toLowerCase()}`,
             body: descricao,
@@ -92,6 +93,7 @@ export function notificarWishlist(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           deUsuario,
+          acao: 'wishlist_novo_item',
           payload: {
             title: `${nome} adicionou na Wishlist`,
             body: nomeItem,
@@ -135,6 +137,7 @@ export function notificarCategorizacao(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           deUsuario,
+          acao: 'categorizacao_concluida',
           payload: {
             title: 'Categorização concluída',
             body: descricao,
