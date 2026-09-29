@@ -27,7 +27,7 @@ export function markdownParaHtmlTelegram(texto: string): string {
     .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
     .replace(/__(.+?)__/g, '<b>$1</b>')
     .replace(/~~(.+?)~~/g, '<s>$1</s>')
-    // *ênfase* e _ênfase_ simples (o estilo do WhatsApp também aparece no histórico).
+    // *ênfase* e _ênfase_ simples (o próprio prompt do Telegram usa *Confirmar*).
     .replace(/(^|[^*\w])\*(?!\s)([^*\n]+?)\*(?![*\w])/g, '$1<b>$2</b>')
     .replace(/(^|[^_\w])_(?!\s)([^_\n]+?)_(?![_\w])/g, '$1<i>$2</i>')
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s"]+)\)/g, '<a href="$2">$1</a>')

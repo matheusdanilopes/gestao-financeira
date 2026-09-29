@@ -2,12 +2,12 @@
  * Quem está falando com o assessor.
  *
  * Os dados do app são do casal, mas a conversa é sempre com UMA pessoa: a que
- * está logada no app (ou a dona do número de WhatsApp vinculado). É ela quem
+ * está logada no app (ou a dona do Telegram vinculado). É ela quem
  * responde por "eu", "meu", "gastei", "recebi" — sem isso o modelo tratava
  * "quanto eu gastei?" como o total do casal.
  */
 
-export type CanalConversa = 'app' | 'whatsapp' | 'telegram'
+export type CanalConversa = 'app' | 'telegram'
 
 export interface Interlocutor {
   /** Responsável correspondente nos dados (ex.: "Matheus"), ou null se não deu para identificar. */
@@ -32,11 +32,9 @@ export function criarInterlocutor(email: string | null | undefined, canal: Canal
 }
 
 export function blocoInterlocutor(i: Interlocutor): string {
-  const onde = i.canal === 'whatsapp'
-    ? 'pelo WhatsApp (o número está vinculado à conta no app)'
-    : i.canal === 'telegram'
-      ? 'pelo Telegram (a conta do Telegram está vinculada à conta no app)'
-      : 'pelo chat do app, logado na própria conta'
+  const onde = i.canal === 'telegram'
+    ? 'pelo Telegram (a conta do Telegram está vinculada à conta no app)'
+    : 'pelo chat do app, logado na própria conta'
 
   if (!i.nome) {
     return [

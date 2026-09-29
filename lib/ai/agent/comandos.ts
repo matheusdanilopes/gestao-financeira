@@ -1,5 +1,5 @@
 /**
- * Comandos e regras de conversa comuns aos canais de mensagem (WhatsApp,
+ * Comandos e regras de conversa dos canais de mensagem fora do app (o
  * Telegram): o que é "ajuda", "nova conversa" ou "desvincular", e quando uma
  * conversa parada deve ser trocada por outra.
  */

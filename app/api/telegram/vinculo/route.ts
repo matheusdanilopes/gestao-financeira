@@ -12,7 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
 import { telegramConfigurado, usuarioDoBot, garantirWebhook } from '@/lib/telegram/botApi'
-import { gerarCodigo, VALIDADE_CODIGO_MIN } from '@/lib/whatsapp/vinculo'
+import { gerarCodigo, VALIDADE_CODIGO_MIN } from '@/lib/telegram/vinculo'
 
 /** Nomes (nunca valores) das variáveis que faltam — para a tela orientar a configuração. */
 function pendencias(): string[] {
