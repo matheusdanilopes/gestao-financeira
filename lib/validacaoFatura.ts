@@ -4,6 +4,8 @@ import { TransacaoNubank, normalizarDescricaoParaHash } from '@/lib/csvparser'
 import { descricoesParecidas } from '@/lib/descricaoSimilaridade'
 import { formatBRL } from '@/lib/format'
 import { somarValorFatura } from '@/lib/composicaoFatura'
+import { getNotificacaoMeta } from '@/lib/notificationTypes'
+import { notificarTelegram } from '@/lib/telegram/notificacoes'
 
 export interface StatsFaturaValidacao {
   noCSV: number
@@ -337,29 +339,38 @@ export async function validarDivergenciaFatura(
       }
       const descricao = `Divergência na fatura ${mesLabel} do ${nome}: ${partes.join('; ')}.`
 
+      const metadata = {
+        cartao,
+        mes_referencia: mesReferencia,
+        assinatura,
+        quantidade_arquivo: arquivoDaFatura.length,
+        quantidade_banco: linhas.length,
+        diferenca: linhas.length - arquivoDaFatura.length,
+        quantidade_excedentes: excedentes.length,
+        quantidade_faltantes: faltantes.length,
+        quantidade_conflitos_pendentes: emConflito.length,
+        diferenca_valor: diferencaValor,
+        total_banco: totalBanco,
+        total_arquivo: totalArquivo,
+        ...(faltantes.length > 0 ? { faltantes: faltantes.slice(0, 20) } : {}),
+        ...(excedentes.length > 0 ? { transacao_ids: excedentes.map(e => e.id) } : {}),
+        ...(provavelDuplicata ? { provavel_duplicata_id: provavelDuplicata.id } : {}),
+      }
+
       await supabase.from('notificacoes').insert({
         de_usuario: 'sistema',
         nome_usuario: 'Sistema',
         acao: 'fatura_divergencia',
         descricao,
-        metadata: {
-          cartao,
-          mes_referencia: mesReferencia,
-          assinatura,
-          quantidade_arquivo: arquivoDaFatura.length,
-          quantidade_banco: linhas.length,
-          diferenca: linhas.length - arquivoDaFatura.length,
-          quantidade_excedentes: excedentes.length,
-          quantidade_faltantes: faltantes.length,
-          quantidade_conflitos_pendentes: emConflito.length,
-          diferenca_valor: diferencaValor,
-          total_banco: totalBanco,
-          total_arquivo: totalArquivo,
-          ...(faltantes.length > 0 ? { faltantes: faltantes.slice(0, 20) } : {}),
-          ...(excedentes.length > 0 ? { transacao_ids: excedentes.map(e => e.id) } : {}),
-          ...(provavelDuplicata ? { provavel_duplicata_id: provavelDuplicata.id } : {}),
-        },
+        metadata,
       })
+
+      // Mesma deduplicação do sino: só chega ao Telegram quando a divergência muda.
+      await notificarTelegram('importacao', () => ({
+        titulo: `⚠️ Divergência na fatura ${mesLabel} do ${nome}`,
+        corpo: partes.map(p => `• ${p}`).join('\n'),
+        caminho: getNotificacaoMeta('fatura_divergencia').rotaFn?.(metadata) ?? '/compras',
+      }))
     } catch (error) {
       console.error(`[validacaoFatura] erro ao validar cartao=${cartao} mes=${mesReferencia}:`, error)
     }

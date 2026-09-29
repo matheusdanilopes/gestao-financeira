@@ -2,11 +2,11 @@
   "crons": [
     {
       "path": "/api/notificacoes/vencimento",
-      "schedule": "0 9 * * *"
+      "schedule": "0 12 * * *"
     },
     {
       "path": "/api/notificacoes/resumo-semanal",
-      "schedule": "0 9 * * 1"
+      "schedule": "0 12 * * 1"
     },
     {
       "path": "/api/manutencao/limpeza",
