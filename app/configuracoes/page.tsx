@@ -8,7 +8,7 @@ import { descricaoFechamento, calcularDataFechamentoDaFaturaISO } from '@/lib/fa
 import {
   Settings, LogOut, Upload, Activity, ChevronDown, Sun, Moon, Monitor,
   Tags, Plus, Pencil, Trash2, Check, CreditCard, CalendarDays, X, Bell, Search,
-  User, Mail, Lock, Eye, EyeOff, Mic,
+  User, Mail, Lock, Eye, EyeOff, Mic, MessageCircle,
 } from 'lucide-react'
 import FilterSelect from '@/components/FilterSelect'
 import { mascaraMoeda, formatarMoedaInput, parseMoeda } from '@/lib/format'
@@ -19,6 +19,7 @@ import { CATEGORIAS_PADRAO, normalizarCategorias, parseCategoriasConfig } from '
 import { PUSH_REFRESH_KEY } from '@/components/NotificacoesBell'
 import { useHeyGestorAtivo } from '@/lib/heyGestorStore'
 import { suportaReconhecimentoVoz } from '@/lib/useVoice'
+import WhatsAppVinculo from '@/components/WhatsAppVinculo'
 
 interface LogEntry {
   id: string
@@ -1427,6 +1428,11 @@ function ConfiguracoesContent() {
                 )}
               </button>
             </form>
+          </SettingsCard>
+
+          {/* Assessor no WhatsApp */}
+          <SettingsCard icon={MessageCircle} title="Assessor no WhatsApp">
+            <WhatsAppVinculo />
           </SettingsCard>
 
           {/* Sessão */}

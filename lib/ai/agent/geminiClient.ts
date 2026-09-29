@@ -21,6 +21,8 @@ const BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
 
 export interface GeminiPart {
   text?: string
+  /** Mídia embutida em base64 (ex.: áudio de voz do WhatsApp para transcrever). */
+  inlineData?: { mimeType: string; data: string }
   functionCall?: { name: string; args?: Record<string, unknown> }
   functionResponse?: { name: string; response: Record<string, unknown> }
 }
@@ -320,4 +322,41 @@ export async function resumirConversa(
     // Resumir é otimização, não requisito: falhar aqui não pode derrubar o turno.
     return null
   }
+}
+
+// ─── Transcrição de áudio ────────────────────────────────────────────────────
+
+/**
+ * Transcreve uma mensagem de voz (o Gemini aceita áudio embutido). Devolve
+ * null se não houver fala inteligível — o chamador pede para a pessoa repetir
+ * em vez de mandar ruído para o agente.
+ */
+export async function transcreverAudio(
+  apiKey: string,
+  audioBase64: string,
+  mimeType: string,
+  deadlineMs: number
+): Promise<string | null> {
+  const rodada = await gerarRodada({
+    apiKey,
+    deadlineMs,
+    temperature: 0,
+    maxOutputTokens: 1500,
+    thinkingBudget: 0,
+    contents: [{
+      role: 'user',
+      parts: [
+        { inlineData: { mimeType, data: audioBase64 } },
+        {
+          text:
+            'Transcreva literalmente, em português, o que a pessoa fala neste áudio. Escreva valores em reais ' +
+            'com algarismos (ex.: "R$ 120,50"). Devolva apenas a transcrição, sem comentários. Se não houver fala ' +
+            'inteligível, devolva exatamente: [INAUDIVEL]',
+        },
+      ],
+    }],
+  })
+  const texto = rodada.texto.trim()
+  if (!texto || texto.includes('[INAUDIVEL]')) return null
+  return texto
 }
