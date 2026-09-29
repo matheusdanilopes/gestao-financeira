@@ -9,8 +9,8 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { fetchEnrichedData, DadosIndisponiveisError } from '../contextBuilder'
-import { validateFinancialData } from '../financialValidationEngine'
+import { DadosIndisponiveisError } from '../data/nucleo'
+import { GatewayDados } from '../data/gateway'
 import { computeInsights } from '../insightsEngine'
 import type { TelaAtual } from '../types'
 import { construirReferencias } from './queryEngine'
@@ -56,9 +56,10 @@ export async function* executarTurno(e: EntradaTurno): AsyncGenerator<AgentEvent
   // Força leitura fresca na primeira mensagem da conversa: o usuário pode
   // ter acabado de lançar uma despesa em outra tela.
   // Cliente autenticado (não a anon key crua): é o que permite ler tabelas
-  // protegidas por RLS, como os limites de parcelamento.
-  const brutos = await fetchEnrichedData(e.userId, contexto.ehPrimeiraMensagem, supabase)
-  const { validatedData, certificate } = validateFinancialData(brutos)
+  // protegidas por RLS, como os limites de parcelamento. No Telegram é a
+  // service role — o catálogo de fontes é a lista branca do que pode ser lido.
+  const gateway = new GatewayDados(supabase, e.userId)
+  const { dados: validatedData, certificado: certificate } = await gateway.iniciar(contexto.ehPrimeiraMensagem)
   // Relógio de Brasília: o servidor roda em UTC e "virava o dia" às 21h.
   const refs = construirReferencias()
 
@@ -73,6 +74,7 @@ export async function* executarTurno(e: EntradaTurno): AsyncGenerator<AgentEvent
         tela: e.tela,
         resumoConversa: contexto.resumo,
         interlocutor: e.interlocutor,
+        cobertura: gateway.cobertura,
       })
 
   // Num reenvio a pergunta já veio no histórico carregado — remover a
@@ -90,7 +92,7 @@ export async function* executarTurno(e: EntradaTurno): AsyncGenerator<AgentEvent
     systemPrompt,
     historico,
     pergunta,
-    data: validatedData,
+    gateway,
     refs,
     semFerramentas: bloqueado,
     deadlineMs: e.deadlineMs,

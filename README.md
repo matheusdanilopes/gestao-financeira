@@ -45,3 +45,11 @@ O mesmo agente de IA do chat do app responde pelo Telegram, por texto ou áudio,
 4. **Conectar:** no app, *Configurações → Conta → Assessor no Telegram → Conectar Telegram → Abrir no Telegram* e toque em **Iniciar**. Cada pessoa conecta o próprio Telegram.
 
 O webhook (`/api/telegram/webhook`) é registrado automaticamente quando a tela de Configurações é aberta em produção, com um segredo derivado do token. Para fixar outra URL, defina `TELEGRAM_WEBHOOK_URL`. Comandos no bot: `/ajuda`, `/nova` e `/desvincular`.
+
+## Como o assessor lê os dados
+
+Chat do app e Telegram passam pelo mesmo turno (`lib/ai/agent/turno.ts`), que lê tudo por um **GatewayDados** (`lib/ai/data/gateway.ts`):
+
+- **Núcleo em cache** (`lib/ai/data/nucleo.ts`): compras e planejamento dos últimos 24 meses, assinaturas, investimentos, listas etc. Fica 60 s em cache por instância; turnos simultâneos (duas mensagens seguidas no Telegram) compartilham a mesma leitura. Toda gravação confirmada pela IA invalida o cache.
+- **Histórico sob demanda**: quando uma ferramenta pede um período anterior à janela (ou uma consulta sem período, como "a maior compra de todas"), os meses antigos são buscados na hora — nenhum mês fica fora do alcance.
+- **Catálogo de fontes** (`lib/ai/data/catalogo.ts`): lista branca de tudo que a IA pode ler, com nomes de campo. A ferramenta genérica `explorar_dados` consulta qualquer fonte dele (atividade do app, histórico de preço das assinaturas, importações de fatura, idas ao mercado, listas arquivadas…). Para expor uma tabela nova à IA, basta declarar mais uma fonte ali.

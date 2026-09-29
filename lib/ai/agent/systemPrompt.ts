@@ -16,6 +16,7 @@ import { cartaoLabelsFromPlanejamento, nomeCartao } from '../insightsEngine'
 import type { EnrichedData, FinancialInsightsContext, TelaAtual, ValidationCertificate } from '../types'
 import { fmtMes, mesDaFatura, faturaDoMes, descreverUltimasFaturas, limitesDoMes, type Referencias } from './queryEngine'
 import { blocoInterlocutor, type Interlocutor } from './interlocutor'
+import type { Cobertura } from '../data/gateway'
 
 // Formato completo (com centavos): o modelo copia estes valores direto para a
 // resposta, então uma string como "R$ 209,4" chegaria torta ao usuário.
@@ -53,6 +54,8 @@ const MODELO_DE_DADOS = `COMO OS DADOS SÃO ORGANIZADOS
 - INVESTIMENTO / APORTE: carteira, depósitos feitos nela e o último "saldo atual" que o usuário digitou em cada investimento. O percentual da carteira é a fatia da sobra do mês destinada a cada investimento — não é rentabilidade.
 - LISTAS: lista de desejos (com valor estimado e prioridade), lista de mercado e listas de compras.
 - ESTORNO: compra cancelada. Já foi removida do total da fatura.
+- NOME DA COMPRA: o usuário pode renomear uma compra no app; as ferramentas buscam e mostram esse nome (e dizem o original da fatura).
+- REGISTROS DO APP (via explorar_dados): histórico de preço e de status das assinaturas, atividade (quem lançou/editou/pagou/excluiu o quê e quando), avisos do app, resultado de cada importação de fatura, idas ao mercado finalizadas, listas de compras arquivadas, recebimentos um a um, datas de fechamento, histórico dos limites de parcelamento.
 Nunca some receitas junto com despesas ao calcular "total gasto".`
 
 const USO_DE_FERRAMENTAS = `COMO BUSCAR DADOS
@@ -69,6 +72,9 @@ Regras inegociáveis:
 8. FILTRO INVÁLIDO: se uma consulta voltar "FILTRO INVÁLIDO", refaça com um dos valores válidos que ela lista. Se nenhum servir, pergunte ao usuário — nunca responda com um total sem o filtro.
 9. CONTAS: toda soma, diferença, média ou percentual que não veio pronto de uma consulta passa pela ferramenta calcular. "E se eu comprar…" passa por simular_compra.
 10. LISTAS PARCIAIS: se uma consulta disser LISTA PARCIAL, não apresente os itens como se fossem todos — diga quantos há no total ou busque a próxima página.
+11. HISTÓRICO: todo o histórico é consultável — passe o período que a pergunta pede (mesmo anos atrás) e a ferramenta busca na hora. Nunca diga que um mês antigo "não está disponível" sem ter consultado.
+12. DIAS: "ontem", "esta semana", "dia 15", "no sábado" → consultar_transacoes com dataInicio/dataFim (dia da compra), não com o mês.
+13. FORA DO PREVISTO: se nenhuma ferramenta especializada responde (quem lançou algo, quando uma assinatura mudou de preço, se uma compra foi importada, detalhes de um registro), use explorar_dados na fonte certa antes de dizer que não sabe.
 
 OPERAÇÕES (lançar pagamentos, receitas, aportes e itens de lista)
 Você pode preparar e executar um conjunto específico de ações — nunca direto: sempre em duas etapas.
@@ -148,7 +154,8 @@ function linhasDaFatura(data: EnrichedData, refs: Referencias): string[] {
 export function buildSnapshot(
   data: EnrichedData,
   m: FinancialInsightsContext,
-  refs: Referencias
+  refs: Referencias,
+  cobertura?: Cobertura
 ): string {
   const linhas: string[] = ['SNAPSHOT DO MOMENTO (números já apurados — use direto, sem consultar)']
 
@@ -218,8 +225,15 @@ export function buildSnapshot(
   if (mesesTx.length > 0) {
     linhas.push(
       `Cobertura das compras: meses de ${fmtMes(mesDaFatura(mesesTx[0]))} até ${fmtMes(mesDaFatura(mesesTx[mesesTx.length - 1]))} ` +
-      `(${data.transacoes.length} lançamentos consultáveis). Última fatura importada por cartão: ${descreverUltimasFaturas(data)}. ` +
+      `(${data.transacoes.length} lançamentos carregados). Última fatura importada por cartão: ${descreverUltimasFaturas(data)}. ` +
       'Meses posteriores ainda não têm lançamentos — para eles, projete (projetar_parcelamentos / projecao_futura).'
+    )
+  }
+
+  if (cobertura && !cobertura.completo && cobertura.primeiroNoBanco) {
+    linhas.push(
+      `Histórico mais antigo no banco: desde ${fmtMes(cobertura.primeiroNoBanco)}. Os números acima usam os meses recentes; ` +
+      'para meses anteriores, passe o período na ferramenta — ela busca na hora.'
     )
   }
 
@@ -263,6 +277,7 @@ export function buildSystemPrompt({
   tela,
   resumoConversa,
   interlocutor,
+  cobertura,
 }: {
   data: EnrichedData
   metrics: FinancialInsightsContext
@@ -271,6 +286,7 @@ export function buildSystemPrompt({
   tela?: TelaAtual
   resumoConversa?: string
   interlocutor?: Interlocutor
+  cobertura?: Cobertura
 }): string {
   const telegram = interlocutor?.canal === 'telegram'
   const dataHoje = format(refs.hoje, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR })
@@ -305,7 +321,7 @@ export function buildSystemPrompt({
     temporal,
     MODELO_DE_DADOS,
     USO_DE_FERRAMENTAS,
-    buildSnapshot(data, metrics, refs),
+    buildSnapshot(data, metrics, refs, cobertura),
     qualidade,
     resumo,
     telegram ? FORMATO_TELEGRAM : FORMATO,

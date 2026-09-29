@@ -2,9 +2,11 @@
  * Catálogo de ferramentas do agente financeiro.
  *
  * Cada ferramenta é declarada para o Gemini (function calling) e mapeada para
- * uma função do queryEngine, que opera em memória sobre o dataset já buscado e
- * validado nesta requisição. O modelo nunca recebe SQL, conexão ou credencial:
- * ele descreve *o que quer*, e a validação de cada argumento acontece aqui.
+ * uma função do queryEngine (ou do explorador genérico), que opera em memória
+ * sobre dados lidos pelo GatewayDados. O gateway estende o histórico e lê as
+ * fontes extras sob demanda, conforme o período e a fonte que a chamada pede.
+ * O modelo nunca recebe SQL, conexão ou credencial: ele descreve *o que
+ * quer*, e a validação de cada argumento acontece aqui.
  *
  * Princípio de projeto: é melhor dar ao modelo poucas ferramentas amplas e bem
  * descritas do que muitas estreitas. A versão anterior deste chat montava o
@@ -13,7 +15,9 @@
  * Aqui o modelo enxerga TODO o espaço de consulta desde a primeira mensagem.
  */
 
-import type { EnrichedData } from '../types'
+import type { GatewayDados } from '../data/gateway'
+import { descreverFontes, IDS_FONTES } from '../data/catalogo'
+import { explorarDados, OPERADORES, AGRUPAMENTOS_TEMPO } from './explorador'
 import {
   consultarTransacoes,
   consultarPlanejamento,
@@ -88,8 +92,9 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
   {
     name: 'listar_dimensoes',
     description:
-      'Mostra o que existe no banco: período coberto, categorias realmente usadas, cartões, responsáveis e volumes. ' +
-      'Use ANTES de concluir que um dado não existe, ou quando estiver em dúvida sobre qual valor exato usar em um filtro.',
+      'Mostra o que existe no banco: período coberto, categorias realmente usadas, cartões, responsáveis, volumes e as ' +
+      'fontes extras de explorar_dados. Use ANTES de concluir que um dado não existe, ou quando estiver em dúvida sobre ' +
+      'qual valor exato usar em um filtro.',
     parameters: { type: 'OBJECT', properties: {} },
   },
   {
@@ -98,7 +103,8 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
       'Consulta compras no cartão de crédito (a principal fonte de gastos). Combina busca por texto na descrição do ' +
       'estabelecimento, categoria, responsável, cartão, faixa de valor e intervalo de meses. Retorna totais, ' +
       'agrupamentos (inclusive por cartão) e os maiores lançamentos — nunca a lista completa. ' +
-      'Use para "quanto gastei com X", "compras no iFood", "maior compra do mês", "parcelamentos na fatura de agosto". ' +
+      'Busca também pelo nome que o usuário deu à compra no app. ' +
+      'Use para "quanto gastei com X", "compras no iFood", "maior compra do mês", "o que comprei ontem", "parcelamentos na fatura de agosto". ' +
       'Só enxerga faturas já importadas: para meses futuros ou evolução de parcelas, use projetar_parcelamentos. ' +
       'Quando houver mais de um cartão, cite de qual é o número que você usar.',
     parameters: {
@@ -117,6 +123,8 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
         limite: { type: 'INTEGER', description: 'Quantos lançamentos individuais listar por página (1 a 15).' },
         ordenarPor: str('Ordem da lista de lançamentos: maiores valores (padrão) ou mais recentes.', ['valor', 'data']),
         pagina: { type: 'INTEGER', description: 'Página da lista de lançamentos (1, 2, 3…), quando o resultado disser LISTA PARCIAL.' },
+        dataInicio: str('Primeiro DIA da compra, AAAA-MM-DD. Use para "ontem", "esta semana", "no fim de semana", "dia 15" (combine com dataFim). Independe do mês da fatura.'),
+        dataFim: str('Último DIA da compra, AAAA-MM-DD. Para um dia só, igual a dataInicio.'),
       },
     },
   },
@@ -320,6 +328,47 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
     },
   },
 
+  {
+    name: 'explorar_dados',
+    description:
+      'Consulta genérica sobre QUALQUER fonte de dados do app, com filtros por campo, período, agrupamento, soma e ' +
+      'paginação. Use quando nenhuma ferramenta especializada cobre a pergunta ou quando precisar de um campo que ' +
+      'elas não mostram — antes de dizer que não tem o dado. Para totais do mês, fatura, comparação e projeção, ' +
+      'prefira as especializadas. Fontes:\n' + descreverFontes(),
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        fonte: str('Fonte de dados.', IDS_FONTES),
+        busca: str('Texto procurado em todos os campos de texto da fonte (ignora acentos e maiúsculas).'),
+        filtros: {
+          type: 'ARRAY',
+          description: 'Filtros por campo, todos combinados (E). Datas no formato AAAA-MM-DD; em campos de data, "igual" casa o dia inteiro.',
+          items: {
+            type: 'OBJECT',
+            properties: {
+              campo: str('Nome do campo, exatamente como listado na fonte.'),
+              operador: str('Comparação.', [...OPERADORES]),
+              valor: str('Valor comparado (número com ponto decimal, true/false, data AAAA-MM-DD ou texto). Omita em vazio/preenchido.'),
+            },
+            required: ['campo', 'operador'],
+          },
+        },
+        dataInicio: str('Primeiro dia (AAAA-MM-DD) no campo de data principal da fonte.'),
+        dataFim: str('Último dia (AAAA-MM-DD) no campo de data principal da fonte.'),
+        mesInicio: str(`Primeiro mês. ${MES}`),
+        mesFim: str(`Último mês. ${MES}`),
+        agruparPor: str(`Campo da fonte para agrupar, ou um destes: ${AGRUPAMENTOS_TEMPO.join(', ')}.`),
+        somar: str('Campo numérico a somar nos totais/grupos (padrão: o campo de valor da fonte).'),
+        ordenarPor: str('Campo para ordenar a lista (padrão: data mais recente primeiro, ou valor).'),
+        ordem: str('Direção da ordenação.', ['desc', 'asc']),
+        campos: { type: 'ARRAY', description: 'Campos a mostrar em cada linha (padrão: todos).', items: { type: 'STRING' } },
+        limite: { type: 'INTEGER', description: 'Linhas por página (1 a 30). Padrão: 10.' },
+        pagina: { type: 'INTEGER', description: 'Página, quando o resultado disser LISTA PARCIAL.' },
+      },
+      required: ['fonte'],
+    },
+  },
+
   // ── Escrita: só PREPARAM a operação (nunca gravam). Toda propor_* devolve
   // um resumo que precisa ser mostrado ao usuário antes de confirmar_operacao. ──
   {
@@ -476,6 +525,7 @@ const ROTULOS: Record<string, string> = {
   consultar_listas: 'Consultando as listas',
   calcular: 'Calculando',
   consultar_estornos: 'Verificando estornos',
+  explorar_dados: 'Explorando os dados',
   propor_pagamento: 'Preparando pagamento',
   propor_nova_despesa: 'Preparando nova despesa',
   propor_recebimento: 'Preparando recebimento',
@@ -494,6 +544,7 @@ export function rotuloFerramenta(nome: string, args: Record<string, unknown> = {
   if (typeof args.categoria === 'string' && args.categoria.trim()) detalhes.push(args.categoria.trim().slice(0, 24))
   if (typeof args.responsavel === 'string' && args.responsavel.trim()) detalhes.push(args.responsavel.trim().slice(0, 16))
   if (typeof args.cartao === 'string' && args.cartao.trim()) detalhes.push(args.cartao.trim().slice(0, 16))
+  if (nome === 'explorar_dados' && typeof args.fonte === 'string') detalhes.unshift(args.fonte.replace(/_/g, ' '))
   return detalhes.length > 0 ? `${base} · ${detalhes.join(' · ')}` : base
 }
 
@@ -512,6 +563,43 @@ export interface EstadoTurno {
   propostaNesteTurno: boolean
 }
 
+/** Ferramentas que, sem período, olham para todo o histórico de compras/planejamento. */
+const LEEM_HISTORICO_INTEIRO = new Set([
+  'listar_dimensoes',
+  'consultar_transacoes',
+  'consultar_planejamento',
+  'consultar_receitas',
+  'consultar_estornos',
+])
+
+/** Mês mais antigo ('YYYY-MM') pedido nos argumentos, se houver. */
+function mesMaisAntigo(args: Record<string, unknown>): string | undefined {
+  const meses = ['mesInicio', 'mesFim', 'periodoAInicio', 'periodoBInicio', 'dataInicio', 'dataFim', 'mes']
+    .map(k => args[k])
+    .filter((v): v is string => typeof v === 'string' && /^\d{4}-\d{2}/.test(v.trim()))
+    .map(v => v.trim().substring(0, 7))
+    .sort()
+  return meses[0]
+}
+
+/**
+ * Antes de consultar: garante em memória o histórico que a chamada precisa.
+ * Um período anterior à janela quente é buscado agora; uma consulta sem
+ * período, nas ferramentas que olham o histórico inteiro, traz tudo.
+ */
+async function prepararHistorico(gw: GatewayDados, nome: string, args: Record<string, unknown>): Promise<void> {
+  if (nome === 'explorar_dados') return // o explorador decide pela fonte
+  const inicio = mesMaisAntigo(args)
+  if (inicio) {
+    // Um mês antes: a fatura de um mês pode ter compras feitas no anterior.
+    const [a, m] = inicio.split('-').map(Number)
+    const d = new Date(a, m - 2, 1)
+    await gw.garantirDesde(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+  } else if (LEEM_HISTORICO_INTEIRO.has(nome)) {
+    await gw.garantirTudo()
+  }
+}
+
 /**
  * Despacha uma chamada de ferramenta. Devolve sempre uma string legível —
  * inclusive para nome desconhecido (alucinação) ou erro interno, para que o
@@ -520,14 +608,44 @@ export interface EstadoTurno {
 export async function executarFerramenta(
   nome: string,
   args: Record<string, unknown>,
-  data: EnrichedData,
+  gw: GatewayDados,
   refs: Referencias,
   escrita: { ctx: ContextoEscrita; estado: EstadoTurno }
 ): Promise<string> {
   try {
+    await prepararHistorico(gw, nome, args)
+    const data = await gw.dados()
+
     switch (nome) {
-      case 'listar_dimensoes':
-        return listarDimensoes(data, refs)
+      case 'listar_dimensoes': {
+        const cobertura = gw.cobertura
+        return [
+          listarDimensoes(data, refs),
+          cobertura.primeiroNoBanco
+            ? `Histórico no banco desde ${cobertura.primeiroNoBanco} — todo ele é consultável (meses antigos são buscados na hora).`
+            : '',
+          'Fontes extras (explorar_dados), com os campos de cada uma:',
+          descreverFontes(),
+        ].filter(Boolean).join('\n')
+      }
+
+      case 'explorar_dados':
+        return await explorarDados(gw, {
+          fonte: asString(args.fonte),
+          busca: asString(args.busca),
+          filtros: args.filtros,
+          dataInicio: asString(args.dataInicio),
+          dataFim: asString(args.dataFim),
+          mesInicio: asString(args.mesInicio),
+          mesFim: asString(args.mesFim),
+          agruparPor: asString(args.agruparPor),
+          somar: asString(args.somar),
+          ordenarPor: asString(args.ordenarPor),
+          ordem: asString(args.ordem),
+          campos: args.campos,
+          limite: asNumber(args.limite),
+          pagina: asNumber(args.pagina),
+        }, refs)
 
       case 'consultar_transacoes':
         return consultarTransacoes(data, {
@@ -537,6 +655,8 @@ export async function executarFerramenta(
           cartao: asString(args.cartao),
           mesInicio: asString(args.mesInicio),
           mesFim: asString(args.mesFim),
+          dataInicio: asString(args.dataInicio),
+          dataFim: asString(args.dataFim),
           valorMinimo: asNumber(args.valorMinimo),
           valorMaximo: asNumber(args.valorMaximo),
           apenasParceladas: asBool(args.apenasParceladas),
@@ -718,8 +838,12 @@ export async function executarFerramenta(
         return await estagiarProposta(escrita.ctx, proposta)
       }
 
-      case 'confirmar_operacao':
-        return await confirmarOperacao(escrita.ctx, escrita.estado.propostaNesteTurno)
+      case 'confirmar_operacao': {
+        const resultado = await confirmarOperacao(escrita.ctx, escrita.estado.propostaNesteTurno)
+        // Gravou: a próxima consulta (até nesta mesma resposta) precisa ver o dado novo.
+        if (resultado.startsWith('CONFIRMADO E GRAVADO')) gw.invalidar()
+        return resultado
+      }
 
       case 'cancelar_operacao':
         return await cancelarOperacao(escrita.ctx)

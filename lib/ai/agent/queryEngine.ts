@@ -132,13 +132,24 @@ function sugerirDescricoes(descricoes: string[], busca: string): string[] {
   return [...frequencia.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([nome]) => nome)
 }
 
-function linhaSugestoes(descricoes: string[], busca: string | undefined): string | null {
+export function linhaSugestoes(descricoes: string[], busca: string | undefined): string | null {
   if (!busca) return null
   const sugestoes = sugerirDescricoes(descricoes, busca)
   return sugestoes.length > 0
     ? `Descrições parecidas que existem nos dados: ${sugestoes.map(x => `"${x}"`).join(', ')}. Se alguma for o que o usuário quis dizer, refaça a busca com ela.`
     : `Nenhuma descrição parecida com "${busca}" nos dados.`
 }
+
+/**
+ * Nome da compra como o usuário vê na tela de Compras: o personalizado, se ele
+ * renomeou. Buscar só pela descrição da fatura fazia "o presente da mãe" não
+ * achar nada, embora estivesse na tela com esse nome.
+ */
+export const nomeCompra = (t: Transacao): string => t.descricao_personalizada?.trim() || t.descricao
+
+/** A busca casa com a descrição da fatura OU com o nome personalizado. */
+export const casaCompra = (t: Transacao, busca: string): boolean =>
+  casaBusca(t.descricao, busca) || Boolean(t.descricao_personalizada && casaBusca(t.descricao_personalizada, busca))
 
 // ─── Normalização de parâmetros vindos do modelo ─────────────────────────────
 // Nada vindo do modelo é usado cru: valores inválidos são descartados
@@ -453,6 +464,9 @@ export interface FiltroTransacoes {
   cartao?: string
   mesInicio?: string
   mesFim?: string
+  /** Dia da compra (YYYY-MM-DD) — para "ontem", "semana passada", "dia 15". */
+  dataInicio?: string
+  dataFim?: string
   valorMinimo?: number
   valorMaximo?: number
   apenasParceladas?: boolean
@@ -483,6 +497,9 @@ export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, ref
   const mesFim = normalizarMes(f.mesFim)
   const valorMin = Number.isFinite(f.valorMinimo) ? Number(f.valorMinimo) : undefined
   const valorMax = Number.isFinite(f.valorMaximo) ? Number(f.valorMaximo) : undefined
+  const diaIso = (v?: string) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v.trim()) ? v.trim().substring(0, 10) : undefined)
+  const dataInicio = diaIso(f.dataInicio)
+  const dataFim = diaIso(f.dataFim)
   const labels = cartaoLabelsFromPlanejamento(data.planejamento)
 
   // Os meses chegam no vocabulário do app e são traduzidos para projeto_fatura
@@ -500,6 +517,9 @@ export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, ref
     mesInicio && mesFim && mesInicio === mesFim && `mês ${fmtMes(mesInicio)}`,
     mesInicio && (!mesFim || mesInicio !== mesFim) && `a partir de ${fmtMes(mesInicio)}`,
     mesFim && (!mesInicio || mesInicio !== mesFim) && `até ${fmtMes(mesFim)}`,
+    dataInicio && dataFim && dataInicio === dataFim && `compras do dia ${fmtData(dataInicio)}`,
+    dataInicio && dataInicio !== dataFim && `compras desde ${fmtData(dataInicio)}`,
+    dataFim && dataInicio !== dataFim && `compras até ${fmtData(dataFim)}`,
     valorMin !== undefined && `valor ≥ ${R(valorMin)}`,
     valorMax !== undefined && `valor ≤ ${R(valorMax)}`,
     f.apenasParceladas === true && 'somente parceladas',
@@ -509,13 +529,16 @@ export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, ref
     const m = mesEfetivo(t)
     if (faturaInicio && m < faturaInicio) return false
     if (faturaFim && m > faturaFim) return false
+    const dia = (t.data ?? '').substring(0, 10)
+    if (dataInicio && dia < dataInicio) return false
+    if (dataFim && dia > dataFim) return false
     if (categoria && (t.categoria ?? '') !== categoria) return false
     if (responsavel && t.responsavel !== responsavel) return false
     if (cartao && (t.cartao ?? 'nubank') !== cartao) return false
     if (valorMin !== undefined && t.valor < valorMin) return false
     if (valorMax !== undefined && t.valor > valorMax) return false
     if (f.apenasParceladas === true && !(t.total_parcelas && t.total_parcelas > 1)) return false
-    if (busca && !casaBusca(t.descricao, busca)) return false
+    if (busca && !casaCompra(t, busca)) return false
     return true
   })
 
@@ -530,7 +553,7 @@ export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, ref
       cabecalho,
       'Resultado: nenhuma transação encontrada com esses filtros.',
       avisoFuturo ?? 'Isso significa que não há registro — não é falta de acesso aos dados. Considere ampliar o período ou remover um filtro antes de concluir.',
-      linhaSugestoes(data.transacoes.map(t => t.descricao), busca),
+      linhaSugestoes(data.transacoes.map(nomeCompra), busca),
     ].filter(Boolean).join('\n')
   }
 
@@ -579,7 +602,7 @@ export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, ref
   }
   if (grupo === 'descricao' || (!grupo && busca && encontradas.length > 3)) {
     // Agrupa pelo nome limpo: "PG *LOJA 123" e "LOJA" viram a mesma loja.
-    const mapa = agrupar(encontradas, t => limparDescricao(t.descricao).slice(0, 32), t => t.valor)
+    const mapa = agrupar(encontradas, t => limparDescricao(nomeCompra(t)).slice(0, 32), t => t.valor)
     linhas.push(`Por estabelecimento: ${linhasAgrupamento(mapa, total)}`)
   }
 
@@ -597,8 +620,10 @@ export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, ref
   )
   for (const t of itens) {
     const parc = t.total_parcelas && t.total_parcelas > 1 ? ` [${t.parcela_atual}/${t.total_parcelas}]` : ''
+    const nome = nomeCompra(t)
+    const original = nome !== t.descricao ? ` (na fatura: ${t.descricao.slice(0, 30)})` : ''
     linhas.push(
-      `  • ${t.descricao.slice(0, 38)}${parc} — ${R(t.valor)} — ${fmtData(t.data)} — ` +
+      `  • ${nome.slice(0, 38)}${original}${parc} — ${R(t.valor)} — ${fmtData(t.data)} — ` +
       `${t.responsavel || '—'} — ${nomeCartao(t.cartao, labels)} — ${t.categoria ?? 'sem categoria'} — mês ${fmtMes(mesAppDaTransacao(t))}`
     )
   }
@@ -1170,7 +1195,7 @@ export function compararPeriodos(data: EnrichedData, f: FiltroComparacao, refs: 
     (!responsavel || t.responsavel === responsavel) &&
     (!categoria || (t.categoria ?? '') === categoria) &&
     (!cartao || (t.cartao ?? 'nubank') === cartao) &&
-    (!busca || casaBusca(t.descricao, busca))
+    (!busca || casaCompra(t, busca))
 
   // Com o corte, os dois lados usam a mesma régua (data da compra ≤ dia equivalente).
   const txA = data.transacoes.filter(t =>
@@ -1220,7 +1245,7 @@ export function compararPeriodos(data: EnrichedData, f: FiltroComparacao, refs: 
     const chave = (t: Transacao) =>
       dimensao === 'categoria' ? (t.categoria ?? 'Sem categoria')
       : dimensao === 'responsavel' ? (t.responsavel || 'Sem responsável')
-      : dimensao === 'descricao' ? limparDescricao(t.descricao).slice(0, 32)
+      : dimensao === 'descricao' ? limparDescricao(nomeCompra(t)).slice(0, 32)
       : nomeCartao(t.cartao, labels)
 
     const mapaA = agrupar(txA, chave, t => t.valor)
@@ -1381,15 +1406,16 @@ function montarBaseParcelas(data: EnrichedData, f: FiltroBaseParcelas): BaseParc
     const id = t.cartao ?? 'nubank'
     return (id !== 'nubank' && dono[id]) || t.responsavel || '—'
   }
-  const casa = (desc: string, resp: string | null | undefined) =>
-    (!f.responsavel || resp === f.responsavel) && (!f.busca || casaBusca(desc, f.busca))
+  const casa = (desc: string, resp: string | null | undefined, apelido?: string | null) =>
+    (!f.responsavel || resp === f.responsavel) &&
+    (!f.busca || casaBusca(desc, f.busca) || Boolean(apelido && casaBusca(apelido, f.busca)))
 
   const lancadas = data.transacoes
     .map(t => ({ t, p: extrairParcelamento(t as unknown as TransacaoRowParcelamento), responsavel: respDaCompra(t) }))
     .filter(({ t, p, responsavel }) =>
       p !== null && p.total >= 2 &&
       cartoesEscopo.includes(t.cartao ?? 'nubank') &&
-      casa(t.descricao, responsavel)
+      casa(t.descricao, responsavel, t.descricao_personalizada)
     ) as BaseParcelas['lancadas']
 
   const planejadas = data.planejamento
@@ -1411,7 +1437,7 @@ function montarBaseParcelas(data: EnrichedData, f: FiltroBaseParcelas): BaseParc
   for (const { row, parcela } of buildContracts(snapshot.map(({ t }) => t) as unknown as TransacaoRowParcelamento[]).values()) {
     const t = row as unknown as Transacao
     contratos.push({
-      descricao: t.descricao,
+      descricao: nomeCompra(t),
       valor: Number(t.valor ?? 0),
       responsavel: respPorLinha.get(t) ?? t.responsavel ?? '—',
       origem: nomeCartao(t.cartao, labels),
@@ -1452,7 +1478,7 @@ function itensParcelaDoMes(base: BaseParcelas, mes: string, refs: Referencias): 
     if (base.ultimas[id] && fatura <= base.ultimas[id]) {
       for (const { t, p, responsavel } of base.lancadas) {
         if ((t.cartao ?? 'nubank') === id && mesEfetivo(t) === fatura) {
-          itens.push({ descricao: t.descricao, valor: t.valor, responsavel, cartaoId: id, parcela: p.atual, total: p.total, real: true })
+          itens.push({ descricao: nomeCompra(t), valor: t.valor, responsavel, cartaoId: id, parcela: p.atual, total: p.total, real: true })
         }
       }
     } else {
@@ -1735,7 +1761,7 @@ export function projetarParcelamentos(data: EnrichedData, f: FiltroParcelamentos
     return [
       cabecalho,
       'Resultado: nenhuma compra parcelada encontrada com esses filtros.',
-      linhaSugestoes(data.transacoes.filter(t => (t.total_parcelas ?? 0) > 1).map(t => t.descricao), busca),
+      linhaSugestoes(data.transacoes.filter(t => (t.total_parcelas ?? 0) > 1).map(nomeCompra), busca),
     ].filter(Boolean).join('\n')
   }
 
@@ -1914,7 +1940,7 @@ export function listarDimensoes(data: EnrichedData, refs: Referencias): string {
     `Assinaturas cadastradas: ${data.assinaturas.length} (${data.assinaturas.filter(a => a.ativa).length} ativas, ${data.assinaturas.filter(estaPausada).length} pausadas)`,
     `Investimentos: ${data.investimentos.length} ativo(s), ${data.aportes.length} aporte(s) registrados, ${saldosInformados(data).length} com saldo atual informado`,
     `Limites de parcelamento configurados: ${(data.limites ?? []).length > 0 ? [...new Set((data.limites ?? []).map(l => l.responsavel))].join(', ') : 'nenhum'}`,
-    `Listas: ${(data.desejos ?? []).filter(d => !d.realizado).length} desejo(s) em aberto · ${(data.mercado ?? []).filter(m => !m.comprado).length} item(ns) na lista de mercado · ${new Set((data.listasCompras ?? []).map(i => i.lista)).size} lista(s) de compras ativas`,
+    `Listas: ${(data.desejos ?? []).filter(d => !d.realizado).length} desejo(s) em aberto · ${(data.mercado ?? []).filter(m => !m.comprado).length} item(ns) na lista de mercado · ${new Set((data.listasCompras ?? []).filter(i => i.status_lista !== 'arquivada').map(i => i.lista)).size} lista(s) de compras ativas (as arquivadas também são consultáveis)`,
     ...(data.avisos && data.avisos.length > 0 ? [`Fontes indisponíveis agora: ${data.avisos.join(' ')}`] : []),
   ].join('\n')
 }
@@ -1934,7 +1960,7 @@ export function consultarEstornos(data: EnrichedData, params: { mesInicio?: stri
   })
 
   if (encontrados.length === 0) {
-    return 'CONSULTA: estornos — nenhum estorno registrado no período (janela disponível: últimos 3 meses).'
+    return 'CONSULTA: estornos — nenhum estorno registrado no período consultado.'
   }
 
   const total = encontrados.reduce((s, e) => s + Math.abs(e.valor), 0)
@@ -1983,10 +2009,17 @@ export function consultarListas(data: EnrichedData, params: { tipo?: string; bus
 
   if (tipo === 'compras' || tipo === 'todas') {
     const itens = (data.listasCompras ?? []).filter(i => casa(i.nome) || casa(i.lista))
+    const arquivada = (i: { status_lista?: string | null }) => i.status_lista === 'arquivada'
     const porLista = new Map<string, typeof itens>()
-    for (const i of itens) porLista.set(i.lista, [...(porLista.get(i.lista) ?? []), i])
-    linhas.push(`Listas de compras ativas: ${porLista.size}`)
-    for (const [lista, doLista] of porLista) {
+    for (const i of itens) {
+      const chave = arquivada(i) ? `${i.lista} (arquivada)` : i.lista
+      porLista.set(chave, [...(porLista.get(chave) ?? []), i])
+    }
+    const nArquivadas = [...porLista.keys()].filter(k => k.endsWith(' (arquivada)')).length
+    linhas.push(`Listas de compras: ${porLista.size - nArquivadas} ativa(s)${nArquivadas ? ` e ${nArquivadas} arquivada(s)` : ''}`)
+    // Ativas primeiro.
+    const ordenadas = [...porLista.entries()].sort((a, b) => Number(a[0].endsWith(' (arquivada)')) - Number(b[0].endsWith(' (arquivada)')))
+    for (const [lista, doLista] of ordenadas.slice(0, 12)) {
       const pendentes = doLista.filter(i => i.status !== 'comprado')
       const previsto = pendentes.reduce((s, i) => s + Number(i.preco_previsto ?? 0) * (i.quantidade || 1), 0)
       const pago = doLista.filter(i => i.status === 'comprado').reduce((s, i) => s + Number(i.preco_pago ?? i.preco_previsto ?? 0) * (i.quantidade || 1), 0)

@@ -27,3 +27,17 @@ export function agoraBrasil(agora: Date = new Date()): Date {
   const campo = (tipo: Intl.DateTimeFormatPartTypes) => Number(partes.find(p => p.type === tipo)?.value ?? 0)
   return new Date(campo('year'), campo('month') - 1, campo('day'), campo('hour'), campo('minute'), campo('second'))
 }
+
+/**
+ * Timestamp do banco (UTC) → 'YYYY-MM-DD HH:mm' na hora de Brasília. Assim
+ * "o que foi lançado hoje" compara com a data de parede do casal, não a do
+ * servidor.
+ */
+export function horaLocal(ts: string | null | undefined): string | null {
+  if (!ts) return null
+  const d = new Date(ts)
+  if (Number.isNaN(d.getTime())) return ts
+  const l = agoraBrasil(d)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${l.getFullYear()}-${p(l.getMonth() + 1)}-${p(l.getDate())} ${p(l.getHours())}:${p(l.getMinutes())}`
+}
