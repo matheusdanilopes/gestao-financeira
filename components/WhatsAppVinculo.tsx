@@ -36,7 +36,13 @@ export default function WhatsAppVinculo() {
   const [erro, setErro] = useState<string | null>(null)
   const [copiado, setCopiado] = useState(false)
 
-  const carregar = useCallback(async () => {
+  /**
+   * `silencioso`: consultas de fundo não mostram erro. Ao tocar em "Enviar
+   * pelo WhatsApp" o app vai para segundo plano, o sistema suspende a página
+   * e a consulta em andamento morre com "Failed to fetch" — isso não é uma
+   * falha que a pessoa precise ver.
+   */
+  const carregar = useCallback(async (silencioso = false) => {
     try {
       const res = await fetch('/api/whatsapp/vinculo', { cache: 'no-store' })
       const json = await res.json()
@@ -44,7 +50,7 @@ export default function WhatsAppVinculo() {
       setEstado(json)
       setErro(null)
     } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Falha ao carregar')
+      if (!silencioso) setErro(e instanceof Error ? e.message : 'Falha ao carregar')
     } finally {
       setCarregando(false)
     }
@@ -53,11 +59,21 @@ export default function WhatsAppVinculo() {
   useEffect(() => { void carregar() }, [carregar])
 
   // Enquanto há código pendente, confere de tempos em tempos se o vínculo
-  // já foi feito pelo WhatsApp — a tela vira "conectado" sozinha.
+  // já foi feito pelo WhatsApp — a tela vira "conectado" sozinha. Também
+  // confere ao voltar para o app, que é quando a pessoa espera ver o resultado.
   useEffect(() => {
     if (!estado?.codigo || estado.vinculado) return
-    const t = setInterval(() => { void carregar() }, 5000)
-    return () => clearInterval(t)
+    const t = setInterval(() => {
+      if (document.visibilityState === 'visible') void carregar(true)
+    }, 5000)
+    const aoVoltar = () => {
+      if (document.visibilityState === 'visible') void carregar(true)
+    }
+    document.addEventListener('visibilitychange', aoVoltar)
+    return () => {
+      clearInterval(t)
+      document.removeEventListener('visibilitychange', aoVoltar)
+    }
   }, [estado?.codigo, estado?.vinculado, carregar])
 
   async function gerarCodigo() {
