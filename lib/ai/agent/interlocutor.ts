@@ -7,7 +7,7 @@
  * "quanto eu gastei?" como o total do casal.
  */
 
-export type CanalConversa = 'app' | 'whatsapp'
+export type CanalConversa = 'app' | 'whatsapp' | 'telegram'
 
 export interface Interlocutor {
   /** Responsável correspondente nos dados (ex.: "Matheus"), ou null se não deu para identificar. */
@@ -34,7 +34,9 @@ export function criarInterlocutor(email: string | null | undefined, canal: Canal
 export function blocoInterlocutor(i: Interlocutor): string {
   const onde = i.canal === 'whatsapp'
     ? 'pelo WhatsApp (o número está vinculado à conta no app)'
-    : 'pelo chat do app, logado na própria conta'
+    : i.canal === 'telegram'
+      ? 'pelo Telegram (a conta do Telegram está vinculada à conta no app)'
+      : 'pelo chat do app, logado na própria conta'
 
   if (!i.nome) {
     return [

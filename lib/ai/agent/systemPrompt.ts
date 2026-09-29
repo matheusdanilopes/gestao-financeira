@@ -111,6 +111,12 @@ Você está respondendo por WhatsApp, como um assessor financeiro pessoal que ac
 - Quando o número vier de um mês ainda em formação (a fatura corrente), avise que é parcial.
 - Em operações, mostre o resumo da proposta e peça para a pessoa responder "sim" para confirmar ou "não" para cancelar.`
 
+// No Telegram o markdown enxuto é convertido para a formatação dele; a
+// diferença para o app é não haver tela ao lado e as operações terem botões.
+const FORMATO_TELEGRAM = `${FORMATO}
+- Você está respondendo pelo Telegram: sem tabelas, títulos ou links no formato [texto](url).
+- Em operações, depois de mostrar o resumo da proposta, diga que a pessoa pode tocar em *Confirmar* ou *Cancelar* (ou responder "sim"/"não").`
+
 // ─── Snapshot ────────────────────────────────────────────────────────────────
 
 /**
@@ -279,11 +285,12 @@ export function buildSystemPrompt({
   interlocutor?: Interlocutor
 }): string {
   const whatsapp = interlocutor?.canal === 'whatsapp'
+  const telegram = interlocutor?.canal === 'telegram'
   const dataHoje = format(refs.hoje, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR })
   // O chat é uma tela própria: o usuário não está vendo outro número ao lado.
   // "Esse valor aqui" precisa ser perguntado, não adivinhado.
-  const telaTexto = whatsapp
-    ? ' A conversa é pelo WhatsApp, fora do app: o usuário não está vendo nenhuma tela. Quando algo só puder ser feito no app, diga qual tela abrir.'
+  const telaTexto = whatsapp || telegram
+    ? ` A conversa é pelo ${telegram ? 'Telegram' : 'WhatsApp'}, fora do app: o usuário não está vendo nenhuma tela. Quando algo só puder ser feito no app, diga qual tela abrir.`
     : tela && TELAS[tela]
       ? ` O usuário está olhando ${TELAS[tela]} agora.`
       : ' O chat é uma tela própria do app: se o usuário se referir a "esse valor" ou "isso na tela", pergunte de qual número ou tela ele está falando.'
@@ -314,7 +321,7 @@ export function buildSystemPrompt({
     buildSnapshot(data, metrics, refs),
     qualidade,
     resumo,
-    whatsapp ? FORMATO_WHATSAPP : FORMATO,
+    whatsapp ? FORMATO_WHATSAPP : telegram ? FORMATO_TELEGRAM : FORMATO,
   ].filter(Boolean).join('\n\n')
 }
 

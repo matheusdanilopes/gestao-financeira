@@ -59,3 +59,14 @@ O mesmo agente de IA do chat do app responde pelo WhatsApp (texto e áudio), com
 5. **Vincular o número:** no app, *Configurações → Conta → Assessor no WhatsApp → Gerar código* e envie a mensagem `vincular XXXX-XXXX` pelo WhatsApp. Cada pessoa vincula o próprio número.
 
 Comandos no WhatsApp: `ajuda`, `nova conversa` (recomeça o contexto) e `desvincular`. Depois de 12 h sem mensagens, a próxima abre uma conversa nova automaticamente. As conversas também aparecem no histórico do chat do app.
+
+## Assessor financeiro no Telegram
+
+O mesmo assessor responde pelo Telegram, por texto ou áudio, sem aprovação nem custo. As regras são as mesmas do WhatsApp: primeira pessoa = dados de quem está conectado, e lançamentos só depois de tocar em **✅ Confirmar**.
+
+1. **Banco:** rode `supabase/migration_telegram.sql` no SQL Editor do Supabase.
+2. **Bot:** no Telegram, fale com o **@BotFather**, envie `/newbot`, escolha nome e usuário (terminado em `bot`) e copie o token. Pelo BotFather também dá para trocar a foto (`/setuserpic`) e a descrição do bot.
+3. **Vercel:** cadastre `TELEGRAM_BOT_TOKEN` (Production) e faça o redeploy. `SUPABASE_SERVICE_ROLE_KEY` e `GEMINI_API_KEY` também são necessárias.
+4. **Conectar:** no app, *Configurações → Conta → Assessor no Telegram → Conectar Telegram → Abrir no Telegram* e toque em **Iniciar**. Cada pessoa conecta o próprio Telegram.
+
+O webhook (`/api/telegram/webhook`) é registrado automaticamente quando a tela de Configurações é aberta em produção, com um segredo derivado do token. Para fixar outra URL, defina `TELEGRAM_WEBHOOK_URL`. Comandos no bot: `/ajuda`, `/nova` e `/desvincular`.

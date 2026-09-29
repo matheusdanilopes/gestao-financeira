@@ -8,7 +8,7 @@ import { descricaoFechamento, calcularDataFechamentoDaFaturaISO } from '@/lib/fa
 import {
   Settings, LogOut, Upload, Activity, ChevronDown, Sun, Moon, Monitor,
   Tags, Plus, Pencil, Trash2, Check, CreditCard, CalendarDays, X, Bell, Search,
-  User, Mail, Lock, Eye, EyeOff, Mic, MessageCircle,
+  User, Mail, Lock, Eye, EyeOff, Mic, MessageCircle, Send,
 } from 'lucide-react'
 import FilterSelect from '@/components/FilterSelect'
 import { mascaraMoeda, formatarMoedaInput, parseMoeda } from '@/lib/format'
@@ -20,6 +20,7 @@ import { PUSH_REFRESH_KEY } from '@/components/NotificacoesBell'
 import { useHeyGestorAtivo } from '@/lib/heyGestorStore'
 import { suportaReconhecimentoVoz } from '@/lib/useVoice'
 import WhatsAppVinculo from '@/components/WhatsAppVinculo'
+import TelegramVinculo from '@/components/TelegramVinculo'
 
 interface LogEntry {
   id: string
@@ -1428,6 +1429,11 @@ function ConfiguracoesContent() {
                 )}
               </button>
             </form>
+          </SettingsCard>
+
+          {/* Assessor no Telegram */}
+          <SettingsCard icon={Send} title="Assessor no Telegram">
+            <TelegramVinculo />
           </SettingsCard>
 
           {/* Assessor no WhatsApp */}

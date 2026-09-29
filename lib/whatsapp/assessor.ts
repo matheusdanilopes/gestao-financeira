@@ -14,6 +14,7 @@ import { transcreverAudio } from '../ai/agent/geminiClient'
 import { enviarTexto, marcarLidaDigitando, baixarMidia } from './cloudApi'
 import { markdownParaWhatsApp, dividirMensagem } from './formatacao'
 import { extrairCodigo } from './vinculo'
+import { CONVERSA_OCIOSA_MS, EXEMPLOS_PERGUNTA, identificarComando } from '../ai/agent/comandos'
 
 /** Formato (parcial) de `entry[].changes[].value.messages[]` da Cloud API. */
 export interface MensagemRecebida {
@@ -39,12 +40,6 @@ interface Vinculo {
 }
 
 const LIMITE_PERGUNTA = 2_000
-/**
- * Depois de tanto tempo parado, a próxima mensagem abre uma conversa nova:
- * o contexto de ontem mais atrapalha do que ajuda, e uma proposta de operação
- * esquecida não pode ser confirmada por um "sim" solto dias depois.
- */
-const CONVERSA_OCIOSA_MS = 12 * 60 * 60 * 1000
 /** O "digitando…" some sozinho após ~25 s; renovamos enquanto o agente trabalha. */
 const RENOVAR_DIGITANDO_MS = 20_000
 const RETENCAO_DEDUPE_MS = 7 * 24 * 60 * 60 * 1000
@@ -56,31 +51,13 @@ const PASSO_A_PASSO_VINCULO =
 function ajuda(nome: string | null): string {
   return [
     `Oi${nome ? `, ${nome}` : ''}! Sou seu assessor financeiro 🤝 Pode me perguntar por texto ou áudio, por exemplo:`,
-    '• Quanto eu gastei este mês?',
-    '• Qual o valor da fatura do Nubank?',
-    '• Quais contas vencem esta semana?',
-    '• Paguei a conta de luz, 180 reais',
-    '• Coloca leite na lista de mercado',
+    ...EXEMPLOS_PERGUNTA.map(e => `• ${e}`),
     '',
     'Quando falar na primeira pessoa ("eu", "meu"), respondo com os *seus* dados. Antes de lançar qualquer coisa, eu mostro o resumo e espero você confirmar.',
     '',
     'Comandos: *nova conversa* (começa um assunto do zero) · *desvincular* (desconecta este número).',
   ].join('\n')
 }
-
-function normalizarComando(texto: string): string {
-  return texto
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z ]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-const COMANDOS_AJUDA = new Set(['ajuda', 'menu', 'help', 'comandos'])
-const COMANDOS_NOVA = new Set(['nova conversa', 'novo assunto', 'nova', 'reiniciar', 'recomecar', 'limpar'])
-const COMANDOS_DESVINCULAR = new Set(['desvincular', 'desconectar'])
 
 async function responder(para: string, texto: string): Promise<void> {
   for (const parte of dividirMensagem(markdownParaWhatsApp(texto))) {
@@ -233,17 +210,17 @@ export async function processarMensagem(
       return
     }
 
-    const comando = normalizarComando(texto)
-    if (COMANDOS_AJUDA.has(comando)) {
+    const comando = identificarComando(texto)
+    if (comando === 'ajuda') {
       await responder(de, ajuda(interlocutor.nome))
       return
     }
-    if (COMANDOS_NOVA.has(comando)) {
+    if (comando === 'nova') {
       await admin.from('whatsapp_vinculos').update({ conversation_id: null }).eq('id', vinculo.id)
       await responder(de, 'Certo, começamos uma conversa nova. Em que posso ajudar? 🙂')
       return
     }
-    if (COMANDOS_DESVINCULAR.has(comando)) {
+    if (comando === 'desvincular') {
       await admin
         .from('whatsapp_vinculos')
         .update({ telefone: null, conversation_id: null, vinculado_em: null })
