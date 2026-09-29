@@ -34,3 +34,6 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ ok: true, reativadas: reativadas?.length ?? 0 })
 }
+
+// O Vercel Cron chama com GET (Authorization: Bearer CRON_SECRET).
+export const GET = POST

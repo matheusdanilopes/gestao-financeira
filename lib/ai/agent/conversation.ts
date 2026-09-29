@@ -9,6 +9,7 @@
 
 import { resumirConversa } from './geminiClient'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { CanalConversa } from './interlocutor'
 
 // Sessão do usuário (app) ou service role (webhook do Telegram).
 type Supabase = SupabaseClient
@@ -167,15 +168,26 @@ export async function carregarContexto(
   return { mensagens, resumo, ehPrimeiraMensagem }
 }
 
+/**
+ * Grava uma mensagem no histórico e devolve o id — ou null se a gravação
+ * falhou (o erro vai para o log). O Telegram usa o id para só apagar do chat
+ * o que comprovadamente ficou guardado aqui.
+ */
 export async function salvarMensagem(
   supabase: Supabase,
   conversationId: string,
   role: 'user' | 'assistant',
-  content: string
-): Promise<void> {
-  await supabase.from('messages').insert({
-    conversation_id: conversationId,
-    role,
-    content,
-  })
+  content: string,
+  canal: CanalConversa = 'app'
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('messages')
+    .insert({ conversation_id: conversationId, role, content, canal })
+    .select('id')
+    .single<{ id: string }>()
+  if (error) {
+    console.error('[chat] salvar mensagem:', error.message)
+    return null
+  }
+  return data.id
 }

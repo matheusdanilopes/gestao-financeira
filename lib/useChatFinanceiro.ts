@@ -20,6 +20,8 @@ export interface ChatMessage {
   /** Ferramentas consultadas para produzir esta resposta (trilha de auditoria). */
   ferramentas?: string[]
   ts: number
+  /** Veio do assessor no Telegram (o histórico do bot fica aqui no app). */
+  telegram?: boolean
 }
 
 export interface ChatErro {
@@ -32,6 +34,7 @@ export interface ConversaResumo {
   created_at: string
   preview: string
   message_count: number
+  telegram?: boolean
 }
 
 function novoId(): string {
@@ -69,12 +72,13 @@ export function useChatFinanceiro(tela: TelaAtual = 'geral') {
     const res = await fetch(`/api/chat/history?conversation_id=${encodeURIComponent(conversationId)}`)
     if (!res.ok) return []
     const json = await res.json()
-    return ((json.mensagens ?? []) as Array<{ role: string; content: string; created_at?: string }>)
+    return ((json.mensagens ?? []) as Array<{ role: string; content: string; created_at?: string; canal?: string }>)
       .map(m => ({
         id: novoId(),
         role: m.role === 'assistant' ? ('assistant' as const) : ('user' as const),
         content: m.content,
         ts: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
+        telegram: m.canal === 'telegram',
       }))
   }, [])
 

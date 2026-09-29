@@ -32,6 +32,10 @@ export interface EntradaTurno {
   /** true quando o cliente está repetindo uma pergunta que já foi gravada. */
   reenvio?: boolean
   deadlineMs: number
+  /** Id da pergunta gravada no histórico (null se a gravação falhou). */
+  aoGravarPergunta?: (id: string | null) => void
+  /** Id da resposta gravada no histórico (null se a gravação falhou). */
+  aoGravarResposta?: (id: string | null) => void
 }
 
 /**
@@ -48,7 +52,7 @@ export async function* executarTurno(e: EntradaTurno): AsyncGenerator<AgentEvent
   // a conversa persiste coerente e o usuário pode simplesmente repetir.
   // Num reenvio ela já está gravada — regravar duplicaria o histórico.
   if (e.reenvio !== true) {
-    await salvarMensagem(supabase, conversationId, 'user', pergunta)
+    e.aoGravarPergunta?.(await salvarMensagem(supabase, conversationId, 'user', pergunta, e.interlocutor.canal))
   }
 
   yield { type: 'status', texto: 'Lendo seus dados financeiros' }
@@ -112,7 +116,7 @@ export async function* executarTurno(e: EntradaTurno): AsyncGenerator<AgentEvent
   }
 
   if (textoFinal) {
-    await salvarMensagem(supabase, conversationId, 'assistant', textoFinal)
+    e.aoGravarResposta?.(await salvarMensagem(supabase, conversationId, 'assistant', textoFinal, e.interlocutor.canal))
   }
   yield { type: 'done', texto: textoFinal, ferramentas }
 }
