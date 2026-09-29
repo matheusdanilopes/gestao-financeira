@@ -3,7 +3,7 @@
  *
  *   conversa → dataset validado → prompt → loop do agente → persistência
  *
- * O chat do app (/api/chat, em SSE) e o WhatsApp (/api/whatsapp/webhook)
+ * O chat do app (/api/chat, em SSE) e o Telegram (/api/telegram/webhook)
  * passam por aqui: mesmos dados, mesmas ferramentas, mesmas travas de
  * confirmação. O que muda entre eles é só como o texto chega ao usuário.
  */
@@ -64,7 +64,7 @@ export async function* executarTurno(e: EntradaTurno): AsyncGenerator<AgentEvent
 
   const bloqueado = !certificate.certificado
   const systemPrompt = bloqueado
-    ? buildBlockedPrompt(certificate, e.interlocutor)
+    ? buildBlockedPrompt(certificate)
     : buildSystemPrompt({
         data: validatedData,
         metrics: computeInsights(validatedData, refs.hoje),

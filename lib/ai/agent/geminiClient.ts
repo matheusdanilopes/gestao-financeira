@@ -21,7 +21,7 @@ const BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
 
 export interface GeminiPart {
   text?: string
-  /** Mídia embutida em base64 (ex.: áudio de voz do WhatsApp para transcrever). */
+  /** Mídia embutida em base64 (ex.: áudio de voz do Telegram para transcrever). */
   inlineData?: { mimeType: string; data: string }
   functionCall?: { name: string; args?: Record<string, unknown> }
   functionResponse?: { name: string; response: Record<string, unknown> }

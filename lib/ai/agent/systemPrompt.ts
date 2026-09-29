@@ -99,17 +99,11 @@ const FORMATO = `COMO RESPONDER
 - Termine com uma observação acionável quando ela agregar (o que cortar, o que vence, o que revisar). Sem encher linguiça.
 - Quando o número vier de um mês ainda em formação (a fatura corrente), avise que é parcial.`
 
-// O WhatsApp não renderiza markdown: **negrito** aparece com os asteriscos.
-const FORMATO_WHATSAPP = `COMO RESPONDER (WhatsApp)
-Você está respondendo por WhatsApp, como um assessor financeiro pessoal que acompanha as contas da pessoa de perto: cordial, direto e proativo, sem formalidade excessiva.
-- Valores sempre como R$ 1.234,56, com números concretos; ao comparar, diga a diferença em R$ e em %.
-- Formatação do WhatsApp, não markdown: *negrito* com UM asterisco, _itálico_ com sublinhado. Nunca use **dois asteriscos**, # títulos, tabelas nem links no formato [texto](url).
-- Listas com "• " no começo da linha, no máximo 6 itens.
-- Mensagens curtas: 2 a 5 linhas resolvem a maioria das perguntas. Só se estenda quando a pergunta exigir.
-- Emojis com moderação (no máximo um ou dois quando ajudarem a leitura).
-- Termine com uma observação acionável quando ela agregar. Sem encher linguiça.
-- Quando o número vier de um mês ainda em formação (a fatura corrente), avise que é parcial.
-- Em operações, mostre o resumo da proposta e peça para a pessoa responder "sim" para confirmar ou "não" para cancelar.`
+// No Telegram o markdown enxuto é convertido para a formatação dele; a
+// diferença para o app é não haver tela ao lado e as operações terem botões.
+const FORMATO_TELEGRAM = `${FORMATO}
+- Você está respondendo pelo Telegram: sem tabelas, títulos ou links no formato [texto](url).
+- Em operações, depois de mostrar o resumo da proposta, diga que a pessoa pode tocar em *Confirmar* ou *Cancelar* (ou responder "sim"/"não").`
 
 // ─── Snapshot ────────────────────────────────────────────────────────────────
 
@@ -278,12 +272,12 @@ export function buildSystemPrompt({
   resumoConversa?: string
   interlocutor?: Interlocutor
 }): string {
-  const whatsapp = interlocutor?.canal === 'whatsapp'
+  const telegram = interlocutor?.canal === 'telegram'
   const dataHoje = format(refs.hoje, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR })
   // O chat é uma tela própria: o usuário não está vendo outro número ao lado.
   // "Esse valor aqui" precisa ser perguntado, não adivinhado.
-  const telaTexto = whatsapp
-    ? ' A conversa é pelo WhatsApp, fora do app: o usuário não está vendo nenhuma tela. Quando algo só puder ser feito no app, diga qual tela abrir.'
+  const telaTexto = telegram
+    ? ' A conversa é pelo Telegram, fora do app: o usuário não está vendo nenhuma tela. Quando algo só puder ser feito no app, diga qual tela abrir.'
     : tela && TELAS[tela]
       ? ` O usuário está olhando ${TELAS[tela]} agora.`
       : ' O chat é uma tela própria do app: se o usuário se referir a "esse valor" ou "isso na tela", pergunte de qual número ou tela ele está falando.'
@@ -314,7 +308,7 @@ export function buildSystemPrompt({
     buildSnapshot(data, metrics, refs),
     qualidade,
     resumo,
-    whatsapp ? FORMATO_WHATSAPP : FORMATO,
+    telegram ? FORMATO_TELEGRAM : FORMATO,
   ].filter(Boolean).join('\n\n')
 }
 
@@ -322,7 +316,7 @@ export function buildSystemPrompt({
  * Prompt usado quando o motor de validação bloqueia o dataset: o modelo não
  * recebe ferramenta nenhuma e só explica a situação.
  */
-export function buildBlockedPrompt(certificate: ValidationCertificate, interlocutor?: Interlocutor): string {
+export function buildBlockedPrompt(certificate: ValidationCertificate): string {
   const problemas = certificate.problemas
     .filter(p => p.severity === 'critical')
     .slice(0, 5)
@@ -335,8 +329,5 @@ export function buildBlockedPrompt(certificate: ValidationCertificate, interlocu
     `Confiabilidade apurada: ${certificate.indiceConfiabilidade}%.`,
     problemas ? `Problemas detectados:\n${problemas}` : '',
     'Explique isso ao usuário em 2 ou 3 frases, diga o que precisa ser revisado (provavelmente uma importação duplicada) e sugira conferir a tela de importação. NÃO produza análises, totais ou recomendações com estes dados.',
-    interlocutor?.canal === 'whatsapp'
-      ? 'A conversa é pelo WhatsApp: use *negrito* com um asterisco só, sem markdown.'
-      : '',
   ].filter(Boolean).join('\n\n')
 }

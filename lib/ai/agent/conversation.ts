@@ -10,7 +10,7 @@
 import { resumirConversa } from './geminiClient'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-// Sessão do usuário (app) ou service role (webhook do WhatsApp).
+// Sessão do usuário (app) ou service role (webhook do Telegram).
 type Supabase = SupabaseClient
 
 /** Mensagens recentes mantidas na íntegra no prompt. */

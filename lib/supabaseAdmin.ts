@@ -3,7 +3,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 /**
  * Cliente com a service role key — ignora RLS. Só para rotas de servidor que
  * não têm sessão de navegador e autenticam o chamador por outro meio (ex.: o
- * webhook do WhatsApp, que valida a assinatura da Meta e o número vinculado).
+ * webhook do Telegram, que valida o segredo do bot e o chat vinculado).
  * Nunca importe isto em código de cliente.
  */
 export function criarSupabaseAdmin(): SupabaseClient | null {

@@ -29,7 +29,7 @@ import type { EnrichedData } from '../types'
 import { casaBusca, normalizar, normalizarMes, type Referencias } from './queryEngine'
 import { formatBRL } from '../../format'
 
-// Sessão do usuário (app) ou service role (webhook do WhatsApp).
+// Sessão do usuário (app) ou service role (webhook do Telegram).
 type Supabase = SupabaseClient
 
 const R = formatBRL
