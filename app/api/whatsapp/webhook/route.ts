@@ -21,6 +21,14 @@ export const dynamic = 'force-dynamic'
 /** Mesmo orçamento do chat do app, contado a partir da chegada do webhook. */
 const ORCAMENTO_MS = 75_000
 
+/** Aviso de entrega de uma mensagem que NÓS enviamos (sent, delivered, read, failed). */
+interface StatusEntrega {
+  id?: string
+  status?: string
+  recipient_id?: string
+  errors?: Array<{ code?: number; title?: string; message?: string; error_data?: { details?: string } }>
+}
+
 interface PayloadWebhook {
   object?: string
   entry?: Array<{
@@ -29,6 +37,7 @@ interface PayloadWebhook {
       value?: {
         metadata?: { phone_number_id?: string }
         messages?: MensagemRecebida[]
+        statuses?: StatusEntrega[]
       }
     }>
   }>
@@ -77,6 +86,17 @@ export async function POST(req: NextRequest) {
       // O mesmo app da Meta pode ter outros números; só respondemos pelo nosso.
       if (mudanca.value?.metadata?.phone_number_id !== meuNumero) continue
       mensagens.push(...(mudanca.value?.messages ?? []))
+
+      // O envio pode ser aceito pela API e falhar depois, na entrega ao
+      // celular — a Meta só avisa por aqui. Sem este log, a resposta some em
+      // silêncio e não há como saber o motivo.
+      for (const st of mudanca.value?.statuses ?? []) {
+        if (st.status !== 'failed') continue
+        const erros = (st.errors ?? [])
+          .map(e => `${e.code ?? '?'} ${e.title ?? e.message ?? ''}${e.error_data?.details ? ` — ${e.error_data.details}` : ''}`)
+          .join('; ')
+        console.error(`[whatsapp] entrega falhou para ${st.recipient_id ?? '?'}: ${erros || 'sem detalhes'}`)
+      }
     }
   }
 
