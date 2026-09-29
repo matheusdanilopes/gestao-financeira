@@ -63,15 +63,39 @@ async function chamarMensagens(corpo: Record<string, unknown>): Promise<Response
   })
 }
 
-export async function enviarTexto(para: string, texto: string): Promise<void> {
-  const res = await chamarMensagens({
+/**
+ * Celular brasileiro sem o nono dígito, como o webhook costuma informar
+ * ("55 44 8815-9265") → com ele ("55 44 98815-9265"). Null se não for o caso.
+ */
+function comNonoDigito(numero: string): string | null {
+  const m = numero.match(/^55(\d{2})([6-9]\d{7})$/)
+  return m ? `55${m[1]}9${m[2]}` : null
+}
+
+async function postarTexto(para: string, texto: string): Promise<Response> {
+  return chamarMensagens({
     recipient_type: 'individual',
     to: para,
     type: 'text',
     text: { preview_url: false, body: texto },
   })
+}
+
+export async function enviarTexto(para: string, texto: string): Promise<void> {
+  let res = await postarTexto(para, texto)
+  let detalhe = res.ok ? '' : await res.text().catch(() => '')
+
+  // O webhook entrega celulares do Brasil sem o nono dígito, mas a lista de
+  // destinatários permitidos (número de teste da Meta) guarda o número com
+  // ele — e para a Meta são números diferentes (erro 131030). Tentamos de novo
+  // no formato com o 9.
+  const alternativo = comNonoDigito(para)
+  if (!res.ok && alternativo && detalhe.includes('131030')) {
+    res = await postarTexto(alternativo, texto)
+    detalhe = res.ok ? '' : await res.text().catch(() => '')
+  }
+
   if (!res.ok) {
-    const detalhe = await res.text().catch(() => '')
     throw new Error(`WhatsApp HTTP ${res.status}: ${detalhe.slice(0, 300)}`)
   }
 }
