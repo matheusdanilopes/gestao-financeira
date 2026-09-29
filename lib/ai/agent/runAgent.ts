@@ -25,7 +25,7 @@ import {
 import { FINANCIAL_TOOLS, executarFerramenta, rotuloFerramenta, type EstadoTurno } from './tools'
 import type { ContextoEscrita } from './writeEngine'
 import type { Referencias } from './queryEngine'
-import type { EnrichedData } from '../types'
+import type { GatewayDados } from '../data/gateway'
 
 export type AgentEvent =
   /** Mensagem curta de progresso (ex.: "Consultando compras no cartão"). */
@@ -61,7 +61,8 @@ export interface AgentInput {
   systemPrompt: string
   historico: HistoricoMensagem[]
   pergunta: string
-  data: EnrichedData
+  /** Porta de acesso aos dados do turno (núcleo em cache + histórico e fontes sob demanda). */
+  gateway: GatewayDados
   refs: Referencias
   /** Quando true, nenhuma ferramenta é oferecida (dataset bloqueado na auditoria). */
   semFerramentas?: boolean
@@ -172,7 +173,7 @@ export async function* executarAgente(input: AgentInput): AsyncGenerator<AgentEv
       yield { type: 'tool', nome: chamada.name, rotulo }
       ferramentasUsadas.push(chamada.name)
 
-      const resultado = await executarFerramenta(chamada.name, chamada.args, input.data, input.refs, {
+      const resultado = await executarFerramenta(chamada.name, chamada.args, input.gateway, input.refs, {
         ctx: input.escrita,
         estado: estadoTurno,
       })

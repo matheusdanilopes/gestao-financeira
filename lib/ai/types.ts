@@ -3,7 +3,10 @@
 export type Responsavel = 'Matheus' | 'Jeniffer'
 
 export interface Transacao {
+  id?: string
   descricao: string
+  /** Nome dado pelo usuário na tela de Compras — é o que ele vê e procura. */
+  descricao_personalizada?: string | null
   valor: number
   responsavel: string
   categoria: string | null
@@ -12,6 +15,9 @@ export interface Transacao {
   cartao?: string
   parcela_atual?: number | null
   total_parcelas?: number | null
+  status?: string | null
+  /** Quando a linha entrou no banco (importação ou lançamento manual). */
+  created_at?: string | null
 }
 
 export interface Planejamento {
@@ -29,6 +35,7 @@ export interface Planejamento {
   // pago = whether it has been (fully) received.
   valor_real?: number | null
   pago?: boolean | null
+  created_at?: string | null
 }
 
 export interface Estorno {
@@ -41,6 +48,7 @@ export interface Estorno {
 }
 
 export interface Assinatura {
+  id?: string
   nome: string
   valor: number
   cartao: string
@@ -50,6 +58,11 @@ export interface Assinatura {
   dia_cobranca?: number | null
   /** Pausa temporária: a assinatura volta a ser cobrada nesta data. */
   pausada_ate?: string | null
+  observacao?: string | null
+  /** Moeda de cobrança (ex.: USD) e valor na moeda original. */
+  moeda?: string | null
+  valor_origem?: number | null
+  created_at?: string | null
 }
 
 export interface Investimento {
@@ -57,6 +70,7 @@ export interface Investimento {
   descricao: string
   percentual: number
   mes_referencia: string
+  saldo_atual?: number | null
 }
 
 export interface AporteInvestimento {
@@ -85,6 +99,7 @@ export interface RecebimentoReceita {
   planejamento_id: string
   valor: number
   data_recebimento: string | null
+  observacao?: string | null
 }
 
 /** Datas de fechamento registradas por fatura (mes_referencia = projeto_fatura). */
@@ -101,6 +116,10 @@ export interface ItemDesejo {
   realizado: boolean
   categoria?: string | null
   criado_por?: string | null
+  nota?: string | null
+  link_ref?: string | null
+  realizado_em?: string | null
+  created_at?: string | null
 }
 
 export interface ItemMercado {
@@ -108,16 +127,24 @@ export interface ItemMercado {
   quantidade: number
   preco_unit: number | null
   comprado: boolean
+  category?: string | null
+  unit?: string | null
+  estimated_price?: number | null
+  criado_por?: string | null
+  created_at?: string | null
 }
 
 export interface ItemListaCompras {
   lista: string
+  /** Situação da lista inteira (ativa, concluída…). */
+  status_lista?: string | null
   nome: string
   quantidade: number
   pessoa: string | null
   preco_previsto: number | null
   preco_pago: number | null
   status: string
+  data_compra?: string | null
 }
 
 export interface EnrichedData {
