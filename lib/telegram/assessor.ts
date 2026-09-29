@@ -2,14 +2,19 @@
  * Processa um update do Telegram e responde como assessor financeiro, com os
  * dados do usuário dono do chat vinculado.
  *
- * Fluxo: dedupe → (/start CODIGO → vínculo) → vínculo existente → (áudio →
- * transcrição) → comandos → turno do agente (o mesmo do chat do app) →
- * resposta em HTML do Telegram, com botões Confirmar/Cancelar quando o turno
- * deixou uma operação pendente.
+ * Fluxo: chat permitido → dedupe → (/start CODIGO → vínculo) → vínculo
+ * existente → (áudio → transcrição) → comandos → turno do agente (o mesmo do
+ * chat do app) → resposta em HTML do Telegram, com botões Confirmar/Cancelar
+ * quando o turno deixou uma operação pendente.
+ *
+ * Histórico e limpeza: num chat vinculado, tudo que chega e tudo que o bot
+ * responde é gravado na conversa do app (messages, canal 'telegram') e só
+ * então entra na fila de exclusão do chat (ver autolimpeza.ts). Se a gravação
+ * falhar, a mensagem fica no Telegram — nunca some sem estar guardada.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { garantirConversa } from '../ai/agent/conversation'
+import { garantirConversa, salvarMensagem } from '../ai/agent/conversation'
 import { executarTurno, descreverErro } from '../ai/agent/turno'
 import { criarInterlocutor, responsavelDoEmail } from '../ai/agent/interlocutor'
 import { transcreverAudio } from '../ai/agent/geminiClient'
@@ -23,6 +28,7 @@ import {
   type BotaoInline,
 } from './botApi'
 import { markdownParaHtmlTelegram, markdownParaTextoPuro, dividirMarkdown } from './formatacao'
+import { agendarExclusao, liberarAposToque, atrasoRecebidasMs, atrasoRespostasMs } from './autolimpeza'
 
 // ─── Formato (parcial) dos updates da Bot API ────────────────────────────────
 
@@ -46,6 +52,8 @@ interface Arquivo {
 
 export interface MensagemTelegram {
   message_id: number
+  /** Unix time (segundos). */
+  date: number
   from?: Usuario
   chat: Chat
   text?: string
@@ -99,18 +107,80 @@ function ajuda(nome: string | null): string {
   ].join('\n')
 }
 
-async function responder(chatId: number, markdown: string, botoes?: BotaoInline[][]): Promise<void> {
+/**
+ * Onde a conversa deste update fica guardada no app. Sem vínculo não há
+ * conversa — e, sem histórico, nada é apagado do chat.
+ */
+interface Registro {
+  admin: SupabaseClient
+  chatId: number
+  conversationId: string | null
+}
+
+/** A mensagem recebida neste update, a caminho do histórico. */
+class Entrada {
+  /** Linha de messages com o conteúdo; null enquanto não foi gravada. */
+  id: string | null = null
+
+  constructor(private readonly reg: Registro) {}
+
+  async gravar(conteudo: string): Promise<void> {
+    if (this.id || !this.reg.conversationId) return
+    this.id = await salvarMensagem(this.reg.admin, this.reg.conversationId, 'user', conteudo, 'telegram')
+  }
+}
+
+interface OpcoesResposta {
+  botoes?: BotaoInline[][]
+  /**
+   * Id da resposta já gravada no histórico (o turno do agente grava a dele);
+   * null se a gravação falhou. Ausente = gravar aqui.
+   */
+  gravadaId?: string | null
+}
+
+async function responder(reg: Registro, markdown: string, opcoes: OpcoesResposta = {}): Promise<void> {
+  const { admin, chatId, conversationId } = reg
+
+  // Grava antes de enviar: se o envio falhar, o histórico continua completo.
+  let appId = opcoes.gravadaId ?? null
+  if (opcoes.gravadaId === undefined && conversationId) {
+    appId = await salvarMensagem(admin, conversationId, 'assistant', markdown, 'telegram')
+  }
+
   const partes = dividirMarkdown(markdown)
   for (let i = 0; i < partes.length; i++) {
     // Os botões vão só na última parte, junto do pedido de confirmação.
-    const ultima = i === partes.length - 1
-    await enviarMensagem(
+    const botoes = i === partes.length - 1 ? opcoes.botoes : undefined
+    const enviada = await enviarMensagem(
       chatId,
       markdownParaHtmlTelegram(partes[i]),
       markdownParaTextoPuro(partes[i]),
-      ultima ? botoes : undefined
+      botoes
     )
+    if (appId) {
+      await agendarExclusao(admin, {
+        chatId,
+        messageId: enviada.message_id,
+        direcao: 'enviada',
+        mensagemAppId: appId,
+        data: enviada.date,
+        atrasoMs: atrasoRespostasMs(),
+        aguardandoToque: Boolean(botoes),
+      })
+    }
   }
+}
+
+/**
+ * TELEGRAM_CHATS_PERMITIDOS: chat_ids aceitos, separados por vírgula. Update
+ * de qualquer outro chat é descartado em silêncio — sem resposta e sem nada
+ * gravado. Vazia: vale só a exigência de vínculo.
+ */
+function chatPermitido(chatId: number | undefined): boolean {
+  const lista = (process.env.TELEGRAM_CHATS_PERMITIDOS ?? '').split(/[\s,;]+/).filter(Boolean)
+  if (lista.length === 0) return true
+  return chatId !== undefined && lista.includes(String(chatId))
 }
 
 /** true se o update é novo; false se já foi processado (reentrega do Telegram). */
@@ -132,7 +202,12 @@ async function buscarVinculo(admin: SupabaseClient, chatId: number): Promise<Vin
   return data ?? null
 }
 
-async function vincular(admin: SupabaseClient, chatId: number, nome: string | null, codigo: string): Promise<string> {
+async function vincular(
+  admin: SupabaseClient,
+  chatId: number,
+  nome: string | null,
+  codigo: string
+): Promise<{ resposta: string; vinculado: boolean }> {
   const { data } = await admin
     .from('telegram_vinculos')
     .select('id, email, codigo_expira_em')
@@ -140,7 +215,10 @@ async function vincular(admin: SupabaseClient, chatId: number, nome: string | nu
     .maybeSingle()
 
   if (!data || !data.codigo_expira_em || new Date(data.codigo_expira_em).getTime() < Date.now()) {
-    return `Esse link de conexão é inválido ou já expirou. Gere um novo no app e toque nele de novo.\n\n${PASSO_A_PASSO_VINCULO}`
+    return {
+      resposta: `Esse link de conexão é inválido ou já expirou. Gere um novo no app e toque nele de novo.\n\n${PASSO_A_PASSO_VINCULO}`,
+      vinculado: false,
+    }
   }
 
   // Um chat só pode estar ligado a uma conta: se estava em outra, sai de lá.
@@ -165,10 +243,13 @@ async function vincular(admin: SupabaseClient, chatId: number, nome: string | nu
 
   if (error) {
     console.error('[telegram] vincular:', error.message)
-    return 'Não consegui concluir a conexão agora. Toque no link do app de novo em instantes.'
+    return { resposta: 'Não consegui concluir a conexão agora. Toque no link do app de novo em instantes.', vinculado: false }
   }
 
-  return `✅ Pronto! Este Telegram está conectado à sua conta no app.\n\n${ajuda(responsavelDoEmail(data.email))}`
+  return {
+    resposta: `✅ Pronto! Este Telegram está conectado à sua conta no app.\n\n${ajuda(responsavelDoEmail(data.email))}`,
+    vinculado: true,
+  }
 }
 
 /** Conversa atual do chat — reaproveita a recente ou abre outra. */
@@ -210,23 +291,26 @@ async function temPropostaNova(admin: SupabaseClient, conversationId: string, de
 
 /** Pergunta de um chat vinculado: comandos ou turno do agente. */
 async function atender(
-  admin: SupabaseClient,
-  chatId: number,
+  reg: Registro & { conversationId: string },
   vinculo: Vinculo,
+  entrada: Entrada,
   texto: string,
   deadlineMs: number,
   transcricao: string | null
 ): Promise<void> {
+  const { admin, conversationId } = reg
   const interlocutor = criarInterlocutor(vinculo.email, 'telegram')
 
   const comando = identificarComando(texto)
+  if (comando) await entrada.gravar(texto)
   if (comando === 'ajuda') {
-    await responder(chatId, ajuda(interlocutor.nome))
+    await responder(reg, ajuda(interlocutor.nome))
     return
   }
   if (comando === 'nova') {
     await admin.from('telegram_vinculos').update({ conversation_id: null }).eq('id', vinculo.id)
-    await responder(chatId, 'Certo, começamos uma conversa nova. Em que posso ajudar? 🙂')
+    // A resposta fica na conversa que está terminando; a próxima começa limpa.
+    await responder(reg, 'Certo, começamos uma conversa nova. Em que posso ajudar? 🙂')
     return
   }
   if (comando === 'desvincular') {
@@ -234,20 +318,24 @@ async function atender(
       .from('telegram_vinculos')
       .update({ chat_id: null, conversation_id: null, vinculado_em: null, telegram_nome: null })
       .eq('id', vinculo.id)
-    await responder(chatId, 'Telegram desconectado. Não vou mais responder sobre suas finanças por aqui. Para voltar, use o botão **Conectar Telegram** no app.')
+    // A conversa já foi resolvida acima: a resposta vai para o histórico e
+    // sai do chat normalmente, mesmo com o vínculo desfeito.
+    await responder(reg, 'Telegram desconectado. Não vou mais responder sobre suas finanças por aqui. Para voltar, use o botão **Conectar Telegram** no app.')
     return
   }
 
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) {
-    await responder(chatId, 'A IA do app não está configurada no servidor (falta a GEMINI_API_KEY).')
+    await entrada.gravar(texto)
+    await responder(reg, 'A IA do app não está configurada no servidor (falta a GEMINI_API_KEY).')
     return
   }
 
-  const conversationId = await conversaDoVinculo(admin, vinculo)
   const inicio = Date.now()
 
   let resposta = ''
+  // undefined = o turno não chegou a gravar a resposta (erro, ou resposta vazia).
+  let respostaId: string | null | undefined
   try {
     for await (const evento of executarTurno({
       apiKey,
@@ -257,12 +345,23 @@ async function atender(
       conversationId,
       pergunta: texto.slice(0, LIMITE_PERGUNTA),
       deadlineMs,
+      aoGravarPergunta: id => { entrada.id = id },
+      aoGravarResposta: id => { respostaId = id },
     })) {
       if (evento.type === 'done') resposta = evento.texto
     }
   } catch (err) {
     console.error('[telegram] turno:', err instanceof Error ? err.message : err)
     resposta = descreverErro(err).mensagem
+  }
+
+  // O turno grava a pergunta antes de chamar o modelo; se falhou antes
+  // disso, grava aqui para o histórico não perder a mensagem.
+  await entrada.gravar(texto.slice(0, LIMITE_PERGUNTA))
+
+  if (!resposta) {
+    resposta = 'Não consegui formular a resposta agora. Pode reformular a pergunta?'
+    respostaId = undefined
   }
 
   if (transcricao) {
@@ -273,7 +372,7 @@ async function atender(
   }
 
   const botoes = (await temPropostaNova(admin, conversationId, inicio)) ? BOTOES_OPERACAO : undefined
-  await responder(chatId, resposta || 'Não consegui formular a resposta agora. Pode reformular a pergunta?', botoes)
+  await responder(reg, resposta, { botoes, gravadaId: respostaId })
 }
 
 /** "/start ABCDEFGH" → "ABCDEFGH" (o payload do link t.me/bot?start=...). */
@@ -312,12 +411,20 @@ async function processarCallback(
 
   const confirmar = cb.data === CALLBACK_CONFIRMAR
   await responderCallback(cb.id, confirmar ? 'Confirmando…' : 'Cancelando…')
-  if (cb.message) await removerBotoes(chat.id, cb.message.message_id)
+  if (cb.message) {
+    await removerBotoes(chat.id, cb.message.message_id)
+    // Respondida, a mensagem com os botões segue o prazo normal de exclusão.
+    await liberarAposToque(admin, chat.id, cb.message.message_id)
+  }
 
   // O toque vira uma mensagem do usuário: a confirmação continua passando
-  // pelo agente, que só executa a operação já gravada como pendente.
+  // pelo agente, que só executa a operação já gravada como pendente. Não há
+  // mensagem do Telegram para apagar — o turno grava o texto no histórico.
   const texto = confirmar ? 'Sim, pode confirmar.' : 'Não, pode cancelar.'
-  await comDigitando(chat.id, () => atender(admin, chat.id, vinculo, texto, deadlineMs, null))
+  await comDigitando(chat.id, async () => {
+    const reg = { admin, chatId: chat.id, conversationId: await conversaDoVinculo(admin, vinculo) }
+    await atender(reg, vinculo, new Entrada(reg), texto, deadlineMs, null)
+  })
 }
 
 export async function processarUpdate(
@@ -326,6 +433,9 @@ export async function processarUpdate(
   deadlineMs: number
 ): Promise<void> {
   if (typeof update.update_id !== 'number') return
+  // Antes do dedupe: update de chat não permitido não deixa rastro no banco.
+  const chatDoUpdate = update.message?.chat.id ?? update.callback_query?.message?.chat.id
+  if (!chatPermitido(chatDoUpdate)) return
   if (!(await registrarRecebimento(admin, update.update_id))) return
 
   if (update.callback_query) {
@@ -339,52 +449,83 @@ export async function processarUpdate(
   const chatId = msg.chat.id
   const nomeTelegram = msg.from?.username ? `@${msg.from.username}` : msg.from?.first_name ?? null
 
-  await comDigitando(chatId, async () => {
-    const texto = msg.text?.trim() ?? ''
+  const reg: Registro = { admin, chatId, conversationId: null }
+  const entrada = new Entrada(reg)
 
-    const codigo = codigoDoStart(texto)
-    if (codigo) {
-      await responder(chatId, await vincular(admin, chatId, nomeTelegram, codigo))
-      return
-    }
+  try {
+    await comDigitando(chatId, async () => {
+      const texto = msg.text?.trim() ?? ''
 
-    const vinculo = await buscarVinculo(admin, chatId)
-    if (!vinculo) {
-      await responder(
-        chatId,
-        `Olá! 👋 Sou o assessor do app de gestão financeira, mas este Telegram ainda não está conectado a uma conta.\n\n${PASSO_A_PASSO_VINCULO}`
-      )
-      return
-    }
-
-    if (codigo === null) {
-      // /start sem código num chat já vinculado: só reapresenta.
-      await responder(chatId, ajuda(responsavelDoEmail(vinculo.email)))
-      return
-    }
-
-    const audio = msg.voice ?? msg.audio
-    if (audio) {
-      const apiKey = process.env.GEMINI_API_KEY
-      const midia = apiKey ? await baixarArquivo(audio.file_id, audio.mime_type).catch(() => null) : null
-      const transcricao = midia && apiKey
-        ? await transcreverAudio(apiKey, midia.base64, midia.mimeType, Math.min(deadlineMs, Date.now() + 25_000)).catch(() => null)
-        : null
-      if (!transcricao) {
-        await responder(chatId, 'Não consegui entender o áudio 😕 Pode repetir ou mandar por texto?')
+      const codigo = codigoDoStart(texto)
+      if (codigo) {
+        const { resposta, vinculado } = await vincular(admin, chatId, nomeTelegram, codigo)
+        const novo = vinculado ? await buscarVinculo(admin, chatId) : null
+        if (novo) {
+          reg.conversationId = await conversaDoVinculo(admin, novo)
+          // O código é de uso único e já foi consumido, mas não precisa ir para o histórico.
+          await entrada.gravar('/start')
+        }
+        await responder(reg, resposta)
         return
       }
-      await atender(admin, chatId, vinculo, transcricao, deadlineMs, transcricao)
-      return
-    }
 
-    if (!texto) {
-      await responder(chatId, 'Por enquanto eu entendo mensagens de texto e de áudio. Pode me mandar sua pergunta assim?')
-      return
-    }
+      const vinculo = await buscarVinculo(admin, chatId)
+      if (!vinculo) {
+        await responder(
+          reg,
+          `Olá! 👋 Sou o assessor do app de gestão financeira, mas este Telegram ainda não está conectado a uma conta.\n\n${PASSO_A_PASSO_VINCULO}`
+        )
+        return
+      }
 
-    await atender(admin, chatId, vinculo, texto, deadlineMs, null)
-  })
+      const conversationId = await conversaDoVinculo(admin, vinculo)
+      reg.conversationId = conversationId
+      const vinculado = { ...reg, conversationId }
+
+      if (codigo === null) {
+        // /start sem código num chat já vinculado: só reapresenta.
+        await entrada.gravar(texto)
+        await responder(reg, ajuda(responsavelDoEmail(vinculo.email)))
+        return
+      }
+
+      const audio = msg.voice ?? msg.audio
+      if (audio) {
+        const apiKey = process.env.GEMINI_API_KEY
+        const midia = apiKey ? await baixarArquivo(audio.file_id, audio.mime_type).catch(() => null) : null
+        const transcricao = midia && apiKey
+          ? await transcreverAudio(apiKey, midia.base64, midia.mimeType, Math.min(deadlineMs, Date.now() + 25_000)).catch(() => null)
+          : null
+        if (!transcricao) {
+          await entrada.gravar('🎤 [áudio que não consegui entender]')
+          await responder(reg, 'Não consegui entender o áudio 😕 Pode repetir ou mandar por texto?')
+          return
+        }
+        await atender(vinculado, vinculo, entrada, transcricao, deadlineMs, transcricao)
+        return
+      }
+
+      if (!texto) {
+        await entrada.gravar('[mensagem sem texto — foto, figurinha ou arquivo]')
+        await responder(reg, 'Por enquanto eu entendo mensagens de texto e de áudio. Pode me mandar sua pergunta assim?')
+        return
+      }
+
+      await atender(vinculado, vinculo, entrada, texto, deadlineMs, null)
+    })
+  } finally {
+    // Só sai do chat o que ficou guardado no histórico.
+    if (entrada.id) {
+      await agendarExclusao(admin, {
+        chatId,
+        messageId: msg.message_id,
+        direcao: 'recebida',
+        mensagemAppId: entrada.id,
+        data: msg.date,
+        atrasoMs: atrasoRecebidasMs(),
+      })
+    }
+  }
 }
 
 /** Remove update_ids antigos da tabela de dedupe — o Telegram não reentrega depois de dias. */

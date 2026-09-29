@@ -43,3 +43,6 @@ export async function POST(req: NextRequest) {
     validacoes_deletadas: validacoesCount ?? 0,
   })
 }
+
+// O Vercel Cron chama com GET (Authorization: Bearer CRON_SECRET).
+export const GET = POST

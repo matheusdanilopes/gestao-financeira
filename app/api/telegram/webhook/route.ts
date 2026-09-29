@@ -9,21 +9,30 @@
  * O webhook é registrado pelo próprio app (ver garantirWebhook em
  * lib/telegram/botApi.ts) com um segredo derivado do token do bot, conferido
  * aqui em cada update.
+ *
+ * Depois de responder, a mesma execução espera o atraso configurado e apaga
+ * do chat o que já está guardado no histórico (lib/telegram/autolimpeza.ts).
+ * O que não couber no tempo fica para a rotina /api/telegram/limpeza.
  */
 
 import { NextRequest, NextResponse, after } from 'next/server'
 import { segredoValido, telegramConfigurado } from '@/lib/telegram/botApi'
 import { processarUpdate, limparDedupe, type UpdateTelegram } from '@/lib/telegram/assessor'
+import { apagarDentroDoPrazo } from '@/lib/telegram/autolimpeza'
 import { criarSupabaseAdmin } from '@/lib/supabaseAdmin'
 
-export const maxDuration = 90
+/** Turno (até 75 s) + atraso padrão de 60 s para apagar a resposta. */
+export const maxDuration = 150
 export const dynamic = 'force-dynamic'
 
 /** Mesmo orçamento do chat do app, contado a partir da chegada do update. */
 const ORCAMENTO_MS = 75_000
+/** Até quando a execução pode esperar para apagar mensagens, com folga para o maxDuration. */
+const LIMITE_LIMPEZA_MS = (maxDuration - 8) * 1000
 
 export async function POST(req: NextRequest) {
-  const deadlineMs = Date.now() + ORCAMENTO_MS
+  const chegada = Date.now()
+  const deadlineMs = chegada + ORCAMENTO_MS
 
   if (!telegramConfigurado()) {
     return NextResponse.json({ error: 'Telegram não configurado' }, { status: 503 })
@@ -54,6 +63,11 @@ export async function POST(req: NextRequest) {
     try {
       await limparDedupe(admin)
     } catch { /* manutenção oportunista */ }
+    try {
+      await apagarDentroDoPrazo(admin, chegada + LIMITE_LIMPEZA_MS)
+    } catch (err) {
+      console.error('[telegram] limpeza:', err instanceof Error ? err.message : err)
+    }
   })
 
   return NextResponse.json({ ok: true })

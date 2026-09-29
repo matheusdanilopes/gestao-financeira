@@ -4,6 +4,9 @@
  * Variável de ambiente:
  *   TELEGRAM_BOT_TOKEN  token entregue pelo @BotFather ao criar o bot
  *
+ * O token só existe na variável de ambiente e na URL das chamadas: toda
+ * mensagem de erro passa por `semToken` antes de ir para log ou banco.
+ *
  * O resto é derivado: o segredo do webhook sai do próprio token (não há uma
  * segunda variável para esquecer) e o webhook é registrado pelo app ao abrir
  * a tela de Configurações (ver garantirWebhook).
@@ -44,29 +47,96 @@ interface RespostaApi<T> {
   result?: T
   description?: string
   error_code?: number
+  parameters?: { retry_after?: number }
+}
+
+/** Remove o token de qualquer texto que vá para log ou para o banco. */
+function semToken(texto: string): string {
+  const t = token()
+  return t ? texto.split(t).join('***') : texto
 }
 
 export class TelegramError extends Error {
-  constructor(metodo: string, readonly codigo: number | undefined, descricao: string | undefined) {
-    super(`Telegram ${metodo}: ${codigo ?? '?'} ${descricao ?? 'sem descrição'}`)
+  constructor(
+    metodo: string,
+    readonly codigo: number | undefined,
+    readonly descricao: string | undefined,
+    /** Segundos pedidos pelo Telegram num 429 (limite de requisições). */
+    readonly retryAfter?: number
+  ) {
+    super(semToken(`Telegram ${metodo}: ${codigo ?? '?'} ${descricao ?? 'sem descrição'}`))
     this.name = 'TelegramError'
   }
 }
 
-async function chamar<T>(metodo: string, corpo?: Record<string, unknown>): Promise<T> {
-  const res = await fetch(api(metodo), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(corpo ?? {}),
-  })
-  const json = (await res.json().catch(() => ({ ok: false }))) as RespostaApi<T>
-  if (!json.ok) throw new TelegramError(metodo, json.error_code ?? res.status, json.description)
-  return json.result as T
+const esperar = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+/** Tentativas por chamada quando a falha é temporária (429, 5xx, rede). */
+const TENTATIVAS_PADRAO = 4
+/**
+ * Espera máxima dentro de uma mesma chamada. Um 429 pedindo mais que isso é
+ * devolvido a quem chamou — a fila de exclusão reagenda em vez de segurar a
+ * função parada.
+ */
+const ESPERA_MAX_MS = 20_000
+const TIMEOUT_CHAMADA_MS = 20_000
+
+/** 1 s, 2 s, 4 s, 8 s… com um pouco de aleatoriedade para não sincronizar reenvios. */
+function espera(tentativa: number): number {
+  return Math.min(1_000 * 2 ** (tentativa - 1), 8_000) + Math.floor(Math.random() * 250)
+}
+
+/**
+ * Chama a Bot API. Limite de requisições (429) respeita o retry_after do
+ * Telegram; erro 5xx e falha de rede tentam de novo com espera progressiva.
+ * Erros 4xx (fora o 429) são definitivos e sobem na hora.
+ */
+async function chamar<T>(
+  metodo: string,
+  corpo?: Record<string, unknown>,
+  tentativas = TENTATIVAS_PADRAO
+): Promise<T> {
+  for (let n = 1; ; n++) {
+    let res: Response
+    try {
+      res = await fetch(api(metodo), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(corpo ?? {}),
+        signal: AbortSignal.timeout(TIMEOUT_CHAMADA_MS),
+      })
+    } catch (err) {
+      if (n >= tentativas) {
+        throw new TelegramError(metodo, undefined, `falha de rede: ${err instanceof Error ? err.message : String(err)}`)
+      }
+      await esperar(espera(n))
+      continue
+    }
+
+    const json = (await res.json().catch(() => ({ ok: false }))) as RespostaApi<T>
+    if (json.ok) return json.result as T
+
+    const codigo = json.error_code ?? res.status
+    const retryAfter = json.parameters?.retry_after
+    const erro = new TelegramError(metodo, codigo, json.description, retryAfter)
+    const temporario = codigo === 429 || codigo >= 500
+    if (!temporario || n >= tentativas) throw erro
+
+    const ms = codigo === 429 && retryAfter ? retryAfter * 1_000 + 250 : espera(n)
+    if (ms > ESPERA_MAX_MS) throw erro
+    await esperar(ms)
+  }
 }
 
 export interface BotaoInline {
   text: string
   callback_data: string
+}
+
+export interface MensagemEnviada {
+  message_id: number
+  /** Unix time (segundos) em que o Telegram registrou a mensagem. */
+  date: number
 }
 
 /**
@@ -79,10 +149,10 @@ export async function enviarMensagem(
   html: string,
   textoPuro: string,
   botoes?: BotaoInline[][]
-): Promise<void> {
+): Promise<MensagemEnviada> {
   const extras = botoes ? { reply_markup: { inline_keyboard: botoes } } : {}
   try {
-    await chamar('sendMessage', {
+    return await chamar<MensagemEnviada>('sendMessage', {
       chat_id: chatId,
       text: html,
       parse_mode: 'HTML',
@@ -91,14 +161,42 @@ export async function enviarMensagem(
     })
   } catch (err) {
     if (!(err instanceof TelegramError) || err.codigo !== 400) throw err
-    await chamar('sendMessage', { chat_id: chatId, text: textoPuro, ...extras })
+    return await chamar<MensagemEnviada>('sendMessage', { chat_id: chatId, text: textoPuro, ...extras })
+  }
+}
+
+export type ResultadoExclusao =
+  | { tipo: 'apagada' }
+  /** Já não estava no chat (o usuário apagou antes, ou outra execução chegou primeiro). */
+  | { tipo: 'inexistente' }
+  /** O Telegram recusou de vez — não adianta tentar de novo. */
+  | { tipo: 'definitivo'; naoApagavel: boolean; motivo: string }
+  /** Limite de requisições, erro do servidor ou rede: tentar mais tarde. */
+  | { tipo: 'temporario'; motivo: string; retryAfterS?: number }
+
+/** Apaga uma mensagem do chat. Nunca lança: classifica o resultado. */
+export async function apagarMensagem(chatId: number, messageId: number): Promise<ResultadoExclusao> {
+  try {
+    await chamar<boolean>('deleteMessage', { chat_id: chatId, message_id: messageId }, 3)
+    return { tipo: 'apagada' }
+  } catch (err) {
+    if (!(err instanceof TelegramError)) {
+      return { tipo: 'temporario', motivo: semToken(err instanceof Error ? err.message : String(err)) }
+    }
+    const descricao = (err.descricao ?? '').toLowerCase()
+    if (err.codigo === 400 && descricao.includes('message to delete not found')) return { tipo: 'inexistente' }
+    if (err.codigo === 400) {
+      return { tipo: 'definitivo', naoApagavel: descricao.includes("can't be deleted"), motivo: err.message }
+    }
+    // 403 (bot bloqueado), 429, 5xx, rede: pode passar — reagenda.
+    return { tipo: 'temporario', motivo: err.message, retryAfterS: err.retryAfter }
   }
 }
 
 /** "Digitando…" — dura ~5 s no Telegram; quem chama renova enquanto trabalha. */
 export async function mostrarDigitando(chatId: number): Promise<void> {
   try {
-    await chamar('sendChatAction', { chat_id: chatId, action: 'typing' })
+    await chamar('sendChatAction', { chat_id: chatId, action: 'typing' }, 1)
   } catch {
     /* indicador é opcional */
   }
@@ -107,7 +205,7 @@ export async function mostrarDigitando(chatId: number): Promise<void> {
 /** Fecha o "carregando" do botão tocado e, opcionalmente, mostra um aviso curto. */
 export async function responderCallback(callbackId: string, aviso?: string): Promise<void> {
   try {
-    await chamar('answerCallbackQuery', { callback_query_id: callbackId, ...(aviso ? { text: aviso } : {}) })
+    await chamar('answerCallbackQuery', { callback_query_id: callbackId, ...(aviso ? { text: aviso } : {}) }, 1)
   } catch {
     /* só visual */
   }

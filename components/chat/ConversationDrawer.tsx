@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { History, X, Plus, Sparkles, Trash2, MessageSquare } from 'lucide-react'
+import { History, X, Plus, Sparkles, Trash2, MessageSquare, Send } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
 import type { ConversaResumo } from '@/lib/useChatFinanceiro'
 
@@ -147,6 +147,12 @@ export function ConversationDrawer({
                           </span>
                           <span className="block text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
                             {rotularData(conv.created_at)} · {conv.message_count} mensagens
+                            {conv.telegram && (
+                              <span className="inline-flex items-center gap-0.5 ml-1.5 align-middle text-sky-500 dark:text-sky-400">
+                                <Send className="w-2.5 h-2.5" />
+                                Telegram
+                              </span>
+                            )}
                           </span>
                         </span>
                       </button>

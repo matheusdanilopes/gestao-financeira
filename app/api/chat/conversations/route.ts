@@ -42,13 +42,15 @@ export async function GET(req: NextRequest) {
 
   const { data: counts } = await supabaseClient
     .from('messages')
-    .select('conversation_id')
+    .select('conversation_id, canal')
     .in('conversation_id', ids)
     .neq('role', 'system')
 
   const countMap: Record<string, number> = {}
+  const telegram = new Set<string>()
   for (const row of counts ?? []) {
     countMap[row.conversation_id] = (countMap[row.conversation_id] ?? 0) + 1
+    if (row.canal === 'telegram') telegram.add(row.conversation_id)
   }
 
   const conversations = convs
@@ -58,6 +60,7 @@ export async function GET(req: NextRequest) {
       created_at: c.created_at,
       preview: previewMap[c.id] ?? 'Conversa sem mensagens',
       message_count: countMap[c.id] ?? 0,
+      telegram: telegram.has(c.id),
     }))
 
   return NextResponse.json({ conversations })

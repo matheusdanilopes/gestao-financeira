@@ -46,6 +46,24 @@ O mesmo agente de IA do chat do app responde pelo Telegram, por texto ou áudio,
 
 O webhook (`/api/telegram/webhook`) é registrado automaticamente quando a tela de Configurações é aberta em produção, com um segredo derivado do token. Para fixar outra URL, defina `TELEGRAM_WEBHOOK_URL`. Comandos no bot: `/ajuda`, `/nova` e `/desvincular`.
 
+### Chat do Telegram limpo, histórico no app
+
+O chat do Telegram não acumula conversa: o histórico real fica no app (*Chat → Histórico*, com o selo **Telegram**). Cada mensagem que chega ou que o bot envia é gravada na tabela `messages` e só **depois** entra na fila de exclusão `telegram_mensagens` — se a gravação falhar, a mensagem fica no Telegram.
+
+- **Recebidas** somem logo após processadas; **respostas** somem depois de `TELEGRAM_APAGAR_RESPOSTAS_APOS_S` segundos (padrão 60). Mensagens com **Confirmar/Cancelar** esperam o toque (ou 24 h).
+- O webhook espera o atraso e apaga na mesma execução. A rotina `/api/telegram/limpeza` recolhe o que ficou pendente: pelo `pg_cron` do Supabase a cada minuto (`supabase/cron_telegram_limpeza.sql`, só chama o app quando há exclusão vencida) e pelo Vercel Cron uma vez por dia.
+- Falhas (limite de requisições, erro do Telegram, rede) ficam registradas em `ultimo_erro` e são tentadas de novo com espera progressiva (30 s, 1 min, 2 min… até 6 h). O Telegram só apaga mensagens com menos de 48 h: as mais antigas viram `nao_apagavel`, sem nova tentativa.
+
+| Variável | Para quê |
+|---|---|
+| `TELEGRAM_CHATS_PERMITIDOS` | chat_ids aceitos, separados por vírgula. Qualquer outro chat é ignorado em silêncio. Vazia: vale só o vínculo. |
+| `TELEGRAM_APAGAR_RESPOSTAS_APOS_S` | atraso para apagar as respostas do bot (padrão `60`). |
+| `TELEGRAM_APAGAR_RECEBIDAS_APOS_S` | atraso para apagar as mensagens recebidas (padrão `0`). |
+| `TELEGRAM_AUTOLIMPEZA` | `off` desliga o agendamento de novas exclusões. |
+| `TELEGRAM_LIMPEZA_SECRET` | segredo do `pg_cron` para chamar `/api/telegram/limpeza` (o Vercel Cron usa o `CRON_SECRET`). |
+
+Banco: rode `supabase/migration_telegram_autolimpeza.sql` e, para a rotina a cada minuto, `supabase/cron_telegram_limpeza.sql`. Para acompanhar a fila: `select status, count(*) from telegram_mensagens group by status;`
+
 ## Como o assessor lê os dados
 
 Chat do app e Telegram passam pelo mesmo turno (`lib/ai/agent/turno.ts`), que lê tudo por um **GatewayDados** (`lib/ai/data/gateway.ts`):

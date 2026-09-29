@@ -1,7 +1,7 @@
 'use client'
 
 import { memo } from 'react'
-import { Sparkles, User, Search, Volume2 } from 'lucide-react'
+import { Sparkles, User, Search, Volume2, Send } from 'lucide-react'
 import { MarkdownMessage } from './MarkdownMessage'
 import type { ChatMessage } from '@/lib/useChatFinanceiro'
 
@@ -62,6 +62,16 @@ export const MessageBubble = memo(function MessageBubble({
         }
       >
         {ehUsuario ? mensagem.content : <MarkdownMessage texto={mensagem.content} />}
+        {mensagem.telegram && (
+          <span
+            className={`mt-1.5 flex items-center gap-1 text-[10px] leading-none ${
+              ehUsuario ? 'text-white/70 justify-end' : 'text-gray-400 dark:text-gray-500'
+            }`}
+          >
+            <Send className="w-2.5 h-2.5" />
+            via Telegram
+          </span>
+        )}
         {!ehUsuario && onOuvir && (
           <button
             onClick={() => onOuvir(mensagem.content)}
