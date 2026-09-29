@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { requireShoppingListAuth } from '@/lib/serverAuth'
 import { criarSupabaseServer } from '@/lib/supabaseServer'
 import {
@@ -150,12 +150,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Nenhum item válido processado' }, { status: 400 })
   }
 
-  // Send ONE notification for all items added in this request
-  void notificarListaMercadoServer(
+  // Send ONE notification for all items added in this request.
+  // after(): a função não é encerrada antes do push e do Telegram saírem.
+  after(() => notificarListaMercadoServer(
     supabase,
     successful.map(r => r.notifItem),
     deUsuario
-  )
+  ))
 
   if (rawItems.length === 1) {
     const result = successful[0]

@@ -46,6 +46,23 @@ O mesmo agente de IA do chat do app responde pelo Telegram, por texto ou áudio,
 
 O webhook (`/api/telegram/webhook`) é registrado automaticamente quando a tela de Configurações é aberta em produção, com um segredo derivado do token. Para fixar outra URL, defina `TELEGRAM_WEBHOOK_URL`. Comandos no bot: `/ajuda`, `/nova` e `/desvincular`.
 
+## Notificações pelo Telegram
+
+Quem conectou o Telegram também recebe por lá os avisos do app, com um botão **Abrir no app** que leva à tela certa:
+
+| Tipo | Quando |
+| --- | --- |
+| Contas a vencer | Na véspera e no dia, às 09:00 (as suas e as do Conjunto, com valor) |
+| Resumo semanal | Segundas às 09:00: total da semana, tendência, maiores categorias e o Conjunto |
+| Importação de faturas | Compras novas, estornos, falhas e divergências de fatura (importações sem nada novo não geram mensagem) |
+| Pagamentos e aportes | Quando a outra pessoa registra pagamento, receita ou aporte |
+| Lista de mercado / Wishlist | Itens e desejos adicionados pela outra pessoa |
+
+1. **Banco:** rode `supabase/migration_telegram_notificacoes.sql` no SQL Editor (depois de `migration_telegram.sql`). Sem ela, todos os tipos ficam ligados.
+2. **Escolher:** em *Configurações → Conta → Assessor no Telegram*, cada pessoa liga/desliga os tipos e pode **Enviar notificação de teste**. É independente do push do navegador.
+3. **Link do botão:** usa `VERCEL_PROJECT_PRODUCTION_URL` (automática na Vercel) ou `NEXT_PUBLIC_APP_URL`; sem endereço https público a mensagem vai sem botão.
+4. **Crons:** `vencimento` e `resumo-semanal` rodam às 12:00 UTC (09:00 de Brasília) e leem os dados com a `SUPABASE_SERVICE_ROLE_KEY`. Defina `CRON_SECRET` na Vercel para protegê-los.
+
 ### Chat do Telegram limpo, histórico no app
 
 O chat do Telegram não acumula conversa: o histórico real fica no app (*Chat → Histórico*, com o selo **Telegram**). Cada mensagem que chega ou que o bot envia é gravada na tabela `messages` e só **depois** entra na fila de exclusão `telegram_mensagens` — se a gravação falhar, a mensagem fica no Telegram.

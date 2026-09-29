@@ -128,10 +128,10 @@ async function chamar<T>(
   }
 }
 
-export interface BotaoInline {
-  text: string
-  callback_data: string
-}
+/** Botão sob a mensagem: dispara um callback para o webhook ou abre um link. */
+export type BotaoInline =
+  | { text: string; callback_data: string }
+  | { text: string; url: string }
 
 export interface MensagemEnviada {
   message_id: number

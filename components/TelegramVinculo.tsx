@@ -1,7 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { ExternalLink, Unlink, RefreshCw, Send } from 'lucide-react'
+import { ExternalLink, Unlink, RefreshCw, Send, BellRing } from 'lucide-react'
+import {
+  CATEGORIAS_NOTIFICACAO_TELEGRAM,
+  categoriaAtiva,
+  type CategoriaNotificacaoTelegram,
+  type PreferenciasNotificacaoTelegram,
+} from '@/lib/telegram/categoriasNotificacao'
 
 interface EstadoVinculo {
   configurado: boolean
@@ -14,12 +20,14 @@ interface EstadoVinculo {
   vinculadoEm?: string | null
   codigoExpiraEm?: string | null
   link?: string | null
+  notificacoes?: PreferenciasNotificacaoTelegram
+  notificacoesMigracaoPendente?: boolean
 }
 
 /**
  * Conteúdo do card "Assessor no Telegram" (Configurações → Conta): gera o
- * link de conexão (t.me/bot?start=CODIGO), mostra o Telegram conectado e
- * permite desconectar.
+ * link de conexão (t.me/bot?start=CODIGO), mostra o Telegram conectado,
+ * escolhe quais notificações chegam por lá e permite desconectar.
  */
 export default function TelegramVinculo() {
   const [estado, setEstado] = useState<EstadoVinculo | null>(null)
@@ -173,6 +181,10 @@ export default function TelegramVinculo() {
               Desconectar
             </button>
           </div>
+          <NotificacoesTelegram
+            inicial={estado.notificacoes ?? {}}
+            migracaoPendente={Boolean(estado.notificacoesMigracaoPendente)}
+          />
         </>
       ) : estado.link ? (
         <>
@@ -221,6 +233,125 @@ export default function TelegramVinculo() {
           </button>
         </>
       )}
+    </div>
+  )
+}
+
+/**
+ * Quais avisos do app chegam pelo Telegram. Cada pessoa escolhe os seus; tipo
+ * não salvo = ligado. Independe do push do navegador (aba Preferências).
+ */
+function NotificacoesTelegram({
+  inicial,
+  migracaoPendente,
+}: {
+  inicial: PreferenciasNotificacaoTelegram
+  migracaoPendente: boolean
+}) {
+  const [prefs, setPrefs] = useState<PreferenciasNotificacaoTelegram>(inicial)
+  const [salvando, setSalvando] = useState(false)
+  const [testando, setTestando] = useState(false)
+  const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null)
+
+  async function alternar(id: CategoriaNotificacaoTelegram, ativa: boolean) {
+    const anteriores = prefs
+    const novas = { ...prefs, [id]: ativa }
+    setPrefs(novas)
+    setSalvando(true)
+    setAviso(null)
+    try {
+      const res = await fetch('/api/telegram/vinculo', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificacoes: novas }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Falha ao salvar')
+      setPrefs(json.notificacoes ?? novas)
+    } catch (e) {
+      setPrefs(anteriores)
+      setAviso({ ok: false, texto: e instanceof Error ? e.message : 'Falha ao salvar' })
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  async function testar() {
+    setTestando(true)
+    setAviso(null)
+    try {
+      const res = await fetch('/api/telegram/notificacoes/teste', { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Falha ao enviar')
+      setAviso({ ok: true, texto: 'Enviada! Confira a conversa com o bot.' })
+    } catch (e) {
+      setAviso({ ok: false, texto: e instanceof Error ? e.message : 'Falha ao enviar' })
+    } finally {
+      setTestando(false)
+    }
+  }
+
+  return (
+    <div className="border-t border-gray-100 pt-4 space-y-3">
+      <div>
+        <p className="text-sm font-semibold text-gray-700 tracking-tight">Notificações pelo Telegram</p>
+        <p className="text-xs text-gray-400 mt-0.5">O bot avisa você por lá, além do push do app.</p>
+      </div>
+
+      {migracaoPendente ? (
+        <p className="text-xs px-3.5 py-2.5 rounded-2xl border bg-amber-50 border-amber-100 text-amber-700 leading-relaxed">
+          Todos os avisos estão ligados. Para escolher quais receber, rode{' '}
+          <code className="font-mono">supabase/migration_telegram_notificacoes.sql</code> no SQL Editor do Supabase.
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {CATEGORIAS_NOTIFICACAO_TELEGRAM.map(cat => {
+            const ativa = categoriaAtiva(prefs, cat.id)
+            return (
+              <div key={cat.id} className="flex items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-700">{cat.titulo}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{cat.descricao}</p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={ativa}
+                  aria-label={cat.titulo}
+                  disabled={salvando}
+                  onClick={() => alternar(cat.id, !ativa)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 disabled:opacity-60 ${
+                    ativa ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-700'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 ${
+                      ativa ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {aviso && (
+        <p className={`text-xs px-3.5 py-2.5 rounded-2xl border ${
+          aviso.ok ? 'bg-green-50 border-green-100 text-green-700' : 'bg-red-50 border-red-100 text-red-600'
+        }`}>
+          {aviso.texto}
+        </p>
+      )}
+
+      <button
+        onClick={testar}
+        disabled={testando}
+        className="w-full flex items-center justify-center gap-2 py-2.5 bg-primary-50 hover:bg-primary-100 text-primary-700 text-sm font-semibold rounded-2xl transition-all active:scale-[0.97] disabled:opacity-50 border border-primary-200"
+      >
+        <BellRing className="w-4 h-4" />
+        {testando ? 'Enviando…' : 'Enviar notificação de teste'}
+      </button>
     </div>
   )
 }
