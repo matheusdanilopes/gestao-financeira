@@ -24,12 +24,13 @@
  */
 
 import { format } from 'date-fns'
-import type { criarSupabaseServer } from '../../supabaseServer'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type { EnrichedData } from '../types'
 import { casaBusca, normalizar, normalizarMes, type Referencias } from './queryEngine'
 import { formatBRL } from '../../format'
 
-type Supabase = ReturnType<typeof criarSupabaseServer>
+// Sessão do usuário (app) ou service role (webhook do WhatsApp).
+type Supabase = SupabaseClient
 
 const R = formatBRL
 const RECEITA_PREFIXO = '[RECEITA] '
@@ -58,6 +59,12 @@ export interface ContextoEscrita {
   conversationId: string
   /** E-mail do usuário logado, só para auditoria (activity_logs / criado_por). */
   usuario: string | null
+  /**
+   * Responsável que corresponde ao usuário logado (ex.: "Matheus"). É o padrão
+   * de despesas e receitas novas quando ele não diz de quem são — "lança uma
+   * conta de 120" fala na primeira pessoa.
+   */
+  responsavelPadrao?: string | null
 }
 
 type Proposta =
@@ -113,13 +120,13 @@ export function proporPagamento(data: EnrichedData, refs: Referencias, a: {
 export function proporNovaDespesa(refs: Referencias, a: {
   descricao?: string; valor?: number; categoria?: string; responsavel?: string
   dataVencimento?: string; mes?: string
-}): Proposta {
+}, responsavelPadrao = 'Matheus'): Proposta {
   const descricao = a.descricao?.trim()
   if (!descricao) return falha('Informe a descrição da despesa.')
   if (!a.valor || a.valor <= 0) return falha('Informe um valor maior que zero.')
 
   const mes = normalizarMes(a.mes) ?? refs.mesApp
-  const responsavelResolvido = resolverResponsavel(a.responsavel, 'Matheus')
+  const responsavelResolvido = resolverResponsavel(a.responsavel, responsavelPadrao)
   if (typeof responsavelResolvido !== 'string') return falha(responsavelResolvido.erro)
   const responsavel = responsavelResolvido
   const categoria = a.categoria?.trim() || 'Extra'
@@ -143,13 +150,13 @@ export function proporNovaDespesa(refs: Referencias, a: {
 
 export function proporNovaReceita(refs: Referencias, a: {
   descricao?: string; valor?: number; responsavel?: string; mes?: string
-}): Proposta {
+}, responsavelPadrao = 'Matheus'): Proposta {
   const descricao = a.descricao?.trim()
   if (!descricao) return falha('Informe a descrição da receita.')
   if (!a.valor || a.valor <= 0) return falha('Informe um valor maior que zero.')
 
   const mes = normalizarMes(a.mes) ?? refs.mesApp
-  const responsavelResolvido = resolverResponsavel(a.responsavel, 'Matheus')
+  const responsavelResolvido = resolverResponsavel(a.responsavel, responsavelPadrao)
   if (typeof responsavelResolvido !== 'string') return falha(responsavelResolvido.erro)
   const responsavel = responsavelResolvido
 

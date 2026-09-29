@@ -351,7 +351,7 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
         descricao: str('Nome da despesa (ex.: "Internet", "Mercado").'),
         valor: num('Valor previsto da despesa.'),
         categoria: str('Categoria (ex.: Fixa, Extra, Moradia, Alimentação, Transporte, Saúde, Lazer, Outros). Padrão: Extra.'),
-        responsavel: str(`Quem é o responsável. ${RESPONSAVEL} Padrão: Matheus — pergunte se não estiver claro.`),
+        responsavel: str(`Quem é o responsável. ${RESPONSAVEL} Padrão: quem está falando (veja QUEM ESTÁ FALANDO).`),
         dataVencimento: str('Data de vencimento, AAAA-MM-DD. Sem padrão: se o usuário não disser, fica sem vencimento.'),
         mes: str(`Mês de referência da despesa. ${MES} Padrão: mês corrente.`),
       },
@@ -385,7 +385,7 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
       properties: {
         descricao: str('Nome da receita (ex.: "Freelance", "13º salário").'),
         valor: num('Valor previsto da receita.'),
-        responsavel: str(`Quem recebe. ${RESPONSAVEL} Padrão: Matheus — pergunte se não estiver claro.`),
+        responsavel: str(`Quem recebe. ${RESPONSAVEL} Padrão: quem está falando (veja QUEM ESTÁ FALANDO).`),
         mes: str(`Mês de referência. ${MES} Padrão: mês corrente.`),
       },
       required: ['descricao', 'valor'],
@@ -659,7 +659,7 @@ export async function executarFerramenta(
           responsavel: asString(args.responsavel),
           dataVencimento: asString(args.dataVencimento),
           mes: asString(args.mes),
-        })
+        }, escrita.ctx.responsavelPadrao ?? undefined)
         return await estagiarProposta(escrita.ctx, proposta)
       }
 
@@ -682,7 +682,7 @@ export async function executarFerramenta(
           valor: asNumber(args.valor),
           responsavel: asString(args.responsavel),
           mes: asString(args.mes),
-        })
+        }, escrita.ctx.responsavelPadrao ?? undefined)
         return await estagiarProposta(escrita.ctx, proposta)
       }
 

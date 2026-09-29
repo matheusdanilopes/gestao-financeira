@@ -8,9 +8,10 @@
  */
 
 import { resumirConversa } from './geminiClient'
-import type { criarSupabaseServer } from '../../supabaseServer'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
-type Supabase = ReturnType<typeof criarSupabaseServer>
+// Sessão do usuário (app) ou service role (webhook do WhatsApp).
+type Supabase = SupabaseClient
 
 /** Mensagens recentes mantidas na íntegra no prompt. */
 const JANELA = 12
