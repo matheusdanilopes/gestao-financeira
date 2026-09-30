@@ -89,7 +89,7 @@ export async function* executarAgente(input: AgentInput): AsyncGenerator<AgentEv
   // Um por turno (por chamada a executarAgente): garante que confirmar_operacao
   // só possa agir sobre uma proposta feita numa mensagem ANTERIOR do usuário,
   // nunca sobre uma que o próprio modelo acabou de fazer nesta mesma resposta.
-  const estadoTurno: EstadoTurno = { propostaNesteTurno: false }
+  const estadoTurno: EstadoTurno = { propostaNesteTurno: false, propostas: [] }
 
   for (let rodada = 0; rodada <= MAX_RODADAS_FERRAMENTA; rodada++) {
     const tempoEsgotado = Date.now() >= input.deadlineMs - 3_000

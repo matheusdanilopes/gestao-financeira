@@ -37,7 +37,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ## Assessor financeiro no Telegram
 
-O mesmo agente de IA do chat do app responde pelo Telegram, por texto ou áudio, com os dados do usuário que conectou o Telegram. Perguntas na primeira pessoa ("quanto **eu** gastei?") usam os dados desse usuário; "nós", "a gente" ou perguntas sem pessoa usam o casal todo. Lançamentos (pagar conta, nova despesa etc.) só são gravados depois de tocar em **✅ Confirmar**.
+O mesmo agente de IA do chat do app responde pelo Telegram, por texto ou áudio, com os dados do usuário que conectou o Telegram. Perguntas na primeira pessoa ("quanto **eu** gastei?") usam os dados desse usuário; "nós", "a gente" ou perguntas sem pessoa usam o casal todo. Lançamentos (pagar conta, nova despesa etc.) só são gravados depois de tocar em **✅ Confirmar**. Vários lançamentos numa mensagem só ("paguei luz 150, água 80 e internet 100", "coloca arroz, feijão e café na lista") viram um lote, confirmado de uma vez — no app e no Telegram.
 
 1. **Banco:** rode `supabase/migration_telegram.sql` no SQL Editor do Supabase.
 2. **Bot:** no Telegram, fale com o **@BotFather**, envie `/newbot`, escolha nome e usuário (terminado em `bot`) e copie o token. Pelo BotFather também dá para trocar a foto (`/setuserpic`) e a descrição do bot.
