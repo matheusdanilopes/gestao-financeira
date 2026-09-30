@@ -21,6 +21,14 @@
  * MESMA rodada do agente (ver `propostaNesteTurno` em runAgent.ts): confirmar
  * só pode valer depois que o usuário respondeu, numa mensagem seguinte —
  * nunca no mesmo turno em que o modelo acabou de propor.
+ *
+ * LOTES: várias operações de uma vez ("paguei luz 150, água 80 e internet
+ * 100", uma lista de mercado inteira) viram UMA operação pendente do tipo
+ * 'lote', com as operações individuais dentro do payload. Assim continua
+ * havendo uma única pendente por conversa — um "sim" confirma o lote todo, e
+ * um "não" descarta o lote todo. Um lote nasce de `propor_lote` (todos os
+ * itens numa chamada só) ou da soma de vários propor_* feitos na mesma
+ * resposta (ver `combinarPropostas`).
  */
 
 import { format } from 'date-fns'
@@ -67,9 +75,15 @@ export interface ContextoEscrita {
   responsavelPadrao?: string | null
 }
 
-type Proposta =
-  | { ok: true; tipo: string; payload: Record<string, unknown>; resumo: string }
-  | { ok: false; mensagem: string }
+export type PropostaOk = { ok: true; tipo: string; payload: Record<string, unknown>; resumo: string }
+export type Proposta = PropostaOk | { ok: false; mensagem: string }
+
+/** Uma operação individual dentro de um lote (mesmo formato de uma pendente avulsa). */
+interface OperacaoDoLote {
+  tipo: string
+  payload: Record<string, unknown>
+  resumo: string
+}
 
 const falha = (mensagem: string): Proposta => ({ ok: false, mensagem })
 
@@ -283,6 +297,155 @@ export function proporItemWishlist(a: {
   }
 }
 
+// ─── Lote: várias operações numa única proposta ──────────────────────────────
+
+/** Teto de itens num lote — acima disso o resumo deixa de ser conferível. */
+export const MAX_ITENS_LOTE = 50
+
+export const TIPOS_ITEM_LOTE = [
+  'pagamento', 'nova_despesa', 'recebimento', 'nova_receita', 'aporte_investimento', 'item_mercado', 'item_wishlist',
+] as const
+
+/** Um item de `propor_lote`, já com os argumentos convertidos pelo despachante. */
+export interface ItemLote {
+  tipo?: string
+  nome?: string
+  valor?: number
+  quantidade?: number
+  categoria?: string
+  responsavel?: string
+  data?: string
+  mes?: string
+  prioridade?: string
+  saldoAtual?: number
+  observacao?: string
+}
+
+function proporItemDoLote(data: EnrichedData, refs: Referencias, item: ItemLote, responsavelPadrao?: string): Proposta {
+  switch (item.tipo) {
+    case 'pagamento':
+      return proporPagamento(data, refs, {
+        busca: item.nome, valorPago: item.valor, dataPagamento: item.data, mes: item.mes, responsavel: item.responsavel,
+      })
+    case 'nova_despesa':
+      return proporNovaDespesa(refs, {
+        descricao: item.nome, valor: item.valor, categoria: item.categoria, responsavel: item.responsavel,
+        dataVencimento: item.data, mes: item.mes,
+      }, responsavelPadrao)
+    case 'recebimento':
+      return proporRecebimento(data, refs, {
+        busca: item.nome, valor: item.valor, dataRecebimento: item.data, mes: item.mes, responsavel: item.responsavel,
+      })
+    case 'nova_receita':
+      return proporNovaReceita(refs, {
+        descricao: item.nome, valor: item.valor, responsavel: item.responsavel, mes: item.mes,
+      }, responsavelPadrao)
+    case 'aporte_investimento':
+      return proporAporteInvestimento(data, refs, {
+        busca: item.nome, valor: item.valor, dataAporte: item.data, saldoAtual: item.saldoAtual, observacao: item.observacao,
+      })
+    case 'item_mercado':
+      return proporItemMercado({ nome: item.nome, quantidade: item.quantidade })
+    case 'item_wishlist':
+      return proporItemWishlist({
+        nome: item.nome, valorEstimado: item.valor, categoria: item.categoria, prioridade: item.prioridade,
+      })
+    default:
+      return falha(`Tipo "${item.tipo ?? ''}" inválido. Use um destes: ${TIPOS_ITEM_LOTE.join(', ')}.`)
+  }
+}
+
+/** As operações individuais de uma proposta — a própria, ou as de dentro de um lote. */
+function operacoesDe(p: PropostaOk): OperacaoDoLote[] {
+  if (p.tipo === 'lote') return (p.payload.operacoes as OperacaoDoLote[] | undefined) ?? []
+  return [{ tipo: p.tipo, payload: p.payload, resumo: p.resumo }]
+}
+
+const ROTULO_TOTAL: Record<string, string> = {
+  pagamento: 'pagamentos',
+  nova_despesa: 'despesas novas',
+  recebimento: 'recebimentos',
+  nova_receita: 'receitas novas',
+  aporte_investimento: 'aportes',
+  item_wishlist: 'wishlist',
+}
+
+function valorDaOperacao(op: OperacaoDoLote): number | undefined {
+  const p = op.payload
+  if (typeof p.valor_real === 'number') return p.valor_real
+  if (typeof p.valor_previsto === 'number') return p.valor_previsto
+  if (typeof p.valor === 'number') return p.valor
+  if (typeof p.valor_estimado === 'number') return p.valor_estimado
+  return undefined
+}
+
+function resumoLote(operacoes: OperacaoDoLote[]): string {
+  const totais = new Map<string, number>()
+  for (const op of operacoes) {
+    const valor = valorDaOperacao(op)
+    const rotulo = ROTULO_TOTAL[op.tipo]
+    if (valor !== undefined && rotulo) totais.set(rotulo, (totais.get(rotulo) ?? 0) + valor)
+  }
+  const linhas = operacoes.map((op, i) => `${i + 1}. ${op.resumo}`)
+  const total = [...totais].map(([rotulo, valor]) => `${rotulo} ${R(valor)}`).join(' · ')
+  return `Lote com ${operacoes.length} operações:\n${linhas.join('\n')}` + (total ? `\nTotais: ${total}` : '')
+}
+
+/**
+ * Junta propostas numa só. Uma proposta sozinha continua como está; duas ou
+ * mais (inclusive lotes) viram um único lote com todas as operações achatadas.
+ */
+export function combinarPropostas(propostas: PropostaOk[]): PropostaOk {
+  if (propostas.length === 1) return propostas[0]
+  const operacoes = propostas.flatMap(operacoesDe)
+  return { ok: true, tipo: 'lote', payload: { operacoes }, resumo: resumoLote(operacoes) }
+}
+
+/**
+ * Prepara várias operações de uma vez. Tudo ou nada: se qualquer item falhar
+ * (despesa não encontrada, ambígua, valor faltando), nada é preparado e a
+ * resposta lista o problema de cada item — senão o usuário confirmaria um lote
+ * achando que ele tem tudo o que pediu.
+ */
+export function proporLote(data: EnrichedData, refs: Referencias, itens: ItemLote[], responsavelPadrao?: string): Proposta {
+  if (itens.length === 0) return falha('Informe pelo menos um item no lote.')
+  if (itens.length > MAX_ITENS_LOTE) {
+    return falha(`O lote tem ${itens.length} itens; o máximo é ${MAX_ITENS_LOTE}. Divida em lotes menores e proponha um de cada vez.`)
+  }
+
+  const propostas: PropostaOk[] = []
+  const problemas: string[] = []
+  itens.forEach((item, i) => {
+    const proposta = proporItemDoLote(data, refs, item, responsavelPadrao)
+    if (proposta.ok) propostas.push(proposta)
+    else problemas.push(`Item ${i + 1} (${item.tipo ?? 'sem tipo'} "${item.nome ?? ''}"): ${proposta.mensagem}`)
+  })
+
+  // A mesma despesa paga duas vezes no lote é quase sempre item repetido na
+  // fala ("luz… e a luz"), não dois pagamentos — e o segundo sobrescreveria o primeiro.
+  const pagos = new Map<unknown, number>()
+  propostas.forEach(p => {
+    if (p.tipo !== 'pagamento') return
+    pagos.set(p.payload.id, (pagos.get(p.payload.id) ?? 0) + 1)
+  })
+  for (const [id, vezes] of pagos) {
+    if (vezes < 2) continue
+    const repetida = propostas.find(p => p.tipo === 'pagamento' && p.payload.id === id)
+    problemas.push(`A mesma despesa aparece ${vezes} vezes como paga: ${repetida?.resumo}. Deixe só uma.`)
+  }
+
+  if (problemas.length > 0) {
+    return falha(
+      `NADA FOI PREPARADO — ${problemas.length} de ${itens.length} itens do lote têm problema:\n` +
+      problemas.map(p => `- ${p}`).join('\n') +
+      '\nExplique ao usuário o problema de cada item, peça o que falta e depois chame propor_lote de novo com a lista ' +
+      'COMPLETA (os itens que estavam certos também).'
+    )
+  }
+
+  return combinarPropostas(propostas)
+}
+
 // ─── Estágio: grava a proposta como pendente, sem executar nada ──────────────
 
 export async function estagiarProposta(ctx: ContextoEscrita, proposta: Proposta): Promise<string> {
@@ -308,8 +471,12 @@ export async function estagiarProposta(ctx: ContextoEscrita, proposta: Proposta)
     return 'Não consegui preparar essa operação agora (falha interna ao salvar a proposta). Tente de novo.'
   }
 
+  const orientacaoLote = proposta.tipo === 'lote'
+    ? 'Mostre a lista COMPLETA (todos os itens, na ordem) e os totais — não resuma nem omita itens. '
+    : ''
   return (
     `PROPOSTA PENDENTE DE CONFIRMAÇÃO: ${proposta.resumo}\n` +
+    orientacaoLote +
     'Mostre esse resumo ao usuário nesta resposta e pergunte se confirma. NÃO chame confirmar_operacao ' +
     'ou cancelar_operacao agora — isso só acontece numa mensagem FUTURA do usuário, depois que ele responder.'
   )
@@ -336,7 +503,7 @@ async function buscarPendente(ctx: ContextoEscrita): Promise<OperacaoPendente | 
   return (data as OperacaoPendente | null) ?? null
 }
 
-async function registrarLog(ctx: ContextoEscrita, op: OperacaoPendente): Promise<void> {
+async function registrarLog(ctx: ContextoEscrita, op: OperacaoDoLote): Promise<void> {
   const ACAO_POR_TIPO: Record<string, string> = {
     pagamento: 'pagar',
     nova_despesa: 'inserir',
@@ -371,7 +538,7 @@ async function registrarLog(ctx: ContextoEscrita, op: OperacaoPendente): Promise
 }
 
 /** Executa de fato o payload já estagiado — a mesma escrita que a tela faria. */
-async function executarPayload(ctx: ContextoEscrita, op: OperacaoPendente): Promise<{ ok: true } | { ok: false; mensagem: string }> {
+async function executarPayload(ctx: ContextoEscrita, op: OperacaoDoLote): Promise<{ ok: true } | { ok: false; mensagem: string }> {
   const p = op.payload
   const erro = (msg: string) => ({ ok: false as const, mensagem: msg })
 
@@ -473,6 +640,7 @@ export async function confirmarOperacao(ctx: ContextoEscrita, jaProposNesteTurno
   if (!pendente) {
     return 'Não há nenhuma operação pendente para confirmar nesta conversa. Se o usuário quer lançar algo, use a ferramenta propor_* correspondente primeiro.'
   }
+  if (pendente.tipo === 'lote') return confirmarLote(ctx, pendente)
 
   const resultado = await executarPayload(ctx, pendente)
   if (!resultado.ok) {
@@ -485,6 +653,70 @@ export async function confirmarOperacao(ctx: ContextoEscrita, jaProposNesteTurno
   await registrarLog(ctx, pendente)
 
   return `CONFIRMADO E GRAVADO: ${pendente.resumo}. Avise o usuário que foi feito.`
+}
+
+/**
+ * Grava as operações do lote uma a uma, na ordem (um recebimento depois do
+ * outro precisa ver o anterior para decidir se a receita fechou). Não há
+ * transação entre tabelas pelo client do Supabase, então uma falha no meio
+ * não desfaz o que já entrou: o que gravou fica registrado como confirmado, e
+ * só o que falhou continua pendente — um novo "sim" tenta só esses de novo,
+ * sem duplicar os que já foram.
+ */
+async function confirmarLote(ctx: ContextoEscrita, pendente: OperacaoPendente): Promise<string> {
+  const operacoes = (pendente.payload.operacoes as OperacaoDoLote[] | undefined) ?? []
+  const gravadas: OperacaoDoLote[] = []
+  const falhas: { op: OperacaoDoLote; mensagem: string }[] = []
+
+  for (const op of operacoes) {
+    const resultado = await executarPayload(ctx, op)
+    if (resultado.ok) {
+      gravadas.push(op)
+      await registrarLog(ctx, op)
+    } else {
+      falhas.push({ op, mensagem: resultado.mensagem })
+    }
+  }
+
+  const agora = new Date().toISOString()
+  const listaFalhas = falhas.map(f => `- ${f.op.resumo}: ${f.mensagem}`).join('\n')
+
+  if (gravadas.length === 0) {
+    return `Falha ao gravar o lote — nenhuma das ${operacoes.length} operações entrou:\n${listaFalhas}\n` +
+      'O lote continua pendente — o usuário pode tentar confirmar de novo ou cancelar.'
+  }
+
+  if (falhas.length === 0) {
+    await ctx.supabase.from('chat_operacoes')
+      .update({ status: 'confirmada', resolved_at: agora })
+      .eq('id', pendente.id)
+    return `CONFIRMADO E GRAVADO: ${pendente.resumo}\nAs ${operacoes.length} operações foram gravadas. Avise o usuário que foi feito.`
+  }
+
+  // Parcial: a linha original passa a descrever só o que gravou, e o que
+  // falhou vira uma nova pendente — a única desta conversa.
+  const confirmado = combinarPropostas(gravadas.map(op => ({ ok: true as const, ...op })))
+  await ctx.supabase.from('chat_operacoes')
+    .update({ status: 'confirmada', resolved_at: agora, tipo: confirmado.tipo, payload: confirmado.payload, resumo: confirmado.resumo })
+    .eq('id', pendente.id)
+  const restante = combinarPropostas(falhas.map(f => ({ ok: true as const, ...f.op })))
+  const { error } = await ctx.supabase.from('chat_operacoes').insert({
+    conversation_id: ctx.conversationId,
+    tipo: restante.tipo,
+    payload: restante.payload,
+    resumo: restante.resumo,
+    usuario: ctx.usuario,
+  })
+  if (error) console.error('[writeEngine] confirmarLote (restante):', error.message)
+
+  return (
+    `CONFIRMADO E GRAVADO PARCIALMENTE: ${gravadas.length} de ${operacoes.length} operações entraram.\n` +
+    `Gravadas:\n${gravadas.map(op => `- ${op.resumo}`).join('\n')}\n` +
+    `NÃO gravadas:\n${listaFalhas}\n` +
+    (error
+      ? 'As que falharam não puderam ser guardadas para nova tentativa: o usuário precisa pedir de novo.'
+      : 'As que falharam continuam pendentes: diga isso ao usuário e pergunte se quer tentar de novo ou cancelar.')
+  )
 }
 
 export async function cancelarOperacao(ctx: ContextoEscrita): Promise<string> {

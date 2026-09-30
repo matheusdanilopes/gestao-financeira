@@ -44,7 +44,14 @@ import {
   proporAporteInvestimento,
   proporItemMercado,
   proporItemWishlist,
+  proporLote,
+  combinarPropostas,
   estagiarProposta,
+  MAX_ITENS_LOTE,
+  TIPOS_ITEM_LOTE,
+  type ItemLote,
+  type Proposta,
+  type PropostaOk,
   confirmarOperacao,
   cancelarOperacao,
   type ContextoEscrita,
@@ -489,6 +496,60 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
     },
   },
   {
+    name: 'propor_lote',
+    description:
+      'Prepara VÁRIAS operações de uma vez, numa única proposta para o usuário confirmar com um "sim" só. Use sempre ' +
+      'que o pedido tiver mais de um item: uma lista de compras ("coloca arroz, feijão, 2 leites e café na lista"), ' +
+      'várias contas pagas ("paguei luz 150, água 80 e internet 100"), vários recebimentos, despesas e receitas ' +
+      'misturadas. Cada item tem um tipo e os mesmos campos da ferramenta propor_* equivalente. Tudo ou nada: se um ' +
+      `item tiver problema, nada é preparado e a resposta diz qual. Máximo de ${MAX_ITENS_LOTE} itens. ` +
+      'NÃO grava nada ainda — devolve um resumo para confirmação.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        itens: {
+          type: 'ARRAY',
+          description: 'As operações, na ordem em que o usuário falou.',
+          items: {
+            type: 'OBJECT',
+            properties: {
+              tipo: str(
+                'pagamento = pagar despesa já existente; nova_despesa; recebimento = receber receita já existente; ' +
+                'nova_receita; aporte_investimento = investimento já cadastrado; item_mercado = lista de mercado; ' +
+                'item_wishlist = lista de desejos.',
+                [...TIPOS_ITEM_LOTE]
+              ),
+              nome: str(
+                'Em pagamento/recebimento/aporte_investimento: nome (ou parte) do registro existente. Nos demais: ' +
+                'descrição do item novo.'
+              ),
+              valor: num(
+                'Valor pago (pagamento), recebido (recebimento), previsto (nova_despesa/nova_receita), do aporte, ou ' +
+                'estimado (item_wishlist). Não se aplica a item_mercado.'
+              ),
+              quantidade: num('Só item_mercado. Padrão: 1.'),
+              categoria: str('nova_despesa (padrão: Extra) ou item_wishlist.'),
+              responsavel: str(
+                `nova_despesa/nova_receita: de quem é (padrão: quem está falando). pagamento/recebimento: só para ` +
+                `desambiguar. ${RESPONSAVEL}`
+              ),
+              data: str(
+                'AAAA-MM-DD. Data do pagamento, do recebimento ou do aporte (padrão: hoje); vencimento em nova_despesa ' +
+                '(padrão: sem vencimento).'
+              ),
+              mes: str(`Mês de referência (nova_despesa/nova_receita) ou para desambiguar (pagamento/recebimento). ${MES}`),
+              prioridade: str('Só item_wishlist.', ['alta', 'media', 'baixa']),
+              saldoAtual: num('Só aporte_investimento: novo saldo total, se o usuário informar.'),
+              observacao: str('Só aporte_investimento: observação livre.'),
+            },
+            required: ['tipo', 'nome'],
+          },
+        },
+      },
+      required: ['itens'],
+    },
+  },
+  {
     name: 'confirmar_operacao',
     description:
       'Executa de fato a operação pendente mais recente desta conversa (a última que você preparou com um ' +
@@ -533,6 +594,7 @@ const ROTULOS: Record<string, string> = {
   propor_aporte_investimento: 'Preparando aporte',
   propor_item_lista_mercado: 'Preparando item da lista de mercado',
   propor_item_wishlist: 'Preparando item da wishlist',
+  propor_lote: 'Preparando lançamentos em lote',
   confirmar_operacao: 'Gravando operação',
   cancelar_operacao: 'Cancelando operação',
 }
@@ -545,6 +607,9 @@ export function rotuloFerramenta(nome: string, args: Record<string, unknown> = {
   if (typeof args.responsavel === 'string' && args.responsavel.trim()) detalhes.push(args.responsavel.trim().slice(0, 16))
   if (typeof args.cartao === 'string' && args.cartao.trim()) detalhes.push(args.cartao.trim().slice(0, 16))
   if (nome === 'explorar_dados' && typeof args.fonte === 'string') detalhes.unshift(args.fonte.replace(/_/g, ' '))
+  if (nome === 'propor_lote' && Array.isArray(args.itens)) {
+    detalhes.push(`${args.itens.length} ${args.itens.length === 1 ? 'item' : 'itens'}`)
+  }
   return detalhes.length > 0 ? `${base} · ${detalhes.join(' · ')}` : base
 }
 
@@ -561,6 +626,42 @@ const asBool = (v: unknown): boolean | undefined => (typeof v === 'boolean' ? v 
 export interface EstadoTurno {
   /** true assim que qualquer propor_* for chamado nesta rodada de function-calling. */
   propostaNesteTurno: boolean
+  /**
+   * Propostas válidas já estagiadas nesta resposta. Vários propor_* na mesma
+   * resposta se somam num lote, em vez de cada um cancelar o anterior (o
+   * usuário veria todos no texto, mas o "sim" confirmaria só o último).
+   */
+  propostas: PropostaOk[]
+}
+
+/** Estagia a proposta somada às anteriores desta mesma resposta. */
+async function estagiar(escrita: { ctx: ContextoEscrita; estado: EstadoTurno }, proposta: Proposta): Promise<string> {
+  escrita.estado.propostaNesteTurno = true
+  if (!proposta.ok) return await estagiarProposta(escrita.ctx, proposta)
+  const acumuladas = [...escrita.estado.propostas, proposta]
+  const resultado = await estagiarProposta(escrita.ctx, combinarPropostas(acumuladas))
+  if (resultado.startsWith('PROPOSTA PENDENTE')) escrita.estado.propostas = acumuladas
+  return resultado
+}
+
+/** Converte os itens de propor_lote, descartando o que não é objeto. */
+function itensLote(v: unknown): ItemLote[] {
+  if (!Array.isArray(v)) return []
+  return v
+    .filter((i): i is Record<string, unknown> => typeof i === 'object' && i !== null)
+    .map(i => ({
+      tipo: asString(i.tipo)?.trim(),
+      nome: asString(i.nome),
+      valor: asNumber(i.valor),
+      quantidade: asNumber(i.quantidade),
+      categoria: asString(i.categoria),
+      responsavel: asString(i.responsavel),
+      data: asString(i.data),
+      mes: asString(i.mes),
+      prioridade: asString(i.prioridade),
+      saldoAtual: asNumber(i.saldoAtual),
+      observacao: asString(i.observacao),
+    }))
 }
 
 /** Ferramentas que, sem período, olham para todo o histórico de compras/planejamento. */
@@ -759,7 +860,6 @@ export async function executarFerramenta(
         })
 
       case 'propor_pagamento': {
-        escrita.estado.propostaNesteTurno = true
         const proposta = proporPagamento(data, refs, {
           busca: asString(args.busca),
           valorPago: asNumber(args.valorPago),
@@ -767,11 +867,10 @@ export async function executarFerramenta(
           mes: asString(args.mes),
           responsavel: asString(args.responsavel),
         })
-        return await estagiarProposta(escrita.ctx, proposta)
+        return await estagiar(escrita, proposta)
       }
 
       case 'propor_nova_despesa': {
-        escrita.estado.propostaNesteTurno = true
         const proposta = proporNovaDespesa(refs, {
           descricao: asString(args.descricao),
           valor: asNumber(args.valor),
@@ -780,11 +879,10 @@ export async function executarFerramenta(
           dataVencimento: asString(args.dataVencimento),
           mes: asString(args.mes),
         }, escrita.ctx.responsavelPadrao ?? undefined)
-        return await estagiarProposta(escrita.ctx, proposta)
+        return await estagiar(escrita, proposta)
       }
 
       case 'propor_recebimento': {
-        escrita.estado.propostaNesteTurno = true
         const proposta = proporRecebimento(data, refs, {
           busca: asString(args.busca),
           valor: asNumber(args.valor),
@@ -792,22 +890,20 @@ export async function executarFerramenta(
           mes: asString(args.mes),
           responsavel: asString(args.responsavel),
         })
-        return await estagiarProposta(escrita.ctx, proposta)
+        return await estagiar(escrita, proposta)
       }
 
       case 'propor_nova_receita': {
-        escrita.estado.propostaNesteTurno = true
         const proposta = proporNovaReceita(refs, {
           descricao: asString(args.descricao),
           valor: asNumber(args.valor),
           responsavel: asString(args.responsavel),
           mes: asString(args.mes),
         }, escrita.ctx.responsavelPadrao ?? undefined)
-        return await estagiarProposta(escrita.ctx, proposta)
+        return await estagiar(escrita, proposta)
       }
 
       case 'propor_aporte_investimento': {
-        escrita.estado.propostaNesteTurno = true
         const proposta = proporAporteInvestimento(data, refs, {
           busca: asString(args.busca),
           valor: asNumber(args.valor),
@@ -815,27 +911,30 @@ export async function executarFerramenta(
           saldoAtual: asNumber(args.saldoAtual),
           observacao: asString(args.observacao),
         })
-        return await estagiarProposta(escrita.ctx, proposta)
+        return await estagiar(escrita, proposta)
       }
 
       case 'propor_item_lista_mercado': {
-        escrita.estado.propostaNesteTurno = true
         const proposta = proporItemMercado({
           nome: asString(args.nome),
           quantidade: asNumber(args.quantidade),
         })
-        return await estagiarProposta(escrita.ctx, proposta)
+        return await estagiar(escrita, proposta)
       }
 
       case 'propor_item_wishlist': {
-        escrita.estado.propostaNesteTurno = true
         const proposta = proporItemWishlist({
           nome: asString(args.nome),
           valorEstimado: asNumber(args.valorEstimado),
           categoria: asString(args.categoria),
           prioridade: asString(args.prioridade),
         })
-        return await estagiarProposta(escrita.ctx, proposta)
+        return await estagiar(escrita, proposta)
+      }
+
+      case 'propor_lote': {
+        const proposta = proporLote(data, refs, itensLote(args.itens), escrita.ctx.responsavelPadrao ?? undefined)
+        return await estagiar(escrita, proposta)
       }
 
       case 'confirmar_operacao': {
