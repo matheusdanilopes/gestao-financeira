@@ -47,7 +47,7 @@ export interface RodadaGemini {
 export class GeminiError extends Error {
   constructor(
     message: string,
-    readonly codigo: 'QUOTA' | 'OVERLOADED' | 'TIMEOUT' | 'CONFIG' | 'DESCONHECIDO',
+    readonly codigo: 'QUOTA' | 'CREDITOS' | 'OVERLOADED' | 'TIMEOUT' | 'CONFIG' | 'DESCONHECIDO',
     readonly detalhes?: { diaria?: boolean; segundos?: number | null }
   ) {
     super(message)
@@ -67,6 +67,11 @@ function classificarErroHttp(status: number, corpo: string): GeminiError | null 
       diaria: corpo.includes('PerDay'),
       segundos: match ? parseInt(match[1], 10) : null,
     })
+  }
+  // Créditos pré-pagos do projeto esgotados: só volta quando houver recarga no
+  // AI Studio. Sem isto o 402 era retentado e terminava como "TIMEOUT".
+  if (status === 402) {
+    return new GeminiError(`Créditos do Gemini esgotados: ${corpo.slice(0, 300)}`, 'CREDITOS')
   }
   // Erros definitivos de cliente não devem ser retentados.
   if (status === 400 || status === 401 || status === 403 || status === 404) {
