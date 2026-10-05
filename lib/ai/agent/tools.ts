@@ -15,6 +15,7 @@
  * Aqui o modelo enxerga TODO o espaço de consulta desde a primeira mensagem.
  */
 
+import type { EnrichedData } from '../types'
 import type { GatewayDados } from '../data/gateway'
 import { descreverFontes, IDS_FONTES } from '../data/catalogo'
 import { explorarDados, OPERADORES, AGRUPAMENTOS_TEMPO } from './explorador'
@@ -45,6 +46,7 @@ import {
   proporItemMercado,
   proporItemWishlist,
   proporLote,
+  avisosDeDuplicidade,
   combinarPropostas,
   estagiarProposta,
   MAX_ITENS_LOTE,
@@ -635,11 +637,14 @@ export interface EstadoTurno {
 }
 
 /** Estagia a proposta somada às anteriores desta mesma resposta. */
-async function estagiar(escrita: { ctx: ContextoEscrita; estado: EstadoTurno }, proposta: Proposta): Promise<string> {
+async function estagiar(
+  escrita: { ctx: ContextoEscrita; estado: EstadoTurno }, data: EnrichedData, proposta: Proposta
+): Promise<string> {
   escrita.estado.propostaNesteTurno = true
   if (!proposta.ok) return await estagiarProposta(escrita.ctx, proposta)
   const acumuladas = [...escrita.estado.propostas, proposta]
-  const resultado = await estagiarProposta(escrita.ctx, combinarPropostas(acumuladas))
+  const combinada = combinarPropostas(acumuladas)
+  const resultado = await estagiarProposta(escrita.ctx, combinada, avisosDeDuplicidade(data, combinada))
   if (resultado.startsWith('PROPOSTA PENDENTE')) escrita.estado.propostas = acumuladas
   return resultado
 }
@@ -867,7 +872,7 @@ export async function executarFerramenta(
           mes: asString(args.mes),
           responsavel: asString(args.responsavel),
         })
-        return await estagiar(escrita, proposta)
+        return await estagiar(escrita, data, proposta)
       }
 
       case 'propor_nova_despesa': {
@@ -879,7 +884,7 @@ export async function executarFerramenta(
           dataVencimento: asString(args.dataVencimento),
           mes: asString(args.mes),
         }, escrita.ctx.responsavelPadrao ?? undefined)
-        return await estagiar(escrita, proposta)
+        return await estagiar(escrita, data, proposta)
       }
 
       case 'propor_recebimento': {
@@ -890,7 +895,7 @@ export async function executarFerramenta(
           mes: asString(args.mes),
           responsavel: asString(args.responsavel),
         })
-        return await estagiar(escrita, proposta)
+        return await estagiar(escrita, data, proposta)
       }
 
       case 'propor_nova_receita': {
@@ -900,7 +905,7 @@ export async function executarFerramenta(
           responsavel: asString(args.responsavel),
           mes: asString(args.mes),
         }, escrita.ctx.responsavelPadrao ?? undefined)
-        return await estagiar(escrita, proposta)
+        return await estagiar(escrita, data, proposta)
       }
 
       case 'propor_aporte_investimento': {
@@ -911,7 +916,7 @@ export async function executarFerramenta(
           saldoAtual: asNumber(args.saldoAtual),
           observacao: asString(args.observacao),
         })
-        return await estagiar(escrita, proposta)
+        return await estagiar(escrita, data, proposta)
       }
 
       case 'propor_item_lista_mercado': {
@@ -919,7 +924,7 @@ export async function executarFerramenta(
           nome: asString(args.nome),
           quantidade: asNumber(args.quantidade),
         })
-        return await estagiar(escrita, proposta)
+        return await estagiar(escrita, data, proposta)
       }
 
       case 'propor_item_wishlist': {
@@ -929,12 +934,12 @@ export async function executarFerramenta(
           categoria: asString(args.categoria),
           prioridade: asString(args.prioridade),
         })
-        return await estagiar(escrita, proposta)
+        return await estagiar(escrita, data, proposta)
       }
 
       case 'propor_lote': {
         const proposta = proporLote(data, refs, itensLote(args.itens), escrita.ctx.responsavelPadrao ?? undefined)
-        return await estagiar(escrita, proposta)
+        return await estagiar(escrita, data, proposta)
       }
 
       case 'confirmar_operacao': {

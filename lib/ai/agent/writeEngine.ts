@@ -34,7 +34,7 @@
 import { format } from 'date-fns'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { EnrichedData } from '../types'
-import { casaBusca, normalizar, normalizarMes, type Referencias } from './queryEngine'
+import { casaBusca, distanciaEdicao, normalizar, normalizarMes, type Referencias } from './queryEngine'
 import { formatBRL } from '../../format'
 
 // Sessão do usuário (app) ou service role (webhook do Telegram).
@@ -446,9 +446,136 @@ export function proporLote(data: EnrichedData, refs: Referencias, itens: ItemLot
   return combinarPropostas(propostas)
 }
 
+// ─── Duplicados: inclusões parecidas com algo que já existe ──────────────────
+// "Lança a internet de 100" quando a internet do mês já está lá, ou o mesmo
+// leite pedido duas vezes no Telegram, não pode virar uma segunda linha sem o
+// usuário saber. A proposta continua sendo preparada — às vezes são mesmo duas
+// coisas —, mas o retorno lista o que já existe para a IA perguntar se inclui
+// mesmo assim.
+
+/** Mesmo nome com outra grafia: um contém o outro, ou 1–2 letras de diferença (nomes curtos: só iguais). */
+function nomesParecidos(a: string, b: string): boolean {
+  const na = normalizar(a).replace(/\s+/g, ' ')
+  const nb = normalizar(b).replace(/\s+/g, ' ')
+  if (!na || !nb) return false
+  if (na === nb) return true
+  const menor = na.length <= nb.length ? na : nb
+  if (menor.length >= 3 && (casaBusca(a, b) || casaBusca(b, a))) return true
+  const tolerancia = menor.length <= 3 ? 0 : menor.length <= 5 ? 1 : 2
+  return distanciaEdicao(na, nb) <= tolerancia
+}
+
+const mesmoValor = (a: unknown, b: unknown) =>
+  typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) <= 0.01
+
+const semPrefixoReceita = (item: string) => item.replace(RECEITA_PREFIXO, '')
+
+/** O que já existe no banco parecido com a inclusão `op` (vazio quando não é inclusão). */
+function existentesParecidos(data: EnrichedData, op: OperacaoDoLote): string[] {
+  const p = op.payload
+  switch (op.tipo) {
+    case 'nova_despesa':
+    case 'nova_receita': {
+      const receita = op.tipo === 'nova_receita'
+      const mes = String(p.mes_referencia ?? '').substring(0, 7)
+      const nome = semPrefixoReceita(String(p.item ?? ''))
+      return data.planejamento
+        .filter(x =>
+          (x.item ?? '').startsWith(RECEITA_PREFIXO) === receita &&
+          (x.mes_referencia ?? '').substring(0, 7) === mes &&
+          nomesParecidos(semPrefixoReceita(x.item ?? ''), nome)
+        )
+        .map(x => `"${semPrefixoReceita(x.item)}" em ${mes} (${x.responsavel ?? 'sem responsável'}, ${R(x.valor_previsto)}` +
+          `${receita ? (x.pago ? ', já recebida' : '') : (x.pago ? ', já paga' : ', em aberto')})`)
+    }
+
+    case 'item_mercado':
+      return (data.mercado ?? [])
+        .filter(x => !x.comprado && nomesParecidos(x.nome, String(p.nome ?? '')))
+        .map(x => `"${x.nome}" na lista de mercado (quantidade ${x.quantidade}, ainda não comprado)`)
+
+    case 'item_wishlist':
+      return (data.desejos ?? [])
+        .filter(x => !x.realizado && nomesParecidos(x.nome, String(p.nome ?? '')))
+        .map(x => `"${x.nome}" na wishlist${x.valor_estimado ? ` (${R(x.valor_estimado)})` : ''}`)
+
+    case 'aporte_investimento': {
+      // O mesmo investimento aparece em várias linhas (uma por mês): vale
+      // qualquer uma com o mesmo nome. Mesmo valor no mesmo mês = suspeito.
+      const escolhido = data.investimentos.find(i => i.id === p.investimento_id)
+      if (!escolhido) return []
+      const ids = new Set(data.investimentos
+        .filter(i => normalizar(i.descricao) === normalizar(escolhido.descricao))
+        .map(i => i.id))
+      const mes = String(p.data_aporte ?? '').substring(0, 7)
+      return data.aportes
+        .filter(x => ids.has(x.investimento_id) && (x.data_aporte ?? '').substring(0, 7) === mes && mesmoValor(Number(x.valor), p.valor))
+        .map(x => `aporte de ${R(Number(x.valor))} em "${escolhido.descricao}" em ${fmtDataBR(x.data_aporte)}`)
+    }
+
+    case 'recebimento': {
+      const receita = data.planejamento.find(x => x.id === p.planejamento_id)
+      return (data.recebimentos ?? [])
+        .filter(x => x.planejamento_id === p.planejamento_id && mesmoValor(Number(x.valor), p.valor))
+        .map(x => `recebimento de ${R(Number(x.valor))} em "${semPrefixoReceita(receita?.item ?? '')}"` +
+          (x.data_recebimento ? ` em ${fmtDataBR(x.data_recebimento)}` : ''))
+    }
+
+    default:
+      return []
+  }
+}
+
+/** Duas inclusões da mesma proposta que parecem ser a mesma coisa repetida na fala. */
+function repetidasNaProposta(a: OperacaoDoLote, b: OperacaoDoLote): boolean {
+  if (a.tipo !== b.tipo) return false
+  const pa = a.payload, pb = b.payload
+  switch (a.tipo) {
+    case 'nova_despesa':
+    case 'nova_receita':
+      return pa.mes_referencia === pb.mes_referencia && nomesParecidos(String(pa.item ?? ''), String(pb.item ?? ''))
+    case 'item_mercado':
+    case 'item_wishlist':
+      return nomesParecidos(String(pa.nome ?? ''), String(pb.nome ?? ''))
+    case 'aporte_investimento':
+      return pa.investimento_id === pb.investimento_id && mesmoValor(pa.valor, pb.valor)
+    case 'recebimento':
+      return pa.planejamento_id === pb.planejamento_id && mesmoValor(pa.valor, pb.valor)
+    default:
+      return false
+  }
+}
+
+/**
+ * Avisos de possíveis duplicados de uma proposta: inclusões parecidas com o que
+ * já está gravado e itens repetidos dentro do próprio lote. Vazio = nada suspeito.
+ */
+export function avisosDeDuplicidade(data: EnrichedData, proposta: Proposta): string[] {
+  if (!proposta.ok) return []
+  const operacoes = operacoesDe(proposta)
+  const lote = operacoes.length > 1
+  const rotulo = (i: number) => lote ? `Item ${i + 1} (${operacoes[i].resumo})` : operacoes[i].resumo
+  const avisos: string[] = []
+
+  operacoes.forEach((op, i) => {
+    const existentes = existentesParecidos(data, op)
+    if (existentes.length > 0) {
+      const lista = existentes.slice(0, 5).join('; ') + (existentes.length > 5 ? ` e mais ${existentes.length - 5}` : '')
+      avisos.push(`${rotulo(i)} — já existe: ${lista}`)
+    }
+    const repetidas = operacoes
+      .map((outra, j) => (j > i && repetidasNaProposta(op, outra) ? j + 1 : 0))
+      .filter(Boolean)
+    if (repetidas.length > 0) {
+      avisos.push(`${rotulo(i)} — parece repetido no próprio pedido: item(ns) ${repetidas.join(', ')}`)
+    }
+  })
+  return avisos
+}
+
 // ─── Estágio: grava a proposta como pendente, sem executar nada ──────────────
 
-export async function estagiarProposta(ctx: ContextoEscrita, proposta: Proposta): Promise<string> {
+export async function estagiarProposta(ctx: ContextoEscrita, proposta: Proposta, avisosDuplicidade: string[] = []): Promise<string> {
   if (!proposta.ok) return proposta.mensagem
 
   // Uma proposta nova cancela qualquer pendente anterior desta conversa: só
@@ -474,9 +601,15 @@ export async function estagiarProposta(ctx: ContextoEscrita, proposta: Proposta)
   const orientacaoLote = proposta.tipo === 'lote'
     ? 'Mostre a lista COMPLETA (todos os itens, na ordem) e os totais — não resuma nem omita itens. '
     : ''
+  const orientacaoDuplicidade = avisosDuplicidade.length > 0
+    ? `ATENÇÃO — POSSÍVEL DUPLICIDADE:\n${avisosDuplicidade.map(a => `- ${a}`).join('\n')}\n` +
+      'Avise o usuário disso com destaque, mostrando o que já existe, e pergunte se quer incluir MESMO ASSIM ' +
+      '(ou se prefere tirar o item repetido / cancelar). '
+    : ''
   return (
     `PROPOSTA PENDENTE DE CONFIRMAÇÃO: ${proposta.resumo}\n` +
     orientacaoLote +
+    orientacaoDuplicidade +
     'Mostre esse resumo ao usuário nesta resposta e pergunte se confirma. NÃO chame confirmar_operacao ' +
     'ou cancelar_operacao agora — isso só acontece numa mensagem FUTURA do usuário, depois que ele responder.'
   )
