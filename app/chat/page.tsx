@@ -19,7 +19,6 @@ import { Composer } from '@/components/chat/Composer'
 import { ConversationDrawer } from '@/components/chat/ConversationDrawer'
 import { ChatEmptyState } from '@/components/chat/ChatEmptyState'
 import { useChatFinanceiro } from '@/lib/useChatFinanceiro'
-import { useInsights } from '@/lib/useInsights'
 import { useVoice } from '@/lib/useVoice'
 
 const FOLLOWUPS = [
@@ -35,7 +34,6 @@ const MARGEM_AUTOSCROLL = 160
 
 export default function ChatPage() {
   const chat = useChatFinanceiro('geral')
-  const { insights } = useInsights()
   const voz = useVoice()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -252,7 +250,7 @@ export default function ChatPage() {
             ))}
           </div>
         ) : vazio ? (
-          <ChatEmptyState insights={insights} onEscolher={enviar} />
+          <ChatEmptyState onEscolher={enviar} />
         ) : (
           <>
             {chat.restaurada && (

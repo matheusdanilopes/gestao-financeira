@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
-import { format, startOfMonth, endOfMonth, addMonths, subMonths, isSameMonth } from 'date-fns'
+import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
 import { valorEfetivoNoMes } from '@/lib/assinaturaValor'
 import { classificarTipoGasto, somarValorFatura, type TipoGasto } from '@/lib/composicaoFatura'
@@ -14,7 +14,6 @@ import { useMes } from '@/components/MesProvider'
 import MonthSelector from '@/components/MonthSelector'
 import UltimaImportacaoInfo from '@/components/UltimaImportacaoInfo'
 import type { ComposicaoFaturaDados } from '@/components/ComposicaoFaturaModal'
-import { useInsights } from '@/lib/useInsights'
 import dynamic from 'next/dynamic'
 
 const GraficoProjecao = dynamic(() => import('@/components/GraficoProjecao'), {
@@ -82,22 +81,6 @@ import LazyRender from '@/components/LazyRender'
 const DrawerDetalhes = dynamic(() => import('@/components/DrawerDetalhes'), { ssr: false })
 const ComposicaoFaturaModal = dynamic(() => import('@/components/ComposicaoFaturaModal'), { ssr: false })
 const PeriodSelectorSheet = dynamic(() => import('@/components/PeriodSelectorSheet'), { ssr: false })
-const InsightsCard = dynamic(() => import('@/components/InsightsCard'), {
-  ssr: false,
-  loading: () => (
-    <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 animate-pulse">
-      <div className="flex items-center gap-2 mb-4">
-        <div className="w-8 h-8 bg-gray-100 rounded-xl shrink-0" />
-        <div className="h-4 bg-gray-100 rounded-full w-32" />
-        <div className="ml-auto h-5 bg-gray-100 rounded-full w-14" />
-      </div>
-      <div className="space-y-3">
-        <div className="h-[88px] bg-gray-100 rounded-2xl" />
-        <div className="h-[88px] bg-gray-100 rounded-2xl" />
-      </div>
-    </div>
-  ),
-})
 const GraficoAnual = dynamic(() => import('@/components/GraficoAnual'), {
   ssr: false,
   loading: () => <div className="h-64 skeleton rounded-2xl" />,
@@ -115,14 +98,6 @@ import { estiloResponsavel, ordenarResponsaveis } from '@/lib/responsavelStyle'
 import BlocoFaturaPrincipal, {
   type BlocoPrincipal, type ProjecaoItem, type ComposicaoGastos, type AssinDivergente,
 } from '@/components/BlocoFaturaPrincipal'
-
-// Isola a chamada do hook (fetch + Realtime) num componente à parte, montado só
-// quando o card de insights é exibido — chamar useInsights() direto no Dashboard
-// faria o fetch/subscribe rodar mesmo fora do mês atual, quando o card não aparece.
-function DashboardInsights() {
-  const insightsState = useInsights()
-  return <InsightsCard state={insightsState} title="Insights por IA" />
-}
 
 /** Um cartão extra (Cartão 1/2): agregado por cartão, não por responsável. */
 interface BlocoCartaoExtra {
@@ -1026,10 +1001,7 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* ── 4. Insights com IA ── */}
-          {isSameMonth(mesAtual, new Date()) && <DashboardInsights />}
-
-          {/* ── 5. Investimentos ── */}
+          {/* ── 4. Investimentos ── */}
           {(carregando || investimentos.length > 0) && (
             <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
               <div className="flex items-center justify-between mb-4">
