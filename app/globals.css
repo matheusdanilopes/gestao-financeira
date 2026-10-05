@@ -661,52 +661,6 @@ html {
   animation: fatura-highlight 1.6s ease-out 0.2s 2;
 }
 
-/* ─── Insights Card animations ───────────────────────────────────────────── */
-
-/* Ambient glow breathes slowly */
-@keyframes insight-glow {
-  0%, 100% { opacity: 0.45; transform: scale(1);    }
-  50%       { opacity: 0.80; transform: scale(1.25); }
-}
-.insight-glow-pulse {
-  animation: insight-glow 3.5s ease-in-out infinite;
-}
-
-/* Emoji icon gently floats up-down — stagger via animationDelay */
-@keyframes insight-float {
-  0%, 100% { transform: translateY(0px);  }
-  50%       { transform: translateY(-3px); }
-}
-.insight-float {
-  animation: insight-float 2.8s ease-in-out infinite;
-}
-
-/* Pulso de borda violeta quando um insight mudou de conteúdo */
-@keyframes insight-new-flash {
-  0%   { box-shadow: 0 0 0 0   rgba(139, 92, 246, 0.55); }
-  40%  { box-shadow: 0 0 0 8px rgba(139, 92, 246, 0.12); }
-  100% { box-shadow: 0 0 0 0   rgba(139, 92, 246, 0); }
-}
-.insight-new-flash {
-  animation: insight-new-flash 1.5s ease-out;
-}
-
-/* ─── Insights carousel — slide vertical infinito ────────────────────────── */
-@keyframes carousel-out-up {
-  from { transform: translateY(0);     opacity: 1; }
-  to   { transform: translateY(-115%); opacity: 0; }
-}
-@keyframes carousel-in-up {
-  from { transform: translateY(115%);  opacity: 0; }
-  to   { transform: translateY(0);     opacity: 1; }
-}
-.carousel-out-up {
-  animation: carousel-out-up 0.48s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-.carousel-in-up {
-  animation: carousel-in-up  0.44s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-}
-
 /* ─── WishlistCard — saída ao realizar ──────────────────────────────────── */
 @keyframes card-realize-exit {
   0%   { opacity: 1; transform: scale(1)    translateZ(0); }
