@@ -10,9 +10,9 @@
  * lib/telegram/botApi.ts) com um segredo derivado do token do bot, conferido
  * aqui em cada update.
  *
- * Depois de responder, a mesma execução espera o atraso configurado e apaga
- * do chat o que já está guardado no histórico (lib/telegram/autolimpeza.ts).
- * O que não couber no tempo fica para a rotina /api/telegram/limpeza.
+ * Depois de responder, a mesma execução apaga do chat o que já venceu (e
+ * espera o que vencer dentro do maxDuration — ver lib/telegram/autolimpeza.ts).
+ * O resto fica para a rotina /api/telegram/limpeza.
  */
 
 import { NextRequest, NextResponse, after } from 'next/server'
@@ -21,7 +21,7 @@ import { processarUpdate, limparDedupe, type UpdateTelegram } from '@/lib/telegr
 import { apagarDentroDoPrazo } from '@/lib/telegram/autolimpeza'
 import { criarSupabaseAdmin } from '@/lib/supabaseAdmin'
 
-/** Turno (até 75 s) + atraso padrão de 60 s para apagar a resposta. */
+/** Turno (até 75 s) + folga para apagar o que vencer logo depois. */
 export const maxDuration = 150
 export const dynamic = 'force-dynamic'
 
