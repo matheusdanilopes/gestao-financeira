@@ -67,15 +67,14 @@ Quem conectou o Telegram também recebe por lá os avisos do app, com um botão 
 
 O chat do Telegram não acumula conversa: o histórico real fica no app (*Chat → Histórico*, com o selo **Telegram**). Cada mensagem que chega ou que o bot envia é gravada na tabela `messages` e só **depois** entra na fila de exclusão `telegram_mensagens` — se a gravação falhar, a mensagem fica no Telegram.
 
-- **Recebidas** somem logo após processadas; **respostas** somem depois de `TELEGRAM_APAGAR_RESPOSTAS_APOS_S` segundos (padrão 60). Mensagens com **Confirmar/Cancelar** esperam o toque (ou 24 h).
-- O webhook espera o atraso e apaga na mesma execução. A rotina `/api/telegram/limpeza` recolhe o que ficou pendente: pelo `pg_cron` do Supabase a cada minuto (`supabase/cron_telegram_limpeza.sql`, só chama o app quando há exclusão vencida) e pelo Vercel Cron uma vez por dia.
+- Nada some enquanto a conversa está ativa: cada mensagem nova (sua ou do bot) adia a limpeza do chat inteiro. A conversa sai do Telegram `TELEGRAM_APAGAR_APOS_INATIVIDADE_S` segundos depois da última mensagem (padrão 300 = 5 min). Mensagens com **Confirmar/Cancelar** esperam o toque (ou 24 h).
+- Quem apaga é a rotina `/api/telegram/limpeza`, pelo `pg_cron` do Supabase a cada minuto (`supabase/cron_telegram_limpeza.sql`, só chama o app quando há exclusão vencida) e pelo Vercel Cron uma vez por dia. O webhook também apaga o que já venceu ao terminar cada resposta.
 - Falhas (limite de requisições, erro do Telegram, rede) ficam registradas em `ultimo_erro` e são tentadas de novo com espera progressiva (30 s, 1 min, 2 min… até 6 h). O Telegram só apaga mensagens com menos de 48 h: as mais antigas viram `nao_apagavel`, sem nova tentativa.
 
 | Variável | Para quê |
 |---|---|
 | `TELEGRAM_CHATS_PERMITIDOS` | chat_ids aceitos, separados por vírgula. Qualquer outro chat é ignorado em silêncio. Vazia: vale só o vínculo. |
-| `TELEGRAM_APAGAR_RESPOSTAS_APOS_S` | atraso para apagar as respostas do bot (padrão `60`). |
-| `TELEGRAM_APAGAR_RECEBIDAS_APOS_S` | atraso para apagar as mensagens recebidas (padrão `0`). |
+| `TELEGRAM_APAGAR_APOS_INATIVIDADE_S` | segundos sem mensagens até a conversa sumir do Telegram (padrão `300`). |
 | `TELEGRAM_AUTOLIMPEZA` | `off` desliga o agendamento de novas exclusões. |
 | `TELEGRAM_LIMPEZA_SECRET` | segredo do `pg_cron` para chamar `/api/telegram/limpeza` (o Vercel Cron usa o `CRON_SECRET`). |
 

@@ -28,7 +28,7 @@ import {
   type BotaoInline,
 } from './botApi'
 import { markdownParaHtmlTelegram, markdownParaTextoPuro, dividirMarkdown } from './formatacao'
-import { agendarExclusao, liberarAposToque, atrasoRecebidasMs, atrasoRespostasMs } from './autolimpeza'
+import { agendarExclusao, adiarConversa, liberarAposToque } from './autolimpeza'
 
 // ─── Formato (parcial) dos updates da Bot API ────────────────────────────────
 
@@ -165,7 +165,6 @@ async function responder(reg: Registro, markdown: string, opcoes: OpcoesResposta
         direcao: 'enviada',
         mensagemAppId: appId,
         data: enviada.date,
-        atrasoMs: atrasoRespostasMs(),
         aguardandoToque: Boolean(botoes),
       })
     }
@@ -437,6 +436,8 @@ export async function processarUpdate(
   const chatDoUpdate = update.message?.chat.id ?? update.callback_query?.message?.chat.id
   if (!chatPermitido(chatDoUpdate)) return
   if (!(await registrarRecebimento(admin, update.update_id))) return
+  // A conversa continua: nada do chat some enquanto este turno roda.
+  if (typeof chatDoUpdate === 'number') await adiarConversa(admin, chatDoUpdate)
 
   if (update.callback_query) {
     await processarCallback(admin, update.callback_query, deadlineMs)
@@ -522,7 +523,6 @@ export async function processarUpdate(
         direcao: 'recebida',
         mensagemAppId: entrada.id,
         data: msg.date,
-        atrasoMs: atrasoRecebidasMs(),
       })
     }
   }

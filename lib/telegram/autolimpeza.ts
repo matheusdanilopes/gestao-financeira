@@ -4,15 +4,18 @@
  * O histórico real fica no app (tabela messages); o chat do Telegram só
  * mostra a conversa enquanto ela acontece. Cada mensagem vira uma linha em
  * telegram_mensagens — sempre DEPOIS de gravada no histórico — e é apagada
- * quando apagar_em vence:
+ * quando apagar_em vence.
  *
- *   recebidas → TELEGRAM_APAGAR_RECEBIDAS_APOS_S depois de processadas (padrão 0)
- *   enviadas  → TELEGRAM_APAGAR_RESPOSTAS_APOS_S depois de enviadas (padrão 60)
- *   com botões Confirmar/Cancelar → só depois do toque (ou em 24 h)
+ * O prazo conta da INATIVIDADE do chat, não de cada mensagem: enquanto a
+ * conversa continua, nada some — cada mensagem nova (recebida ou enviada)
+ * empurra o prazo de todo o chat. Ela inteira sai
+ * TELEGRAM_APAGAR_APOS_INATIVIDADE_S depois da última mensagem (padrão 300).
+ * Mensagens com Confirmar/Cancelar só entram nesse prazo depois do toque (ou
+ * somem em 24 h).
  *
- * Quem apaga: o próprio webhook, que espera o atraso na mesma execução, e a
- * rotina /api/telegram/limpeza, que recolhe o que ficou pendente. Nada aqui
- * lança erro — uma exclusão que falha nunca derruba a resposta do bot.
+ * Quem apaga: a rotina /api/telegram/limpeza (pg_cron a cada minuto) e o
+ * próprio webhook, que apaga o que já venceu ao terminar. Nada aqui lança
+ * erro — uma exclusão que falha nunca derruba a resposta do bot.
  *
  * TELEGRAM_AUTOLIMPEZA=off desliga o agendamento de novas exclusões.
  */
@@ -56,8 +59,8 @@ function segundosDoEnv(nome: string, padrao: number): number {
   return Number.isFinite(n) && n >= 0 ? n : padrao
 }
 
-export const atrasoRespostasMs = () => segundosDoEnv('TELEGRAM_APAGAR_RESPOSTAS_APOS_S', 60) * 1000
-export const atrasoRecebidasMs = () => segundosDoEnv('TELEGRAM_APAGAR_RECEBIDAS_APOS_S', 0) * 1000
+/** Tempo sem mensagens no chat até a conversa sumir do Telegram. */
+const atrasoInatividadeMs = () => segundosDoEnv('TELEGRAM_APAGAR_APOS_INATIVIDADE_S', 300) * 1000
 
 export interface MensagemParaApagar {
   chatId: number
@@ -67,15 +70,33 @@ export interface MensagemParaApagar {
   mensagemAppId: string
   /** Unix time (segundos) do Telegram. */
   data: number
-  atrasoMs: number
   aguardandoToque?: boolean
+}
+
+/**
+ * Conversa ativa: empurra o prazo de tudo que está na fila deste chat para
+ * daqui a TELEGRAM_APAGAR_APOS_INATIVIDADE_S. Mensagens com botões (esperam o
+ * toque) e reagendadas por falha (seguem a espera progressiva) ficam como estão.
+ */
+export async function adiarConversa(admin: SupabaseClient, chatId: number): Promise<void> {
+  if (!autolimpezaAtiva()) return
+  const novo = new Date(Date.now() + atrasoInatividadeMs()).toISOString()
+  const { error } = await admin
+    .from('telegram_mensagens')
+    .update({ apagar_em: novo })
+    .eq('chat_id', chatId)
+    .eq('status', 'pendente')
+    .eq('aguardando_toque', false)
+    .eq('tentativas', 0)
+    .lt('apagar_em', novo)
+  if (error) console.error('[telegram] adiar exclusão da conversa:', error.message)
 }
 
 /** Põe uma mensagem na fila de exclusão. Falhas só vão para o log. */
 export async function agendarExclusao(admin: SupabaseClient, m: MensagemParaApagar): Promise<void> {
   if (!autolimpezaAtiva()) return
   const agora = Date.now()
-  const apagarEm = agora + (m.aguardandoToque ? ESPERA_TOQUE_MS : m.atrasoMs)
+  const apagarEm = agora + (m.aguardandoToque ? ESPERA_TOQUE_MS : atrasoInatividadeMs())
   const { error } = await admin.from('telegram_mensagens').upsert(
     {
       chat_id: m.chatId,
@@ -89,15 +110,16 @@ export async function agendarExclusao(admin: SupabaseClient, m: MensagemParaApag
     { onConflict: 'chat_id,message_id', ignoreDuplicates: true }
   )
   if (error) console.error('[telegram] agendar exclusão:', error.message)
+  await adiarConversa(admin, m.chatId)
 }
 
-/** Toque em Confirmar/Cancelar: a mensagem com os botões entra no prazo normal. */
+/** Toque em Confirmar/Cancelar: a mensagem com os botões entra no prazo da conversa. */
 export async function liberarAposToque(admin: SupabaseClient, chatId: number, messageId: number): Promise<void> {
   const { error } = await admin
     .from('telegram_mensagens')
     .update({
       aguardando_toque: false,
-      apagar_em: new Date(Date.now() + atrasoRespostasMs()).toISOString(),
+      apagar_em: new Date(Date.now() + atrasoInatividadeMs()).toISOString(),
     })
     .eq('chat_id', chatId)
     .eq('message_id', messageId)

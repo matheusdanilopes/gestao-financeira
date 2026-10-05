@@ -6,8 +6,8 @@
 -- bot só entra nesta fila DEPOIS de gravada em messages — e sai do Telegram
 -- quando apagar_em vence:
 --
---   recebidas  → logo após processadas (TELEGRAM_APAGAR_RECEBIDAS_APOS_S, padrão 0)
---   enviadas   → TELEGRAM_APAGAR_RESPOSTAS_APOS_S depois (padrão 60)
+--   conversa   → TELEGRAM_APAGAR_APOS_INATIVIDADE_S depois da última mensagem
+--                do chat (padrão 300); cada mensagem nova adia o chat inteiro
 --   com botões → só depois do toque em Confirmar/Cancelar (ou em 24 h)
 --
 -- A Bot API só apaga mensagens com menos de 48 h: passou disso, a linha vira

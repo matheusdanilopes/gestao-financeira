@@ -146,6 +146,8 @@ export function descreverErro(err: unknown): ErroDescrito {
               ? `Muitas perguntas em pouco tempo. Tente de novo em ${err.detalhes.segundos}s.`
               : 'Muitas perguntas em pouco tempo. Aguarde alguns segundos e tente de novo.',
         }
+      case 'CREDITOS':
+        return { codigo: 'CREDITOS', mensagem: 'Os créditos da IA (Gemini) acabaram. Ela volta a responder assim que o saldo for recarregado no Google AI Studio.' }
       case 'OVERLOADED':
         return { codigo: 'OVERLOADED', mensagem: 'O serviço de IA está congestionado. Já tentei algumas vezes — tente de novo em instantes.' }
       case 'TIMEOUT':
