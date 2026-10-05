@@ -230,7 +230,7 @@ export class FiltroInvalido extends Error {
 /** Palavras que o modelo às vezes manda querendo dizer "sem filtro". */
 const SEM_FILTRO = new Set(['todos', 'todas', 'ambos', 'ambas', 'geral', 'qualquer', 'tudo', '*'])
 
-function distanciaEdicao(a: string, b: string): number {
+export function distanciaEdicao(a: string, b: string): number {
   const linha = Array.from({ length: b.length + 1 }, (_, j) => j)
   for (let i = 1; i <= a.length; i++) {
     let diagonal = linha[0]
