@@ -87,3 +87,11 @@ Chat do app e Telegram passam pelo mesmo turno (`lib/ai/agent/turno.ts`), que l�
 - **Núcleo em cache** (`lib/ai/data/nucleo.ts`): compras e planejamento dos últimos 24 meses, assinaturas, investimentos, listas etc. Fica 60 s em cache por instância; turnos simultâneos (duas mensagens seguidas no Telegram) compartilham a mesma leitura. Toda gravação confirmada pela IA invalida o cache.
 - **Histórico sob demanda**: quando uma ferramenta pede um período anterior à janela (ou uma consulta sem período, como "a maior compra de todas"), os meses antigos são buscados na hora — nenhum mês fica fora do alcance.
 - **Catálogo de fontes** (`lib/ai/data/catalogo.ts`): lista branca de tudo que a IA pode ler, com nomes de campo. A ferramenta genérica `explorar_dados` consulta qualquer fonte dele (atividade do app, histórico de preço das assinaturas, importações de fatura, idas ao mercado, listas arquivadas…). Para expor uma tabela nova à IA, basta declarar mais uma fonte ali.
+
+## Compras previstas
+
+Em *Cartão → Compras previstas* você cadastra compras que ainda vão cair na fatura do NuBank — **pontuais** (só no mês), **parceladas** (valor total + nº de parcelas, descontando uma parcela por mês) ou **recorrentes** (todo mês até encerrar). O "Restante" de cada pessoa no Dashboard já desconta a parte prevista que ainda não caiu.
+
+- **Palavras-chave** (opcional, separadas por vírgula): compras importadas com esses termos na descrição abatem a previsão automaticamente.
+- **Já caiu**: baixa manual da previsão no mês. Numa parcelada, tira também as parcelas seguintes — elas passam a vir das compras importadas (e de "parc. prev." no Dashboard).
+- **Banco:** rode `supabase/migration_reservas_fatura.sql` no SQL Editor do Supabase. O arquivo pode ser rodado de novo (adiciona a coluna de parcelas se faltar).

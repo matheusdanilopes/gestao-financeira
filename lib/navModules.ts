@@ -4,7 +4,7 @@ import {
   Receipt, TrendingUp, PiggyBank,
   ShoppingCart, RepeatIcon, Layers,
   Heart, ShoppingBasket, Crown,
-  BarChart3,
+  BarChart3, BookmarkPlus,
 } from 'lucide-react'
 
 export interface NavModuleItem {
@@ -43,6 +43,7 @@ const cartao: NavModule = {
     { href: '/compras', label: 'Compras', Icon: ShoppingCart, iconColor: 'text-orange-500 dark:text-orange-400', iconBg: 'bg-orange-50 dark:bg-orange-900/20' },
     { href: '/assinaturas', label: 'Assinaturas', Icon: RepeatIcon, iconColor: 'text-indigo-600 dark:text-indigo-400', iconBg: 'bg-indigo-50 dark:bg-indigo-900/20' },
     { href: '/parcelamentos', label: 'Parcelamentos', Icon: Layers, iconColor: 'text-teal-600 dark:text-teal-400', iconBg: 'bg-teal-50 dark:bg-teal-900/20' },
+    { href: '/compras-previstas', label: 'Compras previstas', Icon: BookmarkPlus, iconColor: 'text-emerald-600 dark:text-emerald-400', iconBg: 'bg-emerald-50 dark:bg-emerald-900/20' },
   ],
 }
 

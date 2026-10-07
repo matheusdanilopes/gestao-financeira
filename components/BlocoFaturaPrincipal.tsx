@@ -6,6 +6,7 @@
 // componente só, e a lista de blocos vem dos dados.
 
 import React from 'react'
+import Link from 'next/link'
 import { AlertTriangle } from 'lucide-react'
 import { formatBRL as fmt } from '@/lib/format'
 import { estiloResponsavel } from '@/lib/responsavelStyle'
@@ -42,6 +43,8 @@ export interface BlocoPrincipal {
   composicao: ComposicaoGastos
   assinaturasNaoPagas: number
   assinaturasDivergentes: AssinDivergente[]
+  /** Parte das compras previstas do mês que ainda não caiu na fatura (lib/reservasFatura). */
+  reservasPendentes: number
   sobra: number
 }
 
@@ -137,8 +140,20 @@ export default function BlocoFaturaPrincipal({ bloco, onComposicao, onProjecao }
               ? <><AlertTriangle className="w-3 h-3" /> Atenção {fmt(Math.abs(bloco.sobra))}</>
               : <>✓ Restante {fmt(Math.abs(bloco.sobra))}</>}
         </div>
-        {bloco.assinaturasNaoPagas > 0 && (
-          <span className="text-[11px] text-indigo-500 num shrink-0">Assin. {fmt(bloco.assinaturasNaoPagas)}</span>
+        {(bloco.assinaturasNaoPagas > 0 || bloco.reservasPendentes > 0) && (
+          <div className="flex flex-col items-end shrink-0">
+            {bloco.assinaturasNaoPagas > 0 && (
+              <span className="text-[11px] text-indigo-500 num">Assin. {fmt(bloco.assinaturasNaoPagas)}</span>
+            )}
+            {bloco.reservasPendentes > 0 && (
+              <Link
+                href="/compras-previstas"
+                className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium num underline decoration-dotted underline-offset-2"
+              >
+                Compras prev. {fmt(bloco.reservasPendentes)}
+              </Link>
+            )}
+          </div>
         )}
       </div>
     </div>
