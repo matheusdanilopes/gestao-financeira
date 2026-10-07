@@ -32,8 +32,8 @@ const mesCurto = (iso: string) => format(new Date(iso + 'T12:00:00'), 'MMM/yyyy'
 function mensagemErro(e: unknown): string {
   const msg = (e as { message?: string })?.message ?? ''
   return /reservas_fatura/.test(msg)
-    ? 'Tabela de reservas não encontrada. Rode supabase/migration_reservas_fatura.sql no SQL Editor do Supabase.'
-    : 'Não foi possível carregar as reservas.'
+    ? 'Tabela de compras previstas não encontrada. Rode supabase/migration_reservas_fatura.sql no SQL Editor do Supabase.'
+    : 'Não foi possível carregar as compras previstas.'
 }
 
 async function carregar(mes: Date): Promise<Dados> {
@@ -58,7 +58,7 @@ async function carregar(mes: Date): Promise<Dados> {
   }
 }
 
-export default function ReservasPage() {
+export default function ComprasPrevistasPage() {
   const { mesAtual, setMesAtual } = useMes()
   const mesRef = mesReferenciaISO(mesAtual)
   const [dados, setDados] = useState<Dados | null>(null)
@@ -143,7 +143,7 @@ export default function ReservasPage() {
   const excluir = (r: ReservaFatura) => {
     const aviso = r.recorrente
       ? `Excluir "${r.descricao}" de todos os meses? Para parar só daqui pra frente, use Encerrar.`
-      : `Excluir a reserva "${r.descricao}"?`
+      : `Excluir a compra prevista "${r.descricao}"?`
     if (!confirm(aviso)) return
     executar(r.id, () => supabase.from('reservas_fatura').delete().eq('id', r.id))
   }
@@ -153,8 +153,8 @@ export default function ReservasPage() {
       <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 z-[10]">
         <div className="flex items-center justify-between mb-3 gap-2">
           <h1 className="text-xl font-bold text-gray-900 flex items-center gap-1.5">
-            Reservas
-            <InfoPopover texto="Separe valores para compras que ainda vão cair na fatura do NuBank — pontuais (só neste mês) ou recorrentes (todo mês até você encerrar). O 'Restante' de cada pessoa no Dashboard já desconta o que está reservado. Com palavras-chave, as compras importadas que casarem abatem a reserva sozinhas; você também pode marcar 'Já caiu' manualmente." />
+            Compras previstas
+            <InfoPopover texto="Cadastre compras que você sabe que vão cair na fatura do NuBank — pontuais (só neste mês) ou recorrentes (todo mês até você encerrar). O 'Restante' de cada pessoa no Dashboard já desconta o que ainda não caiu. Com palavras-chave, as compras importadas que casarem abatem a previsão sozinhas; você também pode marcar 'Já caiu' manualmente." />
           </h1>
           <button
             type="button"
@@ -180,7 +180,7 @@ export default function ReservasPage() {
             <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">Ainda a cair na fatura</p>
             <p className="text-4xl font-bold num text-gray-900 dark:text-gray-100 mt-1">{formatBRL(totais.pendente)}</p>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 num">
-              de {formatBRL(totais.reservado)} reservados em {format(mesAtual, "MMMM 'de' yyyy", { locale: ptBR })}
+              de {formatBRL(totais.reservado)} previstos em {format(mesAtual, "MMMM 'de' yyyy", { locale: ptBR })}
             </p>
             <div className="grid grid-cols-3 gap-2 mt-4">
               {RESPONSAVEIS.map(r => (
@@ -196,8 +196,8 @@ export default function ReservasPage() {
         {!erro && dados && calculadas.length === 0 && (
           <EmptyState
             icon={BookmarkPlus}
-            title="Nenhuma reserva neste mês"
-            description="Reserve valores de compras que ainda vão cair na fatura para saber quanto realmente sobra para gastar."
+            title="Nenhuma compra prevista neste mês"
+            description="Cadastre compras que ainda vão cair na fatura para saber quanto realmente sobra para gastar."
           />
         )}
 
@@ -287,7 +287,7 @@ function ItemReserva({ calc, ocupado, mesRef, onBaixa, onEditar, onEncerrar, onE
       {consumido > 0 && (
         <p className={`text-[10px] mt-1 num ${passou ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400'}`} title={compras.map(t => `${t.descricao} · ${formatBRL(t.valor)}`).join('\n')}>
           {formatBRL(consumido)} já na fatura ({compras.length} compra{compras.length > 1 ? 's' : ''})
-          {passou ? ` · passou ${formatBRL(consumido - valor)} do reservado` : ''}
+          {passou ? ` · passou ${formatBRL(consumido - valor)} do previsto` : ''}
         </p>
       )}
 
@@ -368,7 +368,7 @@ function FormReserva({ reserva, responsavelPadrao, mesRef, onClose, onSalvo }: {
     <BottomSheet onClose={onClose} sheetClassName="max-h-[90vh] overflow-y-auto">
       {(close) => (
         <form onSubmit={(e) => salvar(e, close)} className="p-5 space-y-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-          <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">{reserva ? 'Editar reserva' : 'Nova reserva'}</h2>
+          <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">{reserva ? 'Editar compra prevista' : 'Nova compra prevista'}</h2>
 
           <div className="flex bg-gray-100 dark:bg-gray-800 rounded-2xl p-1 gap-0.5">
             {([false, true] as const).map(rec => (
@@ -447,7 +447,7 @@ function FormReserva({ reserva, responsavelPadrao, mesRef, onClose, onSalvo }: {
               className={`${CAMPO} mt-1`}
             />
             <span className="block text-[11px] text-gray-400 mt-1">
-              Separadas por vírgula. Compras da fatura com esses termos na descrição abatem a reserva automaticamente.
+              Separadas por vírgula. Compras da fatura com esses termos na descrição abatem a previsão automaticamente.
             </span>
           </label>
 

@@ -15,7 +15,7 @@ import { NAV_MODULES, type NavModuleItem, type NavModuleKey } from '@/lib/navMod
 
 const ROTAS_COM_MENU = [
   '/dashboard', '/financas', '/contas', '/receitas', '/investimentos',
-  '/compras', '/assinaturas', '/parcelamentos', '/reservas',
+  '/compras', '/assinaturas', '/parcelamentos', '/compras-previstas',
   '/wishlist', '/lista-mercado', '/lista-mercado/historico', '/listas-compras',
   '/relatorios', '/analytics', '/chat', '/configuracoes', '/importar',
 ]
@@ -30,7 +30,7 @@ const ROTAS_COM_MENU = [
 const ROTAS_OFFLINE = ['/dashboard', '/lista-mercado']
 
 const ROTAS_FINANCAS = ['/financas', '/contas', '/receitas', '/investimentos']
-const ROTAS_CARTAO   = ['/compras', '/assinaturas', '/parcelamentos', '/reservas']
+const ROTAS_CARTAO   = ['/compras', '/assinaturas', '/parcelamentos', '/compras-previstas']
 const ROTAS_LISTAS   = ['/wishlist', '/lista-mercado', '/listas-compras']
 const ROTAS_RELATORIOS = ['/relatorios', '/analytics']
 // União de tudo que hoje mora dentro do popover "Extras" no mobile.

@@ -43,7 +43,7 @@ export interface BlocoPrincipal {
   composicao: ComposicaoGastos
   assinaturasNaoPagas: number
   assinaturasDivergentes: AssinDivergente[]
-  /** Parte das reservas do mês que ainda não caiu na fatura (lib/reservasFatura). */
+  /** Parte das compras previstas do mês que ainda não caiu na fatura (lib/reservasFatura). */
   reservasPendentes: number
   sobra: number
 }
@@ -147,10 +147,10 @@ export default function BlocoFaturaPrincipal({ bloco, onComposicao, onProjecao }
             )}
             {bloco.reservasPendentes > 0 && (
               <Link
-                href="/reservas"
+                href="/compras-previstas"
                 className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium num underline decoration-dotted underline-offset-2"
               >
-                Reservas {fmt(bloco.reservasPendentes)}
+                Compras prev. {fmt(bloco.reservasPendentes)}
               </Link>
             )}
           </div>

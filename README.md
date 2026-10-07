@@ -88,10 +88,10 @@ Chat do app e Telegram passam pelo mesmo turno (`lib/ai/agent/turno.ts`), que l�
 - **Histórico sob demanda**: quando uma ferramenta pede um período anterior à janela (ou uma consulta sem período, como "a maior compra de todas"), os meses antigos são buscados na hora — nenhum mês fica fora do alcance.
 - **Catálogo de fontes** (`lib/ai/data/catalogo.ts`): lista branca de tudo que a IA pode ler, com nomes de campo. A ferramenta genérica `explorar_dados` consulta qualquer fonte dele (atividade do app, histórico de preço das assinaturas, importações de fatura, idas ao mercado, listas arquivadas…). Para expor uma tabela nova à IA, basta declarar mais uma fonte ali.
 
-## Reservas na fatura
+## Compras previstas
 
-Em *Cartão → Reservas* você separa valores de compras que ainda vão cair na fatura do NuBank — **pontuais** (só no mês) ou **recorrentes** (todo mês até encerrar). O "Restante" de cada pessoa no Dashboard já desconta a parte reservada que ainda não caiu.
+Em *Cartão → Compras previstas* você cadastra compras que ainda vão cair na fatura do NuBank — **pontuais** (só no mês) ou **recorrentes** (todo mês até encerrar). O "Restante" de cada pessoa no Dashboard já desconta a parte prevista que ainda não caiu.
 
-- **Palavras-chave** (opcional, separadas por vírgula): compras importadas com esses termos na descrição abatem a reserva automaticamente.
-- **Já caiu**: baixa manual da reserva no mês.
+- **Palavras-chave** (opcional, separadas por vírgula): compras importadas com esses termos na descrição abatem a previsão automaticamente.
+- **Já caiu**: baixa manual da previsão no mês.
 - **Banco:** rode `supabase/migration_reservas_fatura.sql` no SQL Editor do Supabase.
