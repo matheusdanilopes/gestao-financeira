@@ -185,9 +185,10 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
       .lte('projeto_fatura', mesRefFatura).order('projeto_fatura', { ascending: false }).limit(1),
     // Sem a migration_reservas_fatura.sql estas duas falham e viram lista vazia:
     // o Dashboard continua igual, só sem o desconto das reservas.
-    supabase.from('reservas_fatura').select('id, descricao, valor, responsavel, recorrente, mes_inicio, mes_fim, palavras_chave, created_at')
+    supabase.from('reservas_fatura').select('id, descricao, valor, responsavel, recorrente, mes_inicio, mes_fim, palavras_chave, parcelas, created_at')
       .lte('mes_inicio', mesRef).or(`mes_fim.is.null,mes_fim.gte.${mesRef}`),
-    supabase.from('reservas_fatura_baixas').select('reserva_id, mes_referencia').eq('mes_referencia', mesRef),
+    // Até o mês exibido: a baixa de uma compra parcelada vale para as parcelas seguintes.
+    supabase.from('reservas_fatura_baixas').select('reserva_id, mes_referencia').lte('mes_referencia', mesRef),
   ])
 
   // Sem isto, uma falha na query (coluna inexistente, RLS) renderiza o mês inteiro
@@ -413,10 +414,14 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   }
 
   // Reservas da fatura: só a parte que ainda não virou compra sai do "Restante".
+  // As parcelas projetadas também abatem: numa fatura ainda sem lançamentos, a
+  // parcela de uma compra prevista já feita está em "parc. prev." — sem isso ela
+  // seria descontada duas vezes.
+  const parcelasProjetadas = [...projecaoPorResponsavel.values()].flatMap(p => p.itens)
   const reservasPendentes = pendentePorResponsavel(calcularReservasDoMes(
     (reservasData || []) as ReservaFatura[],
     (baixasReservasData || []) as BaixaReserva[],
-    transacoesFatura,
+    [...transacoesFatura, ...parcelasProjetadas],
     mesRef,
   ))
   for (const [responsavel, valor] of Object.entries(reservasPendentes)) {

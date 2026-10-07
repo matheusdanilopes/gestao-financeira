@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { format, addMonths, startOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { BookmarkPlus, Plus, Pencil, Trash2, CheckCircle2, Undo2, Repeat, CalendarCheck, StopCircle } from 'lucide-react'
+import { BookmarkPlus, Plus, Pencil, Trash2, CheckCircle2, Undo2, Repeat, CalendarCheck, StopCircle, Layers } from 'lucide-react'
 import MonthSelector from '@/components/MonthSelector'
 import EmptyState from '@/components/EmptyState'
 import { BottomSheet } from '@/components/BottomSheet'
@@ -15,7 +15,7 @@ import { nomeDoUsuario } from '@/lib/notificacoes'
 import { formatBRL, mascaraMoeda, formatarMoedaInput, parseMoeda } from '@/lib/format'
 import { RESPONSAVEIS, RESPONSAVEL_STYLE, type Responsavel } from '@/lib/responsavelStyle'
 import {
-  calcularReservasDoMes, mesReferenciaISO,
+  calcularReservasDoMes, mesReferenciaISO, ehParcelada, mesUltimaParcela,
   type ReservaFatura, type BaixaReserva, type TransacaoParaReserva, type ReservaCalculada,
 } from '@/lib/reservasFatura'
 
@@ -25,6 +25,20 @@ interface Dados {
   reservas: ReservaFatura[]
   baixas: BaixaReserva[]
   transacoes: TransacaoParaReserva[]
+}
+
+type TipoReserva = 'pontual' | 'parcelada' | 'recorrente'
+const TIPOS: { tipo: TipoReserva; label: string }[] = [
+  { tipo: 'pontual', label: 'Pontual' },
+  { tipo: 'parcelada', label: 'Parcelada' },
+  { tipo: 'recorrente', label: 'Recorrente' },
+]
+const MAX_PARCELAS = 48
+
+function tipoDe(reserva: ReservaFatura | null): TipoReserva {
+  if (reserva?.recorrente) return 'recorrente'
+  if (reserva && ehParcelada(reserva)) return 'parcelada'
+  return 'pontual'
 }
 
 const mesCurto = (iso: string) => format(new Date(iso + 'T12:00:00'), 'MMM/yyyy', { locale: ptBR })
@@ -43,9 +57,10 @@ async function carregar(mes: Date): Promise<Dados> {
 
   const [reservasRes, baixasRes, txRes] = await Promise.all([
     supabase.from('reservas_fatura')
-      .select('id, descricao, valor, responsavel, recorrente, mes_inicio, mes_fim, palavras_chave, created_at')
+      .select('id, descricao, valor, responsavel, recorrente, mes_inicio, mes_fim, palavras_chave, parcelas, created_at')
       .lte('mes_inicio', mesRef).or(`mes_fim.is.null,mes_fim.gte.${mesRef}`),
-    supabase.from('reservas_fatura_baixas').select('reserva_id, mes_referencia').eq('mes_referencia', mesRef),
+    // Até o mês exibido: a baixa de uma compra parcelada vale para as parcelas seguintes.
+    supabase.from('reservas_fatura_baixas').select('reserva_id, mes_referencia').lte('mes_referencia', mesRef),
     supabase.from('transacoes_nubank').select('descricao, valor, responsavel, status')
       .eq('cartao', 'nubank').eq('projeto_fatura', projetoFatura),
   ])
@@ -107,10 +122,10 @@ export default function ComprasPrevistasPage() {
     const porResp = Object.fromEntries(RESPONSAVEIS.map(r => [r, { reservado: 0, pendente: 0 }])) as Record<Responsavel, { reservado: number; pendente: number }>
     let reservado = 0, pendente = 0
     for (const c of calculadas) {
-      reservado += Number(c.reserva.valor)
+      reservado += c.valorDoMes
       pendente += c.pendente
       const r = porResp[c.reserva.responsavel as Responsavel]
-      if (r) { r.reservado += Number(c.reserva.valor); r.pendente += c.pendente }
+      if (r) { r.reservado += c.valorDoMes; r.pendente += c.pendente }
     }
     return { reservado, pendente, porResp }
   }, [calculadas])
@@ -128,9 +143,11 @@ export default function ComprasPrevistasPage() {
     }
   }
 
+  // Numa parcelada, a baixa pode ter sido dada numa parcela anterior: desfazer
+  // remove aquela baixa, e as parcelas a partir dela voltam a contar.
   const alternarBaixa = (c: ReservaCalculada) => executar(c.reserva.id, () =>
-    c.baixadaManual
-      ? supabase.from('reservas_fatura_baixas').delete().eq('reserva_id', c.reserva.id).eq('mes_referencia', mesRef)
+    c.mesBaixa
+      ? supabase.from('reservas_fatura_baixas').delete().eq('reserva_id', c.reserva.id).eq('mes_referencia', c.mesBaixa)
       : supabase.from('reservas_fatura_baixas').insert({ reserva_id: c.reserva.id, mes_referencia: mesRef })
   )
 
@@ -143,7 +160,9 @@ export default function ComprasPrevistasPage() {
   const excluir = (r: ReservaFatura) => {
     const aviso = r.recorrente
       ? `Excluir "${r.descricao}" de todos os meses? Para parar só daqui pra frente, use Encerrar.`
-      : `Excluir a compra prevista "${r.descricao}"?`
+      : ehParcelada(r)
+        ? `Excluir "${r.descricao}" e todas as suas parcelas?`
+        : `Excluir a compra prevista "${r.descricao}"?`
     if (!confirm(aviso)) return
     executar(r.id, () => supabase.from('reservas_fatura').delete().eq('id', r.id))
   }
@@ -154,7 +173,7 @@ export default function ComprasPrevistasPage() {
         <div className="flex items-center justify-between mb-3 gap-2">
           <h1 className="text-xl font-bold text-gray-900 flex items-center gap-1.5">
             Compras previstas
-            <InfoPopover texto="Cadastre compras que você sabe que vão cair na fatura do NuBank — pontuais (só neste mês) ou recorrentes (todo mês até você encerrar). O 'Restante' de cada pessoa no Dashboard já desconta o que ainda não caiu. Com palavras-chave, as compras importadas que casarem abatem a previsão sozinhas; você também pode marcar 'Já caiu' manualmente." />
+            <InfoPopover texto="Cadastre compras que você sabe que vão cair na fatura do NuBank — pontuais (só neste mês), parceladas (o total dividido pelos meses das parcelas) ou recorrentes (todo mês até você encerrar). O 'Restante' de cada pessoa no Dashboard já desconta o que ainda não caiu. Com palavras-chave, as compras importadas que casarem abatem a previsão sozinhas; você também pode marcar 'Já caiu' manualmente — numa parcelada, isso tira também as parcelas seguintes, que passam a vir das compras importadas." />
           </h1>
           <button
             type="button"
@@ -248,8 +267,8 @@ function ItemReserva({ calc, ocupado, mesRef, onBaixa, onEditar, onEncerrar, onE
   onEncerrar: () => void
   onExcluir: () => void
 }) {
-  const { reserva, consumido, compras, baixadaManual, pendente } = calc
-  const valor = Number(reserva.valor)
+  const { reserva, consumido, compras, baixadaManual, mesBaixa, valorDoMes: valor, parcelaAtual, pendente } = calc
+  const parcelada = ehParcelada(reserva)
   const pct = baixadaManual ? 100 : valor > 0 ? Math.min(100, (consumido / valor) * 100) : 0
   const passou = consumido > valor
 
@@ -262,13 +281,15 @@ function ItemReserva({ calc, ocupado, mesRef, onBaixa, onEditar, onEncerrar, onE
           </p>
           <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
             <span className="inline-flex items-center gap-1 text-[10px] font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
-              {reserva.recorrente ? <Repeat className="w-3 h-3" /> : <CalendarCheck className="w-3 h-3" />}
+              {reserva.recorrente ? <Repeat className="w-3 h-3" /> : parcelada ? <Layers className="w-3 h-3" /> : <CalendarCheck className="w-3 h-3" />}
               {reserva.recorrente
                 ? reserva.mes_fim ? `Recorrente até ${mesCurto(reserva.mes_fim)}` : 'Recorrente'
-                : 'Pontual'}
+                : parcelada ? `Parcela ${parcelaAtual}/${reserva.parcelas}` : 'Pontual'}
             </span>
             {baixadaManual && (
-              <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-full">Já caiu</span>
+              <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-full">
+                {mesBaixa && mesBaixa !== mesRef ? `Já caiu em ${mesCurto(mesBaixa)}` : 'Já caiu'}
+              </span>
             )}
             {reserva.palavras_chave && (
               <span className="text-[10px] text-gray-400 truncate max-w-[180px]" title={reserva.palavras_chave}>🔎 {reserva.palavras_chave}</span>
@@ -278,6 +299,9 @@ function ItemReserva({ calc, ocupado, mesRef, onBaixa, onEditar, onEncerrar, onE
         <div className="text-right shrink-0">
           <p className="text-sm font-bold num text-gray-800 dark:text-gray-100">{formatBRL(pendente)}</p>
           <p className="text-[10px] text-gray-400 num">de {formatBRL(valor)}</p>
+          {parcelada && (
+            <p className="text-[10px] text-gray-400 num">total {formatBRL(Number(reserva.valor))}</p>
+          )}
         </div>
       </div>
 
@@ -292,7 +316,12 @@ function ItemReserva({ calc, ocupado, mesRef, onBaixa, onEditar, onEncerrar, onE
       )}
 
       <div className="flex flex-wrap items-center gap-3 mt-2">
-        <button type="button" onClick={onBaixa} className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+        <button
+          type="button"
+          onClick={onBaixa}
+          title={parcelada && !baixadaManual ? 'A compra foi feita: tira esta parcela e as seguintes da previsão' : undefined}
+          className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400"
+        >
           {baixadaManual ? <><Undo2 className="w-3.5 h-3.5" /> Desfazer</> : <><CheckCircle2 className="w-3.5 h-3.5" /> Já caiu</>}
         </button>
         <button type="button" onClick={onEditar} className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500 dark:text-gray-400">
@@ -321,35 +350,39 @@ function FormReserva({ reserva, responsavelPadrao, mesRef, onClose, onSalvo }: {
   const [descricao, setDescricao] = useState(reserva?.descricao ?? '')
   const [valor, setValor] = useState(reserva ? formatarMoedaInput(reserva.valor) : '')
   const [responsavel, setResponsavel] = useState<Responsavel>((reserva?.responsavel as Responsavel) ?? responsavelPadrao)
-  const [recorrente, setRecorrente] = useState(reserva?.recorrente ?? false)
+  const [tipo, setTipo] = useState<TipoReserva>(tipoDe(reserva))
+  const [parcelas, setParcelas] = useState(reserva && ehParcelada(reserva) ? String(reserva.parcelas) : '2')
   const [palavras, setPalavras] = useState(reserva?.palavras_chave ?? '')
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
-  // Recorrente mantém o início original. Pontual vale só num mês: o dela, ou o mês
-  // em exibição quando é nova ou está deixando de ser recorrente.
-  const mesInicio = recorrente
-    ? reserva?.mes_inicio ?? mesRef
-    : reserva && !reserva.recorrente ? reserva.mes_inicio : mesRef
+  // Mantém o início original enquanto o tipo não muda. Nova, ou trocando de tipo,
+  // começa no mês em exibição.
+  const mesInicio = reserva && tipoDe(reserva) === tipo ? reserva.mes_inicio : mesRef
+  const nParcelas = Number(parcelas)
+  const parcelasValidas = Number.isInteger(nParcelas) && nParcelas >= 2 && nParcelas <= MAX_PARCELAS
+  const valorNum = parseMoeda(valor)
 
   async function salvar(e: FormEvent, close: () => void) {
     e.preventDefault()
-    const v = parseMoeda(valor)
     if (!descricao.trim()) { setErro('Informe uma descrição.'); return }
-    if (!(v > 0)) { setErro('Informe um valor maior que zero.'); return }
+    if (!(valorNum > 0)) { setErro('Informe um valor maior que zero.'); return }
+    if (tipo === 'parcelada' && !parcelasValidas) { setErro(`Informe de 2 a ${MAX_PARCELAS} parcelas.`); return }
     setSalvando(true)
     setErro(null)
 
-    // Pontual vale só no mês de início. Ao virar recorrente, reabre (sem fim);
-    // ao continuar recorrente, mantém um encerramento já definido.
-    const mesFim = recorrente
+    // Pontual vale só no mês de início; parcelada, até a última parcela. Ao virar
+    // recorrente, reabre (sem fim); ao continuar recorrente, mantém um
+    // encerramento já definido.
+    const mesFim = tipo === 'recorrente'
       ? (reserva?.recorrente ? reserva.mes_fim : null)
-      : mesInicio
+      : tipo === 'parcelada' ? mesUltimaParcela(mesInicio, nParcelas) : mesInicio
     const payload = {
       descricao: descricao.trim(),
-      valor: v,
+      valor: valorNum,
       responsavel,
-      recorrente,
+      recorrente: tipo === 'recorrente',
+      parcelas: tipo === 'parcelada' ? nParcelas : null,
       mes_inicio: mesInicio,
       mes_fim: mesFim,
       palavras_chave: palavras.trim() || null,
@@ -371,23 +404,27 @@ function FormReserva({ reserva, responsavelPadrao, mesRef, onClose, onSalvo }: {
           <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">{reserva ? 'Editar compra prevista' : 'Nova compra prevista'}</h2>
 
           <div className="flex bg-gray-100 dark:bg-gray-800 rounded-2xl p-1 gap-0.5">
-            {([false, true] as const).map(rec => (
+            {TIPOS.map(t => (
               <button
-                key={String(rec)}
+                key={t.tipo}
                 type="button"
-                onClick={() => setRecorrente(rec)}
+                onClick={() => setTipo(t.tipo)}
                 className={`flex-1 py-1.5 rounded-xl text-sm font-medium transition-colors ${
-                  recorrente === rec ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500'
+                  tipo === t.tipo ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500'
                 }`}
               >
-                {rec ? 'Recorrente' : 'Pontual'}
+                {t.label}
               </button>
             ))}
           </div>
           <p className="text-[11px] text-gray-500 dark:text-gray-400 -mt-2">
-            {recorrente
+            {tipo === 'recorrente'
               ? `Todo mês a partir de ${mesCurto(mesInicio)}, até você encerrar.`
-              : `Só em ${mesCurto(mesInicio)}.`}
+              : tipo === 'parcelada'
+                ? parcelasValidas
+                  ? `${nParcelas}x de ${formatBRL(valorNum > 0 ? valorNum / nParcelas : 0)}, de ${mesCurto(mesInicio)} a ${mesCurto(mesUltimaParcela(mesInicio, nParcelas))}.`
+                  : `A partir de ${mesCurto(mesInicio)}.`
+                : `Só em ${mesCurto(mesInicio)}.`}
           </p>
 
           <label className="block">
@@ -403,7 +440,9 @@ function FormReserva({ reserva, responsavelPadrao, mesRef, onClose, onSalvo }: {
           </label>
 
           <label className="block">
-            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Valor</span>
+            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+              {tipo === 'parcelada' ? 'Valor total da compra' : tipo === 'recorrente' ? 'Valor por mês' : 'Valor'}
+            </span>
             <div className="relative mt-1">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-gray-400">R$</span>
               <input
@@ -416,6 +455,20 @@ function FormReserva({ reserva, responsavelPadrao, mesRef, onClose, onSalvo }: {
               />
             </div>
           </label>
+
+          {tipo === 'parcelada' && (
+            <label className="block">
+              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Número de parcelas</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={parcelas}
+                onChange={e => setParcelas(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                placeholder="ex.: 6"
+                className={`${CAMPO} mt-1 num`}
+              />
+            </label>
+          )}
 
           <div>
             <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Responsável</span>

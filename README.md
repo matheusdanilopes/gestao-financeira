@@ -90,8 +90,8 @@ Chat do app e Telegram passam pelo mesmo turno (`lib/ai/agent/turno.ts`), que l�
 
 ## Compras previstas
 
-Em *Cartão → Compras previstas* você cadastra compras que ainda vão cair na fatura do NuBank — **pontuais** (só no mês) ou **recorrentes** (todo mês até encerrar). O "Restante" de cada pessoa no Dashboard já desconta a parte prevista que ainda não caiu.
+Em *Cartão → Compras previstas* você cadastra compras que ainda vão cair na fatura do NuBank — **pontuais** (só no mês), **parceladas** (valor total + nº de parcelas, descontando uma parcela por mês) ou **recorrentes** (todo mês até encerrar). O "Restante" de cada pessoa no Dashboard já desconta a parte prevista que ainda não caiu.
 
 - **Palavras-chave** (opcional, separadas por vírgula): compras importadas com esses termos na descrição abatem a previsão automaticamente.
-- **Já caiu**: baixa manual da previsão no mês.
-- **Banco:** rode `supabase/migration_reservas_fatura.sql` no SQL Editor do Supabase.
+- **Já caiu**: baixa manual da previsão no mês. Numa parcelada, tira também as parcelas seguintes — elas passam a vir das compras importadas (e de "parc. prev." no Dashboard).
+- **Banco:** rode `supabase/migration_reservas_fatura.sql` no SQL Editor do Supabase. O arquivo pode ser rodado de novo (adiciona a coluna de parcelas se faltar).

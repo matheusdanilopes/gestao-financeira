@@ -1,5 +1,5 @@
-// Reservas na fatura: valores separados para compras que ainda vão cair na fatura
-// do NuBank principal — pontuais ou recorrentes. Compartilhado entre o Dashboard
+// Reservas na fatura (tela "Compras previstas"): valores separados para compras que
+// ainda vão cair na fatura do NuBank principal — pontuais, parceladas ou recorrentes. Compartilhado entre o Dashboard
 // (desconto no "Restante" de cada pessoa) e a tela de Reservas, para que os dois
 // mostrem exatamente o mesmo valor pendente.
 //
@@ -7,7 +7,7 @@
 // NÃO virou compra: compras da fatura cuja descrição contém uma das palavras-chave
 // abatem a reserva, e a baixa manual ("já caiu") zera o pendente daquele mês.
 
-import { format, parseISO, startOfMonth } from 'date-fns'
+import { addMonths, differenceInCalendarMonths, format, parseISO, startOfMonth } from 'date-fns'
 import { normalizarTexto } from '@/lib/assinaturaMatch'
 
 export interface ReservaFatura {
@@ -18,9 +18,12 @@ export interface ReservaFatura {
   recorrente: boolean
   /** Mês de referência ('yyyy-MM-dd', dia 1) em que a reserva começa. */
   mes_inicio: string
-  /** Último mês em que vale. Pontual: igual a mes_inicio. Recorrente: null até ser encerrada. */
+  /** Último mês em que vale. Pontual: igual a mes_inicio. Parcelada: mês da última
+   *  parcela. Recorrente: null até ser encerrada. */
   mes_fim: string | null
   palavras_chave: string | null
+  /** Quantidade de parcelas (compra parcelada). `valor` é o total da compra. */
+  parcelas?: number | null
   created_at?: string
 }
 
@@ -43,6 +46,12 @@ export interface ReservaCalculada {
   /** Compras que abateram a reserva (para conferência na tela). */
   compras: TransacaoParaReserva[]
   baixadaManual: boolean
+  /** Mês em que a baixa manual foi registrada (numa parcelada, pode ser anterior). */
+  mesBaixa: string | null
+  /** Valor previsto para este mês: a parcela, numa compra parcelada. */
+  valorDoMes: number
+  /** Número da parcela deste mês (1 = primeira), só em compras parceladas. */
+  parcelaAtual: number | null
   /** Quanto ainda falta cair na fatura — é o que sai do "Restante". */
   pendente: number
 }
@@ -54,6 +63,21 @@ export function mesReferenciaISO(mes: Date): string {
 /** Normaliza a data vinda do banco para o dia 1 do mês ('yyyy-MM-dd'). */
 function mesDe(data: string): string {
   return mesReferenciaISO(parseISO(data.slice(0, 10)))
+}
+
+export function ehParcelada(reserva: ReservaFatura): boolean {
+  return (reserva.parcelas ?? 0) >= 2
+}
+
+/** Valor que a reserva representa em cada mês: total ÷ parcelas numa parcelada. */
+export function valorMensalDaReserva(reserva: ReservaFatura): number {
+  const valor = Number(reserva.valor) || 0
+  return ehParcelada(reserva) ? valor / (reserva.parcelas as number) : valor
+}
+
+/** Mês da última parcela ('yyyy-MM-dd') de uma compra parcelada iniciada em `mesInicio`. */
+export function mesUltimaParcela(mesInicio: string, parcelas: number): string {
+  return mesReferenciaISO(addMonths(parseISO(mesInicio.slice(0, 10)), parcelas - 1))
 }
 
 export function reservaVigenteNoMes(reserva: ReservaFatura, mesRef: string): boolean {
@@ -93,9 +117,18 @@ export function calcularReservasDoMes(
     .filter(r => reservaVigenteNoMes(r, mesRef))
     .sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''))
 
-  const baixadas = new Set(
-    baixas.filter(b => mesDe(b.mes_referencia) === mesRef).map(b => b.reserva_id)
-  )
+  // Baixa vale no próprio mês; numa parcelada, vale também para as parcelas
+  // seguintes — depois de feita, a compra real segue pelas parcelas importadas
+  // (e pela projeção de parcelas do Dashboard), e a previsão contaria em dobro.
+  const parceladas = new Set(vigentes.filter(ehParcelada).map(r => r.id))
+  const mesBaixaPorReserva = new Map<string, string>()
+  for (const b of baixas) {
+    const mes = mesDe(b.mes_referencia)
+    const vale = mes === mesRef || (parceladas.has(b.reserva_id) && mes < mesRef)
+    if (!vale) continue
+    const atual = mesBaixaPorReserva.get(b.reserva_id)
+    if (!atual || mes > atual) mesBaixaPorReserva.set(b.reserva_id, mes)
+  }
 
   const resultado = vigentes.map(reserva => ({
     reserva,
@@ -116,14 +149,20 @@ export function calcularReservasDoMes(
   }
 
   return resultado.map(({ reserva, consumido, compras }) => {
-    const baixadaManual = baixadas.has(reserva.id)
-    const valor = Number(reserva.valor) || 0
+    const mesBaixa = mesBaixaPorReserva.get(reserva.id) ?? null
+    const valorDoMes = valorMensalDaReserva(reserva)
+    const parcelaAtual = ehParcelada(reserva)
+      ? differenceInCalendarMonths(parseISO(mesRef), parseISO(mesDe(reserva.mes_inicio))) + 1
+      : null
     return {
       reserva,
       consumido,
       compras,
-      baixadaManual,
-      pendente: baixadaManual ? 0 : Math.max(0, valor - consumido),
+      baixadaManual: mesBaixa !== null,
+      mesBaixa,
+      valorDoMes,
+      parcelaAtual,
+      pendente: mesBaixa !== null ? 0 : Math.max(0, valorDoMes - consumido),
     }
   })
 }
