@@ -8,6 +8,7 @@ import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
 import { valorEfetivoNoMes } from '@/lib/assinaturaValor'
 import { classificarTipoGasto, somarValorFatura, type TipoGasto } from '@/lib/composicaoFatura'
 import { identificarAssinaturasNaFatura } from '@/lib/assinaturaMatch'
+import { calcularReservasDoMes, pendentePorResponsavel, type ReservaFatura, type BaixaReserva } from '@/lib/reservasFatura'
 import { BarChart2, BarChart3, CalendarRange, CreditCard, Wallet, PiggyBank, Layers, Scale, TrendingUp, TrendingDown, Minus, LineChart, Activity } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
@@ -162,6 +163,8 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     { data: assinaturasData },
     { data: assinaturasHistoricoData },
     { data: maxFaturaRowData },
+    { data: reservasData },
+    { data: baixasReservasData },
   ] = await Promise.all([
     // Busca todas as transações do período em uma única query e separa por cartão no cliente
     // Não filtra ESTORNO/ESTORNADO aqui: precisamos do status e do conciliacao_ref
@@ -180,6 +183,11 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     supabase.from('assinaturas_historico').select('assinatura_id, valor, vigente_desde, criado_em'),
     supabase.from('transacoes_nubank').select('projeto_fatura').eq('cartao', 'nubank')
       .lte('projeto_fatura', mesRefFatura).order('projeto_fatura', { ascending: false }).limit(1),
+    // Sem a migration_reservas_fatura.sql estas duas falham e viram lista vazia:
+    // o Dashboard continua igual, só sem o desconto das reservas.
+    supabase.from('reservas_fatura').select('id, descricao, valor, responsavel, recorrente, mes_inicio, mes_fim, palavras_chave, created_at')
+      .lte('mes_inicio', mesRef).or(`mes_fim.is.null,mes_fim.gte.${mesRef}`),
+    supabase.from('reservas_fatura_baixas').select('reserva_id, mes_referencia').eq('mes_referencia', mesRef),
   ])
 
   // Sem isto, uma falha na query (coluna inexistente, RLS) renderiza o mês inteiro
@@ -404,6 +412,17 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     return { existente, novo, assinatura }
   }
 
+  // Reservas da fatura: só a parte que ainda não virou compra sai do "Restante".
+  const reservasPendentes = pendentePorResponsavel(calcularReservasDoMes(
+    (reservasData || []) as ReservaFatura[],
+    (baixasReservasData || []) as BaixaReserva[],
+    transacoesFatura,
+    mesRef,
+  ))
+  for (const [responsavel, valor] of Object.entries(reservasPendentes)) {
+    if (valor > 0) responsaveisPrincipal.add(responsavel)
+  }
+
   // Um bloco por cartão adicional do principal. Todas as funções acima já são
   // parametrizadas por responsável, então cada bloco é só uma chamada de cada.
   const principalBlocks: BlocoPrincipal[] = ordenarResponsaveis([...responsaveisPrincipal], 'Matheus')
@@ -412,6 +431,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
       const atual = somarValorFatura(transacoesFatura.filter(t => (t.responsavel || '') === responsavel))
       const projecao = projecaoPorResponsavel.get(responsavel) ?? { valor: 0, itens: [] }
       const assinaturasNaoPagas = calcNaoPaga(responsavel)
+      const reservas = reservasPendentes[responsavel] ?? 0
       return {
         responsavel,
         nomes: nomesPrincipalPorResponsavel[responsavel] ?? [],
@@ -422,10 +442,11 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
         composicao: montarComposicao(responsavel),
         assinaturasNaoPagas,
         assinaturasDivergentes: calcDivergente(responsavel),
-        sobra: previsto - atual - projecao.valor - assinaturasNaoPagas,
+        reservasPendentes: reservas,
+        sobra: previsto - atual - projecao.valor - assinaturasNaoPagas - reservas,
       }
     })
-    .filter(b => b.previsto > 0 || b.atual > 0 || b.projecaoParcelas > 0)
+    .filter(b => b.previsto > 0 || b.atual > 0 || b.projecaoParcelas > 0 || b.reservasPendentes > 0)
 
   // Totais consolidando principal + cartões extras. São tiles POR PESSOA: "Conjunto"
   // não é uma pessoa e já aparece na barra da fatura logo acima, então um tile dele
@@ -584,8 +605,8 @@ export default function Dashboard() {
   )
 
   const { status, isOnline } = useGlobalSync({
-    cacheKey: `dashboard-v2:${format(mesAtual, 'yyyy-MM')}`,
-    tables: ['transacoes_nubank', 'planejamento', 'investimentos', 'investimentos_aportes'],
+    cacheKey: `dashboard-v3:${format(mesAtual, 'yyyy-MM')}`,
+    tables: ['transacoes_nubank', 'planejamento', 'investimentos', 'investimentos_aportes', 'reservas_fatura', 'reservas_fatura_baixas'],
     fetcher,
     onData: applyData,
     pollInterval: 45_000,
@@ -595,7 +616,7 @@ export default function Dashboard() {
     if (!isOnline) return
 
     const prefetch = async (mes: Date) => {
-      const storageKey = `datasync:dashboard-v2:${format(mes, 'yyyy-MM')}`
+      const storageKey = `datasync:dashboard-v3:${format(mes, 'yyyy-MM')}`
       if (localStorage.getItem(storageKey)) return
       try {
         const data = await carregarDados(mes)
@@ -889,7 +910,7 @@ export default function Dashboard() {
                 </div>
                 <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
                   Fatura NuBank
-                  <InfoPopover texto="Gastos no NuBank divididos por pessoa. 'Atual': valor já lançado na fatura do mês. 'Previsto': orçamento planejado. 'Sobra': margem restante dentro do orçamento. 'Parc. prev.': parcelas futuras já comprometidas, exibidas quando a fatura ainda não fechou. 'Outros cartões' e o 'Resumo' consolidam todos os cartões por pessoa." />
+                  <InfoPopover texto="Gastos no NuBank divididos por pessoa. 'Atual': valor já lançado na fatura do mês. 'Previsto': orçamento planejado. 'Sobra': margem restante dentro do orçamento. 'Parc. prev.': parcelas futuras já comprometidas, exibidas quando a fatura ainda não fechou. 'Reservas': valores separados para compras que ainda vão cair na fatura (tela Reservas), já descontados da sobra. 'Outros cartões' e o 'Resumo' consolidam todos os cartões por pessoa." />
                 </h2>
               </div>
               {dataFechamentoNubank && !carregando && (() => {
