@@ -70,7 +70,7 @@ export function MesProvider({ children }: { children: React.ReactNode }) {
         // Usuário escolheu um período enquanto a verificação rodava: mantém a escolha
         if (readPersistedPeriod() !== null) return
 
-        if (totalPago / totalDespesas >= 0.95) {
+        if (totalPago / totalDespesas >= 0.9) {
           setMes(startOfMonth(addMonths(new Date(), 1)))
         }
       } catch {
