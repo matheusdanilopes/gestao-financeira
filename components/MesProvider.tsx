@@ -6,10 +6,12 @@ import { supabase } from '@/lib/supabaseClient'
 
 const STORAGE_KEY = 'gestao:periodo'
 
+// O período escolhido vale só para a sessão (sessionStorage): ao reabrir o app ele
+// volta ao mês atual em vez de reabrir no último mês visto, inclusive o de um deep link.
 function readPersistedPeriod(): Date | null {
   if (typeof window === 'undefined') return null
   try {
-    const saved = localStorage.getItem(STORAGE_KEY)
+    const saved = sessionStorage.getItem(STORAGE_KEY)
     if (!saved) return null
     return startOfMonth(parseISO(saved + '-01'))
   } catch {
@@ -35,6 +37,9 @@ export function MesProvider({ children }: { children: React.ReactNode }) {
   const [mesAtual, setMes] = useState(() => readPersistedPeriod() ?? startOfMonth(new Date()))
 
   useEffect(() => {
+    // Remove o período que versões anteriores gravavam no localStorage
+    try { localStorage.removeItem(STORAGE_KEY) } catch {}
+
     // Skip auto-advance if user already selected a period manually
     if (readPersistedPeriod() !== null) return
 
@@ -62,7 +67,10 @@ export function MesProvider({ children }: { children: React.ReactNode }) {
           .filter(p => p.pago)
           .reduce((acc, p) => acc + (p.valor_real ?? p.valor_previsto ?? 0), 0)
 
-        if (totalPago / totalDespesas >= 0.95) {
+        // Usuário escolheu um período enquanto a verificação rodava: mantém a escolha
+        if (readPersistedPeriod() !== null) return
+
+        if (totalPago / totalDespesas >= 0.9) {
           setMes(startOfMonth(addMonths(new Date(), 1)))
         }
       } catch {
@@ -77,7 +85,7 @@ export function MesProvider({ children }: { children: React.ReactNode }) {
 
   const setMesAtual = useCallback((mes: Date) => {
     const normalized = startOfMonth(mes)
-    try { localStorage.setItem(STORAGE_KEY, format(normalized, 'yyyy-MM')) } catch {}
+    try { sessionStorage.setItem(STORAGE_KEY, format(normalized, 'yyyy-MM')) } catch {}
     startTransition(() => setMes(normalized))
   }, [])
 
