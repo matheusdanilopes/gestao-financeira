@@ -82,7 +82,7 @@ export const RELATORIOS_DISPONIVEIS: RelatorioDisponivel[] = [
     iconBg: 'bg-violet-100',
     iconColor: 'text-violet-600',
     grupo: 'tendencias',
-    periodo: '6, 12 ou 24 meses',
+    periodo: 'Último mês, 6, 12 ou 24 meses',
     responde: ['Por que o dinheiro não sobra?', 'Quando e onde eu gasto mais?', 'O que mudar primeiro?'],
   },
   {

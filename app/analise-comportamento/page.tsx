@@ -20,9 +20,10 @@ import {
   type ObjetivoAnalise,
   type ParametrosAnalise,
   type ResultadoAnalise,
+  rotuloJanela,
 } from '@/lib/comportamento/tipos'
 
-const OPCOES_JANELA = JANELAS_ANALISE.map(m => ({ valor: m, label: `${m} meses` }))
+const OPCOES_JANELA = JANELAS_ANALISE.map(m => ({ valor: m, label: rotuloJanela(m) }))
 const OPCOES_ESCOPO: { valor: EscopoAnalise; label: string }[] = [
   { valor: 'casal', label: 'Casal' },
   { valor: 'Matheus', label: 'Matheus' },
@@ -325,7 +326,7 @@ export default function AnaliseComportamentoPage() {
             <h1 className="text-xl font-bold text-gray-900 tracking-tight truncate">Análise de comportamento</h1>
             <p className="text-[11px] text-gray-400 leading-snug truncate">
               {ultima
-                ? `Última análise: ${formatarDataHora(ultima.geradaEm)} · ${ultima.parametros.janela} meses · ${rotuloEscopo(ultima.parametros.escopo)}`
+                ? `Última análise: ${formatarDataHora(ultima.geradaEm)} · ${rotuloJanela(ultima.parametros.janela)} · ${rotuloEscopo(ultima.parametros.escopo)}`
                 : 'Padrões de comportamento para melhorar sua saúde financeira'}
             </p>
           </div>

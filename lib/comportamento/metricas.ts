@@ -13,15 +13,22 @@
  *  - gasto do mês = compras do cartão + contas reais do planejamento (sem as
  *    linhas de pagamento de fatura, que duplicariam as compras);
  *  - "compra nova" = compra à vista ou 1ª parcela. É ela que mostra o momento
- *    da decisão de gastar; as parcelas seguintes só repetem a decisão.
+ *    da decisão de gastar; as parcelas seguintes só repetem a decisão. Isso
+ *    importa: a importação lança as parcelas em andamento com a data de
+ *    abertura da fatura, e contá-las como compras criaria um falso "pico de
+ *    compras" no primeiro dia de toda fatura. A parcela é lida das colunas ou,
+ *    na falta delas, do "N/M" da descrição — nem toda importação preenche as
+ *    colunas.
  *  - o mês corrente entra na série como parcial e fica fora das médias.
  */
 
 import { format, startOfMonth, subMonths } from 'date-fns'
 import { ehDespesaReal, removerPrefixoCartao } from '@/lib/tipoCartao'
+import { extrairParcela, type ParcelaInfo } from '@/lib/parcelaDescricao'
 import type { EnrichedData, Planejamento, Transacao } from '@/lib/ai/types'
 import type {
   CategoriaComportamento,
+  Comparativo,
   CompraAtipica,
   EscopoAnalise,
   Estabelecimento,
@@ -30,8 +37,11 @@ import type {
   ItemQueEstoura,
   MesComportamento,
   MetricasComportamento,
+  LancamentoFatura,
+  MesFoco,
   ParametrosAnalise,
 } from './tipos'
+import { JANELA_ULTIMO_MES, MESES_BASE_ULTIMO_MES } from './tipos'
 
 const LIMITE_MICROGASTO = 50
 const DIAS_SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
@@ -130,10 +140,16 @@ const ehReceita = (p: Planejamento) => String(p.item ?? '').trim().startsWith('[
 const valorConta = (p: Planejamento) =>
   p.pago ? Number(p.valor_real ?? p.valor_previsto ?? 0) : Number(p.valor_previsto ?? 0)
 
-const ehCompraNova = (t: Transacao) => !(Number(t.parcela_atual ?? 0) > 1)
-const ehParcelada = (t: Transacao) => Number(t.total_parcelas ?? 0) > 1
+const cacheParcela = new WeakMap<Transacao, ParcelaInfo | null>()
+function parcelaDe(t: Transacao): ParcelaInfo | null {
+  if (!cacheParcela.has(t)) cacheParcela.set(t, extrairParcela(t.descricao, t.parcela_atual, t.total_parcelas))
+  return cacheParcela.get(t) ?? null
+}
+/** À vista ou 1ª parcela. Parcela 2+ é compra antiga, com a data de abertura da fatura. */
+const ehCompraNova = (t: Transacao) => (parcelaDe(t)?.atual ?? 1) <= 1
+const ehParcelada = (t: Transacao) => (parcelaDe(t)?.total ?? 1) > 1
 /** Valor da decisão de compra: numa compra parcelada, o valor cheio. */
-const valorDaCompra = (t: Transacao) => (ehParcelada(t) ? t.valor * Number(t.total_parcelas) : t.valor)
+const valorDaCompra = (t: Transacao) => (ehParcelada(t) ? t.valor * (parcelaDe(t)?.total ?? 1) : t.valor)
 
 // ─── Cálculo ─────────────────────────────────────────────────────────────────
 
@@ -147,13 +163,19 @@ export function calcularMetricas(
   const doEscopo = filtroEscopo(escopo)
   const avisos = [...(dados.avisos ?? [])]
 
+  // No modo "último mês", a série mensal traz o mês em foco e os 6 anteriores
+  // (o "normal" de referência); o comportamento (quando, quanto, onde) é
+  // medido só nas faturas pagas no mês em foco.
+  const modoMes = janela === JANELA_ULTIMO_MES
+  const mesesSerie = modoMes ? MESES_BASE_ULTIMO_MES + 1 : janela
+  const hojeIso = format(hoje, 'yyyy-MM-dd')
+
   const mesParcial = format(hoje, 'yyyy-MM')
-  const fechados = Array.from({ length: janela }, (_, i) =>
-    format(startOfMonth(subMonths(hoje, janela - i)), 'yyyy-MM'))
+  const fechados = Array.from({ length: mesesSerie }, (_, i) =>
+    format(startOfMonth(subMonths(hoje, mesesSerie - i)), 'yyyy-MM'))
   const todos = [...fechados, mesParcial]
   const setFechados = new Set(fechados)
   const setTodos = new Set(todos)
-  const hojeIso = format(hoje, 'yyyy-MM-dd')
 
   // ── Fontes filtradas pelo escopo e pela janela ──
   const transacoesEscopo = dados.transacoes.filter(t => Number(t.valor) > 0 && doEscopo(t.responsavel))
@@ -232,7 +254,9 @@ export function calcularMetricas(
   }
 
   // ── Quando gasta (compras novas, pela data da compra) ──
-  const novas = transacoes.filter(ehCompraNova)
+  const novasBase = transacoes.filter(ehCompraNova)
+  const mesFoco = fechados[fechados.length - 1]
+  const novas = modoMes ? novasBase.filter(t => t.projeto_fatura.startsWith(mesFoco)) : novasBase
   const novasComData = novas
     .map(t => ({ t, d: lerData(t.data), valor: valorDaCompra(t) }))
     .filter((x): x is { t: Transacao; d: Date; valor: number } => x.d !== null)
@@ -321,7 +345,7 @@ export function calcularMetricas(
     }
   })
   const micro = valoresNovas.filter(v => v <= LIMITE_MICROGASTO)
-  const mesesComCompra = Math.max(1, new Set(novas.map(t => t.projeto_fatura.substring(0, 7))).size)
+  const mesesComCompra = modoMes ? 1 : Math.max(1, new Set(novas.map(t => t.projeto_fatura.substring(0, 7))).size)
 
   // ── Onde gasta: frequência por estabelecimento ──
   const estabMap = new Map<string, { rotulos: Map<string, number>; categoria: Map<string, number>; quantidade: number; total: number; meses: Set<string> }>()
@@ -424,7 +448,8 @@ export function calcularMetricas(
     const cartao = t.cartao ?? 'nubank'
     const base = ultimaFaturaPorCartao.get(cartao)
     if (!base || !t.projeto_fatura.startsWith(base) || !ehParcelada(t)) continue
-    const restantes = Number(t.total_parcelas) - Number(t.parcela_atual ?? 1)
+    const parcela = parcelaDe(t)
+    const restantes = (parcela?.total ?? 1) - (parcela?.atual ?? 1)
     for (let k = 1; k <= restantes; k++) {
       const mes = somarMes(base, k)
       if (mes > somarMes(mesParcial, 7)) break
@@ -492,8 +517,10 @@ export function calcularMetricas(
   }
 
   // ── Compras fora do padrão ──
+  // A mediana de cada categoria vem da janela inteira: no modo "último mês",
+  // uma compra é "fora do padrão" em relação ao normal, não ao próprio mês.
   const valoresPorCategoria = new Map<string, number[]>()
-  for (const t of novas) {
+  for (const t of novasBase) {
     const c = t.categoria || 'Sem categoria'
     const lista = valoresPorCategoria.get(c) ?? []
     lista.push(valorDaCompra(t))
@@ -529,6 +556,8 @@ export function calcularMetricas(
   const metricas: MetricasComportamento = {
     geradoEm: new Date().toISOString(),
     escopo,
+    modo: modoMes ? 'ultimo_mes' : 'meses',
+    mesFoco: modoMes ? calcularMesFoco(fechados, transacoes, mensal) : null,
     periodo: {
       inicio: fechados[0],
       fim: fechados[fechados.length - 1],
@@ -567,7 +596,7 @@ export function calcularMetricas(
       comprasParceladas: parceladas.length,
       pctComprasParceladas: pct(parceladas.length, novas.length),
       valorFinanciado: r2(soma(parceladas.map(valorDaCompra))),
-      mediaParcelas: r1(media(parceladas.map(t => Number(t.total_parcelas)))),
+      mediaParcelas: r1(media(parceladas.map(t => parcelaDe(t)?.total ?? 1))),
       compromissoFuturo,
       pctReceitaProximoMes: compromissoFuturo[0] && receitaMedia > 0 ? pct(compromissoFuturo[0].valor, receitaMedia) : null,
     },
@@ -621,6 +650,147 @@ export function calcularMetricas(
 
   metricas.saude = avaliarSaude(metricas, comDatas)
   return metricas
+}
+
+// ─── Último mês fechado vs. o normal ─────────────────────────────────────────
+
+interface AgregadoMes {
+  compras: number
+  quantidade: number
+  parcelas: number
+  parcelasQtd: number
+  micro: number
+  microQtd: number
+  parceladas: number
+  financiado: number
+  fimDeSemana: number
+  categorias: Map<string, number>
+  lugares: Map<string, { rotulo: string; quantidade: number; total: number }>
+}
+
+/**
+ * O último mês fechado contra os 6 anteriores, pelo mês da fatura (a fatura
+ * paga no mês). Vai junto a lista completa das linhas dessas faturas, cada
+ * uma marcada como compra nova ou parcela em andamento.
+ */
+function calcularMesFoco(
+  fechados: string[],
+  transacoes: Transacao[],
+  mensal: MesComportamento[],
+): MesFoco {
+  const mes = fechados[fechados.length - 1]
+  const mesesBase = fechados.slice(0, -1)
+  const agregados = new Map<string, AgregadoMes>(fechados.map(m => [m, {
+    compras: 0, quantidade: 0, parcelas: 0, parcelasQtd: 0, micro: 0, microQtd: 0,
+    parceladas: 0, financiado: 0, fimDeSemana: 0, categorias: new Map(), lugares: new Map(),
+  }]))
+  const lancamentos: LancamentoFatura[] = []
+
+  for (const t of transacoes) {
+    const a = agregados.get(t.projeto_fatura.substring(0, 7))
+    if (!a) continue
+    const parcela = parcelaDe(t)
+    const nova = ehCompraNova(t)
+    if (t.projeto_fatura.startsWith(mes)) {
+      lancamentos.push({
+        data: (t.data ?? '').substring(0, 10),
+        descricao: (t.descricao_personalizada || t.descricao || '').slice(0, 60),
+        categoria: t.categoria || 'Sem categoria',
+        responsavel: t.responsavel || '',
+        cartao: t.cartao ?? 'nubank',
+        valor: r2(t.valor),
+        parcela: parcela && parcela.total > 1 ? `${parcela.atual}/${parcela.total}` : null,
+        tipo: nova ? 'compra_nova' : 'parcela_em_andamento',
+      })
+    }
+    if (!nova) {
+      a.parcelas += t.valor
+      a.parcelasQtd += 1
+      continue
+    }
+    const valor = valorDaCompra(t)
+    a.compras += valor
+    a.quantidade += 1
+    if (valor <= LIMITE_MICROGASTO) { a.micro += valor; a.microQtd += 1 }
+    if (ehParcelada(t)) { a.parceladas += 1; a.financiado += valor }
+    const dia = lerData(t.data)?.getDay()
+    if (dia === 0 || dia === 6) a.fimDeSemana += valor
+    const cat = t.categoria || 'Sem categoria'
+    a.categorias.set(cat, (a.categorias.get(cat) ?? 0) + valor)
+    const { chave, rotulo } = chaveEstabelecimento(t)
+    const lugar = a.lugares.get(chave) ?? { rotulo, quantidade: 0, total: 0 }
+    lugar.quantidade += 1
+    lugar.total += valor
+    a.lugares.set(chave, lugar)
+  }
+  lancamentos.sort((x, y) => x.data.localeCompare(y.data) || y.valor - x.valor)
+
+  const atual = agregados.get(mes)!
+  // Meses sem nenhuma compra (antes de o app ser usado) não são "normal".
+  const base = mesesBase.map(m => agregados.get(m)!).filter(a => a.quantidade + a.parcelasQtd > 0)
+  const comCompra = base.filter(a => a.quantidade > 0)
+  const comparar = (f: (a: AgregadoMes) => number, blocos = base): Comparativo => {
+    const valorBase = media(blocos.map(f))
+    return { atual: r2(f(atual)), base: r2(valorBase), variacaoPct: blocos.length ? variacao(f(atual), valorBase) : null }
+  }
+  const serie = new Map(mensal.map(m => [m.mes, m]))
+  const mensalBase = mesesBase.map(m => serie.get(m)).filter((m): m is MesComportamento => !!m)
+  const compararSerie = (f: (m: MesComportamento) => number, meses = mensalBase): Comparativo => {
+    const valorAtual = serie.get(mes) ? f(serie.get(mes)!) : 0
+    const valorBase = media(meses.map(f))
+    return { atual: r2(valorAtual), base: r2(valorBase), variacaoPct: meses.length ? variacao(valorAtual, valorBase) : null }
+  }
+  const comReceita = mensalBase.filter(m => m.receita > 0)
+  const temReceita = comReceita.length > 0 || (serie.get(mes)?.receita ?? 0) > 0
+
+  const nomesCategorias = new Set([...atual.categorias.keys(), ...base.flatMap(a => [...a.categorias.keys()])])
+  const categorias = [...nomesCategorias]
+    .map(categoria => ({ categoria, ...comparar(a => a.categorias.get(categoria) ?? 0) }))
+    .filter(c => c.atual > 0 || c.base > 0)
+    .sort((a, b) => Math.max(b.atual, b.base) - Math.max(a.atual, a.base))
+    .slice(0, 10)
+
+  const estabelecimentos = [...atual.lugares.entries()]
+    .sort((a, b) => b[1].quantidade - a[1].quantidade || b[1].total - a[1].total)
+    .slice(0, 8)
+    .map(([chave, l]) => ({
+      nome: l.rotulo,
+      quantidade: l.quantidade,
+      total: r2(l.total),
+      quantidadeBase: r1(media(base.map(a => a.lugares.get(chave)?.quantidade ?? 0))),
+    }))
+
+  const novidades = base.length === 0 ? [] : [
+    ...[...atual.categorias.entries()]
+      .filter(([c, v]) => v >= 50 && base.every(a => !a.categorias.has(c)))
+      .map(([c]) => `Categoria ${c}`),
+    ...[...atual.lugares.entries()]
+      .filter(([chave, l]) => (l.total >= 100 || l.quantidade >= 2) && base.every(a => !a.lugares.has(chave)))
+      .sort((a, b) => b[1].total - a[1].total)
+      .map(([, l]) => l.rotulo),
+  ].slice(0, 6)
+
+  return {
+    mes,
+    mesesBase: base.length,
+    compras: {
+      valor: comparar(a => a.compras),
+      quantidade: comparar(a => a.quantidade),
+      ticketMedio: comparar(a => (a.quantidade ? a.compras / a.quantidade : 0), comCompra),
+    },
+    parcelasEmAndamento: { valor: comparar(a => a.parcelas), quantidade: atual.parcelasQtd },
+    faturas: compararSerie(m => m.gastoCartao),
+    contas: compararSerie(m => m.contas),
+    receita: temReceita ? compararSerie(m => m.receita, comReceita) : null,
+    saldo: temReceita ? compararSerie(m => m.saldo, comReceita) : null,
+    microgastos: { valor: comparar(a => a.micro), quantidade: comparar(a => a.microQtd) },
+    novosParcelamentos: { quantidade: comparar(a => a.parceladas), valorFinanciado: comparar(a => a.financiado) },
+    fimDeSemanaPctValor: comparar(a => (a.compras > 0 ? (a.fimDeSemana / a.compras) * 100 : 0), comCompra),
+    categorias,
+    estabelecimentos,
+    novidades,
+    lancamentos,
+  }
 }
 
 // ─── Nota de saúde financeira ────────────────────────────────────────────────

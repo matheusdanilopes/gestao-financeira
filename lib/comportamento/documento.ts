@@ -6,7 +6,7 @@
 import { formatarMes } from '@/lib/relatoriosFormat'
 import type { DocumentoRelatorio } from '@/lib/relatorioDocumento'
 import type { ResultadoAnalise } from './tipos'
-import { OBJETIVOS_ANALISE } from './tipos'
+import { OBJETIVOS_ANALISE, rotuloJanela } from './tipos'
 
 const NIVEL: Record<string, string> = { alta: 'Alta', media: 'Média', baixa: 'Baixa' }
 const DIFICULDADE: Record<string, string> = { facil: 'Fácil', media: 'Média', dificil: 'Difícil' }
@@ -28,7 +28,9 @@ export function montarDocumentoAnalise(r: ResultadoAnalise): DocumentoRelatorio 
 
   return {
     titulo: 'Análise de Comportamento Financeiro',
-    subtitulo: `${rotuloMesIso(m.periodo.inicio)} a ${rotuloMesIso(m.periodo.fim)} · ${rotuloEscopo(p.escopo)} · objetivo: ${objetivo}`,
+    subtitulo: m.mesFoco
+      ? `${rotuloJanela(p.janela)}: ${rotuloMesIso(m.mesFoco.mes)} vs. ${m.mesFoco.mesesBase} meses anteriores · ${rotuloEscopo(p.escopo)} · objetivo: ${objetivo}`
+      : `${rotuloMesIso(m.periodo.inicio)} a ${rotuloMesIso(m.periodo.fim)} · ${rotuloEscopo(p.escopo)} · objetivo: ${objetivo}`,
     nomeArquivo: `analise-comportamento-${r.geradaEm.substring(0, 10)}`,
     corCabecalho: [124, 58, 237],
     resumo: [
@@ -91,6 +93,21 @@ export function montarDocumentoAnalise(r: ResultadoAnalise): DocumentoRelatorio 
           x.aportes,
         ]),
       },
+      ...(m.mesFoco
+        ? [{
+            titulo: `Lançamentos das faturas de ${rotuloMesIso(m.mesFoco.mes)}`,
+            explicacao: 'Parcelas em andamento entram com a data de abertura da fatura — não são compras novas.',
+            colunas: ['Data', 'Descrição', 'Categoria', 'Responsável', 'Tipo', 'Valor'],
+            linhas: m.mesFoco.lancamentos.map(l => [
+              l.data.split('-').reverse().join('/'),
+              l.descricao,
+              l.categoria,
+              l.responsavel,
+              l.tipo === 'compra_nova' ? (l.parcela ? `Compra nova (${l.parcela})` : 'Compra nova') : `Parcela ${l.parcela ?? ''}`.trim(),
+              l.valor,
+            ]),
+          }]
+        : []),
       {
         titulo: 'Para refletir',
         colunas: ['Pergunta'],

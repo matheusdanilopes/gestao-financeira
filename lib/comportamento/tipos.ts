@@ -6,8 +6,20 @@
  * código de servidor (cliente do Gemini, leitura do banco) para o bundle.
  */
 
-export const JANELAS_ANALISE = [6, 12, 24] as const
+/**
+ * Janela da análise em meses. `1` é especial: o último mês fechado, com todas
+ * as compras das faturas pagas nele, comparado com os 6 meses anteriores (o
+ * "normal" da pessoa).
+ */
+export const JANELAS_ANALISE = [1, 6, 12, 24] as const
 export type JanelaAnalise = typeof JANELAS_ANALISE[number]
+export const JANELA_ULTIMO_MES: JanelaAnalise = 1
+/** Meses anteriores usados como base de comparação do último mês. */
+export const MESES_BASE_ULTIMO_MES = 6
+
+export function rotuloJanela(janela: number): string {
+  return janela === JANELA_ULTIMO_MES ? 'Último mês' : `${janela} meses`
+}
 
 /** 'casal' = todos os responsáveis; um nome = só os lançamentos daquela pessoa. */
 export type EscopoAnalise = 'casal' | 'Matheus' | 'Jeniffer'
@@ -120,9 +132,59 @@ export interface IndicadorSaude {
   referencia: string
 }
 
+/** Um valor do mês em foco e a média dos meses anteriores. */
+export interface Comparativo {
+  atual: number
+  base: number
+  /** Variação % atual vs. base. null sem base. */
+  variacaoPct: number | null
+}
+
+/** Uma linha de fatura enviada ao analista no modo "último mês". */
+export interface LancamentoFatura {
+  /** Data registrada na linha. Numa parcela em andamento é a data de abertura da fatura, não a da compra. */
+  data: string
+  descricao: string
+  categoria: string
+  responsavel: string
+  cartao: string
+  valor: number
+  /** "3/10" quando é parcela. */
+  parcela: string | null
+  tipo: 'compra_nova' | 'parcela_em_andamento'
+}
+
+export interface MesFoco {
+  /** 'YYYY-MM' — mês fechado analisado (faturas pagas nele). */
+  mes: string
+  mesesBase: number
+  /** Compras novas (à vista ou 1ª parcela, pelo valor cheio). */
+  compras: { valor: Comparativo; quantidade: Comparativo; ticketMedio: Comparativo }
+  /** Parcelas de compras antigas que caíram nesta fatura. */
+  parcelasEmAndamento: { valor: Comparativo; quantidade: number }
+  /** Total das faturas pagas no mês (compras novas pela parcela + parcelas em andamento). */
+  faturas: Comparativo
+  contas: Comparativo
+  receita: Comparativo | null
+  saldo: Comparativo | null
+  microgastos: { valor: Comparativo; quantidade: Comparativo }
+  novosParcelamentos: { quantidade: Comparativo; valorFinanciado: Comparativo }
+  fimDeSemanaPctValor: Comparativo
+  categorias: Array<{ categoria: string } & Comparativo>
+  estabelecimentos: Array<{ nome: string; quantidade: number; total: number; quantidadeBase: number }>
+  /** Categorias/lugares que apareceram agora e não existiam nos meses de base. */
+  novidades: string[]
+  /** Todas as linhas das faturas pagas no mês. */
+  lancamentos: LancamentoFatura[]
+}
+
 export interface MetricasComportamento {
   geradoEm: string
   escopo: EscopoAnalise
+  /** 'meses' = vários meses fechados; 'ultimo_mes' = foco no último mês fechado (os anteriores viram contexto). */
+  modo: 'meses' | 'ultimo_mes'
+  /** Só no modo 'ultimo_mes'. */
+  mesFoco: MesFoco | null
   periodo: {
     inicio: string
     fim: string

@@ -1,16 +1,20 @@
 'use client'
 
+import { useMemo, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
   Brain, Activity, CalendarDays, Store, TrendingUp, TrendingDown, Zap, ShieldCheck,
   AlertTriangle, ListChecks, Target, HelpCircle, Info, Layers, Coins, Minus,
+  CalendarCheck, Receipt, ChevronDown, Sparkle,
 } from 'lucide-react'
 import GraficoBarrasMeses from '@/components/relatorios/GraficoBarrasMeses'
 import KpisRelatorio from '@/components/relatorios/KpisRelatorio'
 import { formatBRL } from '@/lib/format'
 import { formatarPercentual } from '@/lib/relatoriosFormat'
 import { rotuloMesIso } from '@/lib/comportamento/documento'
-import type { AnaliseIA, FatiaTempo, MetricasComportamento, Nivel } from '@/lib/comportamento/tipos'
+import type {
+  AnaliseIA, Comparativo, FatiaTempo, LancamentoFatura, MesFoco, MetricasComportamento, Nivel,
+} from '@/lib/comportamento/tipos'
 
 // ─── Peças ───────────────────────────────────────────────────────────────────
 
@@ -141,6 +145,154 @@ function BarrasFatias({ fatias, referencia }: { fatias: FatiaTempo[]; referencia
   )
 }
 
+// ─── Mês em foco (modo "último mês") ─────────────────────────────────────────
+
+/** "+12%" colorido: subir é ruim por padrão (gasto). */
+function Variacao({ c, subirEhBom = false }: { c: Comparativo; subirEhBom?: boolean }) {
+  const v = c.variacaoPct
+  if (v === null) return <span className="text-[11px] text-gray-400">sem base</span>
+  const neutro = Math.abs(v) < 5
+  const bom = subirEhBom ? v > 0 : v < 0
+  const cor = neutro ? 'text-gray-400' : bom ? 'text-green-600' : 'text-red-500'
+  const Icone = neutro ? Minus : v > 0 ? TrendingUp : TrendingDown
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-[11px] font-semibold num ${cor}`}>
+      <Icone className="w-3 h-3" strokeWidth={2.4} />
+      {v > 0 ? '+' : ''}{formatarPercentual(v, 0)}
+    </span>
+  )
+}
+
+function LinhaComparativo({
+  rotulo, c, formato = 'moeda', subirEhBom,
+}: {
+  rotulo: string
+  c: Comparativo
+  formato?: 'moeda' | 'numero' | 'pct'
+  subirEhBom?: boolean
+}) {
+  const fmt = (n: number) =>
+    formato === 'moeda' ? formatBRL(n) : formato === 'pct' ? formatarPercentual(n, 0) : n.toLocaleString('pt-BR', { maximumFractionDigits: 1 })
+  return (
+    <li className="py-2 flex items-center gap-3">
+      <span className="flex-1 min-w-0 text-xs font-medium text-gray-700 truncate">{rotulo}</span>
+      <div className="text-right shrink-0">
+        <p className="text-xs font-bold text-gray-900 num">{fmt(c.atual)}</p>
+        <p className="text-[10px] text-gray-400 num">normal {fmt(c.base)}</p>
+      </div>
+      <span className="w-12 text-right shrink-0"><Variacao c={c} subirEhBom={subirEhBom} /></span>
+    </li>
+  )
+}
+
+function ListaLancamentos({ lancamentos }: { lancamentos: LancamentoFatura[] }) {
+  const [aberto, setAberto] = useState(false)
+  const [filtro, setFiltro] = useState<'todos' | LancamentoFatura['tipo']>('todos')
+  const visiveis = useMemo(
+    () => lancamentos.filter(l => filtro === 'todos' || l.tipo === filtro),
+    [lancamentos, filtro],
+  )
+  const qtdNovas = lancamentos.filter(l => l.tipo === 'compra_nova').length
+
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={() => setAberto(v => !v)}
+        aria-expanded={aberto}
+        className="w-full flex items-center gap-2 text-xs font-semibold text-gray-600 py-1"
+      >
+        <Receipt className="w-3.5 h-3.5 text-gray-400" />
+        <span className="flex-1 text-left">
+          {lancamentos.length} lançamentos enviados ao analista ({qtdNovas} compras novas,{' '}
+          {lancamentos.length - qtdNovas} parcelas em andamento)
+        </span>
+        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${aberto ? 'rotate-180' : ''}`} />
+      </button>
+      {aberto && (
+        <>
+          <div className="flex gap-1">
+            {([['todos', 'Todos'], ['compra_nova', 'Compras novas'], ['parcela_em_andamento', 'Parcelas']] as const).map(([v, l]) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setFiltro(v)}
+                aria-pressed={filtro === v}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border
+                            ${filtro === v ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-500 border-gray-200'}`}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+          <ul className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
+            {visiveis.map((l, i) => (
+              <li key={`${l.data}-${l.descricao}-${i}`} className="py-1.5 flex items-center gap-2">
+                <span className="text-[10px] text-gray-400 num w-10 shrink-0">{l.data.slice(8, 10)}/{l.data.slice(5, 7)}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-800 truncate">{l.descricao}</p>
+                  <p className="text-[10px] text-gray-400 truncate">
+                    {l.categoria} · {l.responsavel}
+                    {l.parcela ? ` · ${l.parcela}` : ''}
+                    {l.tipo === 'parcela_em_andamento' ? ' · parcela em andamento' : ''}
+                  </p>
+                </div>
+                <span className="text-xs font-semibold text-gray-900 num shrink-0">{formatBRL(l.valor)}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  )
+}
+
+export function BlocoMesFoco({ mesFoco: f }: { mesFoco: MesFoco }) {
+  return (
+    <Cartao
+      titulo={`${rotuloMesIso(f.mes)} vs. seu normal`}
+      Icon={CalendarCheck}
+      corIcone="text-primary-600"
+      corFundo="bg-primary-50"
+      subtitulo={`Faturas pagas no mês, comparadas com a média de ${f.mesesBase} ${f.mesesBase === 1 ? 'mês anterior' : 'meses anteriores'}`}
+    >
+      <ul className="divide-y divide-gray-100">
+        <LinhaComparativo rotulo="Total das faturas" c={f.faturas} />
+        <LinhaComparativo rotulo="Compras novas (valor cheio)" c={f.compras.valor} />
+        <LinhaComparativo rotulo="Quantidade de compras novas" c={f.compras.quantidade} formato="numero" />
+        <LinhaComparativo rotulo="Parcelas de compras antigas" c={f.parcelasEmAndamento.valor} />
+        <LinhaComparativo rotulo="Contas do planejamento" c={f.contas} />
+        {f.receita && <LinhaComparativo rotulo="Receita" c={f.receita} subirEhBom />}
+        {f.saldo && <LinhaComparativo rotulo="Saldo do mês" c={f.saldo} subirEhBom />}
+        <LinhaComparativo rotulo="Microgastos" c={f.microgastos.valor} />
+        <LinhaComparativo rotulo="Novos parcelamentos" c={f.novosParcelamentos.quantidade} formato="numero" />
+      </ul>
+
+      {f.categorias.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-xs font-semibold text-gray-700 pt-1">Por categoria (compras novas)</p>
+          <ul className="divide-y divide-gray-100">
+            {f.categorias.slice(0, 8).map(c => (
+              <LinhaComparativo key={c.categoria} rotulo={c.categoria} c={c} />
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {f.novidades.length > 0 && (
+        <div className="rounded-2xl bg-amber-50 border border-amber-100 p-3 space-y-1">
+          <p className="text-[11px] font-semibold text-amber-700 flex items-center gap-1">
+            <Sparkle className="w-3 h-3" /> Novidades neste mês
+          </p>
+          <p className="text-xs text-amber-700 leading-snug">{f.novidades.join(' · ')}</p>
+        </div>
+      )}
+
+      <ListaLancamentos lancamentos={f.lancamentos} />
+    </Cartao>
+  )
+}
+
 // ─── Blocos de métricas (aparecem antes mesmo de a IA terminar) ──────────────
 
 export function BlocosMetricas({ metricas: m }: { metricas: MetricasComportamento }) {
@@ -154,9 +306,11 @@ export function BlocosMetricas({ metricas: m }: { metricas: MetricasComportament
 
   return (
     <>
+      {m.mesFoco && <BlocoMesFoco mesFoco={m.mesFoco} />}
+
       <KpisRelatorio
         kpis={[
-          { label: 'Receita média', valor: formatBRL(s.receitaMedia), detalhe: 'meses fechados' },
+          { label: 'Receita média', valor: formatBRL(s.receitaMedia), detalhe: m.mesFoco ? `${m.periodo.mesesFechados} meses fechados` : 'meses fechados' },
           {
             label: 'Gasto médio',
             valor: formatBRL(s.gastoMedio),
@@ -184,7 +338,7 @@ export function BlocosMetricas({ metricas: m }: { metricas: MetricasComportament
       </Cartao>
 
       <Cartao titulo="Quando você gasta" Icon={CalendarDays} corIcone="text-violet-600" corFundo="bg-violet-50"
-        subtitulo={`${m.qualidade.comprasAnalisadas} compras novas, pela data da compra`}>
+        subtitulo={`${m.qualidade.comprasAnalisadas} compras novas${m.mesFoco ? ` das faturas de ${rotuloMesIso(m.mesFoco.mes)}` : ''}, pela data da compra (sem parcelas em andamento)`}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <p className="text-xs font-semibold text-gray-700">Dia da semana</p>
