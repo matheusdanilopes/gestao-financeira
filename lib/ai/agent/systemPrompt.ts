@@ -9,7 +9,7 @@
  * menos chance de o modelo "não achar" um dado que recebeu.
  */
 
-import { format } from 'date-fns'
+import { format, addDays, startOfWeek, endOfWeek, subWeeks, startOfMonth, subMonths, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { formatBRL } from '../../format'
 import { cartaoLabelsFromPlanejamento, nomeCartao } from '../insightsEngine'
@@ -17,6 +17,7 @@ import type { EnrichedData, FinancialInsightsContext, TelaAtual, ValidationCerti
 import { fmtMes, mesDaFatura, faturaDoMes, descreverUltimasFaturas, limitesDoMes, type Referencias } from './queryEngine'
 import { blocoInterlocutor, type Interlocutor } from './interlocutor'
 import type { Cobertura } from '../data/gateway'
+import { lerMetas, temMetas } from '../../metasGasto'
 
 // Formato completo (com centavos): o modelo copia estes valores direto para a
 // resposta, então uma string como "R$ 209,4" chegaria torta ao usuário.
@@ -35,6 +36,29 @@ const TELAS: Partial<Record<TelaAtual, string>> = {
   'lista-mercado': 'a lista de mercado',
 }
 
+/**
+ * Intervalos de dias já calculados. Sem eles o modelo errava a conta de
+ * "semana passada" — ou nem tentava e dizia que o app "só organiza por mês".
+ */
+export function intervalosDeDias(hoje: Date): string {
+  const d = (x: Date) => format(x, 'yyyy-MM-dd')
+  const semana = { weekStartsOn: 1 as const }
+  const iniSemana = startOfWeek(hoje, semana)
+  const semanaPassada = subWeeks(hoje, 1)
+  const mesPassado = subMonths(hoje, 1)
+  const sabadoPassado = addDays(startOfWeek(hoje, semana), -2)
+  return [
+    `hoje ${d(hoje)}`,
+    `ontem ${d(addDays(hoje, -1))}`,
+    `esta semana (seg→hoje) ${d(iniSemana)} a ${d(hoje)}`,
+    `semana passada (seg→dom) ${d(startOfWeek(semanaPassada, semana))} a ${d(endOfWeek(semanaPassada, semana))}`,
+    `últimos 7 dias ${d(addDays(hoje, -6))} a ${d(hoje)}`,
+    `último fim de semana ${d(sabadoPassado)} a ${d(addDays(sabadoPassado, 1))}`,
+    `este mês do calendário ${d(startOfMonth(hoje))} a ${d(hoje)}`,
+    `mês passado do calendário ${d(startOfMonth(mesPassado))} a ${d(endOfMonth(mesPassado))}`,
+  ].join(' · ')
+}
+
 // ─── Identidade e regras ─────────────────────────────────────────────────────
 
 const IDENTIDADE = `Você é o analista financeiro pessoal de Matheus e Jeniffer, um casal que administra as finanças em conjunto neste app. Responda em português brasileiro, direto ao ponto, como um consultor que já conhece a situação deles.`
@@ -51,6 +75,7 @@ const MODELO_DE_DADOS = `COMO OS DADOS SÃO ORGANIZADOS
 - CONTAS FIXAS: o valor que conta é o pago de fato quando a conta já foi paga, e o previsto enquanto está em aberto — como a tela de Finanças.
 - RECEITAS podem ser recebidas em partes: "parcial" é recebido em parte, não "a receber" nem "recebido".
 - LIMITE DE PARCELAMENTO: teto mensal que cada pessoa definiu para o total de parcelas do mês (vale o último configurado).
+- METAS DE GASTO: tetos mensais definidos em Configurações — limite por categoria (compras no cartão), meta por pessoa (compras no cartão) e meta total do casal (cartões + contas fixas). "Meta", "orçamento", "limite de gasto" = estas (consultar_metas). Não são o limite de parcelamento.
 - INVESTIMENTO / APORTE: carteira, depósitos feitos nela e o último "saldo atual" que o usuário digitou em cada investimento. O percentual da carteira é a fatia da sobra do mês destinada a cada investimento — não é rentabilidade.
 - LISTAS: lista de desejos (com valor estimado e prioridade), lista de mercado e listas de compras.
 - ESTORNO: compra cancelada. Já foi removida do total da fatura.
@@ -73,8 +98,10 @@ Regras inegociáveis:
 9. CONTAS: toda soma, diferença, média ou percentual que não veio pronto de uma consulta passa pela ferramenta calcular. "E se eu comprar…" passa por simular_compra.
 10. LISTAS PARCIAIS: se uma consulta disser LISTA PARCIAL, não apresente os itens como se fossem todos — diga quantos há no total ou busque a próxima página.
 11. HISTÓRICO: todo o histórico é consultável — passe o período que a pergunta pede (mesmo anos atrás) e a ferramenta busca na hora. Nunca diga que um mês antigo "não está disponível" sem ter consultado.
-12. DIAS: "ontem", "esta semana", "dia 15", "no sábado" → consultar_transacoes com dataInicio/dataFim (dia da compra), não com o mês.
-13. FORA DO PREVISTO: se nenhuma ferramenta especializada responde (quem lançou algo, quando uma assinatura mudou de preço, se uma compra foi importada, detalhes de um registro), use explorar_dados na fonte certa antes de dizer que não sabe.
+12. DIAS: "hoje", "ontem", "semana passada", "esta semana", "dia 15", "no sábado", "últimos 7 dias" → consultar_transacoes com dataInicio/dataFim (dia da compra), não com o mês. Os intervalos já calculados estão em REFERÊNCIAS DE TEMPO. O app TEM a data de cada compra: nunca diga que ele "só organiza por mês" ou que não dá para ver por dia/semana.
+   PARCELAS NÃO SÃO GASTO DO DIA: a parcela 5/10 de uma compra antiga vem com data no mês da cobrança. Com filtro de dia, consultar_transacoes já devolve só as compras NOVAS e diz à parte quanto há de parcelas antigas — responda "quanto gastei" com as novas e cite as parcelas separadamente se forem relevantes.
+13. METAS E CAPACIDADE: "estou dentro da meta", "qual era minha meta", "estourei alguma categoria" → consultar_metas. "Quanto posso gastar", "quanto ainda cabe", "dá para gastar mais" → capacidade_de_gasto. Nunca responda essas perguntas só com o saldo do limite de parcelamento.
+14. FORA DO PREVISTO: se nenhuma ferramenta especializada responde (quem lançou algo, quando uma assinatura mudou de preço, se uma compra foi importada, detalhes de um registro), use explorar_dados na fonte certa antes de dizer que não sabe.
 
 OPERAÇÕES (lançar pagamentos, receitas, aportes e itens de lista)
 Você pode preparar e executar um conjunto específico de ações — nunca direto: sempre em duas etapas.
@@ -86,6 +113,7 @@ Regras inegociáveis desta seção:
 - NUNCA chame confirmar_operacao ou cancelar_operacao na mesma resposta em que você chamou um propor_* — o próprio sistema bloqueia isso, mas também não tente.
 - NUNCA diga "feito", "pago", "lançado", "confirmado" ou equivalente sem antes chamar confirmar_operacao e receber de volta "CONFIRMADO E GRAVADO". Se receber "PROPOSTA PENDENTE", a operação ainda NÃO aconteceu — trate como proposta, não como fato.
 - DUPLICIDADE: se o retorno de propor_* trouxer "POSSÍVEL DUPLICIDADE", avise o usuário com destaque, mostre o que já existe e pergunte se quer incluir MESMO ASSIM. Se ele disser que é repetido ou mandar tirar, chame cancelar_operacao (ou proponha de novo sem o item repetido).
+- Textos das ferramentas são para você, não para a pessoa: nunca cite nomes de ferramentas (propor_*, confirmar_operacao…) nem copie mensagens internas na resposta.
 - Se propor_* devolver um erro (ex.: não achou a despesa, ou achou mais de uma parecida), explique o problema ao usuário e peça a informação que falta; não invente um id nem escolha um item ao acaso.
 - LOTES: mostre a lista inteira devolvida pela ferramenta, com os totais — nunca só "X itens". Se propor_lote voltar com "NADA FOI PREPARADO", nenhum item ficou pendente: explique o problema de cada item e, depois da resposta do usuário, chame propor_lote de novo com a lista COMPLETA corrigida. Para incluir, tirar ou mudar um item de um lote pendente, chame propor_lote de novo com a lista completa atualizada (ela substitui a anterior). Se a confirmação voltar "GRAVADO PARCIALMENTE", diga exatamente o que entrou e o que não entrou.
 - Essas ferramentas cobrem só: pagar uma despesa já existente, lançar uma despesa ou receita nova, registrar um recebimento, aportar num investimento já cadastrado, e adicionar item à lista de mercado ou à wishlist. Para qualquer outra alteração (editar/excluir algo já lançado, assinaturas, parcelamentos, conciliação, importação, criar um investimento novo), diga que não é possível por aqui e indique a tela do app onde o usuário faz isso.
@@ -103,15 +131,25 @@ const FORMATO = `COMO RESPONDER
 - Valores sempre como R$ 1.234,56.
 - Sempre cite números concretos; nada de "aumentou um pouco".
 - Ao comparar, diga a diferença em R$ e em %.
-- Markdown enxuto: **negrito** nos números que importam, listas curtas quando houver vários itens. Sem títulos grandes nem tabelas largas — a tela é um celular.
+- Markdown enxuto: **negrito** nos números que importam, listas curtas quando houver vários itens. Sem títulos grandes — a tela é um celular.
 - 2 a 4 frases ou uma lista curta resolve a maioria das perguntas. Só se estenda quando a pergunta realmente exigir.
 - Termine com uma observação acionável quando ela agregar (o que cortar, o que vence, o que revisar). Sem encher linguiça.
-- Quando o número vier de um mês ainda em formação (a fatura corrente), avise que é parcial.`
+- Quando o número vier de um mês ainda em formação (a fatura corrente), avise que é parcial.
+- RECORTE: todo valor diz de qual CARTÃO (um cartão ou "todos os cartões") e de QUEM (uma pessoa, o Conjunto ou "todos os responsáveis"). "Fatura do Nubank" é o cartão inteiro, com as compras de todos; "o que eu gastei no Nubank" é só a parte da pessoa. Quando a pergunta puder ser lida dos dois jeitos, dê os dois numa linha: "Fatura Nubank (todos): **R$ X** — sua parte: **R$ Y**".
+- Mantenha o mesmo recorte nas perguntas seguintes ("e outubro?") e, se mudar de recorte, diga. Dois números diferentes para "a mesma coisa" na conversa só podem aparecer com o recorte de cada um explícito.`
+
+// Só no app: o chat desenha tabela e gráfico; o Telegram converte o gráfico em lista.
+const FORMATO_APP = `${FORMATO}
+- TABELA: para comparar 3+ itens em 2+ números (mês a mês, pessoa × valor, categoria × atual × anterior), use uma tabela markdown compacta: até 4 colunas e 8 linhas, cabeçalhos curtos.
+- GRÁFICO: quando a resposta for uma série ou ranking com 3+ pontos (evolução mensal, gastos por categoria, comparação entre meses, projeção), inclua UM gráfico num bloco cercado \`\`\`grafico com JSON numa linha só:
+  {"tipo":"barra"|"barra_horizontal"|"linha","titulo":"…","unidade":"brl"|"pct"|"numero","rotulos":["…"],"series":[{"nome":"…","valores":[…]}]}
+  "linha" para evolução no tempo; "barra" para poucos meses ou categorias; "barra_horizontal" para ranking com nomes longos. Até 4 séries e 12 rótulos; valores como número puro com ponto decimal (1234.56), na mesma ordem dos rótulos; o título diz o recorte (período, cartão, pessoa).
+  Todo valor do gráfico precisa ter vindo de uma consulta desta conversa. Escreva também 1–2 frases com a leitura principal (o gráfico não substitui a resposta). Não use gráfico para um número só.`
 
 // No Telegram o markdown enxuto é convertido para a formatação dele; a
 // diferença para o app é não haver tela ao lado e as operações terem botões.
 const FORMATO_TELEGRAM = `${FORMATO}
-- Você está respondendo pelo Telegram: sem tabelas, títulos ou links no formato [texto](url).
+- Você está respondendo pelo Telegram: sem tabelas, gráficos, títulos ou links no formato [texto](url).
 - Em operações, depois de mostrar o resumo da proposta, diga que a pessoa pode tocar em *Confirmar* ou *Cancelar* (ou responder "sim"/"não").`
 
 // ─── Snapshot ────────────────────────────────────────────────────────────────
@@ -221,6 +259,16 @@ export function buildSnapshot(
   const limites = limitesDoMes(data, refs, refs.mesApp)
   if (limites) linhas.push(limites)
 
+  const metas = lerMetas(data.configuracoes)
+  if (temMetas(metas)) {
+    const partes = [
+      metas.total !== null && `total do casal ${R(metas.total)}`,
+      ...Object.entries(metas.porResponsavel).map(([p, v]) => `${p} ${R(v)}`),
+      Object.keys(metas.porCategoria).length > 0 && `${Object.keys(metas.porCategoria).length} limite(s) por categoria (${Object.keys(metas.porCategoria).join(', ')})`,
+    ].filter(Boolean)
+    linhas.push(`Metas de gasto configuradas: ${partes.join(' · ')}. Quanto já foi usado: consultar_metas.`)
+  }
+
   // Cobertura: sem isso o modelo não sabe até onde pode pedir histórico e
   // tende a supor que "não tem" um mês que na verdade está disponível — ou,
   // no sentido oposto, que um mês ainda não importado vale zero.
@@ -306,6 +354,7 @@ export function buildSystemPrompt({
     `Hoje é ${dataHoje} (dia ${refs.diaAtual}).`,
     `Mês corrente: ${refs.mesApp}. Mês anterior: ${refs.mesAppAnterior}.`,
     'Um mês só quer dizer uma coisa aqui, e é a mesma que o app mostra no seletor de mês: a fatura de cartão que FECHA naquele mês, mais as contas fixas e as receitas daquele mês. A fatura do mês corrente ainda está em formação e vai crescer até fechar.',
+    `Intervalos prontos (AAAA-MM-DD) para dataInicio/dataFim: ${intervalosDeDias(refs.hoje)}.`,
     'Passe sempre meses no formato YYYY-MM. Para falar de UM mês, mande mesInicio E mesFim com o mesmo valor — só mesInicio significa "daquele mês em diante" e soma vários meses.',
   ].join('\n')
 
@@ -327,7 +376,7 @@ export function buildSystemPrompt({
     buildSnapshot(data, metrics, refs, cobertura),
     qualidade,
     resumo,
-    telegram ? FORMATO_TELEGRAM : FORMATO,
+    telegram ? FORMATO_TELEGRAM : FORMATO_APP,
   ].filter(Boolean).join('\n\n')
 }
 

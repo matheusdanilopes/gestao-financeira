@@ -24,12 +24,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
   }
 
-  const { data, error } = await supabase
+  const buscar = (colunas: string) => supabase
     .from('messages')
-    .select('role, content, created_at, canal')
+    .select(colunas)
     .eq('conversation_id', conversationId)
     .neq('role', 'system')
     .order('created_at', { ascending: true })
+
+  // A trilha de ferramentas é opcional: sem a coluna (migration ainda não
+  // aplicada), o histórico sai sem ela em vez de não sair.
+  let { data, error } = await buscar('role, content, created_at, canal, ferramentas')
+  if (error) ({ data, error } = await buscar('role, content, created_at, canal'))
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })

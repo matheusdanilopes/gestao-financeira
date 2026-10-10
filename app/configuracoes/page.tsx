@@ -8,7 +8,7 @@ import { descricaoFechamento, calcularDataFechamentoDaFaturaISO } from '@/lib/fa
 import {
   Settings, LogOut, Upload, Activity, ChevronDown, Sun, Moon, Monitor,
   Tags, Plus, Pencil, Trash2, Check, CreditCard, CalendarDays, X, Bell, Search,
-  User, Mail, Lock, Eye, EyeOff, Mic, Send,
+  User, Mail, Lock, Eye, EyeOff, Mic, Send, Target,
 } from 'lucide-react'
 import FilterSelect from '@/components/FilterSelect'
 import { mascaraMoeda, formatarMoedaInput, parseMoeda } from '@/lib/format'
@@ -20,6 +20,7 @@ import { PUSH_REFRESH_KEY } from '@/components/NotificacoesBell'
 import { useHeyGestorAtivo } from '@/lib/heyGestorStore'
 import { suportaReconhecimentoVoz } from '@/lib/useVoice'
 import TelegramVinculo from '@/components/TelegramVinculo'
+import { METAS_GASTO } from '@/lib/metasGasto'
 
 interface LogEntry {
   id: string
@@ -166,6 +167,7 @@ function SecaoCartao({
 
 // ---- Card de seção reutilizável (evita repetir a casca visual em cada bloco da aba Geral) ----
 
+
 function SettingsCard({
   icon: Icon,
   title,
@@ -308,6 +310,7 @@ function ConfiguracoesContent() {
   const [categorias, setCategorias] = useState<string[]>(CATEGORIAS_PADRAO)
   const [categoriasUso, setCategoriasUso] = useState<Record<string, number>>({})
   const [categoriaLimites, setCategoriaLimites] = useState<Record<string, string>>({})
+  const [metasGasto, setMetasGasto] = useState<Record<string, string>>({})
   const [novaCategoria, setNovaCategoria] = useState('')
   const [editandoCategoria, setEditandoCategoria] = useState<string | null>(null)
   const [novoNomeCategoria, setNovoNomeCategoria] = useState('')
@@ -384,6 +387,22 @@ function ConfiguracoesContent() {
       }
     }
     setCategoriaLimites(limites)
+
+    const metas: Record<string, string> = {}
+    for (const { chave } of METAS_GASTO) {
+      const valor = parseFloat(get(chave, '0'))
+      metas[chave] = valor > 0 ? formatarMoedaInput(valor) : ''
+    }
+    setMetasGasto(metas)
+  }
+
+  async function salvarMetaGasto(chave: string, texto: string) {
+    const val = parseMoeda(texto)
+    await fetch('/api/configuracoes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ configuracoes: [{ chave, valor: String(val > 0 ? val : 0) }] }),
+    })
   }
 
   async function carregarFaturas() {
@@ -1057,6 +1076,36 @@ function ConfiguracoesContent() {
 
       {/* ---- ABA CATEGORIAS ---- */}
       {abaAtual === 'categorias' && (
+        <>
+        <SettingsCard
+          icon={Target}
+          title="Metas de gasto mensal"
+          description="Teto de gasto por mês. O assessor (chat e Telegram) acompanha quanto já foi usado de cada meta."
+        >
+          <div className="space-y-2.5">
+            {METAS_GASTO.map(({ chave, rotulo, ajuda }) => (
+              <div key={chave} className="flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 tracking-tight">{rotulo}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{ajuda}</p>
+                </div>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Sem meta"
+                  aria-label={`Meta de gasto: ${rotulo}`}
+                  value={metasGasto[chave] ?? ''}
+                  onChange={(e) => setMetasGasto(prev => ({ ...prev, [chave]: mascaraMoeda(e.target.value) }))}
+                  onBlur={(e) => { void salvarMetaGasto(chave, e.target.value) }}
+                  className="w-28 bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5 text-sm text-right focus:outline-none focus:ring-1 focus:ring-primary-400 transition-shadow"
+                />
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-400 mt-3 leading-relaxed">
+            Os limites por categoria ficam logo abaixo, em cada categoria.
+          </p>
+        </SettingsCard>
         <SettingsCard
           icon={Tags}
           title="Categorias"
@@ -1167,6 +1216,7 @@ function ConfiguracoesContent() {
             Editar renomeia a categoria em compras e assinaturas automaticamente. Remoção só é permitida quando não há uso.
           </p>
         </SettingsCard>
+        </>
       )}
 
       {/* ---- ABA PREFERÊNCIAS ---- */}

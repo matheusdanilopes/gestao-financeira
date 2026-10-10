@@ -1,6 +1,14 @@
 'use client'
 
 import { memo, type ReactNode } from 'react'
+import dynamic from 'next/dynamic'
+import { lerGrafico, LINGUAGEM_GRAFICO } from '@/lib/graficoChat'
+
+// Chart.js só é baixado quando uma resposta traz gráfico.
+const GraficoChat = dynamic(() => import('./GraficoChat'), {
+  ssr: false,
+  loading: () => <div className="my-3 h-[200px] rounded-2xl skeleton" />,
+})
 
 /**
  * Renderizador de markdown do chat.
@@ -84,13 +92,22 @@ export const MarkdownMessage = memo(function MarkdownMessage({ texto }: { texto:
 
     // Bloco de código cercado
     if (linha.trimStart().startsWith('```')) {
+      const linguagem = linha.trim().slice(3).trim().toLowerCase()
       const conteudo: string[] = []
       i++
       while (i < linhas.length && !linhas[i].trimStart().startsWith('```')) {
         conteudo.push(linhas[i])
         i++
       }
+      const fechado = i < linhas.length
       i++
+      if (linguagem === LINGUAGEM_GRAFICO) {
+        const grafico = lerGrafico(conteudo.join('\n'))
+        if (grafico) blocos.push(<GraficoChat key={`graf-${i}`} grafico={grafico} />)
+        // Ainda chegando no streaming: reserva o espaço em vez de mostrar JSON.
+        else if (!fechado) blocos.push(<div key={`graf-${i}`} className="my-3 h-[200px] rounded-2xl skeleton" />)
+        continue
+      }
       blocos.push(
         <pre key={`code-${i}`} className="my-2 overflow-x-auto rounded-xl bg-gray-900 dark:bg-black/40 p-3 text-[11px] leading-relaxed text-gray-100">
           <code>{conteudo.join('\n')}</code>

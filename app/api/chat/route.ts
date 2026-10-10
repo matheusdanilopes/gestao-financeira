@@ -16,6 +16,7 @@
  *   tool    { nome, rotulo }   ferramenta executada (trilha de auditoria)
  *   delta   { texto }          pedaço da resposta
  *   reset   {}                 descarte o texto parcial desta rodada
+ *   aviso   { texto }          algo além da resposta (ex.: troca não salva)
  *   done    { texto, ferramentas }
  *   error   { codigo, mensagem, diaria?, segundos? }
  */
@@ -60,6 +61,8 @@ export async function POST(req: NextRequest) {
     conversation_id?: string
     /** true quando o cliente está repetindo uma pergunta que já foi gravada. */
     reenvio?: boolean
+    /** Mensagens na tela — reserva se o histórico gravado estiver incompleto. */
+    historico?: unknown
   }
   try {
     body = await req.json()
@@ -109,6 +112,7 @@ export async function POST(req: NextRequest) {
           pergunta: conteudoUsuario,
           tela: body.tela,
           reenvio: body.reenvio,
+          historicoCliente: body.historico,
           deadlineMs,
         })) {
           despachar(evento, enviar)
@@ -147,6 +151,9 @@ function despachar(evento: AgentEvent, enviar: (tipo: string, payload: unknown) 
       break
     case 'reset':
       enviar('reset', {})
+      break
+    case 'aviso':
+      enviar('aviso', { texto: evento.texto })
       break
     case 'done':
       // Só chega depois que a resposta foi gravada na conversa.

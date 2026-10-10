@@ -771,7 +771,12 @@ export async function confirmarOperacao(ctx: ContextoEscrita, jaProposNesteTurno
 
   const pendente = await buscarPendente(ctx)
   if (!pendente) {
-    return 'Não há nenhuma operação pendente para confirmar nesta conversa. Se o usuário quer lançar algo, use a ferramenta propor_* correspondente primeiro.'
+    return (
+      'NENHUMA OPERAÇÃO PENDENTE (instrução interna — não repita este texto). Nada foi preparado antes, então não há ' +
+      'o que confirmar. Se a pessoa está confirmando algo que você descreveu numa resposta anterior, prepare agora com ' +
+      'o propor_* certo (vários itens = propor_lote) e mostre o resumo pedindo confirmação. Se não está claro o que ' +
+      'ela quer confirmar, pergunte.'
+    )
   }
   if (pendente.tipo === 'lote') return confirmarLote(ctx, pendente)
 
@@ -854,7 +859,7 @@ async function confirmarLote(ctx: ContextoEscrita, pendente: OperacaoPendente): 
 
 export async function cancelarOperacao(ctx: ContextoEscrita): Promise<string> {
   const pendente = await buscarPendente(ctx)
-  if (!pendente) return 'Não havia nenhuma operação pendente nesta conversa.'
+  if (!pendente) return 'NENHUMA OPERAÇÃO PENDENTE (instrução interna): não havia nada para cancelar. Diga à pessoa que nada foi lançado.'
 
   await ctx.supabase.from('chat_operacoes')
     .update({ status: 'cancelada', resolved_at: new Date().toISOString() })

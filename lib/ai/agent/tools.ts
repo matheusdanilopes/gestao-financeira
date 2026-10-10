@@ -21,6 +21,8 @@ import { descreverFontes, IDS_FONTES } from '../data/catalogo'
 import { explorarDados, OPERADORES, AGRUPAMENTOS_TEMPO } from './explorador'
 import {
   consultarTransacoes,
+  consultarMetas,
+  capacidadeDeGasto,
   consultarPlanejamento,
   consultarReceitas,
   consultarAssinaturas,
@@ -134,6 +136,11 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
         pagina: { type: 'INTEGER', description: 'Página da lista de lançamentos (1, 2, 3…), quando o resultado disser LISTA PARCIAL.' },
         dataInicio: str('Primeiro DIA da compra, AAAA-MM-DD. Use para "ontem", "esta semana", "no fim de semana", "dia 15" (combine com dataFim). Independe do mês da fatura.'),
         dataFim: str('Último DIA da compra, AAAA-MM-DD. Para um dia só, igual a dataInicio.'),
+        tipo: str(
+          'Compras novas × parcelas de compras feitas antes (parcela 2/N em diante, que vem com a data do mês da cobrança). ' +
+          'Padrão: "novas" quando há dataInicio/dataFim (gasto feito no dia/semana), "todas" nos demais casos (total da fatura).',
+          ['todas', 'novas', 'parcelas_anteriores']
+        ),
       },
     },
   },
@@ -289,6 +296,35 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
         cartao: str('Cartão em que seria feita.', ['nubank', 'cartao1', 'cartao2']),
         mesPrimeiraParcela: str(`Mês da 1ª parcela. ${MES} Padrão: mês corrente (compra feita hoje).`),
         descricao: str('Nome da compra, só para o texto.'),
+      },
+    },
+  },
+  {
+    name: 'consultar_metas',
+    description:
+      'Metas de gasto do mês e quanto já foi usado de cada uma: limites por categoria (ex.: Alimentação R$ 1.000), ' +
+      'metas por pessoa (compras no cartão) e a meta total do casal (cartões + contas fixas). Use para "estou dentro da ' +
+      'meta?", "quanto falta para o limite de mercado", "qual categoria estourou", "qual era minha meta". ' +
+      'Não confunda com o limite de parcelamento, que vale só para parcelas.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        mes: str(`Mês. ${MES} Padrão: mês corrente.`),
+      },
+    },
+  },
+  {
+    name: 'capacidade_de_gasto',
+    description:
+      'Quanto ainda dá para gastar num mês: receitas previstas − o que já está comprometido (cartão, parcelas, contas ' +
+      'fixas, assinaturas), o cenário provável com o gasto à vista típico, o que resta da meta e o limite de ' +
+      'parcelamento. É a ferramenta certa para "quanto posso gastar em novembro", "dá para gastar mais este mês", ' +
+      '"quanto sobra se eu mantiver o ritmo".',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        mes: str(`Mês. ${MES} Padrão: mês corrente.`),
+        responsavel: str(`Pessoa, para incluir a meta individual dela. ${RESPONSAVEL}`),
       },
     },
   },
@@ -586,6 +622,8 @@ const ROTULOS: Record<string, string> = {
   projetar_parcelamentos: 'Projetando parcelamentos',
   simular_compra: 'Simulando a compra',
   consultar_listas: 'Consultando as listas',
+  consultar_metas: 'Conferindo as metas de gasto',
+  capacidade_de_gasto: 'Calculando quanto ainda cabe no mês',
   calcular: 'Calculando',
   consultar_estornos: 'Verificando estornos',
   explorar_dados: 'Explorando os dados',
@@ -766,6 +804,7 @@ export async function executarFerramenta(
           valorMinimo: asNumber(args.valorMinimo),
           valorMaximo: asNumber(args.valorMaximo),
           apenasParceladas: asBool(args.apenasParceladas),
+          tipo: asString(args.tipo) as never,
           agruparPor: asString(args.agruparPor) as never,
           limite: asNumber(args.limite),
           ordenarPor: asString(args.ordenarPor) as never,
@@ -851,6 +890,12 @@ export async function executarFerramenta(
           mesPrimeiraParcela: asString(args.mesPrimeiraParcela),
           descricao: asString(args.descricao),
         }, refs)
+
+      case 'consultar_metas':
+        return consultarMetas(data, { mes: asString(args.mes) }, refs)
+
+      case 'capacidade_de_gasto':
+        return capacidadeDeGasto(data, { mes: asString(args.mes), responsavel: asString(args.responsavel) }, refs)
 
       case 'consultar_listas':
         return consultarListas(data, { tipo: asString(args.tipo), busca: asString(args.busca) })
