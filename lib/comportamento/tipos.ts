@@ -225,6 +225,8 @@ export interface MetricasComportamento {
      * semana é ~23% do mês: bem acima disso, o dinheiro "queima" ao entrar.
      */
     semanaDoRecebimento: { pctValor: number; esperadoPct: number; diasDeRecebimento: number[] } | null
+    /** Compras novas por dia da semana (linhas, seg→dom) × fase do mês (colunas). */
+    mapaCalor?: { dias: string[]; fases: string[]; quantidade: number[][]; valor: number[][] }
   }
   ticket: {
     faixas: FaixaTicket[]
@@ -287,12 +289,15 @@ export interface AnaliseIA {
   perfil: { nome: string; descricao: string; tracos: string[] }
   padroes: Array<{
     titulo: string
+    /** Número-chave do padrão, curto ("+139%", "R$ 1.701", "79 compras"). */
+    destaque: string
     descricao: string
-    evidencia: string
+    /** Análises antigas traziam a evidência à parte; hoje ela vai na descrição. */
+    evidencia?: string
     impacto: 'positivo' | 'negativo' | 'neutro'
     relevancia: Nivel
   }>
-  gatilhos: Array<{ titulo: string; descricao: string; evidencia: string }>
+  gatilhos: Array<{ titulo: string; descricao: string; evidencia?: string }>
   pontosFortes: Array<{ titulo: string; descricao: string }>
   riscos: Array<{ titulo: string; descricao: string; probabilidade: Nivel }>
   planoDeAcao: Array<{

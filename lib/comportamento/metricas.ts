@@ -175,8 +175,24 @@ export function calcularMetricas(
   const hojeIso = format(hoje, 'yyyy-MM-dd')
 
   const mesParcial = format(hoje, 'yyyy-MM')
-  const fechados = Array.from({ length: mesesSerie }, (_, i) =>
+  const janelaPedida = Array.from({ length: mesesSerie }, (_, i) =>
     format(startOfMonth(subMonths(hoje, mesesSerie - i)), 'yyyy-MM'))
+  // Início do uso = primeiro mês com receita registrada (do casal, qualquer
+  // escopo). Antes disso o app só tem compras soltas da primeira fatura
+  // importada: um mês "sem receita e com gasto" derrubaria médias e notas.
+  const inicioUso = dados.planejamento
+    .filter(p => ehReceita(p) && Number(p.valor_previsto ?? 0) > 0)
+    .map(p => (p.mes_referencia ?? '').substring(0, 7))
+    .sort()[0] ?? null
+  const cortados = inicioUso ? janelaPedida.filter(m => m < inicioUso) : []
+  const fechados = cortados.length === janelaPedida.length
+    ? janelaPedida.slice(-1)
+    : janelaPedida.filter(m => !cortados.includes(m))
+  if (cortados.length > 0 && inicioUso) {
+    const [ano, mes] = inicioUso.split('-')
+    const nomeMes = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][Number(mes) - 1]
+    avisos.push(`O uso do app começou em ${nomeMes}/${ano} (primeiro mês com receita): ${cortados.length === 1 ? 'o mês anterior ficou' : `os ${cortados.length} meses anteriores ficaram`} de fora da análise.`)
+  }
   const todos = [...fechados, mesParcial]
   const setFechados = new Set(fechados)
   const setTodos = new Set(todos)
@@ -283,6 +299,17 @@ export function calcularMetricas(
   const fimDeSemana = novasComData.filter(x => x.d.getDay() === 0 || x.d.getDay() === 6)
   const fasesDoMes = FASES_MES.map(f =>
     fatia(f.rotulo, novasComData.filter(x => x.d.getDate() >= f.de && x.d.getDate() <= f.ate)))
+  // Dia da semana × fase do mês: onde o hábito se concentra de verdade.
+  const ordemDias = [1, 2, 3, 4, 5, 6, 0]
+  const mapaQtd = ordemDias.map(() => FASES_MES.map(() => 0))
+  const mapaValor = ordemDias.map(() => FASES_MES.map(() => 0))
+  for (const x of novasComData) {
+    const i = ordemDias.indexOf(x.d.getDay())
+    const j = FASES_MES.findIndex(f => x.d.getDate() >= f.de && x.d.getDate() <= f.ate)
+    if (i < 0 || j < 0) continue
+    mapaQtd[i][j] += 1
+    mapaValor[i][j] += x.valor
+  }
 
   const porDia = new Map<string, { quantidade: number; total: number }>()
   for (const x of novasComData) {
@@ -568,7 +595,7 @@ export function calcularMetricas(
       fim: fechados[fechados.length - 1],
       mesesFechados: fechados.length,
       mesParcial,
-      primeiroMesComDados: primeiroMesComDados ? primeiroMesComDados.substring(0, 7) : null,
+      primeiroMesComDados: inicioUso ?? (primeiroMesComDados ? primeiroMesComDados.substring(0, 7) : null),
     },
     mensal,
     resumo,
@@ -582,6 +609,12 @@ export function calcularMetricas(
       diasComCompra: porDia.size,
       diasIntensos,
       semanaDoRecebimento,
+      mapaCalor: {
+        dias: ordemDias.map(d => DIAS_SEMANA[d].slice(0, 3)),
+        fases: FASES_MES.map(f => f.rotulo.replace('Dias ', '')),
+        quantidade: mapaQtd,
+        valor: mapaValor.map(l => l.map(r2)),
+      },
     },
     ticket: {
       faixas,

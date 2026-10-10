@@ -51,8 +51,20 @@ GLOSSÁRIO DAS MÉTRICAS
 - comprasAtipicas: compras muito acima da mediana da própria categoria (possíveis compras por impulso ou eventos).
 - modo "ultimo_mes": o foco é mesFoco (o último mês fechado, pelas faturas pagas nele); a série mensal e os demais blocos de meses servem de "normal" para comparação. Cada Comparativo traz atual (mês em foco), base (média dos meses anteriores) e variacaoPct. mesFoco.novidades = categorias/lugares que não apareciam antes. Junto vem a TABELA DE LANÇAMENTOS com todas as linhas das faturas pagas no mês: use-a para ir ao detalhe (compras específicas, repetições, horários do mês, quem comprou), sempre separando compra_nova de parcela_em_andamento. No modo "ultimo_mes", seja concreto sobre ESTE mês: o que fugiu do normal, por quê, e o que fazer já no mês seguinte.
 
-FORMATO
-Responda apenas com o JSON do esquema. Quantidades: 4 a 7 padrões, 2 a 4 gatilhos, 2 a 4 pontos fortes, 2 a 4 riscos, 4 a 7 ações no plano (ordenadas por impacto), 2 a 4 metas, 3 perguntas para reflexão. "resumo" com 2 a 3 parágrafos curtos separados por linha em branco. "perfil.nome" é um apelido curto e memorável para o perfil comportamental (ex.: "O gastador de fim de semana").`
+FORMATO — CURTO E VISUAL
+A tela e o PDF mostram gráficos dos números; o seu texto é a legenda que explica o que importa. Seja telegráfico: frases curtas, uma ideia por frase, sem repetir números que já estão em outro item, sem introduções ("É importante notar que…").
+Responda apenas com o JSON do esquema, respeitando os limites:
+- manchete: 1 frase, até 110 caracteres.
+- resumo: 2 frases, até 260 caracteres no total.
+- perfil: nome = apelido memorável de até 5 palavras (ex.: "O gastador de fim de semana"); descricao = 1 frase até 140 caracteres; tracos = 3 rótulos de até 4 palavras.
+- padroes: 3 a 5, do mais para o menos relevante. titulo até 45 caracteres; destaque = o número-chave, até 14 caracteres ("+139%", "R$ 1.701/mês", "79 compras"); descricao = 1 frase até 150 caracteres com a evidência.
+- gatilhos: 2 a 3, descricao até 110 caracteres.
+- pontosFortes: 2, descricao até 110 caracteres.
+- riscos: 2 a 3, descricao até 110 caracteres.
+- planoDeAcao: 3 a 5, por impacto. acao = verbo no imperativo, até 60 caracteres; porque até 100 caracteres; prazo até 15 caracteres.
+- metas: 2 a 3; meta até 50, indicador até 40, alvo até 25, prazo até 15 caracteres.
+- perguntas: 2, até 110 caracteres cada.
+- limitacoes: no máximo 2, até 110 caracteres cada; vazio se não houver nada relevante.`
 
 /** Esquema da resposta (subconjunto OpenAPI aceito pelo Gemini). */
 const ESQUEMA: Record<string, unknown> = {
@@ -75,12 +87,12 @@ const ESQUEMA: Record<string, unknown> = {
         type: 'OBJECT',
         properties: {
           titulo: { type: 'STRING' },
-          descricao: { type: 'STRING' },
-          evidencia: { type: 'STRING', description: 'Números do JSON que comprovam o padrão.' },
+          destaque: { type: 'STRING', description: 'Número-chave, até 14 caracteres.' },
+          descricao: { type: 'STRING', description: 'Uma frase com a evidência.' },
           impacto: { type: 'STRING', enum: ['positivo', 'negativo', 'neutro'] },
           relevancia: { type: 'STRING', enum: ['alta', 'media', 'baixa'] },
         },
-        required: ['titulo', 'descricao', 'evidencia', 'impacto', 'relevancia'],
+        required: ['titulo', 'destaque', 'descricao', 'impacto', 'relevancia'],
       },
     },
     gatilhos: {
@@ -90,9 +102,8 @@ const ESQUEMA: Record<string, unknown> = {
         properties: {
           titulo: { type: 'STRING' },
           descricao: { type: 'STRING' },
-          evidencia: { type: 'STRING' },
         },
-        required: ['titulo', 'descricao', 'evidencia'],
+        required: ['titulo', 'descricao'],
       },
     },
     pontosFortes: {
@@ -199,7 +210,15 @@ function montarPedido(metricas: MetricasComportamento, parametros: ParametrosAna
   ].filter(Boolean).join('\n')
 }
 
-const texto = (v: unknown, max = 1200) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
+/** Texto limpo, cortado no fim de uma palavra se passar do limite. */
+function texto(v: unknown, max = 1200): string {
+  if (typeof v !== 'string') return ''
+  const t = v.trim().replace(/\s+/g, ' ')
+  if (t.length <= max) return t
+  const corte = t.slice(0, max - 1)
+  const espaco = corte.lastIndexOf(' ')
+  return `${(espaco > max * 0.6 ? corte.slice(0, espaco) : corte).replace(/[\s,;:.–-]+$/, '')}…`
+}
 const lista = <T>(v: unknown, mapa: (x: Record<string, unknown>) => T | null, max = 10): T[] =>
   (Array.isArray(v) ? v : [])
     .map(x => (x && typeof x === 'object' ? mapa(x as Record<string, unknown>) : null))
@@ -215,43 +234,44 @@ export function normalizarAnalise(bruto: unknown): AnaliseIA {
   const perfil = (o.perfil && typeof o.perfil === 'object' ? o.perfil : {}) as Record<string, unknown>
 
   const analise: AnaliseIA = {
-    manchete: texto(o.manchete, 300),
-    resumo: texto(o.resumo, 3000),
+    // Limites com folga sobre os do prompt: cortam o excesso sem mutilar o normal.
+    manchete: texto(o.manchete, 140),
+    resumo: texto(o.resumo, 340),
     perfil: {
-      nome: texto(perfil.nome, 80),
-      descricao: texto(perfil.descricao, 800),
-      tracos: (Array.isArray(perfil.tracos) ? perfil.tracos : []).map(t => texto(t, 80)).filter(Boolean).slice(0, 6),
+      nome: texto(perfil.nome, 50),
+      descricao: texto(perfil.descricao, 180),
+      tracos: (Array.isArray(perfil.tracos) ? perfil.tracos : []).map(t => texto(t, 32)).filter(Boolean).slice(0, 3),
     },
     padroes: lista(o.padroes, x => texto(x.titulo) ? {
-      titulo: texto(x.titulo, 120),
-      descricao: texto(x.descricao),
-      evidencia: texto(x.evidencia, 600),
+      titulo: texto(x.titulo, 60),
+      destaque: texto(x.destaque, 18),
+      descricao: texto(x.descricao, 190),
       impacto: umDe(x.impacto, ['positivo', 'negativo', 'neutro'] as const, 'neutro'),
       relevancia: umDe(x.relevancia, ['alta', 'media', 'baixa'] as const, 'media'),
-    } : null),
+    } : null, 5),
     gatilhos: lista(o.gatilhos, x => texto(x.titulo) ? {
-      titulo: texto(x.titulo, 120), descricao: texto(x.descricao), evidencia: texto(x.evidencia, 600),
-    } : null, 6),
+      titulo: texto(x.titulo, 60), descricao: texto(x.descricao, 140),
+    } : null, 3),
     pontosFortes: lista(o.pontosFortes, x => texto(x.titulo) ? {
-      titulo: texto(x.titulo, 120), descricao: texto(x.descricao),
-    } : null, 6),
+      titulo: texto(x.titulo, 60), descricao: texto(x.descricao, 140),
+    } : null, 3),
     riscos: lista(o.riscos, x => texto(x.titulo) ? {
-      titulo: texto(x.titulo, 120),
-      descricao: texto(x.descricao),
+      titulo: texto(x.titulo, 60),
+      descricao: texto(x.descricao, 140),
       probabilidade: umDe(x.probabilidade, ['alta', 'media', 'baixa'] as const, 'media'),
-    } : null, 6),
+    } : null, 3),
     planoDeAcao: lista(o.planoDeAcao, x => texto(x.acao) ? {
-      acao: texto(x.acao, 200),
-      porque: texto(x.porque),
+      acao: texto(x.acao, 80),
+      porque: texto(x.porque, 130),
       economiaMensal: Math.max(0, Math.round(Number(x.economiaMensal) || 0)),
       dificuldade: umDe(x.dificuldade, ['facil', 'media', 'dificil'] as const, 'media'),
-      prazo: texto(x.prazo, 60),
-    } : null, 8),
+      prazo: texto(x.prazo, 20),
+    } : null, 5),
     metas: lista(o.metas, x => texto(x.meta) ? {
-      meta: texto(x.meta, 200), indicador: texto(x.indicador, 200), alvo: texto(x.alvo, 120), prazo: texto(x.prazo, 60),
-    } : null, 6),
-    perguntas: (Array.isArray(o.perguntas) ? o.perguntas : []).map(p => texto(p, 300)).filter(Boolean).slice(0, 5),
-    limitacoes: (Array.isArray(o.limitacoes) ? o.limitacoes : []).map(p => texto(p, 300)).filter(Boolean).slice(0, 6),
+      meta: texto(x.meta, 70), indicador: texto(x.indicador, 60), alvo: texto(x.alvo, 35), prazo: texto(x.prazo, 20),
+    } : null, 3),
+    perguntas: (Array.isArray(o.perguntas) ? o.perguntas : []).map(p => texto(p, 140)).filter(Boolean).slice(0, 2),
+    limitacoes: (Array.isArray(o.limitacoes) ? o.limitacoes : []).map(p => texto(p, 140)).filter(Boolean).slice(0, 2),
   }
 
   if (!analise.manchete || analise.padroes.length === 0) {

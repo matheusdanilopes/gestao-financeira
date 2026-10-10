@@ -54,13 +54,13 @@ export function montarDocumentoAnalise(r: ResultadoAnalise): DocumentoRelatorio 
       },
       {
         titulo: 'Padrões identificados',
-        colunas: ['Padrão', 'O que acontece', 'Evidência', 'Impacto', 'Relevância'],
-        linhas: a.padroes.map(x => [x.titulo, x.descricao, x.evidencia, IMPACTO[x.impacto], NIVEL[x.relevancia]]),
+        colunas: ['Padrão', 'Número-chave', 'O que acontece', 'Impacto', 'Relevância'],
+        linhas: a.padroes.map(x => [x.titulo, x.destaque ?? '', [x.descricao, x.evidencia].filter(Boolean).join(' '), IMPACTO[x.impacto], NIVEL[x.relevancia]]),
       },
       {
         titulo: 'Gatilhos de gasto',
-        colunas: ['Gatilho', 'Como age', 'Evidência'],
-        linhas: a.gatilhos.map(x => [x.titulo, x.descricao, x.evidencia]),
+        colunas: ['Gatilho', 'Como age'],
+        linhas: a.gatilhos.map(x => [x.titulo, x.descricao]),
       },
       {
         titulo: 'Pontos fortes',

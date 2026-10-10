@@ -6,9 +6,9 @@ import {
   CalendarDays, Store, Layers, Target,
 } from 'lucide-react'
 import SeletorOpcoes from '@/components/relatorios/SeletorOpcoes'
-import { BlocosAnalise, BlocosMetricas, Diagnostico } from '@/components/comportamento/ResultadoComportamento'
+import { BlocosAcao, BlocosMetricas, Diagnostico, Padroes } from '@/components/comportamento/ResultadoComportamento'
 import { lerSSE } from '@/lib/sseStream'
-import { copiarTexto, documentoParaMarkdown, exportarRelatorioPdf } from '@/lib/relatorioDocumento'
+import { copiarTexto, documentoParaMarkdown } from '@/lib/relatorioDocumento'
 import { montarDocumentoAnalise, rotuloEscopo } from '@/lib/comportamento/documento'
 import { salvarAnalise, useAnalisesSalvas } from '@/lib/comportamento/historico'
 import {
@@ -296,7 +296,11 @@ export default function AnaliseComportamentoPage() {
   async function baixarPdf() {
     if (!ultima || exportando) return
     setExportando(true)
-    try { await exportarRelatorioPdf(montarDocumentoAnalise(ultima)) }
+    try {
+      // PDF visual (gráficos) carregado só quando pedido: arrasta jsPDF e Chart.js.
+      const { exportarAnalisePdf } = await import('@/lib/comportamento/pdf')
+      await exportarAnalisePdf(ultima)
+    }
     catch (err) { console.error('[analise-comportamento] PDF:', err) }
     finally { setExportando(false) }
   }
@@ -385,12 +389,9 @@ export default function AnaliseComportamentoPage() {
             )}
 
             <Diagnostico analise={ultima.analise} metricas={ultima.metricas} notaAnterior={anterior?.nota ?? null} />
-            <BlocosAnalise analise={ultima.analise} metricas={ultima.metricas} />
-
-            <div className="pt-1 space-y-1.5">
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide px-1">Os números por trás da análise</p>
-            </div>
+            <Padroes analise={ultima.analise} />
             <BlocosMetricas metricas={ultima.metricas} />
+            <BlocosAcao analise={ultima.analise} metricas={ultima.metricas} />
 
             <div className="flex gap-2.5 pt-1">
               <button
