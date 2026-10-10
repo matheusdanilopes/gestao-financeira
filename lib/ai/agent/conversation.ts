@@ -39,6 +39,39 @@ export interface ContextoConversa {
   mensagens: Array<{ role: string; content: string }>
   resumo?: string
   ehPrimeiraMensagem: boolean
+  /** Mensagens (sem as de sistema) gravadas na conversa. */
+  total: number
+}
+
+/** Máximo de mensagens que o cliente pode mandar como histórico de reserva. */
+export const LIMITE_HISTORICO_CLIENTE = JANELA + PASSO_RESUMO
+const LIMITE_CONTEUDO_CLIENTE = 4_000
+
+/**
+ * O que está na tela do app vale como histórico quando o banco tem MENOS
+ * mensagens que ela — uma gravação que falhou não pode apagar a memória da
+ * conversa. Só papéis user/assistant, conteúdo truncado; operações de escrita
+ * continuam presas à tabela chat_operacoes, então um histórico forjado não
+ * confirma nada.
+ */
+export function historicoComReserva(
+  contexto: ContextoConversa,
+  cliente: unknown,
+  pergunta: string
+): Array<{ role: string; content: string }> {
+  if (!Array.isArray(cliente)) return contexto.mensagens
+  const limpo = cliente
+    .filter((m): m is { role: string; content: string } =>
+      !!m && typeof m === 'object' &&
+      (m.role === 'user' || m.role === 'assistant') &&
+      typeof m.content === 'string' && m.content.trim() !== '')
+    .map(m => ({ role: m.role, content: m.content.slice(0, LIMITE_CONTEUDO_CLIENTE) }))
+  // Num reenvio a pergunta já está na tela: ela vai como pergunta, não como histórico.
+  if (limpo.length > 0 && limpo[limpo.length - 1].role === 'user' && limpo[limpo.length - 1].content === pergunta) limpo.pop()
+  const recentes = limpo.slice(-LIMITE_HISTORICO_CLIENTE)
+  if (recentes.length <= contexto.total) return contexto.mensagens
+  console.warn(`[chat] histórico do banco incompleto (${contexto.total} gravadas, ${limpo.length} na tela) — usando o da tela`)
+  return recentes
 }
 
 /**
@@ -117,7 +150,7 @@ export async function carregarContexto(
 
   // Conversa curta: vai inteira.
   if (!resumoAtual && total <= GATILHO_RESUMO) {
-    return { mensagens: await ultimas(total), ehPrimeiraMensagem }
+    return { mensagens: await ultimas(total), ehPrimeiraMensagem, total }
   }
 
   // Resumo recente o bastante: ele + TUDO que veio depois dele. Nenhuma
@@ -127,6 +160,7 @@ export async function carregarContexto(
       mensagens: await ultimas(total - resumoAtual.cobertas),
       resumo: resumoExistente![0].content,
       ehPrimeiraMensagem,
+      total,
     }
   }
 
@@ -155,6 +189,7 @@ export async function carregarContexto(
       mensagens: lista.slice(Math.max(cobertasAntes, lista.length - (JANELA + PASSO_RESUMO))),
       resumo: resumoExistente?.[0]?.content,
       ehPrimeiraMensagem,
+      total,
     }
   }
 
@@ -165,29 +200,68 @@ export async function carregarContexto(
     content: resumo,
   })
 
-  return { mensagens, resumo, ehPrimeiraMensagem }
+  return { mensagens, resumo, ehPrimeiraMensagem, total }
 }
+
+/** Uma ferramenta usada para produzir a resposta — a trilha que fica gravada com ela. */
+export interface FerramentaUsada {
+  nome: string
+  rotulo: string
+  args?: Record<string, unknown>
+}
+
+/** Tentativas de gravação além da primeira (falha de rede, sem resposta HTTP). */
+const RETENTATIVAS_GRAVACAO = 2
+
+const esperar = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+/**
+ * Coluna nova ainda não criada no banco (código do app à frente da migration):
+ * a mensagem é gravada sem ela em vez de se perder.
+ */
+const colunaAusente = (e: { code?: string; message?: string }) =>
+  e.code === 'PGRST204' || e.code === '42703' || /ferramentas/.test(e.message ?? '')
 
 /**
  * Grava uma mensagem no histórico e devolve o id — ou null se a gravação
  * falhou (o erro vai para o log). O Telegram usa o id para só apagar do chat
  * o que comprovadamente ficou guardado aqui.
+ *
+ * O id é gerado aqui e a gravação é um upsert nele: assim dá para repetir a
+ * tentativa depois de uma falha de rede sem duplicar a mensagem. O cliente do
+ * Supabase só repete sozinho GET/HEAD — um POST que perdia a conexão sumia, e
+ * a conversa seguinte chegava ao modelo sem as mensagens anteriores (a IA
+ * "esquecia" o que tinha acabado de responder).
  */
 export async function salvarMensagem(
   supabase: Supabase,
   conversationId: string,
   role: 'user' | 'assistant',
   content: string,
-  canal: CanalConversa = 'app'
+  canal: CanalConversa = 'app',
+  ferramentas?: FerramentaUsada[]
 ): Promise<string | null> {
-  const { data, error } = await supabase
-    .from('messages')
-    .insert({ conversation_id: conversationId, role, content, canal })
-    .select('id')
-    .single<{ id: string }>()
-  if (error) {
-    console.error('[chat] salvar mensagem:', error.message)
-    return null
+  const id = crypto.randomUUID()
+  let linha: Record<string, unknown> = { id, conversation_id: conversationId, role, content, canal }
+  if (ferramentas && ferramentas.length > 0) linha.ferramentas = ferramentas
+
+  for (let tentativa = 0; ; tentativa++) {
+    const { error } = await supabase
+      .from('messages')
+      .upsert(linha, { onConflict: 'id', ignoreDuplicates: true })
+    if (!error) return id
+
+    if ('ferramentas' in linha && colunaAusente(error)) {
+      const { ferramentas: _, ...semFerramentas } = linha
+      linha = semFerramentas
+      continue
+    }
+    // Com resposta do PostgREST (code preenchido) o erro é de dado ou de
+    // permissão: repetir não muda nada. Sem code, foi a conexão.
+    if (error.code || tentativa >= RETENTATIVAS_GRAVACAO) {
+      console.error('[chat] salvar mensagem:', error.message, error.details ?? '', error.hint ?? '')
+      return null
+    }
+    await esperar(400 * (tentativa + 1))
   }
-  return data.id
 }

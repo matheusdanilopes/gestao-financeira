@@ -14,6 +14,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ocuparMicrofone, liberarMicrofone } from './voiceLock'
+import { substituirGraficosPorTexto } from './graficoChat'
 
 const CHAVE_AUTO_FALAR = 'chat_falar_respostas'
 
@@ -73,7 +74,8 @@ export function suportaReconhecimentoVoz(): boolean {
 
 /** Remove marcação markdown para a fala não soar "asterisco asterisco". */
 function paraFala(texto: string): string {
-  return texto
+  // Gráfico vira a lista de valores; outros blocos de código não se leem.
+  return substituirGraficosPorTexto(texto)
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/`([^`]+)`/g, '$1')
     .replace(/!\[[^\]]*]\([^)]*\)/g, '')

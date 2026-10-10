@@ -39,6 +39,8 @@ import {
 import type { EnrichedData, Transacao, Planejamento } from '../types'
 import { tipoCartaoPorItem, removerPrefixoCartao } from '../../tipoCartao'
 import { agoraBrasil } from '../tempo'
+import { lerMetas, temMetas } from '../../metasGasto'
+import { classificarTipoGasto, type TipoGasto } from '../../composicaoFatura'
 
 // Formato completo (com centavos): o modelo copia estes valores direto para a
 // resposta, então uma string como "R$ 209,4" chegaria torta ao usuário.
@@ -470,10 +472,57 @@ export interface FiltroTransacoes {
   valorMinimo?: number
   valorMaximo?: number
   apenasParceladas?: boolean
+  /**
+   * Recorte pela classificação da Composição da fatura (novas · parcelas de
+   * compras anteriores · assinaturas). Com filtro de DIA o padrão é
+   * 'sem_parcelas_anteriores': a parcela 3/10 de uma compra antiga vem com a
+   * data do mês da cobrança e não é gasto feito naquele dia.
+   */
+  tipo?: TipoCompra
   agruparPor?: Grupo
   limite?: number
   ordenarPor?: 'valor' | 'data'
   pagina?: number
+}
+
+export const TIPOS_COMPRA = ['todas', 'novas', 'parcelas_anteriores', 'assinaturas', 'sem_assinaturas', 'sem_parcelas_anteriores'] as const
+export type TipoCompra = typeof TIPOS_COMPRA[number]
+
+/** Quais classes da Composição da fatura cada tipo inclui. */
+const CLASSES_DO_TIPO: Record<TipoCompra, TipoGasto[]> = {
+  todas: ['novo', 'existente', 'assinatura'],
+  novas: ['novo'],
+  parcelas_anteriores: ['existente'],
+  assinaturas: ['assinatura'],
+  sem_assinaturas: ['novo', 'existente'],
+  sem_parcelas_anteriores: ['novo', 'assinatura'],
+}
+
+const NOME_CLASSE: Record<TipoGasto, string> = {
+  novo: 'compras novas',
+  existente: 'parcelas de compras anteriores (2/N em diante)',
+  assinatura: 'assinaturas',
+}
+
+/**
+ * Classificador com a MESMA regra da Composição da fatura e do filtro "Tipo de
+ * gasto" da tela de Compras: assinatura ativa do mesmo responsável (nome +
+ * valor plausível), parcela 2/N em diante, ou compra nova. Antes o chat não
+ * sabia separar assinaturas — pedido para ignorá-las, repetia a mesma lista.
+ */
+function classificadorDeCompras(data: EnrichedData): (t: Transacao) => TipoGasto {
+  const ativas = data.assinaturas
+    .filter(a => a.ativa)
+    .map(a => ({ nome: a.nome, responsavel: a.responsavel, valor: a.valor, moeda: a.moeda }))
+  const cache = new Map<Transacao, TipoGasto>()
+  return t => {
+    let c = cache.get(t)
+    if (!c) {
+      c = classificarTipoGasto(t.descricao, t.parcela_atual, t.total_parcelas, t.responsavel, ativas, t.valor)
+      cache.set(t, c)
+    }
+    return c
+  }
 }
 
 /**
@@ -500,6 +549,12 @@ export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, ref
   const diaIso = (v?: string) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v.trim()) ? v.trim().substring(0, 10) : undefined)
   const dataInicio = diaIso(f.dataInicio)
   const dataFim = diaIso(f.dataFim)
+  const porDia = !!(dataInicio || dataFim)
+  const tipo: TipoCompra = TIPOS_COMPRA.includes(f.tipo as TipoCompra)
+    ? (f.tipo as TipoCompra)
+    : porDia ? 'sem_parcelas_anteriores' : 'todas'
+  const classe = classificadorDeCompras(data)
+  const incluidas = new Set(CLASSES_DO_TIPO[tipo])
   const labels = cartaoLabelsFromPlanejamento(data.planejamento)
 
   // Os meses chegam no vocabulário do app e são traduzidos para projeto_fatura
@@ -523,9 +578,11 @@ export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, ref
     valorMin !== undefined && `valor ≥ ${R(valorMin)}`,
     valorMax !== undefined && `valor ≤ ${R(valorMax)}`,
     f.apenasParceladas === true && 'somente parceladas',
+    tipo !== 'todas' && `tipo: ${CLASSES_DO_TIPO[tipo].map(c => NOME_CLASSE[c]).join(' + ')}`,
   ])
 
-  const encontradas = data.transacoes.filter(t => {
+  // Tudo menos o filtro de tipo — usado para dizer quanto ficou de fora.
+  const casaSemTipo = (t: Transacao): boolean => {
     const m = mesEfetivo(t)
     if (faturaInicio && m < faturaInicio) return false
     if (faturaFim && m > faturaFim) return false
@@ -540,9 +597,30 @@ export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, ref
     if (f.apenasParceladas === true && !(t.total_parcelas && t.total_parcelas > 1)) return false
     if (busca && !casaCompra(t, busca)) return false
     return true
-  })
+  }
+  const candidatas = data.transacoes.filter(casaSemTipo)
+  const encontradas = candidatas.filter(t => incluidas.has(classe(t)))
+  const foraDoTipo = candidatas.filter(t => !incluidas.has(classe(t)))
 
   const cabecalho = `CONSULTA: transações de cartão (${filtros})`
+
+  /** "assinaturas R$ 400,60 (3: Barbearia, Mgp Internet…)" */
+  const resumoClasse = (lista: Transacao[], c: TipoGasto): string | null => {
+    const daClasse = lista.filter(t => classe(t) === c)
+    if (daClasse.length === 0) return null
+    const nomes = [...new Set(daClasse.map(t => limparDescricao(nomeCompra(t)).slice(0, 22)))].slice(0, 4).join(', ')
+    return `${NOME_CLASSE[c]} ${R(daClasse.reduce((s, t) => s + t.valor, 0))} (${daClasse.length}: ${nomes}${daClasse.length > 4 ? '…' : ''})`
+  }
+  const classesFora = (['existente', 'assinatura', 'novo'] as TipoGasto[])
+    .map(c => resumoClasse(foraDoTipo, c))
+    .filter(Boolean)
+  const linhaForaDoTipo = classesFora.length > 0
+    ? `NÃO INCLUÍDAS pelo tipo: ${classesFora.join(' · ')}.` +
+      (foraDoTipo.some(t => classe(t) === 'existente') && porDia
+        ? ' As parcelas anteriores aparecem com data no período só porque são cobradas nele — não são gasto feito no período; cite à parte se for relevante.'
+        : '') +
+      ' Para incluí-las, mude o tipo (tipo="todas" soma tudo).'
+    : null
 
   const ultimas = ultimaFaturaPorCartao(data.transacoes)
   const cartoesEscopo = cartao ? [cartao] : Object.keys(ultimas)
@@ -553,6 +631,7 @@ export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, ref
       cabecalho,
       'Resultado: nenhuma transação encontrada com esses filtros.',
       avisoFuturo ?? 'Isso significa que não há registro — não é falta de acesso aos dados. Considere ampliar o período ou remover um filtro antes de concluir.',
+      linhaForaDoTipo,
       linhaSugestoes(data.transacoes.map(nomeCompra), busca),
     ].filter(Boolean).join('\n')
   }
@@ -565,6 +644,29 @@ export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, ref
     cabecalho,
     `Total: ${R(total)} em ${encontradas.length} transação(ões) · ticket médio ${R(ticket)}`,
   ]
+  if (linhaForaDoTipo) linhas.push(linhaForaDoTipo)
+
+  // Composição do que entrou — o mesmo recorte da barra "Composição da fatura".
+  const classesDentro = (['novo', 'existente', 'assinatura'] as TipoGasto[])
+    .map(c => resumoClasse(encontradas, c))
+    .filter(Boolean)
+  if (classesDentro.length > 1) linhas.push(`Composição: ${classesDentro.join(' · ')}`)
+
+  // Uma fatura junta compras desde o fechamento anterior: sem as datas, "em
+  // outubro" saía ao lado de compras de 24/09.
+  if (!porDia && (faturaInicio || faturaFim)) {
+    const datas = encontradas
+      .filter(t => classe(t) !== 'existente')
+      .map(t => (t.data ?? '').substring(0, 10))
+      .filter(Boolean)
+      .sort()
+    if (datas.length > 0) {
+      linhas.push(
+        `Datas das compras: de ${fmtData(datas[0])} a ${fmtData(datas[datas.length - 1])}. A fatura de um mês junta as compras ` +
+        'feitas desde o fechamento anterior — ao responder, diga "fatura de <mês>" e esse intervalo de datas, não "em <mês>".'
+      )
+    }
+  }
 
   // Meses do intervalo pedido (limitados ao que já foi importado), para que um
   // mês sem compra entre como zero na média em vez de sumir dela.
@@ -619,7 +721,9 @@ export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, ref
     `(${(pagina - 1) * limite + 1}–${(pagina - 1) * limite + itens.length} de ${encontradas.length}):`
   )
   for (const t of itens) {
-    const parc = t.total_parcelas && t.total_parcelas > 1 ? ` [${t.parcela_atual}/${t.total_parcelas}]` : ''
+    const parc = t.total_parcelas && t.total_parcelas > 1
+      ? ` [${t.parcela_atual}/${t.total_parcelas}]`
+      : classe(t) === 'assinatura' ? ' [assinatura]' : ''
     const nome = nomeCompra(t)
     const original = nome !== t.descricao ? ` (na fatura: ${t.descricao.slice(0, 30)})` : ''
     linhas.push(
@@ -1709,6 +1813,143 @@ export function projecaoFutura(data: EnrichedData, params: { meses?: number }, r
   linhas.push('"Compromissos" = só o que já está assumido; o "cenário provável" soma o gasto à vista típico. Deixe claro qual dos dois você está citando.')
   linhas.push('Para a evolução só dos parcelamentos (por pessoa, por cartão, compra a compra e quando cada uma termina), use projetar_parcelamentos.')
 
+  return linhas.join('\n')
+}
+
+// ─── 8a. Metas de gasto e capacidade de gasto ───────────────────────────────
+
+/** "R$ 800,00 de R$ 1.000,00 (80%) — restam R$ 200,00" ou "— ESTOUROU em R$ 50,00". */
+function linhaMeta(rotulo: string, gasto: number, meta: number): string {
+  const uso = meta > 0 ? Math.round((gasto / meta) * 100) : 0
+  const situacao = gasto > meta
+    ? `ESTOUROU em ${R(gasto - meta)}`
+    : `restam ${R(meta - gasto)}${uso >= 80 ? ' (⚠️ acima de 80%)' : ''}`
+  return `  • ${rotulo}: ${R(gasto)} de ${R(meta)} (${uso}%) — ${situacao}`
+}
+
+/**
+ * Metas do mês: limites por categoria, metas por pessoa (só cartão) e a meta
+ * total do casal (cartões + contas fixas). Sem isto o agente respondia que "o
+ * app não tem meta além do limite de parcelamento" — com sete limites de
+ * categoria configurados.
+ */
+export function consultarMetas(data: EnrichedData, f: { mes?: string }, refs: Referencias): string {
+  const mes = normalizarMes(f.mes) ?? refs.mesApp
+  const metas = lerMetas(data.configuracoes)
+  const cabecalho = `CONSULTA: metas de gasto de ${fmtMes(mes)}`
+  if (!temMetas(metas)) {
+    return [
+      cabecalho,
+      'Nenhuma meta de gasto configurada (nem total, nem por pessoa, nem por categoria).',
+      'Elas são definidas em Configurações › Categorias. O limite de parcelamento é outra coisa: vale só para parcelas (veja projetar_parcelamentos).',
+    ].join('\n')
+  }
+
+  const fatura = faturaDoMes(mes)
+  const txs = data.transacoes.filter(t => mesEfetivo(t) === fatura)
+  const soma = (pred: (t: Transacao) => boolean) => txs.filter(pred).reduce((s, t) => s + t.valor, 0)
+  const linhas = [cabecalho]
+
+  if (metas.total !== null) {
+    const r = calcularResumoMes(data, mes, 0)
+    linhas.push('Meta do casal (todos os cartões + contas fixas):')
+    linhas.push(linhaMeta(`total (cartões ${R(r.faturaTotal)} + fixas ${R(r.fixasPrevistas)})`, r.faturaTotal + r.fixasPrevistas, metas.total))
+  }
+  const pessoas = Object.entries(metas.porResponsavel)
+  if (pessoas.length > 0) {
+    linhas.push('Metas por pessoa (só compras no cartão, pelo responsável da compra):')
+    for (const [pessoa, meta] of pessoas) linhas.push(linhaMeta(pessoa, soma(t => t.responsavel === pessoa), meta))
+  }
+  const categorias = Object.entries(metas.porCategoria)
+  if (categorias.length > 0) {
+    linhas.push('Limites por categoria (compras no cartão de todos os responsáveis — como o painel de Categorias):')
+    const ordenadas = categorias
+      .map(([cat, meta]) => ({ cat, meta, gasto: soma(t => (t.categoria ?? '') === cat) }))
+      .sort((a, b) => b.gasto / b.meta - a.gasto / a.meta)
+    for (const { cat, meta, gasto } of ordenadas) linhas.push(linhaMeta(cat, gasto, meta))
+  }
+
+  const ultimas = ultimaFaturaPorCartao(data.transacoes)
+  if (Object.values(ultimas).some(pf => fatura > pf)) {
+    linhas.push(`AVISO: a fatura de ${fmtMes(mes)} ainda não foi importada em todos os cartões — o gasto acima está incompleto, não é zero.`)
+  } else if (mes === refs.mesApp) {
+    linhas.push(`Obs.: ${fmtMes(mes)} ainda está em formação (hoje é dia ${refs.diaAtual}) — o gasto vai subir até o fechamento.`)
+  }
+  return linhas.join('\n')
+}
+
+/** Receitas previstas do mês; sem nenhuma cadastrada, a média dos últimos 3 meses que tiveram. */
+function receitasDoMes(data: EnrichedData, mes: string, responsavel?: string): { valor: number; estimada: boolean } {
+  const receitas = data.planejamento.filter(p =>
+    (p.item ?? '').startsWith(RECEITA_PREFIXO) && (!responsavel || p.responsavel === responsavel))
+  const doMes = receitas.filter(p => mesDe(p) === mes)
+  if (doMes.length > 0) return { valor: doMes.reduce((s, p) => s + p.valor_previsto, 0), estimada: false }
+  const porMes = new Map<string, number>()
+  for (const p of receitas) {
+    if (mesDe(p) >= mes) continue
+    porMes.set(mesDe(p), (porMes.get(mesDe(p)) ?? 0) + p.valor_previsto)
+  }
+  const ultimos = [...porMes.entries()].sort((a, b) => b[0].localeCompare(a[0])).slice(0, 3)
+  if (ultimos.length === 0) return { valor: 0, estimada: true }
+  return { valor: ultimos.reduce((s, [, v]) => s + v, 0) / ultimos.length, estimada: true }
+}
+
+/**
+ * "Quanto posso gastar em novembro?": receitas do mês − o que já está
+ * comprometido, e o quanto ainda cabe nas metas. Antes o agente respondia com
+ * o saldo do limite de parcelamento — que só vale para parcelas — misturado
+ * com o total de compromissos, sem comparar com a renda.
+ */
+export function capacidadeDeGasto(
+  data: EnrichedData,
+  f: { mes?: string; responsavel?: string },
+  refs: Referencias
+): string {
+  const mes = normalizarMes(f.mes) ?? refs.mesApp
+  const responsavel = resolverResponsavel(f.responsavel, data)
+  const c = compromissosDoMes(data, refs, mes)
+  const receitas = receitasDoMes(data, mes)
+  const metas = lerMetas(data.configuracoes)
+  const projetado = c.cartoesProjetados.length > 0
+
+  const linhas = [
+    `CONSULTA: capacidade de gasto de ${fmtMes(mes)}${responsavel ? ` (com foco em ${responsavel})` : ''}`,
+    `Receitas ${receitas.estimada ? 'ESTIMADAS pela média dos últimos meses (nenhuma cadastrada no mês)' : 'previstas no mês'}: ${R(receitas.valor)}`,
+    `Já comprometido (casal): ${R(c.total)} = cartão ${R(c.cartaoReal + c.parcelasProjetadas)} + contas fixas ${R(c.fixas)}` +
+      (c.assinaturas > 0 ? ` + assinaturas ${R(c.assinaturas)}` : ''),
+  ]
+
+  const livre = receitas.valor - c.total
+  linhas.push(`Sobra das receitas depois do comprometido: ${livre >= 0 ? R(livre) : `DÉFICIT de ${R(-livre)}`}`)
+  if (projetado && c.mediaAVista > 0) {
+    const provavel = receitas.valor - c.cenarioProvavel
+    linhas.push(
+      `Mantendo o gasto à vista típico (${R(c.mediaAVista)}/mês), o cenário provável é ${R(c.cenarioProvavel)} → ` +
+      `${provavel >= 0 ? `sobram ${R(provavel)}` : `faltam ${R(-provavel)}`}. É esta a margem real para compras ALÉM do habitual.`
+    )
+  }
+
+  if (metas.total !== null) {
+    const base = projetado ? c.cenarioProvavel : c.total
+    const resta = metas.total - base
+    linhas.push(`Meta do casal ${R(metas.total)}: ${resta >= 0 ? `ainda cabem ${R(resta)}` : `já passou em ${R(-resta)}`} (contra ${projetado ? 'o cenário provável' : 'o gasto até agora'}).`)
+  }
+  if (responsavel && metas.porResponsavel[responsavel] !== undefined) {
+    const gasto = data.transacoes
+      .filter(t => mesEfetivo(t) === faturaDoMes(mes) && t.responsavel === responsavel)
+      .reduce((s, t) => s + t.valor, 0)
+    linhas.push(linhaMeta(`Meta de ${responsavel} (cartão)`, gasto, metas.porResponsavel[responsavel]).trim())
+  }
+
+  const lim = limitesDoMes(data, refs, mes)
+  if (lim) linhas.push(`${lim} — vale SÓ para compras parceladas.`)
+
+  linhas.push(
+    'Como responder "quanto posso gastar": a resposta é o MENOR valor entre a sobra das receitas (ou a do cenário provável, ' +
+    'quando houver) e o que resta da meta, se houver meta. Diga de onde veio o número. O limite de parcelamento é uma ' +
+    'restrição à parte, só para parcelar — não o apresente como "quanto pode gastar".'
+  )
+  if (mes === refs.mesApp) linhas.push(`Obs.: ${fmtMes(mes)} está em formação (hoje é dia ${refs.diaAtual}); compras até o fechamento ainda entram.`)
   return linhas.join('\n')
 }
 

@@ -17,7 +17,7 @@ import { construirReferencias } from './queryEngine'
 import { buildSystemPrompt, buildBlockedPrompt } from './systemPrompt'
 import { executarAgente, type AgentEvent } from './runAgent'
 import { GeminiError } from './geminiClient'
-import { carregarContexto, salvarMensagem } from './conversation'
+import { carregarContexto, salvarMensagem, historicoComReserva, type FerramentaUsada } from './conversation'
 import type { Interlocutor } from './interlocutor'
 
 export interface EntradaTurno {
@@ -31,6 +31,11 @@ export interface EntradaTurno {
   tela?: TelaAtual
   /** true quando o cliente está repetindo uma pergunta que já foi gravada. */
   reenvio?: boolean
+  /**
+   * Mensagens que o cliente tem na tela. Reserva para quando o banco tem
+   * menos que isso (gravação que falhou) — ver historicoComReserva.
+   */
+  historicoCliente?: unknown
   deadlineMs: number
   /** Id da pergunta gravada no histórico (null se a gravação falhou). */
   aoGravarPergunta?: (id: string | null) => void
@@ -51,8 +56,11 @@ export async function* executarTurno(e: EntradaTurno): AsyncGenerator<AgentEvent
   // Grava a pergunta antes de chamar o modelo: se o turno falhar no meio,
   // a conversa persiste coerente e o usuário pode simplesmente repetir.
   // Num reenvio ela já está gravada — regravar duplicaria o histórico.
+  let naoSalvou = false
   if (e.reenvio !== true) {
-    e.aoGravarPergunta?.(await salvarMensagem(supabase, conversationId, 'user', pergunta, e.interlocutor.canal))
+    const id = await salvarMensagem(supabase, conversationId, 'user', pergunta, e.interlocutor.canal)
+    naoSalvou ||= id === null
+    e.aoGravarPergunta?.(id)
   }
 
   yield { type: 'status', texto: 'Lendo seus dados financeiros' }
@@ -83,13 +91,15 @@ export async function* executarTurno(e: EntradaTurno): AsyncGenerator<AgentEvent
 
   // Num reenvio a pergunta já veio no histórico carregado — remover a
   // duplicata evita dois turnos 'user' idênticos e seguidos no prompt.
+  const doBanco = historicoComReserva(contexto, e.historicoCliente, pergunta)
   const historico = e.reenvio === true
-    ? contexto.mensagens.filter((m, i, arr) =>
+    ? doBanco.filter((m, i, arr) =>
         !(i === arr.length - 1 && m.role === 'user' && m.content === pergunta))
-    : contexto.mensagens
+    : doBanco
 
   let textoFinal = ''
   let ferramentas: string[] = []
+  let trilha: FerramentaUsada[] = []
 
   for await (const evento of executarAgente({
     apiKey: e.apiKey,
@@ -110,15 +120,21 @@ export async function* executarTurno(e: EntradaTurno): AsyncGenerator<AgentEvent
     if (evento.type === 'done') {
       textoFinal = evento.texto
       ferramentas = evento.ferramentas
+      trilha = evento.trilha
     } else {
       yield evento
     }
   }
 
   if (textoFinal) {
-    e.aoGravarResposta?.(await salvarMensagem(supabase, conversationId, 'assistant', textoFinal, e.interlocutor.canal))
+    const id = await salvarMensagem(supabase, conversationId, 'assistant', textoFinal, e.interlocutor.canal, trilha)
+    naoSalvou ||= id === null
+    e.aoGravarResposta?.(id)
   }
-  yield { type: 'done', texto: textoFinal, ferramentas }
+  if (naoSalvou) {
+    yield { type: 'aviso', texto: 'Esta troca não foi salva no histórico. A conversa continua, mas pode não aparecer ao reabrir.' }
+  }
+  yield { type: 'done', texto: textoFinal, ferramentas, trilha }
 }
 
 export interface ErroDescrito {

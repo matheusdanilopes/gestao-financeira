@@ -22,7 +22,12 @@ export interface ChatMessage {
   ts: number
   /** Veio do assessor no Telegram (o histórico do bot fica aqui no app). */
   telegram?: boolean
+  /** Aviso do servidor sobre esta resposta (ex.: não foi salva no histórico). */
+  aviso?: string
 }
+
+/** Quantas mensagens da tela vão junto como histórico de reserva. */
+const HISTORICO_RESERVA = 18
 
 export interface ChatErro {
   codigo: string
@@ -66,19 +71,29 @@ export function useChatFinanceiro(tela: TelaAtual = 'geral') {
   // aproveitar o texto parcial: ele pertence à conversa que acabou de sair
   // da tela e apareceria como resposta órfã na conversa nova.
   const descartarParcialRef = useRef(false)
+  // Espelho de `mensagens` para montar o histórico de reserva sem
+  // recriar `enviar` a cada mensagem.
+  const mensagensRef = useRef<ChatMessage[]>([])
+  useEffect(() => { mensagensRef.current = mensagens }, [mensagens])
 
   // ── Restauração da última conversa ──
   const carregarHistorico = useCallback(async (conversationId: string): Promise<ChatMessage[]> => {
     const res = await fetch(`/api/chat/history?conversation_id=${encodeURIComponent(conversationId)}`)
     if (!res.ok) return []
     const json = await res.json()
-    return ((json.mensagens ?? []) as Array<{ role: string; content: string; created_at?: string; canal?: string }>)
+    return ((json.mensagens ?? []) as Array<{
+      role: string; content: string; created_at?: string; canal?: string
+      ferramentas?: Array<{ rotulo?: string }> | null
+    }>)
       .map(m => ({
         id: novoId(),
         role: m.role === 'assistant' ? ('assistant' as const) : ('user' as const),
         content: m.content,
         ts: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
         telegram: m.canal === 'telegram',
+        ferramentas: Array.isArray(m.ferramentas)
+          ? m.ferramentas.map(f => f?.rotulo).filter((r): r is string => typeof r === 'string')
+          : undefined,
       }))
   }, [])
 
@@ -141,7 +156,14 @@ export function useChatFinanceiro(tela: TelaAtual = 'geral') {
     descartarParcialRef.current = false
 
     let acumulado = ''
+    let aviso: string | undefined
     const usadas: string[] = []
+    // O que está na tela ANTES desta pergunta. O servidor só usa se o
+    // histórico gravado tiver menos mensagens (uma gravação que falhou).
+    const historico = mensagensRef.current
+      .filter(m => !m.content.endsWith('_(interrompido)_'))
+      .slice(-HISTORICO_RESERVA)
+      .map(m => ({ role: m.role, content: m.content }))
 
     try {
       const res = await fetch('/api/chat', {
@@ -153,6 +175,7 @@ export function useChatFinanceiro(tela: TelaAtual = 'geral') {
           conversation_id: convIdRef.current ?? undefined,
           tela,
           reenvio,
+          historico,
         }),
       })
 
@@ -195,6 +218,9 @@ export function useChatFinanceiro(tela: TelaAtual = 'geral') {
             acumulado = ''
             setTextoParcial('')
             break
+          case 'aviso':
+            if (typeof evento.dados.texto === 'string') aviso = evento.dados.texto
+            break
           case 'done': {
             const final = typeof evento.dados.texto === 'string' && evento.dados.texto
               ? evento.dados.texto
@@ -206,6 +232,7 @@ export function useChatFinanceiro(tela: TelaAtual = 'geral') {
                 content: final,
                 ferramentas: [...usadas],
                 ts: Date.now(),
+                aviso,
               }])
             }
             acumulado = ''

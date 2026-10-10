@@ -6,11 +6,13 @@
  */
 
 import { LIMITE_MENSAGEM } from './botApi'
+import { substituirGraficosPorTexto } from '../graficoChat'
 
 const escapar = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
 function estruturar(texto: string): string {
-  return texto
+  // O Telegram não desenha gráfico: o bloco vira a lista de valores.
+  return substituirGraficosPorTexto(texto)
     .replace(/\r\n/g, '\n')
     // Marcadores de lista viram "• " antes da ênfase, para "* item" não abrir negrito.
     .replace(/^([ \t]*)[-*][ \t]+/gm, '$1• ')
