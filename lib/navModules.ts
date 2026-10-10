@@ -4,7 +4,7 @@ import {
   Receipt, TrendingUp, PiggyBank,
   ShoppingCart, RepeatIcon, Layers,
   Heart, ShoppingBasket, Crown,
-  BarChart3, BookmarkPlus,
+  BarChart3, BookmarkPlus, Brain,
 } from 'lucide-react'
 
 export interface NavModuleItem {
@@ -32,6 +32,7 @@ const financas: NavModule = {
     { href: '/financas?tab=despesas', label: 'Despesas', Icon: Receipt, iconColor: 'text-red-500', iconBg: 'bg-red-50' },
     { href: '/financas?tab=receitas', label: 'Receitas', Icon: TrendingUp, iconColor: 'text-green-600', iconBg: 'bg-green-50' },
     { href: '/financas?tab=investimentos', label: 'Investimentos', Icon: PiggyBank, iconColor: 'text-blue-600', iconBg: 'bg-blue-50' },
+    { href: '/analise-comportamento', label: 'Análise de comportamento', Icon: Brain, iconColor: 'text-violet-600 dark:text-violet-400', iconBg: 'bg-violet-50 dark:bg-violet-900/20' },
   ],
 }
 

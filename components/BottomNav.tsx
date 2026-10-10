@@ -17,7 +17,7 @@ const ROTAS_COM_MENU = [
   '/dashboard', '/financas', '/contas', '/receitas', '/investimentos',
   '/compras', '/assinaturas', '/parcelamentos', '/compras-previstas',
   '/wishlist', '/lista-mercado', '/lista-mercado/historico', '/listas-compras',
-  '/relatorios', '/analytics', '/chat', '/configuracoes', '/importar',
+  '/relatorios', '/analytics', '/analise-comportamento', '/chat', '/configuracoes', '/importar',
 ]
 
 // Rotas acessíveis sem conexão. Critério: não só ter cache de leitura
@@ -29,7 +29,7 @@ const ROTAS_COM_MENU = [
 // fica de fora daqui até ganhar o mesmo suporte.
 const ROTAS_OFFLINE = ['/dashboard', '/lista-mercado']
 
-const ROTAS_FINANCAS = ['/financas', '/contas', '/receitas', '/investimentos']
+const ROTAS_FINANCAS = ['/financas', '/contas', '/receitas', '/investimentos', '/analise-comportamento']
 const ROTAS_CARTAO   = ['/compras', '/assinaturas', '/parcelamentos', '/compras-previstas']
 const ROTAS_LISTAS   = ['/wishlist', '/lista-mercado', '/listas-compras']
 const ROTAS_RELATORIOS = ['/relatorios', '/analytics']

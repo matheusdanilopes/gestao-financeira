@@ -80,7 +80,7 @@ function classificarErroHttp(status: number, corpo: string): GeminiError | null 
   return null
 }
 
-interface OpcoesChamada {
+export interface OpcoesChamada {
   apiKey: string
   contents: GeminiContent[]
   systemInstruction?: string
@@ -90,6 +90,10 @@ interface OpcoesChamada {
   maxOutputTokens?: number
   /** Tokens de raciocínio interno. 0 desliga (tarefas mecânicas, como resumir). */
   thinkingBudget?: number
+  /** 'application/json' força a resposta em JSON (sem ferramentas). */
+  responseMimeType?: string
+  /** Esquema (subconjunto OpenAPI) que a resposta JSON deve seguir. */
+  responseSchema?: Record<string, unknown>
 }
 
 // No Gemini 2.5 o raciocínio interno ("thinking") conta dentro de
@@ -113,6 +117,8 @@ function montarCorpo(opts: OpcoesChamada): string {
       temperature: opts.temperature ?? 0.2,
       maxOutputTokens: opts.maxOutputTokens ?? TETO_SAIDA,
       thinkingConfig: { thinkingBudget: opts.thinkingBudget ?? ORCAMENTO_RACIOCINIO },
+      ...(opts.responseMimeType ? { responseMimeType: opts.responseMimeType } : {}),
+      ...(opts.responseSchema ? { responseSchema: opts.responseSchema } : {}),
     },
   })
 }
