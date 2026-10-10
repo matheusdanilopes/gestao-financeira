@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import {
-  FileBarChart, CreditCard, Tags, RepeatIcon, CalendarRange, Target, Database,
+  FileBarChart, CreditCard, Tags, RepeatIcon, CalendarRange, Target, Database, Brain,
 } from 'lucide-react'
 
 export type GrupoRelatorio = 'mes' | 'tendencias' | 'cartao' | 'dados'
@@ -73,6 +73,17 @@ export const RELATORIOS_DISPONIVEIS: RelatorioDisponivel[] = [
     grupo: 'tendencias',
     periodo: 'Ano civil',
     responde: ['Como foi o ano?', 'Gastei mais que no ano passado?'],
+  },
+  {
+    href: '/analise-comportamento',
+    titulo: 'Análise de Comportamento',
+    descricao: 'Analista de IA que estuda seus hábitos de gasto a fundo e monta um plano para melhorar a saúde financeira',
+    Icon: Brain,
+    iconBg: 'bg-violet-100',
+    iconColor: 'text-violet-600',
+    grupo: 'tendencias',
+    periodo: '6, 12 ou 24 meses',
+    responde: ['Por que o dinheiro não sobra?', 'Quando e onde eu gasto mais?', 'O que mudar primeiro?'],
   },
   {
     href: '/relatorios/cartoes',
