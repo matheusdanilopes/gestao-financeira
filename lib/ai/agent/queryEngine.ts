@@ -40,6 +40,7 @@ import type { EnrichedData, Transacao, Planejamento } from '../types'
 import { tipoCartaoPorItem, removerPrefixoCartao } from '../../tipoCartao'
 import { agoraBrasil } from '../tempo'
 import { lerMetas, temMetas } from '../../metasGasto'
+import { classificarTipoGasto, type TipoGasto } from '../../composicaoFatura'
 
 // Formato completo (com centavos): o modelo copia estes valores direto para a
 // resposta, então uma string como "R$ 209,4" chegaria torta ao usuário.
@@ -472,9 +473,10 @@ export interface FiltroTransacoes {
   valorMaximo?: number
   apenasParceladas?: boolean
   /**
-   * Compras novas × parcelas de compras feitas antes. Com filtro de DIA o padrão
-   * é 'novas': a parcela 3/10 de uma compra antiga vem com a data do mês da
-   * cobrança e não é gasto feito naquele dia.
+   * Recorte pela classificação da Composição da fatura (novas · parcelas de
+   * compras anteriores · assinaturas). Com filtro de DIA o padrão é
+   * 'sem_parcelas_anteriores': a parcela 3/10 de uma compra antiga vem com a
+   * data do mês da cobrança e não é gasto feito naquele dia.
    */
   tipo?: TipoCompra
   agruparPor?: Grupo
@@ -483,11 +485,45 @@ export interface FiltroTransacoes {
   pagina?: number
 }
 
-export type TipoCompra = 'todas' | 'novas' | 'parcelas_anteriores'
+export const TIPOS_COMPRA = ['todas', 'novas', 'parcelas_anteriores', 'assinaturas', 'sem_assinaturas', 'sem_parcelas_anteriores'] as const
+export type TipoCompra = typeof TIPOS_COMPRA[number]
 
-/** Parcela 2 em diante: a compra foi feita num mês anterior. */
-export const ehParcelaAnterior = (t: Transacao): boolean =>
-  !!(t.total_parcelas && t.total_parcelas > 1 && t.parcela_atual && t.parcela_atual > 1)
+/** Quais classes da Composição da fatura cada tipo inclui. */
+const CLASSES_DO_TIPO: Record<TipoCompra, TipoGasto[]> = {
+  todas: ['novo', 'existente', 'assinatura'],
+  novas: ['novo'],
+  parcelas_anteriores: ['existente'],
+  assinaturas: ['assinatura'],
+  sem_assinaturas: ['novo', 'existente'],
+  sem_parcelas_anteriores: ['novo', 'assinatura'],
+}
+
+const NOME_CLASSE: Record<TipoGasto, string> = {
+  novo: 'compras novas',
+  existente: 'parcelas de compras anteriores (2/N em diante)',
+  assinatura: 'assinaturas',
+}
+
+/**
+ * Classificador com a MESMA regra da Composição da fatura e do filtro "Tipo de
+ * gasto" da tela de Compras: assinatura ativa do mesmo responsável (nome +
+ * valor plausível), parcela 2/N em diante, ou compra nova. Antes o chat não
+ * sabia separar assinaturas — pedido para ignorá-las, repetia a mesma lista.
+ */
+function classificadorDeCompras(data: EnrichedData): (t: Transacao) => TipoGasto {
+  const ativas = data.assinaturas
+    .filter(a => a.ativa)
+    .map(a => ({ nome: a.nome, responsavel: a.responsavel, valor: a.valor, moeda: a.moeda }))
+  const cache = new Map<Transacao, TipoGasto>()
+  return t => {
+    let c = cache.get(t)
+    if (!c) {
+      c = classificarTipoGasto(t.descricao, t.parcela_atual, t.total_parcelas, t.responsavel, ativas, t.valor)
+      cache.set(t, c)
+    }
+    return c
+  }
+}
 
 /**
  * Aviso para quando o período pedido passa da última fatura importada de algum
@@ -514,9 +550,11 @@ export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, ref
   const dataInicio = diaIso(f.dataInicio)
   const dataFim = diaIso(f.dataFim)
   const porDia = !!(dataInicio || dataFim)
-  const tipo: TipoCompra = f.tipo === 'novas' || f.tipo === 'parcelas_anteriores' || f.tipo === 'todas'
-    ? f.tipo
-    : porDia ? 'novas' : 'todas'
+  const tipo: TipoCompra = TIPOS_COMPRA.includes(f.tipo as TipoCompra)
+    ? (f.tipo as TipoCompra)
+    : porDia ? 'sem_parcelas_anteriores' : 'todas'
+  const classe = classificadorDeCompras(data)
+  const incluidas = new Set(CLASSES_DO_TIPO[tipo])
   const labels = cartaoLabelsFromPlanejamento(data.planejamento)
 
   // Os meses chegam no vocabulário do app e são traduzidos para projeto_fatura
@@ -540,8 +578,7 @@ export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, ref
     valorMin !== undefined && `valor ≥ ${R(valorMin)}`,
     valorMax !== undefined && `valor ≤ ${R(valorMax)}`,
     f.apenasParceladas === true && 'somente parceladas',
-    tipo === 'novas' && 'só compras novas (sem parcelas de compras anteriores)',
-    tipo === 'parcelas_anteriores' && 'só parcelas de compras anteriores',
+    tipo !== 'todas' && `tipo: ${CLASSES_DO_TIPO[tipo].map(c => NOME_CLASSE[c]).join(' + ')}`,
   ])
 
   // Tudo menos o filtro de tipo — usado para dizer quanto ficou de fora.
@@ -562,20 +599,27 @@ export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, ref
     return true
   }
   const candidatas = data.transacoes.filter(casaSemTipo)
-  const encontradas = tipo === 'todas'
-    ? candidatas
-    : candidatas.filter(t => (tipo === 'novas') !== ehParcelaAnterior(t))
-  const foraDoTipo = tipo === 'todas' ? [] : candidatas.filter(t => (tipo === 'novas') === ehParcelaAnterior(t))
+  const encontradas = candidatas.filter(t => incluidas.has(classe(t)))
+  const foraDoTipo = candidatas.filter(t => !incluidas.has(classe(t)))
 
   const cabecalho = `CONSULTA: transações de cartão (${filtros})`
-  const linhaForaDoTipo = foraDoTipo.length > 0
-    ? (tipo === 'novas'
-        ? `NÃO INCLUÍDAS: ${foraDoTipo.length} parcela(s) de compras feitas em meses anteriores, somando ` +
-          `${R(foraDoTipo.reduce((s, t) => s + t.valor, 0))} (ex.: ${foraDoTipo.slice(0, 3).map(t => `${limparDescricao(nomeCompra(t)).slice(0, 24)} ${t.parcela_atual}/${t.total_parcelas}`).join(', ')}). ` +
-          'Elas aparecem com data no período só porque a parcela é cobrada nele — não são gasto feito no período. ' +
-          'Em "quanto gastei hoje/ontem/na semana" responda com as compras novas e, se relevante, cite as parcelas à parte. ' +
-          'tipo="todas" soma as duas.'
-        : `NÃO INCLUÍDAS: ${foraDoTipo.length} compra(s) novas somando ${R(foraDoTipo.reduce((s, t) => s + t.valor, 0))}.`)
+
+  /** "assinaturas R$ 400,60 (3: Barbearia, Mgp Internet…)" */
+  const resumoClasse = (lista: Transacao[], c: TipoGasto): string | null => {
+    const daClasse = lista.filter(t => classe(t) === c)
+    if (daClasse.length === 0) return null
+    const nomes = [...new Set(daClasse.map(t => limparDescricao(nomeCompra(t)).slice(0, 22)))].slice(0, 4).join(', ')
+    return `${NOME_CLASSE[c]} ${R(daClasse.reduce((s, t) => s + t.valor, 0))} (${daClasse.length}: ${nomes}${daClasse.length > 4 ? '…' : ''})`
+  }
+  const classesFora = (['existente', 'assinatura', 'novo'] as TipoGasto[])
+    .map(c => resumoClasse(foraDoTipo, c))
+    .filter(Boolean)
+  const linhaForaDoTipo = classesFora.length > 0
+    ? `NÃO INCLUÍDAS pelo tipo: ${classesFora.join(' · ')}.` +
+      (foraDoTipo.some(t => classe(t) === 'existente') && porDia
+        ? ' As parcelas anteriores aparecem com data no período só porque são cobradas nele — não são gasto feito no período; cite à parte se for relevante.'
+        : '') +
+      ' Para incluí-las, mude o tipo (tipo="todas" soma tudo).'
     : null
 
   const ultimas = ultimaFaturaPorCartao(data.transacoes)
@@ -601,6 +645,28 @@ export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, ref
     `Total: ${R(total)} em ${encontradas.length} transação(ões) · ticket médio ${R(ticket)}`,
   ]
   if (linhaForaDoTipo) linhas.push(linhaForaDoTipo)
+
+  // Composição do que entrou — o mesmo recorte da barra "Composição da fatura".
+  const classesDentro = (['novo', 'existente', 'assinatura'] as TipoGasto[])
+    .map(c => resumoClasse(encontradas, c))
+    .filter(Boolean)
+  if (classesDentro.length > 1) linhas.push(`Composição: ${classesDentro.join(' · ')}`)
+
+  // Uma fatura junta compras desde o fechamento anterior: sem as datas, "em
+  // outubro" saía ao lado de compras de 24/09.
+  if (!porDia && (faturaInicio || faturaFim)) {
+    const datas = encontradas
+      .filter(t => classe(t) !== 'existente')
+      .map(t => (t.data ?? '').substring(0, 10))
+      .filter(Boolean)
+      .sort()
+    if (datas.length > 0) {
+      linhas.push(
+        `Datas das compras: de ${fmtData(datas[0])} a ${fmtData(datas[datas.length - 1])}. A fatura de um mês junta as compras ` +
+        'feitas desde o fechamento anterior — ao responder, diga "fatura de <mês>" e esse intervalo de datas, não "em <mês>".'
+      )
+    }
+  }
 
   // Meses do intervalo pedido (limitados ao que já foi importado), para que um
   // mês sem compra entre como zero na média em vez de sumir dela.
@@ -655,7 +721,9 @@ export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, ref
     `(${(pagina - 1) * limite + 1}–${(pagina - 1) * limite + itens.length} de ${encontradas.length}):`
   )
   for (const t of itens) {
-    const parc = t.total_parcelas && t.total_parcelas > 1 ? ` [${t.parcela_atual}/${t.total_parcelas}]` : ''
+    const parc = t.total_parcelas && t.total_parcelas > 1
+      ? ` [${t.parcela_atual}/${t.total_parcelas}]`
+      : classe(t) === 'assinatura' ? ' [assinatura]' : ''
     const nome = nomeCompra(t)
     const original = nome !== t.descricao ? ` (na fatura: ${t.descricao.slice(0, 30)})` : ''
     linhas.push(

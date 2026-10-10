@@ -137,9 +137,12 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
         dataInicio: str('Primeiro DIA da compra, AAAA-MM-DD. Use para "ontem", "esta semana", "no fim de semana", "dia 15" (combine com dataFim). Independe do mês da fatura.'),
         dataFim: str('Último DIA da compra, AAAA-MM-DD. Para um dia só, igual a dataInicio.'),
         tipo: str(
-          'Compras novas × parcelas de compras feitas antes (parcela 2/N em diante, que vem com a data do mês da cobrança). ' +
-          'Padrão: "novas" quando há dataInicio/dataFim (gasto feito no dia/semana), "todas" nos demais casos (total da fatura).',
-          ['todas', 'novas', 'parcelas_anteriores']
+          'Recorte pela Composição da fatura do app: "novas" = compras novas (SEM assinaturas e SEM parcelas de compras ' +
+          'anteriores — o mesmo "Novas" da tela); "parcelas_anteriores" = parcelas 2/N em diante; "assinaturas" = ' +
+          'cobranças de assinaturas cadastradas; "sem_assinaturas" = tudo menos assinaturas; "sem_parcelas_anteriores" = ' +
+          'novas + assinaturas. Use para "ignore as assinaturas", "só compras novas", "tire as parcelas". ' +
+          'Padrão: "sem_parcelas_anteriores" com dataInicio/dataFim (gasto feito no dia/semana), "todas" nos demais casos.',
+          ['todas', 'novas', 'parcelas_anteriores', 'assinaturas', 'sem_assinaturas', 'sem_parcelas_anteriores']
         ),
       },
     },
