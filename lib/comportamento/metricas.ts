@@ -85,8 +85,12 @@ function oscilacao(xs: number[]): number {
   return r1((Math.sqrt(variancia) / m) * 100)
 }
 
+/**
+ * Variação % — null quando a base é zero ou ínfima perto do valor atual
+ * (menos de 5%): "+781.983%" não diz nada, "não existia antes" diz.
+ */
 function variacao(atual: number, anterior: number): number | null {
-  if (anterior <= 0) return null
+  if (anterior <= 0 || anterior < Math.abs(atual) * 0.05) return null
   return r1(((atual - anterior) / anterior) * 100)
 }
 
@@ -269,6 +273,7 @@ export function calcularMetricas(
       total: r2(total),
       quantidade: itens.length,
       pctValor: pct(total, totalNovas),
+      pctQuantidade: pct(itens.length, novasComData.length),
       ticketMedio: r2(itens.length ? total / itens.length : 0),
     }
   }
@@ -571,6 +576,7 @@ export function calcularMetricas(
     quando: {
       diasSemana,
       fimDeSemanaPctValor: pct(soma(fimDeSemana.map(x => x.valor)), totalNovas),
+      fimDeSemanaPctQuantidade: pct(fimDeSemana.length, novasComData.length),
       fasesDoMes,
       comprasPorDiaAtivo: r1(porDia.size ? novasComData.length / porDia.size : 0),
       diasComCompra: porDia.size,
@@ -606,6 +612,7 @@ export function calcularMetricas(
       aderenciaPct: previstoPagas > 0 ? pct(realizadoPagas, previstoPagas) : null,
       itensQueEstouram,
       contasPagas: pagas.length,
+      contasComDatas: comDatas,
       pagasComAtraso: atrasos.length,
       atrasoMedioDias: r1(media(atrasos)),
       vencidasEmAberto,
@@ -854,7 +861,7 @@ function avaliarSaude(m: MetricasComportamento, contasComDatas: number): Metrica
     ind.push({
       chave: 'pontualidade', nome: 'Pontualidade nas contas', peso: 10,
       nota: escala(m.planejamento.pagasComAtraso / contasComDatas, 0, 0.3),
-      medida: `${m.planejamento.pagasComAtraso} de ${contasComDatas} pagas com atraso`,
+      medida: `${m.planejamento.pagasComAtraso} de ${contasComDatas} contas com data de pagamento foram pagas com atraso`,
       referencia: 'todas em dia',
     })
   }

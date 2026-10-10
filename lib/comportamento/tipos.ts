@@ -64,8 +64,10 @@ export interface FatiaTempo {
   rotulo: string
   total: number
   quantidade: number
-  /** % do valor das compras novas. */
+  /** % do valor das compras novas — uma compra grande sozinha pode dominar. */
   pctValor: number
+  /** % da quantidade de compras novas — o hábito, imune a uma compra grande. */
+  pctQuantidade: number
   ticketMedio: number
 }
 
@@ -211,6 +213,7 @@ export interface MetricasComportamento {
   quando: {
     diasSemana: FatiaTempo[]
     fimDeSemanaPctValor: number
+    fimDeSemanaPctQuantidade: number
     fasesDoMes: FatiaTempo[]
     /** Em média, quantas compras por dia com compra. */
     comprasPorDiaAtivo: number
@@ -249,6 +252,8 @@ export interface MetricasComportamento {
     aderenciaPct: number | null
     itensQueEstouram: ItemQueEstoura[]
     contasPagas: number
+    /** Contas pagas com data de vencimento e de pagamento — a base da pontualidade. */
+    contasComDatas: number
     pagasComAtraso: number
     atrasoMedioDias: number
     vencidasEmAberto: number

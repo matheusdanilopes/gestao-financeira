@@ -104,9 +104,13 @@ function Evidencia({ texto }: { texto: string }) {
   )
 }
 
-/** Barras verticais de distribuição (dia da semana, fase do mês). */
+/**
+ * Barras verticais de distribuição (dia da semana, fase do mês) pela
+ * QUANTIDADE de compras: é o hábito. Pelo valor, uma compra grande sozinha
+ * pintaria um dia inteiro como "o dia em que você gasta".
+ */
 function BarrasFatias({ fatias, referencia }: { fatias: FatiaTempo[]; referencia: number }) {
-  const maior = Math.max(...fatias.map(f => f.pctValor), referencia, 1)
+  const maior = Math.max(...fatias.map(f => f.pctQuantidade ?? f.pctValor), referencia, 1)
   return (
     <div className="space-y-1.5">
       <div className="relative flex items-end gap-1.5 h-24">
@@ -116,19 +120,21 @@ function BarrasFatias({ fatias, referencia }: { fatias: FatiaTempo[]; referencia
           aria-hidden="true"
         />
         {fatias.map(f => {
-          const acima = f.pctValor > referencia * 1.25
+          // Análises salvas antes deste campo existir caem no valor.
+          const pctQtd = f.pctQuantidade ?? f.pctValor
+          const acima = pctQtd > referencia * 1.25
           return (
             <div
               key={f.rotulo}
               className="flex-1 h-full flex flex-col justify-end items-center"
-              title={`${f.rotulo}: ${formatarPercentual(f.pctValor, 0)} do valor · ${f.quantidade} compras · ticket ${formatBRL(f.ticketMedio)}`}
+              title={`${f.rotulo}: ${f.quantidade} compras (${formatarPercentual(pctQtd, 0)}) · ${formatBRL(f.total)} (${formatarPercentual(f.pctValor, 0)} do valor) · ticket ${formatBRL(f.ticketMedio)}`}
             >
               <span className={`text-[9px] font-semibold num mb-0.5 ${acima ? 'text-violet-600' : 'text-gray-400'}`}>
-                {formatarPercentual(f.pctValor, 0)}
+                {formatarPercentual(pctQtd, 0)}
               </span>
               <span
                 className={`w-full rounded-t-md ${acima ? 'bg-violet-500' : 'bg-violet-200'}`}
-                style={{ height: `${Math.max(3, (f.pctValor / maior) * 100)}%` }}
+                style={{ height: `${Math.max(3, (pctQtd / maior) * 100)}%` }}
               />
             </div>
           )
@@ -344,7 +350,8 @@ export function BlocosMetricas({ metricas: m }: { metricas: MetricasComportament
             <p className="text-xs font-semibold text-gray-700">Dia da semana</p>
             <BarrasFatias fatias={m.quando.diasSemana} referencia={100 / 7} />
             <p className="text-[11px] text-gray-400">
-              Fim de semana: {formatarPercentual(m.quando.fimDeSemanaPctValor, 0)} do valor (uniforme seria 29%).
+              Fim de semana: {formatarPercentual(m.quando.fimDeSemanaPctQuantidade ?? m.quando.fimDeSemanaPctValor, 0)} das compras
+              e {formatarPercentual(m.quando.fimDeSemanaPctValor, 0)} do valor (uniforme seria 29%).
             </p>
           </div>
           <div className="space-y-1.5">
@@ -359,7 +366,8 @@ export function BlocosMetricas({ metricas: m }: { metricas: MetricasComportament
           </div>
         </div>
         <p className="text-[11px] text-gray-400 leading-snug">
-          Linha tracejada: como seria se o gasto fosse distribuído por igual. Barras escuras ficam bem acima disso.
+          Barras: % da quantidade de compras (toque para ver o valor). Linha tracejada: distribuição uniforme; barras
+          escuras ficam bem acima dela.
         </p>
       </Cartao>
 
