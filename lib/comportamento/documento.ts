@@ -79,6 +79,7 @@ export function montarDocumentoAnalise(r: ResultadoAnalise): DocumentoRelatorio 
               ['Parcelas de compras antigas', 'Fixo', m.fixoVariavel.fixo.parcelas],
               ['Assinaturas', 'Fixo', m.fixoVariavel.fixo.assinaturas],
               ['Compras novas no cartão', 'Variável', m.fixoVariavel.variavel.cartao],
+              ['Fatura paga − compras (estornos, encargos)', 'Variável', m.fixoVariavel.variavel.ajusteFatura ?? 0],
               ['Contas fora da rotina', 'Variável', m.fixoVariavel.variavel.contas],
             ] as Array<[string, string, number]>,
           }]

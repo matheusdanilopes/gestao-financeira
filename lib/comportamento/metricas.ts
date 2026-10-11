@@ -10,8 +10,13 @@
  *
  * Convenções (as mesmas dos relatórios):
  *  - compras do cartão contam no mês da fatura (projeto_fatura);
- *  - gasto do mês = compras do cartão + contas reais do planejamento (sem as
- *    linhas de pagamento de fatura, que duplicariam as compras);
+ *  - saldo do mês = a mesma conta do Dashboard e de Finanças: fatura efetiva
+ *    (o valor pago na linha do cartão; sem pagamento marcado, a soma das
+ *    compras) + contas reais do planejamento (sem as linhas de fatura, que
+ *    duplicariam as compras). Receita = a recebida quando marcada; num mês
+ *    fechado sem recebimento marcado, a prevista — como no app;
+ *  - as médias usam todos os meses fechados (receita, gasto e saldo sobre a
+ *    mesma base);
  *  - "compra nova" = compra à vista ou 1ª parcela. É ela que mostra o momento
  *    da decisão de gastar; as parcelas seguintes só repetem a decisão. Isso
  *    importa: a importação lança as parcelas em andamento com a data de
@@ -23,7 +28,8 @@
  */
 
 import { format, startOfMonth, subMonths } from 'date-fns'
-import { ehDespesaReal, removerPrefixoCartao } from '@/lib/tipoCartao'
+import { ehDespesaReal, ehLinhaDeReceita, removerPrefixoCartao } from '@/lib/tipoCartao'
+import { calcularEfetivoPorCartao, type PlanejamentoSaldoRow, type TransacaoSaldoRow } from '@/lib/faturaEfetiva'
 import { extrairParcela, type ParcelaInfo } from '@/lib/parcelaDescricao'
 import type { EnrichedData, Planejamento, Transacao } from '@/lib/ai/types'
 import type {
@@ -140,7 +146,7 @@ function chaveEstabelecimento(t: Transacao): { chave: string; rotulo: string } {
   return { chave: chave || bruto.toLowerCase(), rotulo: limpo.slice(0, 40) || bruto }
 }
 
-const ehReceita = (p: Planejamento) => String(p.item ?? '').trim().startsWith('[RECEITA]')
+const ehReceita = (p: Planejamento) => ehLinhaDeReceita(p.item)
 
 /** Valor da conta no mês: o pago quando pago; o previsto enquanto em aberto. */
 const valorConta = (p: Planejamento) =>
@@ -214,8 +220,14 @@ export function calcularMetricas(
     if (r.data_recebimento) atual.datas.push(r.data_recebimento)
     recebimentosPorId.set(r.planejamento_id, atual)
   }
-  const valorRecebido = (p: Planejamento) =>
-    p.pago ? Number(p.valor_real ?? p.valor_previsto ?? 0) : (p.id ? recebimentosPorId.get(p.id)?.total ?? 0 : 0)
+  // Receita marcada como recebida vale pelo recebido. Num mês fechado sem a
+  // marcação vale a prevista, como no Dashboard: esquecer de marcar não pode
+  // virar "mês sem receita". No mês em andamento, só o que já entrou.
+  const valorReceita = (p: Planejamento, fechado: boolean) => {
+    if (p.pago) return Number(p.valor_real ?? p.valor_previsto ?? 0)
+    if (fechado) return Number(p.valor_previsto ?? 0)
+    return p.id ? recebimentosPorId.get(p.id)?.total ?? 0 : 0
+  }
 
   // Aportes e estornos não têm responsável: só fazem sentido na visão do casal.
   const visaoCasal = escopo === 'casal'
@@ -229,9 +241,19 @@ export function calcularMetricas(
   // ── Série mensal ──
   const mensal: MesComportamento[] = todos.map(mes => {
     const doMes = transacoes.filter(t => t.projeto_fatura.startsWith(mes))
-    const gastoCartao = soma(doMes.map(t => t.valor))
+    const planMes = planejamento.filter(p => p.mes_referencia.startsWith(mes))
+    // Fatura efetiva, pela mesma função do Dashboard: valor pago na linha do
+    // cartão → compras importadas → previsto.
+    const porCartao = calcularEfetivoPorCartao(
+      planMes.map((p): PlanejamentoSaldoRow => ({
+        item: p.item, responsavel: p.responsavel, valor_previsto: p.valor_previsto,
+        valor_real: p.valor_real ?? null, pago: !!p.pago,
+      })),
+      doMes as TransacaoSaldoRow[],
+    )
+    const gastoCartao = soma(Object.values(porCartao).map(c => c.efetivo))
     const contasMes = soma(contas.filter(p => p.mes_referencia.startsWith(mes)).map(valorConta))
-    const receita = soma(receitas.filter(p => p.mes_referencia.startsWith(mes)).map(valorRecebido))
+    const receita = soma(receitas.filter(p => p.mes_referencia.startsWith(mes)).map(p => valorReceita(p, mes !== mesParcial)))
     const gastoTotal = gastoCartao + contasMes
     const novas = doMes.filter(ehCompraNova)
     return {
@@ -250,23 +272,35 @@ export function calcularMetricas(
   })
   const mesesFechados = mensal.filter(m => !m.parcial)
   const comReceita = mesesFechados.filter(m => m.receita > 0)
+  const temReceita = comReceita.length > 0
 
-  const receitaMedia = media(comReceita.map(m => m.receita))
+  // Receita, gasto e saldo sobre os mesmos meses: médias de bases diferentes
+  // mostravam gasto médio acima da receita média com taxa de poupança positiva.
+  const receitaMedia = temReceita ? media(mesesFechados.map(m => m.receita)) : 0
   const gastos = mesesFechados.map(m => m.gastoTotal)
   const gastoMedio = media(gastos)
   const recentes3 = mesesFechados.slice(-3).map(m => m.gastoTotal)
   const anteriores3 = mesesFechados.slice(-6, -3).map(m => m.gastoTotal)
   const ordenadosPorGasto = [...mesesFechados].filter(m => m.gastoTotal > 0).sort((a, b) => b.gastoTotal - a.gastoTotal)
-  const taxaPoupancaMedia = receitaMedia > 0
-    ? r1(((soma(comReceita.map(m => m.receita)) - soma(comReceita.map(m => m.gastoTotal))) / soma(comReceita.map(m => m.receita))) * 100)
+  const receitaTotal = soma(mesesFechados.map(m => m.receita))
+  const taxaPoupancaMedia = receitaTotal > 0
+    ? r1(((receitaTotal - soma(mesesFechados.map(m => m.gastoTotal))) / receitaTotal) * 100)
     : null
+  const semReceita = temReceita ? mesesFechados.filter(m => m.receita <= 0).map(m => m.mes) : []
+  if (semReceita.length > 0) {
+    const nomes = semReceita.map(m => {
+      const [ano, mes] = m.split('-')
+      return `${['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][Number(mes) - 1]}/${ano.slice(2)}`
+    })
+    avisos.push(`Sem receita lançada em ${nomes.join(', ')}${escopo === 'casal' ? '' : ` para ${escopo}`}: ${semReceita.length === 1 ? 'esse mês entra' : 'esses meses entram'} com receita zero nas médias e no saldo.`)
+  }
 
   const resumo: MetricasComportamento['resumo'] = {
     receitaMedia: r2(receitaMedia),
     gastoMedio: r2(gastoMedio),
-    saldoMedio: r2(media(comReceita.map(m => m.saldo))),
+    saldoMedio: temReceita ? r2(media(mesesFechados.map(m => m.saldo))) : 0,
     taxaPoupancaMedia,
-    mesesNoVermelho: comReceita.filter(m => m.saldo < 0).length,
+    mesesNoVermelho: temReceita ? mesesFechados.filter(m => m.saldo < 0).length : 0,
     tendenciaGastoPct: anteriores3.length > 0 ? variacao(media(recentes3), media(anteriores3)) : null,
     oscilacaoGastoPct: oscilacao(gastos),
     mesMaisCaro: ordenadosPorGasto[0] ? { mes: ordenadosPorGasto[0].mes, valor: ordenadosPorGasto[0].gastoTotal } : null,
@@ -579,8 +613,12 @@ export function calcularMetricas(
   const parcelasAntigas = soma(transacoesFechadas.filter(t => !ehCompraNova(t)).map(t => t.valor)) / nFechados
   const comprasDoMes = soma(transacoesFechadas.filter(ehCompraNova).map(t => t.valor)) / nFechados
   const assinaturasNoCartao = Math.min(custoAssinaturas, comprasDoMes)
+  // A fatura efetiva é o valor pago, que pode diferir da soma das compras
+  // (estornos, encargos, pagamento de outro valor): a diferença entra à parte
+  // para fixo + variável fechar com o gasto médio.
+  const ajusteFatura = media(mesesFechados.map(m => m.gastoCartao)) - (parcelasAntigas + comprasDoMes)
   const totalFixo = contasFixas + parcelasAntigas + assinaturasNoCartao
-  const totalVariavel = comprasDoMes - assinaturasNoCartao + contasVariaveis
+  const totalVariavel = comprasDoMes - assinaturasNoCartao + ajusteFatura + contasVariaveis
   const fixoVariavel: FixoVariavel = {
     fixo: {
       contas: r2(contasFixas),
@@ -590,6 +628,7 @@ export function calcularMetricas(
     },
     variavel: {
       cartao: r2(comprasDoMes - assinaturasNoCartao),
+      ajusteFatura: r2(ajusteFatura),
       contas: r2(contasVariaveis),
       total: r2(totalVariavel),
     },
@@ -617,7 +656,7 @@ export function calcularMetricas(
   const parcelasProximas = compromissoFuturo.find(c => c.mes === mesProximo)?.valor ?? 0
   const margemLivre = receitaProxima - contasProximas - parcelasProximas - custoAssinaturas
   // Com o mês planejado, as contas fora da rotina já estão nas contas lançadas.
-  const variavelHabitual = (comprasDoMes - assinaturasNoCartao) + (contasPlanejadas.length > 0 ? 0 : contasVariaveis)
+  const variavelHabitual = (comprasDoMes - assinaturasNoCartao) + ajusteFatura + (contasPlanejadas.length > 0 ? 0 : contasVariaveis)
   const [anoProx, mesProx] = mesProximo.split('-').map(Number)
   const semanasProximo = new Date(anoProx, mesProx, 0).getDate() / 7
   const proximoMes: ProximoMes | null = receitaProxima > 0
@@ -784,7 +823,7 @@ export function calcularMetricas(
   }
 
   if (comReceita.length === 0) {
-    avisos.push('Nenhuma receita recebida registrada no período: taxa de poupança e saldo não podem ser avaliados.')
+    avisos.push('Nenhuma receita lançada no período: taxa de poupança e saldo não podem ser avaliados.')
   }
   if (comDatas === 0 && pagas.length > 0) {
     avisos.push('As contas pagas não têm data de pagamento registrada: a pontualidade não pôde ser medida.')
@@ -882,8 +921,7 @@ function calcularMesFoco(
     const valorBase = media(meses.map(f))
     return { atual: r2(valorAtual), base: r2(valorBase), variacaoPct: meses.length ? variacao(valorAtual, valorBase) : null }
   }
-  const comReceita = mensalBase.filter(m => m.receita > 0)
-  const temReceita = comReceita.length > 0 || (serie.get(mes)?.receita ?? 0) > 0
+  const temReceita = mensalBase.some(m => m.receita > 0) || (serie.get(mes)?.receita ?? 0) > 0
 
   const nomesCategorias = new Set([...atual.categorias.keys(), ...base.flatMap(a => [...a.categorias.keys()])])
   const categorias = [...nomesCategorias]
@@ -923,8 +961,8 @@ function calcularMesFoco(
     parcelasEmAndamento: { valor: comparar(a => a.parcelas), quantidade: atual.parcelasQtd },
     faturas: compararSerie(m => m.gastoCartao),
     contas: compararSerie(m => m.contas),
-    receita: temReceita ? compararSerie(m => m.receita, comReceita) : null,
-    saldo: temReceita ? compararSerie(m => m.saldo, comReceita) : null,
+    receita: temReceita ? compararSerie(m => m.receita) : null,
+    saldo: temReceita ? compararSerie(m => m.saldo) : null,
     microgastos: { valor: comparar(a => a.micro), quantidade: comparar(a => a.microQtd) },
     novosParcelamentos: { quantidade: comparar(a => a.parceladas), valorFinanciado: comparar(a => a.financiado) },
     fimDeSemanaPctValor: comparar(a => (a.compras > 0 ? (a.fimDeSemana / a.compras) * 100 : 0), comCompra),
@@ -958,12 +996,12 @@ function avaliarSaude(m: MetricasComportamento, contasComDatas: number): Metrica
       medida: `${fmtPct(m.resumo.taxaPoupancaMedia)} da receita sobra`,
       referencia: '20% ou mais é saudável',
     })
-    const comReceita = m.mensal.filter(x => !x.parcial && x.receita > 0).length
-    if (comReceita > 0) {
+    const fechados = m.mensal.filter(x => !x.parcial).length
+    if (fechados > 0) {
       ind.push({
         chave: 'vermelho', nome: 'Meses no vermelho', peso: 15,
-        nota: escala(m.resumo.mesesNoVermelho / comReceita, 0, 0.5),
-        medida: `${m.resumo.mesesNoVermelho} de ${comReceita} meses`,
+        nota: escala(m.resumo.mesesNoVermelho / fechados, 0, 0.5),
+        medida: `${m.resumo.mesesNoVermelho} de ${fechados} meses`,
         referencia: 'nenhum mês gastando mais do que entrou',
       })
     }

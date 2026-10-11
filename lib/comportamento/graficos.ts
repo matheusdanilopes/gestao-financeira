@@ -142,7 +142,9 @@ export function graficoReceitaGasto(m: MetricasComportamento, tema: TemaGrafico)
 /** Saldo do mês (receita − gasto): azul quando sobra, vermelho quando falta. */
 export function graficoSaldo(m: MetricasComportamento, tema: TemaGrafico): ChartConfiguration<'bar'> {
   const c = cores(tema.escuro)
-  const meses = m.mensal.filter(x => !x.parcial && x.receita > 0)
+  // Todos os meses fechados, como nas médias: mês sem receita lançada aparece
+  // (no vermelho) em vez de sumir do gráfico.
+  const meses = m.mensal.filter(x => !x.parcial)
   const opcoes = base(tema, false, false)
   return {
     type: 'bar',

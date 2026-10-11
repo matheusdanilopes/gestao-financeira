@@ -48,7 +48,9 @@ export interface MesComportamento {
   mes: string
   /** true para o mês corrente, ainda em andamento (fora das médias). */
   parcial: boolean
+  /** Recebida quando marcada; num mês fechado sem a marcação, a prevista (como no app). */
   receita: number
+  /** Fatura efetiva, como no Dashboard: valor pago na linha do cartão; sem pagamento marcado, a soma das compras. */
   gastoCartao: number
   contas: number
   gastoTotal: number
@@ -197,6 +199,11 @@ export interface FixoVariavel {
   variavel: {
     /** Compras novas no cartão (à vista ou 1ª parcela), sem as assinaturas. */
     cartao: number
+    /**
+     * Fatura paga − soma das compras (estornos, encargos, pagamento de outro
+     * valor). Opcional: análises salvas antes deste campo não o têm.
+     */
+    ajusteFatura?: number
     /** Contas do planejamento fora da rotina. */
     contas: number
     total: number

@@ -338,6 +338,13 @@ export function BlocoMesFoco({ mesFoco: f }: { mesFoco: MesFoco }) {
         )}
       </div>
 
+      {f.saldo && f.receita && (
+        <p className="text-[11px] text-gray-500 leading-snug num">
+          Saldo do mês: receita {formatBRL(f.receita.atual)} − faturas {formatBRL(f.faturas.atual)} − contas {formatBRL(f.contas.atual)}
+          {' '}= <span className={`font-semibold ${f.saldo.atual < 0 ? 'text-red-500' : 'text-gray-900'}`}>{formatBRL(f.saldo.atual)}</span>
+        </p>
+      )}
+
       {f.novidades.length > 0 && (
         <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-2.5 py-1.5 leading-snug">
           <Sparkle className="w-3 h-3 inline -mt-0.5 mr-1" />
@@ -473,8 +480,9 @@ function BlocoFixoVariavel({ fv }: { fv: FixoVariavel }) {
     { rotulo: 'Parcelas de compras antigas', valor: fv.fixo.parcelas, fixo: true },
     { rotulo: 'Assinaturas', valor: fv.fixo.assinaturas, fixo: true },
     { rotulo: 'Compras novas no cartão', valor: fv.variavel.cartao, fixo: false },
+    { rotulo: 'Fatura paga − compras (estornos, encargos)', valor: fv.variavel.ajusteFatura ?? 0, fixo: false },
     { rotulo: 'Contas fora da rotina', valor: fv.variavel.contas, fixo: false },
-  ].filter(x => x.valor > 0)
+  ].filter(x => Math.abs(x.valor) >= 1)
   return (
     <Cartao
       titulo="Fixo × variável"
@@ -619,6 +627,14 @@ export function BlocosMetricas({ metricas: m }: { metricas: MetricasComportament
 
   return (
     <>
+      {m.escopo !== 'casal' && (
+        <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-2xl px-3 py-2 leading-snug">
+          <Info className="w-3 h-3 inline -mt-0.5 mr-1" />
+          Visão de {m.escopo}: só os lançamentos com responsável {m.escopo} (o Conjunto fica de fora).
+          O saldo do Dashboard e de Finanças é sempre do casal, por isso os números não batem com ele.
+        </p>
+      )}
+
       {m.mesFoco && <BlocoMesFoco mesFoco={m.mesFoco} />}
 
       {/* Análises salvas antes destes blocos não têm os campos. */}
@@ -655,7 +671,8 @@ export function BlocosMetricas({ metricas: m }: { metricas: MetricasComportament
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <Cartao titulo="Receita × gasto" Icon={Activity} corIcone="text-sky-600" corFundo="bg-sky-50">
+        <Cartao titulo="Receita × gasto" Icon={Activity} corIcone="text-sky-600" corFundo="bg-sky-50"
+          subtitulo="Mesma conta do Dashboard: faturas pelo valor pago + contas; receita prevista quando não marcada como recebida">
           <GraficoComportamento montar={montarReceita} descricao="Receita e gasto total de cada mês fechado" />
         </Cartao>
         {temReceita && (
