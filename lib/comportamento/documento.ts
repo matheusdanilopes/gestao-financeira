@@ -52,6 +52,60 @@ export function montarDocumentoAnalise(r: ResultadoAnalise): DocumentoRelatorio 
         colunas: ['Indicador', 'Medida', 'Referência', 'Nota'],
         linhas: m.saude.indicadores.map(i => [i.nome, i.medida, i.referencia, String(i.nota)]),
       },
+      ...(m.proximoMes
+        ? [{
+            titulo: `${rotuloMesIso(m.proximoMes.mes)}: quanto sobra para decidir`,
+            explicacao: 'Receita menos o que já está comprometido; a folga compara a margem livre com o gasto variável de um mês típico.',
+            colunas: ['Item', 'Valor'],
+            linhas: [
+              [`Receita (${m.proximoMes.receitaFonte === 'planejada' ? 'planejada' : 'média'})`, m.proximoMes.receita],
+              [`Contas (${{ planejadas: 'planejadas', media: 'recorrentes, média', planejadas_e_media: 'planejadas + recorrentes' }[m.proximoMes.contasFonte]})`, -m.proximoMes.contas],
+              ['Parcelas já contratadas', -m.proximoMes.parcelas],
+              ['Assinaturas', -m.proximoMes.assinaturas],
+              ['Margem livre', m.proximoMes.margemLivre],
+              ['Gasto variável habitual', m.proximoMes.variavelHabitual],
+              ['Folga (negativa = falta)', m.proximoMes.folga],
+              ['Teto semanal para compras novas', m.proximoMes.tetoSemanal],
+            ] as Array<[string, number]>,
+          }]
+        : []),
+      ...(m.fixoVariavel
+        ? [{
+            titulo: 'Fixo × variável (média mensal)',
+            explicacao: `${m.fixoVariavel.pctFixo.toLocaleString('pt-BR')}% do gasto já vem comprometido.`,
+            colunas: ['Parte', 'Tipo', 'Valor'],
+            linhas: [
+              ['Contas recorrentes', 'Fixo', m.fixoVariavel.fixo.contas],
+              ['Parcelas de compras antigas', 'Fixo', m.fixoVariavel.fixo.parcelas],
+              ['Assinaturas', 'Fixo', m.fixoVariavel.fixo.assinaturas],
+              ['Compras novas no cartão', 'Variável', m.fixoVariavel.variavel.cartao],
+              ['Fatura paga − compras (estornos, encargos)', 'Variável', m.fixoVariavel.variavel.ajusteFatura ?? 0],
+              ['Contas fora da rotina', 'Variável', m.fixoVariavel.variavel.contas],
+            ] as Array<[string, string, number]>,
+          }]
+        : []),
+      {
+        titulo: 'Contas que estouram o previsto',
+        colunas: ['Conta', 'Meses acima do previsto', 'Excesso médio'],
+        linhas: m.planejamento.itensQueEstouram.map(i => [i.item, `${i.mesesEstourados} de ${i.mesesAvaliados}`, i.excessoMedio]),
+      },
+      {
+        titulo: 'Assinaturas ativas',
+        colunas: ['Assinatura', 'Categoria', 'Valor/mês'],
+        linhas: m.assinaturas.maiores.map(x => [x.nome, x.categoria, x.valor]),
+        ...(m.assinaturas.ativas > 0 ? { totais: [{ label: `Total (${m.assinaturas.ativas} ativas)`, valor: m.assinaturas.custoMensal }] } : {}),
+      },
+      {
+        titulo: 'Compras fora do padrão',
+        colunas: ['Data', 'Descrição', 'Categoria', 'Vezes o normal', 'Valor'],
+        linhas: m.comprasAtipicas.map(c => [
+          (c.data ?? '').substring(0, 10).split('-').reverse().join('/'),
+          c.descricao,
+          c.categoria,
+          `${c.vezesMediana.toLocaleString('pt-BR')}×`,
+          c.valor,
+        ]),
+      },
       {
         titulo: 'Padrões identificados',
         colunas: ['Padrão', 'Número-chave', 'O que acontece', 'Impacto', 'Relevância'],

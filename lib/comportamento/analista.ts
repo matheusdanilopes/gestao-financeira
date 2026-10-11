@@ -34,20 +34,24 @@ REGRAS INEGOCIÁVEIS
 7. Seja específico e personalizado — cite categorias, estabelecimentos, meses e pessoas pelos nomes que aparecem nos dados. Nada de conselho genérico ("faça um orçamento") sem amarrar a um dado.
 8. Tom: direto, empático e sem julgamento moral. Fale com a pessoa em segunda pessoa ("você"/"vocês" quando a visão é do casal).
 9. O mês corrente é parcial: não trate os números dele como mês completo.
-10. Valores de economia no plano de ação devem ser estimativas conservadoras, derivadas dos dados (ex.: cortar metade dos microgastos = metade da média mensal de microgastos). Use 0 quando a ação não reduzir gasto diretamente — categorizar, criar reserva, investir ou guardar dinheiro NÃO são economia.
+10. Valores de economia no plano de ação devem ser estimativas conservadoras, derivadas dos dados (ex.: cortar metade dos microgastos = metade da média mensal de microgastos). Use 0 quando a ação não reduzir gasto diretamente — categorizar, criar reserva, investir ou guardar dinheiro NÃO são economia. Em "categoria", informe a categoria de onde sai a economia, com o nome exato que aparece nos dados (vazio se a ação não corta uma categoria específica). Nunca conte a mesma economia em duas ações: se duas ações atacam o mesmo gasto, a soma delas não pode passar do gasto. O app limita as economias ao gasto real.
 11. Respeite as limitações do dado: histórico curto, compras sem categoria, avisos de qualidade — registre-as em "limitacoes".
 
 GLOSSÁRIO DAS MÉTRICAS
-- mensal[]: série por mês. gastoTotal = gastoCartao (compras no mês da fatura) + contas (despesas do planejamento, sem pagamento de fatura). taxaPoupanca = (receita − gastoTotal) / receita. aportes = dinheiro investido no mês.
-- resumo: médias dos meses fechados. tendenciaGastoPct = últimos 3 meses vs. 3 anteriores. oscilacaoGastoPct = coeficiente de variação.
+- mensal[]: série por mês, com a mesma conta de saldo do Dashboard do app. gastoTotal = gastoCartao (fatura efetiva: o valor pago na linha do cartão; sem pagamento marcado, a soma das compras daquela fatura) + contas (despesas do planejamento, sem pagamento de fatura). receita = a recebida quando marcada; num mês fechado sem a marcação, a prevista. saldo = receita − gastoTotal; taxaPoupanca = saldo / receita. aportes = dinheiro investido no mês. Ao citar o saldo de um mês, mostre a conta (receita − faturas − contas) para a pessoa conseguir conferir no app.
+- Visão individual (escopo com um nome): só as linhas com aquele responsável; o saldo das telas do app é sempre do casal. Ao citar saldo nessa visão, deixe claro que é o saldo daquela pessoa.
+- fixoVariavel: gasto médio mensal separado em fixo (contas que se repetem, parcelas de compras antigas, assinaturas) e variável (compras novas no cartão, ajusteFatura = fatura paga − soma das compras, contas fora da rotina). pctFixo = quanto do gasto já vem comprometido. O plano de ação deve atacar sobretudo o variável, que se decide no dia a dia; o fixo só cai renegociando, cancelando ou deixando parcelas terminarem.
+- proximoMes: o próximo mês. receita (planejada ou média) − contas − parcelas já contratadas − assinaturas = margemLivre, o que sobra para compras novas e imprevistos. variavelHabitual = o gasto variável de um mês típico; folga = margemLivre − variavelHabitual (negativa: no ritmo atual, o próximo mês fecha no vermelho, e o tamanho do corte necessário é esse valor). tetoSemanal = quanto dá para gastar por semana em compras novas sem fechar no vermelho. Use esses números para dizer, em reais, o que fazer no próximo mês.
+- resumo: médias de TODOS os meses fechados (receita, gasto e saldo na mesma base; mês sem receita lançada entra com zero e aparece nos avisos). tendenciaGastoPct = últimos 3 meses vs. 3 anteriores. oscilacaoGastoPct = coeficiente de variação.
 - saude: nota 0–100 calculada por regra fixa. Explique o que puxa a nota para cima e para baixo; não recalcule.
 - PARCELAS EM ANDAMENTO: a cada fatura, a importação lança as parcelas de compras antigas (parcela 2/N em diante) com a DATA DE ABERTURA DA FATURA, não com a data em que a compra foi feita. Elas NÃO são compras novas nem decisões de gasto daquele dia. Um volume grande de lançamentos no primeiro dia da fatura é isso — nunca o interprete como "dia de muitas compras", impulso ou farra. Todas as métricas de comportamento (quando, ticket, microgastos, estabelecimentos, comprasAtipicas, diasIntensos) já as excluem; elas só entram nos totais de fatura (gastoCartao) e em parcelamentos.compromissoFuturo.
-- quando: baseado em "compras novas" (à vista ou 1ª parcela, valor cheio da compra) pela data da compra. diasSemana/fasesDoMes têm pctValor e pctQuantidade (uniforme seria ~14% por dia e ~17% por fase); o hábito é a quantidade, o valor pode ser puxado por uma compra só. semanaDoRecebimento.pctValor = % do valor gasto até 6 dias após entrar receita (esperado ~23%).
+- quando: baseado em "compras novas" (à vista ou 1ª parcela, valor cheio da compra) pela data da compra. diasSemana/fasesDoMes têm pctValor e pctQuantidade (uniforme seria ~14% por dia e ~17% por fase); o hábito é a quantidade, o valor pode ser puxado por uma compra só. semanaDoRecebimento.pctValor = % do valor gasto até 6 dias após entrar receita; esperadoPct = % dos dias do período que caem nessas semanas (depende de quantos recebimentos há por mês). Só há concentração quando pctValor passa bem de esperadoPct.
 - ticket: distribuição do valor das compras novas; microgastos = compras até o limite indicado (efeito formiga).
 - estabelecimentos: lugares mais frequentes (quantidade = compras novas no período).
 - categorias: cartão + contas por categoria nos meses fechados; variacaoPct compara média dos 3 meses recentes com a dos anteriores; oscilacaoPct alta = gasto irregular/impulsivo.
 - parcelamentos: compromissoFuturo = parcelas já contratadas por mês à frente; pctReceitaProximoMes = parcelas do próximo mês / receita média.
 - planejamento: pontualidade = pagasComAtraso de contasComDatas (só essas têm as duas datas; não use contasPagas como base). aderenciaPct = realizado / previsto das contas pagas; itensQueEstouram = contas que passam do previsto na maioria dos meses.
+- investimentos: mesesDeReserva = saldo informado dos investimentos ÷ gasto médio mensal (quantos meses a reserva cobre; referência 6). pctDaReceita = aporte médio mensal / receita média. Quando vierem null, a pessoa não registra investimentos no app: não afirme que ela não tem reserva.
 - comprasAtipicas: compras muito acima da mediana da própria categoria (possíveis compras por impulso ou eventos).
 - modo "ultimo_mes": o foco é mesFoco (o último mês fechado, pelas faturas pagas nele); a série mensal e os demais blocos de meses servem de "normal" para comparação. Cada Comparativo traz atual (mês em foco), base (média dos meses anteriores) e variacaoPct. mesFoco.novidades = categorias/lugares que não apareciam antes. Junto vem a TABELA DE LANÇAMENTOS com todas as linhas das faturas pagas no mês: use-a para ir ao detalhe (compras específicas, repetições, horários do mês, quem comprou), sempre separando compra_nova de parcela_em_andamento. No modo "ultimo_mes", seja concreto sobre ESTE mês: o que fugiu do normal, por quê, e o que fazer já no mês seguinte.
 
@@ -133,11 +137,12 @@ const ESQUEMA: Record<string, unknown> = {
         properties: {
           acao: { type: 'STRING' },
           porque: { type: 'STRING' },
+          categoria: { type: 'STRING', description: 'Categoria de onde sai a economia, como nos dados; vazio se não houver.' },
           economiaMensal: { type: 'NUMBER', description: 'Economia mensal estimada em reais; 0 se não houver.' },
           dificuldade: { type: 'STRING', enum: ['facil', 'media', 'dificil'] },
           prazo: { type: 'STRING' },
         },
-        required: ['acao', 'porque', 'economiaMensal', 'dificuldade', 'prazo'],
+        required: ['acao', 'porque', 'categoria', 'economiaMensal', 'dificuldade', 'prazo'],
       },
     },
     metas: {
@@ -263,6 +268,7 @@ export function normalizarAnalise(bruto: unknown): AnaliseIA {
     planoDeAcao: lista(o.planoDeAcao, x => texto(x.acao) ? {
       acao: texto(x.acao, 80),
       porque: texto(x.porque, 130),
+      categoria: texto(x.categoria, 40),
       economiaMensal: Math.max(0, Math.round(Number(x.economiaMensal) || 0)),
       dificuldade: umDe(x.dificuldade, ['facil', 'media', 'dificil'] as const, 'media'),
       prazo: texto(x.prazo, 20),
@@ -278,6 +284,45 @@ export function normalizarAnalise(bruto: unknown): AnaliseIA {
     throw new AnaliseFormatoError('sem manchete ou sem padrões')
   }
   return analise
+}
+
+const normalizarNome = (s: string) =>
+  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
+
+/**
+ * Prende as economias do plano ao que os dados permitem. A IA estima cada
+ * ação isolada: duas ações sobre o mesmo gasto somam a economia duas vezes, e
+ * o total (que a tela multiplica por 12) fica maior do que o próprio gasto.
+ *  - por categoria: as ações sobre uma categoria não passam da média mensal dela;
+ *  - no total: não passam de metade do que se decide no mês (gasto variável +
+ *    assinaturas) — cortar mais do que isso não é um plano realista.
+ * Quando passam, as economias encolhem na mesma proporção.
+ */
+export function ajustarEconomias(analise: AnaliseIA, metricas: MetricasComportamento): AnaliseIA {
+  const plano = analise.planoDeAcao.map(p => ({ ...p }))
+  let ajustou = false
+  const limitarA = (itens: typeof plano, teto: number) => {
+    const total = itens.reduce((s, p) => s + p.economiaMensal, 0)
+    if (total <= teto) return
+    const fator = Math.max(0, teto) / total
+    for (const p of itens) p.economiaMensal = Math.floor(p.economiaMensal * fator)
+    ajustou = true
+  }
+
+  const tetoCategoria = new Map(metricas.categorias.map(c => [normalizarNome(c.categoria), c.mediaMensal]))
+  const porCategoria = new Map<string, typeof plano>()
+  for (const p of plano) {
+    const chave = normalizarNome(p.categoria ?? '')
+    if (p.economiaMensal <= 0 || !tetoCategoria.has(chave)) continue
+    porCategoria.set(chave, [...(porCategoria.get(chave) ?? []), p])
+  }
+  for (const [chave, itens] of porCategoria) limitarA(itens, tetoCategoria.get(chave)!)
+
+  const fv = metricas.fixoVariavel
+  const decidivel = fv ? fv.variavel.total + fv.fixo.assinaturas : metricas.resumo.gastoMedio
+  limitarA(plano.filter(p => p.economiaMensal > 0), decidivel * 0.5)
+
+  return { ...analise, planoDeAcao: plano, economiaAjustada: ajustou }
 }
 
 /** Extrai o objeto JSON mesmo que venha cercado de ```json … ``` ou texto. */
@@ -335,12 +380,14 @@ export async function analisarComportamento(opts: {
   deadlineMs: number
 }): Promise<AnaliseIA> {
   const pedido = montarPedido(opts.metricas, opts.parametros, opts.nomeUsuario)
+  let analise: AnaliseIA
   try {
-    return await chamar(opts.apiKey, pedido, opts.deadlineMs, 8192)
+    analise = await chamar(opts.apiKey, pedido, opts.deadlineMs, 8192)
   } catch (err) {
     const podeRepetir = err instanceof AnaliseFormatoError ||
       (err instanceof GeminiError && (err.codigo === 'TIMEOUT' || err.codigo === 'OVERLOADED'))
     if (!podeRepetir || opts.deadlineMs - Date.now() < 30_000) throw err
-    return chamar(opts.apiKey, pedido, opts.deadlineMs, 1024)
+    analise = await chamar(opts.apiKey, pedido, opts.deadlineMs, 1024)
   }
+  return ajustarEconomias(analise, opts.metricas)
 }
