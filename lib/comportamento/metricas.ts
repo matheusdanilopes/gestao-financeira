@@ -33,6 +33,7 @@ import type {
   EscopoAnalise,
   Estabelecimento,
   FatiaTempo,
+  FixoVariavel,
   IndicadorSaude,
   ItemQueEstoura,
   MesComportamento,
@@ -40,6 +41,7 @@ import type {
   LancamentoFatura,
   MesFoco,
   ParametrosAnalise,
+  ProximoMes,
 } from './tipos'
 import { JANELA_ULTIMO_MES, MESES_BASE_ULTIMO_MES } from './tipos'
 
@@ -351,11 +353,27 @@ export function calcularMetricas(
       }
       if (ultimo && (x.d.getTime() - ultimo.getTime()) / DIA_MS <= 6) naSemana += x.valor
     }
+    // O esperado é a fatia dos dias do período coberta pelas janelas de 7 dias:
+    // com um salário por mês ~23%, com dois (dia 5 e dia 20) ~45%. Um valor
+    // fixo faria um gasto distribuído por igual parecer "queimar ao entrar".
+    const tempos = novasComData.map(x => x.d.getTime())
+    const inicioPeriodo = Math.min(...tempos)
+    const fimPeriodo = Math.max(...tempos)
+    let diasPeriodo = 0
+    let diasCobertos = 0
+    for (let t = inicioPeriodo; t <= fimPeriodo; t += DIA_MS) {
+      diasPeriodo += 1
+      // Arredonda: virada de horário de verão deixa o passo com 23/25 h.
+      if (datasRecebimento.some(d => {
+        const dias = Math.round((t - d.getTime()) / DIA_MS)
+        return dias >= 0 && dias <= 6
+      })) diasCobertos += 1
+    }
     const contagemDias = new Map<number, number>()
     for (const d of datasRecebimento) contagemDias.set(d.getDate(), (contagemDias.get(d.getDate()) ?? 0) + 1)
     semanaDoRecebimento = {
       pctValor: pct(naSemana, totalNovas),
-      esperadoPct: 23,
+      esperadoPct: diasPeriodo > 0 ? Math.round((diasCobertos / diasPeriodo) * 100) : 23,
       diasDeRecebimento: [...contagemDias.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([dia]) => dia).sort((a, b) => a - b),
     }
   }
@@ -539,6 +557,85 @@ export function calcularMetricas(
     a.ativa && doEscopo(a.responsavel) && !(a.pausada_ate && a.pausada_ate > hojeIso))
   const custoAssinaturas = soma(assinaturasAtivas.map(a => Number(a.valor ?? 0)))
 
+  // ── Fixo × variável (média dos meses fechados) ──
+  // Conta recorrente = aparece na maioria dos meses fechados (60%); as demais
+  // são gastos fora da rotina. Assinaturas são cobradas no cartão, então saem
+  // das compras novas para não contarem duas vezes.
+  const nFechados = Math.max(1, fechados.length)
+  const mesesPorConta = new Map<string, Set<string>>()
+  for (const p of contasFechadas) {
+    if (valorConta(p) <= 0) continue
+    const chave = removerPrefixoCartao(p.item).toLowerCase()
+    const meses = mesesPorConta.get(chave) ?? new Set<string>()
+    meses.add(p.mes_referencia.substring(0, 7))
+    mesesPorConta.set(chave, meses)
+  }
+  const minimoRecorrente = Math.max(1, Math.ceil(fechados.length * 0.6))
+  const ehRecorrente = (p: Planejamento) =>
+    (mesesPorConta.get(removerPrefixoCartao(p.item).toLowerCase())?.size ?? 0) >= minimoRecorrente
+  const contasFixas = soma(contasFechadas.filter(ehRecorrente).map(valorConta)) / nFechados
+  const contasVariaveis = soma(contasFechadas.filter(p => !ehRecorrente(p)).map(valorConta)) / nFechados
+  const transacoesFechadas = transacoes.filter(t => setFechados.has(t.projeto_fatura.substring(0, 7)))
+  const parcelasAntigas = soma(transacoesFechadas.filter(t => !ehCompraNova(t)).map(t => t.valor)) / nFechados
+  const comprasDoMes = soma(transacoesFechadas.filter(ehCompraNova).map(t => t.valor)) / nFechados
+  const assinaturasNoCartao = Math.min(custoAssinaturas, comprasDoMes)
+  const totalFixo = contasFixas + parcelasAntigas + assinaturasNoCartao
+  const totalVariavel = comprasDoMes - assinaturasNoCartao + contasVariaveis
+  const fixoVariavel: FixoVariavel = {
+    fixo: {
+      contas: r2(contasFixas),
+      parcelas: r2(parcelasAntigas),
+      assinaturas: r2(assinaturasNoCartao),
+      total: r2(totalFixo),
+    },
+    variavel: {
+      cartao: r2(comprasDoMes - assinaturasNoCartao),
+      contas: r2(contasVariaveis),
+      total: r2(totalVariavel),
+    },
+    pctFixo: pct(totalFixo, totalFixo + totalVariavel),
+  }
+
+  // ── Próximo mês: o que já está comprometido e o que sobra para decidir ──
+  // O planejamento é carregado sem limite à frente: se o mês seguinte já foi
+  // planejado, valem os valores lançados; senão, as médias.
+  const mesProximo = somarMes(mesParcial, 1)
+  const planejadoProximo = dados.planejamento.filter(p =>
+    (p.mes_referencia ?? '').startsWith(mesProximo) && doEscopo(p.responsavel))
+  const receitaPlanejada = soma(planejadoProximo.filter(ehReceita).map(p => Number(p.valor_previsto ?? 0)))
+  const contasPlanejadas = planejadoProximo.filter(p => ehDespesaReal(p.item))
+  const receitaProxima = receitaPlanejada > 0 ? receitaPlanejada : receitaMedia
+  // Um mês planejado só em parte não pode esconder contas que sempre vêm:
+  // as recorrentes ainda não lançadas entram pela média.
+  const chavesPlanejadas = new Set(contasPlanejadas.map(p => removerPrefixoCartao(p.item).toLowerCase()))
+  const recorrentesFaltando = soma(contasFechadas
+    .filter(p => ehRecorrente(p) && !chavesPlanejadas.has(removerPrefixoCartao(p.item).toLowerCase()))
+    .map(valorConta)) / nFechados
+  const contasProximas = contasPlanejadas.length > 0
+    ? soma(contasPlanejadas.map(p => Number(p.valor_previsto ?? 0))) + recorrentesFaltando
+    : contasFixas
+  const parcelasProximas = compromissoFuturo.find(c => c.mes === mesProximo)?.valor ?? 0
+  const margemLivre = receitaProxima - contasProximas - parcelasProximas - custoAssinaturas
+  // Com o mês planejado, as contas fora da rotina já estão nas contas lançadas.
+  const variavelHabitual = (comprasDoMes - assinaturasNoCartao) + (contasPlanejadas.length > 0 ? 0 : contasVariaveis)
+  const [anoProx, mesProx] = mesProximo.split('-').map(Number)
+  const semanasProximo = new Date(anoProx, mesProx, 0).getDate() / 7
+  const proximoMes: ProximoMes | null = receitaProxima > 0
+    ? {
+        mes: mesProximo,
+        receita: r2(receitaProxima),
+        receitaFonte: receitaPlanejada > 0 ? 'planejada' : 'media',
+        contas: r2(contasProximas),
+        contasFonte: contasPlanejadas.length === 0 ? 'media' : recorrentesFaltando > 0 ? 'planejadas_e_media' : 'planejadas',
+        parcelas: r2(parcelasProximas),
+        assinaturas: r2(custoAssinaturas),
+        margemLivre: r2(margemLivre),
+        variavelHabitual: r2(variavelHabitual),
+        folga: r2(margemLivre - variavelHabitual),
+        tetoSemanal: r2(Math.max(0, margemLivre) / semanasProximo),
+      }
+    : null
+
   // ── Investimentos (só na visão do casal) ──
   const totalAportado = soma(aportes.filter(a => setFechados.has(a.data_aporte.substring(0, 7))).map(a => Number(a.valor ?? 0)))
   const ultimoSaldo = new Map<string, { data: string; saldo: number }>()
@@ -547,6 +644,8 @@ export function calcularMetricas(
     const atual = ultimoSaldo.get(a.investimento_id)
     if (!atual || a.data_aporte > atual.data) ultimoSaldo.set(a.investimento_id, { data: a.data_aporte, saldo: Number(a.saldo_atual) })
   }
+
+  const saldoInvestido = ultimoSaldo.size ? r2(soma([...ultimoSaldo.values()].map(v => v.saldo))) : null
 
   // ── Compras fora do padrão ──
   // A mediana de cada categoria vem da janela inteira: no modo "último mês",
@@ -598,6 +697,8 @@ export function calcularMetricas(
       primeiroMesComDados: inicioUso ?? (primeiroMesComDados ? primeiroMesComDados.substring(0, 7) : null),
     },
     mensal,
+    fixoVariavel,
+    proximoMes,
     resumo,
     saude: { nota: 0, indicadores: [] },
     quando: {
@@ -664,7 +765,8 @@ export function calcularMetricas(
       mediaMensal: r2(totalAportado / fechados.length),
       mesesComAporte: mesesFechados.filter(m => m.aportes > 0).length,
       pctDaReceita: receitaMedia > 0 && visaoCasal ? pct(totalAportado / fechados.length, receitaMedia) : null,
-      saldoInformado: ultimoSaldo.size ? r2(soma([...ultimoSaldo.values()].map(v => v.saldo))) : null,
+      saldoInformado: saldoInvestido,
+      mesesDeReserva: saldoInvestido !== null && gastoMedio > 0 ? r1(saldoInvestido / gastoMedio) : null,
     },
     comprasAtipicas,
     estornos: { quantidade: estornos.length, total: r2(soma(estornos.map(e => Math.abs(Number(e.valor ?? 0))))) },
@@ -865,6 +967,25 @@ function avaliarSaude(m: MetricasComportamento, contasComDatas: number): Metrica
         referencia: 'nenhum mês gastando mais do que entrou',
       })
     }
+  }
+  // Reserva e aportes só entram para quem usa o módulo de investimentos (e só
+  // na visão do casal): sem registro, a nota não deve punir o que não se vê.
+  const inv = m.investimentos
+  if (inv.mesesDeReserva !== null && inv.mesesDeReserva !== undefined) {
+    ind.push({
+      chave: 'reserva', nome: 'Reserva de emergência', peso: 15,
+      nota: escala(inv.mesesDeReserva, 6, 0),
+      medida: `investimentos cobrem ${inv.mesesDeReserva.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} meses de gasto`,
+      referencia: '6 meses de gasto ou mais',
+    })
+  }
+  if (inv.pctDaReceita !== null && (inv.saldoInformado !== null || inv.totalAportado > 0)) {
+    ind.push({
+      chave: 'aportes', nome: 'Investimento regular', peso: 10,
+      nota: escala(inv.pctDaReceita, 10, 0),
+      medida: `${fmtPct(inv.pctDaReceita)} da receita investida por mês`,
+      referencia: '10% da receita ou mais',
+    })
   }
   if (m.parcelamentos.pctReceitaProximoMes !== null) {
     ind.push({

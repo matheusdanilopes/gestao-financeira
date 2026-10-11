@@ -7,6 +7,7 @@ import {
   Brain, Activity, CalendarDays, Store, TrendingUp, TrendingDown, Zap, ShieldCheck,
   AlertTriangle, ListChecks, Target, HelpCircle, Info, Layers, Coins, Minus,
   CalendarCheck, Receipt, ChevronDown, Sparkle, Scale, PieChart,
+  Wallet, PiggyBank, Repeat, ShoppingBag, Gauge,
 } from 'lucide-react'
 import GraficoBarrasMeses from '@/components/relatorios/GraficoBarrasMeses'
 import KpisRelatorio from '@/components/relatorios/KpisRelatorio'
@@ -22,7 +23,7 @@ import {
   type TemaGrafico,
 } from '@/lib/comportamento/graficos'
 import type {
-  AnaliseIA, Comparativo, LancamentoFatura, MesFoco, MetricasComportamento, Nivel,
+  AnaliseIA, Comparativo, FixoVariavel, LancamentoFatura, MesFoco, MetricasComportamento, Nivel, ProximoMes,
 } from '@/lib/comportamento/tipos'
 
 // Chart.js só é baixado quando há um resultado para desenhar.
@@ -404,6 +405,209 @@ function MapaCalor({ m }: { m: MetricasComportamento }) {
   )
 }
 
+// ─── Próximo mês: quanto sobra para decidir ──────────────────────────────────
+
+function LinhaConta({ rotulo, detalhe, valor, sinal }: { rotulo: string; detalhe?: string; valor: number; sinal: '+' | '−' }) {
+  return (
+    <li className="flex items-baseline justify-between gap-2">
+      <span className="text-xs text-gray-600 min-w-0 truncate">
+        {rotulo}{detalhe && <span className="text-[10px] text-gray-400"> · {detalhe}</span>}
+      </span>
+      <span className={`text-xs font-semibold num shrink-0 ${sinal === '+' ? 'text-gray-900' : 'text-gray-500'}`}>
+        {sinal} {formatBRL(valor)}
+      </span>
+    </li>
+  )
+}
+
+const ROTULO_CONTAS_PROXIMO_MES: Record<ProximoMes['contasFonte'], string> = {
+  planejadas: 'planejadas',
+  media: 'recorrentes, média',
+  planejadas_e_media: 'planejadas + recorrentes',
+}
+
+export function BlocoProximoMes({ p }: { p: ProximoMes }) {
+  const sobra = p.folga >= 0
+  return (
+    <Cartao
+      titulo={`${rotuloMesIso(p.mes)}: quanto sobra para decidir`}
+      Icon={Wallet}
+      corIcone="text-primary-600"
+      corFundo="bg-primary-50"
+      subtitulo="Receita menos o que já está comprometido"
+    >
+      <div className="flex items-baseline gap-2">
+        <span className={`text-2xl font-bold num ${p.margemLivre >= 0 ? 'text-gray-900' : 'text-red-500'}`}>
+          {formatBRL(p.margemLivre)}
+        </span>
+        <span className="text-xs text-gray-500">de margem livre</span>
+      </div>
+      <ul className="space-y-1">
+        <LinhaConta rotulo="Receita" detalhe={p.receitaFonte === 'planejada' ? 'planejada' : 'média'} valor={p.receita} sinal="+" />
+        <LinhaConta rotulo="Contas" detalhe={ROTULO_CONTAS_PROXIMO_MES[p.contasFonte]} valor={p.contas} sinal="−" />
+        <LinhaConta rotulo="Parcelas já contratadas" valor={p.parcelas} sinal="−" />
+        {p.assinaturas > 0 && <LinhaConta rotulo="Assinaturas" valor={p.assinaturas} sinal="−" />}
+      </ul>
+      <div className={`rounded-2xl border p-3 space-y-1 ${sobra ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
+        <p className={`text-xs font-semibold leading-snug ${sobra ? 'text-green-700' : 'text-red-600'}`}>
+          {sobra
+            ? `No seu ritmo atual sobram ${formatBRL(p.folga)}`
+            : `No seu ritmo atual faltam ${formatBRL(-p.folga)}`}
+        </p>
+        <p className="text-[11px] text-gray-600 leading-snug">
+          Num mês típico você gasta {formatBRL(p.variavelHabitual)} em compras novas e extras.
+          {p.margemLivre > 0
+            ? ` Para fechar no azul, até ${formatBRL(p.tetoSemanal)} por semana.`
+            : ' As contas e parcelas já passam da receita: qualquer compra nova vira saldo negativo.'}
+        </p>
+      </div>
+    </Cartao>
+  )
+}
+
+function BlocoFixoVariavel({ fv }: { fv: FixoVariavel }) {
+  const total = fv.fixo.total + fv.variavel.total
+  if (total <= 0) return null
+  const partes = [
+    { rotulo: 'Contas recorrentes', valor: fv.fixo.contas, fixo: true },
+    { rotulo: 'Parcelas de compras antigas', valor: fv.fixo.parcelas, fixo: true },
+    { rotulo: 'Assinaturas', valor: fv.fixo.assinaturas, fixo: true },
+    { rotulo: 'Compras novas no cartão', valor: fv.variavel.cartao, fixo: false },
+    { rotulo: 'Contas fora da rotina', valor: fv.variavel.contas, fixo: false },
+  ].filter(x => x.valor > 0)
+  return (
+    <Cartao
+      titulo="Fixo × variável"
+      Icon={Repeat}
+      corIcone="text-violet-600"
+      corFundo="bg-violet-50"
+      subtitulo={`Média mensal: ${formatarPercentual(fv.pctFixo, 0)} já vem comprometido`}
+    >
+      <div className="flex h-2.5 rounded-full overflow-hidden bg-gray-100" aria-hidden="true">
+        <div className="bg-violet-500" style={{ width: `${(fv.fixo.total / total) * 100}%` }} />
+        <div className="bg-amber-400" style={{ width: `${(fv.variavel.total / total) * 100}%` }} />
+      </div>
+      <div className="flex justify-between text-[11px] font-semibold">
+        <span className="text-violet-700">Fixo {formatBRL(fv.fixo.total)}</span>
+        <span className="text-amber-700">Variável {formatBRL(fv.variavel.total)}</span>
+      </div>
+      <ul className="space-y-1">
+        {partes.map(x => (
+          <li key={x.rotulo} className="flex items-center gap-2">
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${x.fixo ? 'bg-violet-500' : 'bg-amber-400'}`} />
+            <span className="flex-1 min-w-0 text-xs text-gray-600 truncate">{x.rotulo}</span>
+            <span className="text-xs font-semibold text-gray-900 num shrink-0">{formatBRL(x.valor)}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="text-[11px] text-gray-400 leading-snug">
+        O variável se decide no dia a dia: é onde um corte aparece já no mês seguinte.
+      </p>
+    </Cartao>
+  )
+}
+
+function BlocoReserva({ m }: { m: MetricasComportamento }) {
+  const inv = m.investimentos
+  const meses = inv.mesesDeReserva ?? null
+  const temAportes = inv.pctDaReceita !== null && (inv.saldoInformado !== null || inv.totalAportado > 0)
+  if (meses === null && !temAportes) return null
+  return (
+    <Cartao titulo="Reserva e investimento" Icon={PiggyBank} corIcone="text-emerald-600" corFundo="bg-emerald-50"
+      subtitulo="Pelos investimentos registrados no app">
+      {meses !== null && (
+        <div className="space-y-1">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-xs text-gray-600">Reserva cobre</span>
+            <span className={`text-lg font-bold num ${meses >= 6 ? 'text-green-600' : meses >= 3 ? 'text-amber-600' : 'text-red-500'}`}>
+              {meses.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} {meses === 1 ? 'mês' : 'meses'}
+            </span>
+          </div>
+          <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+            <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, Math.max(2, (meses / 6) * 100))}%` }} />
+          </div>
+          <p className="text-[11px] text-gray-400">
+            {formatBRL(inv.saldoInformado ?? 0)} ÷ gasto médio de {formatBRL(m.resumo.gastoMedio)} · referência: 6 meses
+          </p>
+        </div>
+      )}
+      {temAportes && (
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-xs text-gray-600">Investe por mês</span>
+          <span className="text-right">
+            <span className={`text-lg font-bold num ${inv.pctDaReceita! >= 10 ? 'text-green-600' : 'text-amber-600'}`}>
+              {formatarPercentual(inv.pctDaReceita!, 0)}
+            </span>
+            <span className="block text-[11px] text-gray-400 num">{formatBRL(inv.mediaMensal)} · referência: 10% da receita</span>
+          </span>
+        </div>
+      )}
+    </Cartao>
+  )
+}
+
+// ─── Detalhes que pedem ação ─────────────────────────────────────────────────
+
+function BlocosDetalhes({ m }: { m: MetricasComportamento }) {
+  const estouram = m.planejamento.itensQueEstouram
+  const assin = m.assinaturas
+  const atipicas = m.comprasAtipicas
+  if (estouram.length === 0 && assin.ativas === 0 && atipicas.length === 0) return null
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+      {estouram.length > 0 && (
+        <Cartao titulo="Contas que estouram o previsto" Icon={Gauge} corIcone="text-red-500" corFundo="bg-red-50"
+          subtitulo="Passam do previsto na maioria dos meses: ajuste o valor ou o hábito">
+          <ul className="space-y-1.5">
+            {estouram.map(i => (
+              <li key={i.item} className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-800 truncate">{i.item}</p>
+                  <p className="text-[10px] text-gray-400">{i.mesesEstourados} de {i.mesesAvaliados} meses</p>
+                </div>
+                <span className="text-xs font-semibold text-red-500 num shrink-0">+{formatBRL(i.excessoMedio)}</span>
+              </li>
+            ))}
+          </ul>
+        </Cartao>
+      )}
+      {assin.ativas > 0 && (
+        <Cartao titulo="Assinaturas" Icon={Repeat} corIcone="text-sky-600" corFundo="bg-sky-50"
+          subtitulo={`${assin.ativas} ativas · ${formatBRL(assin.custoMensal)}/mês${assin.pctDaReceita !== null ? ` · ${formatarPercentual(assin.pctDaReceita, 1)} da receita` : ''}`}>
+          <ul className="space-y-1.5">
+            {assin.maiores.map(a => (
+              <li key={a.nome} className="flex items-center gap-2">
+                <span className="flex-1 min-w-0 text-xs text-gray-800 truncate">{a.nome}</span>
+                <span className="text-xs font-semibold text-gray-900 num shrink-0">{formatBRL(a.valor)}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-[11px] text-gray-400">{formatBRL(assin.custoMensal * 12)} por ano</p>
+        </Cartao>
+      )}
+      {atipicas.length > 0 && (
+        <Cartao titulo="Compras fora do padrão" Icon={ShoppingBag} corIcone="text-orange-600" corFundo="bg-orange-50"
+          subtitulo="Muito acima do normal da própria categoria">
+          <ul className="space-y-1.5">
+            {atipicas.map((c, i) => (
+              <li key={`${c.data}-${c.descricao}-${i}`} className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-800 truncate">{c.descricao}</p>
+                  <p className="text-[10px] text-gray-400 truncate">
+                    {(c.data ?? '').slice(8, 10)}/{(c.data ?? '').slice(5, 7)} · {c.categoria} · {c.vezesMediana.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}× o normal
+                    {c.parcelada ? ' · parcelada' : ''}
+                  </p>
+                </div>
+                <span className="text-xs font-semibold text-gray-900 num shrink-0">{formatBRL(c.valor)}</span>
+              </li>
+            ))}
+          </ul>
+        </Cartao>
+      )}
+    </div>
+  )
+}
+
 // ─── Gráficos e números ──────────────────────────────────────────────────────
 
 export function BlocosMetricas({ metricas: m }: { metricas: MetricasComportamento }) {
@@ -416,6 +620,15 @@ export function BlocosMetricas({ metricas: m }: { metricas: MetricasComportament
   return (
     <>
       {m.mesFoco && <BlocoMesFoco mesFoco={m.mesFoco} />}
+
+      {/* Análises salvas antes destes blocos não têm os campos. */}
+      {(m.proximoMes || m.fixoVariavel) && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          {m.proximoMes && <BlocoProximoMes p={m.proximoMes} />}
+          {m.fixoVariavel && <BlocoFixoVariavel fv={m.fixoVariavel} />}
+          <BlocoReserva m={m} />
+        </div>
+      )}
 
       <KpisRelatorio
         kpis={[
@@ -511,6 +724,8 @@ export function BlocosMetricas({ metricas: m }: { metricas: MetricasComportament
           )}
         </Cartao>
       </div>
+
+      <BlocosDetalhes m={m} />
     </>
   )
 }
@@ -529,8 +744,13 @@ export function BlocosAcao({ analise: a, metricas: m }: { analise: AnaliseIA; me
           <>
             <div className="flex items-baseline gap-2">
               <span className="text-2xl font-bold text-green-600 num">{formatBRL(economiaTotal)}</span>
-              <span className="text-xs text-gray-500">por mês · {formatBRL(economiaTotal * 12)} por ano</span>
+              <span className="text-xs text-gray-500">por mês (estimativa) · {formatBRL(economiaTotal * 12)} por ano</span>
             </div>
+            {a.economiaAjustada && (
+              <p className="text-[11px] text-gray-400 leading-snug">
+                Estimativas reduzidas para caber no seu gasto real: ações sobre o mesmo gasto não somam duas vezes.
+              </p>
+            )}
             <GraficoComportamento
               montar={montarPlano}
               altura={Math.max(110, a.planoDeAcao.filter(p => p.economiaMensal > 0).length * 34 + 30)}

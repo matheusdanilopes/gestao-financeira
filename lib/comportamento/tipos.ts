@@ -180,6 +180,57 @@ export interface MesFoco {
   lancamentos: LancamentoFatura[]
 }
 
+/**
+ * Gasto médio mensal dividido entre o que já está contratado (não se decide no
+ * mês) e o que se decide no dia a dia — onde dá para agir rápido.
+ */
+export interface FixoVariavel {
+  fixo: {
+    /** Contas do planejamento que se repetem na maioria dos meses. */
+    contas: number
+    /** Parcelas de compras antigas (2/N em diante). */
+    parcelas: number
+    /** Assinaturas ativas cobradas no cartão. */
+    assinaturas: number
+    total: number
+  }
+  variavel: {
+    /** Compras novas no cartão (à vista ou 1ª parcela), sem as assinaturas. */
+    cartao: number
+    /** Contas do planejamento fora da rotina. */
+    contas: number
+    total: number
+  }
+  /** % do gasto que já vem comprometido. */
+  pctFixo: number
+}
+
+/** O próximo mês: quanto da receita já está comprometido e quanto sobra para decidir. */
+export interface ProximoMes {
+  /** 'YYYY-MM' */
+  mes: string
+  receita: number
+  /** 'planejada' = receitas já lançadas no planejamento do mês; 'media' = média dos meses fechados. */
+  receitaFonte: 'planejada' | 'media'
+  contas: number
+  /**
+   * 'planejadas' = contas já lançadas no mês; 'media' = média das contas
+   * recorrentes; 'planejadas_e_media' = as lançadas + recorrentes ainda não lançadas.
+   */
+  contasFonte: 'planejadas' | 'media' | 'planejadas_e_media'
+  /** Parcelas de compras já feitas que caem na fatura do mês. */
+  parcelas: number
+  assinaturas: number
+  /** receita − contas − parcelas − assinaturas: o que sobra para compras novas e imprevistos. */
+  margemLivre: number
+  /** Gasto variável de um mês típico (compras novas no cartão + contas fora da rotina quando o mês não está planejado). */
+  variavelHabitual: number
+  /** margemLivre − variavelHabitual. Negativo: no ritmo de hoje, o mês fecha no vermelho. */
+  folga: number
+  /** Margem livre por semana do mês: o teto de compras novas para fechar no azul. */
+  tetoSemanal: number
+}
+
 export interface MetricasComportamento {
   geradoEm: string
   escopo: EscopoAnalise
@@ -196,6 +247,10 @@ export interface MetricasComportamento {
     primeiroMesComDados: string | null
   }
   mensal: MesComportamento[]
+  /** Opcional: análises salvas antes deste campo não o têm. */
+  fixoVariavel?: FixoVariavel
+  /** null sem receita para comparar. Opcional: análises salvas antes deste campo não o têm. */
+  proximoMes?: ProximoMes | null
   resumo: {
     receitaMedia: number
     gastoMedio: number
@@ -221,8 +276,10 @@ export interface MetricasComportamento {
     /** Dias com 5 ou mais compras novas — sinal de "dia de farra". */
     diasIntensos: Array<{ data: string; quantidade: number; total: number }>
     /**
-     * Compras feitas até 6 dias depois de um recebimento de receita. Uma
-     * semana é ~23% do mês: bem acima disso, o dinheiro "queima" ao entrar.
+     * Compras feitas até 6 dias depois de um recebimento de receita.
+     * `esperadoPct` é a fatia dos dias do período que cai nessas janelas (com
+     * dois recebimentos por mês, perto de 45%): bem acima dela, o dinheiro
+     * "queima" ao entrar.
      */
     semanaDoRecebimento: { pctValor: number; esperadoPct: number; diasDeRecebimento: number[] } | null
     /** Compras novas por dia da semana (linhas, seg→dom) × fase do mês (colunas). */
@@ -272,6 +329,8 @@ export interface MetricasComportamento {
     mesesComAporte: number
     pctDaReceita: number | null
     saldoInformado: number | null
+    /** Saldo informado dos investimentos ÷ gasto médio mensal: quantos meses a reserva cobre. */
+    mesesDeReserva?: number | null
   }
   comprasAtipicas: CompraAtipica[]
   estornos: { quantidade: number; total: number }
@@ -303,6 +362,8 @@ export interface AnaliseIA {
   planoDeAcao: Array<{
     acao: string
     porque: string
+    /** Categoria de onde sai a economia (como nos dados); vazio quando a ação não corta um gasto específico. */
+    categoria?: string
     economiaMensal: number
     dificuldade: 'facil' | 'media' | 'dificil'
     prazo: string
@@ -310,6 +371,11 @@ export interface AnaliseIA {
   metas: Array<{ meta: string; indicador: string; alvo: string; prazo: string }>
   perguntas: string[]
   limitacoes: string[]
+  /**
+   * true quando o app reduziu as economias estimadas pela IA: somavam mais do
+   * que o gasto da categoria (ou do que o gasto variável) permite cortar.
+   */
+  economiaAjustada?: boolean
 }
 
 export interface ResultadoAnalise {
