@@ -484,13 +484,6 @@ button, a, [role="button"] {
 }
 .bar-enter { animation: bar-grow 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
-/* Trecho "a cair" da barra da fatura (assinaturas, compras e parcelas previstas):
-   tracejado na cor do responsável, para não se confundir com o que já foi lançado. */
-.seg-a-cair {
-  background-image: repeating-linear-gradient(-45deg, currentColor 0 3px, transparent 3px 6px);
-  opacity: 0.8;
-}
-
 /* Cross-fade de conteúdo ao trocar aba */
 @keyframes tab-fade-in {
   from { opacity: 0; transform: translateY(4px); }

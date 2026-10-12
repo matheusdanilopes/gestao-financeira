@@ -48,27 +48,19 @@ export interface BlocoPrincipal {
   sobra: number
 }
 
-/**
- * Traduz a barra em segmentos empilháveis (percentual da largura): o que já caiu
- * na fatura, quebrado pela composição, e o que ainda vai cair (`aCair`). Quando a
- * soma passa do previsto, tudo é escalado para caber na barra.
- */
+/** Traduz o valor "atual" da barra em segmentos empilháveis (percentual da largura). */
 export function calcularSegmentosBarra(
   atual: number,
   previsto: number,
-  composicao: ComposicaoGastos,
-  aCair = 0
+  composicao: ComposicaoGastos
 ) {
-  const total = atual + aCair
-  const pct = previsto > 0 ? Math.min(100, (total / previsto) * 100) : 0
-  if (total <= 0) return { pct, existente: 0, novo: 0, assinatura: 0, aCair: 0 }
-  const escala = pct / total
+  const pct = previsto > 0 ? Math.min(100, (atual / previsto) * 100) : 0
+  if (atual <= 0) return { pct, existente: 0, novo: 0, assinatura: 0 }
   return {
     pct,
-    existente: composicao.existente * escala,
-    novo: composicao.novo * escala,
-    assinatura: composicao.assinatura * escala,
-    aCair: aCair * escala,
+    existente: (composicao.existente / atual) * pct,
+    novo: (composicao.novo / atual) * pct,
+    assinatura: (composicao.assinatura / atual) * pct,
   }
 }
 
@@ -121,7 +113,7 @@ export default function BlocoFaturaPrincipal({ bloco, onComposicao, onProjecao }
   })
   const aCair = itensACair.reduce((acc, i) => acc + i.valor, 0)
 
-  const seg = calcularSegmentosBarra(bloco.atual, bloco.previsto, bloco.composicao, aCair)
+  const seg = calcularSegmentosBarra(bloco.atual, bloco.previsto, bloco.composicao)
   const sobraWarning =
     bloco.sobra >= 0 && bloco.previsto > 0 && (bloco.sobra / bloco.previsto) * 100 <= 10
 
@@ -146,7 +138,6 @@ export default function BlocoFaturaPrincipal({ bloco, onComposicao, onProjecao }
         <div key={`ex-${bloco.atual}`} className={`h-full ${cor.segExistente} bar-enter`} style={{ '--bar-w': `${seg.existente}%` } as React.CSSProperties} />
         <div key={`no-${bloco.atual}`} className={`h-full ${cor.segNovo} bar-enter`} style={{ '--bar-w': `${seg.novo}%` } as React.CSSProperties} />
         <div key={`as-${bloco.atual}`} className={`h-full ${cor.segAssinatura} bar-enter`} style={{ '--bar-w': `${seg.assinatura}%` } as React.CSSProperties} />
-        <div key={`ac-${aCair}`} className={`h-full ${cor.segPendente} seg-a-cair bar-enter`} style={{ '--bar-w': `${seg.aCair}%` } as React.CSSProperties} />
       </button>
 
       <div className="flex items-center justify-between gap-2 mt-1.5">

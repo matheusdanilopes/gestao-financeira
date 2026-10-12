@@ -884,7 +884,7 @@ export default function Dashboard() {
                 </div>
                 <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
                   Fatura NuBank
-                  <InfoPopover texto="Gastos no NuBank divididos por pessoa. 'Atual': valor já lançado na fatura do mês. 'Previsto': orçamento planejado. 'Sobra': margem restante dentro do orçamento. 'A cair': o que ainda vai entrar na fatura — parcelas previstas (quando a fatura ainda não tem lançamentos), assinaturas a cobrar e compras previstas (tela Compras previstas); toque para ver o detalhe. Esses valores aparecem tracejados na barra e já estão descontados do restante e do saldo do mês. 'Outros cartões' e o 'Resumo' consolidam todos os cartões por pessoa." />
+                  <InfoPopover texto="Gastos no NuBank divididos por pessoa. 'Atual': valor já lançado na fatura do mês. 'Previsto': orçamento planejado. 'Sobra': margem restante dentro do orçamento. 'A cair': o que ainda vai entrar na fatura — parcelas previstas (quando a fatura ainda não tem lançamentos), assinaturas a cobrar e compras previstas (tela Compras previstas); toque para ver o detalhe. Esses valores já estão descontados do restante e do saldo do mês. 'Outros cartões' e o 'Resumo' consolidam todos os cartões por pessoa." />
                 </h2>
               </div>
               {dataFechamentoNubank && !carregando && (() => {
