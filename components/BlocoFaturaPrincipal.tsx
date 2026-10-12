@@ -5,9 +5,9 @@
 // Conjunto roxo), o que travava a quantidade de cartões em três; agora é um
 // componente só, e a lista de blocos vem dos dados.
 
-import React from 'react'
+import React, { useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, CalendarClock, ChevronRight, Repeat, ShoppingBag, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, CalendarClock, ChevronDown, ChevronRight, Repeat, ShoppingBag, type LucideIcon } from 'lucide-react'
 import { formatBRL as fmt } from '@/lib/format'
 import { estiloResponsavel } from '@/lib/responsavelStyle'
 
@@ -82,18 +82,17 @@ interface ItemACair {
   onClick?: () => void
 }
 
-/** Uma linha do que ainda vai cair na fatura. Os três tipos usam o mesmo visual —
- *  só o ícone muda — e ficam alinhados em coluna: rótulo à esquerda, valor à direita. */
+/** Uma linha do detalhe "a cair" (aberto sob demanda): ícone, rótulo, valor. */
 function LinhaACair({ item }: { item: ItemACair }) {
   const conteudo = (
     <>
-      <item.Icone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+      <item.Icone className="w-3 h-3 text-gray-400 shrink-0" />
       <span className="flex-1 min-w-0 truncate text-left">{item.rotulo}</span>
-      <span className="font-semibold text-gray-700 num">{fmt(item.valor)}</span>
-      <ChevronRight className="w-3.5 h-3.5 text-gray-300 -mr-0.5 shrink-0" />
+      <span className="font-medium text-gray-600 num">{fmt(item.valor)}</span>
+      <ChevronRight className="w-3 h-3 text-gray-300 -mr-0.5 shrink-0" />
     </>
   )
-  const classe = 'flex w-full items-center gap-2 py-1 text-xs text-gray-500 active:opacity-70'
+  const classe = 'flex w-full items-center gap-1.5 py-0.5 text-[11px] text-gray-500 active:opacity-70'
   if (item.href) return <Link href={item.href} className={classe}>{conteudo}</Link>
   return <button type="button" onClick={item.onClick} className={classe}>{conteudo}</button>
 }
@@ -106,6 +105,7 @@ interface Props {
 
 export default function BlocoFaturaPrincipal({ bloco, onComposicao, onProjecao }: Props) {
   const cor = estiloResponsavel(bloco.responsavel)
+  const [detalheAberto, setDetalheAberto] = useState(false)
 
   // Tudo que já está comprometido mas ainda não caiu — é o que sai do "Restante".
   const itensACair: ItemACair[] = []
@@ -124,8 +124,6 @@ export default function BlocoFaturaPrincipal({ bloco, onComposicao, onProjecao }
   const seg = calcularSegmentosBarra(bloco.atual, bloco.previsto, bloco.composicao, aCair)
   const sobraWarning =
     bloco.sobra >= 0 && bloco.previsto > 0 && (bloco.sobra / bloco.previsto) * 100 <= 10
-  // Mesma base do "Restante": lançado + o que ainda vai cair.
-  const pct = bloco.previsto > 0 ? ((bloco.atual + aCair) / bloco.previsto) * 100 : 0
 
   return (
     <div className="mb-2">
@@ -151,25 +149,8 @@ export default function BlocoFaturaPrincipal({ bloco, onComposicao, onProjecao }
         <div key={`ac-${aCair}`} className={`h-full ${cor.segPendente} seg-a-cair bar-enter`} style={{ '--bar-w': `${seg.aCair}%` } as React.CSSProperties} />
       </button>
 
-      {itensACair.length > 0 && (
-        <div className="mt-2">
-          {itensACair.map(item => <LinhaACair key={item.chave} item={item} />)}
-        </div>
-      )}
-
-      {bloco.assinaturasDivergentes.length > 0 && (
-        <div className="mt-1.5">
-          {bloco.assinaturasDivergentes.map((d) => (
-            <div key={d.nome} className="flex justify-between text-[11px] gap-1 text-amber-600">
-              <span className="truncate shrink" title={d.nome}>⚠ {d.nome}</span>
-              <span className="font-medium num shrink-0 whitespace-nowrap">{d.diff > 0 ? '+' : ''}{fmt(d.diff)}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="flex items-center justify-between gap-2 mt-2">
-        <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
+      <div className="flex items-center justify-between gap-2 mt-1.5">
+        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
           bloco.sobra < 0
             ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
             : sobraWarning
@@ -181,13 +162,36 @@ export default function BlocoFaturaPrincipal({ bloco, onComposicao, onProjecao }
             : sobraWarning
               ? <><AlertTriangle className="w-3 h-3" /> Atenção {fmt(Math.abs(bloco.sobra))}</>
               : <>✓ Restante {fmt(Math.abs(bloco.sobra))}</>}
-        </div>
-        {bloco.previsto > 0 && (
-          <span className={`text-[11px] num ${bloco.sobra < 0 ? 'text-red-500 dark:text-red-400 font-semibold' : 'text-gray-400'}`}>
-            {pct.toFixed(0)}% do previsto
-          </span>
+        </span>
+        {aCair > 0 && (
+          <button
+            type="button"
+            onClick={() => setDetalheAberto(v => !v)}
+            aria-expanded={detalheAberto}
+            className="inline-flex items-center gap-1 text-[11px] text-gray-400 active:opacity-70"
+          >
+            a cair <span className="font-medium text-gray-600 num">{fmt(aCair)}</span>
+            <ChevronDown className={`w-3 h-3 transition-transform ${detalheAberto ? 'rotate-180' : ''}`} />
+          </button>
         )}
       </div>
+
+      {detalheAberto && aCair > 0 && (
+        <div className="mt-1 pl-2 border-l border-gray-100 dark:border-gray-700">
+          {itensACair.map(item => <LinhaACair key={item.chave} item={item} />)}
+        </div>
+      )}
+
+      {bloco.assinaturasDivergentes.length > 0 && (
+        <div className="mt-1">
+          {bloco.assinaturasDivergentes.map((d) => (
+            <div key={d.nome} className="flex justify-between text-[11px] gap-1 text-amber-600">
+              <span className="truncate shrink" title={d.nome}>⚠ {d.nome}</span>
+              <span className="font-medium num shrink-0 whitespace-nowrap">{d.diff > 0 ? '+' : ''}{fmt(d.diff)}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
