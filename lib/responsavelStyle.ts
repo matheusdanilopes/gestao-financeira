@@ -26,6 +26,8 @@ export interface ResponsavelBarra {
   segExistente: string
   segNovo: string
   segAssinatura: string
+  /** Cor (via currentColor) do trecho tracejado "a cair" da barra — ver .seg-a-cair. */
+  segPendente: string
   badge: string
   borda: string
   tileFundo: string
@@ -38,6 +40,7 @@ const BARRA_MATHEUS: ResponsavelBarra = {
   segExistente: 'bg-blue-800',
   segNovo: 'bg-blue-500',
   segAssinatura: 'bg-blue-300',
+  segPendente: 'text-blue-400',
   badge: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
   borda: 'border-l-blue-400',
   tileFundo: 'bg-blue-50',
@@ -50,6 +53,7 @@ const BARRA_JENIFFER: ResponsavelBarra = {
   segExistente: 'bg-pink-800',
   segNovo: 'bg-pink-500',
   segAssinatura: 'bg-pink-300',
+  segPendente: 'text-pink-400',
   badge: 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300',
   borda: 'border-l-pink-400',
   tileFundo: 'bg-pink-50',
@@ -62,6 +66,7 @@ const BARRA_CONJUNTO: ResponsavelBarra = {
   segExistente: 'bg-purple-800',
   segNovo: 'bg-purple-500',
   segAssinatura: 'bg-purple-300',
+  segPendente: 'text-purple-400',
   badge: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
   borda: 'border-l-purple-400',
   tileFundo: 'bg-purple-50',
@@ -74,6 +79,7 @@ const BARRA_PADRAO: ResponsavelBarra = {
   segExistente: 'bg-slate-700',
   segNovo: 'bg-slate-500',
   segAssinatura: 'bg-slate-300',
+  segPendente: 'text-slate-400',
   badge: 'bg-slate-100 dark:bg-slate-800/40 text-slate-700 dark:text-slate-300',
   borda: 'border-l-slate-400',
   tileFundo: 'bg-slate-50',

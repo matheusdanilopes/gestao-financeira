@@ -3,12 +3,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
-import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns'
+import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
-import { valorEfetivoNoMes } from '@/lib/assinaturaValor'
 import { classificarTipoGasto, somarValorFatura, type TipoGasto } from '@/lib/composicaoFatura'
-import { identificarAssinaturasNaFatura } from '@/lib/assinaturaMatch'
-import { calcularReservasDoMes, pendentePorResponsavel, type ReservaFatura, type BaixaReserva } from '@/lib/reservasFatura'
+import { type ReservaFatura, type BaixaReserva } from '@/lib/reservasFatura'
+import { calcularPendentesFatura, type AssinaturaPendenteRow, type TransacaoPendenteRow } from '@/lib/pendentesFatura'
 import { BarChart2, BarChart3, CalendarRange, CreditCard, Wallet, PiggyBank, Layers, Scale, TrendingUp, TrendingDown, Minus, LineChart, Activity } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
@@ -133,6 +132,8 @@ interface ResumoCaixaState {
   contasFixas: number
   fatura: number
   faturaEhPrevisto: boolean
+  /** Assinaturas e compras previstas que ainda vão cair — já somadas em totalGastos. */
+  pendentesNaFatura: number
   extras: number
   totalGastos: number
   sobraLiquida: number
@@ -324,72 +325,50 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     }
   }).filter(c => c.previsto > 0 || c.atual > 0)
 
+  // O que ainda vai cair na fatura do principal: assinaturas que não apareceram e
+  // compras previstas que ainda não viraram compra (lib/pendentesFatura). Entra no
+  // "Restante" de cada pessoa e no saldo do mês. As parcelas projetadas abatem as
+  // reservas: numa fatura ainda sem lançamentos, a parcela de uma compra prevista já
+  // feita está em "Parcelas previstas" — sem isso ela seria descontada duas vezes.
+  type TransacaoRow = TransacaoPendenteRow
+  const txFaturaList: TransacaoRow[] = transacoesFatura.filter(
+    t => t.status !== 'ESTORNO' && t.status !== 'ESTORNADO'
+  )
+  const pendentes = calcularPendentesFatura({
+    mes,
+    assinaturas: (assinaturasData || []) as AssinaturaPendenteRow[],
+    historico: assinaturasHistoricoData || [],
+    transacoes: transacoesFatura,
+    reservas: (reservasData || []) as ReservaFatura[],
+    baixas: (baixasReservasData || []) as BaixaReserva[],
+    parcelasProjetadas: [...projecaoPorResponsavel.values()].flatMap(p => p.itens),
+  })
+  const { assinaturasAtivas: assinAtivas, identificacao: identificacaoAssinaturas, valorAssinatura: valorAssinaturaNoMes, reservasPendentes } = pendentes
+  for (const [responsavel, valor] of Object.entries(reservasPendentes)) {
+    if (valor > 0) responsaveisPrincipal.add(responsavel)
+  }
+
   // Saldo, contas fixas e fatura efetiva vêm de lib/faturaEfetiva — a mesma conta que
   // Finanças e o pré-cache usam, em vez das três cópias que existiam antes.
   const {
     faturaEfetiva,
+    pendentesNaFatura,
     contasFixas: contasFixasAtual,
     temLancamentosEfetivos,
     totalGastos,
     saldo: sobraLiquida,
     saldoPrevisto,
-  } = calcularResumoSaldo(planRows, (todasTransacoesFatura || []) as TransacaoSaldoRow[])
+  } = calcularResumoSaldo(planRows, (todasTransacoesFatura || []) as TransacaoSaldoRow[], pendentes.total)
 
   const despesasItems = planRows.filter(p => !ehLinhaDeReceita(p.item))
   const todasDespesasPagas = despesasItems.length > 0 && despesasItems.every(p => p.pago)
 
   const percentualComprometimento = receitaTotal > 0 ? (totalGastos / receitaTotal) * 100 : 0
 
-  type AssinaturaRow = { id: string; nome: string; valor: number; responsavel: string; ativa: boolean; moeda: string; dia_cobranca?: number | null }
-  type TransacaoRow = { valor: number; responsavel: string | null; descricao: string | null; data_compra?: string | null; data?: string | null; parcela_atual?: number | null; total_parcelas?: number | null }
-  const assinAtivas = (assinaturasData || []).filter((a: AssinaturaRow) => a.ativa)
-  // Composição (barras existente/novo/assinatura) e checagem de assinaturas usam só os
-  // lançamentos "reais" da fatura — estornos (créditos) e compras já estornadas não fazem
-  // sentido como segmento de barra; o valor deles já é tratado à parte em somarValorFatura.
-  const txFaturaList: TransacaoRow[] = (transacoesFatura || []).filter(
-    t => t.status !== 'ESTORNO' && t.status !== 'ESTORNADO'
-  )
-  const historicoValores = assinaturasHistoricoData || []
-  // Mesmo cutoff usado em AssinaturasMensal.tsx (endOfMonth do mês selecionado) para resolver
-  // o valor vigente da assinatura na fatura exibida, respeitando alterações de preço registradas.
-  const cutoffHistorico = format(endOfMonth(mes), 'yyyy-MM-dd')
-  const valorAssinaturaNoMes = (a: AssinaturaRow) =>
-    valorEfetivoNoMes(a.id, a.valor, cutoffHistorico, historicoValores)
-  // Identificação compartilhada com a tela de Assinaturas (lib/assinaturaMatch.ts):
-  // nome por tokens, valor dentro da faixa plausível, compra não parcelada, dia de
-  // cobrança e uma transação por assinatura. Antes bastava a descrição conter o nome —
-  // uma compra avulsa no mesmo estabelecimento zerava a "assinatura não paga" e ainda
-  // aparecia como divergência de valor até a cobrança certa entrar na fatura.
-  const identificacaoAssinaturas = identificarAssinaturasNaFatura(
-    assinAtivas.map((a: AssinaturaRow) => ({
-      id: a.id,
-      nome: a.nome,
-      moeda: a.moeda,
-      diaCobranca: a.dia_cobranca ?? null,
-      valorEsperado: valorAssinaturaNoMes(a),
-    })),
-    txFaturaList.map((t: TransacaoRow) => ({
-      descricao: t.descricao,
-      valor: t.valor,
-      // A data não é pedida no select (ver acima); quando não vier, a proximidade do
-      // dia de cobrança simplesmente não entra na decisão — valor, parcelamento e
-      // exclusividade continuam valendo.
-      dataCompra: t.data_compra ?? t.data ?? null,
-      parcelaAtual: t.parcela_atual ?? null,
-      totalParcelas: t.total_parcelas ?? null,
-    })),
-  )
-  const calcNaoPaga = (responsavel: string) =>
+  const calcDivergente = (responsavel: string): AssinDivergente[] =>
     assinAtivas
-      .filter((a: AssinaturaRow) =>
-        a.responsavel === responsavel &&
-        identificacaoAssinaturas.get(a.id)?.status === 'nao_encontrada')
-      .reduce((sum: number, a: AssinaturaRow) => sum + valorAssinaturaNoMes(a), 0)
-  type AssinDivergenteLocal = AssinDivergente
-  const calcDivergente = (responsavel: string): AssinDivergenteLocal[] =>
-    assinAtivas
-      .filter((a: AssinaturaRow) => a.responsavel === responsavel)
-      .flatMap((a: AssinaturaRow) => {
+      .filter(a => a.responsavel === responsavel)
+      .flatMap(a => {
         const identificacao = identificacaoAssinaturas.get(a.id)
         if (!identificacao || identificacao.status !== 'valor_divergente') return []
         return [{
@@ -413,21 +392,6 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     return { existente, novo, assinatura }
   }
 
-  // Reservas da fatura: só a parte que ainda não virou compra sai do "Restante".
-  // As parcelas projetadas também abatem: numa fatura ainda sem lançamentos, a
-  // parcela de uma compra prevista já feita está em "parc. prev." — sem isso ela
-  // seria descontada duas vezes.
-  const parcelasProjetadas = [...projecaoPorResponsavel.values()].flatMap(p => p.itens)
-  const reservasPendentes = pendentePorResponsavel(calcularReservasDoMes(
-    (reservasData || []) as ReservaFatura[],
-    (baixasReservasData || []) as BaixaReserva[],
-    [...transacoesFatura, ...parcelasProjetadas],
-    mesRef,
-  ))
-  for (const [responsavel, valor] of Object.entries(reservasPendentes)) {
-    if (valor > 0) responsaveisPrincipal.add(responsavel)
-  }
-
   // Um bloco por cartão adicional do principal. Todas as funções acima já são
   // parametrizadas por responsável, então cada bloco é só uma chamada de cada.
   const principalBlocks: BlocoPrincipal[] = ordenarResponsaveis([...responsaveisPrincipal], 'Matheus')
@@ -435,7 +399,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
       const previsto = previstoPrincipalPorResponsavel[responsavel] ?? 0
       const atual = somarValorFatura(transacoesFatura.filter(t => (t.responsavel || '') === responsavel))
       const projecao = projecaoPorResponsavel.get(responsavel) ?? { valor: 0, itens: [] }
-      const assinaturasNaoPagas = calcNaoPaga(responsavel)
+      const assinaturasNaoPagas = pendentes.assinaturasNaoPagas[responsavel] ?? 0
       const reservas = reservasPendentes[responsavel] ?? 0
       return {
         responsavel,
@@ -491,7 +455,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     },
     resumoCaixa: {
       receitaTotal, contasFixas: contasFixasAtual,
-      fatura: faturaEfetiva, faturaEhPrevisto: !temLancamentosEfetivos, extras: 0,
+      fatura: faturaEfetiva, faturaEhPrevisto: !temLancamentosEfetivos, pendentesNaFatura, extras: 0,
       totalGastos, sobraLiquida, saldoPrevisto, percentualComprometimento,
       todasDespesasPagas,
     },
@@ -513,7 +477,7 @@ const FATURA_INICIAL: FaturaState = {
 }
 
 const RESUMO_INICIAL: ResumoCaixaState = {
-  receitaTotal: 0, contasFixas: 0, fatura: 0, faturaEhPrevisto: false, extras: 0,
+  receitaTotal: 0, contasFixas: 0, fatura: 0, faturaEhPrevisto: false, pendentesNaFatura: 0, extras: 0,
   totalGastos: 0, sobraLiquida: 0, saldoPrevisto: 0, percentualComprometimento: 0,
   todasDespesasPagas: false,
 }
@@ -762,7 +726,7 @@ export default function Dashboard() {
                 <div className="flex items-start justify-between mb-3">
                   <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1">
                     {resumoCaixa.faturaEhPrevisto ? 'Saldo estimado' : 'Saldo atual'}
-                    <InfoPopover texto="Quanto sobra da renda após todos os gastos do mês. 'Saldo atual' usa os lançamentos reais da fatura NuBank. 'Saldo estimado' aparece quando a fatura ainda não tem lançamentos — o valor é calculado com base nas parcelas em andamento. Verde = saldo saudável, âmbar = sobra abaixo de 10% da renda, vermelho = saldo negativo. A barra mostra o % da renda comprometido com gastos." />
+                    <InfoPopover texto="Quanto sobra da renda após todos os gastos do mês. 'Saldo atual' usa os lançamentos reais da fatura NuBank mais o que ainda vai cair nela: assinaturas que não apareceram na fatura e compras previstas ainda não feitas. 'Saldo estimado' aparece quando a fatura ainda não tem lançamentos — o valor é calculado com base nas parcelas em andamento. Verde = saldo saudável, âmbar = sobra abaixo de 10% da renda, vermelho = saldo negativo. A barra mostra o % da renda comprometido com gastos." />
                   </p>
                   {resumoCaixa.todasDespesasPagas ? (
                     <span key="historico" className="text-xs border rounded-xl px-2.5 py-1 font-medium bg-amber-50 text-amber-700 border-amber-100 badge-fade-in">
@@ -787,6 +751,11 @@ export default function Dashboard() {
                         {formatDecimal(resumoCaixa.percentualComprometimento)}% comprometido
                       </span>
                     </div>
+                    {resumoCaixa.pendentesNaFatura > 0 && (
+                      <span className="text-xs text-gray-400">
+                        · inclui <span className="font-semibold text-gray-600 num">{fmt(resumoCaixa.pendentesNaFatura)}</span> a cair
+                      </span>
+                    )}
                     {resumoCaixa.saldoPrevisto !== heroSaldo && resumoCaixa.receitaTotal > 0 && (
                       <span className="text-xs text-gray-400">
                         · Previsto:{' '}
@@ -915,7 +884,7 @@ export default function Dashboard() {
                 </div>
                 <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
                   Fatura NuBank
-                  <InfoPopover texto="Gastos no NuBank divididos por pessoa. 'Atual': valor já lançado na fatura do mês. 'Previsto': orçamento planejado. 'Sobra': margem restante dentro do orçamento. 'Parc. prev.': parcelas futuras já comprometidas, exibidas quando a fatura ainda não fechou. 'Compras prev.': compras cadastradas que ainda vão cair na fatura (tela Compras previstas), já descontadas da sobra. 'Outros cartões' e o 'Resumo' consolidam todos os cartões por pessoa." />
+                  <InfoPopover texto="Gastos no NuBank divididos por pessoa. 'Atual': valor já lançado na fatura do mês. 'Previsto': orçamento planejado. 'Sobra': margem restante dentro do orçamento. Abaixo da barra ficam os valores que ainda vão cair na fatura: parcelas previstas (quando a fatura ainda não tem lançamentos), assinaturas a cobrar e compras previstas (tela Compras previstas). Eles aparecem tracejados na barra e já estão descontados do restante e do saldo do mês. 'Outros cartões' e o 'Resumo' consolidam todos os cartões por pessoa." />
                 </h2>
               </div>
               {dataFechamentoNubank && !carregando && (() => {

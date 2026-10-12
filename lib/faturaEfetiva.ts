@@ -88,12 +88,15 @@ export interface EfetivoCartao {
  * `linhas` são as linhas de planejamento daquela fatura; quando alguma foi marcada
  * como paga, somam-se apenas as pagas (é o que já saiu da conta).
  */
-function efetivoDe(linhas: PlanejamentoSaldoRow[], atual: number): EfetivoCartao {
+function efetivoDe(linhas: PlanejamentoSaldoRow[], atual: number, pendente = 0): EfetivoCartao {
   const previsto = linhas.reduce((acc, p) => acc + previstoDe(p), 0)
   const pagas = linhas.filter(p => p.pago)
+  // `pendente` (assinaturas e compras previstas que ainda vão cair) só soma ao que
+  // já caiu: fatura paga já tem o valor final, e sem lançamentos o previsto é a
+  // própria estimativa do mês.
   const efetivo = pagas.length > 0
     ? pagas.reduce((acc, p) => acc + realizadoDe(p), 0)
-    : atual > 0 ? atual : previsto
+    : atual > 0 ? atual + pendente : previsto
   return { previsto, atual, efetivo, temDados: atual > 0 || pagas.length > 0 }
 }
 
@@ -104,7 +107,9 @@ function efetivoDe(linhas: PlanejamentoSaldoRow[], atual: number): EfetivoCartao
  */
 export function calcularEfetivoPorCartao(
   plan: PlanejamentoSaldoRow[],
-  transacoes: TransacaoSaldoRow[]
+  transacoes: TransacaoSaldoRow[],
+  /** O que ainda vai cair na fatura do principal, por responsável (lib/pendentesFatura). */
+  pendentesPrincipal: Record<string, number> = {}
 ): Record<TipoCartao, EfetivoCartao> {
   const resultado = {} as Record<TipoCartao, EfetivoCartao>
 
@@ -126,7 +131,7 @@ export function calcularEfetivoPorCartao(
     for (const responsavel of responsaveis) {
       const linhasResp = linhas.filter(p => (p.responsavel || '') === responsavel)
       const atualResp = somarValorFatura(tx.filter(t => (t.responsavel || '') === responsavel))
-      const parcial = efetivoDe(linhasResp, atualResp)
+      const parcial = efetivoDe(linhasResp, atualResp, pendentesPrincipal[responsavel] ?? 0)
       previsto += parcial.previsto
       atual += parcial.atual
       efetivo += parcial.efetivo
@@ -142,6 +147,8 @@ export interface ResumoSaldo {
   receitaTotal: number
   contasFixas: number
   faturaEfetiva: number
+  /** Parte da faturaEfetiva que ainda não caiu: assinaturas e compras previstas. */
+  pendentesNaFatura: number
   totalGastos: number
   saldo: number
   saldoPrevisto: number
@@ -150,11 +157,13 @@ export interface ResumoSaldo {
 
 export function calcularResumoSaldo(
   plan: PlanejamentoSaldoRow[],
-  transacoes: TransacaoSaldoRow[]
+  transacoes: TransacaoSaldoRow[],
+  pendentesPrincipal: Record<string, number> = {}
 ): ResumoSaldo {
   const receitaTotal = calcularReceitaTotal(plan)
   const contasFixas = calcularContasFixas(plan).atual
-  const porCartao = calcularEfetivoPorCartao(plan, transacoes)
+  const porCartao = calcularEfetivoPorCartao(plan, transacoes, pendentesPrincipal)
+  const semPendentes = calcularEfetivoPorCartao(plan, transacoes).principal.efetivo
 
   const faturaEfetiva = TIPOS_CARTAO.reduce((acc, tipo) => acc + porCartao[tipo].efetivo, 0)
   const temLancamentosEfetivos = TIPOS_CARTAO.some(tipo => porCartao[tipo].temDados)
@@ -164,6 +173,7 @@ export function calcularResumoSaldo(
     receitaTotal,
     contasFixas,
     faturaEfetiva,
+    pendentesNaFatura: Math.max(0, Math.round((porCartao.principal.efetivo - semPendentes) * 100) / 100),
     totalGastos,
     saldo: receitaTotal - totalGastos,
     saldoPrevisto: receitaTotal - calcularTotalPlanejado(plan),
