@@ -535,8 +535,11 @@ export function calcularMetricas(
     const parcela = parcelaDe(t)
     const restantes = (parcela?.total ?? 1) - (parcela?.atual ?? 1)
     // Fatura de um mês à frente já importada (a fatura aberta): as parcelas
-    // lançadas nela também são compromisso daquele mês, não só as seguintes.
-    for (let k = base > mesParcial ? 0 : 1; k <= restantes; k++) {
+    // de compras antigas (2/N em diante) lançadas nela também são compromisso
+    // daquele mês. A 1ª parcela é compra nova do mês e já entra no gasto
+    // típico do próximo mês; contá-la aqui também a descontaria duas vezes.
+    const incluiAtual = base > mesParcial && !ehCompraNova(t)
+    for (let k = incluiAtual ? 0 : 1; k <= restantes; k++) {
       const mes = somarMes(base, k)
       if (mes > somarMes(mesParcial, 7)) break
       compromisso.set(mes, (compromisso.get(mes) ?? 0) + t.valor)

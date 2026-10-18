@@ -364,7 +364,7 @@ export async function exportarAnalisePdf(r: ResultadoAnalise): Promise<void> {
     ])
     y += paragrafo(
       pm.margemLivre > 0
-        ? `Para não fechar no vermelho: até ${formatBRL(pm.tetoSemanal)} por semana em compras novas (livre para o mês ÷ semanas do mês).`
+        ? `Para não fechar no vermelho: até ${formatBRL(pm.tetoSemanal)} por semana em compras novas e extras (livre para o mês ÷ semanas do mês).`
         : 'As contas e parcelas já passam da receita: qualquer compra nova aumenta o saldo negativo.',
       MX, y, W, 8, 'normal', TINTA,
     ) + 5

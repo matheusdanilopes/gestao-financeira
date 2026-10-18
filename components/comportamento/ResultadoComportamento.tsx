@@ -627,7 +627,7 @@ export function BlocoProximoMes({ p }: { p: ProximoMes }) {
 
       <p className="text-[11px] text-gray-600 leading-snug rounded-2xl bg-gray-50 border border-gray-100 px-3 py-2">
         {p.margemLivre > 0
-          ? <>Para não fechar no vermelho: até <b className="num">{formatBRL(p.tetoSemanal)}</b> por semana em compras novas.</>
+          ? <>Para não fechar no vermelho: até <b className="num">{formatBRL(p.tetoSemanal)}</b> por semana em compras novas e extras.</>
           : 'As contas e parcelas já passam da receita: qualquer compra nova aumenta o saldo negativo.'}
       </p>
 
@@ -635,7 +635,10 @@ export function BlocoProximoMes({ p }: { p: ProximoMes }) {
         <ul className="list-disc pl-4 space-y-1">
           <li><b>Receita</b>: {p.receitaFonte === 'planejada' ? 'as receitas já lançadas no planejamento do mês' : 'a média dos meses fechados (o mês ainda não tem receita planejada)'}.</li>
           <li><b>Contas</b>: {ROTULO_CONTAS_PROXIMO_MES[p.contasFonte]}.</li>
-          <li><b>Parcelas já contratadas</b>: parcelas de compras já feitas que caem na fatura do mês, incluindo as já lançadas na fatura aberta.</li>
+          <li>
+            <b>Parcelas já contratadas</b>: parcelas 2/N em diante de compras já feitas que caem na fatura do mês,
+            incluindo as já lançadas na fatura aberta. A 1ª parcela de uma compra nova entra no gasto típico.
+          </li>
           {p.assinaturas > 0 && <li><b>Assinaturas</b>: as ativas no app.</li>}
           <li>
             <b>Gasto típico</b>: média mensal das compras novas no cartão (sem as assinaturas, já descontadas acima),
