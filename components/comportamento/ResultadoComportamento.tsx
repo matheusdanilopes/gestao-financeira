@@ -20,7 +20,7 @@ import {
   graficoSaldo,
   type TemaGrafico,
 } from '@/lib/comportamento/graficos'
-import { PESOS_SAUDE } from '@/lib/comportamento/tipos'
+import { PESOS_SAUDE, destaqueCurto } from '@/lib/comportamento/tipos'
 import type {
   AnaliseIA, Comparativo, FixoVariavel, LancamentoFatura, MesFoco, MetricasComportamento, Nivel, ProximoMes,
 } from '@/lib/comportamento/tipos'
@@ -540,7 +540,7 @@ export function BlocoMesFoco({ mesFoco: f }: { mesFoco: MesFoco }) {
             { rotulo: 'Contas', valor: f.contas.atual, sinal: '−' },
             {
               rotulo: f.saldo.atual < 0 ? 'Faltou no mês' : 'Sobrou no mês',
-              valor: f.saldo.atual,
+              valor: Math.abs(f.saldo.atual),
               sinal: '=',
               cor: f.saldo.atual < 0 ? 'text-red-600' : 'text-green-700',
             },
@@ -622,7 +622,7 @@ export function BlocoProximoMes({ p }: { p: ProximoMes }) {
         ...(p.assinaturas > 0 ? [{ rotulo: 'Assinaturas', valor: p.assinaturas, sinal: '−' as const }] : []),
         { rotulo: 'Livre para o mês', valor: p.margemLivre, sinal: '=', cor: p.margemLivre < 0 ? 'text-red-500' : undefined },
         { rotulo: 'Gasto típico em compras novas e extras', valor: p.variavelHabitual, sinal: '−' },
-        { rotulo: sobra ? 'Sobra prevista' : 'Falta prevista', valor: p.folga, sinal: '=', cor: sobra ? 'text-green-700' : 'text-red-600' },
+        { rotulo: sobra ? 'Sobra prevista' : 'Falta prevista', valor: Math.abs(p.folga), sinal: '=', cor: sobra ? 'text-green-700' : 'text-red-600' },
       ]} />
 
       <p className="text-[11px] text-gray-600 leading-snug rounded-2xl bg-gray-50 border border-gray-100 px-3 py-2">
@@ -667,7 +667,7 @@ export function Padroes({ analise: a }: { analise: AnaliseIA }) {
             <li key={p.titulo} className="rounded-2xl border border-gray-100 bg-gray-50 p-3 space-y-1">
               <div className="flex items-start gap-2">
                 {/* Análises salvas antes do campo "destaque" não o têm. */}
-                <p className={`flex-1 text-xl font-bold num leading-none ${cor}`}>{p.destaque || '•'}</p>
+                <p className={`flex-1 text-xl font-bold num leading-none ${cor}`}>{destaqueCurto(p.destaque) || '•'}</p>
                 {p.relevancia === 'alta' && <Chip classe={ESTILO_NIVEL.alta}>Prioridade</Chip>}
               </div>
               <p className="text-xs font-semibold text-gray-900 leading-snug">{p.titulo}</p>

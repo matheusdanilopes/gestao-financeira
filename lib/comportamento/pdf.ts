@@ -20,7 +20,7 @@ import {
   graficoSaldo,
 } from './graficos'
 import type { Comparativo, ResultadoAnalise } from './tipos'
-import { OBJETIVOS_ANALISE, PESOS_SAUDE, rotuloJanela } from './tipos'
+import { OBJETIVOS_ANALISE, PESOS_SAUDE, destaqueCurto, rotuloJanela } from './tipos'
 
 const A4_H = 297
 const MX = 14
@@ -209,7 +209,9 @@ export async function exportarAnalisePdf(r: ResultadoAnalise): Promise<void> {
       fonte(8.5, sinal === '=' ? 'bold' : 'normal')
       cor(sinal === '=' ? (valor < 0 ? VERMELHO : TINTA) : CINZA)
       doc.text(limpar(rotulo), MX, y + 3.6)
-      doc.text(limpar(`${sinal === '=' ? '' : `${sinal} `}${formatBRL(valor)}`), MX + W, y + 3.6, { align: 'right' })
+      // Resultado negativo já diz "Falta"/"Faltou" no rótulo: o valor vai sem sinal, em vermelho.
+      const exibido = sinal === '=' && /^Falt/.test(rotulo) ? Math.abs(valor) : valor
+      doc.text(limpar(`${sinal === '=' ? '' : `${sinal} `}${formatBRL(exibido)}`), MX + W, y + 3.6, { align: 'right' })
       y += 5.5
     }
     y += 2
@@ -391,7 +393,7 @@ export async function exportarAnalisePdf(r: ResultadoAnalise): Promise<void> {
         doc.rect(x, y + 3, 0.9, h - 6, 'F')
         fonte(15, 'bold')
         cor(c)
-        doc.text(limpar(pd.destaque || '•'), x + 4, y + 8)
+        doc.text(limpar(destaqueCurto(pd.destaque) || '•'), x + 4, y + 8)
         let yy = y + 11
         yy += paragrafo(pd.titulo, x + 4, yy, lc - 8, 9, 'bold')
         paragrafo(pd.descricao, x + 4, yy + 0.5, lc - 8, 8, 'normal', CINZA)
@@ -451,24 +453,29 @@ export async function exportarAnalisePdf(r: ResultadoAnalise): Promise<void> {
   if (a.metas.length > 0) {
     titulo('Metas para acompanhar', 22)
     const lm = (W - 4 * (a.metas.length - 1)) / a.metas.length
+    // Altura pelo texto mais longo: meta em duas linhas não pode cobrir o prazo.
+    fonte(7.5, 'bold')
+    const linhasMeta = Math.max(...a.metas.map(meta => (doc.splitTextToSize(limpar(meta.meta), lm - 6) as string[]).length))
+    const hm = 15 + linhasMeta * 3.9
+    garantir(hm + 5)
     a.metas.forEach((meta, i) => {
       const x = MX + i * (lm + 4)
       preencher(FUNDO)
-      doc.roundedRect(x, y, lm, 20, 2.5, 2.5, 'F')
+      doc.roundedRect(x, y, lm, hm, 2.5, 2.5, 'F')
       fonte(11, 'bold')
       cor(AZUL)
       doc.text(limpar(meta.alvo), x + 3, y + 6.5, { maxWidth: lm - 6 })
       paragrafo(meta.meta, x + 3, y + 9, lm - 6, 7.5, 'bold')
       fonte(6.5)
       cor(CINZA)
-      doc.text(limpar(meta.prazo), x + 3, y + 18.5)
+      doc.text(limpar(meta.prazo), x + 3, y + hm - 1.5)
     })
-    y += 25
+    y += hm + 5
   }
 
   // ── Detalhes ──
-  doc.addPage()
-  y = 16
+  garantir(80)
+  y += 4
   fonte(14, 'bold')
   cor(TINTA)
   doc.text('Detalhes', MX, y + 4)

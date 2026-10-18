@@ -21,6 +21,18 @@ export function rotuloJanela(janela: number): string {
   return janela === JANELA_ULTIMO_MES ? 'Último mês' : `${janela} meses`
 }
 
+/**
+ * Número-chave de um padrão, curto o bastante para o cartão. A IA às vezes
+ * escreve uma frase ("+118,1% ticket médio") que chega cortada ("+118,1%
+ * ticket…"): fica só o número do começo. Vale também para análises salvas.
+ */
+export function destaqueCurto(destaque: string | undefined): string {
+  const t = (destaque ?? '').trim()
+  if (t.length <= 16 && !t.endsWith('…')) return t
+  const numero = /^[+\-−]?\s?(?:R\$\s?)?[\d.,]+\s?(?:%|mil|mi)?(?:\/m[eê]s)?/i.exec(t)?.[0].trim()
+  return numero || t
+}
+
 /** 'casal' = todos os responsáveis; um nome = só os lançamentos daquela pessoa. */
 export type EscopoAnalise = 'casal' | 'Matheus' | 'Jeniffer'
 
