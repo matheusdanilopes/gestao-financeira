@@ -12,7 +12,7 @@
 
 import type { ChartConfiguration, Plugin } from 'chart.js'
 import { rotuloMesIso } from './documento'
-import type { AnaliseIA, MetricasComportamento } from './tipos'
+import type { MetricasComportamento } from './tipos'
 
 export interface TemaGrafico {
   escuro: boolean
@@ -199,23 +199,6 @@ export function graficoCategorias(m: MetricasComportamento, tema: TemaGrafico): 
       ],
     },
     options: base(tema, true),
-    plugins: [pluginRotulos(tema)],
-  }
-}
-
-/** Economia mensal estimada por ação do plano. */
-export function graficoPlano(a: AnaliseIA, tema: TemaGrafico): ChartConfiguration<'bar'> | null {
-  const c = cores(tema.escuro)
-  // Rótulo = número da ação na lista ao lado: o texto inteiro não cabe no eixo.
-  const acoes = a.planoDeAcao.map((p, i) => ({ ...p, n: i + 1 })).filter(p => p.economiaMensal > 0)
-  if (acoes.length === 0) return null
-  return {
-    type: 'bar',
-    data: {
-      labels: acoes.map(p => `Ação ${p.n}`),
-      datasets: [{ label: 'Economia por mês', data: acoes.map(p => p.economiaMensal), backgroundColor: c.serie1, ...barra, maxBarThickness: 16 }],
-    },
-    options: base(tema, true, false),
     plugins: [pluginRotulos(tema)],
   }
 }

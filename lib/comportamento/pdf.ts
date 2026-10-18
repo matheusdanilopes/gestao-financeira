@@ -1,11 +1,11 @@
 /**
  * PDF visual da Análise de Comportamento.
  *
- * O PDF genérico dos relatórios é feito de tabelas — bom para números, cansativo
- * para uma análise. Este monta páginas visuais: nota em destaque, indicadores
- * em barras, os mesmos gráficos da tela (Chart.js renderizado fora da tela e
- * colado como imagem), padrões em cartões com o número-chave e o plano de ação
- * enxuto. A lista de lançamentos vai num apêndice em tabela.
+ * Segue a ordem da tela: nota com a conta dos indicadores, os números do
+ * período (com a tabela mês a mês para conferir), o próximo mês, a leitura da
+ * IA e o plano de ação; gráficos e detalhes vêm depois. Os gráficos são os
+ * mesmos da tela (Chart.js renderizado fora da tela e colado como imagem). A
+ * lista de lançamentos vai num apêndice em tabela.
  */
 
 import { format } from 'date-fns'
@@ -16,12 +16,11 @@ import { rotuloMesIso, rotuloEscopo } from './documento'
 import {
   corDaRampa,
   graficoCategorias,
-  graficoPlano,
   graficoReceitaGasto,
   graficoSaldo,
 } from './graficos'
 import type { Comparativo, ResultadoAnalise } from './tipos'
-import { OBJETIVOS_ANALISE, rotuloJanela } from './tipos'
+import { OBJETIVOS_ANALISE, PESOS_SAUDE, destaqueCurto, rotuloJanela } from './tipos'
 
 const A4_H = 297
 const MX = 14
@@ -197,105 +196,82 @@ export async function exportarAnalisePdf(r: ResultadoAnalise): Promise<void> {
   y = Math.max(y + 32, yt + 3)
   if (a.resumo) y += paragrafo(a.resumo.replace(/\n+/g, ' '), MX, y, W, 9, 'normal', CINZA) + 3
 
-  // ── KPIs ──
-  const economia = a.planoDeAcao.reduce((s, x) => s + x.economiaMensal, 0)
-  const kpis: Array<[string, string, RGB]> = [
-    ['Receita média', formatBRL(m.resumo.receitaMedia), TINTA],
-    ['Gasto médio', formatBRL(m.resumo.gastoMedio), TINTA],
-    ['Taxa de poupança', m.resumo.taxaPoupancaMedia === null ? '-' : `${m.resumo.taxaPoupancaMedia.toLocaleString('pt-BR')}%`,
-      (m.resumo.taxaPoupancaMedia ?? 0) < 0 ? VERMELHO : TINTA],
-    ['Economia possível/mês', formatBRL(economia), VERDE],
-  ]
-  const lk = (W - 6) / 4
-  kpis.forEach(([rotulo, valor, c], i) => {
-    const x = MX + i * (lk + 2)
-    preencher(FUNDO)
-    doc.roundedRect(x, y, lk, 16, 2, 2, 'F')
-    fonte(7)
-    cor(CINZA)
-    doc.text(rotulo, x + 3, y + 5)
-    fonte(11, 'bold')
-    cor(c)
-    doc.text(limpar(valor), x + 3, y + 12)
-  })
-  y += 21
+  /** Linhas de uma conta (+ / − / =), valor alinhado à direita. */
+  const conta = (todas: Array<[string, number, '+' | '-' | '=']>) => {
+    // Parcela zerada só alonga a conta; o resultado (=) aparece sempre.
+    const linhas = todas.filter(([, valor, sinal]) => sinal === '=' || Math.abs(valor) >= 0.5)
+    garantir(linhas.length * 5.5 + 2)
+    for (const [rotulo, valor, sinal] of linhas) {
+      if (sinal === '=') {
+        traco(CINZA_CLARO)
+        doc.line(MX, y, MX + W, y)
+      }
+      fonte(8.5, sinal === '=' ? 'bold' : 'normal')
+      cor(sinal === '=' ? (valor < 0 ? VERMELHO : TINTA) : CINZA)
+      doc.text(limpar(rotulo), MX, y + 3.6)
+      // Resultado negativo já diz "Falta"/"Faltou" no rótulo: o valor vai sem sinal, em vermelho.
+      const exibido = sinal === '=' && /^Falt/.test(rotulo) ? Math.abs(valor) : valor
+      doc.text(limpar(`${sinal === '=' ? '' : `${sinal} `}${formatBRL(exibido)}`), MX + W, y + 3.6, { align: 'right' })
+      y += 5.5
+    }
+    y += 2
+  }
+  const finalTabela = () => (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY
 
-  // ── Indicadores de saúde (barras) ──
-  const ind = m.saude.indicadores
-  const li = (W - 8) / 2
-  ind.forEach((i, k) => {
-    const x = MX + (k % 2) * (li + 8)
-    const yy = y + Math.floor(k / 2) * 9
-    fonte(7.5)
-    cor(TINTA)
-    doc.text(limpar(i.nome), x, yy + 2.5)
-    fonte(7.5, 'bold')
-    cor(corDaNota(i.nota))
-    doc.text(String(i.nota), x + li, yy + 2.5, { align: 'right' })
-    preencher(CINZA_CLARO)
-    doc.roundedRect(x, yy + 4, li, 1.6, 0.8, 0.8, 'F')
-    preencher(corDaNota(i.nota))
-    doc.roundedRect(x, yy + 4, Math.max(1.6, (li * i.nota) / 100), 1.6, 0.8, 0.8, 'F')
-  })
-  y += Math.ceil(ind.length / 2) * 9 + 4
-
-  // ── Gráficos de mês a mês ──
-  titulo('Receita × gasto', 55)
-  y += await imagem(graficoReceitaGasto(m, tema), 55)
-  y += 3
-  if (m.mensal.some(x => !x.parcial && x.receita > 0)) {
-    titulo('Quanto sobrou por mês', 45)
-    y += await imagem(graficoSaldo(m, tema), 45)
-    y += 3
+  // ── Indicadores de saúde: nota, medida e ideal de cada um, e a conta ──
+  const ind = m.saude.indicadores.map(i => ({ ...i, peso: PESOS_SAUDE[i.chave] ?? 0 }))
+  if (ind.length > 0) {
+    titulo('O que forma a nota', 12)
+    for (const i of ind) {
+      garantir(11)
+      fonte(8, 'bold')
+      cor(TINTA)
+      doc.text(limpar(i.nome), MX, y + 2.5)
+      cor(corDaNota(i.nota))
+      doc.text(String(i.nota), MX + W, y + 2.5, { align: 'right' })
+      preencher(CINZA_CLARO)
+      doc.roundedRect(MX, y + 4, W, 1.4, 0.7, 0.7, 'F')
+      preencher(corDaNota(i.nota))
+      doc.roundedRect(MX, y + 4, Math.max(1.4, (W * i.nota) / 100), 1.4, 0.7, 0.7, 'F')
+      fonte(7)
+      cor(CINZA)
+      doc.text(limpar(`${i.medida} · ideal: ${i.referencia} · peso ${i.peso}`), MX, y + 8.6)
+      y += 11
+    }
+    const pesoTotal = ind.reduce((s, i) => s + i.peso, 0)
+    const pontos = ind.reduce((s, i) => s + i.nota * i.peso, 0)
+    if (pesoTotal > 0) {
+      y += paragrafo(
+        `Como calculei: a nota é calculada pelo app, não pela IA. Cada indicador vale 100 no ideal e cai até 0 conforme se afasta dele; a nota geral é a média ponderada pelos pesos: soma de nota × peso (${pontos}) ÷ soma dos pesos (${pesoTotal}) = ${(pontos / pesoTotal).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}.`,
+        MX, y, W, 7.5, 'normal', CINZA,
+      ) + 4
+    }
   }
 
-  // ── Padrões em cartões ──
-  titulo('O que os dados mostram', 30)
-  const lc = (W - 4) / 2
-  for (let k = 0; k < a.padroes.length; k += 2) {
-    const par = a.padroes.slice(k, k + 2)
-    const alturas = par.map(pd => {
-      fonte(8)
-      const linhas = (doc.splitTextToSize(limpar(pd.descricao), lc - 8) as string[]).length
-      const linhasTitulo = (doc.splitTextToSize(limpar(pd.titulo), lc - 8) as string[]).length
-      return 15 + linhasTitulo * 4 + linhas * 3.6
-    })
-    const h = Math.max(...alturas)
-    garantir(h + 3)
-    par.forEach((pd, i) => {
-      const x = MX + i * (lc + 4)
-      const c = pd.impacto === 'negativo' ? VERMELHO : pd.impacto === 'positivo' ? VERDE : TINTA
-      preencher(FUNDO)
-      doc.roundedRect(x, y, lc, h, 2.5, 2.5, 'F')
-      preencher(c)
-      doc.rect(x, y + 3, 0.9, h - 6, 'F')
-      fonte(15, 'bold')
-      cor(c)
-      doc.text(limpar(pd.destaque || '•'), x + 4, y + 8)
-      let yy = y + 11
-      yy += paragrafo(pd.titulo, x + 4, yy, lc - 8, 9, 'bold')
-      paragrafo(pd.descricao, x + 4, yy + 0.5, lc - 8, 8, 'normal', CINZA)
-    })
-    y += h + 3
-  }
-  y += 2
-
-  // ── Mês em foco: barras mês × normal ──
+  // ── Mês em foco: a conta do saldo e as barras mês × normal ──
   if (m.mesFoco) {
     const f = m.mesFoco
     titulo(`${rotuloMesIso(f.mes)} vs. seu normal`, 8 * 6 + 8)
+    if (f.saldo && f.receita) {
+      conta([
+        ['Receita', f.receita.atual, '+'],
+        ['Faturas do cartão', f.faturas.atual, '-'],
+        ['Contas', f.contas.atual, '-'],
+        [f.saldo.atual < 0 ? 'Faltou no mês' : 'Sobrou no mês', f.saldo.atual, '='],
+      ])
+    }
     const linhas: Array<[string, Comparativo]> = [
-      ['Total das faturas', f.faturas],
-      ['Compras novas (valor cheio)', f.compras.valor],
-      ['Parcelas de compras antigas', f.parcelasEmAndamento.valor],
-      ['Contas do planejamento', f.contas],
       ...(f.receita ? [['Receita', f.receita] as [string, Comparativo]] : []),
+      ['Faturas do cartão', f.faturas],
+      ['Contas do planejamento', f.contas],
+      ['Compras novas no mês', f.compras.valor],
       ['Microgastos (até R$ 50)', f.microgastos.valor],
     ]
     const maximo = Math.max(...linhas.flatMap(([, c]) => [Math.abs(c.atual), Math.abs(c.base)]), 1)
     const xBarra = MX + 52
     const lBarra = W - 52 - 40
     for (const [rotulo, c] of linhas) {
+      garantir(8)
       fonte(8)
       cor(TINTA)
       doc.text(rotulo, MX, y + 3.2)
@@ -314,13 +290,232 @@ export async function exportarAnalisePdf(r: ResultadoAnalise): Promise<void> {
       doc.text(limpar(`normal ${formatBRL(c.base)}`), MX + W - 14, y + 6, { align: 'right' })
       y += 8
     }
-    fonte(7)
-    cor(CINZA)
-    doc.text(`Azul: ${rotuloMesIso(f.mes)} · cinza: média de ${f.mesesBase} meses anteriores`, MX, y + 2)
-    y += 7
+    y += paragrafo(
+      `Azul: ${rotuloMesIso(f.mes)} · cinza: média de ${f.mesesBase} meses anteriores. Das faturas, ${formatBRL(f.parcelasEmAndamento.valor.atual)} são parcelas de compras antigas. Compras novas usam o valor cheio da compra (10× R$ 100 conta R$ 1.000), por isso não somam com as faturas.`,
+      MX, y, W, 7, 'normal', CINZA,
+    ) + 4
   }
 
-  // ── Mapa de calor ──
+  // ── Seus números: médias e a tabela mês a mês ──
+  const fechados = m.mensal.filter(x => !x.parcial)
+  const temReceita = fechados.some(x => x.receita > 0)
+  titulo(`Seus números · média de ${fechados.length} ${fechados.length === 1 ? 'mês fechado' : 'meses fechados'}`, 30)
+  const kpis: Array<[string, string, RGB]> = [
+    ['Receita por mês', formatBRL(m.resumo.receitaMedia), TINTA],
+    ['Gasto por mês', formatBRL(m.resumo.gastoMedio), TINTA],
+    ...(temReceita
+      ? [
+          [m.resumo.saldoMedio >= 0 ? 'Sobra por mês' : 'Falta por mês', formatBRL(Math.abs(m.resumo.saldoMedio)), m.resumo.saldoMedio < 0 ? VERMELHO : VERDE] as [string, string, RGB],
+          ['Meses no vermelho', `${m.resumo.mesesNoVermelho} de ${fechados.length}`, m.resumo.mesesNoVermelho > 0 ? VERMELHO : TINTA] as [string, string, RGB],
+        ]
+      : []),
+  ]
+  const lk = (W - 2 * (kpis.length - 1)) / kpis.length
+  kpis.forEach(([rotulo, valor, c], i) => {
+    const x = MX + i * (lk + 2)
+    preencher(FUNDO)
+    doc.roundedRect(x, y, lk, 16, 2, 2, 'F')
+    fonte(7)
+    cor(CINZA)
+    doc.text(rotulo, x + 3, y + 5)
+    fonte(11, 'bold')
+    cor(c)
+    doc.text(limpar(valor), x + 3, y + 12)
+  })
+  y += 20
+  const mediaDe = (f: (x: typeof fechados[number]) => number) => fechados.reduce((s, x) => s + f(x), 0) / Math.max(1, fechados.length)
+  autoTable(doc, {
+    startY: y,
+    head: [['Mês', 'Receita', 'Cartão', 'Contas', 'Saldo']],
+    body: fechados.map(x => [rotuloMesIso(x.mes), formatBRL(x.receita), formatBRL(x.gastoCartao), formatBRL(x.contas), formatBRL(x.saldo)]),
+    foot: [['Média', formatBRL(mediaDe(x => x.receita)), formatBRL(mediaDe(x => x.gastoCartao)), formatBRL(mediaDe(x => x.contas)), formatBRL(mediaDe(x => x.saldo))]],
+    margin: { left: MX, right: MX },
+    styles: { fontSize: 7.5, cellPadding: 1.2 },
+    headStyles: { fillColor: VIOLETA, fontSize: 7.5 },
+    footStyles: { fillColor: FUNDO, textColor: TINTA, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: FUNDO },
+    // Cabeçalho e média alinhados com os valores (columnStyles só vale para o corpo).
+    didParseCell: d => { if (d.column.index > 0) d.cell.styles.halign = 'right' },
+  })
+  y = finalTabela() + 3
+  const receitaTotal = fechados.reduce((s, x) => s + x.receita, 0)
+  const gastoTotal = fechados.reduce((s, x) => s + x.gastoTotal, 0)
+  y += paragrafo(
+    'Como calculei: a mesma conta do Dashboard. Cartão = valor pago da fatura do mês (sem pagamento marcado, a soma das compras); contas = despesas do planejamento, sem a linha da fatura; receita = a recebida (sem a marcação, a prevista); saldo = receita - cartão - contas.'
+      + (temReceita && m.resumo.taxaPoupancaMedia !== null
+        ? ` % da receita que sobra = ${formatBRL(receitaTotal - gastoTotal)} ÷ ${formatBRL(receitaTotal)} = ${m.resumo.taxaPoupancaMedia.toLocaleString('pt-BR')}%.`
+        : '')
+      + ' O mês atual fica fora das médias.',
+    MX, y, W, 7, 'normal', CINZA,
+  ) + 5
+
+  // ── Próximo mês ──
+  if (m.proximoMes) {
+    const pm = m.proximoMes
+    titulo(`${rotuloMesIso(pm.mes)}: quanto vai sobrar`, 50)
+    conta([
+      [`Receita (${pm.receitaFonte === 'planejada' ? 'planejada' : 'média'})`, pm.receita, '+'],
+      ['Contas', pm.contas, '-'],
+      ['Parcelas já contratadas', pm.parcelas, '-'],
+      ...(pm.assinaturas > 0 ? [['Assinaturas', pm.assinaturas, '-'] as [string, number, '-']] : []),
+      ['Livre para o mês', pm.margemLivre, '='],
+      ['Gasto típico em compras novas e extras', pm.variavelHabitual, '-'],
+      [pm.folga >= 0 ? 'Sobra prevista' : 'Falta prevista', pm.folga, '='],
+    ])
+    y += paragrafo(
+      pm.margemLivre > 0
+        ? `Para não fechar no vermelho: até ${formatBRL(pm.tetoSemanal)} por semana em compras novas e extras (livre para o mês ÷ semanas do mês).`
+        : 'As contas e parcelas já passam da receita: qualquer compra nova aumenta o saldo negativo.',
+      MX, y, W, 8, 'normal', TINTA,
+    ) + 5
+  }
+
+  // ── Padrões em cartões ──
+  if (a.padroes.length > 0) {
+    titulo('O que os dados mostram (leitura da IA)', 30)
+    const lc = (W - 4) / 2
+    for (let k = 0; k < a.padroes.length; k += 2) {
+      const par = a.padroes.slice(k, k + 2)
+      const alturas = par.map(pd => {
+        fonte(8)
+        const linhas = (doc.splitTextToSize(limpar(pd.descricao), lc - 8) as string[]).length
+        const linhasTitulo = (doc.splitTextToSize(limpar(pd.titulo), lc - 8) as string[]).length
+        return 15 + linhasTitulo * 4 + linhas * 3.6
+      })
+      const h = Math.max(...alturas)
+      garantir(h + 3)
+      par.forEach((pd, i) => {
+        const x = MX + i * (lc + 4)
+        const c = pd.impacto === 'negativo' ? VERMELHO : pd.impacto === 'positivo' ? VERDE : TINTA
+        preencher(FUNDO)
+        doc.roundedRect(x, y, lc, h, 2.5, 2.5, 'F')
+        preencher(c)
+        doc.rect(x, y + 3, 0.9, h - 6, 'F')
+        fonte(15, 'bold')
+        cor(c)
+        doc.text(limpar(destaqueCurto(pd.destaque) || '•'), x + 4, y + 8)
+        let yy = y + 11
+        yy += paragrafo(pd.titulo, x + 4, yy, lc - 8, 9, 'bold')
+        paragrafo(pd.descricao, x + 4, yy + 0.5, lc - 8, 8, 'normal', CINZA)
+      })
+      y += h + 3
+    }
+    y += 2
+  }
+
+  // ── Plano de ação: cada ação com a sua economia ──
+  const economia = a.planoDeAcao.reduce((s, x) => s + x.economiaMensal, 0)
+  if (a.planoDeAcao.length > 0) {
+    titulo('Plano de ação', economia > 0 ? 24 : 12)
+    if (economia > 0) {
+      fonte(18, 'bold')
+      cor(VERDE)
+      doc.text(limpar(formatBRL(economia)), MX, y + 6)
+      const lEco = doc.getTextWidth(limpar(formatBRL(economia)))
+      fonte(9)
+      cor(CINZA)
+      doc.text(limpar(`por mês, se seguir o plano · ${formatBRL(economia * 12)} por ano`), MX + lEco + 3, y + 6)
+      y += 11
+    }
+    a.planoDeAcao.forEach((acao, i) => {
+      fonte(8)
+      const h = 6.5 + (doc.splitTextToSize(limpar(acao.porque), W - 40) as string[]).length * 3.8
+      garantir(h + 2)
+      preencher([238, 242, 255])
+      doc.roundedRect(MX, y, 6, 6, 1.2, 1.2, 'F')
+      fonte(8, 'bold')
+      cor(VIOLETA)
+      doc.text(String(i + 1), MX + 3, y + 4.2, { align: 'center' })
+      fonte(9, 'bold')
+      cor(TINTA)
+      doc.text(limpar(acao.acao), MX + 9, y + 3.6)
+      if (acao.economiaMensal > 0) {
+        fonte(8.5, 'bold')
+        cor(VERDE)
+        doc.text(limpar(`-${formatBRL(acao.economiaMensal)}/mês`), MX + W, y + 3.6, { align: 'right' })
+      }
+      fonte(7)
+      cor(CINZA)
+      doc.text(limpar(acao.prazo), MX + W, y + 7.6, { align: 'right' })
+      paragrafo(acao.porque, MX + 9, y + 4.6, W - 40, 8, 'normal', CINZA)
+      y += h + 2
+    })
+    if (economia > 0) {
+      y += paragrafo(
+        `Como calculei: a economia de cada ação é uma estimativa da IA a partir da média mensal do gasto que ela ataca. O app limita as ações de uma categoria ao que ela gasta por mês, e o total a metade do gasto que se decide no dia a dia.${a.economiaAjustada ? ' Nesta análise as estimativas foram reduzidas para caber nesses limites.' : ''}`,
+        MX, y, W, 7, 'normal', CINZA,
+      ) + 3
+    }
+    y += 2
+  }
+
+  // ── Metas ──
+  if (a.metas.length > 0) {
+    titulo('Metas para acompanhar', 22)
+    const lm = (W - 4 * (a.metas.length - 1)) / a.metas.length
+    // Altura pelo texto mais longo: meta em duas linhas não pode cobrir o prazo.
+    fonte(7.5, 'bold')
+    const linhasMeta = Math.max(...a.metas.map(meta => (doc.splitTextToSize(limpar(meta.meta), lm - 6) as string[]).length))
+    const hm = 15 + linhasMeta * 3.9
+    garantir(hm + 5)
+    a.metas.forEach((meta, i) => {
+      const x = MX + i * (lm + 4)
+      preencher(FUNDO)
+      doc.roundedRect(x, y, lm, hm, 2.5, 2.5, 'F')
+      fonte(11, 'bold')
+      cor(AZUL)
+      doc.text(limpar(meta.alvo), x + 3, y + 6.5, { maxWidth: lm - 6 })
+      paragrafo(meta.meta, x + 3, y + 9, lm - 6, 7.5, 'bold')
+      fonte(6.5)
+      cor(CINZA)
+      doc.text(limpar(meta.prazo), x + 3, y + hm - 1.5)
+    })
+    y += hm + 5
+  }
+
+  // ── Detalhes ──
+  garantir(80)
+  y += 4
+  fonte(14, 'bold')
+  cor(TINTA)
+  doc.text('Detalhes', MX, y + 4)
+  y += 10
+
+  titulo('Receita × gasto', 55)
+  y += await imagem(graficoReceitaGasto(m, tema), 55)
+  y += 3
+  if (temReceita) {
+    titulo('Quanto sobrou por mês', 45)
+    y += await imagem(graficoSaldo(m, tema), 45)
+    y += 3
+  }
+
+  if (m.fixoVariavel) {
+    const fv = m.fixoVariavel
+    titulo(`Fixo × variável · ${fv.pctFixo.toLocaleString('pt-BR')}% já vem comprometido`, 40)
+    conta([
+      ['Contas recorrentes', fv.fixo.contas, '+'],
+      ['Parcelas de compras antigas', fv.fixo.parcelas, '+'],
+      ['Assinaturas', fv.fixo.assinaturas, '+'],
+      ['Fixo', fv.fixo.total, '='],
+      ['Compras novas no cartão', fv.variavel.cartao, '+'],
+      ['Diferença fatura paga × compras (estornos, juros)', fv.variavel.ajusteFatura ?? 0, '+'],
+      ['Contas fora da rotina', fv.variavel.contas, '+'],
+      ['Variável', fv.variavel.total, '='],
+    ])
+    y += paragrafo(
+      `Fixo + variável = ${formatBRL(fv.fixo.total + fv.variavel.total)}, o mesmo gasto por mês de "Seus números".`,
+      MX, y, W, 7, 'normal', CINZA,
+    ) + 4
+  }
+
+  const cfgCat = graficoCategorias(m, tema)
+  if (cfgCat) {
+    titulo(m.mesFoco ? 'Categorias: compras novas do mês × o normal' : 'Categorias: últimos 3 meses × anteriores', 70)
+    y += await imagem(cfgCat, 70)
+    y += 3
+  }
+
   const mapa = m.quando.mapaCalor
   if (mapa) {
     titulo('Quando vocês compram', mapa.dias.length * 7 + 14)
@@ -360,101 +555,40 @@ export async function exportarAnalisePdf(r: ResultadoAnalise): Promise<void> {
     })
     fonte(7)
     cor(CINZA)
-    doc.text('Compras novas por dia da semana × fase do mês (sem parcelas em andamento). Mais escuro = mais compras.', MX, y + 2)
+    doc.text('Quantidade de compras novas por dia da semana × dias do mês (sem parcelas de compras antigas).', MX, y + 2)
     y += 8
   }
 
-  // ── Categorias ──
-  const cfgCat = graficoCategorias(m, tema)
-  if (cfgCat) {
-    titulo(m.mesFoco ? 'Categorias: o mês × o normal' : 'Categorias: últimos 3 meses × anteriores', 70)
-    y += await imagem(cfgCat, 70)
-    y += 3
-  }
-
-  // ── Plano de ação ──
-  const nAcoes = a.planoDeAcao.filter(x => x.economiaMensal > 0).length
-  const alturaGraficoPlano = Math.max(28, nAcoes * 9 + 10)
-  titulo('Plano de ação', economia > 0 ? alturaGraficoPlano + 14 : 12)
-  if (economia > 0) {
-    fonte(18, 'bold')
-    cor(VERDE)
-    doc.text(limpar(formatBRL(economia)), MX, y + 6)
-    const lEco = doc.getTextWidth(limpar(formatBRL(economia)))
-    fonte(9)
-    cor(CINZA)
-    doc.text(limpar(`por mês · ${formatBRL(economia * 12)} por ano`), MX + lEco + 3, y + 6)
-    y += 10
-    y += await imagem(graficoPlano(a, tema), alturaGraficoPlano)
-    y += 3
-  }
-  a.planoDeAcao.forEach((acao, i) => {
-    fonte(8)
-    const h = 6.5 + (doc.splitTextToSize(limpar(acao.porque), W - 30) as string[]).length * 3.8
-    garantir(h + 2)
-    preencher([238, 242, 255])
-    doc.roundedRect(MX, y, 6, 6, 1.2, 1.2, 'F')
-    fonte(8, 'bold')
-    cor(VIOLETA)
-    doc.text(String(i + 1), MX + 3, y + 4.2, { align: 'center' })
-    fonte(9, 'bold')
-    cor(TINTA)
-    doc.text(limpar(acao.acao), MX + 9, y + 3.6)
-    fonte(7.5)
-    cor(CINZA)
-    doc.text(limpar(acao.prazo), MX + W, y + 3.6, { align: 'right' })
-    paragrafo(acao.porque, MX + 9, y + 4.6, W - 30, 8, 'normal', CINZA)
-    y += h + 2
-  })
-  y += 3
-
   // ── Gatilhos · Riscos · Pontos fortes (3 colunas) ──
-  const colunas: Array<[string, RGB, Array<{ titulo: string; descricao: string }>]> = [
+  const colunas = ([
     ['Gatilhos', AMBAR, a.gatilhos],
     ['Riscos', VERMELHO, a.riscos],
     ['Pontos fortes', VERDE, a.pontosFortes],
-  ]
-  const l3 = (W - 8) / 3
-  const alturaColuna = (itens: Array<{ titulo: string; descricao: string }>) => itens.reduce((s, it) => {
-    fonte(7.5)
-    const lt1 = (doc.splitTextToSize(limpar(it.titulo), l3 - 6) as string[]).length
-    const ld = (doc.splitTextToSize(limpar(it.descricao), l3 - 6) as string[]).length
-    return s + lt1 * 3.8 + ld * 3.4 + 3
-  }, 10)
-  const h3 = Math.max(...colunas.map(([, , itens]) => alturaColuna(itens)))
-  garantir(h3 + 4)
-  colunas.forEach(([nome, c, itens], i) => {
-    const x = MX + i * (l3 + 4)
-    preencher(FUNDO)
-    doc.roundedRect(x, y, l3, h3, 2.5, 2.5, 'F')
-    fonte(9, 'bold')
-    cor(c)
-    doc.text(nome, x + 3, y + 6)
-    let yy = y + 9
-    for (const it of itens) {
-      yy += paragrafo(it.titulo, x + 3, yy, l3 - 6, 7.5, 'bold')
-      yy += paragrafo(it.descricao, x + 3, yy, l3 - 6, 7, 'normal', CINZA) + 3
-    }
-  })
-  y += h3 + 6
-
-  // ── Metas ──
-  if (a.metas.length > 0) {
-    titulo('Metas', 22)
-    const lm = (W - 4 * (a.metas.length - 1)) / a.metas.length
-    a.metas.forEach((meta, i) => {
-      const x = MX + i * (lm + 4)
+  ] as Array<[string, RGB, Array<{ titulo: string; descricao: string }>]>).filter(([, , itens]) => itens.length > 0)
+  if (colunas.length > 0) {
+    const l3 = (W - 4 * (colunas.length - 1)) / colunas.length
+    const alturaColuna = (itens: Array<{ titulo: string; descricao: string }>) => itens.reduce((s, it) => {
+      fonte(7.5)
+      const lt1 = (doc.splitTextToSize(limpar(it.titulo), l3 - 6) as string[]).length
+      const ld = (doc.splitTextToSize(limpar(it.descricao), l3 - 6) as string[]).length
+      return s + lt1 * 3.8 + ld * 3.4 + 3
+    }, 10)
+    const h3 = Math.max(...colunas.map(([, , itens]) => alturaColuna(itens)))
+    garantir(h3 + 4)
+    colunas.forEach(([nome, c, itens], i) => {
+      const x = MX + i * (l3 + 4)
       preencher(FUNDO)
-      doc.roundedRect(x, y, lm, 20, 2.5, 2.5, 'F')
-      fonte(11, 'bold')
-      cor(AZUL)
-      doc.text(limpar(meta.alvo), x + 3, y + 6.5, { maxWidth: lm - 6 })
-      paragrafo(meta.meta, x + 3, y + 9, lm - 6, 7.5, 'bold')
-      fonte(6.5)
-      cor(CINZA)
-      doc.text(limpar(meta.prazo), x + 3, y + 18.5)
+      doc.roundedRect(x, y, l3, h3, 2.5, 2.5, 'F')
+      fonte(9, 'bold')
+      cor(c)
+      doc.text(nome, x + 3, y + 6)
+      let yy = y + 9
+      for (const it of itens) {
+        yy += paragrafo(it.titulo, x + 3, yy, l3 - 6, 7.5, 'bold')
+        yy += paragrafo(it.descricao, x + 3, yy, l3 - 6, 7, 'normal', CINZA) + 3
+      }
     })
-    y += 25
+    y += h3 + 6
   }
 
   // ── Perguntas e limites ──

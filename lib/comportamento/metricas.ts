@@ -49,7 +49,7 @@ import type {
   ParametrosAnalise,
   ProximoMes,
 } from './tipos'
-import { JANELA_ULTIMO_MES, MESES_BASE_ULTIMO_MES } from './tipos'
+import { JANELA_ULTIMO_MES, MESES_BASE_ULTIMO_MES, PESOS_SAUDE } from './tipos'
 
 const LIMITE_MICROGASTO = 50
 const DIAS_SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
@@ -534,7 +534,12 @@ export function calcularMetricas(
     if (!base || !t.projeto_fatura.startsWith(base) || !ehParcelada(t)) continue
     const parcela = parcelaDe(t)
     const restantes = (parcela?.total ?? 1) - (parcela?.atual ?? 1)
-    for (let k = 1; k <= restantes; k++) {
+    // Fatura de um mês à frente já importada (a fatura aberta): as parcelas
+    // de compras antigas (2/N em diante) lançadas nela também são compromisso
+    // daquele mês. A 1ª parcela é compra nova do mês e já entra no gasto
+    // típico do próximo mês; contá-la aqui também a descontaria duas vezes.
+    const incluiAtual = base > mesParcial && !ehCompraNova(t)
+    for (let k = incluiAtual ? 0 : 1; k <= restantes; k++) {
       const mes = somarMes(base, k)
       if (mes > somarMes(mesParcial, 7)) break
       compromisso.set(mes, (compromisso.get(mes) ?? 0) + t.valor)
@@ -777,7 +782,7 @@ export function calcularMetricas(
       valorFinanciado: r2(soma(parceladas.map(valorDaCompra))),
       mediaParcelas: r1(media(parceladas.map(t => parcelaDe(t)?.total ?? 1))),
       compromissoFuturo,
-      pctReceitaProximoMes: compromissoFuturo[0] && receitaMedia > 0 ? pct(compromissoFuturo[0].valor, receitaMedia) : null,
+      pctReceitaProximoMes: receitaMedia > 0 && compromissoFuturo.length > 0 ? pct(parcelasProximas, receitaMedia) : null,
     },
     planejamento: {
       previstoMedio: r2(soma(contasFechadas.map(p => Number(p.valor_previsto ?? 0))) / fechados.length),
@@ -991,7 +996,7 @@ function avaliarSaude(m: MetricasComportamento, contasComDatas: number): Metrica
 
   if (m.resumo.taxaPoupancaMedia !== null) {
     ind.push({
-      chave: 'poupanca', nome: 'Taxa de poupança', peso: 30,
+      chave: 'poupanca', nome: 'Taxa de poupança', peso: PESOS_SAUDE.poupanca,
       nota: escala(m.resumo.taxaPoupancaMedia, 20, 0),
       medida: `${fmtPct(m.resumo.taxaPoupancaMedia)} da receita sobra`,
       referencia: '20% ou mais é saudável',
@@ -999,7 +1004,7 @@ function avaliarSaude(m: MetricasComportamento, contasComDatas: number): Metrica
     const fechados = m.mensal.filter(x => !x.parcial).length
     if (fechados > 0) {
       ind.push({
-        chave: 'vermelho', nome: 'Meses no vermelho', peso: 15,
+        chave: 'vermelho', nome: 'Meses no vermelho', peso: PESOS_SAUDE.vermelho,
         nota: escala(m.resumo.mesesNoVermelho / fechados, 0, 0.5),
         medida: `${m.resumo.mesesNoVermelho} de ${fechados} meses`,
         referencia: 'nenhum mês gastando mais do que entrou',
@@ -1011,7 +1016,7 @@ function avaliarSaude(m: MetricasComportamento, contasComDatas: number): Metrica
   const inv = m.investimentos
   if (inv.mesesDeReserva !== null && inv.mesesDeReserva !== undefined) {
     ind.push({
-      chave: 'reserva', nome: 'Reserva de emergência', peso: 15,
+      chave: 'reserva', nome: 'Reserva de emergência', peso: PESOS_SAUDE.reserva,
       nota: escala(inv.mesesDeReserva, 6, 0),
       medida: `investimentos cobrem ${inv.mesesDeReserva.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} meses de gasto`,
       referencia: '6 meses de gasto ou mais',
@@ -1019,7 +1024,7 @@ function avaliarSaude(m: MetricasComportamento, contasComDatas: number): Metrica
   }
   if (inv.pctDaReceita !== null && (inv.saldoInformado !== null || inv.totalAportado > 0)) {
     ind.push({
-      chave: 'aportes', nome: 'Investimento regular', peso: 10,
+      chave: 'aportes', nome: 'Investimento regular', peso: PESOS_SAUDE.aportes,
       nota: escala(inv.pctDaReceita, 10, 0),
       medida: `${fmtPct(inv.pctDaReceita)} da receita investida por mês`,
       referencia: '10% da receita ou mais',
@@ -1027,7 +1032,7 @@ function avaliarSaude(m: MetricasComportamento, contasComDatas: number): Metrica
   }
   if (m.parcelamentos.pctReceitaProximoMes !== null) {
     ind.push({
-      chave: 'parcelas', nome: 'Renda comprometida com parcelas', peso: 20,
+      chave: 'parcelas', nome: 'Renda comprometida com parcelas', peso: PESOS_SAUDE.parcelas,
       nota: escala(m.parcelamentos.pctReceitaProximoMes, 10, 40),
       medida: `${fmtPct(m.parcelamentos.pctReceitaProximoMes)} da receita no próximo mês`,
       referencia: 'até 10–15% da receita',
@@ -1035,7 +1040,7 @@ function avaliarSaude(m: MetricasComportamento, contasComDatas: number): Metrica
   }
   if (m.periodo.mesesFechados >= 3 && m.resumo.gastoMedio > 0) {
     ind.push({
-      chave: 'estabilidade', nome: 'Estabilidade dos gastos', peso: 10,
+      chave: 'estabilidade', nome: 'Estabilidade dos gastos', peso: PESOS_SAUDE.estabilidade,
       nota: escala(m.resumo.oscilacaoGastoPct, 10, 50),
       medida: `oscilação de ${fmtPct(m.resumo.oscilacaoGastoPct)} entre meses`,
       referencia: 'até 10% de oscilação',
@@ -1043,7 +1048,7 @@ function avaliarSaude(m: MetricasComportamento, contasComDatas: number): Metrica
   }
   if (m.resumo.tendenciaGastoPct !== null) {
     ind.push({
-      chave: 'tendencia', nome: 'Tendência dos gastos', peso: 5,
+      chave: 'tendencia', nome: 'Tendência dos gastos', peso: PESOS_SAUDE.tendencia,
       nota: escala(m.resumo.tendenciaGastoPct, 0, 25),
       medida: `${m.resumo.tendenciaGastoPct > 0 ? '+' : ''}${fmtPct(m.resumo.tendenciaGastoPct)} nos últimos 3 meses`,
       referencia: 'estável ou em queda',
@@ -1051,7 +1056,7 @@ function avaliarSaude(m: MetricasComportamento, contasComDatas: number): Metrica
   }
   if (contasComDatas > 0) {
     ind.push({
-      chave: 'pontualidade', nome: 'Pontualidade nas contas', peso: 10,
+      chave: 'pontualidade', nome: 'Pontualidade nas contas', peso: PESOS_SAUDE.pontualidade,
       nota: escala(m.planejamento.pagasComAtraso / contasComDatas, 0, 0.3),
       medida: `${m.planejamento.pagasComAtraso} de ${contasComDatas} contas com data de pagamento foram pagas com atraso`,
       referencia: 'todas em dia',
@@ -1059,7 +1064,7 @@ function avaliarSaude(m: MetricasComportamento, contasComDatas: number): Metrica
   }
   if (m.planejamento.aderenciaPct !== null) {
     ind.push({
-      chave: 'orcamento', nome: 'Disciplina com o orçamento', peso: 10,
+      chave: 'orcamento', nome: 'Disciplina com o orçamento', peso: PESOS_SAUDE.orcamento,
       nota: escala(m.planejamento.aderenciaPct, 100, 130),
       medida: `realizado = ${fmtPct(m.planejamento.aderenciaPct)} do previsto`,
       referencia: 'até 100% do previsto',

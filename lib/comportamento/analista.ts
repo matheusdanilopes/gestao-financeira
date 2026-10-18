@@ -9,7 +9,7 @@
 
 import { gerarStream, GeminiError } from '@/lib/ai/agent/geminiClient'
 import type { AnaliseIA, MetricasComportamento, ObjetivoAnalise, ParametrosAnalise } from './tipos'
-import { OBJETIVOS_ANALISE } from './tipos'
+import { OBJETIVOS_ANALISE, destaqueCurto } from './tipos'
 
 const DESCRICAO_OBJETIVO: Record<ObjetivoAnalise, string> = {
   entender: 'entender os próprios padrões de gasto e o que eles dizem sobre os hábitos',
@@ -249,7 +249,7 @@ export function normalizarAnalise(bruto: unknown): AnaliseIA {
     },
     padroes: lista(o.padroes, x => texto(x.titulo) ? {
       titulo: texto(x.titulo, 60),
-      destaque: texto(x.destaque, 18),
+      destaque: texto(destaqueCurto(texto(x.destaque)), 18),
       descricao: texto(x.descricao, 190),
       impacto: umDe(x.impacto, ['positivo', 'negativo', 'neutro'] as const, 'neutro'),
       relevancia: umDe(x.relevancia, ['alta', 'media', 'baixa'] as const, 'media'),
