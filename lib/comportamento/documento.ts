@@ -3,10 +3,11 @@
  * com o mesmo exportador dos relatórios.
  */
 
+import { formatBRL } from '@/lib/format'
 import { formatarMes } from '@/lib/relatoriosFormat'
 import type { DocumentoRelatorio } from '@/lib/relatorioDocumento'
 import type { ResultadoAnalise } from './tipos'
-import { OBJETIVOS_ANALISE, rotuloJanela } from './tipos'
+import { OBJETIVOS_ANALISE, PESOS_SAUDE, rotuloJanela } from './tipos'
 
 const NIVEL: Record<string, string> = { alta: 'Alta', media: 'Média', baixa: 'Baixa' }
 const DIFICULDADE: Record<string, string> = { facil: 'Fácil', media: 'Média', dificil: 'Difícil' }
@@ -25,6 +26,9 @@ export function montarDocumentoAnalise(r: ResultadoAnalise): DocumentoRelatorio 
   const { analise: a, metricas: m, parametros: p } = r
   const objetivo = OBJETIVOS_ANALISE.find(o => o.chave === p.objetivo)?.label ?? p.objetivo
   const economiaTotal = a.planoDeAcao.reduce((s, x) => s + x.economiaMensal, 0)
+  const indicadores = m.saude.indicadores.map(i => ({ ...i, peso: PESOS_SAUDE[i.chave] ?? 0 }))
+  const pesoSaude = indicadores.reduce((s, i) => s + i.peso, 0)
+  const pontosSaude = indicadores.reduce((s, i) => s + i.nota * i.peso, 0)
 
   return {
     titulo: 'Análise de Comportamento Financeiro',
@@ -47,28 +51,68 @@ export function montarDocumentoAnalise(r: ResultadoAnalise): DocumentoRelatorio 
         linhas: [[a.manchete], ...a.resumo.split(/\n\s*\n/).filter(Boolean).map(par => [par.trim()]), [`Perfil — ${a.perfil.nome}: ${a.perfil.descricao}`]],
       },
       {
-        titulo: 'Indicadores de saúde',
-        explicacao: 'Nota 0–100 por regra fixa; a nota geral é a média ponderada.',
-        colunas: ['Indicador', 'Medida', 'Referência', 'Nota'],
-        linhas: m.saude.indicadores.map(i => [i.nome, i.medida, i.referencia, String(i.nota)]),
+        titulo: 'O que forma a nota',
+        explicacao: `Nota calculada pelo app, não pela IA: cada indicador vale 100 no ideal e cai até 0 conforme se afasta dele; a nota geral é a média ponderada pelos pesos (${pontosSaude} ÷ ${pesoSaude}).`,
+        colunas: ['Indicador', 'Medida', 'Ideal', 'Nota', 'Peso'],
+        linhas: indicadores.map(i => [i.nome, i.medida, i.referencia, String(i.nota), String(i.peso)]),
+      },
+      ...(m.mesFoco && m.mesFoco.saldo && m.mesFoco.receita
+        ? [{
+            titulo: `${rotuloMesIso(m.mesFoco.mes)}: o saldo do mês`,
+            explicacao: `Das faturas, ${formatBRL(m.mesFoco.parcelasEmAndamento.valor.atual)} são parcelas de compras antigas.`,
+            colunas: ['Item', 'No mês', `Normal (média de ${m.mesFoco.mesesBase} meses)`],
+            linhas: [
+              ['Receita', m.mesFoco.receita.atual, m.mesFoco.receita.base],
+              ['Faturas do cartão', -m.mesFoco.faturas.atual, -m.mesFoco.faturas.base],
+              ['Contas', -m.mesFoco.contas.atual, -m.mesFoco.contas.base],
+              ['Saldo', m.mesFoco.saldo.atual, m.mesFoco.saldo.base],
+            ] as Array<[string, number, number]>,
+          }]
+        : []),
+      {
+        titulo: 'Seus números mês a mês',
+        explicacao: 'Mesma conta do Dashboard: cartão = valor pago da fatura (sem pagamento marcado, a soma das compras); contas = despesas do planejamento; saldo = receita − cartão − contas. O mês atual fica fora das médias.',
+        colunas: ['Mês', 'Receita', 'Cartão', 'Contas', 'Saldo', 'Poupança'],
+        linhas: m.mensal.map(x => [
+          `${rotuloMesIso(x.mes)}${x.parcial ? ' (parcial)' : ''}`,
+          x.receita, x.gastoCartao, x.contas, x.saldo,
+          x.taxaPoupanca === null ? '—' : `${x.taxaPoupanca.toLocaleString('pt-BR')}%`,
+        ]),
       },
       ...(m.proximoMes
         ? [{
-            titulo: `${rotuloMesIso(m.proximoMes.mes)}: quanto sobra para decidir`,
-            explicacao: 'Receita menos o que já está comprometido; a folga compara a margem livre com o gasto variável de um mês típico.',
+            titulo: `${rotuloMesIso(m.proximoMes.mes)}: quanto vai sobrar`,
+            explicacao: 'Receita menos o que já está comprometido; depois, o gasto de um mês típico em compras novas e extras.',
             colunas: ['Item', 'Valor'],
             linhas: [
               [`Receita (${m.proximoMes.receitaFonte === 'planejada' ? 'planejada' : 'média'})`, m.proximoMes.receita],
-              [`Contas (${{ planejadas: 'planejadas', media: 'recorrentes, média', planejadas_e_media: 'planejadas + recorrentes' }[m.proximoMes.contasFonte]})`, -m.proximoMes.contas],
+              [`Contas (${{ planejadas: 'lançadas', media: 'média das recorrentes', planejadas_e_media: 'lançadas + recorrentes' }[m.proximoMes.contasFonte]})`, -m.proximoMes.contas],
               ['Parcelas já contratadas', -m.proximoMes.parcelas],
               ['Assinaturas', -m.proximoMes.assinaturas],
-              ['Margem livre', m.proximoMes.margemLivre],
-              ['Gasto variável habitual', m.proximoMes.variavelHabitual],
-              ['Folga (negativa = falta)', m.proximoMes.folga],
-              ['Teto semanal para compras novas', m.proximoMes.tetoSemanal],
+              ['= Livre para o mês', m.proximoMes.margemLivre],
+              ['Gasto típico em compras novas e extras', -m.proximoMes.variavelHabitual],
+              ['= Sobra prevista (negativa = falta)', m.proximoMes.folga],
+              ['Limite semanal para compras novas', m.proximoMes.tetoSemanal],
             ] as Array<[string, number]>,
           }]
         : []),
+      {
+        titulo: 'O que os dados mostram (leitura da IA)',
+        colunas: ['Padrão', 'Número-chave', 'O que acontece', 'Impacto', 'Relevância'],
+        linhas: a.padroes.map(x => [x.titulo, x.destaque ?? '', [x.descricao, x.evidencia].filter(Boolean).join(' '), IMPACTO[x.impacto], NIVEL[x.relevancia]]),
+      },
+      {
+        titulo: 'Plano de ação',
+        explicacao: 'Economias estimadas pela IA e limitadas pelo app ao gasto real de cada categoria.',
+        colunas: ['Ação', 'Por quê', 'Dificuldade', 'Prazo', 'Economia/mês'],
+        linhas: a.planoDeAcao.map(x => [x.acao, x.porque, DIFICULDADE[x.dificuldade], x.prazo, x.economiaMensal]),
+        totais: [{ label: 'Economia mensal estimada', valor: economiaTotal }],
+      },
+      {
+        titulo: 'Metas para acompanhar',
+        colunas: ['Meta', 'Indicador', 'Alvo', 'Prazo'],
+        linhas: a.metas.map(x => [x.meta, x.indicador, x.alvo, x.prazo]),
+      },
       ...(m.fixoVariavel
         ? [{
             titulo: 'Fixo × variável (média mensal)',
@@ -79,7 +123,7 @@ export function montarDocumentoAnalise(r: ResultadoAnalise): DocumentoRelatorio 
               ['Parcelas de compras antigas', 'Fixo', m.fixoVariavel.fixo.parcelas],
               ['Assinaturas', 'Fixo', m.fixoVariavel.fixo.assinaturas],
               ['Compras novas no cartão', 'Variável', m.fixoVariavel.variavel.cartao],
-              ['Fatura paga − compras (estornos, encargos)', 'Variável', m.fixoVariavel.variavel.ajusteFatura ?? 0],
+              ['Diferença fatura paga × compras (estornos, juros)', 'Variável', m.fixoVariavel.variavel.ajusteFatura ?? 0],
               ['Contas fora da rotina', 'Variável', m.fixoVariavel.variavel.contas],
             ] as Array<[string, string, number]>,
           }]
@@ -107,11 +151,6 @@ export function montarDocumentoAnalise(r: ResultadoAnalise): DocumentoRelatorio 
         ]),
       },
       {
-        titulo: 'Padrões identificados',
-        colunas: ['Padrão', 'Número-chave', 'O que acontece', 'Impacto', 'Relevância'],
-        linhas: a.padroes.map(x => [x.titulo, x.destaque ?? '', [x.descricao, x.evidencia].filter(Boolean).join(' '), IMPACTO[x.impacto], NIVEL[x.relevancia]]),
-      },
-      {
         titulo: 'Gatilhos de gasto',
         colunas: ['Gatilho', 'Como age'],
         linhas: a.gatilhos.map(x => [x.titulo, x.descricao]),
@@ -125,27 +164,6 @@ export function montarDocumentoAnalise(r: ResultadoAnalise): DocumentoRelatorio 
         titulo: 'Riscos',
         colunas: ['Risco', 'Descrição', 'Probabilidade'],
         linhas: a.riscos.map(x => [x.titulo, x.descricao, NIVEL[x.probabilidade]]),
-      },
-      {
-        titulo: 'Plano de ação',
-        colunas: ['Ação', 'Por quê', 'Dificuldade', 'Prazo', 'Economia/mês'],
-        linhas: a.planoDeAcao.map(x => [x.acao, x.porque, DIFICULDADE[x.dificuldade], x.prazo, x.economiaMensal]),
-        totais: [{ label: 'Economia mensal estimada', valor: economiaTotal }],
-      },
-      {
-        titulo: 'Metas sugeridas',
-        colunas: ['Meta', 'Indicador', 'Alvo', 'Prazo'],
-        linhas: a.metas.map(x => [x.meta, x.indicador, x.alvo, x.prazo]),
-      },
-      {
-        titulo: 'Série mensal',
-        colunas: ['Mês', 'Receita', 'Gasto total', 'Saldo', 'Poupança', 'Aportes'],
-        linhas: m.mensal.map(x => [
-          `${rotuloMesIso(x.mes)}${x.parcial ? ' (parcial)' : ''}`,
-          x.receita, x.gastoTotal, x.saldo,
-          x.taxaPoupanca === null ? '—' : `${x.taxaPoupanca.toLocaleString('pt-BR')}%`,
-          x.aportes,
-        ]),
       },
       ...(m.mesFoco
         ? [{

@@ -126,6 +126,23 @@ export interface ItemQueEstoura {
   excessoMedio: number
 }
 
+/**
+ * Peso de cada indicador na nota de saúde (média ponderada). Fica aqui, e não
+ * no motor, para a tela mostrar a conta da nota — inclusive em análises salvas
+ * antes de o peso ir junto do indicador.
+ */
+export const PESOS_SAUDE: Record<string, number> = {
+  poupanca: 30,
+  parcelas: 20,
+  vermelho: 15,
+  reserva: 15,
+  aportes: 10,
+  estabilidade: 10,
+  pontualidade: 10,
+  orcamento: 10,
+  tendencia: 5,
+}
+
 export interface IndicadorSaude {
   chave: string
   nome: string

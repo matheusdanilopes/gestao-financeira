@@ -6,7 +6,9 @@ import {
   CalendarDays, Store, Layers, Target,
 } from 'lucide-react'
 import SeletorOpcoes from '@/components/relatorios/SeletorOpcoes'
-import { BlocosAcao, BlocosMetricas, Diagnostico, Padroes } from '@/components/comportamento/ResultadoComportamento'
+import {
+  BlocosNumeros, DetalhesRecolhidos, Diagnostico, LimitesAnalise, Padroes, PlanoDeAcao,
+} from '@/components/comportamento/ResultadoComportamento'
 import { lerSSE } from '@/lib/sseStream'
 import { copiarTexto, documentoParaMarkdown } from '@/lib/relatorioDocumento'
 import { montarDocumentoAnalise, rotuloEscopo } from '@/lib/comportamento/documento'
@@ -374,7 +376,12 @@ export default function AnaliseComportamentoPage() {
           />
         )}
 
-        {analisando && previa && <BlocosMetricas metricas={previa} />}
+        {analisando && previa && (
+          <>
+            <BlocosNumeros metricas={previa} />
+            <DetalhesRecolhidos metricas={previa} />
+          </>
+        )}
 
         {!analisando && ultima && (
           <>
@@ -389,9 +396,11 @@ export default function AnaliseComportamentoPage() {
             )}
 
             <Diagnostico analise={ultima.analise} metricas={ultima.metricas} notaAnterior={anterior?.nota ?? null} />
+            <BlocosNumeros metricas={ultima.metricas} />
             <Padroes analise={ultima.analise} />
-            <BlocosMetricas metricas={ultima.metricas} />
-            <BlocosAcao analise={ultima.analise} metricas={ultima.metricas} />
+            <PlanoDeAcao analise={ultima.analise} />
+            <DetalhesRecolhidos metricas={ultima.metricas} analise={ultima.analise} />
+            <LimitesAnalise analise={ultima.analise} metricas={ultima.metricas} />
 
             <div className="flex gap-2.5 pt-1">
               <button
