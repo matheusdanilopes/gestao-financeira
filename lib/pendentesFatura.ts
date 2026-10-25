@@ -7,6 +7,7 @@
 import { endOfMonth, format } from 'date-fns'
 import { identificarAssinaturasNaFatura, type IdentificacaoAssinatura } from '@/lib/assinaturaMatch'
 import { valorEfetivoNoMes, type HistoricoValorEntry } from '@/lib/assinaturaValor'
+import { ativaEfetivaNoMes, type HistoricoStatusEntry } from '@/lib/assinaturaStatus'
 import {
   calcularReservasDoMes,
   mesReferenciaISO,
@@ -41,6 +42,9 @@ export interface PendentesFaturaInput {
   mes: Date
   assinaturas: AssinaturaPendenteRow[]
   historico: HistoricoValorEntry[]
+  /** Histórico de ativa/inativa (assinaturas_status_historico). Sem ele vale o
+   *  estado atual — e uma assinatura pausada que reativa neste mês ficaria de fora. */
+  historicoStatus?: HistoricoStatusEntry[]
   /** Transações da fatura do principal no mês (estornos são ignorados aqui). */
   transacoes: TransacaoPendenteRow[]
   reservas: ReservaFatura[]
@@ -62,9 +66,12 @@ export interface PendentesFatura {
 }
 
 export function calcularPendentesFatura(input: PendentesFaturaInput): PendentesFatura {
-  const assinaturasAtivas = input.assinaturas.filter(a => a.ativa)
   // Mesmo cutoff da tela de Assinaturas: o fim do mês exibido.
   const cutoff = format(endOfMonth(input.mes), 'yyyy-MM-dd')
+  // Ativa NO MÊS, não hoje: uma pausa "até novembro" deixa a coluna `ativa` falsa até
+  // o dia da reativação, mas em novembro a assinatura já volta a contar.
+  const assinaturasAtivas = input.assinaturas.filter(a =>
+    ativaEfetivaNoMes(a.id, a.ativa, cutoff, input.historicoStatus ?? []))
   const valorAssinatura = (a: AssinaturaPendenteRow) =>
     valorEfetivoNoMes(a.id, a.valor, cutoff, input.historico)
 

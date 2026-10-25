@@ -166,6 +166,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     { data: maxFaturaRowData },
     { data: reservasData },
     { data: baixasReservasData },
+    { data: assinaturasStatusData },
   ] = await Promise.all([
     // Busca todas as transações do período em uma única query e separa por cartão no cliente
     // Não filtra ESTORNO/ESTORNADO aqui: precisamos do status e do conciliacao_ref
@@ -190,6 +191,8 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
       .lte('mes_inicio', mesRef).or(`mes_fim.is.null,mes_fim.gte.${mesRef}`),
     // Até o mês exibido: a baixa de uma compra parcelada vale para as parcelas seguintes.
     supabase.from('reservas_fatura_baixas').select('reserva_id, mes_referencia').lte('mes_referencia', mesRef),
+    // Ativa/inativa por mês: uma assinatura pausada volta a contar no mês da reativação.
+    supabase.from('assinaturas_status_historico').select('assinatura_id, ativa, vigente_desde, criado_em'),
   ])
 
   // Sem isto, uma falha na query (coluna inexistente, RLS) renderiza o mês inteiro
@@ -338,6 +341,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     mes,
     assinaturas: (assinaturasData || []) as AssinaturaPendenteRow[],
     historico: assinaturasHistoricoData || [],
+    historicoStatus: assinaturasStatusData || [],
     transacoes: transacoesFatura,
     reservas: (reservasData || []) as ReservaFatura[],
     baixas: (baixasReservasData || []) as BaixaReserva[],

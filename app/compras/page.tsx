@@ -10,7 +10,7 @@ import { Trash2, X, ShoppingBag, Lock, WifiOff, SlidersHorizontal, Calendar, Sea
 import MonthSelector from '@/components/MonthSelector'
 import EmptyState from '@/components/EmptyState'
 import UltimaImportacaoInfo from '@/components/UltimaImportacaoInfo'
-import { addMonths, subMonths, format, startOfMonth, isToday, isYesterday, parseISO } from 'date-fns'
+import { addMonths, subMonths, format, startOfMonth, endOfMonth, isToday, isYesterday, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { log } from '@/lib/logger'
 import { mascaraMoeda, formatarMoedaInput, parseMoeda, formatBRL } from '@/lib/format'
@@ -19,6 +19,7 @@ import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
 import FilterSelect from '@/components/FilterSelect'
 import { calcularProjetoFatura } from '@/lib/fatura'
 import { classificarTipoGasto, somarValorFatura, type TipoGasto, type AssinaturaAtiva } from '@/lib/composicaoFatura'
+import { ativaEfetivaNoMes, type HistoricoStatusEntry } from '@/lib/assinaturaStatus'
 import { AUTH_DISABLED } from '@/lib/authConfig'
 import { sanitizarDescricao, atualizarAprendizado } from '@/lib/ragClassificacao'
 
@@ -181,7 +182,8 @@ export default function ComprasPage() {
   const [filtroParcelamento, setFiltroParcelamento] = useState<'' | 'avista' | 'parcelado'>('')
   const [filtroTipoGasto, setFiltroTipoGasto] = useState<'' | TipoGasto>('')
   const [categorias, setCategorias] = useState<string[]>(CATEGORIAS_PADRAO)
-  const [assinaturasAtivas, setAssinaturasAtivas] = useState<AssinaturaAtiva[]>([])
+  const [assinaturasNubank, setAssinaturasNubank] = useState<(AssinaturaAtiva & { id: string; ativa: boolean })[]>([])
+  const [assinaturasStatusHistorico, setAssinaturasStatusHistorico] = useState<HistoricoStatusEntry[]>([])
 
   const [modalEditar, setModalEditar] = useState<Compra | null>(null)
   const [modalExcluir, setModalExcluir] = useState<Compra | null>(null)
@@ -339,14 +341,29 @@ export default function ComprasPage() {
     setAjusteFechamento(parseInt(configs.find(c => c.chave === 'ajuste_fechamento')?.valor || '0'))
   }
 
+  // Traz também as inativas: o que vale é o status no mês exibido (histórico), não o
+  // de hoje — uma assinatura pausada "até novembro" volta a contar na fatura de novembro.
   async function carregarAssinaturasAtivas() {
-    const { data } = await supabase
-      .from('assinaturas')
-      .select('nome, responsavel, valor, moeda')
-      .eq('cartao', 'nubank')
-      .eq('ativa', true)
-    setAssinaturasAtivas(data || [])
+    const [{ data }, { data: historicoStatus }] = await Promise.all([
+      supabase
+        .from('assinaturas')
+        .select('id, nome, responsavel, valor, moeda, ativa')
+        .eq('cartao', 'nubank'),
+      supabase
+        .from('assinaturas_status_historico')
+        .select('assinatura_id, ativa, vigente_desde, criado_em'),
+    ])
+    setAssinaturasNubank(data || [])
+    setAssinaturasStatusHistorico(historicoStatus || [])
   }
+
+  // Mesmo cutoff da tela de Assinaturas: fim do mês selecionado (a fatura é a do mês seguinte).
+  const assinaturasAtivas = useMemo<AssinaturaAtiva[]>(() => {
+    const cutoff = format(endOfMonth(mesGlobal), 'yyyy-MM-dd')
+    return assinaturasNubank
+      .filter(a => ativaEfetivaNoMes(a.id, a.ativa, cutoff, assinaturasStatusHistorico))
+      .map(({ nome, responsavel, valor, moeda }) => ({ nome, responsavel, valor, moeda }))
+  }, [assinaturasNubank, assinaturasStatusHistorico, mesGlobal])
 
   async function carregarLabelsCartao() {
     const mesRef = format(startOfMonth(mesGlobal), 'yyyy-MM-dd')
