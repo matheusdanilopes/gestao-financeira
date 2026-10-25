@@ -20,6 +20,7 @@ import {
   removerPrefixoCartao,
 } from '@/lib/tipoCartao'
 import { CARTAO_TX_POR_TIPO } from '@/lib/faturaEfetiva'
+import { somarValorFatura } from '@/lib/composicaoFatura'
 import { cartaoLabelsDePlanejamento, type CartaoLabels } from '@/lib/cartaoLabels'
 import { RESPONSAVEIS, estiloResponsavel } from '@/lib/responsavelStyle'
 import {
@@ -280,6 +281,9 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
    * pré-preencher o valor a pagar. Antes o responsável era adivinhado a partir do
    * nome do item ("NuBank Conjunto" → Conjunto) e só o cartão principal tinha esse
    * pré-preenchimento; agora sai da coluna `responsavel` e vale para os três cartões.
+   * Soma com somarValorFatura, a mesma regra de estornos do Dashboard: um estorno
+   * sem par abate o valor e um par compra/estorno se cancela — somar `valor` cru
+   * contava o crédito como compra e o modal divergia do "Total atual".
    */
   async function totalLancadoDaDespesa(item: ItemPlanejamento): Promise<number | null> {
     const tipo = tipoCartaoPorItem(item.item)
@@ -287,12 +291,12 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     const mesRefFatura = format(startOfMonth(addMonths(mesSelecionado, 1)), 'yyyy-MM-dd')
     const { data } = await supabase
       .from('transacoes_nubank')
-      .select('valor')
+      .select('valor, status, conciliacao_ref')
       .eq('projeto_fatura', mesRefFatura)
       .eq('cartao', CARTAO_TX_POR_TIPO[tipo])
       .eq('responsavel', item.responsavel)
     if (!data || data.length === 0) return null
-    return data.reduce((acc, t) => acc + t.valor, 0)
+    return somarValorFatura(data)
   }
 
   async function abrirModalPagamento(item: ItemPlanejamento) {
