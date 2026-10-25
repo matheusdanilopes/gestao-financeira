@@ -11,12 +11,13 @@ import {
   Legend,
 } from 'chart.js'
 import type { TooltipItem } from 'chart.js'
-import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
+import { format, startOfMonth, endOfMonth, addMonths, subMonths, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { AlertCircle, Layers } from 'lucide-react'
 import { formatBRL } from '@/lib/format'
 import { supabase } from '@/lib/supabaseClient'
 import { classificarTipoGasto, type AssinaturaAtiva } from '@/lib/composicaoFatura'
+import { ativaEfetivaNoMes, type HistoricoStatusEntry } from '@/lib/assinaturaStatus'
 import { useIsDark } from '@/lib/useIsDark'
 import { CHART_ANIMATION, tooltipCfg, axisColors, legendCfg } from '@/lib/chartTheme'
 
@@ -45,6 +46,7 @@ interface TransacaoRow {
 }
 
 interface AssinaturaRow {
+  id: string
   nome: string
   valor: number | null
   responsavel: string
@@ -90,7 +92,7 @@ export default function GraficoComposicaoFatura({ mesAtual, ativo = true }: Prop
     try {
       // 'data_compra' fica fora do select de propósito: no schema legado a coluna
       // chama 'data' e um nome inexistente derruba o SELECT inteiro.
-      const [{ data: transacoes, error: erroTx }, { data: assinaturas }] = await Promise.all([
+      const [{ data: transacoes, error: erroTx }, { data: assinaturas }, { data: historicoStatus }] = await Promise.all([
         // Só NuBank: a lista de assinaturas consultada abaixo é do NuBank, então
         // incluir cartão 1/2 classificaria as assinaturas deles como compra nova.
         supabase
@@ -100,16 +102,27 @@ export default function GraficoComposicaoFatura({ mesAtual, ativo = true }: Prop
           .in('projeto_fatura', mesesFatura),
         supabase
           .from('assinaturas')
-          .select('nome, valor, responsavel, ativa, moeda')
+          .select('id, nome, valor, responsavel, ativa, moeda')
           .eq('cartao', 'nubank'),
+        supabase
+          .from('assinaturas_status_historico')
+          .select('assinatura_id, ativa, vigente_desde, criado_em'),
       ])
 
       if (erroTx) throw erroTx
       if (id !== reqId.current) return
 
-      const assinAtivas: AssinaturaAtiva[] = ((assinaturas ?? []) as AssinaturaRow[])
-        .filter(a => a.ativa)
-        .map(a => ({ nome: a.nome, responsavel: a.responsavel, valor: a.valor, moeda: a.moeda }))
+      // Assinaturas ativas em cada fatura (fatura M = mês M-1 da tela de Assinaturas),
+      // pelo histórico de status: uma pausa que já terminou ou ainda vai terminar
+      // não pode valer para todos os meses do gráfico.
+      const statusRows = (historicoStatus ?? []) as HistoricoStatusEntry[]
+      const assinRows = (assinaturas ?? []) as AssinaturaRow[]
+      const assinAtivasPorMes = new Map<string, AssinaturaAtiva[]>(mesesFatura.map(mes => {
+        const cutoff = format(endOfMonth(subMonths(parseISO(mes), 1)), 'yyyy-MM-dd')
+        return [mes, assinRows
+          .filter(a => ativaEfetivaNoMes(a.id, a.ativa, cutoff, statusRows))
+          .map(a => ({ nome: a.nome, responsavel: a.responsavel, valor: a.valor, moeda: a.moeda }))]
+      }))
 
       const porMes = new Map<string, { existente: number; assinatura: number; novo: number }>()
       for (const mes of mesesFatura) porMes.set(mes, { existente: 0, assinatura: 0, novo: 0 })
@@ -125,7 +138,7 @@ export default function GraficoComposicaoFatura({ mesAtual, ativo = true }: Prop
           t.parcela_atual == null ? null : Number(t.parcela_atual),
           t.total_parcelas == null ? null : Number(t.total_parcelas),
           t.responsavel,
-          assinAtivas,
+          assinAtivasPorMes.get(t.projeto_fatura) ?? [],
           t.valor,
         )
         alvo[tipo] += Number(t.valor ?? 0)

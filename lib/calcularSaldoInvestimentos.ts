@@ -26,6 +26,7 @@ export async function calcularSaldoInvestimentos(mes: Date): Promise<SaldoData> 
     { data: historico },
     { data: reservas },
     { data: baixas },
+    { data: historicoStatus },
   ] = await Promise.all([
     // Traz status e conciliacao_ref em vez de filtrar ESTORNO no SQL: somarValorFatura
     // precisa deles para descontar estorno sem par (crédito que não casou com a compra
@@ -42,6 +43,7 @@ export async function calcularSaldoInvestimentos(mes: Date): Promise<SaldoData> 
     supabase.from('reservas_fatura').select('id, descricao, valor, responsavel, recorrente, mes_inicio, mes_fim, palavras_chave, parcelas, created_at')
       .lte('mes_inicio', mesRef).or(`mes_fim.is.null,mes_fim.gte.${mesRef}`),
     supabase.from('reservas_fatura_baixas').select('reserva_id, mes_referencia').lte('mes_referencia', mesRef),
+    supabase.from('assinaturas_status_historico').select('assinatura_id, ativa, vigente_desde, criado_em'),
   ])
 
   const transacoes = (transacoesFatura || []) as (TransacaoSaldoRow & TransacaoPendenteRow)[]
@@ -49,6 +51,7 @@ export async function calcularSaldoInvestimentos(mes: Date): Promise<SaldoData> 
     mes,
     assinaturas: (assinaturas || []) as AssinaturaPendenteRow[],
     historico: historico || [],
+    historicoStatus: historicoStatus || [],
     transacoes: transacoesDoCartao(transacoes, 'principal'),
     reservas: (reservas || []) as ReservaFatura[],
     baixas: (baixas || []) as BaixaReserva[],
