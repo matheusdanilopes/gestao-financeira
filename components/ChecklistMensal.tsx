@@ -20,6 +20,7 @@ import {
   removerPrefixoCartao,
 } from '@/lib/tipoCartao'
 import { CARTAO_TX_POR_TIPO } from '@/lib/faturaEfetiva'
+import { somarValorFatura } from '@/lib/composicaoFatura'
 import { cartaoLabelsDePlanejamento, type CartaoLabels } from '@/lib/cartaoLabels'
 import { RESPONSAVEIS, estiloResponsavel } from '@/lib/responsavelStyle'
 import {
@@ -280,6 +281,9 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
    * pré-preencher o valor a pagar. Antes o responsável era adivinhado a partir do
    * nome do item ("NuBank Conjunto" → Conjunto) e só o cartão principal tinha esse
    * pré-preenchimento; agora sai da coluna `responsavel` e vale para os três cartões.
+   * Soma com somarValorFatura, a mesma regra de estornos do Dashboard: um estorno
+   * sem par abate o valor e um par compra/estorno se cancela — somar `valor` cru
+   * contava o crédito como compra e o modal divergia do "Total atual".
    */
   async function totalLancadoDaDespesa(item: ItemPlanejamento): Promise<number | null> {
     const tipo = tipoCartaoPorItem(item.item)
@@ -287,12 +291,12 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     const mesRefFatura = format(startOfMonth(addMonths(mesSelecionado, 1)), 'yyyy-MM-dd')
     const { data } = await supabase
       .from('transacoes_nubank')
-      .select('valor')
+      .select('valor, status, conciliacao_ref')
       .eq('projeto_fatura', mesRefFatura)
       .eq('cartao', CARTAO_TX_POR_TIPO[tipo])
       .eq('responsavel', item.responsavel)
     if (!data || data.length === 0) return null
-    return data.reduce((acc, t) => acc + t.valor, 0)
+    return somarValorFatura(data)
   }
 
   async function abrirModalPagamento(item: ItemPlanejamento) {
@@ -1176,7 +1180,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
           <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm p-6 shadow-float modal-sheet sm:modal-center max-h-[85vh] overflow-y-auto">
             <h3 className="text-lg font-bold mb-1">Pagar fatura {labelsCartao[grupoFatura.tipoCartao]}</h3>
             <p className="text-sm text-gray-500 mb-4">
-              {grupoFatura.itens.length} cartão{grupoFatura.itens.length > 1 ? 'ões' : ''} nesta fatura
+              {grupoFatura.itens.length} {grupoFatura.itens.length > 1 ? 'cartões' : 'cartão'} nesta fatura
             </p>
 
             <label className="text-xs font-medium text-gray-600 mb-1.5 block">
