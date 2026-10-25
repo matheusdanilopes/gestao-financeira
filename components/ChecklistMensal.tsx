@@ -1180,7 +1180,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
           <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-sm p-6 shadow-float modal-sheet sm:modal-center max-h-[85vh] overflow-y-auto">
             <h3 className="text-lg font-bold mb-1">Pagar fatura {labelsCartao[grupoFatura.tipoCartao]}</h3>
             <p className="text-sm text-gray-500 mb-4">
-              {grupoFatura.itens.length} cartão{grupoFatura.itens.length > 1 ? 'ões' : ''} nesta fatura
+              {grupoFatura.itens.length} {grupoFatura.itens.length > 1 ? 'cartões' : 'cartão'} nesta fatura
             </p>
 
             <label className="text-xs font-medium text-gray-600 mb-1.5 block">
