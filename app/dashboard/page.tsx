@@ -19,6 +19,7 @@ import DataStatusIndicator from '@/components/DataStatusIndicator'
 import { useRefreshContext } from '@/components/RefreshProvider'
 import { EVENTO_ABRIR_LANCAMENTO } from '@/components/BottomNav'
 import { useCountUp } from '@/lib/useCountUp'
+import { useOnline } from '@/lib/useOnline'
 import type { ComposicaoFaturaDados } from '@/components/ComposicaoFaturaModal'
 import dynamic from 'next/dynamic'
 
@@ -661,6 +662,9 @@ export default function Dashboard() {
   const saldoDec = idxVirgula >= 0 ? saldoTexto.slice(idxVirgula) : ''
 
   const { syncState } = useRefreshContext()
+  // useOnline (e não o isOnline do sync): é igual no servidor e no 1º render
+  // do cliente, então os atalhos não causam erro de hidratação.
+  const online = useOnline()
 
   // Olho do topo: esconde os valores do resumo (saldo, receita, gastos).
   // Preferência por aparelho — fica no localStorage.
@@ -858,7 +862,7 @@ export default function Dashboard() {
 
           {/* ── 1. Atalhos ── */}
           <nav aria-label="Atalhos" className="grid grid-cols-5 gap-1 lg:flex lg:gap-6 pb-1">
-            {ATALHOS.filter(a => isOnline || !a.href).map(({ label, Icon, href }) => {
+            {ATALHOS.filter(a => online || !a.href).map(({ label, Icon, href }) => {
               const conteudo = (
                 <>
                   <span className="w-[52px] h-[52px] min-[380px]:w-14 min-[380px]:h-14 rounded-full bg-primary-50 text-primary-600 flex items-center justify-center">
@@ -1114,10 +1118,10 @@ export default function Dashboard() {
                             key={`${inv.id}-${inv.aportado}`}
                             className={`h-full rounded-full bar-enter ${
                               concluido
-                                ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
+                                ? 'bg-emerald-400'
                                 : pct >= 80
-                                ? 'bg-gradient-to-r from-amber-400 to-amber-500'
-                                : 'bg-gradient-to-r from-violet-400 to-violet-500'
+                                ? 'bg-amber-400'
+                                : 'bg-violet-400'
                             }`}
                             style={{ '--bar-w': `${progresso}%` } as React.CSSProperties}
                           />

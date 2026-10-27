@@ -550,15 +550,15 @@ export default function ImportarPage() {
       />
 
       {/* Seletor de cartão */}
-      <div className="bg-white rounded-2xl shadow-soft p-1 mb-4 flex gap-1">
+      <div className="bg-gray-100 rounded-full p-1 mb-4 flex gap-1">
         {(Object.keys(cartaoLabels) as TipoCartao[]).map(tipo => (
           <button
             key={tipo}
             onClick={() => { setCartaoSelecionado(tipo); setResumo(null); setErro(null) }}
-            className={`flex-1 py-2 px-3 rounded-xl text-sm font-semibold transition-all active:scale-[0.97] ${
+            className={`flex-1 py-2 px-3 rounded-full text-sm font-semibold transition-all active:scale-[0.97] ${
               cartaoSelecionado === tipo
-                ? 'bg-primary-600 text-white shadow-sm'
-                : 'text-gray-500 hover:bg-gray-50'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
             }`}
           >
             {cartaoLabels[tipo]}
@@ -586,7 +586,7 @@ export default function ImportarPage() {
           <div className="flex flex-col items-center gap-4">
             {/* Skeleton animado de progresso */}
             <div className="relative w-14 h-14 flex items-center justify-center">
-              <div className="absolute inset-0 rounded-2xl bg-primary-50 border border-primary-100" />
+              <div className="absolute inset-0 rounded-2xl bg-primary-50" />
               <div className="w-6 h-6 rounded-full border-[3px] border-primary-200 border-t-primary-600 animate-spin" />
             </div>
             <div className="space-y-1.5 text-center">
@@ -618,12 +618,12 @@ export default function ImportarPage() {
 
       {/* Dica de formato */}
       {cartaoSelecionado === 'nubank' ? (
-        <div className="bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3 mb-4 text-xs text-blue-700 space-y-0.5">
+        <div className="bg-blue-50 rounded-2xl px-4 py-3 mb-4 text-xs text-blue-700 space-y-0.5">
           <p className="font-semibold text-blue-800">Como exportar do Nubank</p>
           <p className="text-blue-600">Nubank → Minha conta → Exportar gastos → Período → Baixar CSV</p>
         </div>
       ) : (
-        <div className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 mb-4 text-xs text-amber-700 space-y-1">
+        <div className="bg-amber-50 rounded-2xl px-4 py-3 mb-4 text-xs text-amber-700 space-y-1">
           <p className="font-semibold text-amber-800">Formato esperado para {cartaoLabels[cartaoSelecionado]}</p>
           <p>Colunas: <span className="font-mono bg-amber-100 px-1 rounded">date, title, amount</span> — ou — <span className="font-mono bg-amber-100 px-1 rounded">Data, Descrição, Valor</span></p>
           <p>Parcelas detectadas pelo padrão <span className="font-mono bg-amber-100 px-1 rounded">X/Y</span> na descrição (ex: 2/12).</p>
@@ -642,7 +642,7 @@ export default function ImportarPage() {
         <button
           onClick={dispararGoogleAppsScript}
           disabled={disparandoScript || scriptExecucao?.status === 'running'}
-          className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white py-3 rounded-2xl font-semibold hover:bg-emerald-700 transition-all disabled:opacity-50 active:scale-[0.98] shadow-sm"
+          className="w-full flex items-center justify-center gap-2 bg-primary-600 text-white py-3 rounded-full font-semibold hover:bg-primary-700 transition-all disabled:opacity-50 active:scale-[0.98]"
         >
           <FileSpreadsheet className={`w-4 h-4 ${disparandoScript || scriptExecucao?.status === 'running' ? 'animate-pulse' : ''}`} />
           {disparandoScript
@@ -668,7 +668,7 @@ export default function ImportarPage() {
 
         {/* Rodando */}
         {scriptExecucao?.status === 'running' && (
-          <div className="mt-3 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3 text-sm text-blue-700 flex items-start gap-2.5">
+          <div className="mt-3 bg-blue-50 rounded-2xl px-4 py-3 text-sm text-blue-700 flex items-start gap-2.5">
             <span className="w-4 h-4 shrink-0 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin mt-0.5" />
             <div className="flex-1">
               <span>
@@ -689,7 +689,7 @@ export default function ImportarPage() {
 
         {/* Sucesso total */}
         {cenarioScript?.cenario === 'sucesso-total' && (
-          <div className="mt-3 bg-green-50 border border-green-100 rounded-2xl px-4 py-3 text-sm text-green-700 flex items-center gap-2.5">
+          <div className="mt-3 bg-green-50 rounded-2xl px-4 py-3 text-sm text-green-700 flex items-center gap-2.5">
             <CheckCircle2 className="w-4 h-4 shrink-0 text-green-600" />
             {cenarioScript.mensagem}
           </div>
@@ -705,7 +705,7 @@ export default function ImportarPage() {
 
         {/* E-mail encontrado mas sem CSV anexado — aviso */}
         {cenarioScript?.cenario === 'email-sem-anexo' && (
-          <div className="mt-3 bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 text-sm text-amber-700 flex items-center gap-2.5">
+          <div className="mt-3 bg-amber-50 rounded-2xl px-4 py-3 text-sm text-amber-700 flex items-center gap-2.5">
             <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
             {cenarioScript.mensagem}
           </div>
@@ -713,7 +713,7 @@ export default function ImportarPage() {
 
         {/* Sucesso parcial — alguns arquivos falharam */}
         {cenarioScript?.cenario === 'sucesso-parcial' && (
-          <div className="mt-3 bg-amber-50 border border-amber-200 rounded-2xl p-4">
+          <div className="mt-3 bg-amber-50 rounded-2xl p-4">
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-start gap-2.5">
                 <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
@@ -746,7 +746,7 @@ export default function ImportarPage() {
 
         {/* Erro na execução (Apps Script rodou e falhou) */}
         {cenarioScript?.cenario === 'erro' && (
-          <div className="mt-3 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-sm text-red-700 flex items-center gap-2.5">
+          <div className="mt-3 bg-red-50 rounded-2xl px-4 py-3 text-sm text-red-700 flex items-center gap-2.5">
             <XCircle className="w-4 h-4 shrink-0 text-red-500" />
             {cenarioScript.mensagem}
           </div>
@@ -754,7 +754,7 @@ export default function ImportarPage() {
 
         {/* Erro ao disparar (configuração, token ou rede) — antes de qualquer execução */}
         {scriptErro && (
-          <div className="mt-3 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-sm text-red-700 flex items-center gap-2.5">
+          <div className="mt-3 bg-red-50 rounded-2xl px-4 py-3 text-sm text-red-700 flex items-center gap-2.5">
             <XCircle className="w-4 h-4 shrink-0 text-red-500" />
             {scriptErro}
           </div>
@@ -763,8 +763,8 @@ export default function ImportarPage() {
 
       {/* Erro de importação com causa e ação */}
       {erro && (
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3 mb-4">
-          <div className="w-8 h-8 rounded-xl bg-red-100 border border-red-200 flex items-center justify-center shrink-0 mt-0.5">
+        <div className="bg-red-50 rounded-2xl p-4 flex items-start gap-3 mb-4">
+          <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
             <XCircle className="w-4 h-4 text-red-500" />
           </div>
           <div className="flex-1 min-w-0">
@@ -779,14 +779,14 @@ export default function ImportarPage() {
       <button
         onClick={categorizar}
         disabled={categorizando}
-        className="w-full flex items-center justify-center gap-2 bg-violet-600 text-white py-3 rounded-2xl font-semibold hover:bg-violet-700 transition-all disabled:opacity-50 active:scale-[0.98] shadow-sm mb-4"
+        className="w-full flex items-center justify-center gap-2 bg-primary-600 text-white py-3 rounded-full font-semibold hover:bg-primary-700 transition-all disabled:opacity-50 active:scale-[0.98] mb-4"
       >
         <Sparkles className={`w-4 h-4 ${categorizando ? 'animate-pulse' : ''}`} />
         {categorizando ? 'Categorizando com IA…' : 'Categorizar com IA'}
       </button>
 
       {categorizadoMsg && (
-        <div className="bg-violet-50 border border-violet-200 rounded-2xl px-4 py-3 mb-4 text-sm text-violet-700 text-center font-medium">
+        <div className="bg-violet-50 rounded-2xl px-4 py-3 mb-4 text-sm text-violet-700 text-center font-medium">
           {categorizadoMsg}
         </div>
       )}
@@ -795,7 +795,7 @@ export default function ImportarPage() {
         <div className="bg-white rounded-3xl shadow-soft p-5 space-y-4 mb-4">
           {/* Cabeçalho */}
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-2xl bg-green-50 border border-green-100 flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-full bg-green-50 flex items-center justify-center shrink-0">
               <CheckCircle2 className="w-5 h-5 text-green-600" />
             </div>
             <div>
@@ -810,15 +810,15 @@ export default function ImportarPage() {
               <p className="text-2xl font-bold text-gray-800 num leading-none">{resumo.totalLidas}</p>
               <p className="text-xs text-gray-500 mt-1">Lidas no arquivo</p>
             </div>
-            <div className="bg-green-50 border border-green-100 rounded-2xl p-3 text-center">
+            <div className="bg-green-50 rounded-2xl p-3 text-center">
               <p className="text-2xl font-bold text-green-700 num leading-none">{resumo.novas}</p>
               <p className="text-xs text-gray-500 mt-1">Novas importadas</p>
             </div>
-            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-3 text-center">
+            <div className="bg-blue-50 rounded-2xl p-3 text-center">
               <p className="text-2xl font-bold text-blue-700 num leading-none">{resumo.matheus}</p>
               <p className="text-xs text-gray-500 mt-1">Matheus</p>
             </div>
-            <div className="bg-pink-50 border border-pink-100 rounded-2xl p-3 text-center">
+            <div className="bg-pink-50 rounded-2xl p-3 text-center">
               <p className="text-2xl font-bold text-pink-600 num leading-none">{resumo.jeniffer}</p>
               <p className="text-xs text-gray-500 mt-1">Jeniffer</p>
             </div>
@@ -835,7 +835,7 @@ export default function ImportarPage() {
               <p className="text-xs text-amber-700 font-semibold mb-1.5">Meses reprocessados</p>
               <div className="flex flex-wrap gap-1">
                 {resumo.mesesSobrescritos.map(m => (
-                  <span key={m} className="text-xs bg-amber-50 border border-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+                  <span key={m} className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full font-medium">
                     {m.substring(0, 7)}
                   </span>
                 ))}
@@ -849,7 +849,7 @@ export default function ImportarPage() {
               </p>
               <div className="space-y-1">
                 {resumo.assinaturasAtualizadas.map((a, i) => (
-                  <div key={i} className="flex items-center justify-between bg-amber-50 border border-amber-100 rounded-xl px-3 py-1.5 text-xs">
+                  <div key={i} className="flex items-center justify-between bg-amber-50 rounded-xl px-3 py-1.5 text-xs">
                     <span className="text-amber-800 font-medium truncate">{a.nome}</span>
                     <span className="text-amber-700 num shrink-0 ml-2">
                       {formatBRL(a.valorAnterior)} → {formatBRL(a.valorNovo)}
@@ -877,7 +877,7 @@ export default function ImportarPage() {
                     .replace(/^\w/, c => c.toUpperCase())
                   const temExcesso = stats.totalNoBanco > stats.noCSV
                   return (
-                    <div key={fatura} className={`rounded-2xl p-3 text-xs space-y-2 ${temExcesso ? 'bg-amber-50 border border-amber-200' : 'bg-gray-50 border border-gray-100'}`}>
+                    <div key={fatura} className={`rounded-2xl p-3 text-xs space-y-2 ${temExcesso ? 'bg-amber-50' : 'bg-gray-50 border border-gray-100'}`}>
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-gray-700">{label}</span>
                         {temExcesso
@@ -928,10 +928,10 @@ export default function ImportarPage() {
         </button>
 
         {diagnostico && (
-          <div className={`rounded-2xl p-4 mb-4 ${diagnostico.totalPares > 0 ? 'bg-amber-50 border border-amber-200' : 'bg-green-50 border border-green-100'}`}>
+          <div className={`rounded-2xl p-4 mb-4 ${diagnostico.totalPares > 0 ? 'bg-amber-50' : 'bg-green-50'}`}>
             {diagnostico.totalPares === 0 ? (
               <div className="flex items-center gap-2.5 text-green-700">
-                <div className="w-7 h-7 rounded-xl bg-green-100 border border-green-200 flex items-center justify-center shrink-0">
+                <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center shrink-0">
                   <CheckCircle2 className="w-4 h-4" />
                 </div>
                 <span className="text-sm font-semibold">Nenhuma duplicata histórica detectada</span>
@@ -940,7 +940,7 @@ export default function ImportarPage() {
               <>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-2.5">
-                    <div className="w-7 h-7 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0 mt-0.5">
+                    <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
                       <AlertCircle className="w-4 h-4 text-amber-600" />
                     </div>
                     <div>
@@ -962,7 +962,7 @@ export default function ImportarPage() {
 
                 {/* Resultado da correção */}
                 {resultadoCorrecao && (
-                  <div className={`mt-3 rounded-xl p-3 text-sm flex items-center gap-2.5 ${resultadoCorrecao.removidos >= 0 ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'}`}>
+                  <div className={`mt-3 rounded-xl p-3 text-sm flex items-center gap-2.5 ${resultadoCorrecao.removidos >= 0 ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
                     {resultadoCorrecao.removidos >= 0
                       ? <CheckCircle2 className="w-4 h-4 shrink-0 text-green-600" />
                       : <XCircle className="w-4 h-4 shrink-0 text-red-500" />
@@ -973,7 +973,7 @@ export default function ImportarPage() {
 
                 {/* Confirmação de exclusão */}
                 {pendingModo ? (
-                  <div className="mt-3 bg-red-50 border border-red-200 rounded-2xl p-4 space-y-3">
+                  <div className="mt-3 bg-red-50 rounded-2xl p-4 space-y-3">
                     <p className="text-sm font-bold text-red-800">Confirmar exclusão permanente</p>
                     <p className="text-xs text-red-700 leading-relaxed">
                       {pendingModo === 'conservador'
@@ -985,7 +985,7 @@ export default function ImportarPage() {
                       <button
                         onClick={confirmarCorrecao}
                         disabled={corrigindo}
-                        className="flex-1 flex items-center justify-center gap-1.5 bg-red-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-red-700 transition-all disabled:opacity-50 active:scale-[0.97]"
+                        className="flex-1 flex items-center justify-center gap-1.5 bg-red-600 text-white py-2.5 rounded-full text-sm font-semibold hover:bg-red-700 transition-all disabled:opacity-50 active:scale-[0.97]"
                       >
                         <Trash2 className={`w-3.5 h-3.5 ${corrigindo ? 'animate-pulse' : ''}`} />
                         {corrigindo ? 'Removendo…' : 'Confirmar exclusão'}
@@ -1012,7 +1012,7 @@ export default function ImportarPage() {
                     {diagnostico.faturasDiferentes > 0 && (
                       <button
                         onClick={() => setPendingModo('completo')}
-                        className="flex-1 flex items-center justify-center gap-1.5 bg-red-500 text-white py-2.5 rounded-xl text-xs font-semibold hover:bg-red-600 transition-all active:scale-[0.97]"
+                        className="flex-1 flex items-center justify-center gap-1.5 bg-red-500 text-white py-2.5 rounded-full text-xs font-semibold hover:bg-red-600 transition-all active:scale-[0.97]"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         Tudo
@@ -1066,10 +1066,10 @@ export default function ImportarPage() {
         </button>
 
         {diagnosticoParcelas && (
-          <div className={`rounded-2xl p-4 mb-4 ${diagnosticoParcelas.total > 0 ? 'bg-amber-50 border border-amber-200' : 'bg-green-50 border border-green-100'}`}>
+          <div className={`rounded-2xl p-4 mb-4 ${diagnosticoParcelas.total > 0 ? 'bg-amber-50' : 'bg-green-50'}`}>
             {diagnosticoParcelas.total === 0 ? (
               <div className="flex items-center gap-2.5 text-green-700">
-                <div className="w-7 h-7 rounded-xl bg-green-100 border border-green-200 flex items-center justify-center shrink-0">
+                <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center shrink-0">
                   <CheckCircle2 className="w-4 h-4" />
                 </div>
                 <span className="text-sm font-semibold">Nenhuma transação com parcelamento divergente</span>
@@ -1078,7 +1078,7 @@ export default function ImportarPage() {
               <>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-2.5">
-                    <div className="w-7 h-7 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0 mt-0.5">
+                    <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
                       <AlertCircle className="w-4 h-4 text-amber-600" />
                     </div>
                     <div>
@@ -1099,7 +1099,7 @@ export default function ImportarPage() {
                 </div>
 
                 {resultadoCorrecaoParcelas && (
-                  <div className={`mt-3 rounded-xl p-3 text-sm flex items-center gap-2.5 ${resultadoCorrecaoParcelas.corrigidos >= 0 ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'}`}>
+                  <div className={`mt-3 rounded-xl p-3 text-sm flex items-center gap-2.5 ${resultadoCorrecaoParcelas.corrigidos >= 0 ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
                     {resultadoCorrecaoParcelas.corrigidos >= 0
                       ? <CheckCircle2 className="w-4 h-4 shrink-0 text-green-600" />
                       : <XCircle className="w-4 h-4 shrink-0 text-red-500" />
@@ -1109,7 +1109,7 @@ export default function ImportarPage() {
                 )}
 
                 {confirmarCorrecaoParcelas ? (
-                  <div className="mt-3 bg-red-50 border border-red-200 rounded-2xl p-4 space-y-3">
+                  <div className="mt-3 bg-red-50 rounded-2xl p-4 space-y-3">
                     <p className="text-sm font-bold text-red-800">Confirmar correção</p>
                     <p className="text-xs text-red-700 leading-relaxed">
                       Serão atualizados {diagnosticoParcelas.total} registro(s) de transacoes_nubank (campos parcela_atual/total_parcelas), recalculados a partir da descrição de cada compra. Isso muda o total &ldquo;comprometido&rdquo; e os limites da tela de Parcelamentos.
@@ -1118,7 +1118,7 @@ export default function ImportarPage() {
                       <button
                         onClick={aplicarCorrecaoParcelas}
                         disabled={corrigindoParcelas}
-                        className="flex-1 flex items-center justify-center gap-1.5 bg-red-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-red-700 transition-all disabled:opacity-50 active:scale-[0.97]"
+                        className="flex-1 flex items-center justify-center gap-1.5 bg-red-600 text-white py-2.5 rounded-full text-sm font-semibold hover:bg-red-700 transition-all disabled:opacity-50 active:scale-[0.97]"
                       >
                         <ShieldCheck className={`w-3.5 h-3.5 ${corrigindoParcelas ? 'animate-pulse' : ''}`} />
                         {corrigindoParcelas ? 'Corrigindo…' : 'Confirmar correção'}
@@ -1536,11 +1536,11 @@ export default function ImportarPage() {
                       )}
 
                       {erroLinha?.id === linha.id && (
-                        <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-2 py-1">{erroLinha.mensagem}</p>
+                        <p className="text-xs text-red-600 bg-red-50 rounded-lg px-2 py-1">{erroLinha.mensagem}</p>
                       )}
 
                       {confirmarAcao?.linhaId === linha.id && (
-                        <div className="bg-red-50 border border-red-200 rounded-xl p-2.5 space-y-2">
+                        <div className="bg-red-50 rounded-xl p-2.5 space-y-2">
                           <p className="text-xs text-red-700">
                             Confirma a ação &quot;{acaoDisponivel?.label}&quot;? Essa ação altera dados reais em transações.
                           </p>

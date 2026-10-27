@@ -275,7 +275,7 @@ export default function ChatPage() {
 
             {chat.erro && (
               <div className="flex gap-2.5 items-start pl-10">
-                <div className="flex-1 rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3">
+                <div className="flex-1 rounded-2xl bg-amber-50 dark:bg-amber-900/20 px-4 py-3">
                   <div className="flex items-start gap-2.5">
                     <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                     <div className="min-w-0 flex-1">

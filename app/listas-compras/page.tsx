@@ -129,7 +129,7 @@ function BottomSheetAcoes({
                 <button
                   type="button"
                   onClick={async () => { await handleExcluir(); close() }}
-                  className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold"
+                  className="flex-1 py-2.5 rounded-full bg-red-600 text-white text-sm font-semibold"
                 >
                   Excluir
                 </button>
@@ -161,7 +161,7 @@ function BottomSheetAcoes({
                 <button
                   type="button"
                   onClick={async () => { if (await confirmarRenomear()) close() }}
-                  className="flex-1 py-2.5 rounded-xl bg-primary-600 text-white text-sm font-semibold"
+                  className="flex-1 py-2.5 rounded-full bg-primary-600 text-white text-sm font-semibold"
                 >
                   Salvar
                 </button>
@@ -175,7 +175,7 @@ function BottomSheetAcoes({
                 className="flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-800
                            text-gray-700 dark:text-gray-300 text-sm font-semibold transition-colors active:bg-gray-100 dark:active:bg-gray-700"
               >
-                <div className="w-8 h-8 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
                   <Pencil className="w-4 h-4 text-gray-600 dark:text-gray-300" strokeWidth={1.8} />
                 </div>
                 Renomear
@@ -187,7 +187,7 @@ function BottomSheetAcoes({
                 className="flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-800
                            text-gray-700 dark:text-gray-300 text-sm font-semibold transition-colors active:bg-gray-100 dark:active:bg-gray-700"
               >
-                <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center">
                   {lista.status === 'ativa'
                     ? <Archive className="w-4 h-4 text-amber-600 dark:text-amber-400" strokeWidth={1.8} />
                     : <ArchiveRestore className="w-4 h-4 text-amber-600 dark:text-amber-400" strokeWidth={1.8} />
@@ -202,7 +202,7 @@ function BottomSheetAcoes({
                 className="flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl hover:bg-red-50 dark:hover:bg-red-900/20
                            text-red-600 dark:text-red-400 text-sm font-semibold transition-colors active:bg-red-100 dark:active:bg-red-900/30"
               >
-                <div className="w-8 h-8 rounded-xl bg-red-50 dark:bg-red-900/30 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-red-50 dark:bg-red-900/30 flex items-center justify-center">
                   <Trash2 className="w-4 h-4 text-red-500" strokeWidth={1.8} />
                 </div>
                 Excluir lista
@@ -379,7 +379,7 @@ export default function ListasComprasPage() {
             </>
           ) : ativas.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center mb-4">
+              <div className="w-16 h-16 rounded-full bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center mb-4">
                 <Crown className="w-8 h-8 text-amber-400 dark:text-amber-500" strokeWidth={1.5} />
               </div>
               <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">Nenhuma lista ainda</p>
@@ -408,7 +408,7 @@ export default function ListasComprasPage() {
             </>
           ) : arquivadas.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
+              <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
                 <Archive className="w-8 h-8 text-gray-400 dark:text-gray-500" strokeWidth={1.5} />
               </div>
               <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">Nenhuma lista arquivada</p>

@@ -55,7 +55,7 @@ function CardRegistro({ registro, onExcluir }: { registro: RegistroCompra; onExc
         className="w-full flex items-center gap-4 px-4 py-4 hover:bg-gray-50 transition-colors text-left active:bg-gray-50"
       >
         {/* Ícone */}
-        <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center flex-none">
+        <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center flex-none">
           <ShoppingBasket className="w-5 h-5 text-emerald-600" strokeWidth={1.8} />
         </div>
 
@@ -211,7 +211,7 @@ export default function HistoricoComprasPage() {
       <div className="px-4 pb-4">
         {loading && historico.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center">
               <RefreshCw className="w-5 h-5 text-gray-300 animate-spin" />
             </div>
             <p className="text-sm text-gray-400">Carregando histórico…</p>
@@ -220,7 +220,7 @@ export default function HistoricoComprasPage() {
 
         {error && (
           <div className="flex flex-col items-center justify-center py-12 gap-4 text-center px-8">
-            <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center">
               <RefreshCw className="w-5 h-5 text-red-300" />
             </div>
             <p className="text-sm text-red-500 font-medium leading-relaxed">{error}</p>
@@ -236,7 +236,7 @@ export default function HistoricoComprasPage() {
 
         {!loading && !error && filtrado.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-center px-8 gap-4">
-            <div className="w-16 h-16 rounded-3xl bg-gray-50 flex items-center justify-center">
+            <div className="w-16 h-16 rounded-full bg-gray-50 flex items-center justify-center">
               <Inbox className="w-7 h-7 text-gray-200" strokeWidth={1.5} />
             </div>
             <div>

@@ -20,11 +20,7 @@ export default function EmptyState({
       {/* Moldura do ícone com aro interno suave e leve gradiente — leitura
           premium e consistente entre telas para o estado vazio. */}
       <div
-        className="w-14 h-14 md:w-16 md:h-16 rounded-2xl flex items-center justify-center
-                   bg-gradient-to-b from-gray-50 to-gray-100/70
-                   dark:from-white/[0.06] dark:to-white/[0.02]
-                   ring-1 ring-inset ring-gray-200/70 dark:ring-white/10
-                   shadow-card"
+        className="w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center bg-gray-50 dark:from-white/[0.06] dark:to-white/[0.02] ring-1 ring-inset ring-gray-200/70 dark:ring-white/10 shadow-card"
       >
         <Icon className={`w-6 h-6 md:w-7 md:h-7 ${iconClassName}`} strokeWidth={1.5} />
       </div>

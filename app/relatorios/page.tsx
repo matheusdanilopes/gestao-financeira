@@ -21,12 +21,11 @@ function CardRelatorio({ relatorio }: { relatorio: RelatorioDisponivel }) {
   return (
     <Link
       href={href}
-      className="card-3d flex items-start gap-4 bg-white rounded-3xl shadow-card p-4
-                 border border-gray-100 transition-colors
-                 hover:border-gray-200 hover:shadow-card-hover
+      className="card-3d flex items-start gap-4 bg-white rounded-3xl shadow-soft p-4
+                 transition-colors hover:shadow-card-hover
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
     >
-      <div className={`w-12 h-12 rounded-2xl ${iconBg} flex items-center justify-center shrink-0 shadow-sm`}>
+      <div className={`w-12 h-12 rounded-full ${iconBg} flex items-center justify-center shrink-0`}>
         <Icon className={`w-6 h-6 ${iconColor}`} strokeWidth={1.8} />
       </div>
 

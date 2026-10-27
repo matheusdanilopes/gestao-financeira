@@ -431,7 +431,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
       {/* Resumo */}
       <div className="bg-white rounded-3xl shadow-soft p-4">
         <div className="flex items-center gap-2 mb-3.5">
-          <div className="w-7 h-7 rounded-xl bg-emerald-100 flex items-center justify-center">
+          <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center">
             <TrendingUp className="w-4 h-4 text-emerald-600" />
           </div>
           <span className="font-semibold text-gray-800 text-sm">Resumo de Receitas</span>
@@ -454,7 +454,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
           <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
             <div
               key={Math.round(percentual)}
-              className="h-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 bar-enter"
+              className="h-1.5 rounded-full bg-emerald-500 bar-enter"
               style={{ '--bar-w': `${percentual}%` } as React.CSSProperties}
             />
           </div>
@@ -470,7 +470,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
                 onClick={() => setFiltroStatus(f)}
                 className={`text-xs px-3 py-1 rounded-full font-medium transition-all duration-150 active:scale-95 ${
                   filtroStatus === f
-                    ? 'bg-gray-800 text-white'
+                    ? 'bg-primary-600 text-white'
                     : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                 }`}
               >
@@ -483,7 +483,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
 
       {/* Banner offline */}
       {!isOnline && (
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 flex items-center gap-2">
+        <div className="bg-blue-50 rounded-2xl p-3 flex items-center gap-2">
           <WifiOff className="w-4 h-4 text-blue-600 shrink-0" />
           <p className="text-sm text-blue-700 font-medium">Você está offline — edição desabilitada</p>
         </div>
@@ -499,7 +499,6 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
           }}
           onImport={importarMesAnterior}
           isImporting={importando}
-          importColorClass="bg-primary-600 text-white hover:bg-primary-700"
         />
       )}
 
@@ -507,7 +506,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
       <div className="bg-white rounded-3xl shadow-soft overflow-hidden divide-y divide-gray-100">
         {itensFiltrados.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-14 gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center">
               <TrendingUp className="w-6 h-6 text-emerald-300" strokeWidth={1.5} />
             </div>
             <div className="text-center">
@@ -684,7 +683,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
               <button onClick={() => setModalRecebimento(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600">
                 Cancelar
               </button>
-              <button onClick={salvarRecebimento} className="flex-1 py-3 rounded-xl bg-green-600 text-white font-semibold">
+              <button onClick={salvarRecebimento} className="flex-1 py-3 rounded-full bg-primary-600 text-white font-semibold">
                 Confirmar
               </button>
             </div>
@@ -799,7 +798,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
                 setModalRecebimento(modalHistorico)
                 setFormRecebimento({ valor: '', data_recebimento: format(new Date(), 'yyyy-MM-dd'), observacao: '' })
               }}
-              className="w-full mt-4 py-3 rounded-xl bg-green-600 text-white font-semibold flex items-center justify-center gap-2"
+              className="w-full mt-4 py-3 rounded-full bg-primary-600 text-white font-semibold flex items-center justify-center gap-2"
             >
               <CirclePlus className="w-5 h-5" />
               Novo recebimento
@@ -884,7 +883,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
               <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600">
                 Cancelar
               </button>
-              <button onClick={salvar} className="flex-1 py-3 rounded-xl bg-green-600 text-white font-semibold">
+              <button onClick={salvar} className="flex-1 py-3 rounded-full bg-primary-600 text-white font-semibold">
                 Salvar
               </button>
             </div>
@@ -915,7 +914,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
               <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600">
                 Cancelar
               </button>
-              <button onClick={() => excluir(itemSelecionado.id, aplicarFuturos)} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-semibold">
+              <button onClick={() => excluir(itemSelecionado.id, aplicarFuturos)} className="flex-1 py-3 rounded-full bg-red-500 text-white font-semibold">
                 Excluir
               </button>
             </div>

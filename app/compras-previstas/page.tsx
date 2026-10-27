@@ -220,7 +220,7 @@ export default function ComprasPrevistasPage() {
           )}
 
           {erro && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-start gap-2">
+            <div className="bg-amber-50 rounded-2xl p-3 flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <p className="text-sm text-amber-700 font-medium">{erro}</p>
             </div>
@@ -261,8 +261,8 @@ export default function ComprasPrevistasPage() {
               <div className="grid grid-cols-4 gap-1.5">
                 <button
                   onClick={() => setFiltro('')}
-                  className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
-                    filtro === '' ? 'bg-primary-50 border-primary-200 dark:border-primary-800' : 'bg-white border-gray-100'
+                  className={`rounded-2xl px-2 py-2.5 text-center transition-all duration-200 active:scale-[0.97] ${
+                    filtro === '' ? 'bg-primary-50 border-primary-200 dark:border-primary-800' : 'bg-white shadow-soft'
                   }`}
                 >
                   <p className={`text-[11px] font-medium mb-0.5 ${filtro === '' ? 'text-primary-500 dark:text-primary-400' : 'text-gray-400'}`}>Total</p>
@@ -276,7 +276,7 @@ export default function ComprasPrevistasPage() {
                     <button
                       key={r}
                       onClick={() => setFiltro(ativo ? '' : r)}
-                      className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${ativo ? est.ativo : 'bg-white border-gray-100'}`}
+                      className={`rounded-2xl px-2 py-2.5 text-center transition-all duration-200 active:scale-[0.97] ${ativo ? est.ativo : 'bg-white shadow-soft'}`}
                     >
                       <p className={`text-[11px] font-medium mb-0.5 ${ativo ? est.label : 'text-gray-400'}`}>{r}</p>
                       <p className={`text-xs font-bold num leading-tight ${ativo ? est.valor : 'text-gray-700'}`}>{formatBRL(totais.porResp[r].pendente)}</p>
@@ -331,7 +331,7 @@ export default function ComprasPrevistasPage() {
 
               <button
                 onClick={() => setModal({ tipo: 'form', reserva: null })}
-                className="w-full bg-primary-600 text-white py-3.5 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm"
+                className="w-full bg-primary-600 text-white py-3.5 rounded-full font-semibold flex items-center justify-center gap-2 hover:bg-primary-700 transition-all active:scale-[0.97]"
               >
                 <Plus className="w-5 h-5" />
                 Adicionar compra prevista
@@ -680,14 +680,14 @@ function FormCompraPrevista({ reserva, responsavelPadrao, mesRef, onClose, onSal
               {reserva.recorrente && reserva.mes_fim !== mesRef && (
                 <button
                   onClick={() => onEncerrar(reserva)}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl border border-amber-200 bg-amber-50 text-amber-700 text-sm font-semibold transition-all active:scale-[0.98]"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl bg-amber-50 text-amber-700 text-sm font-semibold transition-all active:scale-[0.98]"
                 >
                   <StopCircle className="w-4 h-4" /> Encerrar
                 </button>
               )}
               <button
                 onClick={() => onExcluir(reserva)}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl border border-red-200 bg-red-50 text-red-600 text-sm font-semibold transition-all active:scale-[0.98]"
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl bg-red-50 text-red-600 text-sm font-semibold transition-all active:scale-[0.98]"
               >
                 <Trash2 className="w-4 h-4" /> Excluir
               </button>
@@ -699,7 +699,7 @@ function FormCompraPrevista({ reserva, responsavelPadrao, mesRef, onClose, onSal
             <button
               onClick={salvar}
               disabled={salvando}
-              className="flex-1 py-3 rounded-2xl bg-primary-600 text-white font-semibold hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm disabled:opacity-50"
+              className="flex-1 py-3 rounded-full bg-primary-600 text-white font-semibold hover:bg-primary-700 transition-all active:scale-[0.97] disabled:opacity-50"
             >
               {salvando ? 'Salvando…' : 'Salvar'}
             </button>

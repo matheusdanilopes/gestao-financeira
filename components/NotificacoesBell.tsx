@@ -474,7 +474,7 @@ export default memo(function NotificacoesBell({ tone = 'default' }: { tone?: 'de
               <Bell className="w-4 h-4 text-gray-500 dark:text-gray-400" />
               <span className="font-semibold text-gray-800 dark:text-gray-100 text-sm">Notificações</span>
               {naoLidas > 0 && (
-                <span className="px-2 py-0.5 bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 text-[11px] font-bold rounded-full border border-red-100 dark:border-red-900/50">
+                <span className="px-2 py-0.5 bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 text-[11px] font-bold rounded-full">
                   {naoLidas} nova{naoLidas > 1 ? 's' : ''}
                 </span>
               )}

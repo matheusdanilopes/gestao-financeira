@@ -263,7 +263,7 @@ export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }:
 
         <div className="relative z-0 p-4 pb-8">
           {/* Total card */}
-          <div className="bg-primary-50 dark:bg-primary-900/20 rounded-2xl p-4 mb-4 border border-primary-100 dark:border-primary-900/40">
+          <div className="bg-primary-50 dark:bg-primary-900/20 rounded-2xl p-4 mb-4">
             <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-0.5">Valor total</p>
             <p className="text-2xl font-bold text-primary-700 dark:text-primary-300 num tracking-tight">
               {formatBRL(itensFiltrados.length === itens.length ? dados.valor : valorFiltrado)}

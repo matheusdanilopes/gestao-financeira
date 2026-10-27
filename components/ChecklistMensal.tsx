@@ -22,7 +22,7 @@ import {
 import { CARTAO_TX_POR_TIPO } from '@/lib/faturaEfetiva'
 import { somarValorFatura } from '@/lib/composicaoFatura'
 import { cartaoLabelsDePlanejamento, type CartaoLabels } from '@/lib/cartaoLabels'
-import { RESPONSAVEIS, estiloResponsavel } from '@/lib/responsavelStyle'
+import { RESPONSAVEIS } from '@/lib/responsavelStyle'
 import {
   atualizarRegistrosFuturos,
   excluirRegistrosFuturos,
@@ -764,9 +764,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
         disabled={!isOnline}
       >
         <div
-          className={`px-4 py-3 transition-[background-color,color,opacity] duration-200 border-l-4 ${
-            estiloResponsavel(item.responsavel).borda
-          } ${item.pago ? 'bg-gray-50/60 dark:bg-white/[0.04]' : 'bg-white'} ${isOnline ? 'cursor-pointer active:bg-gray-50 dark:active:bg-white/[0.06] hover:bg-gray-50/50 dark:hover:bg-white/[0.06]' : ''} ${exitingIds.has(item.id) ? 'item-exit' : newItemId === item.id ? 'item-new' : ''} ${highlightId === item.id ? 'state-highlight' : ''}`}
+          className={`px-4 py-3 transition-[background-color,color,opacity] duration-200 ${item.pago ? 'bg-gray-50/60 dark:bg-white/[0.04]' : 'bg-white'} ${isOnline ? 'cursor-pointer active:bg-gray-50 dark:active:bg-white/[0.06] hover:bg-gray-50/50 dark:hover:bg-white/[0.06]' : ''} ${exitingIds.has(item.id) ? 'item-exit' : newItemId === item.id ? 'item-new' : ''} ${highlightId === item.id ? 'state-highlight' : ''}`}
           onClick={() => { if (isOnline) abrirModalEditar(item) }}
           role={isOnline ? 'button' : undefined}
           tabIndex={isOnline ? 0 : undefined}
@@ -876,7 +874,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
     return (
       <div key={`cartao-${groupKey}`}>
         <div
-          className={`px-4 py-3 transition-colors duration-200 border-l-4 border-l-purple-400 ${todosPagos ? 'bg-gray-50/60 dark:bg-white/[0.04]' : 'bg-white'} cursor-pointer active:bg-gray-50 dark:active:bg-white/[0.06] hover:bg-gray-50/50 dark:hover:bg-white/[0.06]`}
+          className={`px-4 py-3 transition-colors duration-200 ${todosPagos ? 'bg-gray-50/60 dark:bg-white/[0.04]' : 'bg-white'} cursor-pointer active:bg-gray-50 dark:active:bg-white/[0.06] hover:bg-gray-50/50 dark:hover:bg-white/[0.06]`}
           onClick={alternarExpansao}
           role="button"
           tabIndex={0}
@@ -965,7 +963,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
         return (
           <div className="space-y-1.5">
             {alertas.hoje.length > 0 && (
-              <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-2xl px-3 py-2.5">
+              <div className="flex items-start gap-2 bg-red-50 rounded-2xl px-3 py-2.5">
                 <Bell className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
                 <div className="min-w-0">
                   <p className="text-xs font-semibold text-red-700">Vence hoje!</p>
@@ -974,7 +972,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
               </div>
             )}
             {alertas.amanha.length > 0 && (
-              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-2xl px-3 py-2.5">
+              <div className="flex items-start gap-2 bg-amber-50 rounded-2xl px-3 py-2.5">
                 <Bell className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                 <div className="min-w-0">
                   <p className="text-xs font-semibold text-amber-700">Vence amanhã</p>
@@ -989,7 +987,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
       {/* Resumo + Filtros */}
       <div className="bg-white rounded-3xl shadow-soft p-4">
         <div className="flex items-center gap-2 mb-3.5">
-          <div className="w-7 h-7 rounded-xl bg-red-100 flex items-center justify-center">
+          <div className="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center">
             <Receipt className="w-4 h-4 text-red-600" />
           </div>
           <span className="font-semibold text-gray-800 text-sm">Resumo de Despesas</span>
@@ -1023,7 +1021,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
           <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
             <div
               key={Math.round(percentualPago)}
-              className="h-1.5 rounded-full bg-gradient-to-r from-primary-500 to-primary-600 bar-enter"
+              className="h-1.5 rounded-full bg-primary-500 bar-enter"
               style={{ '--bar-w': `${percentualPago}%` } as React.CSSProperties}
             />
           </div>
@@ -1040,7 +1038,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
                 onClick={() => setFiltroStatus(f)}
                 className={`text-xs px-3 py-1 rounded-full font-medium transition-all duration-150 active:scale-95 ${
                   isActive
-                    ? 'bg-gray-800 text-white'
+                    ? 'bg-primary-600 text-white'
                     : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                 }`}
               >
@@ -1053,7 +1051,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
 
       {/* Banner offline */}
       {!isOnline && (
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 flex items-center gap-2">
+        <div className="bg-blue-50 rounded-2xl p-3 flex items-center gap-2">
           <WifiOff className="w-4 h-4 text-blue-600 shrink-0" />
           <p className="text-sm text-blue-700 font-medium">Você está offline — edição desabilitada</p>
         </div>
@@ -1069,7 +1067,6 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
             setModalAberto('adicionar')
           }}
           onImport={abrirModalImportar}
-          importColorClass="bg-orange-500 text-white hover:bg-orange-600"
         />
       )}
 
@@ -1077,7 +1074,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
       {gruposPorCategoria.length === 0 ? (
         <div className="bg-white rounded-3xl shadow-soft">
           <div className="flex flex-col items-center justify-center py-14 gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center">
               <Receipt className="w-6 h-6 text-red-300" strokeWidth={1.5} />
             </div>
             <div className="text-center">
@@ -1166,7 +1163,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
             />
             <div className="flex gap-3">
               <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]">Cancelar</button>
-              <button onClick={() => marcarComoPago(itemSelecionado.id)} className="flex-1 py-3 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 transition-all active:scale-[0.97] shadow-sm">Confirmar</button>
+              <button onClick={() => marcarComoPago(itemSelecionado.id)} className="flex-1 py-3 rounded-full bg-primary-600 text-white font-semibold hover:bg-primary-700 transition-all active:scale-[0.97]">Confirmar</button>
             </div>
           </div>
         </div>
@@ -1240,7 +1237,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
             />
             <div className="flex gap-3">
               <button onClick={() => { setModalAberto(null); setGrupoFatura(null); setTotalFatura('') }} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]">Cancelar</button>
-              <button onClick={confirmarPagarFatura} className="flex-1 py-3 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 transition-all active:scale-[0.97] shadow-sm">Confirmar</button>
+              <button onClick={confirmarPagarFatura} className="flex-1 py-3 rounded-full bg-primary-600 text-white font-semibold hover:bg-primary-700 transition-all active:scale-[0.97]">Confirmar</button>
             </div>
           </div>
         </div>
@@ -1332,7 +1329,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]">Cancelar</button>
-              <button onClick={modalAberto === 'adicionar' ? adicionarItem : editarItem} className="flex-1 py-3 rounded-xl bg-primary-600 text-white font-semibold hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm">Salvar</button>
+              <button onClick={modalAberto === 'adicionar' ? adicionarItem : editarItem} className="flex-1 py-3 rounded-full bg-primary-600 text-white font-semibold hover:bg-primary-700 transition-all active:scale-[0.97]">Salvar</button>
             </div>
           </div>
         </div>
@@ -1349,7 +1346,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
               Origem: <span className="font-semibold capitalize">{previewImport.mesOrigem}</span>
             </p>
 
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 text-xs text-amber-800 space-y-1">
+            <div className="bg-amber-50 rounded-xl p-3 mb-3 text-xs text-amber-800 space-y-1">
               <p className="font-semibold">⚠️ Atenção — esta ação irá:</p>
               <p>• Apagar todos os itens de despesa do mês atual</p>
               <p>• Copiar {previewImport.itens.length} item(ns) do mês anterior</p>
@@ -1386,7 +1383,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
               <button
                 onClick={confirmarImportarMesAnterior}
                 disabled={importandoMesAnterior || previewImport.itens.length === 0}
-                className="flex-1 py-2.5 rounded-xl bg-orange-500 text-white font-semibold hover:bg-orange-600 disabled:opacity-50 transition-all active:scale-[0.97] shadow-sm"
+                className="flex-1 py-2.5 rounded-full bg-primary-600 text-white font-semibold hover:bg-primary-700 disabled:opacity-50 transition-all active:scale-[0.97]"
               >
                 {importandoMesAnterior ? 'Importando…' : 'Confirmar'}
               </button>
@@ -1416,7 +1413,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
             </label>
             <div className="flex gap-3">
               <button onClick={() => setModalAberto(null)} className="flex-1 py-3 rounded-xl bg-gray-100 font-medium text-gray-600 hover:bg-gray-200 transition-colors active:scale-[0.97]">Cancelar</button>
-              <button onClick={() => excluirItem(itemSelecionado.id, aplicarFuturos)} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 transition-all active:scale-[0.97] shadow-sm">Excluir</button>
+              <button onClick={() => excluirItem(itemSelecionado.id, aplicarFuturos)} className="flex-1 py-3 rounded-full bg-red-500 text-white font-semibold hover:bg-red-600 transition-all active:scale-[0.97]">Excluir</button>
             </div>
           </div>
         </div>
@@ -1437,7 +1434,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
                 Valor registrado: {formatBRL(itemSelecionado.valor_real)}
               </p>
             )}
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-5">
+            <p className="text-xs text-amber-700 bg-amber-50 rounded-xl px-3 py-2 mb-5">
               O item voltará para o status de pendente e o valor registrado será apagado.
             </p>
             <div className="flex gap-3">

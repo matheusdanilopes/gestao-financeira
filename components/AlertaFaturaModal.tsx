@@ -101,7 +101,7 @@ export default function AlertaFaturaModal({ aberto, dados, onFechar }: Props) {
         >
           <div className="p-5">
             <div className="flex items-center gap-2.5 mb-4">
-              <div className="w-9 h-9 rounded-xl bg-primary-50 dark:bg-primary-900/30 flex items-center justify-center shrink-0">
+              <div className="w-9 h-9 rounded-full bg-primary-50 dark:bg-primary-900/30 flex items-center justify-center shrink-0">
                 <CreditCard className="w-4.5 h-4.5 text-primary-600 dark:text-primary-400" />
               </div>
               <div>
@@ -221,7 +221,7 @@ export default function AlertaFaturaModal({ aberto, dados, onFechar }: Props) {
             <button
               onClick={onFechar}
               autoFocus
-              className="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-2xl active:scale-[0.98] transition-all"
+              className="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-full active:scale-[0.98] transition-all"
             >
               OK
             </button>

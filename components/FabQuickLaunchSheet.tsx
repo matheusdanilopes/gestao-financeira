@@ -155,7 +155,7 @@ function QuickAddWishlist({
       <button
         type="submit"
         disabled={salvando || !nome.trim()}
-        className="flex items-center justify-center gap-2 py-3.5 rounded-2xl
+        className="flex items-center justify-center gap-2 py-3.5 rounded-full
                    bg-primary-600 text-white font-semibold text-sm
                    disabled:opacity-50 active:scale-[0.98] transition-all duration-150
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
@@ -276,10 +276,10 @@ function QuickAddMercado({
       <button
         type="submit"
         disabled={salvando || !nome.trim()}
-        className="flex items-center justify-center gap-2 py-3.5 rounded-2xl
-                   bg-green-600 text-white font-semibold text-sm
+        className="flex items-center justify-center gap-2 py-3.5 rounded-full
+                   bg-primary-600 text-white font-semibold text-sm
                    disabled:opacity-50 active:scale-[0.98] transition-all duration-150
-                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400 focus-visible:ring-offset-2"
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
       >
         {salvando
           ? <Loader2 className="w-4 h-4 animate-spin" />
@@ -342,8 +342,7 @@ function WishlistMethodSelector({
                      active:scale-[0.98] transition-all duration-150
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
         >
-          <div className="w-10 h-10 rounded-xl bg-violet-100 dark:bg-violet-900/60 shadow-sm
-                          flex items-center justify-center flex-none">
+          <div className="w-10 h-10 rounded-full bg-violet-100 dark:bg-violet-900/60 shadow-sm flex items-center justify-center flex-none">
             <Sparkles className="w-5 h-5 text-violet-600 dark:text-violet-400" />
           </div>
           <div className="text-left">
@@ -462,7 +461,7 @@ function WishlistAICapture({
         </div>
 
         <div className="flex flex-col items-center py-2 gap-2">
-          <div className="w-14 h-14 rounded-2xl bg-violet-50 dark:bg-violet-950/40 flex items-center justify-center">
+          <div className="w-14 h-14 rounded-full bg-violet-50 dark:bg-violet-950/40 flex items-center justify-center">
             <Sparkles className="w-7 h-7 text-violet-500" />
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400 text-center leading-relaxed">
@@ -555,7 +554,7 @@ function WishlistAICapture({
         <button
           type="button"
           onClick={() => { onClose(); router.push('/wishlist?ordem=mais-novo') }}
-          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl
+          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full
                      bg-primary-600 text-white font-semibold text-sm
                      active:scale-[0.98] transition-all duration-150"
         >
@@ -602,7 +601,7 @@ function WishlistAICapture({
         <button
           type="button"
           onClick={onFallback}
-          className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl
+          className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-full
                      bg-primary-600 text-white font-semibold text-sm
                      active:scale-[0.98] transition-all duration-150"
         >
@@ -622,10 +621,6 @@ const OPCOES = [
     targetView: 'wishlist-method' as View | null,
     href:       null as string | null,
     label:      'Wishlist',
-    emoji:      '💖',
-    bg:         'bg-pink-50  dark:bg-pink-950/40',
-    cor:        'text-pink-700 dark:text-pink-400',
-    ring:       'ring-pink-100 dark:ring-pink-900/50',
     Icon:       Heart,
   },
   {
@@ -633,10 +628,6 @@ const OPCOES = [
     targetView: 'mercado' as View | null,
     href:       null as string | null,
     label:      'Lista de Mercado',
-    emoji:      '🛒',
-    bg:         'bg-green-50   dark:bg-green-950/40',
-    cor:        'text-green-700  dark:text-green-400',
-    ring:       'ring-green-100  dark:ring-green-900/50',
     Icon:       ShoppingBasket,
   },
   {
@@ -647,10 +638,6 @@ const OPCOES = [
     targetView: null as View | null,
     href:       '/chat?voz=1' as string | null,
     label:      'Perguntar por Voz',
-    emoji:      '🎙️',
-    bg:         'bg-violet-50  dark:bg-violet-950/40',
-    cor:        'text-violet-700 dark:text-violet-400',
-    ring:       'ring-violet-100 dark:ring-violet-900/50',
     Icon:       Mic,
   },
 ]
@@ -741,20 +728,20 @@ export default function FabQuickLaunchSheet({ onClose }: { onClose: () => void }
                   </button>
                 </div>
 
-                <div className={`grid gap-3 ${opcoesVisiveis.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                  {opcoesVisiveis.map(({ id, targetView, href, label, emoji, bg, cor, ring }) => (
+                {/* Mesmo formato dos atalhos do Dashboard: círculo + rótulo */}
+                <div className="flex justify-around gap-2 py-2">
+                  {opcoesVisiveis.map(({ id, targetView, href, label, Icon }) => (
                     <button
                       key={id}
                       type="button"
                       onClick={() => { if (href) { onClose(); router.push(href) } else if (targetView) setView(targetView) }}
-                      className={`flex flex-col items-center gap-3 p-5 rounded-2xl
-                                  ${bg} ring-1 ${ring}
-                                  active:scale-[0.96] transition-all duration-150 ease-spring
-                                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
-                                  tap-scale`}
+                      className="flex flex-col items-center gap-2 w-24 rounded-2xl tap-scale
+                                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                     >
-                      <span className="text-3xl leading-none select-none">{emoji}</span>
-                      <span className={`text-xs font-bold ${cor} text-center leading-tight`}>
+                      <span className="w-14 h-14 rounded-full bg-primary-50 text-primary-600 flex items-center justify-center">
+                        <Icon className="w-6 h-6" strokeWidth={2} />
+                      </span>
+                      <span className="text-xs font-semibold text-gray-700 text-center leading-tight">
                         {label}
                       </span>
                     </button>

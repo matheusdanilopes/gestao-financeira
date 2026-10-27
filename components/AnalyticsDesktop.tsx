@@ -282,7 +282,7 @@ export default function AnalyticsDesktop() {
 
           {/* Logo / Title */}
           <div className="px-5 py-4 border-b border-gray-100 dark:border-white/[0.06] flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+            <div className="w-8 h-8 rounded-full bg-primary-500 flex items-center justify-center flex-shrink-0 shadow-sm">
               <BarChart3 className="w-4 h-4 text-white" />
             </div>
             <span className="font-bold text-sm text-gray-800 dark:text-gray-100 tracking-tight">Analytics</span>

@@ -100,7 +100,7 @@ export default function RelatorioDadosIAPage() {
     >
       <section className="bg-white rounded-3xl shadow-soft p-4 space-y-3">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-primary-50 flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 rounded-full bg-primary-50 flex items-center justify-center shrink-0">
             <Sparkles className="w-4 h-4 text-primary-600" strokeWidth={1.8} />
           </div>
           <h2 className="font-bold text-gray-900 tracking-tight flex-1">O que levar para a IA</h2>
@@ -168,7 +168,7 @@ export default function RelatorioDadosIAPage() {
 
       <section className="bg-white rounded-3xl shadow-soft p-4 space-y-3">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 rounded-full bg-violet-50 flex items-center justify-center shrink-0">
             <FileText className="w-4 h-4 text-violet-600" strokeWidth={1.8} />
           </div>
           <h2 className="font-bold text-gray-900 tracking-tight">Perguntas prontas</h2>

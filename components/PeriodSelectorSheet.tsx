@@ -239,10 +239,10 @@ export default function PeriodSelectorSheet({
       </button>
       <button
         onClick={handleConfirm}
-        className="flex-1 py-3 rounded-2xl bg-primary-600 hover:bg-primary-500
+        className="flex-1 py-3 rounded-full bg-primary-600 hover:bg-primary-500
                    text-white font-semibold text-sm
                    active:scale-[0.97] transition-all ease-spring duration-150
-                   shadow-sm hover:shadow-card-md"
+                  "
       >
         Confirmar
       </button>

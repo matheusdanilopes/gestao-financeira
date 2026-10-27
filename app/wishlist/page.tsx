@@ -20,8 +20,8 @@ import PageHeader, { PAGE_HEADER_ACTION, PAGE_HEADER_PILL } from '@/components/P
 
 const PRIORIDADE = {
   alta:  { label: 'Alta',  bg: 'bg-red-50',   text: 'text-red-600',   dot: 'bg-red-400',   borderClass: 'border-l-red-400' },
-  media: { label: 'Média', bg: 'bg-amber-50', text: 'text-amber-600', dot: 'bg-amber-400', borderClass: 'border-l-amber-400' },
-  baixa: { label: 'Baixa', bg: 'bg-gray-100', text: 'text-gray-500',  dot: 'bg-slate-400', borderClass: 'border-l-slate-300 dark:border-l-slate-600' },
+  media: { label: 'Média', bg: 'bg-amber-50', text: 'text-amber-600', dot: 'bg-amber-400' },
+  baixa: { label: 'Baixa', bg: 'bg-gray-100', text: 'text-gray-500',  dot: 'bg-slate-400' },
 } as const
 
 type Prioridade = keyof typeof PRIORIDADE
@@ -533,7 +533,7 @@ function ModalWishlist({
                   Cancelar
                 </button>
                 <button type="submit" disabled={!form.nome.trim() || salvando}
-                  className="flex-1 py-3.5 rounded-2xl bg-primary-600 text-white text-sm font-semibold disabled:opacity-50 hover:bg-primary-700 transition-colors active:scale-[0.97]">
+                  className="flex-1 py-3.5 rounded-full bg-primary-600 text-white text-sm font-semibold disabled:opacity-50 hover:bg-primary-700 transition-colors active:scale-[0.97]">
                   {salvando ? 'Salvando…' : 'Salvar'}
                 </button>
               </div>
@@ -644,7 +644,7 @@ function WishlistCard({
     <SwipeableItem onDelete={() => onExcluir(item.id)} requireConfirmation>
       <div
         id={`wishlist-item-${item.id}`}
-        className={`rounded-2xl shadow-soft overflow-hidden bg-white border-l-4 ${cfg.borderClass}${highlighted ? ' animate-wishlist-highlight' : ''}${isExiting ? ' card-realize-exit' : ''}`}
+        className={`rounded-2xl shadow-soft overflow-hidden bg-white${highlighted ? ' animate-wishlist-highlight' : ''}${isExiting ? ' card-realize-exit' : ''}`}
       >
         {/* Clickable card body */}
         <button
@@ -1392,7 +1392,7 @@ function WishlistContent() {
       <div className="px-4 pt-3">
         {(aba === 'ativos' ? ativosFiltrados : historicoDis).length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-16 h-16 rounded-3xl bg-pink-50 flex items-center justify-center mb-4">
+            <div className="w-16 h-16 rounded-full bg-pink-50 flex items-center justify-center mb-4">
               <Heart className="w-7 h-7 text-pink-300" strokeWidth={1.5} />
             </div>
             <p className="text-sm font-semibold text-gray-700 mb-1.5">
@@ -1411,7 +1411,7 @@ function WishlistContent() {
               <button
                 type="button"
                 onClick={() => { setItemEditando(null); setModalAberto(true) }}
-                className="mt-5 flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-primary-600 text-white text-sm font-semibold
+                className="mt-5 flex items-center gap-2 px-4 py-2.5 rounded-full bg-primary-600 text-white text-sm font-semibold
                            hover:bg-primary-700 transition-colors active:scale-[0.97]"
               >
                 <Plus className="w-4 h-4" strokeWidth={2.5} />

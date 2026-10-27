@@ -173,7 +173,7 @@ export default function LimitesCategorias({ mesAtual, cartao1Nome = 'Cartão 1',
   return (
     <div className="bg-white rounded-3xl shadow-soft p-4">
       <div className="flex items-center gap-2 mb-3">
-        <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center">
           <Target className="w-4 h-4 text-amber-600" />
         </div>
         <h2 className="text-base font-semibold text-gray-800">Limites de Orçamento</h2>

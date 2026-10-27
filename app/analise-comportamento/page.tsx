@@ -70,7 +70,7 @@ function PainelPedido({
       {!compacto && (
         <div className="space-y-3">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-violet-100 flex items-center justify-center shrink-0">
+            <div className="w-11 h-11 rounded-full bg-violet-100 flex items-center justify-center shrink-0">
               <Brain className="w-5 h-5 text-violet-600" strokeWidth={1.8} />
             </div>
             <div>
@@ -160,11 +160,7 @@ function PainelPedido({
         type="button"
         onClick={onAnalisar}
         disabled={ocupado}
-        className="w-full py-3.5 rounded-2xl font-semibold text-sm text-white
-                   bg-gradient-to-r from-violet-600 to-primary-600 shadow-sm hover:shadow-card-md
-                   flex items-center justify-center gap-2 transition-all duration-150 ease-spring
-                   active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed
-                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-violet-400"
+        className="w-full py-3.5 rounded-full font-semibold text-sm text-white bg-primary-600 flex items-center justify-center gap-2 transition-all duration-150 ease-spring active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-400"
       >
         {ocupado
           ? <><Loader2 className="w-4 h-4 animate-spin" /> Analisando…</>
@@ -183,7 +179,7 @@ function Progresso({ etapa, segundos }: { etapa: number; segundos: number }) {
   return (
     <section className="bg-white rounded-3xl shadow-soft p-4 space-y-3" aria-live="polite">
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
+        <div className="w-9 h-9 rounded-full bg-violet-50 flex items-center justify-center shrink-0">
           <Brain className="w-4 h-4 text-violet-600 animate-pulse" strokeWidth={1.8} />
         </div>
         <h2 className="font-bold text-gray-900 tracking-tight flex-1">Analisando…</h2>
@@ -355,7 +351,7 @@ export default function AnaliseComportamentoPage() {
         {analisando && <Progresso etapa={etapa} segundos={segundos} />}
 
         {fase === 'erro' && erro && (
-          <div className="bg-red-50 border border-red-100 rounded-3xl p-4 flex gap-3" role="alert">
+          <div className="bg-red-50 rounded-3xl p-4 flex gap-3" role="alert">
             <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" strokeWidth={2} />
             <div className="space-y-0.5">
               <p className="text-xs font-semibold text-red-600">A análise não foi concluída</p>
@@ -384,7 +380,7 @@ export default function AnaliseComportamentoPage() {
         {!analisando && ultima && (
           <>
             {diasDesde(ultima.geradaEm) >= DIAS_ANALISE_ANTIGA && !mostrarPedido && (
-              <div className="bg-amber-50 border border-amber-200 rounded-3xl p-3.5 flex gap-3">
+              <div className="bg-amber-50 rounded-3xl p-3.5 flex gap-3">
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" strokeWidth={2} />
                 <p className="text-xs text-amber-700 leading-snug">
                   Esta análise tem {diasDesde(ultima.geradaEm)} dias — seus dados mudaram desde então. Toque em
@@ -405,8 +401,8 @@ export default function AnaliseComportamentoPage() {
                 type="button"
                 onClick={baixarPdf}
                 disabled={exportando}
-                className="flex-1 py-3 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2
-                           bg-red-600 text-white hover:bg-red-700 shadow-sm transition-all duration-150 ease-spring
+                className="flex-1 py-3 rounded-full font-semibold text-sm flex items-center justify-center gap-2
+                           bg-red-600 text-white hover:bg-red-700 transition-all duration-150 ease-spring
                            active:scale-[0.97] disabled:opacity-50"
               >
                 <FileDown className={`w-4 h-4 ${exportando ? 'animate-pulse' : ''}`} />
@@ -415,9 +411,7 @@ export default function AnaliseComportamentoPage() {
               <button
                 type="button"
                 onClick={copiar}
-                className="flex-1 py-3 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2
-                           bg-primary-50 text-primary-700 hover:bg-primary-100 border border-primary-100
-                           transition-all duration-150 ease-spring active:scale-[0.97]"
+                className="flex-1 py-3 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 bg-primary-50 text-primary-700 hover:bg-primary-100 transition-all duration-150 ease-spring active:scale-[0.97]"
               >
                 {copiado ? <><Check className="w-4 h-4" /> Copiado!</> : <><Copy className="w-4 h-4" /> Copiar texto</>}
               </button>

@@ -161,9 +161,7 @@ function BottomSheetPreco({
                 <button
                   type="button"
                   onClick={() => setCameraAberta(true)}
-                  className="w-full flex items-center justify-center gap-2 py-3 mb-4 rounded-2xl
-                             border border-dashed border-primary-200 bg-primary-50 text-primary-600
-                             active:bg-primary-100 transition-colors active:scale-[0.99]"
+                  className="w-full flex items-center justify-center gap-2 py-3 mb-4 rounded-2xl border-dashed bg-primary-50 text-primary-600 active:bg-primary-100 transition-colors active:scale-[0.99]"
                 >
                   <Camera className="w-4 h-4" strokeWidth={2} />
                   <span className="text-sm font-semibold">Ler preço com câmera</span>
@@ -186,7 +184,7 @@ function BottomSheetPreco({
                   Cancelar
                 </button>
                 <button type="submit"
-                  className="flex-1 py-3.5 rounded-2xl bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 transition-colors active:scale-[0.97]">
+                  className="flex-1 py-3.5 rounded-full bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 transition-colors active:scale-[0.97]">
                   Confirmar
                 </button>
               </div>
@@ -261,7 +259,7 @@ function BottomSheetConfirmarCompra({
             <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5" />
 
             <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-2xl bg-green-50 flex items-center justify-center flex-none">
+              <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center flex-none">
                 <Check className="w-5 h-5 text-green-500" strokeWidth={2.5} />
               </div>
               <div className="min-w-0">
@@ -278,8 +276,7 @@ function BottomSheetConfirmarCompra({
                   type="button"
                   onClick={() => setQtd(q => Math.max(1, q - 1))}
                   disabled={qtd <= 1}
-                  className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-600
-                             hover:bg-gray-200 disabled:opacity-30 transition-colors active:scale-90"
+                  className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 disabled:opacity-30 transition-colors active:scale-90"
                 >
                   <Minus className="w-5 h-5" strokeWidth={2.5} />
                 </button>
@@ -287,8 +284,7 @@ function BottomSheetConfirmarCompra({
                 <button
                   type="button"
                   onClick={() => setQtd(q => q + 1)}
-                  className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-600
-                             hover:bg-gray-200 transition-colors active:scale-90"
+                  className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors active:scale-90"
                 >
                   <Plus className="w-5 h-5" strokeWidth={2.5} />
                 </button>
@@ -316,9 +312,7 @@ function BottomSheetConfirmarCompra({
                 <button
                   type="button"
                   onClick={() => setCameraAberta(true)}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl
-                             border border-dashed border-green-200 bg-green-50 text-green-700
-                             active:bg-green-100 transition-colors active:scale-[0.99]"
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border-dashed bg-green-50 text-green-700 active:bg-green-100 transition-colors active:scale-[0.99]"
                 >
                   <Camera className="w-4 h-4" strokeWidth={2} />
                   <span className="text-sm font-semibold">Ler preço com câmera</span>
@@ -328,7 +322,7 @@ function BottomSheetConfirmarCompra({
 
             {/* Subtotal */}
             {subtotal != null && (
-              <div className="mb-4 px-4 py-3.5 rounded-2xl bg-green-50 border border-green-100 flex items-center justify-between">
+              <div className="mb-4 px-4 py-3.5 rounded-2xl bg-green-50 flex items-center justify-between">
                 <span className="text-sm text-green-700 font-semibold">Total do item</span>
                 <span className="text-lg font-bold text-green-700 num">{formatBRL(subtotal)}</span>
               </div>
@@ -346,8 +340,8 @@ function BottomSheetConfirmarCompra({
               <button
                 type="button"
                 onClick={() => { onConfirmar(qtd, precoNum); onClose() }}
-                className="flex-1 py-3.5 rounded-2xl bg-green-500 text-white text-sm font-semibold
-                           hover:bg-green-600 transition-colors active:scale-[0.97] flex items-center justify-center gap-2"
+                className="flex-1 py-3.5 rounded-full bg-primary-600 text-white text-sm font-semibold
+                           hover:bg-primary-700 transition-colors active:scale-[0.97] flex items-center justify-center gap-2"
               >
                 <Check className="w-4 h-4" strokeWidth={2.5} />
                 Comprado
@@ -422,7 +416,7 @@ function BottomSheetFinalizarCompra({
           <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5" />
 
           <div className="flex items-center gap-3 mb-5">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center flex-none">
+            <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center flex-none">
               <ShoppingBasket className="w-5 h-5 text-emerald-600" strokeWidth={1.8} />
             </div>
             <div>
@@ -488,8 +482,8 @@ function BottomSheetFinalizarCompra({
               type="button"
               disabled={!valido || salvando}
               onClick={() => valido && onFinalizar(valorNum)}
-              className="flex-1 py-3.5 rounded-2xl bg-emerald-500 text-white text-sm font-semibold
-                         hover:bg-emerald-600 disabled:opacity-50 transition-colors active:scale-[0.97]
+              className="flex-1 py-3.5 rounded-full bg-primary-600 text-white text-sm font-semibold
+                         hover:bg-primary-700 disabled:opacity-50 transition-colors active:scale-[0.97]
                          flex items-center justify-center gap-2"
             >
               {salvando ? (
@@ -546,7 +540,7 @@ function BottomSheetPendingOps({
           <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5" />
 
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center flex-none">
+            <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center flex-none">
               <RefreshCw className="w-5 h-5 text-amber-500" strokeWidth={2} />
             </div>
             <div>
@@ -713,8 +707,7 @@ function ItemRow({
             type="button"
             onClick={() => onAlterarQtd(item.id, -1)}
             disabled={item.quantidade <= 1}
-            className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center
-                       text-gray-600 hover:bg-gray-200 disabled:opacity-30 transition-colors active:scale-90"
+            className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 disabled:opacity-30 transition-colors active:scale-90"
             aria-label="Diminuir quantidade"
           >
             <Minus className="w-3 h-3" strokeWidth={2.5} />
@@ -725,8 +718,7 @@ function ItemRow({
           <button
             type="button"
             onClick={() => onAlterarQtd(item.id, +1)}
-            className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center
-                       text-gray-600 hover:bg-gray-200 transition-colors active:scale-90"
+            className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors active:scale-90"
             aria-label="Aumentar quantidade"
           >
             <Plus className="w-3 h-3" strokeWidth={2.5} />

@@ -55,7 +55,7 @@ function ShareRecebidoContent() {
 
   if (isErro) {
     return (
-      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-violet-950 via-indigo-950 to-slate-950 px-6">
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-violet-950 px-6">
         <div className="flex flex-col items-center gap-8 text-white text-center">
           <div className="w-24 h-24 rounded-3xl bg-red-500/15 border border-red-500/30 flex items-center justify-center">
             <AlertCircle className="w-11 h-11 text-red-400" strokeWidth={1.5} />
@@ -76,7 +76,7 @@ function ShareRecebidoContent() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-violet-950 via-indigo-950 to-slate-950 px-6">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-violet-950 px-6">
       <div className="flex flex-col items-center gap-8 text-white text-center">
         <div className="relative">
           <div className="w-24 h-24 rounded-3xl bg-emerald-500/15 border border-emerald-400/40 flex items-center justify-center animate-in zoom-in duration-500">
@@ -101,7 +101,7 @@ export default function ShareRecebidoPage() {
   return (
     <Suspense
       fallback={
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-violet-950 via-indigo-950 to-slate-950">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-violet-950">
           <div className="w-14 h-14 rounded-2xl bg-white/8 flex items-center justify-center">
             <Loader2 className="w-7 h-7 text-violet-400 animate-spin" />
           </div>

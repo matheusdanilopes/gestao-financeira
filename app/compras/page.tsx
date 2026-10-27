@@ -115,18 +115,19 @@ const CARTAO_LABEL: Record<string, string> = {
 
 function getCartaoColors(val: string, labels: Record<string, string>) {
   const label = (labels[val] || val).toLowerCase()
-  if (label.includes('picpay'))  return { border: 'border-l-green-500',  chip: 'bg-green-500 text-white' }
-  if (label.includes('conjunto')) return { border: 'border-l-pink-400',   chip: 'bg-pink-400 text-white' }
+  if (label.includes('picpay'))  return { avatar: 'bg-green-50 text-green-700',   chip: 'bg-green-500 text-white' }
+  if (label.includes('conjunto')) return { avatar: 'bg-pink-50 text-pink-700',     chip: 'bg-pink-400 text-white' }
   if (label.includes('jeniffer') || label.includes('jennifer'))
-                                  return { border: 'border-l-violet-500', chip: 'bg-violet-500 text-white' }
+                                  return { avatar: 'bg-violet-50 text-violet-700', chip: 'bg-violet-500 text-white' }
   if (label.includes('nubank') || val === 'nubank')
-                                  return { border: 'border-l-blue-500',   chip: 'bg-blue-500 text-white' }
-  return { border: 'border-l-gray-200', chip: 'bg-gray-600 text-white' }
+                                  return { avatar: 'bg-blue-50 text-blue-700',     chip: 'bg-blue-500 text-white' }
+  return { avatar: 'bg-gray-100 text-gray-600', chip: 'bg-gray-600 text-white' }
 }
 
-function getCartaoBorderColor(cartao: string | undefined, labels: Record<string, string>): string {
-  if (!cartao) return 'border-l-gray-200'
-  return getCartaoColors(cartao, labels).border
+// Círculo à esquerda de cada compra (inicial do nome), tingido pela cor do cartão.
+function getCartaoAvatarClass(cartao: string | undefined, labels: Record<string, string>): string {
+  if (!cartao) return 'bg-gray-100 text-gray-600'
+  return getCartaoColors(cartao, labels).avatar
 }
 
 
@@ -665,10 +666,10 @@ export default function ComprasPage() {
       </PageHeader>
 
       {/* Filtros: acompanha o tema do app (claro/escuro) em vez de ficar sempre escuro */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-transparent shadow-card dark:shadow-none rounded-2xl p-3 mb-3 space-y-2.5">
+      <div className="bg-white rounded-3xl shadow-soft p-3 mb-3 space-y-2.5">
         {/* Tab chips + botão Filtros */}
         <div className="flex items-center gap-2">
-          <div className="flex gap-1 flex-1 min-w-0">
+          <div className="flex gap-1 flex-1 min-w-0 bg-gray-100 rounded-full p-1">
             {([
               ['', 'Todos'],
               ['nubank', cartaoLabels.nubank],
@@ -678,9 +679,9 @@ export default function ComprasPage() {
               <button
                 key={val}
                 onClick={() => setFiltroCartao(val as '' | 'nubank' | 'cartao1' | 'cartao2')}
-                className={`flex-1 min-w-0 py-1.5 text-[11px] font-semibold rounded-xl transition-all active:scale-95 truncate ${
+                className={`flex-1 min-w-0 py-1.5 text-[11px] font-semibold rounded-full transition-all active:scale-95 truncate ${
                   filtroCartao === val
-                    ? 'bg-primary-600 text-white shadow-sm dark:bg-white dark:text-gray-900'
+                    ? 'bg-white text-gray-900 shadow-sm'
                     : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
                 }`}
               >
@@ -690,7 +691,7 @@ export default function ComprasPage() {
           </div>
           <button
             onClick={() => setFiltrosExpandidos(v => !v)}
-            className={`shrink-0 flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-[11px] font-semibold transition-all active:scale-[0.97] ${
+            className={`shrink-0 flex items-center gap-1.5 py-2 px-3 rounded-full text-[11px] font-semibold transition-all active:scale-[0.97] ${
               filtrosAtivos
                 ? 'bg-primary-50 text-primary-700 dark:bg-primary-500/30 dark:text-primary-300'
                 : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
@@ -799,10 +800,10 @@ export default function ComprasPage() {
       <div className="flex flex-col gap-1.5 mb-3">
         <button
           onClick={() => setFiltroResponsavel('')}
-          className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
+          className={`rounded-2xl px-2 py-2.5 text-center transition-all duration-200 active:scale-[0.97] ${
             filtroResponsavel === ''
               ? 'bg-primary-50 border-primary-200'
-              : 'bg-white border-gray-100'
+              : 'bg-white shadow-soft'
           }`}
         >
           <p className={`text-[11px] font-medium mb-0.5 ${filtroResponsavel === '' ? 'text-primary-500' : 'text-gray-400'}`}>Total</p>
@@ -812,10 +813,10 @@ export default function ComprasPage() {
         <div className="grid grid-cols-3 gap-1.5">
           <button
             onClick={() => setFiltroResponsavel(filtroResponsavel === 'Matheus' ? '' : 'Matheus')}
-            className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
+            className={`rounded-2xl px-2 py-2.5 text-center transition-all duration-200 active:scale-[0.97] ${
               filtroResponsavel === 'Matheus'
                 ? 'bg-blue-50 border-blue-200'
-                : 'bg-white border-gray-100'
+                : 'bg-white shadow-soft'
             }`}
           >
             <p className={`text-[11px] font-medium mb-0.5 ${filtroResponsavel === 'Matheus' ? 'text-blue-500' : 'text-gray-400'}`}>Matheus</p>
@@ -824,10 +825,10 @@ export default function ComprasPage() {
           </button>
           <button
             onClick={() => setFiltroResponsavel(filtroResponsavel === 'Jeniffer' ? '' : 'Jeniffer')}
-            className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
+            className={`rounded-2xl px-2 py-2.5 text-center transition-all duration-200 active:scale-[0.97] ${
               filtroResponsavel === 'Jeniffer'
                 ? 'bg-pink-50 border-pink-200'
-                : 'bg-white border-gray-100'
+                : 'bg-white shadow-soft'
             }`}
           >
             <p className={`text-[11px] font-medium mb-0.5 ${filtroResponsavel === 'Jeniffer' ? 'text-pink-500' : 'text-gray-400'}`}>Jeniffer</p>
@@ -836,10 +837,10 @@ export default function ComprasPage() {
           </button>
           <button
             onClick={() => setFiltroResponsavel(filtroResponsavel === 'Conjunto' ? '' : 'Conjunto')}
-            className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
+            className={`rounded-2xl px-2 py-2.5 text-center transition-all duration-200 active:scale-[0.97] ${
               filtroResponsavel === 'Conjunto'
                 ? 'bg-purple-50 border-purple-200'
-                : 'bg-white border-gray-100'
+                : 'bg-white shadow-soft'
             }`}
           >
             <p className={`text-[11px] font-medium mb-0.5 ${filtroResponsavel === 'Conjunto' ? 'text-purple-500' : 'text-gray-400'}`}>Conjunto</p>
@@ -851,7 +852,7 @@ export default function ComprasPage() {
 
       {/* Banner de contexto de importação */}
       {importTs && firstImportedHash && (
-        <div className="bg-green-50 border border-green-200 rounded-2xl p-3 mb-3 flex items-center gap-2">
+        <div className="bg-green-50 rounded-2xl p-3 mb-3 flex items-center gap-2">
           <ShoppingBag className="w-4 h-4 text-green-600 shrink-0" />
           <p className="text-sm text-green-700 font-medium flex-1">Compras recém-importadas destacadas abaixo</p>
           <button
@@ -865,7 +866,7 @@ export default function ComprasPage() {
 
       {/* Banner de offline */}
       {!isOnline && (
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 mb-3 flex items-center gap-2">
+        <div className="bg-blue-50 rounded-2xl p-3 mb-3 flex items-center gap-2">
           <WifiOff className="w-4 h-4 text-blue-600 shrink-0" />
           <p className="text-sm text-blue-700 font-medium">Você está offline — edição desabilitada</p>
         </div>
@@ -873,7 +874,7 @@ export default function ComprasPage() {
 
       {/* Banner de fatura fechada */}
       {faturaFechada && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 mb-3 flex items-center gap-2">
+        <div className="bg-amber-50 rounded-2xl p-3 mb-3 flex items-center gap-2">
           <Lock className="w-4 h-4 text-amber-600 shrink-0" />
           <p className="text-sm text-amber-700 font-medium">Fatura paga — inclusão de novas compras bloqueada</p>
         </div>
@@ -891,7 +892,7 @@ export default function ComprasPage() {
               </div>
               {/* Linhas skeleton */}
               {[1, 2, 3].map(i => (
-                <div key={i} className="px-4 py-3.5 flex items-center gap-3 border-l-4 border-l-gray-100 border-b border-gray-50 last:border-b-0">
+                <div key={i} className="px-4 py-3.5 flex items-center gap-3 border-b border-gray-50 last:border-b-0">
                   <div className="flex-1 space-y-2">
                     <div className="h-3.5 bg-gray-100 rounded-xl" style={{ width: `${55 + (i * 13) % 30}%` }} />
                     <div className="h-2.5 bg-gray-50 rounded-xl w-2/5" />
@@ -916,8 +917,8 @@ export default function ComprasPage() {
             const subtotal = somarValorFatura(items)
             return (
               <div key={dateKey} className="bg-white rounded-3xl shadow-soft overflow-hidden list-item-enter" style={{ animationDelay: `${Math.min(groupIdx, 3) * 40}ms` }}>
-                <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
-                  <span className="text-xs font-semibold text-gray-500 capitalize">
+                <div className="flex items-center justify-between px-4 pt-3.5 pb-1">
+                  <span className="inline-block text-xs font-semibold text-gray-500 first-letter:uppercase">
                     {formatarCabecalhoData(dateKey)}
                   </span>
                   <span className="text-xs font-semibold text-gray-700 num">
@@ -933,11 +934,11 @@ export default function ComprasPage() {
                     const canInteract = !faturaFechada && isOnline
                     const isEstorno   = c.status === 'ESTORNO'
                     const isEstornado = c.status === 'ESTORNADO'
-                    const borderColor = isEstorno
-                      ? 'border-l-orange-400'
+                    const avatarClass = isEstorno
+                      ? 'bg-orange-50 text-orange-600'
                       : isEstornado
-                        ? 'border-l-gray-300'
-                        : getCartaoBorderColor(c.cartao, cartaoLabels)
+                        ? 'bg-gray-100 text-gray-400'
+                        : getCartaoAvatarClass(c.cartao, cartaoLabels)
                     const compraNova = isCompraNova(c)
                     const isFirst = c.hash_linha === firstImportedHash
                     const isHighlighted = highlightIds.includes(c.id)
@@ -960,7 +961,7 @@ export default function ComprasPage() {
                         <div
                           id={`compra-${c.id}`}
                           ref={isFirst ? firstImportedRef : undefined}
-                          className={`px-4 py-3.5 flex items-center gap-3 border-l-4 ${borderColor} transition-colors ${isHighlighted ? ' animate-fatura-highlight' : ''}${isProvavelDuplicata ? ' ring-2 ring-amber-400 ring-offset-1 ring-offset-white dark:ring-offset-gray-900' : ''} ${
+                          className={`px-4 py-3.5 flex items-center gap-3 transition-colors ${isHighlighted ? ' animate-fatura-highlight' : ''}${isProvavelDuplicata ? ' ring-2 ring-amber-400 ring-offset-1 ring-offset-white dark:ring-offset-gray-900' : ''} ${
                             isEstornado
                               ? 'bg-gray-50/80 dark:bg-gray-800/50 opacity-60'
                               : isEstorno
@@ -975,6 +976,12 @@ export default function ComprasPage() {
                           tabIndex={canInteract ? 0 : undefined}
                           onKeyDown={canInteract ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirEditar(c) } } : undefined}
                         >
+                          <span
+                            className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-sm font-bold ${avatarClass}`}
+                            aria-hidden="true"
+                          >
+                            {(nomeExibido(c).trim()[0] ?? '•').toUpperCase()}
+                          </span>
                           <div className="flex-1 min-w-0">
                             <p className={`text-[15px] font-semibold leading-snug truncate ${isEstornado ? 'line-through text-gray-400' : 'text-gray-900'}`}>
                               {nomeExibido(c)}
@@ -1105,13 +1112,13 @@ export default function ComprasPage() {
                       key={r}
                       type="button"
                       onClick={() => setFormEditar(f => ({ ...f, responsavel: r }))}
-                      className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all active:scale-[0.97] border ${
+                      className={`flex-1 py-2.5 rounded-full text-sm font-semibold transition-all active:scale-[0.97] border ${
                         formEditar.responsavel === r
                           ? r === 'Matheus'
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                            ? 'bg-blue-600 text-white border-blue-600'
                             : r === 'Jeniffer'
-                              ? 'bg-pink-500 text-white border-pink-500 shadow-sm'
-                              : 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                              ? 'bg-pink-500 text-white border-pink-500'
+                              : 'bg-primary-600 text-white border-purple-600'
                           : 'bg-white text-gray-500 border-gray-200'
                       }`}
                     >
@@ -1154,7 +1161,7 @@ export default function ComprasPage() {
               <button
                 onClick={salvarEdicao}
                 disabled={salvando}
-                className="flex-1 py-3 rounded-2xl bg-primary-600 text-white font-semibold hover:bg-primary-700 disabled:opacity-50 transition-all active:scale-[0.97] shadow-sm"
+                className="flex-1 py-3 rounded-full bg-primary-600 text-white font-semibold hover:bg-primary-700 disabled:opacity-50 transition-all active:scale-[0.97]"
               >
                 {salvando ? 'Salvando…' : 'Salvar'}
               </button>
@@ -1189,7 +1196,7 @@ export default function ComprasPage() {
               <button
                 onClick={confirmarExclusao}
                 disabled={salvando}
-                className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-semibold hover:bg-red-600 disabled:opacity-50 transition-all active:scale-[0.97] shadow-sm"
+                className="flex-1 py-3 rounded-full bg-red-500 text-white font-semibold hover:bg-red-600 disabled:opacity-50 transition-all active:scale-[0.97]"
               >
                 {salvando ? 'Excluindo…' : 'Excluir'}
               </button>

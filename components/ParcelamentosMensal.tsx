@@ -608,7 +608,7 @@ export default function ParcelamentosMensal({ mesAtual, onResumo }: Props) {
 
       <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-soft dark:border-gray-800 p-4">
         <div className="flex items-center gap-2 mb-3">
-          <div className="w-8 h-8 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
             <ClipboardList className="w-4 h-4 text-gray-600 dark:text-gray-300" />
           </div>
           <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">Parcelamentos do mês</h2>

@@ -162,8 +162,8 @@ function BottomSheetPrecoPago({
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 rounded-2xl bg-green-500 text-white text-sm font-semibold
-                             hover:bg-green-600 active:scale-95 transition-all flex items-center justify-center gap-2"
+                  className="flex-1 py-3 rounded-full bg-primary-600 text-white text-sm font-semibold
+                             hover:bg-primary-700 active:scale-95 transition-all flex items-center justify-center gap-2"
                 >
                   <Check className="w-4 h-4" strokeWidth={2.5} />
                   Confirmar
@@ -269,8 +269,7 @@ function BottomSheetEditarItem({
                   type="button"
                   onClick={() => setQuantidade(q => Math.max(1, q - 1))}
                   disabled={quantidade <= 1}
-                  className="w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center
-                             text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 transition-colors"
+                  className="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 transition-colors"
                 >
                   <Minus className="w-4 h-4" strokeWidth={2.5} />
                 </button>
@@ -278,8 +277,7 @@ function BottomSheetEditarItem({
                 <button
                   type="button"
                   onClick={() => setQuantidade(q => q + 1)}
-                  className="w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center
-                             text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                  className="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                 >
                   <Plus className="w-4 h-4" strokeWidth={2.5} />
                 </button>
@@ -388,7 +386,7 @@ function BottomSheetEditarItem({
             <button
               type="button"
               onClick={() => { handleSalvar(); close() }}
-              className="w-full py-3 rounded-2xl bg-primary-600 text-white text-sm font-semibold
+              className="w-full py-3 rounded-full bg-primary-600 text-white text-sm font-semibold
                          active:scale-95 transition-all"
             >
               Salvar
@@ -397,9 +395,7 @@ function BottomSheetEditarItem({
               type="button"
               onClick={async () => { if (await handleMoverWishlist()) close() }}
               disabled={loading}
-              className="w-full py-3 rounded-2xl border border-pink-200 dark:border-pink-800 bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400
-                         text-sm font-semibold flex items-center justify-center gap-2
-                         hover:bg-pink-100 dark:hover:bg-pink-900/30 active:scale-95 transition-all disabled:opacity-40"
+              className="w-full py-3 rounded-2xl bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-pink-100 dark:hover:bg-pink-900/30 active:scale-95 transition-all disabled:opacity-40"
             >
               <Heart className="w-4 h-4" strokeWidth={1.8} />
               Mover p/ Wishlist
@@ -408,9 +404,7 @@ function BottomSheetEditarItem({
               type="button"
               onClick={async () => { if (await handleExcluir()) close() }}
               disabled={loading}
-              className="w-full py-3 rounded-2xl border border-red-100 dark:border-red-900 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400
-                         text-sm font-semibold flex items-center justify-center gap-2
-                         hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-95 transition-all disabled:opacity-40"
+              className="w-full py-3 rounded-2xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-95 transition-all disabled:opacity-40"
             >
               <Trash2 className="w-4 h-4" strokeWidth={1.8} />
               Excluir item
@@ -521,8 +515,7 @@ function ItemRow({
             type="button"
             onClick={() => onAlterarQtd(item.id, -1)}
             disabled={item.quantidade <= 1}
-            className="w-9 h-9 rounded-md bg-gray-100 dark:bg-gray-800 flex items-center justify-center
-                       text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 transition-colors active:scale-90"
+            className="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 transition-colors active:scale-90"
             aria-label="Diminuir quantidade"
           >
             <Minus className="w-3.5 h-3.5" strokeWidth={2.5} />
@@ -533,8 +526,7 @@ function ItemRow({
           <button
             type="button"
             onClick={() => onAlterarQtd(item.id, +1)}
-            className="w-9 h-9 rounded-md bg-gray-100 dark:bg-gray-800 flex items-center justify-center
-                       text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors active:scale-90"
+            className="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors active:scale-90"
             aria-label="Aumentar quantidade"
           >
             <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
@@ -749,7 +741,7 @@ function SublistaCard({
         <Link href={`/listas-compras/${sublista.id}`} className="absolute inset-0 z-0" aria-label={sublista.nome} />
         <div className="relative z-10 p-4 pr-12 pointer-events-none">
           <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-900/40 flex items-center justify-center flex-none">
+            <div className="w-9 h-9 rounded-full bg-amber-50 dark:bg-amber-900/40 flex items-center justify-center flex-none">
               <Crown className="w-4 h-4 text-amber-500 dark:text-amber-400" strokeWidth={1.8} />
             </div>
             <div className="flex-1 min-w-0">
@@ -854,7 +846,7 @@ function BottomSheetAcoesSublista({
                 <button
                   type="button"
                   onClick={async () => { await onExcluir(sublista.id); close() }}
-                  className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold"
+                  className="flex-1 py-2.5 rounded-full bg-red-600 text-white text-sm font-semibold"
                 >
                   Excluir
                 </button>
@@ -900,7 +892,7 @@ function BottomSheetAcoesSublista({
                 className="flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-800
                            text-gray-700 dark:text-gray-300 text-sm font-semibold transition-colors active:bg-gray-100 dark:active:bg-gray-700"
               >
-                <div className="w-8 h-8 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
                   <Pencil className="w-4 h-4 text-gray-600 dark:text-gray-300" strokeWidth={1.8} />
                 </div>
                 Renomear
@@ -911,7 +903,7 @@ function BottomSheetAcoesSublista({
                 className="flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl hover:bg-red-50 dark:hover:bg-red-900/20
                            text-red-600 dark:text-red-400 text-sm font-semibold transition-colors active:bg-red-100 dark:active:bg-red-900/30"
               >
-                <div className="w-8 h-8 rounded-xl bg-red-50 dark:bg-red-900/30 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-red-50 dark:bg-red-900/30 flex items-center justify-center">
                   <Trash2 className="w-4 h-4 text-red-500" strokeWidth={1.8} />
                 </div>
                 Excluir sublista
@@ -1123,7 +1115,7 @@ export default function DetalheListaPage() {
       {/* Estado vazio total */}
       {!isLoading && isEmpty && !canAddSublistas && (
         <div className="flex flex-col items-center justify-center py-16 text-center px-8">
-          <div className="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center mb-4">
+          <div className="w-16 h-16 rounded-full bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center mb-4">
             <Crown className="w-8 h-8 text-amber-400 dark:text-amber-500" strokeWidth={1.5} />
           </div>
           <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">Lista vazia</p>

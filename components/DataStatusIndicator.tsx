@@ -53,12 +53,7 @@ export default memo(function DataStatusIndicator({ status, lastUpdated, onRefres
 
   if (status === 'offline') {
     return (
-      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold
-                       text-red-600 dark:text-red-400
-                       bg-red-50 dark:bg-red-950/40
-                       px-2.5 py-1 rounded-full
-                       border border-red-100 dark:border-red-800/60
-                       shadow-sm">
+      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 px-2.5 py-1 rounded-full shadow-sm">
         <WifiOff className="w-3 h-3 shrink-0" aria-hidden="true" />
         <span>Sem conexão</span>
       </span>

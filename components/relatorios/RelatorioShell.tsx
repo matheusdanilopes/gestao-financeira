@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { LucideIcon } from 'lucide-react'
 import {
-  ArrowLeft, FileDown, FileSpreadsheet, RefreshCw, AlertTriangle,
+  FileDown, FileSpreadsheet, RefreshCw, AlertTriangle,
   Sparkles, Check, FileJson, FileText,
 } from 'lucide-react'
 import EmptyState from '@/components/EmptyState'
@@ -182,7 +182,7 @@ export default function RelatorioShell({
         )}
 
         {status === 'ready' && avisos && avisos.length > 0 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-3xl p-4 flex gap-3">
+          <div className="bg-amber-50 rounded-3xl p-4 flex gap-3">
             <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" strokeWidth={2} />
             <div className="space-y-0.5">
               <p className="text-xs font-semibold text-amber-800">
@@ -229,13 +229,7 @@ export default function RelatorioShell({
             type="button"
             onClick={copiarParaIA}
             disabled={desabilitado}
-            className="flex-1 py-3 rounded-2xl font-semibold text-sm
-                       flex items-center justify-center gap-2
-                       bg-primary-50 text-primary-700 hover:bg-primary-100
-                       border border-primary-100
-                       transition-all duration-150 ease-spring active:scale-[0.97]
-                       disabled:opacity-50 disabled:cursor-not-allowed
-                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-400"
+            className="flex-1 py-3 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 bg-primary-50 text-primary-700 hover:bg-primary-100 transition-all duration-150 ease-spring active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-400"
           >
             {copiado
               ? <><Check className="w-4 h-4 shrink-0" /> Copiado!</>

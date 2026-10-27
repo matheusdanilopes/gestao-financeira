@@ -110,7 +110,7 @@ export default function SimuladorParcelamento({ relatorio }: Props) {
         aria-expanded={expandido}
         className="w-full flex items-center gap-2 p-4 text-left"
       >
-        <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
+        <div className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
           <Calculator className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
         </div>
         <div className="flex-1 min-w-0">
