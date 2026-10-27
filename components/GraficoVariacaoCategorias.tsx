@@ -285,7 +285,7 @@ export default function GraficoVariacaoCategorias({
 
   if (carregando && !dados) {
     return (
-      <div className="h-64 animate-pulse flex flex-col justify-center gap-3 px-2">
+      <div className="h-64 skeleton-group flex flex-col justify-center gap-3 px-2">
         {[70, 55, 82, 40, 62, 34].map((w, i) => (
           <div key={i} className="flex items-center gap-2">
             <div className="h-2.5 w-16 rounded-full bg-gray-100 dark:bg-white/[0.05]" />
@@ -343,7 +343,7 @@ export default function GraficoVariacaoCategorias({
       {/* Resumo do período */}
       <div className="flex items-end justify-between mb-4 gap-3">
         <div>
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-0.5">
+          <p className="text-[11px] font-semibold text-gray-500 mb-0.5">
             Total da fatura
           </p>
           <p className="text-xl font-bold text-gray-700 num leading-none">
@@ -351,7 +351,7 @@ export default function GraficoVariacaoCategorias({
           </p>
         </div>
         <div className="text-right">
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-0.5">
+          <p className="text-[11px] font-semibold text-gray-500 mb-0.5">
             vs. referência
           </p>
           <p

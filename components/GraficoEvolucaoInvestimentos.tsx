@@ -289,7 +289,7 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual, ativo = true }:
 
   if (carregando) {
     return (
-      <div className="h-56 animate-pulse flex flex-col justify-between pt-3 pb-2 px-2">
+      <div className="h-56 skeleton-group flex flex-col justify-between pt-3 pb-2 px-2">
         <div className="flex flex-col justify-between h-[calc(100%-28px)]">
           {[0,1,2,3,4].map(i => (
             <div key={i} className="flex items-center gap-2">
@@ -359,15 +359,15 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual, ativo = true }:
 
       <div className="grid grid-cols-3 gap-3 mt-3">
         <div className="text-center">
-          <p className="text-[10px] text-gray-400 uppercase tracking-wide">Aportado</p>
+          <p className="text-[11px] text-gray-500">Aportado</p>
           <p className="text-sm font-bold text-violet-600 num">{formatBRL(totalAportado)}</p>
         </div>
         <div className="text-center">
-          <p className="text-[10px] text-gray-400 uppercase tracking-wide">Meta do período</p>
+          <p className="text-[11px] text-gray-500">Meta do período</p>
           <p className="text-sm font-bold text-teal-700 num">{formatBRL(totalMeta)}</p>
         </div>
         <div className="text-center">
-          <p className="text-[10px] text-gray-400 uppercase tracking-wide">Da meta</p>
+          <p className="text-[11px] text-gray-500">Da meta</p>
           <p className={`text-sm font-bold num ${
             pctMeta === null ? 'text-gray-400'
               : pctMeta >= 100 ? 'text-emerald-600'

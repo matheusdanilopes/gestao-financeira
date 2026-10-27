@@ -44,7 +44,7 @@ export function ChatEmptyState({
   return (
     <section className="flex flex-col items-center [justify-content:safe_center] min-h-full gap-3.5 page-enter">
       <div className="relative shrink-0">
-        <div className="w-14 h-14 [@media(max-height:680px)]:w-11 [@media(max-height:680px)]:h-11 rounded-2xl bg-gradient-to-br from-violet-500 via-indigo-500 to-indigo-600 flex items-center justify-center shadow-float transition-all">
+        <div className="w-14 h-14 [@media(max-height:680px)]:w-11 [@media(max-height:680px)]:h-11 rounded-full bg-primary-600 flex items-center justify-center shadow-card-md transition-all">
           <Sparkles className="w-7 h-7 [@media(max-height:680px)]:w-5 [@media(max-height:680px)]:h-5 text-white" />
         </div>
         <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-400 border-2 border-gray-50 dark:border-gray-900 rounded-full" />
@@ -59,7 +59,7 @@ export function ChatEmptyState({
         </p>
       </div>
 
-      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 [@media(max-height:600px)]:hidden">
+      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/20 [@media(max-height:600px)]:hidden">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
         <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">Conectado aos seus dados</span>
       </div>
@@ -70,9 +70,9 @@ export function ChatEmptyState({
             key={rotulo}
             onClick={() => onEscolher(pergunta)}
             title={rotulo}
-            className="card-3d text-left bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-3 py-2.5 shadow-card group transition-colors duration-200 hover:border-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 dark:hover:border-primary-700"
+            className="card-3d text-left bg-white dark:bg-gray-800 rounded-2xl px-3 py-2.5 shadow-soft group transition-colors duration-200 hover:border-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 dark:hover:border-primary-700"
           >
-            <span className="w-6 h-6 rounded-lg bg-primary-50 dark:bg-primary-900/40 flex items-center justify-center mb-1.5 transition-colors duration-200 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/60 text-[13px] leading-none">
+            <span className="w-6 h-6 rounded-full bg-primary-50 dark:bg-primary-900/40 flex items-center justify-center mb-1.5 transition-colors duration-200 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/60 text-[13px] leading-none">
               <Icone className="w-3.5 h-3.5 text-primary-500 dark:text-primary-400" />
             </span>
             <span className="block text-[11px] text-gray-600 dark:text-gray-400 leading-snug font-medium line-clamp-2">

@@ -104,16 +104,16 @@ export default function TelegramVinculo() {
   }
 
   if (carregando) {
-    return <div className="h-16 rounded-2xl bg-gray-100 animate-pulse" />
+    return <div className="h-16 rounded-2xl skeleton" />
   }
 
   if (!estado) {
-    return <p className="text-xs px-3.5 py-2.5 rounded-2xl border bg-red-50 border-red-100 text-red-600">{erro}</p>
+    return <p className="text-xs px-3.5 py-2.5 rounded-2xl bg-red-50 text-red-600">{erro}</p>
   }
 
   if (estado.migracaoPendente) {
     return (
-      <p className="text-xs px-3.5 py-2.5 rounded-2xl border bg-amber-50 border-amber-100 text-amber-700 leading-relaxed">
+      <p className="text-xs px-3.5 py-2.5 rounded-2xl bg-amber-50 text-amber-700 leading-relaxed">
         Falta criar as tabelas do Telegram no banco: rode <code className="font-mono">supabase/migration_telegram.sql</code> no SQL Editor do Supabase.
       </p>
     )
@@ -121,7 +121,7 @@ export default function TelegramVinculo() {
 
   if (!estado.configurado) {
     return (
-      <div className="text-xs px-3.5 py-2.5 rounded-2xl border bg-amber-50 border-amber-100 text-amber-700 leading-relaxed space-y-1.5">
+      <div className="text-xs px-3.5 py-2.5 rounded-2xl bg-amber-50 text-amber-700 leading-relaxed space-y-1.5">
         {estado.erro ? (
           <p>{estado.erro}</p>
         ) : (
@@ -144,15 +144,15 @@ export default function TelegramVinculo() {
   return (
     <div className="space-y-3">
       {erro && (
-        <p className="text-xs px-3.5 py-2.5 rounded-2xl border bg-red-50 border-red-100 text-red-600">{erro}</p>
+        <p className="text-xs px-3.5 py-2.5 rounded-2xl bg-red-50 text-red-600">{erro}</p>
       )}
       {estado.erro && (
-        <p className="text-xs px-3.5 py-2.5 rounded-2xl border bg-amber-50 border-amber-100 text-amber-700">{estado.erro}</p>
+        <p className="text-xs px-3.5 py-2.5 rounded-2xl bg-amber-50 text-amber-700">{estado.erro}</p>
       )}
 
       {estado.vinculado ? (
         <>
-          <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl text-sm font-medium bg-green-50 border border-green-100 text-green-700">
+          <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl text-sm font-medium bg-green-50 text-green-700">
             <span className="w-2 h-2 rounded-full shrink-0 bg-green-500" />
             <span className="flex-1">Conectado{estado.telegramNome ? ` a ${estado.telegramNome}` : ''}</span>
           </div>
@@ -166,7 +166,7 @@ export default function TelegramVinculo() {
                 href={botUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-primary-50 hover:bg-primary-100 text-primary-700 text-sm font-semibold rounded-2xl transition-all active:scale-[0.97] border border-primary-200"
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-primary-50 hover:bg-primary-100 text-primary-700 text-sm font-semibold rounded-2xl transition-all active:scale-[0.97]"
               >
                 <ExternalLink className="w-4 h-4" />
                 Abrir conversa
@@ -197,7 +197,7 @@ export default function TelegramVinculo() {
               href={estado.link}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-2xl transition-all active:scale-[0.97] shadow-sm"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-full transition-all active:scale-[0.97]"
             >
               <Send className="w-4 h-4" />
               Abrir no Telegram
@@ -226,7 +226,7 @@ export default function TelegramVinculo() {
           <button
             onClick={gerarLink}
             disabled={ocupado}
-            className="w-full flex items-center justify-center gap-2 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-2xl transition-all active:scale-[0.97] disabled:opacity-50 shadow-sm"
+            className="w-full flex items-center justify-center gap-2 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-full transition-all active:scale-[0.97] disabled:opacity-50"
           >
             <Send className="w-4 h-4" />
             {ocupado ? 'Gerando…' : 'Conectar Telegram'}
@@ -299,7 +299,7 @@ function NotificacoesTelegram({
       </div>
 
       {migracaoPendente ? (
-        <p className="text-xs px-3.5 py-2.5 rounded-2xl border bg-amber-50 border-amber-100 text-amber-700 leading-relaxed">
+        <p className="text-xs px-3.5 py-2.5 rounded-2xl bg-amber-50 text-amber-700 leading-relaxed">
           Todos os avisos estão ligados. Para escolher quais receber, rode{' '}
           <code className="font-mono">supabase/migration_telegram_notificacoes.sql</code> no SQL Editor do Supabase.
         </p>
@@ -347,7 +347,7 @@ function NotificacoesTelegram({
       <button
         onClick={testar}
         disabled={testando}
-        className="w-full flex items-center justify-center gap-2 py-2.5 bg-primary-50 hover:bg-primary-100 text-primary-700 text-sm font-semibold rounded-2xl transition-all active:scale-[0.97] disabled:opacity-50 border border-primary-200"
+        className="w-full flex items-center justify-center gap-2 py-2.5 bg-primary-50 hover:bg-primary-100 text-primary-700 text-sm font-semibold rounded-2xl transition-all active:scale-[0.97] disabled:opacity-50"
       >
         <BellRing className="w-4 h-4" />
         {testando ? 'Enviando…' : 'Enviar notificação de teste'}

@@ -69,8 +69,8 @@ export default function ComposicaoFaturaModal({ aberto, onClose, dados, onVerCom
             </button>
           </div>
 
-          <div className="bg-primary-50 dark:bg-primary-900/20 rounded-2xl p-4 mb-4 border border-primary-100 dark:border-primary-900/40">
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-0.5">Valor gasto</p>
+          <div className="bg-primary-50 dark:bg-primary-900/20 rounded-2xl p-4 mb-4">
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-0.5">Valor gasto</p>
             <p className="text-2xl font-bold text-primary-700 dark:text-primary-300 num tracking-tight">
               {formatBRL(dados.total)}
             </p>

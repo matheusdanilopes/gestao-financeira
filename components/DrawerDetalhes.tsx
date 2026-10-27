@@ -184,7 +184,7 @@ export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }:
           {/* Filtros */}
           <div className="flex gap-2.5">
             <div className="flex-1">
-              <label className="block text-[11px] font-medium text-gray-400 dark:text-gray-500 mb-1.5 uppercase tracking-wide">Filtrar por</label>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-500 mb-1.5">Filtrar por</label>
               <select
                 value={filtroCampo}
                 onChange={e => handleCampoChange(e.target.value as CampoFiltro)}
@@ -196,7 +196,7 @@ export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }:
               </select>
             </div>
             <div className="flex-1">
-              <label className="block text-[11px] font-medium text-gray-400 dark:text-gray-500 mb-1.5 uppercase tracking-wide">Valor</label>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-500 mb-1.5">Valor</label>
               {filtroCampo === 'descricao' ? (
                 <input
                   type="text"
@@ -222,7 +222,7 @@ export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }:
           </div>
           <div className="flex gap-2.5">
             <div className="flex-1">
-              <label className="block text-[11px] font-medium text-gray-400 dark:text-gray-500 mb-1.5 uppercase tracking-wide">Filtrar por (2)</label>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-500 mb-1.5">Filtrar por (2)</label>
               <select
                 value={filtroCampo2}
                 onChange={e => handleCampo2Change(e.target.value as CampoFiltro)}
@@ -234,7 +234,7 @@ export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }:
               </select>
             </div>
             <div className="flex-1">
-              <label className="block text-[11px] font-medium text-gray-400 dark:text-gray-500 mb-1.5 uppercase tracking-wide">Valor (2)</label>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-500 mb-1.5">Valor (2)</label>
               {filtroCampo2 === 'descricao' ? (
                 <input
                   type="text"
@@ -263,8 +263,8 @@ export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }:
 
         <div className="relative z-0 p-4 pb-8">
           {/* Total card */}
-          <div className="bg-primary-50 dark:bg-primary-900/20 rounded-2xl p-4 mb-4 border border-primary-100 dark:border-primary-900/40">
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-0.5">Valor total</p>
+          <div className="bg-primary-50 dark:bg-primary-900/20 rounded-2xl p-4 mb-4">
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-0.5">Valor total</p>
             <p className="text-2xl font-bold text-primary-700 dark:text-primary-300 num tracking-tight">
               {formatBRL(itensFiltrados.length === itens.length ? dados.valor : valorFiltrado)}
             </p>

@@ -172,7 +172,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   return arr
 }
 
-export default memo(function NotificacoesBell() {
+export default memo(function NotificacoesBell({ tone = 'default' }: { tone?: 'default' | 'inverse' }) {
   const router = useRouter()
   const [aberto, setAberto] = useState(false)
   const [notificacoes, setNotificacoes] = useState<Notificacao[]>([])
@@ -438,13 +438,15 @@ export default memo(function NotificacoesBell() {
     <div ref={dropdownRef} className="relative">
       <button
         onClick={handleToggleBell}
-        className="relative p-2 rounded-xl hover:bg-white/15 dark:hover:bg-white/10
-                   active:scale-90 transition-all duration-150
-                   focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+        className={`relative flex items-center justify-center active:scale-90 transition-all duration-150
+                    focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40
+                    ${tone === 'inverse'
+                      ? 'w-11 h-11 rounded-full bg-white/15 hover:bg-white/25'
+                      : 'p-2 rounded-xl hover:bg-white/15 dark:hover:bg-white/10'}`}
         aria-label={`Notificações${naoLidas > 0 ? ` — ${naoLidas} não lida${naoLidas > 1 ? 's' : ''}` : ''}`}
         aria-expanded={aberto}
       >
-        <Bell className="w-5 h-5 text-gray-700 dark:text-gray-200" />
+        <Bell className={`w-5 h-5 ${tone === 'inverse' ? 'text-white' : 'text-gray-700 dark:text-gray-200'}`} />
         {naoLidas > 0 && (
           <span
             className="absolute top-0.5 right-0.5 min-w-[17px] h-[17px] px-1
@@ -472,7 +474,7 @@ export default memo(function NotificacoesBell() {
               <Bell className="w-4 h-4 text-gray-500 dark:text-gray-400" />
               <span className="font-semibold text-gray-800 dark:text-gray-100 text-sm">Notificações</span>
               {naoLidas > 0 && (
-                <span className="px-2 py-0.5 bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 text-[11px] font-bold rounded-full border border-red-100 dark:border-red-900/50">
+                <span className="px-2 py-0.5 bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 text-[11px] font-bold rounded-full">
                   {naoLidas} nova{naoLidas > 1 ? 's' : ''}
                 </span>
               )}
@@ -582,7 +584,7 @@ export default memo(function NotificacoesBell() {
                     <div className="mt-0.5 flex-shrink-0">{renderIcone(n.acao)}</div>
                     <div className="flex-1 min-w-0">
                       {/* Rótulo do módulo */}
-                      <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500">
+                      <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-500">
                         {meta.rotulo}
                       </span>
                       <p className="text-sm font-medium text-gray-800 dark:text-gray-100 leading-snug mt-0.5">

@@ -70,13 +70,13 @@ export default function SugestoesAssinaturas({ onAdicionarAssinatura: _onAdicion
   if (carregando || visiveis.length === 0) return null
 
   return (
-    <div className="bg-amber-50 border border-amber-200 rounded-3xl overflow-hidden mb-4">
+    <div className="bg-amber-50 rounded-3xl overflow-hidden mb-4">
       <button
         type="button"
         onClick={() => setExpandido((v: boolean) => !v)}
         className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-amber-100/60 dark:hover:bg-amber-900/30 transition-colors"
       >
-        <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center flex-none">
+        <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-none">
           <Lightbulb className="w-4 h-4 text-amber-600" strokeWidth={2} />
         </div>
         <div className="flex-1 min-w-0 text-left">
@@ -119,8 +119,7 @@ export default function SugestoesAssinaturas({ onAdicionarAssinatura: _onAdicion
                 <button
                   type="button"
                   onClick={() => ignorar(s.descricao)}
-                  className="w-8 h-8 rounded-xl bg-amber-100 hover:bg-amber-200 flex items-center justify-center
-                             text-amber-600 transition-colors active:scale-90"
+                  className="w-8 h-8 rounded-full bg-amber-100 hover:bg-amber-200 flex items-center justify-center text-amber-600 transition-colors active:scale-90"
                   title="Ignorar sugestão"
                 >
                   <X className="w-4 h-4" strokeWidth={2} />

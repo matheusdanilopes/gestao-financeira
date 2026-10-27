@@ -101,7 +101,7 @@ export default function AlertaFaturaModal({ aberto, dados, onFechar }: Props) {
         >
           <div className="p-5">
             <div className="flex items-center gap-2.5 mb-4">
-              <div className="w-9 h-9 rounded-xl bg-primary-50 dark:bg-primary-900/30 flex items-center justify-center shrink-0">
+              <div className="w-9 h-9 rounded-full bg-primary-50 dark:bg-primary-900/30 flex items-center justify-center shrink-0">
                 <CreditCard className="w-4.5 h-4.5 text-primary-600 dark:text-primary-400" />
               </div>
               <div>
@@ -124,7 +124,7 @@ export default function AlertaFaturaModal({ aberto, dados, onFechar }: Props) {
             <div className="mb-4 bg-gray-50 dark:bg-gray-800/60 rounded-2xl p-3.5">
               <div className="flex items-center gap-1.5 mb-2">
                 <Layers className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">
                   Parcelamento
                 </p>
               </div>
@@ -168,7 +168,7 @@ export default function AlertaFaturaModal({ aberto, dados, onFechar }: Props) {
             <div className="mb-5 bg-gray-50 dark:bg-gray-800/60 rounded-2xl p-3.5">
               <div className="flex items-center gap-1.5 mb-2">
                 <Calendar className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">
                   {proximoMes ? 'Próxima fatura' : 'Fatura atual'}
                 </p>
               </div>
@@ -221,7 +221,7 @@ export default function AlertaFaturaModal({ aberto, dados, onFechar }: Props) {
             <button
               onClick={onFechar}
               autoFocus
-              className="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-2xl active:scale-[0.98] transition-all"
+              className="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-full active:scale-[0.98] transition-all"
             >
               OK
             </button>

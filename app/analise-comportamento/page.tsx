@@ -24,6 +24,7 @@ import {
   type ResultadoAnalise,
   rotuloJanela,
 } from '@/lib/comportamento/tipos'
+import PageHeader, { PAGE_HEADER_PILL } from '@/components/PageHeader'
 
 const OPCOES_JANELA = JANELAS_ANALISE.map(m => ({ valor: m, label: rotuloJanela(m) }))
 const OPCOES_ESCOPO: { valor: EscopoAnalise; label: string }[] = [
@@ -65,11 +66,11 @@ function PainelPedido({
   compacto: boolean
 }) {
   return (
-    <section className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 space-y-4">
+    <section className="bg-white rounded-3xl shadow-soft p-4 space-y-4">
       {!compacto && (
         <div className="space-y-3">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-violet-100 flex items-center justify-center shrink-0">
+            <div className="w-11 h-11 rounded-full bg-violet-100 flex items-center justify-center shrink-0">
               <Brain className="w-5 h-5 text-violet-600" strokeWidth={1.8} />
             </div>
             <div>
@@ -159,11 +160,7 @@ function PainelPedido({
         type="button"
         onClick={onAnalisar}
         disabled={ocupado}
-        className="w-full py-3.5 rounded-2xl font-semibold text-sm text-white
-                   bg-gradient-to-r from-violet-600 to-primary-600 shadow-sm hover:shadow-card-md
-                   flex items-center justify-center gap-2 transition-all duration-150 ease-spring
-                   active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed
-                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-violet-400"
+        className="w-full py-3.5 rounded-full font-semibold text-sm text-white bg-primary-600 flex items-center justify-center gap-2 transition-all duration-150 ease-spring active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-400"
       >
         {ocupado
           ? <><Loader2 className="w-4 h-4 animate-spin" /> Analisando…</>
@@ -180,9 +177,9 @@ function PainelPedido({
 
 function Progresso({ etapa, segundos }: { etapa: number; segundos: number }) {
   return (
-    <section className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 space-y-3" aria-live="polite">
+    <section className="bg-white rounded-3xl shadow-soft p-4 space-y-3" aria-live="polite">
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
+        <div className="w-9 h-9 rounded-full bg-violet-50 flex items-center justify-center shrink-0">
           <Brain className="w-4 h-4 text-violet-600 animate-pulse" strokeWidth={1.8} />
         </div>
         <h2 className="font-bold text-gray-900 tracking-tight flex-1">Analisando…</h2>
@@ -326,38 +323,35 @@ export default function AnaliseComportamentoPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 page-bottom-safe page-enter">
-      <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 px-4 md:px-6 lg:px-8 z-[10]">
-        <div className="flex items-center gap-2">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold text-gray-900 tracking-tight truncate">Análise de comportamento</h1>
-            <p className="text-[11px] text-gray-400 leading-snug truncate">
-              {ultima
-                ? `Última análise: ${formatarDataHora(ultima.geradaEm)} · ${rotuloJanela(ultima.parametros.janela)} · ${rotuloEscopo(ultima.parametros.escopo)}`
-                : 'Padrões de comportamento para melhorar sua saúde financeira'}
-            </p>
-          </div>
-          {ultima && !analisando && (
-            <button
-              type="button"
-              onClick={() => setMostrarPedido(v => !v)}
-              aria-expanded={mostrarPedido}
-              className="shrink-0 px-3 py-2 rounded-xl bg-primary-50 text-primary-700 border border-primary-100
-                         text-xs font-semibold flex items-center gap-1.5 hover:bg-primary-100 transition-colors"
-            >
-              <RefreshCw className="w-3.5 h-3.5" strokeWidth={2.2} />
-              <span className="sm:hidden">Nova</span>
-              <span className="hidden sm:inline">Nova análise</span>
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${mostrarPedido ? 'rotate-180' : ''}`} />
-            </button>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        title="Análise de comportamento"
+        subtitle={
+          <span className="block truncate">
+            {ultima
+              ? `Última análise: ${formatarDataHora(ultima.geradaEm)} · ${rotuloJanela(ultima.parametros.janela)} · ${rotuloEscopo(ultima.parametros.escopo)}`
+              : 'Padrões de comportamento para melhorar sua saúde financeira'}
+          </span>
+        }
+        actions={ultima && !analisando ? (
+          <button
+            type="button"
+            onClick={() => setMostrarPedido(v => !v)}
+            aria-expanded={mostrarPedido}
+            className={PAGE_HEADER_PILL}
+          >
+            <RefreshCw className="w-3.5 h-3.5" strokeWidth={2.2} />
+            <span className="sm:hidden">Nova</span>
+            <span className="hidden sm:inline">Nova análise</span>
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${mostrarPedido ? 'rotate-180' : ''}`} />
+          </button>
+        ) : undefined}
+      />
 
       <div className="page-content space-y-3">
         {analisando && <Progresso etapa={etapa} segundos={segundos} />}
 
         {fase === 'erro' && erro && (
-          <div className="bg-red-50 border border-red-100 rounded-3xl p-4 flex gap-3" role="alert">
+          <div className="bg-red-50 rounded-3xl p-4 flex gap-3" role="alert">
             <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" strokeWidth={2} />
             <div className="space-y-0.5">
               <p className="text-xs font-semibold text-red-600">A análise não foi concluída</p>
@@ -386,7 +380,7 @@ export default function AnaliseComportamentoPage() {
         {!analisando && ultima && (
           <>
             {diasDesde(ultima.geradaEm) >= DIAS_ANALISE_ANTIGA && !mostrarPedido && (
-              <div className="bg-amber-50 border border-amber-200 rounded-3xl p-3.5 flex gap-3">
+              <div className="bg-amber-50 rounded-3xl p-3.5 flex gap-3">
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" strokeWidth={2} />
                 <p className="text-xs text-amber-700 leading-snug">
                   Esta análise tem {diasDesde(ultima.geradaEm)} dias — seus dados mudaram desde então. Toque em
@@ -407,8 +401,8 @@ export default function AnaliseComportamentoPage() {
                 type="button"
                 onClick={baixarPdf}
                 disabled={exportando}
-                className="flex-1 py-3 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2
-                           bg-red-600 text-white hover:bg-red-700 shadow-sm transition-all duration-150 ease-spring
+                className="flex-1 py-3 rounded-full font-semibold text-sm flex items-center justify-center gap-2
+                           bg-red-600 text-white hover:bg-red-700 transition-all duration-150 ease-spring
                            active:scale-[0.97] disabled:opacity-50"
               >
                 <FileDown className={`w-4 h-4 ${exportando ? 'animate-pulse' : ''}`} />
@@ -417,9 +411,7 @@ export default function AnaliseComportamentoPage() {
               <button
                 type="button"
                 onClick={copiar}
-                className="flex-1 py-3 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2
-                           bg-primary-50 text-primary-700 hover:bg-primary-100 border border-primary-100
-                           transition-all duration-150 ease-spring active:scale-[0.97]"
+                className="flex-1 py-3 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 bg-primary-50 text-primary-700 hover:bg-primary-100 transition-all duration-150 ease-spring active:scale-[0.97]"
               >
                 {copiado ? <><Check className="w-4 h-4" /> Copiado!</> : <><Copy className="w-4 h-4" /> Copiar texto</>}
               </button>

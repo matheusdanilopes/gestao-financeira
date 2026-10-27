@@ -170,7 +170,7 @@ export default function GraficoAlocacaoInvestimentos({ mesAtual, ativo = true }:
         <div className="relative h-40 w-40 shrink-0">
           <Doughnut data={chartData} options={options} />
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-widest">
+            <span className="text-[10px] font-semibold text-gray-500">
               {modoMeta ? 'Meta' : 'Aportado'}
             </span>
             <span className="text-sm font-bold text-gray-700 num">

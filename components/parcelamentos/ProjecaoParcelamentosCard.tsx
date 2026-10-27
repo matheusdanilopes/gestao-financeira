@@ -57,9 +57,9 @@ export default function ProjecaoParcelamentosCard({ mesAtual, relatorio }: Props
   }, [relatorio])
 
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-card border border-gray-100 dark:border-gray-800 p-4">
+    <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-soft dark:border-gray-800 p-4">
       <div className="flex items-center gap-2 mb-1">
-        <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center">
           <TrendingUp className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
         </div>
         <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 flex-1 flex items-center gap-1.5">
@@ -84,7 +84,7 @@ export default function ProjecaoParcelamentosCard({ mesAtual, relatorio }: Props
             const { texto, iconBg } = RESPONSAVEL_STYLE[resp]
             return (
               <div key={resp} className={`rounded-2xl p-3 ${iconBg}`}>
-                <p className={`text-[10px] font-semibold uppercase tracking-wide ${texto}`}>{resp} livre em</p>
+                <p className={`text-[11px] font-semibold ${texto}`}>{resp} livre em</p>
                 <p className="text-sm font-bold text-gray-800 dark:text-gray-100 mt-0.5">
                   {data ? formatarMes(data) : 'Já está livre'}
                 </p>

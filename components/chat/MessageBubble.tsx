@@ -11,7 +11,7 @@ function Avatar({ role }: { role: 'user' | 'assistant' }) {
       <User className="w-4 h-4 text-white" />
     </div>
   ) : (
-    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-sm">
+    <div className="w-8 h-8 rounded-full bg-violet-500 flex items-center justify-center shrink-0 shadow-sm">
       <Sparkles className="w-3.5 h-3.5 text-white" />
     </div>
   )
@@ -106,7 +106,7 @@ export const StreamingBubble = memo(function StreamingBubble({
 }) {
   return (
     <article className="list-item-enter flex gap-2.5 items-end">
-      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-sm">
+      <div className="w-8 h-8 rounded-full bg-violet-500 flex items-center justify-center shrink-0 shadow-sm">
         <Sparkles className="w-3.5 h-3.5 text-white animate-pulse" />
       </div>
       <div className="max-w-[88%] sm:max-w-[80%] lg:max-w-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-3xl rounded-bl-md px-4 py-3.5 shadow-card min-w-[180px]">

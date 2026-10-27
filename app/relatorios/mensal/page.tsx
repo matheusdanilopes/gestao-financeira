@@ -170,7 +170,7 @@ export default function RelatorioMensalPage() {
       onRecarregar={recarregar}
       montarDocumento={montarDocumento}
       avisos={relatorio?.erros}
-      filtros={<MonthSelector value={mesAtual} onChange={setMesAtual} />}
+      filtros={<MonthSelector tone="inverse" value={mesAtual} onChange={setMesAtual} />}
     >
       {relatorio && (
         <>
@@ -178,9 +178,9 @@ export default function RelatorioMensalPage() {
 
           <DestaquesRelatorio destaques={destaques} />
 
-          <section className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 space-y-4">
+          <section className="bg-white rounded-3xl shadow-soft p-4 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-primary-50 flex items-center justify-center shrink-0">
+              <div className="w-9 h-9 rounded-full bg-primary-50 flex items-center justify-center shrink-0">
                 <Target className="w-4 h-4 text-primary-600" strokeWidth={1.8} />
               </div>
               <h2 className="font-bold text-gray-900 tracking-tight">Execução do mês</h2>

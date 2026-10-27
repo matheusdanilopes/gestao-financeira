@@ -233,7 +233,7 @@ export default function GraficoAnual({ ano }: Props) {
   const mesesComDados = monthData.filter((d: MonthData) => d.temDados).length
 
   if (carregando) {
-    return <div className="h-64 animate-pulse bg-gray-100 rounded-2xl" />
+    return <div className="h-64 skeleton rounded-2xl" />
   }
 
   if (erro) {
@@ -268,15 +268,15 @@ export default function GraficoAnual({ ano }: Props) {
 
       <div className="grid grid-cols-3 gap-3 mt-4">
         <div className="text-center">
-          <p className="text-[10px] text-gray-400 uppercase tracking-wide">Receita anual</p>
+          <p className="text-[11px] text-gray-500">Receita anual</p>
           <p className="text-sm font-bold text-emerald-600 num">{formatBRL(totalReceita)}</p>
         </div>
         <div className="text-center">
-          <p className="text-[10px] text-gray-400 uppercase tracking-wide">Despesas anuais</p>
+          <p className="text-[11px] text-gray-500">Despesas anuais</p>
           <p className="text-sm font-bold text-red-500 num">{formatBRL(totalDespesas)}</p>
         </div>
         <div className="text-center">
-          <p className="text-[10px] text-gray-400 uppercase tracking-wide">Saldo anual</p>
+          <p className="text-[11px] text-gray-500">Saldo anual</p>
           <p className={`text-sm font-bold num ${totalSaldo >= 0 ? 'text-violet-600' : 'text-red-500'}`}>
             {formatBRL(totalSaldo)}
           </p>

@@ -267,7 +267,7 @@ export default function GraficoEvolucaoMensal({ mesAtual, ativo = true }: Props)
   /* ── loading ── */
   if (carregando) {
     return (
-      <div className="h-56 md:h-64 lg:h-72 animate-pulse flex flex-col justify-between pt-3 pb-2 px-2">
+      <div className="h-56 md:h-64 lg:h-72 skeleton-group flex flex-col justify-between pt-3 pb-2 px-2">
         {/* Y-axis ticks */}
         <div className="flex flex-col justify-between h-[calc(100%-28px)] gap-0">
           {[0,1,2,3,4].map(i => (

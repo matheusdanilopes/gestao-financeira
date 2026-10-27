@@ -319,7 +319,7 @@ export default function GraficoProjecao({ mesInicio, onPontoClicado, ativo = tru
 
   if (carregando) {
     return (
-      <div className="h-56 md:h-64 lg:h-72 animate-pulse flex flex-col justify-between pt-3 pb-2 px-2">
+      <div className="h-56 md:h-64 lg:h-72 skeleton-group flex flex-col justify-between pt-3 pb-2 px-2">
         <div className="flex flex-col justify-between h-[calc(100%-36px)]">
           {[0,1,2,3,4].map(i => (
             <div key={i} className="flex items-center gap-2">

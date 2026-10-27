@@ -10,6 +10,7 @@ import { BottomSheet } from '@/components/BottomSheet'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { useListasCompras, type ListaComMeta } from '@/lib/useListasCompras'
 import { formatBRL } from '@/lib/format'
+import PageHeader from '@/components/PageHeader'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -41,16 +42,16 @@ function InputNovaLista({ onCriar }: { onCriar: (nome: string) => Promise<unknow
         value={valor}
         onChange={e => setValor(e.target.value)}
         placeholder="Nome da nova lista…"
-        className="flex-1 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3.5 py-2.5
-                   placeholder-gray-400 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-400
-                   focus:border-transparent transition-all"
+        className="flex-1 text-sm bg-white border-0 rounded-full px-4 py-2.5
+                   placeholder-gray-400 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-white/60
+                   transition-all"
         maxLength={80}
       />
       <button
         type="submit"
         disabled={!valor.trim() || loading}
-        className="flex items-center gap-1.5 bg-primary-600 text-white text-sm font-semibold
-                   px-3.5 py-2.5 rounded-xl disabled:opacity-40 active:scale-95 transition-all"
+        className="flex items-center gap-1.5 bg-white text-primary-700 text-sm font-semibold
+                   px-4 py-2.5 rounded-full disabled:opacity-60 active:scale-95 transition-all"
         aria-label="Criar lista"
       >
         <Plus className="w-4 h-4" strokeWidth={2.5} />
@@ -110,7 +111,7 @@ function BottomSheetAcoes({
       {close => (
         <>
           <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-700 mx-auto mb-4" />
-          <p className="text-xs text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wide mb-1">Lista</p>
+          <p className="text-xs text-gray-500 dark:text-gray-500 font-semibold mb-1">Lista</p>
           <p className="text-base font-bold text-gray-900 dark:text-white mb-5 truncate">{lista.nome}</p>
 
           {confirmarExclusao ? (
@@ -128,7 +129,7 @@ function BottomSheetAcoes({
                 <button
                   type="button"
                   onClick={async () => { await handleExcluir(); close() }}
-                  className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold"
+                  className="flex-1 py-2.5 rounded-full bg-red-600 text-white text-sm font-semibold"
                 >
                   Excluir
                 </button>
@@ -160,7 +161,7 @@ function BottomSheetAcoes({
                 <button
                   type="button"
                   onClick={async () => { if (await confirmarRenomear()) close() }}
-                  className="flex-1 py-2.5 rounded-xl bg-primary-600 text-white text-sm font-semibold"
+                  className="flex-1 py-2.5 rounded-full bg-primary-600 text-white text-sm font-semibold"
                 >
                   Salvar
                 </button>
@@ -174,7 +175,7 @@ function BottomSheetAcoes({
                 className="flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-800
                            text-gray-700 dark:text-gray-300 text-sm font-semibold transition-colors active:bg-gray-100 dark:active:bg-gray-700"
               >
-                <div className="w-8 h-8 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
                   <Pencil className="w-4 h-4 text-gray-600 dark:text-gray-300" strokeWidth={1.8} />
                 </div>
                 Renomear
@@ -186,7 +187,7 @@ function BottomSheetAcoes({
                 className="flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-800
                            text-gray-700 dark:text-gray-300 text-sm font-semibold transition-colors active:bg-gray-100 dark:active:bg-gray-700"
               >
-                <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center">
                   {lista.status === 'ativa'
                     ? <Archive className="w-4 h-4 text-amber-600 dark:text-amber-400" strokeWidth={1.8} />
                     : <ArchiveRestore className="w-4 h-4 text-amber-600 dark:text-amber-400" strokeWidth={1.8} />
@@ -201,7 +202,7 @@ function BottomSheetAcoes({
                 className="flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl hover:bg-red-50 dark:hover:bg-red-900/20
                            text-red-600 dark:text-red-400 text-sm font-semibold transition-colors active:bg-red-100 dark:active:bg-red-900/30"
               >
-                <div className="w-8 h-8 rounded-xl bg-red-50 dark:bg-red-900/30 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-red-50 dark:bg-red-900/30 flex items-center justify-center">
                   <Trash2 className="w-4 h-4 text-red-500" strokeWidth={1.8} />
                 </div>
                 Excluir lista
@@ -328,21 +329,18 @@ export default function ListasComprasPage() {
   return (
     <div className="min-h-screen pb-40 page-enter">
       {/* Header sticky */}
-      <div className="sticky top-0 z-10 sticky-header border-b border-gray-100 dark:border-gray-800 px-4 pt-4 pb-3">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center flex-none">
-            <Crown className="w-5 h-5 text-amber-600 dark:text-amber-400" strokeWidth={1.8} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-bold text-gray-900 dark:text-white leading-none">Listas da Princesa</h1>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-              {ativas.length} {ativas.length === 1 ? 'lista ativa' : 'listas ativas'}
-              {arquivadas.length > 0 && ` · ${arquivadas.length} arquivada${arquivadas.length > 1 ? 's' : ''}`}
-            </p>
-          </div>
-        </div>
+      <PageHeader
+        title="Listas da Princesa"
+        icon={Crown}
+        subtitle={
+          <>
+            {ativas.length} {ativas.length === 1 ? 'lista ativa' : 'listas ativas'}
+            {arquivadas.length > 0 && ` · ${arquivadas.length} arquivada${arquivadas.length > 1 ? 's' : ''}`}
+          </>
+        }
+      >
         <InputNovaLista onCriar={criarLista} />
-      </div>
+      </PageHeader>
 
       {/* Tabs */}
       <div className="px-4 pt-3 pb-1">
@@ -381,7 +379,7 @@ export default function ListasComprasPage() {
             </>
           ) : ativas.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center mb-4">
+              <div className="w-16 h-16 rounded-full bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center mb-4">
                 <Crown className="w-8 h-8 text-amber-400 dark:text-amber-500" strokeWidth={1.5} />
               </div>
               <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">Nenhuma lista ainda</p>
@@ -410,7 +408,7 @@ export default function ListasComprasPage() {
             </>
           ) : arquivadas.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
+              <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
                 <Archive className="w-8 h-8 text-gray-400 dark:text-gray-500" strokeWidth={1.5} />
               </div>
               <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">Nenhuma lista arquivada</p>

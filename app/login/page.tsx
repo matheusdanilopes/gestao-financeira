@@ -83,7 +83,7 @@ export default function LoginPage() {
         <form onSubmit={handleLogin} className="space-y-4">
           {/* Campo email */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <label className="block text-xs font-semibold text-gray-500">
               Email
             </label>
             <input
@@ -100,7 +100,7 @@ export default function LoginPage() {
 
           {/* Campo senha */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <label className="block text-xs font-semibold text-gray-500">
               Senha
             </label>
             <div className="relative">

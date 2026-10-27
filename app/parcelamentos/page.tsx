@@ -7,8 +7,8 @@ import ProjecaoParcelamentosCard from '@/components/parcelamentos/ProjecaoParcel
 import SimuladorParcelamento from '@/components/parcelamentos/SimuladorParcelamento'
 import MeuLimiteParcelamentoCard, { type ResumoLimitePorPessoa } from '@/components/parcelamentos/MeuLimiteParcelamentoCard'
 import { useMes } from '@/components/MesProvider'
-import { InfoPopover } from '@/components/InfoPopover'
 import { buscarRelatorioCartoes, type RelatorioCartoes } from '@/lib/relatorioCartoes'
+import PageHeader from '@/components/PageHeader'
 
 export default function ParcelamentosPage() {
   const { mesAtual, setMesAtual } = useMes()
@@ -27,13 +27,12 @@ export default function ParcelamentosPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 page-bottom-safe page-enter">
-      <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 z-[10]">
-        <h1 className="text-xl font-bold text-gray-900 mb-3 flex items-center gap-1.5">
-          Parcelamentos
-          <InfoPopover texto="Apoio estratégico para gerir suas compras parceladas: seu limite mensal em destaque, projeção dos próximos meses, um simulador para testar uma compra antes de parcelar, e o controle de limite mensal por pessoa. Se um mês não tiver limite próprio, ele herda o valor do mês anterior configurado, e você pode alterá-lo livremente sem afetar o histórico." />
-        </h1>
-        <MonthSelector value={mesAtual} onChange={setMesAtual} />
-      </div>
+      <PageHeader
+        title="Parcelamentos"
+        info="Apoio estratégico para gerir suas compras parceladas: seu limite mensal em destaque, projeção dos próximos meses, um simulador para testar uma compra antes de parcelar, e o controle de limite mensal por pessoa. Se um mês não tiver limite próprio, ele herda o valor do mês anterior configurado, e você pode alterá-lo livremente sem afetar o histórico."
+      >
+        <MonthSelector tone="inverse" value={mesAtual} onChange={setMesAtual} />
+      </PageHeader>
 
       <div className="page-content space-y-4">
         <MeuLimiteParcelamentoCard resumo={resumoLimites} />

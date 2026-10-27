@@ -38,6 +38,8 @@ module.exports = {
         // Sombras em base slate (16,24,40) — leitura mais sofisticada e fria que
         // o preto puro, com camadas (contato + ambiente) para profundidade real.
         'card':       '0 1px 2px rgba(16,24,40,0.04), 0 4px 12px rgba(16,24,40,0.05)',
+        // Card plano (estilo PicPay): sem borda, só um contato sutil com o fundo.
+        'soft':       '0 1px 2px rgba(16,24,40,0.04), 0 2px 8px rgba(16,24,40,0.04)',
         'card-md':    '0 2px 4px rgba(16,24,40,0.05), 0 8px 24px rgba(16,24,40,0.08)',
         'card-hover': '0 4px 8px rgba(16,24,40,0.06), 0 16px 32px rgba(16,24,40,0.10)',
         'float':      '0 8px 16px rgba(16,24,40,0.08), 0 24px 48px rgba(16,24,40,0.16)',

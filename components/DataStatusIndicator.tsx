@@ -18,6 +18,8 @@ interface Props {
   status: SyncStatus
   lastUpdated: Date | null
   onRefresh?: () => Promise<void>
+  /** Em telas estreitas mostra só o ícone (o texto fica no aria-label/title) */
+  compact?: boolean
 }
 
 function formatRelativeTime(date: Date): string {
@@ -29,7 +31,9 @@ function formatRelativeTime(date: Date): string {
   return `há ${Math.floor(diffMin / 60)}h`
 }
 
-export default memo(function DataStatusIndicator({ status, lastUpdated, onRefresh }: Props) {
+export default memo(function DataStatusIndicator({ status, lastUpdated, onRefresh, compact }: Props) {
+  // Abaixo de 420px o texto some e fica só o ícone, para caber ao lado do seletor de mês.
+  const textoClasse = compact ? 'hidden min-[420px]:inline' : ''
   const [label, setLabel] = useState('')
   const [refreshing, setRefreshing] = useState(false)
 
@@ -53,14 +57,9 @@ export default memo(function DataStatusIndicator({ status, lastUpdated, onRefres
 
   if (status === 'offline') {
     return (
-      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold
-                       text-red-600 dark:text-red-400
-                       bg-red-50 dark:bg-red-950/40
-                       px-2.5 py-1 rounded-full
-                       border border-red-100 dark:border-red-800/60
-                       shadow-sm">
+      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 px-2.5 py-1 rounded-full shadow-sm" title="Sem conexão">
         <WifiOff className="w-3 h-3 shrink-0" aria-hidden="true" />
-        <span>Sem conexão</span>
+        <span className={textoClasse}>Sem conexão</span>
       </span>
     )
   }
@@ -70,9 +69,9 @@ export default memo(function DataStatusIndicator({ status, lastUpdated, onRefres
       <span className="inline-flex items-center gap-1.5 text-[11px] font-medium
                        text-gray-400 dark:text-gray-500
                        bg-gray-50 dark:bg-gray-800/60
-                       px-2.5 py-1 rounded-full">
+                       px-2.5 py-1 rounded-full" title="Atualizando…">
         <RefreshCw className="w-3 h-3 animate-spin shrink-0" aria-hidden="true" />
-        <span>Atualizando…</span>
+        <span className={textoClasse}>Atualizando…</span>
       </span>
     )
   }
@@ -89,7 +88,7 @@ export default memo(function DataStatusIndicator({ status, lastUpdated, onRefres
                  hover:text-gray-600 dark:hover:text-gray-300
                  transition-colors duration-150 disabled:cursor-default
                  group"
-      title={onRefresh ? 'Clique para atualizar' : undefined}
+      title={onRefresh ? `${label ? `Atualizado ${label} · ` : ''}Clique para atualizar` : undefined}
       aria-label={onRefresh ? `Dados: ${label}. Clique para atualizar` : `Dados: ${label}`}
     >
       {refreshing ? (
@@ -98,7 +97,7 @@ export default memo(function DataStatusIndicator({ status, lastUpdated, onRefres
         <Wifi className="w-3 h-3 text-green-500 dark:text-green-400 shrink-0
                          group-hover:text-green-600 dark:group-hover:text-green-300 transition-colors" aria-hidden="true" />
       )}
-      <span>{label}</span>
+      <span className={textoClasse}>{label}</span>
     </button>
   )
 })

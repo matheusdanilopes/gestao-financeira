@@ -135,7 +135,7 @@ function ExtrasMenuPopover({ onClose }: { onClose: () => void }) {
           if (items.length === 0) return null
           return (
             <div key={key} className={gi > 0 ? 'border-t border-gray-100 dark:border-gray-800' : ''}>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-4 pt-3 pb-1">
+              <p className="text-[11px] font-bold text-gray-500 px-4 pt-3 pb-1">
                 {mod.label}
               </p>
               <ModuleItemsList items={items} onClose={onClose} />

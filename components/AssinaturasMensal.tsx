@@ -594,7 +594,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
 
       {/* Resumo: Total ativo/mês + Detectado no mês */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-white rounded-2xl shadow-card border border-gray-100 p-4 text-center">
+        <div className="bg-white rounded-2xl shadow-soft p-4 text-center">
           <div className="flex items-center justify-center gap-1.5 mb-1.5">
             <Repeat className="w-3.5 h-3.5 text-primary-500 dark:text-primary-400" />
             <p className="text-xs text-gray-400 font-medium">Total ativo/mês</p>
@@ -602,7 +602,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
           <p className="text-xl font-bold text-primary-700 num leading-none">{formatBRL(totalAtivo)}</p>
           <p className="text-xs text-gray-400 mt-1">{itensAtivosNoMes.length} ativa(s)</p>
         </div>
-        <div className="bg-white rounded-2xl shadow-card border border-gray-100 p-4 text-center">
+        <div className="bg-white rounded-2xl shadow-soft p-4 text-center">
           <p className="text-xs text-gray-400 font-medium mb-1.5">Detectado em {mesFmt}</p>
           <p className="text-xl font-bold text-green-700 num leading-none">{formatBRL(detectadasValor)}</p>
           <p className="text-xs text-gray-400 mt-1">{detectadasCount}/{itensAtivosNoMes.length} identificadas</p>
@@ -613,10 +613,10 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       <div className="grid grid-cols-3 gap-1.5">
         <button
           onClick={() => setFiltroResponsavel('')}
-          className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
+          className={`rounded-2xl px-2 py-2.5 text-center transition-all duration-200 active:scale-[0.97] ${
             filtroResponsavel === ''
               ? 'bg-primary-50 border-primary-200 dark:border-primary-800'
-              : 'bg-white border-gray-100'
+              : 'bg-white shadow-soft'
           }`}
         >
           <p className={`text-[11px] font-medium mb-0.5 ${filtroResponsavel === '' ? 'text-primary-500 dark:text-primary-400' : 'text-gray-400'}`}>Total</p>
@@ -625,10 +625,10 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
         </button>
         <button
           onClick={() => setFiltroResponsavel(filtroResponsavel === 'Matheus' ? '' : 'Matheus')}
-          className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
+          className={`rounded-2xl px-2 py-2.5 text-center transition-all duration-200 active:scale-[0.97] ${
             filtroResponsavel === 'Matheus'
               ? 'bg-blue-50 border-blue-200 dark:border-blue-800'
-              : 'bg-white border-gray-100'
+              : 'bg-white shadow-soft'
           }`}
         >
           <p className={`text-[11px] font-medium mb-0.5 ${filtroResponsavel === 'Matheus' ? 'text-blue-500' : 'text-gray-400'}`}>Matheus</p>
@@ -637,10 +637,10 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
         </button>
         <button
           onClick={() => setFiltroResponsavel(filtroResponsavel === 'Jeniffer' ? '' : 'Jeniffer')}
-          className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
+          className={`rounded-2xl px-2 py-2.5 text-center transition-all duration-200 active:scale-[0.97] ${
             filtroResponsavel === 'Jeniffer'
               ? 'bg-pink-50 border-pink-200 dark:border-pink-800'
-              : 'bg-white border-gray-100'
+              : 'bg-white shadow-soft'
           }`}
         >
           <p className={`text-[11px] font-medium mb-0.5 ${filtroResponsavel === 'Jeniffer' ? 'text-pink-500 dark:text-pink-400' : 'text-gray-400'}`}>Jeniffer</p>
@@ -655,7 +655,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
           <button
             onClick={verificarNaFatura}
             disabled={verificando}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-primary-200 dark:border-primary-800 bg-primary-50 text-primary-700 text-sm font-semibold hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-all active:scale-[0.98] disabled:opacity-60"
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl bg-primary-50 text-primary-700 text-sm font-semibold hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-all active:scale-[0.98] disabled:opacity-60"
           >
             <Search className={`w-4 h-4 ${verificando ? 'animate-pulse' : ''}`} />
             {verificando ? 'Verificando…' : 'Verificar cobranças'}
@@ -663,9 +663,9 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
         )}
         <button
           onClick={() => setDropdownFiltro(d => !d)}
-          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-2xl border text-sm font-semibold transition-all active:scale-[0.98] ${
+          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-full border text-sm font-semibold transition-all active:scale-[0.98] ${
             filtrosAtivos > 0
-              ? 'border-primary-400 bg-primary-600 text-white shadow-sm'
+              ? 'border-primary-400 bg-primary-600 text-white'
               : 'border-gray-200 bg-white text-gray-600'
           }`}
         >
@@ -736,7 +736,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
         const totalGrupoAtivo = grupo.filter(i => ativaNoMes(i, mesSelecionado, statusHistorico)).reduce((acc, i) => acc + valorParaMes(i, mesSelecionado, historico), 0)
 
         return (
-          <div key={key} className="bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden">
+          <div key={key} className="bg-white rounded-3xl shadow-soft overflow-hidden">
             <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <CreditCard className="w-3.5 h-3.5 text-gray-400" />
@@ -852,7 +852,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       })}
 
       {itensFiltrados.length === 0 && (
-        <div className="bg-white rounded-3xl shadow-card border border-gray-100">
+        <div className="bg-white rounded-3xl shadow-soft">
           <EmptyState
             icon={Repeat}
             title="Nenhuma assinatura"
@@ -862,7 +862,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       )}
 
       {!isOnline && (
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 flex items-center gap-2">
+        <div className="bg-blue-50 rounded-2xl p-3 flex items-center gap-2">
           <WifiOff className="w-4 h-4 text-blue-600 shrink-0" />
           <p className="text-sm text-blue-700 font-medium">Você está offline — edição desabilitada</p>
         </div>
@@ -871,7 +871,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       {isOnline && (
         <button
           onClick={() => setModalAberto('adicionar')}
-          className="w-full bg-primary-600 text-white py-3.5 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm"
+          className="w-full bg-primary-600 text-white py-3.5 rounded-full font-semibold flex items-center justify-center gap-2 hover:bg-primary-700 transition-all active:scale-[0.97]"
         >
           <Plus className="w-5 h-5" />
           Adicionar assinatura
@@ -893,7 +893,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
             </div>
 
             {modalAberto === 'editar' && (
-              <div className="mb-4 rounded-2xl bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-800 leading-relaxed">
+              <div className="mb-4 rounded-2xl bg-amber-50 px-3 py-2.5 text-xs text-amber-800 leading-relaxed">
                 Novo valor aplicado apenas a partir deste mês. Registros históricos permanecem inalterados.
               </div>
             )}
@@ -1059,7 +1059,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
               </button>
               <button
                 onClick={salvar}
-                className="flex-1 py-3 rounded-2xl bg-primary-600 text-white font-semibold hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm"
+                className="flex-1 py-3 rounded-full bg-primary-600 text-white font-semibold hover:bg-primary-700 transition-all active:scale-[0.97]"
               >
                 Salvar
               </button>
@@ -1091,7 +1091,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
               </button>
               <button
                 onClick={excluir}
-                className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-semibold hover:bg-red-600 transition-all active:scale-[0.97] shadow-sm"
+                className="flex-1 py-3 rounded-full bg-red-500 text-white font-semibold hover:bg-red-600 transition-all active:scale-[0.97]"
               >
                 Excluir
               </button>

@@ -21,6 +21,7 @@ import { useHeyGestorAtivo } from '@/lib/heyGestorStore'
 import { suportaReconhecimentoVoz } from '@/lib/useVoice'
 import TelegramVinculo from '@/components/TelegramVinculo'
 import { METAS_GASTO } from '@/lib/metasGasto'
+import PageHeader from '@/components/PageHeader'
 
 interface LogEntry {
   id: string
@@ -126,7 +127,7 @@ function SecaoCartao({
       {expandido && (
         <div className="px-4 pb-5 pt-4 space-y-4 border-t border-primary-100 dark:border-primary-900/30 bg-white dark:bg-gray-800/30">
           <div>
-            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wider">Dia de Vencimento</label>
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">Dia de Vencimento</label>
             <input
               type="number"
               min={1}
@@ -137,7 +138,7 @@ function SecaoCartao({
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wider">Ajuste Fino do Fechamento</label>
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">Ajuste Fino do Fechamento</label>
             <div className="flex gap-2">
               {([-1, 0, 1] as const).map((v) => (
                 <button
@@ -155,8 +156,8 @@ function SecaoCartao({
               ))}
             </div>
           </div>
-          <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-100 dark:border-primary-800 rounded-2xl p-3.5">
-            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider mb-0.5">Fechamento calculado</p>
+          <div className="bg-primary-50 dark:bg-primary-900/20 rounded-2xl p-3.5">
+            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-0.5">Fechamento calculado</p>
             <p className="font-semibold text-primary-700 dark:text-primary-400">{descricaoFechamento(diaVenc, ajuste)}</p>
           </div>
         </div>
@@ -184,9 +185,9 @@ function SettingsCard({
   className?: string
 }) {
   return (
-    <div className={`bg-white rounded-3xl shadow-card border border-gray-100 p-4 mb-4 ${className}`}>
+    <div className={`bg-white rounded-3xl shadow-soft p-4 mb-4 ${className}`}>
       <h2 className={`text-base font-semibold flex items-center gap-2.5 text-gray-800 tracking-tight ${description ? 'mb-1' : 'mb-4'}`}>
-        <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
+        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
           <Icon className="w-4 h-4 text-gray-500" />
         </div>
         <span className="flex-1">{title}</span>
@@ -855,9 +856,7 @@ function ConfiguracoesContent() {
   return (
     <div className="min-h-screen bg-gray-50 page-content page-bottom-safe page-enter">
       {/* Header */}
-      <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 z-10">
-        <h1 className="text-xl font-bold text-gray-900 tracking-tight">Configurações</h1>
-      </div>
+      <PageHeader title="Configurações" bell bleed />
 
       {/* Tabs */}
       <div className="flex overflow-x-auto gap-2 mb-4 mt-3 pb-0.5 scrollbar-hide">
@@ -871,10 +870,10 @@ function ConfiguracoesContent() {
           <button
             key={key}
             onClick={() => setAbaAtual(key)}
-            className={`shrink-0 px-4 py-2.5 rounded-2xl border text-sm font-semibold flex items-center gap-2 transition active:scale-[0.97] ${
+            className={`shrink-0 px-4 py-2.5 rounded-full text-sm font-semibold flex items-center gap-2 transition active:scale-[0.97] ${
               abaAtual === key
-                ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
-                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                ? 'bg-primary-600 text-white'
+                : 'bg-white text-gray-600 shadow-soft hover:bg-gray-50'
             }`}
           >
             <Icon className="w-4 h-4" />
@@ -887,8 +886,8 @@ function ConfiguracoesContent() {
       {mensagem && (
         <div className={`flex items-center gap-2.5 px-4 py-3 rounded-2xl mb-4 text-sm font-medium ${
           mensagemSucesso
-            ? 'bg-emerald-50 border border-emerald-100 text-emerald-700'
-            : 'bg-red-50 border border-red-100 text-red-600'
+            ? 'bg-emerald-50 text-emerald-700'
+            : 'bg-red-50 text-red-600'
         }`}>
           <span className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
             mensagemSucesso ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-500'
@@ -939,7 +938,7 @@ function ConfiguracoesContent() {
               <button
                 onClick={salvar}
                 disabled={salvando}
-                className="w-full bg-primary-600 text-white py-3 rounded-2xl font-semibold hover:bg-primary-700 transition-all active:scale-[0.97] disabled:opacity-50 shadow-sm mt-1"
+                className="w-full bg-primary-600 text-white py-3 rounded-full font-semibold hover:bg-primary-700 transition-all active:scale-[0.97] disabled:opacity-50 mt-1"
               >
                 {salvando ? (
                   <span className="flex items-center justify-center gap-2">
@@ -1226,7 +1225,7 @@ function ConfiguracoesContent() {
           <SettingsCard icon={Upload} title="Dados">
             <Link
               href="/importar"
-              className="w-full flex items-center justify-center gap-2 bg-primary-600 text-white py-3 rounded-2xl font-semibold hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm"
+              className="w-full flex items-center justify-center gap-2 bg-primary-600 text-white py-3 rounded-full font-semibold hover:bg-primary-700 transition-all active:scale-[0.97]"
             >
               <Upload className="w-4 h-4" />
               Importar Dados
@@ -1280,12 +1279,12 @@ function ConfiguracoesContent() {
             {permissaoPush !== null && (
               <div className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl text-sm font-medium ${
                 permissaoPush === 'granted'
-                  ? 'bg-green-50 border border-green-100 text-green-700'
+                  ? 'bg-green-50 text-green-700'
                   : permissaoPush === 'denied'
-                  ? 'bg-red-50 border border-red-100 text-red-700'
+                  ? 'bg-red-50 text-red-700'
                   : permissaoPush === 'unsupported'
                   ? 'bg-gray-50 border border-gray-200 text-gray-500'
-                  : 'bg-amber-50 border border-amber-100 text-amber-700'
+                  : 'bg-amber-50 text-amber-700'
               }`}>
                 <span className={`w-2 h-2 rounded-full shrink-0 ${
                   permissaoPush === 'granted' ? 'bg-green-500' :
@@ -1321,7 +1320,7 @@ function ConfiguracoesContent() {
                   <button
                     onClick={ativarNotificacoes}
                     disabled={registrandoPush}
-                    className="flex-1 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-2xl transition-all active:scale-[0.97] disabled:opacity-50 shadow-sm"
+                    className="flex-1 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-full transition-all active:scale-[0.97] disabled:opacity-50"
                   >
                     {registrandoPush ? (
                       <span className="flex items-center justify-center gap-2">
@@ -1335,7 +1334,7 @@ function ConfiguracoesContent() {
                     <button
                       onClick={testarNotificacao}
                       disabled={testando}
-                      className="flex-1 py-2.5 bg-primary-50 hover:bg-primary-100 text-primary-700 text-sm font-semibold rounded-2xl transition-all active:scale-[0.97] disabled:opacity-50 border border-primary-200"
+                      className="flex-1 py-2.5 bg-primary-50 hover:bg-primary-100 text-primary-700 text-sm font-semibold rounded-2xl transition-all active:scale-[0.97] disabled:opacity-50"
                     >
                       {testando ? 'Enviando…' : 'Testar notificação'}
                     </button>
@@ -1399,7 +1398,7 @@ function ConfiguracoesContent() {
               <button
                 type="submit"
                 disabled={salvandoEmail}
-                className="w-full bg-primary-600 text-white py-3 rounded-2xl font-semibold text-sm hover:bg-primary-700 active:scale-[0.98] transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full bg-primary-600 text-white py-3 rounded-full font-semibold text-sm hover:bg-primary-700 active:scale-[0.98] transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {salvandoEmail ? (
                   <span className="flex items-center justify-center gap-2">
@@ -1466,7 +1465,7 @@ function ConfiguracoesContent() {
               <button
                 type="submit"
                 disabled={salvandoSenha}
-                className="w-full bg-primary-600 text-white py-3 rounded-2xl font-semibold text-sm hover:bg-primary-700 active:scale-[0.98] transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full bg-primary-600 text-white py-3 rounded-full font-semibold text-sm hover:bg-primary-700 active:scale-[0.98] transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {salvandoSenha ? (
                   <span className="flex items-center justify-center gap-2">
@@ -1539,7 +1538,7 @@ function ConfiguracoesContent() {
 
           {logsFiltrados.length === 0 && !logsCarregando ? (
             <div className="flex flex-col items-center justify-center py-10 gap-2 text-center">
-              <div className="w-10 h-10 rounded-2xl bg-gray-100 flex items-center justify-center mb-1">
+              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mb-1">
                 <Activity className="w-5 h-5 text-gray-400" />
               </div>
               <p className="text-sm font-medium text-gray-500">Nenhuma atividade encontrada</p>

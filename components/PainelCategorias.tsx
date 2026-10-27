@@ -74,9 +74,9 @@ export default function PainelCategorias({
   const ajudaAtual = ABAS.find(a => a.id === aba)?.ajuda ?? ''
 
   return (
-    <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
+    <div className="bg-white rounded-3xl shadow-soft p-4 lg:col-span-2">
       <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
+        <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center shrink-0">
           <PieChart className="w-4 h-4 text-indigo-600" />
         </div>
         <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">

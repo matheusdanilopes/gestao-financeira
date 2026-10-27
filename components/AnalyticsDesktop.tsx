@@ -168,8 +168,8 @@ interface SortConfig { key: SortKey; dir: 'asc' | 'desc' }
 
 function KpiCard({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) {
   return (
-    <div className="bg-white dark:bg-[#1e293b] rounded-2xl shadow-card border border-gray-100 dark:border-white/[0.06] px-4 py-3 flex flex-col gap-0.5 min-w-0 transition-shadow hover:shadow-md">
-      <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500">{label}</span>
+    <div className="bg-white dark:bg-[#1e293b] rounded-2xl shadow-soft dark:border-white/[0.06] px-4 py-3 flex flex-col gap-0.5 min-w-0 transition-shadow hover:shadow-md">
+      <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-500">{label}</span>
       <span className={`text-xl font-bold leading-tight truncate num ${accent ?? 'text-gray-800 dark:text-gray-100'}`}>
         {value}
       </span>
@@ -182,8 +182,8 @@ function KpiCard({ label, value, sub, accent }: { label: string; value: string; 
 
 function ChartCard({ title, children, className = '' }: { title: string; children: React.ReactNode; className?: string }) {
   return (
-    <div className={`bg-white dark:bg-[#1e293b] rounded-3xl shadow-card border border-gray-100 dark:border-white/[0.06] p-5 flex flex-col gap-4 transition-shadow hover:shadow-md ${className}`}>
-      <h3 className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500">{title}</h3>
+    <div className={`bg-white dark:bg-[#1e293b] rounded-3xl shadow-soft dark:border-white/[0.06] p-5 flex flex-col gap-4 transition-shadow hover:shadow-md ${className}`}>
+      <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-500">{title}</h3>
       {children}
     </div>
   )
@@ -282,7 +282,7 @@ export default function AnalyticsDesktop() {
 
           {/* Logo / Title */}
           <div className="px-5 py-4 border-b border-gray-100 dark:border-white/[0.06] flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+            <div className="w-8 h-8 rounded-full bg-primary-500 flex items-center justify-center flex-shrink-0 shadow-sm">
               <BarChart3 className="w-4 h-4 text-white" />
             </div>
             <span className="font-bold text-sm text-gray-800 dark:text-gray-100 tracking-tight">Analytics</span>
@@ -292,7 +292,7 @@ export default function AnalyticsDesktop() {
 
             {/* Date Range */}
             <section>
-              <span className="block text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-2.5">
+              <span className="block text-[11px] font-semibold text-gray-500 dark:text-gray-500 mb-2.5">
                 Período
               </span>
               <div className="flex flex-col gap-1.5">
@@ -316,7 +316,7 @@ export default function AnalyticsDesktop() {
 
             {/* Responsável */}
             <section>
-              <span className="block text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-2.5">
+              <span className="block text-[11px] font-semibold text-gray-500 dark:text-gray-500 mb-2.5">
                 Responsável
               </span>
               <div className="flex gap-1.5 flex-wrap">
@@ -345,7 +345,7 @@ export default function AnalyticsDesktop() {
 
             {/* Categories */}
             <section className="flex-1">
-              <span className="block text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-2.5">
+              <span className="block text-[11px] font-semibold text-gray-500 dark:text-gray-500 mb-2.5">
                 Categorias
               </span>
               <div className="flex flex-col gap-1.5">
@@ -560,7 +560,7 @@ export default function AnalyticsDesktop() {
                 </ChartCard>
 
                 {/* ── DataGrid ────────────────────────────────────────────── */}
-                <div className="bg-white dark:bg-[#1e293b] rounded-3xl shadow-card border border-gray-100 dark:border-white/[0.06] overflow-hidden">
+                <div className="bg-white dark:bg-[#1e293b] rounded-3xl shadow-soft dark:border-white/[0.06] overflow-hidden">
                   {/* Toolbar */}
                   <div className="px-5 py-3 border-b border-gray-100 dark:border-white/[0.06] flex items-center gap-3">
                     <div className="relative flex-1">
@@ -602,13 +602,13 @@ export default function AnalyticsDesktop() {
                             <th
                               key={col.key}
                               onClick={() => handleSort(col.key)}
-                              className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200 transition-colors whitespace-nowrap"
+                              className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-500 cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200 transition-colors whitespace-nowrap"
                             >
                               {col.label}
                               <SortIcon k={col.key} />
                             </th>
                           ))}
-                          <th className="px-4 py-2.5 text-right text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest whitespace-nowrap">
+                          <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-gray-500 dark:text-gray-500 whitespace-nowrap">
                             Desvio (R$)
                           </th>
                         </tr>

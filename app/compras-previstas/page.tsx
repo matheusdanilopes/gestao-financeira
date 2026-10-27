@@ -10,7 +10,6 @@ import MonthSelector from '@/components/MonthSelector'
 import EmptyState from '@/components/EmptyState'
 import ModalPortal from '@/components/ModalPortal'
 import { SwipeableItem } from '@/components/SwipeableItem'
-import { InfoPopover } from '@/components/InfoPopover'
 import { useMes } from '@/components/MesProvider'
 import { supabase } from '@/lib/supabaseClient'
 import { AUTH_DISABLED } from '@/lib/authConfig'
@@ -21,6 +20,7 @@ import {
   calcularReservasDoMes, mesReferenciaISO, ehParcelada, mesUltimaParcela,
   type ReservaFatura, type BaixaReserva, type TransacaoParaReserva, type ReservaCalculada,
 } from '@/lib/reservasFatura'
+import PageHeader from '@/components/PageHeader'
 
 // Mesmos tokens visuais da tela de Assinaturas (components/AssinaturasMensal.tsx),
 // a irmã mais próxima desta no menu Cartão.
@@ -202,13 +202,12 @@ export default function ComprasPrevistasPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 page-bottom-safe page-enter">
-      <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 z-[10]">
-        <h1 className="text-xl font-bold text-gray-900 mb-3 flex items-center gap-1.5">
-          Compras previstas
-          <InfoPopover texto="Cadastre compras que você sabe que vão cair na fatura do NuBank — pontuais (só neste mês), parceladas (o total dividido pelos meses das parcelas) ou recorrentes (todo mês até você encerrar). O 'Restante' de cada pessoa no Dashboard já desconta o que ainda não caiu. Com palavras-chave, as compras importadas que casarem abatem a previsão sozinhas; você também pode marcar 'Já caiu' manualmente — numa parcelada, isso tira também as parcelas seguintes, que passam a vir das compras importadas." />
-        </h1>
-        <MonthSelector value={mesAtual} onChange={setMesAtual} />
-      </div>
+      <PageHeader
+        title="Compras previstas"
+        info="Cadastre compras que você sabe que vão cair na fatura do NuBank — pontuais (só neste mês), parceladas (o total dividido pelos meses das parcelas) ou recorrentes (todo mês até você encerrar). O 'Restante' de cada pessoa no Dashboard já desconta o que ainda não caiu. Com palavras-chave, as compras importadas que casarem abatem a previsão sozinhas; você também pode marcar 'Já caiu' manualmente — numa parcelada, isso tira também as parcelas seguintes, que passam a vir das compras importadas."
+      >
+        <MonthSelector tone="inverse" value={mesAtual} onChange={setMesAtual} />
+      </PageHeader>
 
       <div className="page-content">
         <div className="space-y-3">
@@ -221,7 +220,7 @@ export default function ComprasPrevistasPage() {
           )}
 
           {erro && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-start gap-2">
+            <div className="bg-amber-50 rounded-2xl p-3 flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <p className="text-sm text-amber-700 font-medium">{erro}</p>
             </div>
@@ -230,9 +229,9 @@ export default function ComprasPrevistasPage() {
           {!erro && !dados && (
             <>
               <div className="grid grid-cols-2 gap-3">
-                {[0, 1].map(i => <div key={i} className="h-[92px] bg-white rounded-2xl shadow-card border border-gray-100 animate-pulse" />)}
+                {[0, 1].map(i => <div key={i} className="h-[92px] skeleton rounded-2xl" />)}
               </div>
-              <div className="h-40 bg-white rounded-3xl shadow-card border border-gray-100 animate-pulse" />
+              <div className="h-40 skeleton rounded-3xl" />
             </>
           )}
 
@@ -240,7 +239,7 @@ export default function ComprasPrevistasPage() {
             <>
               {/* Resumo: o que ainda vai cair + o que já caiu */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white rounded-2xl shadow-card border border-gray-100 p-4 text-center">
+                <div className="bg-white rounded-2xl shadow-soft p-4 text-center">
                   <div className="flex items-center justify-center gap-1.5 mb-1.5">
                     <Clock className="w-3.5 h-3.5 text-primary-500 dark:text-primary-400" />
                     <p className="text-xs text-gray-400 font-medium">A cair na fatura</p>
@@ -248,7 +247,7 @@ export default function ComprasPrevistasPage() {
                   <p className="text-xl font-bold text-primary-700 num leading-none">{formatBRL(totais.pendente)}</p>
                   <p className="text-xs text-gray-400 mt-1 num">de {formatBRL(totais.previsto)} previstos</p>
                 </div>
-                <div className="bg-white rounded-2xl shadow-card border border-gray-100 p-4 text-center">
+                <div className="bg-white rounded-2xl shadow-soft p-4 text-center">
                   <div className="flex items-center justify-center gap-1.5 mb-1.5">
                     <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
                     <p className="text-xs text-gray-400 font-medium">Já na fatura</p>
@@ -262,8 +261,8 @@ export default function ComprasPrevistasPage() {
               <div className="grid grid-cols-4 gap-1.5">
                 <button
                   onClick={() => setFiltro('')}
-                  className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${
-                    filtro === '' ? 'bg-primary-50 border-primary-200 dark:border-primary-800' : 'bg-white border-gray-100'
+                  className={`rounded-2xl px-2 py-2.5 text-center transition-all duration-200 active:scale-[0.97] ${
+                    filtro === '' ? 'bg-primary-50 border-primary-200 dark:border-primary-800' : 'bg-white shadow-soft'
                   }`}
                 >
                   <p className={`text-[11px] font-medium mb-0.5 ${filtro === '' ? 'text-primary-500 dark:text-primary-400' : 'text-gray-400'}`}>Total</p>
@@ -277,7 +276,7 @@ export default function ComprasPrevistasPage() {
                     <button
                       key={r}
                       onClick={() => setFiltro(ativo ? '' : r)}
-                      className={`rounded-xl px-2 py-2 text-center transition-all duration-200 active:scale-[0.97] border ${ativo ? est.ativo : 'bg-white border-gray-100'}`}
+                      className={`rounded-2xl px-2 py-2.5 text-center transition-all duration-200 active:scale-[0.97] ${ativo ? est.ativo : 'bg-white shadow-soft'}`}
                     >
                       <p className={`text-[11px] font-medium mb-0.5 ${ativo ? est.label : 'text-gray-400'}`}>{r}</p>
                       <p className={`text-xs font-bold num leading-tight ${ativo ? est.valor : 'text-gray-700'}`}>{formatBRL(totais.porResp[r].pendente)}</p>
@@ -292,7 +291,7 @@ export default function ComprasPrevistasPage() {
                 const itens = calculadas.filter(c => c.reserva.responsavel === resp)
                 if (itens.length === 0) return null
                 return (
-                  <div key={resp} className="bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden">
+                  <div key={resp} className="bg-white rounded-3xl shadow-soft overflow-hidden">
                     <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
                       <div className="flex items-center gap-2">
                         <div className={`w-2 h-2 rounded-full ${estiloResponsavel(resp).ponto}`} />
@@ -321,7 +320,7 @@ export default function ComprasPrevistasPage() {
               })}
 
               {calculadas.filter(c => !filtro || c.reserva.responsavel === filtro).length === 0 && (
-                <div className="bg-white rounded-3xl shadow-card border border-gray-100">
+                <div className="bg-white rounded-3xl shadow-soft">
                   <EmptyState
                     icon={BookmarkPlus}
                     title="Nenhuma compra prevista"
@@ -332,7 +331,7 @@ export default function ComprasPrevistasPage() {
 
               <button
                 onClick={() => setModal({ tipo: 'form', reserva: null })}
-                className="w-full bg-primary-600 text-white py-3.5 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm"
+                className="w-full bg-primary-600 text-white py-3.5 rounded-full font-semibold flex items-center justify-center gap-2 hover:bg-primary-700 transition-all active:scale-[0.97]"
               >
                 <Plus className="w-5 h-5" />
                 Adicionar compra prevista
@@ -681,14 +680,14 @@ function FormCompraPrevista({ reserva, responsavelPadrao, mesRef, onClose, onSal
               {reserva.recorrente && reserva.mes_fim !== mesRef && (
                 <button
                   onClick={() => onEncerrar(reserva)}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl border border-amber-200 bg-amber-50 text-amber-700 text-sm font-semibold transition-all active:scale-[0.98]"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl bg-amber-50 text-amber-700 text-sm font-semibold transition-all active:scale-[0.98]"
                 >
                   <StopCircle className="w-4 h-4" /> Encerrar
                 </button>
               )}
               <button
                 onClick={() => onExcluir(reserva)}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl border border-red-200 bg-red-50 text-red-600 text-sm font-semibold transition-all active:scale-[0.98]"
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl bg-red-50 text-red-600 text-sm font-semibold transition-all active:scale-[0.98]"
               >
                 <Trash2 className="w-4 h-4" /> Excluir
               </button>
@@ -700,7 +699,7 @@ function FormCompraPrevista({ reserva, responsavelPadrao, mesRef, onClose, onSal
             <button
               onClick={salvar}
               disabled={salvando}
-              className="flex-1 py-3 rounded-2xl bg-primary-600 text-white font-semibold hover:bg-primary-700 transition-all active:scale-[0.97] shadow-sm disabled:opacity-50"
+              className="flex-1 py-3 rounded-full bg-primary-600 text-white font-semibold hover:bg-primary-700 transition-all active:scale-[0.97] disabled:opacity-50"
             >
               {salvando ? 'Salvando…' : 'Salvar'}
             </button>

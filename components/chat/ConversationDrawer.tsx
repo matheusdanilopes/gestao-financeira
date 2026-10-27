@@ -69,7 +69,7 @@ export function ConversationDrawer({
         >
           <header className="flex items-center justify-between px-4 py-4 border-b border-gray-100 dark:border-gray-700/60">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0">
+              <div className="w-7 h-7 rounded-full bg-violet-500 flex items-center justify-center shrink-0">
                 <History className="w-3.5 h-3.5 text-white" />
               </div>
               <h2 className="font-semibold text-gray-800 dark:text-gray-100 text-sm tracking-tight truncate">Conversas</h2>
@@ -86,7 +86,7 @@ export function ConversationDrawer({
           <div className="px-3 pt-3">
             <button
               onClick={() => { onNova(); onFechar() }}
-              className="w-full flex items-center gap-2.5 px-4 py-3 rounded-2xl border border-primary-200 dark:border-primary-700 bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 text-sm font-semibold transition-all duration-200 hover:bg-primary-100 dark:hover:bg-primary-900/40 active:scale-[0.98]"
+              className="w-full flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 text-sm font-semibold transition-all duration-200 hover:bg-primary-100 dark:hover:bg-primary-900/40 active:scale-[0.98]"
             >
               <Plus className="w-4 h-4 shrink-0" />
               Nova conversa
@@ -100,7 +100,7 @@ export function ConversationDrawer({
               </div>
             ) : conversas.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-14 gap-3 px-6 text-center">
-                <div className="w-11 h-11 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                <div className="w-11 h-11 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
                   <MessageSquare className="w-5 h-5 text-gray-400 dark:text-gray-500" />
                 </div>
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Nenhuma conversa ainda</p>
@@ -112,7 +112,7 @@ export function ConversationDrawer({
                   const ativa = conv.id === conversaAtiva
                   if (confirmandoVisivel === conv.id) {
                     return (
-                      <li key={conv.id} className="mx-1 px-3 py-3 rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 flex items-center justify-between gap-2">
+                      <li key={conv.id} className="mx-1 px-3 py-3 rounded-2xl bg-red-50 dark:bg-red-900/20 flex items-center justify-between gap-2">
                         <p className="text-xs text-red-600 dark:text-red-400 font-medium">Excluir esta conversa?</p>
                         <div className="flex items-center gap-1.5 shrink-0">
                           <button onClick={() => setConfirmando(null)} className="text-xs text-gray-500 dark:text-gray-400 px-2.5 py-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">

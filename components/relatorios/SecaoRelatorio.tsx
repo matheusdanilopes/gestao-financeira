@@ -83,7 +83,7 @@ export default function SecaoRelatorio({
   }
 
   return (
-    <section className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 space-y-3">
+    <section className="bg-white rounded-3xl shadow-soft p-4 space-y-3">
       <div className="flex items-center gap-3">
         <div className={`w-9 h-9 rounded-xl ${corFundo} flex items-center justify-center shrink-0`}>
           <Icon className={`w-4 h-4 ${corIcone}`} strokeWidth={1.8} />

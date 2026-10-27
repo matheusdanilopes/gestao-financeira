@@ -13,6 +13,7 @@ import { useListaMercado, type ItemMercado } from '@/lib/useListaMercado'
 import { type PendingOp } from '@/lib/offlineQueue'
 import { useHistoricoCompras } from '@/lib/useHistoricoCompras'
 import { formatBRL, mascaraMoeda, formatarMoedaInput, parseMoeda } from '@/lib/format'
+import PageHeader, { PAGE_HEADER_PILL } from '@/components/PageHeader'
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
@@ -137,7 +138,7 @@ function BottomSheetPreco({
         >
           <div className="w-full bg-white rounded-t-3xl shadow-2xl px-5 pt-2 pb-6 modal-sheet">
             <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5" />
-            <p className="text-[11px] text-gray-400 mb-0.5 font-semibold uppercase tracking-wide">Preço unitário de</p>
+            <p className="text-xs text-gray-500 mb-0.5 font-semibold">Preço unitário de</p>
             <p className="text-base font-bold text-gray-900 mb-5 truncate">{item.nome}</p>
 
             <form onSubmit={e => { e.preventDefault(); handleConfirmar() }}>
@@ -160,9 +161,7 @@ function BottomSheetPreco({
                 <button
                   type="button"
                   onClick={() => setCameraAberta(true)}
-                  className="w-full flex items-center justify-center gap-2 py-3 mb-4 rounded-2xl
-                             border border-dashed border-primary-200 bg-primary-50 text-primary-600
-                             active:bg-primary-100 transition-colors active:scale-[0.99]"
+                  className="w-full flex items-center justify-center gap-2 py-3 mb-4 rounded-2xl border-dashed bg-primary-50 text-primary-600 active:bg-primary-100 transition-colors active:scale-[0.99]"
                 >
                   <Camera className="w-4 h-4" strokeWidth={2} />
                   <span className="text-sm font-semibold">Ler preço com câmera</span>
@@ -185,7 +184,7 @@ function BottomSheetPreco({
                   Cancelar
                 </button>
                 <button type="submit"
-                  className="flex-1 py-3.5 rounded-2xl bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 transition-colors active:scale-[0.97]">
+                  className="flex-1 py-3.5 rounded-full bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 transition-colors active:scale-[0.97]">
                   Confirmar
                 </button>
               </div>
@@ -260,25 +259,24 @@ function BottomSheetConfirmarCompra({
             <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5" />
 
             <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-2xl bg-green-50 flex items-center justify-center flex-none">
+              <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center flex-none">
                 <Check className="w-5 h-5 text-green-500" strokeWidth={2.5} />
               </div>
               <div className="min-w-0">
-                <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide">Conferir antes de marcar</p>
+                <p className="text-xs text-gray-500 font-semibold">Conferir antes de marcar</p>
                 <p className="text-base font-bold text-gray-900 truncate">{item.nome}</p>
               </div>
             </div>
 
             {/* Quantidade */}
             <div className="mb-4">
-              <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Quantidade</label>
+              <label className="block text-xs font-semibold text-gray-500 mb-2">Quantidade</label>
               <div className="flex items-center gap-4">
                 <button
                   type="button"
                   onClick={() => setQtd(q => Math.max(1, q - 1))}
                   disabled={qtd <= 1}
-                  className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-600
-                             hover:bg-gray-200 disabled:opacity-30 transition-colors active:scale-90"
+                  className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 disabled:opacity-30 transition-colors active:scale-90"
                 >
                   <Minus className="w-5 h-5" strokeWidth={2.5} />
                 </button>
@@ -286,8 +284,7 @@ function BottomSheetConfirmarCompra({
                 <button
                   type="button"
                   onClick={() => setQtd(q => q + 1)}
-                  className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-600
-                             hover:bg-gray-200 transition-colors active:scale-90"
+                  className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors active:scale-90"
                 >
                   <Plus className="w-5 h-5" strokeWidth={2.5} />
                 </button>
@@ -296,7 +293,7 @@ function BottomSheetConfirmarCompra({
 
             {/* Preço unitário */}
             <div className="mb-4">
-              <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Preço unitário</label>
+              <label className="block text-xs font-semibold text-gray-500 mb-2">Preço unitário</label>
               <div className="relative mb-2">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-semibold">R$</span>
                 <input
@@ -315,9 +312,7 @@ function BottomSheetConfirmarCompra({
                 <button
                   type="button"
                   onClick={() => setCameraAberta(true)}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl
-                             border border-dashed border-green-200 bg-green-50 text-green-700
-                             active:bg-green-100 transition-colors active:scale-[0.99]"
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border-dashed bg-green-50 text-green-700 active:bg-green-100 transition-colors active:scale-[0.99]"
                 >
                   <Camera className="w-4 h-4" strokeWidth={2} />
                   <span className="text-sm font-semibold">Ler preço com câmera</span>
@@ -327,7 +322,7 @@ function BottomSheetConfirmarCompra({
 
             {/* Subtotal */}
             {subtotal != null && (
-              <div className="mb-4 px-4 py-3.5 rounded-2xl bg-green-50 border border-green-100 flex items-center justify-between">
+              <div className="mb-4 px-4 py-3.5 rounded-2xl bg-green-50 flex items-center justify-between">
                 <span className="text-sm text-green-700 font-semibold">Total do item</span>
                 <span className="text-lg font-bold text-green-700 num">{formatBRL(subtotal)}</span>
               </div>
@@ -345,8 +340,8 @@ function BottomSheetConfirmarCompra({
               <button
                 type="button"
                 onClick={() => { onConfirmar(qtd, precoNum); onClose() }}
-                className="flex-1 py-3.5 rounded-2xl bg-green-500 text-white text-sm font-semibold
-                           hover:bg-green-600 transition-colors active:scale-[0.97] flex items-center justify-center gap-2"
+                className="flex-1 py-3.5 rounded-full bg-primary-600 text-white text-sm font-semibold
+                           hover:bg-primary-700 transition-colors active:scale-[0.97] flex items-center justify-center gap-2"
               >
                 <Check className="w-4 h-4" strokeWidth={2.5} />
                 Comprado
@@ -421,7 +416,7 @@ function BottomSheetFinalizarCompra({
           <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5" />
 
           <div className="flex items-center gap-3 mb-5">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center flex-none">
+            <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center flex-none">
               <ShoppingBasket className="w-5 h-5 text-emerald-600" strokeWidth={1.8} />
             </div>
             <div>
@@ -453,7 +448,7 @@ function BottomSheetFinalizarCompra({
 
           {/* Valor total pago */}
           <div className="mb-4">
-            <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Valor total pago</label>
+            <label className="block text-xs font-semibold text-gray-500 mb-2">Valor total pago</label>
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-semibold">R$</span>
               <input
@@ -487,8 +482,8 @@ function BottomSheetFinalizarCompra({
               type="button"
               disabled={!valido || salvando}
               onClick={() => valido && onFinalizar(valorNum)}
-              className="flex-1 py-3.5 rounded-2xl bg-emerald-500 text-white text-sm font-semibold
-                         hover:bg-emerald-600 disabled:opacity-50 transition-colors active:scale-[0.97]
+              className="flex-1 py-3.5 rounded-full bg-primary-600 text-white text-sm font-semibold
+                         hover:bg-primary-700 disabled:opacity-50 transition-colors active:scale-[0.97]
                          flex items-center justify-center gap-2"
             >
               {salvando ? (
@@ -545,7 +540,7 @@ function BottomSheetPendingOps({
           <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5" />
 
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center flex-none">
+            <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center flex-none">
               <RefreshCw className="w-5 h-5 text-amber-500" strokeWidth={2} />
             </div>
             <div>
@@ -712,8 +707,7 @@ function ItemRow({
             type="button"
             onClick={() => onAlterarQtd(item.id, -1)}
             disabled={item.quantidade <= 1}
-            className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center
-                       text-gray-600 hover:bg-gray-200 disabled:opacity-30 transition-colors active:scale-90"
+            className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 disabled:opacity-30 transition-colors active:scale-90"
             aria-label="Diminuir quantidade"
           >
             <Minus className="w-3 h-3" strokeWidth={2.5} />
@@ -724,8 +718,7 @@ function ItemRow({
           <button
             type="button"
             onClick={() => onAlterarQtd(item.id, +1)}
-            className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center
-                       text-gray-600 hover:bg-gray-200 transition-colors active:scale-90"
+            className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors active:scale-90"
             aria-label="Aumentar quantidade"
           >
             <Plus className="w-3 h-3" strokeWidth={2.5} />
@@ -822,8 +815,8 @@ function SubtotalBar({
             {/* Valor total */}
             <div className="flex-1 min-w-0">
               {semPreco > 0 && (
-                <p className="text-[9px] text-gray-400 leading-none mb-0.5 uppercase tracking-wide font-medium">
-                  parcial
+                <p className="text-[10px] text-gray-500 leading-none mb-0.5 font-medium">
+                  Parcial
                 </p>
               )}
               <span className="text-sm font-bold text-gray-900 num">
@@ -921,16 +914,16 @@ function InputAdicionar({
           onChange={handleChange}
           onBlur={() => setTimeout(() => setSugestoes([]), 150)}
           placeholder="Adicionar item… (ex: Leite 2)"
-          className="flex-1 px-4 py-2.5 rounded-2xl border border-gray-200 text-sm font-medium text-gray-900
-                     placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
+          className="flex-1 px-4 py-2.5 rounded-full bg-white border-0 text-sm font-medium text-gray-900
+                     placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-white/60"
         />
         <button
           type="submit"
           disabled={!valor.trim()}
           aria-label="Adicionar item"
-          className="w-10 h-10 rounded-2xl bg-primary-600 flex items-center justify-center text-white
-                     disabled:opacity-40 hover:bg-primary-700 transition-all ease-spring active:scale-90
-                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+          className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-primary-600
+                     disabled:opacity-60 hover:bg-primary-50 transition-all ease-smooth active:scale-90
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
         >
           <Plus className="w-5 h-5" strokeWidth={2.5} />
         </button>
@@ -938,7 +931,7 @@ function InputAdicionar({
 
       {/* Autocomplete */}
       {sugestoes.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-1.5 bg-white rounded-2xl border border-gray-100 shadow-card-md z-20 overflow-hidden">
+        <div className="absolute top-full left-0 right-0 mt-1.5 bg-white rounded-2xl shadow-soft-md z-20 overflow-hidden">
           {sugestoes.map(s => (
             <button
               key={s}
@@ -1037,70 +1030,66 @@ export default function ListaMercadoPage() {
 
   return (
     <div className="min-h-screen pb-40 page-enter">
-      {/* Header */}
-      <div className="sticky top-0 z-10 sticky-header border-b border-gray-100 px-4 pt-4 pb-3">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center flex-none">
-            <ShoppingBasket className="w-5 h-5 text-emerald-600" strokeWidth={1.8} />
+      <PageHeader
+        title="Lista de Mercado"
+        icon={ShoppingBasket}
+        subtitle={
+          <div className="flex items-center gap-2 flex-wrap">
+            <p>
+              {pendentes.length} {pendentes.length === 1 ? 'item pendente' : 'itens pendentes'}
+              {comprados.length > 0 && (
+                <span> · {comprados.length} comprado{comprados.length > 1 ? 's' : ''}</span>
+              )}
+            </p>
+            {totalItens > 0 && comprados.length > 0 && (
+              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full num">
+                {comprados.length}/{totalItens}
+              </span>
+            )}
+            {!isOnline && (
+              <span className="flex items-center gap-1 text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">
+                <WifiOff className="w-2.5 h-2.5" strokeWidth={2.5} />
+                Offline{pendingCount > 0 ? ` · ${pendingCount}` : ''}
+              </span>
+            )}
+            {isOnline && syncStatus === 'syncing' && (
+              <span className="flex items-center gap-1 text-[10px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">
+                <RefreshCw className="w-2.5 h-2.5 animate-spin" strokeWidth={2.5} />
+                Sincronizando
+              </span>
+            )}
+            {isOnline && syncStatus === 'error' && (
+              <span className="flex items-center gap-1 text-[10px] font-semibold text-red-500 bg-red-50 px-1.5 py-0.5 rounded-full">
+                <AlertCircle className="w-2.5 h-2.5" strokeWidth={2.5} />
+                Erro de sync
+              </span>
+            )}
+            {isOnline && syncStatus === 'pending' && (
+              <button
+                type="button"
+                onClick={() => setPendingOpsAberto(true)}
+                className="flex items-center gap-1 text-[10px] font-semibold text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded-full active:bg-orange-100 transition-colors"
+              >
+                <RefreshCw className="w-2.5 h-2.5" strokeWidth={2.5} />
+                {pendingCount} pendente{pendingCount > 1 ? 's' : ''}
+              </button>
+            )}
           </div>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-bold text-gray-900 leading-none">Lista de Mercado</h1>
-            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-              <p className="text-xs text-gray-400">
-                {pendentes.length} {pendentes.length === 1 ? 'item pendente' : 'itens pendentes'}
-                {comprados.length > 0 && (
-                  <span> · {comprados.length} comprado{comprados.length > 1 ? 's' : ''}</span>
-                )}
-              </p>
-              {totalItens > 0 && comprados.length > 0 && (
-                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full num">
-                  {comprados.length}/{totalItens}
-                </span>
-              )}
-              {!isOnline && (
-                <span className="flex items-center gap-1 text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">
-                  <WifiOff className="w-2.5 h-2.5" strokeWidth={2.5} />
-                  Offline{pendingCount > 0 ? ` · ${pendingCount}` : ''}
-                </span>
-              )}
-              {isOnline && syncStatus === 'syncing' && (
-                <span className="flex items-center gap-1 text-[10px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">
-                  <RefreshCw className="w-2.5 h-2.5 animate-spin" strokeWidth={2.5} />
-                  Sincronizando
-                </span>
-              )}
-              {isOnline && syncStatus === 'error' && (
-                <span className="flex items-center gap-1 text-[10px] font-semibold text-red-500 bg-red-50 px-1.5 py-0.5 rounded-full">
-                  <AlertCircle className="w-2.5 h-2.5" strokeWidth={2.5} />
-                  Erro de sync
-                </span>
-              )}
-              {isOnline && syncStatus === 'pending' && (
-                <button
-                  type="button"
-                  onClick={() => setPendingOpsAberto(true)}
-                  className="flex items-center gap-1 text-[10px] font-semibold text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded-full active:bg-orange-100 transition-colors"
-                >
-                  <RefreshCw className="w-2.5 h-2.5" strokeWidth={2.5} />
-                  {pendingCount} pendente{pendingCount > 1 ? 's' : ''}
-                </button>
-              )}
-            </div>
-          </div>
+        }
+        actions={
           <button
             type="button"
             onClick={() => router.push('/lista-mercado/historico')}
             aria-label="Histórico de compras"
-            className="flex items-center gap-1.5 flex-none px-3 py-1.5 rounded-xl
-                       bg-gray-100 hover:bg-gray-200 transition-colors active:scale-[0.97]"
+            className={PAGE_HEADER_PILL}
           >
-            <History className="w-3.5 h-3.5 text-gray-500" strokeWidth={2} />
-            <span className="text-xs font-semibold text-gray-600">Histórico</span>
+            <History className="w-3.5 h-3.5" strokeWidth={2} />
+            <span>Histórico</span>
           </button>
-        </div>
-
+        }
+      >
         <InputAdicionar onAdicionar={adicionar} />
-      </div>
+      </PageHeader>
 
       {/* Lista */}
       {itens.length === 0 ? (
@@ -1121,7 +1110,7 @@ export default function ListaMercadoPage() {
           </p>
         </div>
       ) : (
-        <div className="bg-white mt-2 rounded-2xl mx-4 overflow-hidden shadow-card border border-gray-100">
+        <div className="bg-white mt-2 rounded-2xl mx-4 overflow-hidden shadow-soft">
           {/* Pendentes */}
           {pendentes.map((item, idx) => (
             <div key={item.id} className="list-item-enter" style={{ animationDelay: `${Math.min(idx, 5) * 25}ms` }}>

@@ -5,9 +5,11 @@ import { Info, X } from 'lucide-react'
 
 interface InfoPopoverProps {
   texto: string
+  /** 'inverse': ícone claro para fundo colorido (topo do Dashboard) */
+  tone?: 'default' | 'inverse'
 }
 
-export function InfoPopover({ texto }: InfoPopoverProps) {
+export function InfoPopover({ texto, tone = 'default' }: InfoPopoverProps) {
   const [aberto, setAberto] = useState(false)
   const [pos, setPos] = useState({ top: 0, left: 0 })
   const btnRef = useRef<HTMLButtonElement>(null)
@@ -53,9 +55,10 @@ export function InfoPopover({ texto }: InfoPopoverProps) {
       <button
         ref={btnRef}
         onClick={() => aberto ? setAberto(false) : handleOpen()}
-        className="p-0.5 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300
-                   hover:bg-gray-100 dark:hover:bg-gray-800
-                   active:scale-90 transition-all duration-150 focus:outline-none"
+        className={`p-0.5 rounded-md active:scale-90 transition-all duration-150 focus:outline-none
+                    ${tone === 'inverse'
+                      ? 'text-white/70 hover:text-white hover:bg-white/15'
+                      : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
         aria-label="Mais informações"
         aria-expanded={aberto}
       >

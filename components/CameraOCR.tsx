@@ -295,7 +295,7 @@ export function CameraOCR({ onConfirmar, onClose }: Props) {
             <div className="px-4 pt-4">
               <div className="bg-white rounded-3xl px-5 py-4 shadow-float">
                 <div className="flex items-center gap-2.5 mb-4">
-                  <div className="w-7 h-7 rounded-xl bg-green-50 flex items-center justify-center flex-none">
+                  <div className="w-7 h-7 rounded-full bg-green-50 flex items-center justify-center flex-none">
                     <Check className="w-3.5 h-3.5 text-green-500" strokeWidth={2.5} />
                   </div>
                   <p className="text-xs font-semibold text-gray-500 tracking-tight">Preço detectado — edite se necessário</p>
@@ -328,7 +328,7 @@ export function CameraOCR({ onConfirmar, onClose }: Props) {
                   <button
                     type="button"
                     onClick={confirmar}
-                    className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-green-500
+                    className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-full bg-primary-600
                                text-white text-sm font-bold active:bg-green-600 transition-colors active:scale-[0.98]"
                   >
                     <Check className="w-4 h-4" strokeWidth={2.5} />

@@ -38,7 +38,7 @@ export default function MeuLimiteParcelamentoCard({ resumo }: Props) {
 
   if (!responsavel || !resumo) {
     return (
-      <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-card border border-gray-100 dark:border-gray-800 p-5 animate-pulse" aria-hidden="true">
+      <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-soft dark:border-gray-800 p-5 skeleton-group" aria-hidden="true">
         <div className="h-3 w-40 bg-gray-100 dark:bg-white/[0.06] rounded-full mb-4" />
         <div className="h-10 w-24 bg-gray-100 dark:bg-white/[0.06] rounded-xl mb-4" />
         <div className="h-2 w-full bg-gray-100 dark:bg-white/[0.06] rounded-full" />
@@ -53,12 +53,12 @@ export default function MeuLimiteParcelamentoCard({ resumo }: Props) {
   const corBarra = pct >= 100 ? 'bg-red-500' : pct >= 80 ? 'bg-amber-400' : 'bg-emerald-500'
 
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-card border border-gray-100 dark:border-gray-800 p-5 content-enter">
+    <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-soft dark:border-gray-800 p-5 content-enter">
       <div className="flex items-center gap-2 mb-3">
         <div className={`w-9 h-9 rounded-2xl ${iconBg} flex items-center justify-center shrink-0`}>
           <Gauge className={`w-4.5 h-4.5 ${texto}`} />
         </div>
-        <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">
+        <p className="text-xs font-semibold text-gray-500 dark:text-gray-500">
           Seu limite de parcelamentos · {responsavel}
         </p>
       </div>

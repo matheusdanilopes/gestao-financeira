@@ -53,7 +53,7 @@ export function Cartao({
   children: React.ReactNode
 }) {
   return (
-    <section className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 space-y-3">
+    <section className="bg-white rounded-3xl shadow-soft p-4 space-y-3">
       <div className="flex items-center gap-3">
         <div className={`w-9 h-9 rounded-xl ${corFundo} flex items-center justify-center shrink-0`}>
           <Icon className={`w-4 h-4 ${corIcone}`} strokeWidth={1.8} />
@@ -121,10 +121,10 @@ function Recolhivel({ titulo, subtitulo, Icon, children }: {
         type="button"
         onClick={() => setAberto(v => !v)}
         aria-expanded={aberto}
-        className="w-full bg-white rounded-3xl shadow-card border border-gray-100 p-4 flex items-center gap-3 text-left
+        className="w-full bg-white rounded-3xl shadow-soft p-4 flex items-center gap-3 text-left
                    hover:bg-gray-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-300"
       >
-        <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
+        <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
           <Icon className="w-4 h-4 text-gray-600" strokeWidth={1.8} />
         </div>
         <div className="flex-1 min-w-0">
@@ -204,11 +204,11 @@ export function Diagnostico({
   const pontos = indicadores.reduce((s, i) => s + i.nota * i.peso, 0)
 
   return (
-    <section className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 space-y-4">
+    <section className="bg-white rounded-3xl shadow-soft p-4 space-y-4">
       <div className="flex items-center gap-4">
         <AnelNota nota={nota} />
         <div className="min-w-0 space-y-1">
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+          <p className="text-xs font-semibold text-gray-500">
             Saúde financeira · <span className={corNota(nota).texto}>{rotuloNota(nota)}</span>
           </p>
           {delta !== null && (
@@ -562,7 +562,7 @@ export function BlocoMesFoco({ mesFoco: f }: { mesFoco: MesFoco }) {
       </div>
 
       {f.novidades.length > 0 && (
-        <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-2.5 py-1.5 leading-snug">
+        <p className="text-[11px] text-amber-700 bg-amber-50 rounded-xl px-2.5 py-1.5 leading-snug">
           <Sparkle className="w-3 h-3 inline -mt-0.5 mr-1" />
           Novo neste mês: {f.novidades.join(' · ')}
         </p>
@@ -698,7 +698,7 @@ export function PlanoDeAcao({ analise: a }: { analise: AnaliseIA }) {
       <ol className="space-y-2.5">
         {a.planoDeAcao.map((p, i) => (
           <li key={p.acao} className="flex gap-2.5">
-            <span className="w-5 h-5 rounded-md bg-primary-50 text-primary-700 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+            <span className="w-5 h-5 rounded-full bg-primary-50 text-primary-700 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
               {i + 1}
             </span>
             <div className="flex-1 min-w-0">
@@ -1053,7 +1053,7 @@ function LeituraCompleta({ analise: a }: { analise: AnaliseIA }) {
   ] as const).filter(b => b.itens.length > 0)
   return (
     <>
-      <p className="text-xs text-gray-600 leading-snug rounded-2xl bg-violet-50 border border-violet-100 px-3 py-2">
+      <p className="text-xs text-gray-600 leading-snug rounded-2xl bg-violet-50 px-3 py-2">
         <b className="text-violet-700">{a.perfil.nome}:</b> {a.perfil.descricao}
       </p>
       {blocos.length > 0 && (
@@ -1092,7 +1092,7 @@ export function BlocosNumeros({ metricas: m }: { metricas: MetricasComportamento
   return (
     <>
       {m.escopo !== 'casal' && (
-        <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-2xl px-3 py-2 leading-snug">
+        <p className="text-[11px] text-amber-700 bg-amber-50 rounded-2xl px-3 py-2 leading-snug">
           <Info className="w-3 h-3 inline -mt-0.5 mr-1" />
           Visão de {m.escopo}: só os lançamentos com responsável {m.escopo} (o Conjunto fica de fora).
           O saldo do Dashboard e de Finanças é sempre do casal, por isso os números não batem com ele.
@@ -1133,7 +1133,7 @@ export function LimitesAnalise({ analise: a, metricas: m }: { analise: AnaliseIA
   const avisos = [...m.qualidade.avisos, ...a.limitacoes]
   if (avisos.length === 0) return null
   return (
-    <details className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 group">
+    <details className="bg-white rounded-3xl shadow-soft p-4 group">
       <summary className="flex items-center gap-2 text-xs font-semibold text-gray-500 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
         <Info className="w-3.5 h-3.5" /> Limites desta análise ({avisos.length})
         <ChevronDown className="w-3.5 h-3.5 ml-auto transition-transform group-open:rotate-180" />
