@@ -172,7 +172,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   return arr
 }
 
-export default memo(function NotificacoesBell() {
+export default memo(function NotificacoesBell({ tone = 'default' }: { tone?: 'default' | 'inverse' }) {
   const router = useRouter()
   const [aberto, setAberto] = useState(false)
   const [notificacoes, setNotificacoes] = useState<Notificacao[]>([])
@@ -438,13 +438,15 @@ export default memo(function NotificacoesBell() {
     <div ref={dropdownRef} className="relative">
       <button
         onClick={handleToggleBell}
-        className="relative p-2 rounded-xl hover:bg-white/15 dark:hover:bg-white/10
-                   active:scale-90 transition-all duration-150
-                   focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+        className={`relative flex items-center justify-center active:scale-90 transition-all duration-150
+                    focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40
+                    ${tone === 'inverse'
+                      ? 'w-11 h-11 rounded-full bg-white/15 hover:bg-white/25'
+                      : 'p-2 rounded-xl hover:bg-white/15 dark:hover:bg-white/10'}`}
         aria-label={`Notificações${naoLidas > 0 ? ` — ${naoLidas} não lida${naoLidas > 1 ? 's' : ''}` : ''}`}
         aria-expanded={aberto}
       >
-        <Bell className="w-5 h-5 text-gray-700 dark:text-gray-200" />
+        <Bell className={`w-5 h-5 ${tone === 'inverse' ? 'text-white' : 'text-gray-700 dark:text-gray-200'}`} />
         {naoLidas > 0 && (
           <span
             className="absolute top-0.5 right-0.5 min-w-[17px] h-[17px] px-1

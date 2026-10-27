@@ -12,13 +12,15 @@ function formatarData(d: Date): string {
   return format(d, "dd 'de' MMM 'às' HH:mm", { locale: ptBR })
 }
 
-export default memo(function UltimaImportacaoInfo() {
+export default memo(function UltimaImportacaoInfo({
+  className = 'text-gray-400 dark:text-gray-500',
+}: { className?: string }) {
   const { ultimaImportacao, loading } = useUltimaImportacao()
 
   if (loading || !ultimaImportacao) return null
 
   return (
-    <p className="flex items-center gap-1 text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
+    <p className={`flex items-center gap-1 text-[11px] mt-0.5 ${className}`}>
       <History className="w-3 h-3 shrink-0" aria-hidden="true" />
       Última importação: {formatarData(ultimaImportacao)}
     </p>

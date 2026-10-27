@@ -36,6 +36,10 @@ const ROTAS_RELATORIOS = ['/relatorios', '/analytics']
 // União de tudo que hoje mora dentro do popover "Extras" no mobile.
 const ROTAS_EXTRAS = [...ROTAS_LISTAS, ...ROTAS_RELATORIOS, '/chat', '/configuracoes']
 
+// Evento global para abrir o Lançamento rápido de fora da barra (ex: atalho
+// "Lançar" do Dashboard) — o sheet continua morando aqui, junto do FAB.
+export const EVENTO_ABRIR_LANCAMENTO = 'gf:abrir-lancamento-rapido'
+
 // Sucesso some sozinho depois de um tempo — erro fica visível até o usuário
 // dispensar ou visitar /importar, onde o painel completo assume.
 const IMPORT_BAND_AUTO_HIDE_MS = 8000
@@ -395,6 +399,15 @@ export default memo(function BottomNav() {
     if (!isOnline || !openDesktopMenu) return
     NAV_MODULES[openDesktopMenu].items.forEach(item => router.prefetch(item.href))
   }, [openDesktopMenu, isOnline, router])
+
+  useEffect(() => {
+    function abrir() {
+      setOpenMenu(null)
+      setFabSheetOpen(true)
+    }
+    window.addEventListener(EVENTO_ABRIR_LANCAMENTO, abrir)
+    return () => window.removeEventListener(EVENTO_ABRIR_LANCAMENTO, abrir)
+  }, [])
 
   // Fecha menus ao navegar para outra rota
   useEffect(() => {

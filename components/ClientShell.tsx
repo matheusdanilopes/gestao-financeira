@@ -11,14 +11,15 @@ import AlertaFaturaController from './AlertaFaturaController'
 import WakeWordListener from './WakeWordListener'
 import { useNotificationAutoClear } from '@/lib/notificationRouter'
 
-// Rotas que mostram sino de notificações
+// Rotas que mostram sino de notificações. O Dashboard desenha o sino e o
+// indicador dentro do próprio topo colorido, então fica fora daqui.
 const ROTAS_COM_BELL = [
-  '/dashboard', '/financas', '/compras', '/configuracoes', '/importar',
+  '/financas', '/compras', '/configuracoes', '/importar',
 ]
 
 // Rotas que mostram o indicador de atualização (todas as com bell, exceto /chat)
 const ROTAS_COM_REFRESH = [
-  '/dashboard', '/financas', '/compras',
+  '/financas', '/compras',
 ]
 
 export default function ClientShell({ children }: { children: React.ReactNode }) {

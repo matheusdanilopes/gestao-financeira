@@ -8,11 +8,17 @@ import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
 import { classificarTipoGasto, somarValorFatura, type TipoGasto } from '@/lib/composicaoFatura'
 import { type ReservaFatura, type BaixaReserva } from '@/lib/reservasFatura'
 import { calcularPendentesFatura, type AssinaturaPendenteRow, type TransacaoPendenteRow } from '@/lib/pendentesFatura'
-import { BarChart2, BarChart3, CalendarRange, CreditCard, Wallet, PiggyBank, Layers, Scale, TrendingUp, TrendingDown, Minus, LineChart, Activity } from 'lucide-react'
+import { BarChart2, BarChart3, CalendarRange, CreditCard, Wallet, PiggyBank, Layers, Scale, TrendingUp, TrendingDown, LineChart, Activity, Eye, EyeOff, Plus, ShoppingCart, ShoppingBasket, Download, Sparkles } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
+import Link from 'next/link'
 import MonthSelector from '@/components/MonthSelector'
 import UltimaImportacaoInfo from '@/components/UltimaImportacaoInfo'
+import NotificacoesBell from '@/components/NotificacoesBell'
+import DataStatusIndicator from '@/components/DataStatusIndicator'
+import { useRefreshContext } from '@/components/RefreshProvider'
+import { EVENTO_ABRIR_LANCAMENTO } from '@/components/BottomNav'
+import { useCountUp } from '@/lib/useCountUp'
 import type { ComposicaoFaturaDados } from '@/components/ComposicaoFaturaModal'
 import dynamic from 'next/dynamic'
 
@@ -468,6 +474,18 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   }
 }
 
+const CHAVE_OCULTAR_SALDO = 'dashboard:ocultar-saldo'
+
+// Atalhos do topo do Resumo. Sem `href` = abre o Lançamento rápido do FAB.
+// Offline, só o Lançar aparece (o sheet já sabe se virar sem conexão).
+const ATALHOS: { label: string; Icon: React.ComponentType<{ className?: string; strokeWidth?: number }>; href?: string }[] = [
+  { label: 'Lançar', Icon: Plus },
+  { label: 'Compras', Icon: ShoppingCart, href: '/compras' },
+  { label: 'Mercado', Icon: ShoppingBasket, href: '/lista-mercado' },
+  { label: 'Importar', Icon: Download, href: '/importar' },
+  { label: 'Assistente', Icon: Sparkles, href: '/chat' },
+]
+
 const FATURA_INICIAL: FaturaState = {
   totalRealizado: 0,
   principalBlocks: [],
@@ -616,13 +634,6 @@ export default function Dashboard() {
 
   const isMatheus = !emailUsuario || emailUsuario.toLowerCase().includes('matheus')
 
-  const comprometimentoColor = useMemo(() =>
-    resumoCaixa.percentualComprometimento > 90 ? 'text-red-600' :
-    resumoCaixa.percentualComprometimento > 70 ? 'text-amber-600' :
-    'text-emerald-600',
-    [resumoCaixa.percentualComprometimento]
-  )
-
   const saldoAtualWarning = useMemo(() =>
     resumoCaixa.sobraLiquida >= 0 && resumoCaixa.receitaTotal > 0 && (resumoCaixa.sobraLiquida / resumoCaixa.receitaTotal) * 100 <= 10,
     [resumoCaixa.sobraLiquida, resumoCaixa.receitaTotal]
@@ -632,18 +643,40 @@ export default function Dashboard() {
     [resumoCaixa.saldoPrevisto, resumoCaixa.receitaTotal]
   )
 
+  // Barra e saldo ficam sobre o topo índigo: branco = saudável, âmbar/vermelho
+  // claros mantêm o alerta legível sobre o fundo colorido.
   const comprometimentoBarColor = useMemo(() =>
-    resumoCaixa.percentualComprometimento > 90
-      ? 'bg-gradient-to-r from-red-500 to-red-600' :
-    resumoCaixa.percentualComprometimento > 70
-      ? 'bg-gradient-to-r from-amber-400 to-amber-500' :
-    'bg-gradient-to-r from-emerald-500 to-green-500',
+    resumoCaixa.percentualComprometimento > 90 ? 'bg-red-300' :
+    resumoCaixa.percentualComprometimento > 70 ? 'bg-amber-300' :
+    'bg-white',
     [resumoCaixa.percentualComprometimento]
   )
 
   const heroSaldo = resumoCaixa.sobraLiquida
-  const heroColor = heroSaldo < 0 ? 'text-red-600' : saldoAtualWarning ? 'text-amber-600' : 'text-emerald-600'
-  const HeroIcon = heroSaldo < 0 ? TrendingDown : heroSaldo === 0 ? Minus : TrendingUp
+  const heroColor = heroSaldo < 0 ? 'text-red-200' : saldoAtualWarning ? 'text-amber-200' : 'text-white'
+  const saldoAnimado = useCountUp(heroSaldo)
+  const saldoTexto = fmt(saldoAnimado)
+  const idxVirgula = saldoTexto.lastIndexOf(',')
+  const saldoInt = idxVirgula >= 0 ? saldoTexto.slice(0, idxVirgula) : saldoTexto
+  const saldoDec = idxVirgula >= 0 ? saldoTexto.slice(idxVirgula) : ''
+
+  const { syncState } = useRefreshContext()
+
+  // Olho do topo: esconde os valores do resumo (saldo, receita, gastos).
+  // Preferência por aparelho — fica no localStorage.
+  const [ocultarSaldo, setOcultarSaldo] = useState(false)
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOcultarSaldo(localStorage.getItem(CHAVE_OCULTAR_SALDO) === '1')
+    } catch { /* storage indisponível: mostra os valores */ }
+  }, [])
+  const alternarOcultarSaldo = useCallback(() => {
+    const novo = !ocultarSaldo
+    setOcultarSaldo(novo)
+    try { localStorage.setItem(CHAVE_OCULTAR_SALDO, novo ? '1' : '0') } catch { /* ignora */ }
+  }, [ocultarSaldo])
+  const mascarar = useCallback((v: number) => (ocultarSaldo ? 'R$ ••••' : fmt(v)), [ocultarSaldo])
 
   const totalInvestido = useMemo(
     () => investimentos.reduce((a, i) => a + i.aportado, 0),
@@ -676,157 +709,185 @@ export default function Dashboard() {
         onClose={() => setSeletorAberto(false)}
       />
 
-      {/* ── Compact sticky header ── */}
-      <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 px-4 md:px-6 lg:px-8 z-[10]">
-        <div className="flex items-center mb-2 pr-20">
-          <div>
-            <p className="text-[11px] font-medium text-gray-400 leading-none">{saudacao}</p>
-            <h1 className="text-lg font-bold text-gray-900 leading-tight mt-0.5">Dashboard</h1>
-            <UltimaImportacaoInfo />
+      {/* ── Topo colorido: saldo do mês ── */}
+      <header className="bg-primary-600 dark:bg-primary-900 text-white px-5 md:px-6 lg:px-8
+                         pt-[calc(1rem+var(--safe-top))] pb-11 lg:pt-6 lg:pb-8 lg:mt-4 lg:mx-8 lg:rounded-3xl">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[13px] text-white/80 leading-tight">{saudacao},</p>
+            <h1 className="text-lg font-bold leading-tight truncate">Matheus e Jeniffer</h1>
+            <UltimaImportacaoInfo className="text-white/70" />
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={alternarOcultarSaldo}
+              className="w-11 h-11 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center
+                         tap-scale focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              aria-label={ocultarSaldo ? 'Mostrar valores' : 'Ocultar valores'}
+              aria-pressed={ocultarSaldo}
+            >
+              {ocultarSaldo ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </button>
+            <NotificacoesBell tone="inverse" />
           </div>
         </div>
-        <MonthSelector
-          value={mesAtual}
-          onChange={setMesAtual}
-          onOpenSelector={() => setSeletorAberto(true)}
-        />
-        <div className="mt-2.5 flex bg-gray-100 rounded-2xl p-1 gap-0.5">
+
+        <div className="mt-4 flex items-center justify-between gap-2 flex-wrap">
+          <MonthSelector
+            tone="inverse"
+            value={mesAtual}
+            onChange={setMesAtual}
+            onOpenSelector={() => setSeletorAberto(true)}
+          />
+          {syncState && (
+            <DataStatusIndicator
+              status={syncState.status}
+              lastUpdated={syncState.lastUpdated}
+              onRefresh={syncState.refetch}
+            />
+          )}
+        </div>
+
+        <div className="mt-5">
+          {carregando ? (
+            <div className="space-y-3" aria-hidden="true">
+              <div className="skeleton-inverse h-4 w-36 rounded-full" />
+              <div className="skeleton-inverse h-10 w-56" />
+              <div className="skeleton-inverse h-1.5 w-full rounded-full" />
+              <div className="grid grid-cols-2 gap-2.5 pt-1">
+                <div className="skeleton-inverse h-14 rounded-2xl" />
+                <div className="skeleton-inverse h-14 rounded-2xl" />
+              </div>
+            </div>
+          ) : (
+            <div className="content-enter">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm text-white/85 flex items-center gap-1">
+                  {resumoCaixa.faturaEhPrevisto ? 'Saldo estimado do mês' : 'Saldo atual do mês'}
+                  <InfoPopover tone="inverse" texto="Quanto sobra da renda após todos os gastos do mês. 'Saldo atual' usa os lançamentos reais da fatura NuBank mais o que ainda vai cair nela: assinaturas que não apareceram na fatura e compras previstas ainda não feitas. 'Saldo estimado' aparece quando a fatura ainda não tem lançamentos — o valor é calculado com base nas parcelas em andamento. Branco = saldo saudável, âmbar = sobra abaixo de 10% da renda, vermelho = saldo negativo. A barra mostra o % da renda comprometido com gastos." />
+                </p>
+                {resumoCaixa.todasDespesasPagas ? (
+                  <span key="historico" className="text-xs rounded-full px-2.5 py-1 font-semibold bg-white/15 badge-fade-in">
+                    Histórico
+                  </span>
+                ) : resumoCaixa.faturaEhPrevisto ? (
+                  <span key="previsao" className="text-xs rounded-full px-2.5 py-1 font-semibold bg-white/15 badge-fade-in">
+                    Previsão
+                  </span>
+                ) : null}
+              </div>
+
+              <p className={`mt-1 text-[38px] lg:text-5xl font-extrabold leading-[1.05] num value-tight ${heroColor}`}>
+                {ocultarSaldo ? 'R$ ••••••' : (
+                  <>{saldoInt}<span className="text-[22px] lg:text-3xl font-bold opacity-75">{saldoDec}</span></>
+                )}
+              </p>
+
+              <div className="mt-3 h-1.5 w-full bg-white/20 rounded-full overflow-hidden">
+                <div
+                  key={resumoCaixa.percentualComprometimento}
+                  className={`h-full rounded-full bar-enter ${comprometimentoBarColor}`}
+                  style={{ '--bar-w': `${Math.min(resumoCaixa.percentualComprometimento, 100)}%` } as React.CSSProperties}
+                />
+              </div>
+              <p className="mt-2 text-[13px] text-white/85 leading-snug">
+                <span className="font-semibold num">{formatDecimal(resumoCaixa.percentualComprometimento)}%</span> da renda comprometida
+                {resumoCaixa.pendentesNaFatura > 0 && (
+                  <> · inclui <span className="font-semibold num">{mascarar(resumoCaixa.pendentesNaFatura)}</span> a cair</>
+                )}
+                {resumoCaixa.saldoPrevisto !== heroSaldo && resumoCaixa.receitaTotal > 0 && (
+                  <> · previsto <span className={`font-semibold num ${
+                    resumoCaixa.saldoPrevisto < 0 ? 'text-red-200' : saldoPrevistoWarning ? 'text-amber-200' : ''
+                  }`}>{mascarar(resumoCaixa.saldoPrevisto)}</span></>
+                )}
+              </p>
+
+              <div className="grid grid-cols-2 gap-2.5 mt-4">
+                <div className="bg-white/10 rounded-2xl px-3.5 py-3 flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-full bg-emerald-400/20 text-emerald-200 flex items-center justify-center shrink-0">
+                    <TrendingUp className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-white/80 leading-none">Receita</p>
+                    <p key={resumoCaixa.receitaTotal} className="text-[15px] font-bold num mt-1 value-update truncate">{mascarar(resumoCaixa.receitaTotal)}</p>
+                  </div>
+                </div>
+                <div className="bg-white/10 rounded-2xl px-3.5 py-3 flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-full bg-red-400/20 text-red-200 flex items-center justify-center shrink-0">
+                    <TrendingDown className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-white/80 leading-none">Gastos</p>
+                    <p key={resumoCaixa.totalGastos} className="text-[15px] font-bold num mt-1 value-update truncate">{mascarar(resumoCaixa.totalGastos)}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* ── Folha de conteúdo sobreposta ao topo ── */}
+      <div className="-mt-6 lg:mt-0 rounded-t-3xl lg:rounded-none bg-gray-50 pt-5 lg:pt-6">
+      <div className="page-content">
+
+        {/* Abas com pílula deslizante */}
+        <div className="relative grid grid-cols-2 bg-gray-100 rounded-full p-1 mb-5 lg:max-w-xs">
+          <span
+            aria-hidden="true"
+            className={`absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] rounded-full bg-white shadow-sm
+                        transition-transform duration-300 ease-smooth ${aba === 'graficos' ? 'translate-x-full' : ''}`}
+          />
           {(['resumo', 'graficos'] as const).map((t) => (
             <button
               key={t}
               onClick={() => handleSetAba(t)}
-              className={`flex-1 py-1.5 rounded-xl text-sm font-medium transition-colors duration-200 ${
-                aba === t
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
+              aria-pressed={aba === t}
+              className={`relative py-2 rounded-full text-sm font-semibold transition-colors duration-200 ${
+                aba === t ? 'text-gray-900' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               {t === 'resumo' ? 'Resumo' : 'Gráficos'}
             </button>
           ))}
         </div>
-      </div>
-
-      <div className="page-content">
 
         {/* ── Resumo tab ── */}
-        <div key={`resumo-${aba}`} className={aba === 'resumo' ? 'tab-content-enter space-y-4' : 'hidden'}>
+        <div key={`resumo-${aba}`} className={aba === 'resumo' ? 'tab-enter-left space-y-4' : 'hidden'}>
 
-          {/* ── 1. Hero Card — visão financeira consolidada ── */}
-          <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-5">
-            {carregando ? (
-              <div className="animate-pulse space-y-4">
-                <div className="h-4 bg-gray-100 rounded-xl w-1/3" />
-                <div className="h-10 bg-gray-100 rounded-xl w-2/3" />
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="h-16 bg-gray-100 rounded-2xl" />
-                  <div className="h-16 bg-gray-100 rounded-2xl" />
-                </div>
-                <div className="h-2 bg-gray-100 rounded-full w-full" />
-              </div>
-            ) : (
-              <div className="content-enter">
-                {/* Label + badge */}
-                <div className="flex items-start justify-between mb-3">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1">
-                    {resumoCaixa.faturaEhPrevisto ? 'Saldo estimado' : 'Saldo atual'}
-                    <InfoPopover texto="Quanto sobra da renda após todos os gastos do mês. 'Saldo atual' usa os lançamentos reais da fatura NuBank mais o que ainda vai cair nela: assinaturas que não apareceram na fatura e compras previstas ainda não feitas. 'Saldo estimado' aparece quando a fatura ainda não tem lançamentos — o valor é calculado com base nas parcelas em andamento. Verde = saldo saudável, âmbar = sobra abaixo de 10% da renda, vermelho = saldo negativo. A barra mostra o % da renda comprometido com gastos." />
-                  </p>
-                  {resumoCaixa.todasDespesasPagas ? (
-                    <span key="historico" className="text-xs border rounded-xl px-2.5 py-1 font-medium bg-amber-50 text-amber-700 border-amber-100 badge-fade-in">
-                      Histórico
-                    </span>
-                  ) : resumoCaixa.faturaEhPrevisto ? (
-                    <span key="previsao" className="text-xs border rounded-xl px-2.5 py-1 font-medium bg-blue-50 text-blue-700 border-blue-100 badge-fade-in">
-                      Previsão
-                    </span>
-                  ) : null}
-                </div>
-
-                {/* Main balance value */}
-                <div className="mb-4">
-                  <p key={heroSaldo} className={`text-4xl lg:text-5xl font-bold num value-tight value-update ${heroColor}`}>
-                    {fmt(heroSaldo)}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1.5">
-                    <div className="flex items-center gap-1">
-                      <HeroIcon className={`w-3.5 h-3.5 ${comprometimentoColor}`} />
-                      <span className="text-xs text-gray-400">
-                        {formatDecimal(resumoCaixa.percentualComprometimento)}% comprometido
-                      </span>
-                    </div>
-                    {resumoCaixa.pendentesNaFatura > 0 && (
-                      <span className="text-xs text-gray-400">
-                        · inclui <span className="font-semibold text-gray-600 num">{fmt(resumoCaixa.pendentesNaFatura)}</span> a cair
-                      </span>
-                    )}
-                    {resumoCaixa.saldoPrevisto !== heroSaldo && resumoCaixa.receitaTotal > 0 && (
-                      <span className="text-xs text-gray-400">
-                        · Previsto:{' '}
-                        <span className={`font-semibold num ${
-                          resumoCaixa.saldoPrevisto < 0 ? 'text-red-500' :
-                          saldoPrevistoWarning ? 'text-amber-500' : 'text-gray-600'
-                        }`}>
-                          {fmt(resumoCaixa.saldoPrevisto)}
-                        </span>
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Receita vs Gastos */}
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-3 flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
-                      <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide leading-none">Receita</p>
-                      <p key={resumoCaixa.receitaTotal} className="text-sm font-bold text-emerald-700 num mt-0.5 value-update">{fmt(resumoCaixa.receitaTotal)}</p>
-                    </div>
-                  </div>
-                  <div className="bg-red-50 border border-red-100 rounded-2xl p-3 flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
-                      <TrendingDown className="w-3.5 h-3.5 text-red-500" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-semibold text-red-500 uppercase tracking-wide leading-none">Gastos</p>
-                      <p key={resumoCaixa.totalGastos} className="text-sm font-bold text-red-600 num mt-0.5 value-update">{fmt(resumoCaixa.totalGastos)}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Commitment bar */}
-                <div>
-                  <div className="flex justify-between items-center mb-1.5">
-                    <span className="text-xs text-gray-500">Comprometimento da renda</span>
-                    <span className={`text-xs font-bold num ${comprometimentoColor}`}>
-                      {formatDecimal(resumoCaixa.percentualComprometimento)}%
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-                    <div
-                      key={resumoCaixa.percentualComprometimento}
-                      className={`h-2 rounded-full bar-enter ${comprometimentoBarColor}`}
-                      style={{ '--bar-w': `${Math.min(resumoCaixa.percentualComprometimento, 100)}%` } as React.CSSProperties}
-                    />
-                  </div>
-                  <div className="flex justify-between mt-1">
-                    <span className="text-[10px] text-gray-300">0%</span>
-                    <span className="text-[10px] text-amber-400">70%</span>
-                    <span className="text-[10px] text-red-400">90%</span>
-                    <span className="text-[10px] text-gray-300">100%</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          {/* ── 1. Atalhos ── */}
+          <nav aria-label="Atalhos" className="grid grid-cols-5 gap-1 lg:flex lg:gap-6 pb-1">
+            {ATALHOS.filter(a => isOnline || !a.href).map(({ label, Icon, href }) => {
+              const conteudo = (
+                <>
+                  <span className="w-[52px] h-[52px] min-[380px]:w-14 min-[380px]:h-14 rounded-full bg-primary-50 text-primary-600 flex items-center justify-center">
+                    <Icon className="w-[22px] h-[22px]" strokeWidth={2} />
+                  </span>
+                  <span className="text-[11px] min-[380px]:text-xs font-semibold text-gray-700 text-center leading-tight">{label}</span>
+                </>
+              )
+              const classe = 'flex flex-col items-center gap-2 tap-scale rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400'
+              return href ? (
+                <Link key={label} href={href} className={classe}>{conteudo}</Link>
+              ) : (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => window.dispatchEvent(new Event(EVENTO_ABRIR_LANCAMENTO))}
+                  className={classe}
+                >
+                  {conteudo}
+                </button>
+              )
+            })}
+          </nav>
 
           {/* ── 2. Indicadores secundários ── */}
           <div className="grid grid-cols-3 gap-3">
-            <div className="bg-white rounded-2xl shadow-card border border-gray-100 p-3">
+            <div className="bg-white rounded-2xl shadow-soft p-3">
               {carregando ? (
-                <div className="animate-pulse space-y-2">
+                <div className="skeleton-group space-y-2">
                   <div className="h-3 bg-gray-100 rounded w-2/3" />
                   <div className="h-5 bg-gray-100 rounded w-full" />
                 </div>
@@ -834,16 +895,16 @@ export default function Dashboard() {
                 <div className="content-enter">
                   <div className="flex items-center gap-1 mb-1.5">
                     <Wallet className="w-3 h-3 text-gray-400" />
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Fixas</p>
+                    <p className="text-xs font-medium text-gray-500">Fixas</p>
                   </div>
                   <p key={resumoCaixa.contasFixas} className="text-sm font-bold text-gray-700 num value-update">{fmt(resumoCaixa.contasFixas)}</p>
                 </div>
               )}
             </div>
 
-            <div className="bg-white rounded-2xl shadow-card border border-gray-100 p-3">
+            <div className="bg-white rounded-2xl shadow-soft p-3">
               {carregando ? (
-                <div className="animate-pulse space-y-2">
+                <div className="skeleton-group space-y-2">
                   <div className="h-3 bg-gray-100 rounded w-2/3" />
                   <div className="h-5 bg-gray-100 rounded w-full" />
                 </div>
@@ -851,7 +912,7 @@ export default function Dashboard() {
                 <div className="content-enter">
                   <div className="flex items-center gap-1 mb-1.5">
                     <CreditCard className="w-3 h-3 text-gray-400" />
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Fatura</p>
+                    <p className="text-xs font-medium text-gray-500">Fatura</p>
                   </div>
                   <p key={resumoCaixa.fatura} className="text-sm font-bold text-gray-700 num value-update">{fmt(resumoCaixa.fatura)}</p>
                   {resumoCaixa.faturaEhPrevisto && (
@@ -861,9 +922,9 @@ export default function Dashboard() {
               )}
             </div>
 
-            <div className="bg-white rounded-2xl shadow-card border border-gray-100 p-3">
+            <div className="bg-white rounded-2xl shadow-soft p-3">
               {carregando ? (
-                <div className="animate-pulse space-y-2">
+                <div className="skeleton-group space-y-2">
                   <div className="h-3 bg-gray-100 rounded w-2/3" />
                   <div className="h-5 bg-gray-100 rounded w-full" />
                 </div>
@@ -871,7 +932,7 @@ export default function Dashboard() {
                 <div className="content-enter">
                   <div className="flex items-center gap-1 mb-1.5">
                     <PiggyBank className="w-3 h-3 text-violet-400" />
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Investido</p>
+                    <p className="text-xs font-medium text-gray-500">Investido</p>
                   </div>
                   <p key={totalInvestido} className="text-sm font-bold text-violet-700 num value-update">{fmt(totalInvestido)}</p>
                 </div>
@@ -880,10 +941,10 @@ export default function Dashboard() {
           </div>
 
           {/* ── 3. Cartões de crédito ── */}
-          <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
+          <div className="bg-white rounded-3xl shadow-soft p-4">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-primary-50 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-primary-50 flex items-center justify-center">
                   <CreditCard className="w-4 h-4 text-primary-600" />
                 </div>
                 <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
@@ -895,7 +956,7 @@ export default function Dashboard() {
                 const d = new Date(dataFechamentoNubank + 'T12:00:00')
                 return (
                   <div className="shrink-0 bg-gray-100 dark:bg-white/15 rounded-xl px-3 py-1.5 text-center">
-                    <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-300 uppercase tracking-wide leading-none">Fecha</p>
+                    <p className="text-[11px] font-medium text-gray-500 dark:text-gray-300 leading-none">Fecha</p>
                     <p className="text-sm font-bold text-gray-800 dark:text-white num leading-snug mt-0.5">{format(d, 'dd/MM')}</p>
                     <p className="text-[10px] text-gray-500 dark:text-gray-300 leading-none mt-0.5">{format(d, 'EEEE', { locale: ptBR }).replace(/^\w/, c => c.toUpperCase())}</p>
                   </div>
@@ -904,7 +965,7 @@ export default function Dashboard() {
             </div>
 
             {carregando ? (
-              <div className="animate-pulse space-y-3">
+              <div className="skeleton-group space-y-3">
                 <div className="h-8 bg-gray-100 rounded-xl w-2/5" />
                 <div className="grid grid-cols-2 gap-3">
                   <div className="h-28 bg-gray-100 rounded-2xl" />
@@ -915,7 +976,7 @@ export default function Dashboard() {
               <div className="content-enter">
                 {/* Total */}
                 <div className="mb-6 pb-5 border-b border-gray-100">
-                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Total atual</p>
+                  <p className="text-xs font-medium text-gray-500 mb-1.5">Total atual</p>
                   {(() => {
                     const totalExibido = fatura.totalRealizado > 0 ? fatura.totalRealizado : totalProjecaoParcelas
                     const totalStr = fmt(totalExibido)
@@ -961,7 +1022,7 @@ export default function Dashboard() {
                     {fatura.cartoesExtras.length > 0 && (
                       <>
                         <div className="border-t border-gray-100 mt-4 mb-3" />
-                        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Outros cartões</p>
+                        <p className="text-xs font-medium text-gray-500 mb-2">Outros cartões</p>
                         <div className="space-y-2 mb-4">
                           {fatura.cartoesExtras.map((card) => (
                             <div key={card.tipo} className="flex items-center justify-between py-2.5 px-3 bg-gray-50 dark:bg-white/5 rounded-xl">
@@ -1002,10 +1063,10 @@ export default function Dashboard() {
 
           {/* ── 4. Investimentos ── */}
           {(carregando || investimentos.length > 0) && (
-            <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
+            <div className="bg-white rounded-3xl shadow-soft p-4">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-full bg-violet-50 flex items-center justify-center">
                     <PiggyBank className="w-4 h-4 text-violet-600" />
                   </div>
                   <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
@@ -1018,7 +1079,7 @@ export default function Dashboard() {
                 </a>
               </div>
               {carregando ? (
-                <div className="animate-pulse space-y-2.5">
+                <div className="skeleton-group space-y-2.5">
                   <div className="h-20 bg-gray-100 rounded-2xl" />
                   <div className="h-20 bg-gray-100 rounded-2xl" />
                 </div>
@@ -1094,11 +1155,11 @@ export default function Dashboard() {
 
         {/* ── Gráficos tab ── */}
         {graficosAbertos && (
-          <div key={`graficos-${aba}`} className={aba === 'graficos' ? 'tab-content-enter space-y-4 lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0 lg:items-start' : 'hidden'}>
+          <div key={`graficos-${aba}`} className={aba === 'graficos' ? 'tab-enter-right space-y-4 lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0 lg:items-start' : 'hidden'}>
 
-            <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
+            <div className="bg-white rounded-3xl shadow-soft p-4 lg:col-span-2">
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-full bg-violet-50 flex items-center justify-center shrink-0">
                   <Activity className="w-4 h-4 text-violet-600" />
                 </div>
                 <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5 whitespace-nowrap shrink-0">
@@ -1153,9 +1214,9 @@ export default function Dashboard() {
               onCategoriaClicada={abrirDetalhesCategoria}
             />
 
-            <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
+            <div className="bg-white rounded-3xl shadow-soft p-4 lg:col-span-2">
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-orange-50 flex items-center justify-center">
                   <Scale className="w-4 h-4 text-orange-500" />
                 </div>
                 <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
@@ -1175,9 +1236,9 @@ export default function Dashboard() {
               </LazyRender>
             </div>
 
-            <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
+            <div className="bg-white rounded-3xl shadow-soft p-4 lg:col-span-2">
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 rounded-xl bg-teal-50 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-teal-50 flex items-center justify-center">
                   <Layers className="w-4 h-4 text-teal-700" />
                 </div>
                 <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
@@ -1193,9 +1254,9 @@ export default function Dashboard() {
               </LazyRender>
             </div>
 
-            <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
+            <div className="bg-white rounded-3xl shadow-soft p-4">
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center">
                   <BarChart3 className="w-4 h-4 text-indigo-600" />
                 </div>
                 <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
@@ -1216,9 +1277,9 @@ export default function Dashboard() {
               </LazyRender>
             </div>
 
-            <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
+            <div className="bg-white rounded-3xl shadow-soft p-4">
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-violet-50 flex items-center justify-center">
                   <PiggyBank className="w-4 h-4 text-violet-600" />
                 </div>
                 <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
@@ -1232,9 +1293,9 @@ export default function Dashboard() {
               </LazyRender>
             </div>
 
-            <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
+            <div className="bg-white rounded-3xl shadow-soft p-4 lg:col-span-2">
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center">
                   <LineChart className="w-4 h-4 text-emerald-600" />
                 </div>
                 <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
@@ -1248,9 +1309,9 @@ export default function Dashboard() {
               </LazyRender>
             </div>
 
-            <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
+            <div className="bg-white rounded-3xl shadow-soft p-4 lg:col-span-2">
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-violet-50 flex items-center justify-center">
                   <PiggyBank className="w-4 h-4 text-violet-600" />
                 </div>
                 <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
@@ -1264,9 +1325,9 @@ export default function Dashboard() {
               </LazyRender>
             </div>
 
-            <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
+            <div className="bg-white rounded-3xl shadow-soft p-4 lg:col-span-2">
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center">
                   <BarChart3 className="w-4 h-4 text-emerald-600" />
                 </div>
                 <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
@@ -1280,9 +1341,9 @@ export default function Dashboard() {
               </LazyRender>
             </div>
 
-            <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 lg:col-span-2">
+            <div className="bg-white rounded-3xl shadow-soft p-4 lg:col-span-2">
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center">
                   <CalendarRange className="w-4 h-4 text-indigo-600" />
                 </div>
                 <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
@@ -1300,6 +1361,7 @@ export default function Dashboard() {
         )}{/* /graficos */}
 
       </div>
+      </div>{/* /folha */}
 
       <DrawerDetalhes
         aberto={drawerAberto}
