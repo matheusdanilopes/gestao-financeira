@@ -8,7 +8,7 @@ import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
 import { classificarTipoGasto, somarValorFatura, type TipoGasto } from '@/lib/composicaoFatura'
 import { type ReservaFatura, type BaixaReserva } from '@/lib/reservasFatura'
 import { calcularPendentesFatura, type AssinaturaPendenteRow, type TransacaoPendenteRow } from '@/lib/pendentesFatura'
-import { BarChart2, BarChart3, CalendarRange, CreditCard, Wallet, PiggyBank, Layers, Scale, TrendingUp, TrendingDown, LineChart, Activity, Eye, EyeOff, Plus, ShoppingCart, ShoppingBasket, Download, Sparkles } from 'lucide-react'
+import { BarChart2, BarChart3, CalendarRange, CreditCard, Wallet, PiggyBank, Layers, Scale, TrendingUp, TrendingDown, LineChart, Activity, Eye, EyeOff, Receipt, ShoppingCart, ShoppingBasket, Download, Sparkles } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
 import Link from 'next/link'
@@ -17,7 +17,6 @@ import UltimaImportacaoInfo from '@/components/UltimaImportacaoInfo'
 import NotificacoesBell from '@/components/NotificacoesBell'
 import DataStatusIndicator from '@/components/DataStatusIndicator'
 import { useRefreshContext } from '@/components/RefreshProvider'
-import { EVENTO_ABRIR_LANCAMENTO } from '@/components/BottomNav'
 import { useCountUp } from '@/lib/useCountUp'
 import { useOnline } from '@/lib/useOnline'
 import type { ComposicaoFaturaDados } from '@/components/ComposicaoFaturaModal'
@@ -477,14 +476,16 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
 
 const CHAVE_OCULTAR_SALDO = 'dashboard:ocultar-saldo'
 
-// Atalhos do topo do Resumo. Sem `href` = abre o Lançamento rápido do FAB.
-// Offline, só o Lançar aparece (o sheet já sabe se virar sem conexão).
-const ATALHOS: { label: string; Icon: React.ComponentType<{ className?: string; strokeWidth?: number }>; href?: string }[] = [
-  { label: 'Lançar', Icon: Plus },
+// Atalhos do topo do Resumo, do mais usado para o menos usado. `offline`:
+// rota que funciona sem conexão (mesmo critério do ROTAS_OFFLINE do BottomNav)
+// — é a única que aparece offline, e abre por navegação completa para o
+// service worker servir a página do cache.
+const ATALHOS: { label: string; Icon: React.ComponentType<{ className?: string; strokeWidth?: number }>; href: string; offline?: boolean }[] = [
+  { label: 'Despesas', Icon: Receipt, href: '/financas?tab=despesas' },
   { label: 'Compras', Icon: ShoppingCart, href: '/compras' },
-  { label: 'Mercado', Icon: ShoppingBasket, href: '/lista-mercado' },
-  { label: 'Importar', Icon: Download, href: '/importar' },
+  { label: 'Mercado', Icon: ShoppingBasket, href: '/lista-mercado', offline: true },
   { label: 'Assistente', Icon: Sparkles, href: '/chat' },
+  { label: 'Importar', Icon: Download, href: '/importar' },
 ]
 
 const FATURA_INICIAL: FaturaState = {
@@ -862,7 +863,7 @@ export default function Dashboard() {
 
           {/* ── 1. Atalhos ── */}
           <nav aria-label="Atalhos" className="grid grid-cols-5 gap-1 lg:flex lg:gap-6 pb-1">
-            {ATALHOS.filter(a => online || !a.href).map(({ label, Icon, href }) => {
+            {ATALHOS.filter(a => online || a.offline).map(({ label, Icon, href }) => {
               const conteudo = (
                 <>
                   <span className="w-[52px] h-[52px] min-[380px]:w-14 min-[380px]:h-14 rounded-full bg-primary-50 text-primary-600 flex items-center justify-center">
@@ -872,17 +873,10 @@ export default function Dashboard() {
                 </>
               )
               const classe = 'flex flex-col items-center gap-2 tap-scale rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400'
-              return href ? (
+              return online ? (
                 <Link key={label} href={href} className={classe}>{conteudo}</Link>
               ) : (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => window.dispatchEvent(new Event(EVENTO_ABRIR_LANCAMENTO))}
-                  className={classe}
-                >
-                  {conteudo}
-                </button>
+                <a key={label} href={href} className={classe}>{conteudo}</a>
               )
             })}
           </nav>
