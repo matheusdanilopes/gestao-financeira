@@ -233,7 +233,7 @@ export default function GraficoAnual({ ano }: Props) {
   const mesesComDados = monthData.filter((d: MonthData) => d.temDados).length
 
   if (carregando) {
-    return <div className="h-64 animate-pulse bg-gray-100 rounded-2xl" />
+    return <div className="h-64 skeleton rounded-2xl" />
   }
 
   if (erro) {

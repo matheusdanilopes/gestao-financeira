@@ -406,7 +406,7 @@ export default function ParcelamentosMensal({ mesAtual, onResumo }: Props) {
 
   if (carregando) {
     return (
-      <div className="space-y-6 animate-pulse" aria-hidden="true">
+      <div className="space-y-6 skeleton-group" aria-hidden="true">
         <div className="space-y-3">
           {[0, 1, 2].map(i => (
             <div key={i} className="bg-white dark:bg-gray-900 rounded-3xl shadow-card border border-gray-100 dark:border-gray-800 p-4 space-y-3">

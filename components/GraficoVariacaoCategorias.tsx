@@ -285,7 +285,7 @@ export default function GraficoVariacaoCategorias({
 
   if (carregando && !dados) {
     return (
-      <div className="h-64 animate-pulse flex flex-col justify-center gap-3 px-2">
+      <div className="h-64 skeleton-group flex flex-col justify-center gap-3 px-2">
         {[70, 55, 82, 40, 62, 34].map((w, i) => (
           <div key={i} className="flex items-center gap-2">
             <div className="h-2.5 w-16 rounded-full bg-gray-100 dark:bg-white/[0.05]" />

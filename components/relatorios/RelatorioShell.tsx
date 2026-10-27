@@ -149,7 +149,7 @@ export default function RelatorioShell({
 
       <div className="page-content space-y-3">
         {status === 'loading' && (
-          <div className="space-y-3 animate-pulse">
+          <div className="space-y-3 skeleton-group">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
               {[1, 2, 3, 4].map(i => (
                 <div key={i} className="bg-white rounded-2xl shadow-card border border-gray-100 p-3.5 space-y-2">

@@ -230,9 +230,9 @@ export default function ComprasPrevistasPage() {
           {!erro && !dados && (
             <>
               <div className="grid grid-cols-2 gap-3">
-                {[0, 1].map(i => <div key={i} className="h-[92px] bg-white rounded-2xl shadow-card border border-gray-100 animate-pulse" />)}
+                {[0, 1].map(i => <div key={i} className="h-[92px] skeleton rounded-2xl" />)}
               </div>
-              <div className="h-40 bg-white rounded-3xl shadow-card border border-gray-100 animate-pulse" />
+              <div className="h-40 skeleton rounded-3xl" />
             </>
           )}
 

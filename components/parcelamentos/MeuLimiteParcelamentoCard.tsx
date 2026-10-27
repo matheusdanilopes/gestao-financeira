@@ -38,7 +38,7 @@ export default function MeuLimiteParcelamentoCard({ resumo }: Props) {
 
   if (!responsavel || !resumo) {
     return (
-      <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-card border border-gray-100 dark:border-gray-800 p-5 animate-pulse" aria-hidden="true">
+      <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-card border border-gray-100 dark:border-gray-800 p-5 skeleton-group" aria-hidden="true">
         <div className="h-3 w-40 bg-gray-100 dark:bg-white/[0.06] rounded-full mb-4" />
         <div className="h-10 w-24 bg-gray-100 dark:bg-white/[0.06] rounded-xl mb-4" />
         <div className="h-2 w-full bg-gray-100 dark:bg-white/[0.06] rounded-full" />

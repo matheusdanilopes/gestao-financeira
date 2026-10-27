@@ -104,7 +104,7 @@ export default function TelegramVinculo() {
   }
 
   if (carregando) {
-    return <div className="h-16 rounded-2xl bg-gray-100 animate-pulse" />
+    return <div className="h-16 rounded-2xl skeleton" />
   }
 
   if (!estado) {

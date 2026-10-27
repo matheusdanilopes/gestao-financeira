@@ -289,7 +289,7 @@ export default function GraficoEvolucaoInvestimentos({ mesAtual, ativo = true }:
 
   if (carregando) {
     return (
-      <div className="h-56 animate-pulse flex flex-col justify-between pt-3 pb-2 px-2">
+      <div className="h-56 skeleton-group flex flex-col justify-between pt-3 pb-2 px-2">
         <div className="flex flex-col justify-between h-[calc(100%-28px)]">
           {[0,1,2,3,4].map(i => (
             <div key={i} className="flex items-center gap-2">

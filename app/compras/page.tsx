@@ -885,7 +885,7 @@ export default function ComprasPage() {
       {loading ? (
         <div className="space-y-3">
           {[0, 1].map(g => (
-            <div key={g} className="bg-white rounded-3xl border border-gray-100 shadow-card overflow-hidden animate-pulse">
+            <div key={g} className="bg-white rounded-3xl border border-gray-100 shadow-card overflow-hidden skeleton-group">
               {/* Cabeçalho de grupo skeleton */}
               <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
                 <div className="h-3 bg-gray-200 rounded-lg w-28" />

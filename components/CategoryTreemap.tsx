@@ -258,10 +258,10 @@ export default function CategoryTreemap({ compras: comprasProp, mesAtual, loadin
     return (
       <div className={embutido ? '' : 'bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-white/[0.06] shadow-card'}>
         <div className={`pb-2 flex items-center justify-between ${embutido ? 'pt-1' : 'px-4 pt-3'}`}>
-          <div className="h-3 w-24 bg-gray-200 dark:bg-white/[0.08] rounded-full animate-pulse" />
-          <div className="h-6 w-28 bg-gray-100 dark:bg-white/[0.05] rounded-xl animate-pulse" />
+          <div className="h-3 w-24 skeleton rounded-full" />
+          <div className="h-6 w-28 skeleton rounded-xl" />
         </div>
-        <div className={`mb-3 grid grid-cols-12 gap-1.5 animate-pulse ${embutido ? '' : 'mx-3'}`} style={{ height: TREEMAP_H }}>
+        <div className={`mb-3 grid grid-cols-12 gap-1.5 skeleton-group ${embutido ? '' : 'mx-3'}`} style={{ height: TREEMAP_H }}>
           <div className="col-span-5 bg-gray-200 dark:bg-white/[0.08] rounded-xl" />
           <div className="col-span-3 bg-gray-100 dark:bg-white/[0.05] rounded-xl" />
           <div className="col-span-4 bg-gray-200 dark:bg-white/[0.08] rounded-xl" />

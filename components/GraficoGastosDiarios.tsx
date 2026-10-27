@@ -564,7 +564,7 @@ export default function GraficoGastosDiarios({
 
   if (loading) {
     return (
-      <div className="animate-pulse space-y-3">
+      <div className="skeleton-group space-y-3">
         <div className="flex gap-2">
           <div className="flex-1 h-[34px] bg-gray-100 dark:bg-white/[0.05] rounded-xl" />
           <div className="flex-1 h-[34px] bg-gray-100 dark:bg-white/[0.05] rounded-xl" />

@@ -308,7 +308,7 @@ export default function GraficoCategoriasDespesas({ mesAtual, ativo = true, onCa
 
   if (carregando && !dados) {
     return (
-      <div className="h-64 animate-pulse flex flex-col justify-end gap-1.5 px-1 pb-6">
+      <div className="h-64 skeleton-group flex flex-col justify-end gap-1.5 px-1 pb-6">
         <div className="flex items-end gap-1.5 flex-1">
           {[62, 40, 78, 52, 33, 68, 48, 58, 38, 72, 28, 50].map((h, i) => (
             <div key={i} className="flex-1 flex flex-col gap-0.5 items-center">

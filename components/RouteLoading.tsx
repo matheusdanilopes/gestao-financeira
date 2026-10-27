@@ -6,6 +6,7 @@
 export default function RouteLoading() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#0f172a] page-bottom-safe page-enter">
+      <div className="route-progress" aria-hidden="true" />
       <div className="pt-3 pb-3 px-4 md:px-6 lg:px-8 space-y-3">
         <div className="skeleton h-6 w-40 rounded-full" />
         <div className="skeleton h-11 w-full rounded-2xl" />
