@@ -287,8 +287,28 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
    */
   async function totalLancadoDaDespesa(item: ItemPlanejamento): Promise<number | null> {
     const tipo = tipoCartaoPorItem(item.item)
-    if (!tipo || !item.responsavel) return null
+    if (!tipo) return null
     const mesRefFatura = format(startOfMonth(addMonths(mesSelecionado, 1)), 'yyyy-MM-dd')
+
+    // Cartões extras (Cartão 1/2): o total vem do CARTÃO, como no Dashboard. A
+    // importação só herda o responsável quando o cartão tem um único dono, então
+    // filtrar por responsável deixava o campo vazio. Com mais de uma despesa no
+    // mesmo cartão, o total é rateado entre elas pelo valor previsto.
+    if (tipo !== 'principal') {
+      const { data } = await supabase
+        .from('transacoes_nubank')
+        .select('valor, status, conciliacao_ref')
+        .eq('projeto_fatura', mesRefFatura)
+        .eq('cartao', CARTAO_TX_POR_TIPO[tipo])
+      if (!data || data.length === 0) return null
+      const totalCartao = somarValorFatura(data)
+      const linhasDoCartao = itens.filter(i => tipoCartaoPorItem(i.item) === tipo)
+      const indice = linhasDoCartao.findIndex(i => i.id === item.id)
+      if (linhasDoCartao.length <= 1 || indice < 0) return totalCartao
+      return ratearTotal(totalCartao, linhasDoCartao.map(i => i.valor_previsto))[indice]
+    }
+
+    if (!item.responsavel) return null
     const { data } = await supabase
       .from('transacoes_nubank')
       .select('valor, status, conciliacao_ref')
