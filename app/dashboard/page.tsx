@@ -738,7 +738,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-between gap-2 flex-wrap">
+        <div className="mt-4 flex items-center justify-between gap-2">
           <MonthSelector
             tone="inverse"
             value={mesAtual}
@@ -750,6 +750,7 @@ export default function Dashboard() {
               status={syncState.status}
               lastUpdated={syncState.lastUpdated}
               onRefresh={syncState.refetch}
+              compact
             />
           )}
         </div>
