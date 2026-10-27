@@ -1,9 +1,12 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback, type FormEvent, type ChangeEvent } from 'react'
+import {
+  useState, useEffect, useRef, useCallback,
+  type FormEvent, type ChangeEvent, type CSSProperties, type RefObject,
+} from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Heart, ShoppingBasket, Mic, X, ChevronLeft,
+  Heart, ShoppingBasket, Mic, ChevronLeft,
   Plus, Minus, Check, Loader2, Camera,
   Image as ImageIcon, Sparkles, PenLine, AlertCircle, RotateCcw,
 } from 'lucide-react'
@@ -613,7 +616,7 @@ function WishlistAICapture({
   )
 }
 
-// ── Menu grid ─────────────────────────────────────────────────────────────────
+// ── Menu radial ─────────────────────────────────────────────────────────────────
 
 const OPCOES = [
   {
@@ -644,17 +647,69 @@ const OPCOES = [
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function FabQuickLaunchSheet({ onClose }: { onClose: () => void }) {
+// Posições no arco acima do +, em graus (0° = direita, 90° = topo), por
+// quantidade de opções visíveis.
+const ANGULOS_RADIAL: Record<number, number[]> = {
+  1: [90],
+  2: [130, 50],
+  3: [150, 90, 30],
+}
+const RAIO_RADIAL = 118
+// Duração da saída animada do menu radial (tem que cobrir o maior
+// animation-delay + duração de .fab-bubble-out em globals.css).
+const RADIAL_EXIT_MS = 240
+
+/** Centro do FAB na viewport. */
+export type Ancora = { x: number; y: number }
+
+export function medirAncora(el: HTMLElement | null): Ancora | null {
+  if (!el) return null
+  const r = el.getBoundingClientRect()
+  return r.width > 0 ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null
+}
+
+export default function FabQuickLaunchSheet({
+  onClose,
+  anchor,
+  anchorRef,
+}: {
+  onClose: () => void
+  /** Centro do FAB medido no toque que abriu o menu — os balões orbitam ali. */
+  anchor?: Ancora | null
+  /** Círculo do FAB na barra, para remedir quando a tela muda de tamanho. */
+  anchorRef?: RefObject<HTMLElement | null>
+}) {
   const router = useRouter()
   const isOnline = useOnline()
   const [view, setView] = useState<View>('menu')
   const [suportaVoz, setSuportaVoz] = useState(false)
+  const [ancoraRemedida, setAncoraRemedida] = useState<Ancora | null>(null)
+  const [saindo, setSaindo] = useState(false)
+  const saidaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     // Fora do corpo síncrono do efeito para não disparar
     // react-hooks/set-state-in-effect (mesma convenção de lib/useVoice.ts).
     Promise.resolve().then(() => setSuportaVoz(suportaReconhecimentoVoz()))
   }, [])
+
+  // Rotação/redimensionamento move o FAB — os balões acompanham.
+  useEffect(() => {
+    function remedir() { setAncoraRemedida(medirAncora(anchorRef?.current ?? null)) }
+    window.addEventListener('resize', remedir)
+    return () => window.removeEventListener('resize', remedir)
+  }, [anchorRef])
+
+  useEffect(() => () => {
+    if (saidaTimerRef.current) clearTimeout(saidaTimerRef.current)
+  }, [])
+
+  // Fecha o menu radial recolhendo os balões para dentro do + antes de desmontar.
+  const fecharRadial = useCallback(() => {
+    if (saidaTimerRef.current) return
+    setSaindo(true)
+    saidaTimerRef.current = setTimeout(onClose, RADIAL_EXIT_MS)
+  }, [onClose])
 
   // When offline: redirect away from wishlist-related views
   useEffect(() => {
@@ -666,19 +721,109 @@ export default function FabQuickLaunchSheet({ onClose }: { onClose: () => void }
   useEffect(() => {
     function handleEsc(e: KeyboardEvent) {
       if (e.key !== 'Escape') return
-      if (view === 'menu') onClose()
+      if (view === 'menu') fecharRadial()
       else if (view === 'wishlist' || view === 'wishlist-ai') setView('wishlist-method')
       else setView('menu')
     }
     window.addEventListener('keydown', handleEsc)
     return () => window.removeEventListener('keydown', handleEsc)
-  }, [view, onClose])
+  }, [view, fecharRadial])
 
   // Offline: só a lista de mercado tem fila offline. "Voz" some quando o
   // navegador não suporta reconhecimento de fala (ex.: Firefox desktop).
   const opcoesVisiveis = OPCOES
     .filter(o => isOnline || o.id === 'mercado')
     .filter(o => o.id !== 'voz' || suportaVoz)
+
+  if (view === 'menu') {
+    // Sem âncora (não deveria acontecer): centro inferior da tela.
+    const ancora = ancoraRemedida ?? anchor ?? { x: window.innerWidth / 2, y: window.innerHeight - 56 }
+    const angulos = ANGULOS_RADIAL[opcoesVisiveis.length] ?? ANGULOS_RADIAL[3]
+    const posAncora = { '--ax': `${ancora.x}px`, '--ay': `${ancora.y}px` } as CSSProperties
+
+    return (
+      <ModalPortal>
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Lançamento rápido"
+          className="fixed inset-0 z-[200]"
+        >
+          {/* Backdrop desfocado */}
+          <div
+            className={`absolute inset-0 backdrop-blur-[6px] ${saindo ? 'nav-overlay-out' : 'nav-overlay'}`}
+            style={{ background: 'rgba(15, 23, 42, 0.50)' }}
+            onClick={fecharRadial}
+            aria-hidden="true"
+          />
+
+          {/* Órbita decorativa em volta do + */}
+          <div
+            className={`fab-orbit ${saindo ? 'fab-orbit-out' : ''} pointer-events-none rounded-full
+                        border border-white/20 bg-white/[0.04]`}
+            style={{ ...posAncora, width: RAIO_RADIAL * 2, height: RAIO_RADIAL * 2 }}
+            aria-hidden="true"
+          />
+
+          {/* Balões das opções */}
+          {opcoesVisiveis.map(({ id, targetView, href, label, Icon }, i) => {
+            const rad = (angulos[i] * Math.PI) / 180
+            const estilo = {
+              ...posAncora,
+              '--tx': `${Math.round(Math.cos(rad) * RAIO_RADIAL)}px`,
+              '--ty': `${Math.round(-Math.sin(rad) * RAIO_RADIAL)}px`,
+              '--i': i,
+              '--n': opcoesVisiveis.length,
+            } as CSSProperties
+            return (
+              <div key={id} className={`fab-bubble ${saindo ? 'fab-bubble-out' : ''} w-14 h-14`} style={estilo}>
+                <div className="fab-bubble-float w-full h-full" style={{ '--i': i } as CSSProperties}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (href) { router.push(href); fecharRadial() }
+                      else if (targetView) setView(targetView)
+                    }}
+                    className="relative w-14 h-14 rounded-full bg-white dark:bg-gray-800 text-primary-600 dark:text-primary-400
+                               flex items-center justify-center tap-scale
+                               shadow-[0_10px_28px_-6px_rgba(79,70,229,0.55)] ring-1 ring-black/5 dark:ring-white/10
+                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+                  >
+                    <Icon className="w-6 h-6" strokeWidth={2} />
+                    <span
+                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-[110px]
+                                 px-2.5 py-1 rounded-full bg-white/95 dark:bg-gray-800/95
+                                 text-[11px] font-semibold text-gray-800 dark:text-gray-100
+                                 text-center leading-tight shadow-md"
+                    >
+                      {label}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+
+          {/* O + vira X por cima do backdrop, no lugar exato do FAB da barra */}
+          <button
+            type="button"
+            onClick={fecharRadial}
+            aria-label="Fechar menu"
+            className="fixed w-14 h-14 rounded-full
+                       flex items-center justify-center fab-premium fab-premium-active
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2"
+            // fab-premium controla transform — centraliza por left/top, não translate.
+            style={{ left: ancora.x - 28, top: ancora.y - 28 }}
+          >
+            <Plus
+              className={`w-6 h-6 text-white ${saindo ? 'fab-x-icon-out' : 'fab-x-icon'}`}
+              strokeWidth={2.5}
+            />
+          </button>
+        </div>
+      </ModalPortal>
+    )
+  }
 
   return (
     <ModalPortal>
@@ -705,51 +850,6 @@ export default function FabQuickLaunchSheet({ onClose }: { onClose: () => void }
           </div>
 
           <div className="px-5 pb-6 pt-2">
-            {view === 'menu' && (
-              <div className="fab-form-enter">
-                <div className="flex items-center justify-between mb-5">
-                  <div>
-                    <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 tracking-tight">
-                      Lançamento Rápido
-                    </h2>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                      {isOnline ? 'O que deseja registrar?' : 'Disponível offline'}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800
-                               active:scale-90 transition-all duration-150
-                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                    aria-label="Fechar"
-                  >
-                    <X className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                  </button>
-                </div>
-
-                {/* Mesmo formato dos atalhos do Dashboard: círculo + rótulo */}
-                <div className="flex justify-around gap-2 py-2">
-                  {opcoesVisiveis.map(({ id, targetView, href, label, Icon }) => (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => { if (href) { onClose(); router.push(href) } else if (targetView) setView(targetView) }}
-                      className="flex flex-col items-center gap-2 w-24 rounded-2xl tap-scale
-                                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-                    >
-                      <span className="w-14 h-14 rounded-full bg-primary-50 text-primary-600 flex items-center justify-center">
-                        <Icon className="w-6 h-6" strokeWidth={2} />
-                      </span>
-                      <span className="text-xs font-semibold text-gray-700 text-center leading-tight">
-                        {label}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {view === 'wishlist-method' && (
               <WishlistMethodSelector
                 onManual={() => setView('wishlist')}

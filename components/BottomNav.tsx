@@ -3,14 +3,14 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  LayoutDashboard, Sparkles, Plus, MoreHorizontal, WifiOff, ChevronDown, ShoppingBasket, FileSpreadsheet, X,
+  LayoutDashboard, Sparkles, Plus, MoreHorizontal, WifiOff, ChevronDown, ChevronRight, ShoppingBasket, FileSpreadsheet, X,
 } from 'lucide-react'
-import { memo, useEffect, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
 import { useImportacaoScript } from '@/components/ImportacaoScriptProvider'
 import { useOnline } from '@/lib/useOnline'
 import ModalPortal from '@/components/ModalPortal'
-import FabQuickLaunchSheet from '@/components/FabQuickLaunchSheet'
+import FabQuickLaunchSheet, { medirAncora, type Ancora } from '@/components/FabQuickLaunchSheet'
 import { NAV_MODULES, type NavModuleItem, type NavModuleKey } from '@/lib/navModules'
 
 const ROTAS_COM_MENU = [
@@ -71,77 +71,109 @@ const DESKTOP_GROUPS: NavModuleKey[] = ['financas', 'cartao', 'listas', 'relator
 // Módulos exibidos no popover "Extras" do mobile (tudo que não tem botão próprio).
 const MOBILE_EXTRAS_GROUPS: NavModuleKey[] = ['listas', 'relatorios', 'ia', 'configuracoes']
 
-// ── Sub-menus mobile (popovers fixos, abrem pra cima) ──────────────────────────
+// ── Sub-menus mobile (popovers flutuantes, abrem pra cima) ────────────────────
+
+// Duração da saída animada dos popovers (.nav-popover-out em globals.css).
+const MENU_EXIT_MS = 170
+
+type MobileMenuKey = 'financas' | 'cartao' | 'extras'
+
+// Cada popover ancora perto do botão que o abre; o transform-origin aponta
+// para ele, então a animação parece "brotar" do botão.
+const POPOVER_LAYOUT: Record<MobileMenuKey, { className: string; origin: string; width: string }> = {
+  financas: { className: 'left-3',   origin: '25% 100%', width: 'w-60' },
+  cartao:   { className: 'right-14', origin: '70% 100%', width: 'w-60' },
+  extras:   { className: 'right-3',  origin: '88% 100%', width: 'w-64' },
+}
 
 function ModuleItemsList({
-  items, onClose,
+  items, onClose, pathname, startIndex = 0, animated = false,
 }: {
   items: readonly NavModuleItem[]
   onClose: () => void
+  pathname?: string | null
+  /** Índice inicial da cascata de entrada (para seções seguintes no Extras). */
+  startIndex?: number
+  animated?: boolean
 }) {
   return (
     <>
-      {items.map(({ href, label, Icon, iconColor, iconBg }, i) => (
-        <Link
-          key={href}
-          href={href}
-          onClick={onClose}
-          prefetch={true}
-          className={`flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800
-                      active:bg-gray-100 dark:active:bg-gray-700 transition-colors duration-150
-                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
-                      ${i < items.length - 1 ? 'border-b border-gray-100 dark:border-gray-800' : ''}`}
-        >
-          <div className={`w-8 h-8 rounded-xl ${iconBg} flex items-center justify-center shrink-0`}>
-            <Icon className={`w-4 h-4 ${iconColor}`} strokeWidth={1.8} />
-          </div>
-          <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{label}</span>
-        </Link>
-      ))}
+      {items.map((item, i) => {
+        const { href, label, Icon, iconColor, iconBg } = item
+        const ativo = pathname !== undefined && itemAtivo(pathname, item)
+        return (
+          <Link
+            key={href}
+            href={href}
+            onClick={onClose}
+            prefetch={true}
+            aria-current={ativo ? 'page' : undefined}
+            style={animated ? ({ '--i': startIndex + i } as React.CSSProperties) : undefined}
+            className={`group flex items-center gap-3 px-3 py-2.5 rounded-2xl
+                        transition-colors duration-150
+                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400
+                        ${animated ? 'nav-popover-item' : ''}
+                        ${ativo
+                          ? 'bg-primary-50 dark:bg-primary-900/30'
+                          : 'hover:bg-gray-100/80 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700'}`}
+          >
+            <div className={`w-9 h-9 rounded-xl ${iconBg} flex items-center justify-center shrink-0
+                             transition-transform duration-200 group-active:scale-90`}>
+              <Icon className={`w-[18px] h-[18px] ${iconColor}`} strokeWidth={1.9} />
+            </div>
+            <span className={`flex-1 text-sm font-semibold leading-tight
+                              ${ativo ? 'text-primary-700 dark:text-primary-300' : 'text-gray-700 dark:text-gray-200'}`}>
+              {label}
+            </span>
+            {ativo
+              ? <span className="w-1.5 h-1.5 rounded-full bg-primary-500 shrink-0" aria-hidden="true" />
+              : <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" aria-hidden="true" />}
+          </Link>
+        )
+      })}
     </>
-  )
-}
-
-function FinancasMenuPopover({ onClose }: { onClose: () => void }) {
-  return (
-    <div className="fixed bottom-[72px] left-3 z-[51] modal-center">
-      <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-float border border-gray-100 dark:border-gray-800 overflow-hidden w-56">
-        <ModuleItemsList items={NAV_MODULES.financas.items} onClose={onClose} />
-      </div>
-    </div>
-  )
-}
-
-function CartaoMenuPopover({ onClose }: { onClose: () => void }) {
-  return (
-    <div className="fixed bottom-[72px] right-14 z-[51] modal-center">
-      <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-float border border-gray-100 dark:border-gray-800 overflow-hidden w-56">
-        <ModuleItemsList items={NAV_MODULES.cartao.items} onClose={onClose} />
-      </div>
-    </div>
   )
 }
 
 // Extras agrupa tudo que não tem botão próprio no bottom nav — Listas &
 // Desejos, Relatórios, IA e Configurações — com cabeçalho por seção, no
 // mesmo espírito do que existia isolado em app/extras/page.tsx.
-function ExtrasMenuPopover({ onClose }: { onClose: () => void }) {
+function MobileMenuPopover({
+  menu, saindo, pathname, onClose,
+}: {
+  menu: MobileMenuKey
+  saindo: boolean
+  pathname: string | null
+  onClose: () => void
+}) {
+  const layout = POPOVER_LAYOUT[menu]
+  const grupos = (menu === 'extras' ? MOBILE_EXTRAS_GROUPS : [menu])
+    .map(key => ({ key, mod: NAV_MODULES[key], items: NAV_MODULES[key].items.filter(i => !i.desktopOnly) }))
+    .filter(g => g.items.length > 0)
+  // Índice global de cada seção para a cascata continuar entre seções.
+  const inicios = grupos.map((_, gi) => grupos.slice(0, gi).reduce((n, g) => n + g.items.length, 0))
+
   return (
-    <div className="fixed bottom-[72px] right-3 z-[51] modal-center">
-      <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-float border border-gray-100 dark:border-gray-800 overflow-hidden w-64 max-h-[70vh] overflow-y-auto">
-        {MOBILE_EXTRAS_GROUPS.map((key, gi) => {
-          const mod = NAV_MODULES[key]
-          const items = mod.items.filter(i => !i.desktopOnly)
-          if (items.length === 0) return null
-          return (
-            <div key={key} className={gi > 0 ? 'border-t border-gray-100 dark:border-gray-800' : ''}>
-              <p className="text-[11px] font-bold text-gray-500 px-4 pt-3 pb-1">
-                {mod.label}
-              </p>
-              <ModuleItemsList items={items} onClose={onClose} />
-            </div>
-          )
-        })}
+    <div
+      className={`fixed z-[51] ${layout.className} ${layout.width} ${saindo ? 'nav-popover-out' : 'nav-popover'}`}
+      style={{ bottom: 'calc(76px + var(--safe-bottom))', transformOrigin: layout.origin }}
+    >
+      <div className="nav-glass rounded-[28px] p-1.5 max-h-[70vh] overflow-y-auto">
+        {grupos.map(({ key, mod, items }, gi) => (
+          <div key={key} className={gi > 0 ? 'mt-1 pt-1 border-t border-gray-100/80 dark:border-gray-800' : ''}>
+            <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 px-3 pt-2 pb-1.5">
+              <mod.Icon className="w-3.5 h-3.5" strokeWidth={2} aria-hidden="true" />
+              {mod.label}
+            </p>
+            <ModuleItemsList
+              items={items}
+              onClose={onClose}
+              pathname={pathname}
+              startIndex={inicios[gi]}
+              animated
+            />
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -152,7 +184,7 @@ function ExtrasMenuPopover({ onClose }: { onClose: () => void }) {
 function DesktopModuleDropdown({ items, onClose }: { items: readonly NavModuleItem[]; onClose: () => void }) {
   return (
     <div className="absolute left-0 top-full mt-1.5 z-[51] w-56">
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-float border border-gray-100 dark:border-gray-800 overflow-hidden">
+      <div className="nav-glass rounded-2xl p-1.5 animate-in">
         <ModuleItemsList items={items} onClose={onClose} />
       </div>
     </div>
@@ -346,7 +378,17 @@ export default memo(function BottomNav() {
   const pathname = usePathname()
   const router   = useRouter()
 
-  const [openMenu, setOpenMenu] = useState<'financas' | 'cartao' | 'extras' | null>(null)
+  const [openMenu, setOpenMenu] = useState<MobileMenuKey | null>(null)
+  const [menuSaindo, setMenuSaindo] = useState(false)
+  const menuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const fabRef = useRef<HTMLSpanElement>(null)
+  const [fabAncora, setFabAncora] = useState<Ancora | null>(null)
+
+  function alternarFab() {
+    fecharMenuJa()
+    setFabAncora(medirAncora(fabRef.current))
+    setFabSheetOpen(p => !p)
+  }
   const [openDesktopMenu, setOpenDesktopMenu] = useState<NavModuleKey | null>(null)
   const [fabSheetOpen, setFabSheetOpen] = useState(false)
   const { categorizando } = useCategorizacao()
@@ -376,6 +418,40 @@ export default memo(function BottomNav() {
     !importDispensado &&
     (statusImportacao === 'running' || statusImportacao === 'success' || statusImportacao === 'error')
 
+  // Fecha o popover na hora (troca de rota, offline, FAB) — sem animação de saída.
+  const fecharMenuJa = useCallback(() => {
+    if (menuTimerRef.current) {
+      clearTimeout(menuTimerRef.current)
+      menuTimerRef.current = null
+    }
+    setMenuSaindo(false)
+    setOpenMenu(null)
+  }, [])
+
+  // Fecha o popover tocando a animação de saída antes de desmontar.
+  const fecharMenu = useCallback(() => {
+    if (menuTimerRef.current) return
+    setMenuSaindo(true)
+    menuTimerRef.current = setTimeout(() => {
+      menuTimerRef.current = null
+      setMenuSaindo(false)
+      setOpenMenu(null)
+    }, MENU_EXIT_MS)
+  }, [])
+
+  const alternarMenu = useCallback((menu: MobileMenuKey) => {
+    if (openMenu === menu && !menuSaindo) {
+      fecharMenu()
+      return
+    }
+    fecharMenuJa()
+    setOpenMenu(menu)
+  }, [openMenu, menuSaindo, fecharMenu, fecharMenuJa])
+
+  useEffect(() => () => {
+    if (menuTimerRef.current) clearTimeout(menuTimerRef.current)
+  }, [])
+
   // Prefetch rotas dos sub-menus assim que o usuário os abre —
   // antecipa o RSC fetch antes do tap no item, tornando a navegação mais rápida.
   useEffect(() => {
@@ -398,11 +474,11 @@ export default memo(function BottomNav() {
 
   // Fecha menus ao navegar para outra rota
   useEffect(() => {
+    fecharMenuJa()
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setOpenMenu(null)
     setOpenDesktopMenu(null)
     setFabSheetOpen(false)
-  }, [pathname])
+  }, [pathname, fecharMenuJa])
 
   // Ao ficar offline: fecha menus abertos e redireciona para dashboard
   // se a rota atual não estiver disponível offline.
@@ -410,13 +486,13 @@ export default memo(function BottomNav() {
   // router.replace faz fetch RSC que falha silenciosamente em modo offline.
   useEffect(() => {
     if (isOnline) return
-    setOpenMenu(null)
+    fecharMenuJa()
     setOpenDesktopMenu(null)
     setFabSheetOpen(false)
     if (pathname && !ROTAS_OFFLINE.some(r => pathname === r || pathname.startsWith(r + '/'))) {
       window.location.href = '/dashboard'
     }
-  }, [isOnline, pathname])
+  }, [isOnline, pathname, fecharMenuJa])
 
   const deveExibirMenu = pathname ? ROTAS_COM_MENU.some(r => pathname === r || pathname.startsWith(r + '/')) : false
 
@@ -494,10 +570,10 @@ export default memo(function BottomNav() {
               type="button"
               aria-label={fabSheetOpen ? 'Fechar menu' : 'Adicionar à lista'}
               aria-expanded={fabSheetOpen}
-              onClick={() => setFabSheetOpen(p => !p)}
+              onClick={alternarFab}
               className="flex flex-col items-center justify-center flex-none -mt-5 group"
             >
-              <span className={`w-14 h-14 rounded-full flex items-center justify-center
+              <span ref={fabRef} className={`w-14 h-14 rounded-full flex items-center justify-center
                                 fab-premium
                                 ${fabSheetOpen ? 'fab-premium-active' : ''}
                                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2`}>
@@ -534,7 +610,7 @@ export default memo(function BottomNav() {
               icon={NAV_MODULES.financas.Icon}
               isActive={isFinancasActive || openMenu === 'financas'}
               ariaExpanded={openMenu === 'financas'}
-              onClick={() => setOpenMenu(p => p === 'financas' ? null : 'financas')}
+              onClick={() => alternarMenu('financas')}
             />
 
             {/* FAB — central de lançamento rápido */}
@@ -542,13 +618,10 @@ export default memo(function BottomNav() {
               type="button"
               aria-label={fabSheetOpen ? 'Fechar menu' : 'Lançamento rápido'}
               aria-expanded={fabSheetOpen}
-              onClick={() => {
-                setOpenMenu(null)
-                setFabSheetOpen(p => !p)
-              }}
+              onClick={alternarFab}
               className="flex flex-col items-center justify-center flex-none -mt-5 group"
             >
-              <span className={`w-14 h-14 rounded-full flex items-center justify-center
+              <span ref={fabRef} className={`w-14 h-14 rounded-full flex items-center justify-center
                                 fab-premium
                                 ${fabSheetOpen ? 'fab-premium-active' : ''}
                                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2`}>
@@ -568,7 +641,7 @@ export default memo(function BottomNav() {
               icon={NAV_MODULES.cartao.Icon}
               isActive={isCartaoActive || openMenu === 'cartao'}
               ariaExpanded={openMenu === 'cartao'}
-              onClick={() => setOpenMenu(p => p === 'cartao' ? null : 'cartao')}
+              onClick={() => alternarMenu('cartao')}
             />
 
             <MobileMenuButton
@@ -576,7 +649,7 @@ export default memo(function BottomNav() {
               icon={MoreHorizontal}
               isActive={isExtrasActive || openMenu === 'extras'}
               ariaExpanded={openMenu === 'extras'}
-              onClick={() => setOpenMenu(p => p === 'extras' ? null : 'extras')}
+              onClick={() => alternarMenu('extras')}
             />
           </div>
         )}
@@ -639,26 +712,24 @@ export default memo(function BottomNav() {
         {isOnline && openMenu && (
           <ModalPortal>
             <div
-              className="fixed inset-0 z-[49] modal-overlay"
-              style={{ background: 'rgba(0,0,0,0.25)' }}
-              onClick={() => setOpenMenu(null)}
+              className={`fixed inset-0 z-[49] backdrop-blur-[3px] ${menuSaindo ? 'nav-overlay-out' : 'nav-overlay'}`}
+              style={{ background: 'rgba(15, 23, 42, 0.28)' }}
+              onClick={fecharMenu}
               aria-hidden="true"
             />
-            {openMenu === 'financas' && (
-              <FinancasMenuPopover onClose={() => setOpenMenu(null)} />
-            )}
-            {openMenu === 'cartao' && (
-              <CartaoMenuPopover onClose={() => setOpenMenu(null)} />
-            )}
-            {openMenu === 'extras' && (
-              <ExtrasMenuPopover onClose={() => setOpenMenu(null)} />
-            )}
+            <MobileMenuPopover
+              key={openMenu}
+              menu={openMenu}
+              saindo={menuSaindo}
+              pathname={pathname}
+              onClose={fecharMenu}
+            />
           </ModalPortal>
         )}
 
         {/* ── FAB Quick Launch Sheet (online: completo, offline: só mercado) ── */}
         {fabSheetOpen && (
-          <FabQuickLaunchSheet onClose={() => setFabSheetOpen(false)} />
+          <FabQuickLaunchSheet anchor={fabAncora} anchorRef={fabRef} onClose={() => setFabSheetOpen(false)} />
         )}
       </nav>
     </div>

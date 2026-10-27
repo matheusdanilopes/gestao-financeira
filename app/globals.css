@@ -467,6 +467,104 @@ button, a, [role="button"] {
 .fab-sheet-overlay { animation: fab-sheet-overlay-in  0.22s ease; will-change: opacity; }
 .fab-form-enter    { animation: fab-form-enter         0.20s ease; }
 
+/* ─── Menus da barra inferior (Finanças / Cartão / Extras) ───────────────── */
+/* Abrem com mola a partir do botão que os disparou (transform-origin vem
+   inline) e os itens entram em cascata via --i. */
+@keyframes nav-popover-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.85); }
+  60%  { opacity: 1; }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes nav-popover-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(10px) scale(0.92); }
+}
+@keyframes nav-item-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes overlay-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+.nav-popover      { animation: nav-popover-in 0.38s cubic-bezier(0.34, 1.45, 0.64, 1) both; will-change: transform, opacity; }
+.nav-popover-out  { animation: nav-popover-out 0.16s ease-in both; }
+.nav-popover-item { animation: nav-item-in 0.30s cubic-bezier(0.16, 1, 0.3, 1) both;
+                    animation-delay: calc(var(--i, 0) * 35ms + 70ms); }
+.nav-overlay      { animation: overlay-in 0.22s ease both; }
+.nav-overlay-out  { animation: overlay-out 0.18s ease both; }
+
+.nav-glass {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 20px 48px -12px rgba(15, 23, 42, 0.30), 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+.dark .nav-glass {
+  background: rgba(17, 24, 39, 0.90);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 20px 48px -12px rgba(0, 0, 0, 0.70);
+}
+
+/* ─── FAB radial: cada opção é um balão orbitando o + ─────────────────────── */
+/* O balão nasce no centro do FAB (--ax/--ay) e voa até sua posição no arco
+   (--tx/--ty). O balanço contínuo fica num elemento interno para não brigar
+   com o transform da entrada. */
+@keyframes fab-bubble-in {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: translate(-50%, -50%) translate(var(--tx), var(--ty)) scale(1); }
+}
+@keyframes fab-bubble-out {
+  from { opacity: 1; transform: translate(-50%, -50%) translate(var(--tx), var(--ty)) scale(1); }
+  to   { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+}
+@keyframes fab-bubble-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-5px); }
+}
+@keyframes fab-orbit-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes fab-orbit-out {
+  from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  to   { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+}
+@keyframes fab-x-in {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(135deg); }
+}
+.fab-bubble {
+  position: fixed;
+  left: var(--ax);
+  top: var(--ay);
+  animation: fab-bubble-in 0.48s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+.fab-bubble-out {
+  animation: fab-bubble-out 0.18s ease-in both;
+  animation-delay: calc((var(--n, 1) - 1 - var(--i, 0)) * 30ms);
+}
+.fab-bubble-float {
+  animation: fab-bubble-float 3.2s ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * 0.35s + 0.5s);
+}
+.fab-orbit {
+  position: fixed;
+  left: var(--ax);
+  top: var(--ay);
+  animation: fab-orbit-in 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.fab-orbit-out { animation: fab-orbit-out 0.2s ease-in both; }
+@keyframes fab-x-out {
+  from { transform: rotate(135deg); }
+  to   { transform: rotate(0deg); }
+}
+.fab-x-icon     { animation: fab-x-in 0.36s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.fab-x-icon-out { animation: fab-x-out 0.2s ease-in both; }
+
 /* ─── Animações modernas ─────────────────────────────────────────────────── */
 
 /* Revelação de conteúdo após skeleton */
