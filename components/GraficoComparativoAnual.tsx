@@ -247,7 +247,7 @@ export default function GraficoComparativoAnual({ ano, ativo = true }: Props) {
     <div>
       <div className="flex items-end justify-between mb-4 gap-3">
         <div>
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-0.5">
+          <p className="text-[11px] font-semibold text-gray-500 mb-0.5">
             {ano} até {MESES[dados.mesLimite - 1]}
           </p>
           <p className="text-xl font-bold text-gray-700 num leading-none">
@@ -255,7 +255,7 @@ export default function GraficoComparativoAnual({ ano, ativo = true }: Props) {
           </p>
         </div>
         <div className="text-right">
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-0.5">
+          <p className="text-[11px] font-semibold text-gray-500 mb-0.5">
             vs. {ano - 1}
           </p>
           <p className={`text-sm font-bold num leading-none ${delta > 0 ? 'text-red-500' : 'text-emerald-600'}`}>

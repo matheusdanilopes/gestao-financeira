@@ -987,7 +987,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
       })()}
 
       {/* Resumo + Filtros */}
-      <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
+      <div className="bg-white rounded-3xl shadow-soft p-4">
         <div className="flex items-center gap-2 mb-3.5">
           <div className="w-7 h-7 rounded-xl bg-red-100 flex items-center justify-center">
             <Receipt className="w-4 h-4 text-red-600" />
@@ -998,15 +998,15 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
         {/* Métricas — leitura, sem peso visual extra */}
         <div className="grid grid-cols-3 gap-2 mb-3.5">
           <div className="bg-gray-50 rounded-2xl p-2.5 text-center">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">Previsto</p>
+            <p className="text-[11px] font-semibold text-gray-500 mb-0.5">Previsto</p>
             <p className="text-xs font-bold text-gray-800 break-all leading-tight num">{formatBRL(totalPrevisto)}</p>
           </div>
           <div className="bg-primary-50 rounded-2xl p-2.5 text-center">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-primary-500 mb-0.5">Pago</p>
+            <p className="text-[11px] font-semibold text-primary-500 mb-0.5">Pago</p>
             <p className="text-xs font-bold text-primary-700 break-all leading-tight num">{formatBRL(totalPago)}</p>
           </div>
           <div className={`rounded-2xl p-2.5 text-center ${totalPendente <= 0.009 ? 'bg-green-50' : 'bg-red-50'}`}>
-            <p className={`text-[10px] font-semibold uppercase tracking-wide mb-0.5 ${totalPendente <= 0.009 ? 'text-green-500' : 'text-red-500'}`}>A pagar</p>
+            <p className={`text-[11px] font-semibold mb-0.5 ${totalPendente <= 0.009 ? 'text-green-500' : 'text-red-500'}`}>A pagar</p>
             {totalPendente <= 0.009
               ? <p className="text-xs font-bold text-green-600 leading-tight">Quitado</p>
               : <p className="text-xs font-bold text-red-600 break-all leading-tight num">{formatBRL(totalPendente)}</p>
@@ -1075,7 +1075,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
 
       {/* Lista agrupada por categoria */}
       {gruposPorCategoria.length === 0 ? (
-        <div className="bg-white rounded-3xl shadow-card border border-gray-100">
+        <div className="bg-white rounded-3xl shadow-soft">
           <div className="flex flex-col items-center justify-center py-14 gap-3">
             <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center">
               <Receipt className="w-6 h-6 text-red-300" strokeWidth={1.5} />
@@ -1098,7 +1098,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
             const pagosGrupo = grupoItens.filter(i => i.pago).length
             const pctGrupo = grupoItens.length > 0 ? (pagosGrupo / grupoItens.length) * 100 : 0
             return (
-              <div key={categoria} className="bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden list-item-enter" style={{ animationDelay: `${Math.min(catIdx, 4) * 35}ms` }}>
+              <div key={categoria} className="bg-white rounded-3xl shadow-soft overflow-hidden list-item-enter" style={{ animationDelay: `${Math.min(catIdx, 4) * 35}ms` }}>
                 {/* Cabeçalho do grupo */}
                 <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
                   <div className="flex items-center gap-2">
@@ -1200,7 +1200,7 @@ export default function ChecklistMensal({ mesSelecionado, autoOpen }: Props) {
             </p>
 
             <div className="space-y-3 mb-4">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+              <p className="text-[11px] font-semibold text-gray-500">
                 Detalhamento por cartão
               </p>
               {grupoFatura.itens.map((item) => {

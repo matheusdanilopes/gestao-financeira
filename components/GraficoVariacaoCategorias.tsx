@@ -343,7 +343,7 @@ export default function GraficoVariacaoCategorias({
       {/* Resumo do período */}
       <div className="flex items-end justify-between mb-4 gap-3">
         <div>
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-0.5">
+          <p className="text-[11px] font-semibold text-gray-500 mb-0.5">
             Total da fatura
           </p>
           <p className="text-xl font-bold text-gray-700 num leading-none">
@@ -351,7 +351,7 @@ export default function GraficoVariacaoCategorias({
           </p>
         </div>
         <div className="text-right">
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-0.5">
+          <p className="text-[11px] font-semibold text-gray-500 mb-0.5">
             vs. referência
           </p>
           <p

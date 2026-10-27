@@ -584,7 +584,7 @@ export default memo(function NotificacoesBell({ tone = 'default' }: { tone?: 'de
                     <div className="mt-0.5 flex-shrink-0">{renderIcone(n.acao)}</div>
                     <div className="flex-1 min-w-0">
                       {/* Rótulo do módulo */}
-                      <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500">
+                      <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-500">
                         {meta.rotulo}
                       </span>
                       <p className="text-sm font-medium text-gray-800 dark:text-gray-100 leading-snug mt-0.5">

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  ArrowLeft, ShoppingBasket, History, ChevronDown, ChevronUp,
+  ShoppingBasket, ChevronDown, ChevronUp,
   Calendar, Package, RefreshCw, Inbox, Filter,
 } from 'lucide-react'
 import { SwipeableItem } from '@/components/SwipeableItem'
@@ -11,6 +11,7 @@ import { useHistoricoCompras, type RegistroCompra } from '@/lib/useHistoricoComp
 import { formatBRL } from '@/lib/format'
 import { format, subDays, startOfMonth, startOfYear, isAfter, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import PageHeader, { PAGE_HEADER_ACTION, PAGE_HEADER_PILL } from '@/components/PageHeader'
 
 // ── Filtros de período ────────────────────────────────────────────────────────
 
@@ -44,7 +45,7 @@ function CardRegistro({ registro, onExcluir }: { registro: RegistroCompra; onExc
   const horaFormatada = format(parseISO(registro.data_hora), 'HH:mm', { locale: ptBR })
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-card overflow-hidden">
+    <div className="bg-white rounded-2xl shadow-soft overflow-hidden">
       <SwipeableItem onDelete={() => onExcluir(registro.id)} requireConfirmation>
       <div>
       {/* Cabeçalho do card */}
@@ -108,7 +109,7 @@ function CardRegistro({ registro, onExcluir }: { registro: RegistroCompra; onExc
 
           {/* Subtotal dos itens */}
           <div className="flex items-center justify-between px-4 py-3.5 bg-emerald-50 border-t border-emerald-100">
-            <span className="text-xs font-bold text-emerald-700 uppercase tracking-wide">Total pago</span>
+            <span className="text-xs font-bold text-emerald-700">Total pago</span>
             <span className="text-base font-bold text-emerald-700 num">
               {formatBRL(registro.valor_total)}
             </span>
@@ -156,38 +157,19 @@ export default function HistoricoComprasPage() {
 
   return (
     <div className="min-h-screen pb-24 page-enter">
-      {/* Header */}
-      <div className="sticky top-0 z-10 sticky-header border-b border-gray-100 px-4 pt-4 pb-3">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 transition-colors flex-none"
-            aria-label="Voltar"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-600" strokeWidth={2} />
-          </button>
-
-          <div className="flex items-center gap-2.5 flex-1 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-green-50 flex items-center justify-center flex-none">
-              <History className="w-4 h-4 text-green-600" strokeWidth={1.8} />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-base font-bold text-gray-900 leading-none">Histórico de Compras</h1>
-              {filtrado.length > 0 && !loading && (
-                <p className="text-[11px] text-gray-400 mt-0.5">
-                  {filtrado.length} {filtrado.length === 1 ? 'compra' : 'compras'} · {formatBRL(totalPeriodo)}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1 flex-none">
+      <PageHeader
+        title="Histórico de Compras"
+        onBack={() => router.back()}
+        subtitle={filtrado.length > 0 && !loading
+          ? <>{filtrado.length} {filtrado.length === 1 ? 'compra' : 'compras'} · {formatBRL(totalPeriodo)}</>
+          : undefined}
+        actions={
+          <>
             <button
               type="button"
               onClick={handleRefresh}
               disabled={loading}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+              className={PAGE_HEADER_ACTION}
               aria-label="Atualizar"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} strokeWidth={2} />
@@ -195,27 +177,27 @@ export default function HistoricoComprasPage() {
             <button
               type="button"
               onClick={() => setFiltroAberto(v => !v)}
-              className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-xl transition-colors
-                          ${filtroAberto ? 'bg-primary-100 text-primary-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              aria-expanded={filtroAberto}
+              className={`${PAGE_HEADER_PILL} ${filtroAberto ? '!bg-white !text-primary-700' : ''}`}
             >
               <Filter className="w-3.5 h-3.5" strokeWidth={2} />
               {periodoLabel}
             </button>
-          </div>
-        </div>
-
+          </>
+        }
+      >
         {/* Filtro de período */}
         {filtroAberto && (
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
             {PERIODOS.map(p => (
               <button
                 key={p.id}
                 type="button"
                 onClick={() => { setPeriodo(p.id); setFiltroAberto(false) }}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors
                             ${periodo === p.id
-                              ? 'bg-primary-600 text-white'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                              ? 'bg-white text-primary-700'
+                              : 'bg-white/15 text-white hover:bg-white/25'
                             }`}
               >
                 {p.label}
@@ -223,10 +205,10 @@ export default function HistoricoComprasPage() {
             ))}
           </div>
         )}
-      </div>
+      </PageHeader>
 
       {/* Conteúdo */}
-      <div className="px-4 py-4">
+      <div className="px-4 pb-4">
         {loading && historico.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
             <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center">
@@ -284,7 +266,7 @@ export default function HistoricoComprasPage() {
             {/* Label do mês */}
             <div className="flex items-center gap-2 mb-3">
               <Calendar className="w-3.5 h-3.5 text-gray-400 flex-none" strokeWidth={2} />
-              <p className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">{mes}</p>
+              <p className="text-xs font-bold text-gray-500">{mes}</p>
               <div className="flex-1 h-px bg-gray-100" />
               <span className="text-xs text-gray-500 font-bold num">
                 {formatBRL(registros.reduce((s, r) => s + r.valor_total, 0))}

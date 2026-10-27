@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth } from 'date-fns'
 import FilterSelect from '@/components/FilterSelect'
 import { mascaraMoeda, parseMoeda, formatBRL } from '@/lib/format'
+import PageHeader from '@/components/PageHeader'
 
 interface StatsFatura {
   noCSV: number
@@ -541,13 +542,15 @@ export default function ImportarPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 page-content page-bottom-safe page-enter">
-      <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 z-10">
-        <h1 className="text-xl font-bold text-gray-900 mb-0.5">Importar CSV</h1>
-        <p className="text-sm text-gray-400">Selecione o cartão e faça upload do arquivo</p>
-      </div>
+      <PageHeader
+        title="Importar CSV"
+        subtitle="Selecione o cartão e faça upload do arquivo"
+        bell
+        bleed
+      />
 
       {/* Seletor de cartão */}
-      <div className="bg-white rounded-2xl shadow-card border border-gray-100 p-1 mb-4 flex gap-1">
+      <div className="bg-white rounded-2xl shadow-soft p-1 mb-4 flex gap-1">
         {(Object.keys(cartaoLabels) as TipoCartao[]).map(tipo => (
           <button
             key={tipo}
@@ -628,7 +631,7 @@ export default function ImportarPage() {
       )}
 
       {/* Importar via Google Apps Script */}
-      <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-5 mb-4">
+      <div className="bg-white rounded-3xl shadow-soft p-5 mb-4">
         <h2 className="text-sm font-bold text-gray-900 mb-1 flex items-center gap-2">
           <FileSpreadsheet className="w-4 h-4 text-gray-500" />
           Importar via Google Sheets
@@ -789,7 +792,7 @@ export default function ImportarPage() {
       )}
 
       {resumo && (
-        <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-5 space-y-4 mb-4">
+        <div className="bg-white rounded-3xl shadow-soft p-5 space-y-4 mb-4">
           {/* Cabeçalho */}
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-2xl bg-green-50 border border-green-100 flex items-center justify-center shrink-0">
@@ -865,7 +868,7 @@ export default function ImportarPage() {
 
           {resumo.resumoPorFatura && Object.keys(resumo.resumoPorFatura).length > 0 && (
             <div className="pt-1 space-y-2">
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Verificação por fatura</p>
+              <p className="text-[11px] font-semibold text-gray-500">Verificação por fatura</p>
               {Object.entries(resumo.resumoPorFatura)
                 .sort(([a], [b]) => a.localeCompare(b))
                 .map(([fatura, stats]) => {
@@ -912,7 +915,7 @@ export default function ImportarPage() {
       <div className="mt-2">
         <div className="flex items-center gap-2 mb-3">
           <ShieldCheck className="w-4 h-4 text-gray-400" />
-          <h2 className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest">Dados Históricos</h2>
+          <h2 className="text-xs font-semibold text-gray-500">Dados Históricos</h2>
         </div>
 
         <button
@@ -1050,7 +1053,7 @@ export default function ImportarPage() {
       <div className="mt-2">
         <div className="flex items-center gap-2 mb-3">
           <ShieldCheck className="w-4 h-4 text-gray-400" />
-          <h2 className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest">Parcelamentos</h2>
+          <h2 className="text-xs font-semibold text-gray-500">Parcelamentos</h2>
         </div>
 
         <button
@@ -1176,15 +1179,15 @@ export default function ImportarPage() {
       <div className="mt-4">
         <div className="flex items-center gap-2 mb-3">
           <Clock className="w-4 h-4 text-gray-400" />
-          <h2 className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest">Atividades Recentes</h2>
+          <h2 className="text-xs font-semibold text-gray-500">Atividades Recentes</h2>
         </div>
 
         {atividades.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-card border border-gray-100 py-8 text-center">
+          <div className="bg-white rounded-2xl shadow-soft py-8 text-center">
             <p className="text-sm text-gray-400">Nenhuma importação registrada</p>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl shadow-card border border-gray-100 overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-soft overflow-hidden">
             <div className="divide-y divide-gray-50 max-h-64 overflow-y-auto">
               {atividades.map(a => {
                 const isErro = a.descricao.startsWith('ERRO:')
@@ -1224,7 +1227,7 @@ export default function ImportarPage() {
       </div>
 
       {/* Integração via API */}
-      <div className="mt-4 bg-white rounded-3xl shadow-card border border-gray-100 p-5">
+      <div className="mt-4 bg-white rounded-3xl shadow-soft p-5">
         <h2 className="text-sm font-bold text-gray-900 mb-1 flex items-center gap-2">
           <Code2 className="w-4 h-4 text-gray-500" />
           Integração via API
@@ -1258,7 +1261,7 @@ export default function ImportarPage() {
 
             <div className="p-4 space-y-5 pb-10">
               <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Endpoint</p>
+                <p className="text-xs font-semibold text-gray-500 mb-1">Endpoint</p>
                 <div className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5 gap-2">
                   <code className="text-sm text-gray-800 break-all">POST /api/nubank/importar</code>
                   <button onClick={() => copiarTexto('endpoint', 'POST /api/nubank/importar')} className="shrink-0 p-1.5 rounded-lg hover:bg-gray-200 transition">
@@ -1268,7 +1271,7 @@ export default function ImportarPage() {
               </div>
 
               <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Autenticação</p>
+                <p className="text-xs font-semibold text-gray-500 mb-1">Autenticação</p>
                 <div className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5 gap-2">
                   <code className="text-sm text-gray-800 break-all">{'Authorization: Bearer <NUBANK_IMPORT_API_KEY>'}</code>
                   <button onClick={() => copiarTexto('auth', 'Authorization: Bearer <NUBANK_IMPORT_API_KEY>')} className="shrink-0 p-1.5 rounded-lg hover:bg-gray-200 transition">
@@ -1279,7 +1282,7 @@ export default function ImportarPage() {
               </div>
 
               <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Parâmetros (query string)</p>
+                <p className="text-xs font-semibold text-gray-500 mb-2">Parâmetros (query string)</p>
                 <div className="space-y-2">
                   {[
                     { param: 'cartao', desc: 'nubank (padrão) | cartao1 | cartao2' },
@@ -1294,7 +1297,7 @@ export default function ImportarPage() {
               </div>
 
               <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Exemplo 1 — Envio de arquivo CSV</p>
+                <p className="text-xs font-semibold text-gray-500 mb-1">Exemplo 1 — Envio de arquivo CSV</p>
                 <div className="bg-gray-900 rounded-xl p-3 flex items-start gap-2">
                   <pre className="text-xs text-green-300 whitespace-pre overflow-x-auto flex-1 min-w-0">{`curl -X POST https://seu-dominio.com/api/nubank/importar?cartao=nubank \\
   -H "Authorization: Bearer SUA_API_KEY" \\
@@ -1309,7 +1312,7 @@ export default function ImportarPage() {
               </div>
 
               <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Exemplo 2 — CSV como texto (JSON)</p>
+                <p className="text-xs font-semibold text-gray-500 mb-1">Exemplo 2 — CSV como texto (JSON)</p>
                 <div className="bg-gray-900 rounded-xl p-3 flex items-start gap-2">
                   <pre className="text-xs text-green-300 whitespace-pre overflow-x-auto flex-1 min-w-0">{`curl -X POST https://seu-dominio.com/api/nubank/importar?cartao=cartao1 \\
   -H "Authorization: Bearer SUA_API_KEY" \\
@@ -1325,7 +1328,7 @@ export default function ImportarPage() {
               </div>
 
               <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Exemplo 3 — Array de transações (JSON)</p>
+                <p className="text-xs font-semibold text-gray-500 mb-1">Exemplo 3 — Array de transações (JSON)</p>
                 <div className="bg-gray-900 rounded-xl p-3 flex items-start gap-2">
                   <pre className="text-xs text-green-300 whitespace-pre overflow-x-auto flex-1 min-w-0">{`curl -X POST https://seu-dominio.com/api/nubank/importar?cartao=cartao2 \\
   -H "Authorization: Bearer SUA_API_KEY" \\
@@ -1341,7 +1344,7 @@ export default function ImportarPage() {
               </div>
 
               <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Formato do CSV</p>
+                <p className="text-xs font-semibold text-gray-500 mb-1">Formato do CSV</p>
                 <div className="bg-gray-900 rounded-xl p-3 flex items-start gap-2">
                   <pre className="text-xs text-green-300 whitespace-pre overflow-x-auto flex-1 min-w-0">{`date,title,amount\n2024-01-15,Supermercado,250.00\n2024-01-20,Restaurante Jeniffer,89.90`}</pre>
                   <button
@@ -1355,7 +1358,7 @@ export default function ImportarPage() {
               </div>
 
               <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Resposta</p>
+                <p className="text-xs font-semibold text-gray-500 mb-1">Resposta</p>
                 <div className="bg-gray-50 rounded-xl p-3 overflow-x-auto">
                   <pre className="text-xs text-gray-700 whitespace-pre">{`{
   "success": true,

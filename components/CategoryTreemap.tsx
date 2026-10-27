@@ -285,7 +285,7 @@ export default function CategoryTreemap({ compras: comprasProp, mesAtual, loadin
       <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-white/[0.06] shadow-card p-4">
         <div className="flex items-center gap-1.5 mb-3">
           <LayoutGrid className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
-          <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
+          <span className="text-xs font-semibold text-gray-500 dark:text-gray-500">
             Categorias da Fatura
           </span>
         </div>
@@ -300,7 +300,7 @@ export default function CategoryTreemap({ compras: comprasProp, mesAtual, loadin
       <div className={`flex items-center justify-between pb-2 ${embutido ? 'pt-1' : 'px-4 pt-3'}`}>
         <div className="flex items-center gap-1.5">
           {!embutido && <LayoutGrid className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />}
-          <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
+          <span className="text-xs font-semibold text-gray-500 dark:text-gray-500">
             {embutido ? 'Compras importadas' : 'Categorias da Fatura'}
           </span>
           <InfoPopover texto="Divide as compras efetivamente importadas da fatura do mês por categoria — diferente da aba 'Planejado', que usa o planejamento (previsto x pago). O tamanho de cada bloco é proporcional ao valor (ou à quantidade de compras). Toque num bloco para ver os detalhes." />
@@ -434,23 +434,23 @@ export default function CategoryTreemap({ compras: comprasProp, mesAtual, loadin
               </div>
               <div className="grid grid-cols-2 gap-1.5">
                 <div className="bg-white/70 dark:bg-white/[0.08] rounded-xl p-2.5">
-                  <p className="text-[9px] text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wide leading-tight">Total</p>
+                  <p className="text-[10px] text-gray-500 dark:text-gray-500 font-semibold leading-tight">Total</p>
                   <p className="text-xs font-bold text-gray-900 dark:text-gray-100 num mt-1 whitespace-nowrap">
                     {formatBRL(selected.valor)}
                   </p>
                 </div>
                 <div className="bg-white/70 dark:bg-white/[0.08] rounded-xl p-2.5">
-                  <p className="text-[9px] text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wide leading-tight">Compras</p>
+                  <p className="text-[10px] text-gray-500 dark:text-gray-500 font-semibold leading-tight">Compras</p>
                   <p className="text-xs font-bold text-gray-900 dark:text-gray-100 mt-1">{selected.contagem}×</p>
                 </div>
                 <div className="bg-white/70 dark:bg-white/[0.08] rounded-xl p-2.5">
-                  <p className="text-[9px] text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wide leading-tight">Ticket médio</p>
+                  <p className="text-[10px] text-gray-500 dark:text-gray-500 font-semibold leading-tight">Ticket médio</p>
                   <p className="text-xs font-bold text-gray-900 dark:text-gray-100 num mt-1 whitespace-nowrap">
                     {formatBRL(selected.valor / selected.contagem)}
                   </p>
                 </div>
                 <div className="bg-white/70 dark:bg-white/[0.08] rounded-xl p-2.5">
-                  <p className="text-[9px] text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wide leading-tight">% fatura</p>
+                  <p className="text-[10px] text-gray-500 dark:text-gray-500 font-semibold leading-tight">% fatura</p>
                   <p className="text-xs font-bold text-gray-900 dark:text-gray-100 mt-1">
                     {formatDecimal(selected.pct)}%
                   </p>

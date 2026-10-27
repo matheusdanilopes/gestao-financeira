@@ -124,7 +124,7 @@ export default function AlertaFaturaModal({ aberto, dados, onFechar }: Props) {
             <div className="mb-4 bg-gray-50 dark:bg-gray-800/60 rounded-2xl p-3.5">
               <div className="flex items-center gap-1.5 mb-2">
                 <Layers className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">
                   Parcelamento
                 </p>
               </div>
@@ -168,7 +168,7 @@ export default function AlertaFaturaModal({ aberto, dados, onFechar }: Props) {
             <div className="mb-5 bg-gray-50 dark:bg-gray-800/60 rounded-2xl p-3.5">
               <div className="flex items-center gap-1.5 mb-2">
                 <Calendar className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">
                   {proximoMes ? 'Próxima fatura' : 'Fatura atual'}
                 </p>
               </div>

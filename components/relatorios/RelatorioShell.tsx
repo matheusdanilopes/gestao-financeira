@@ -18,6 +18,7 @@ import {
   exportarRelatorioPdf,
   type DocumentoRelatorio,
 } from '@/lib/relatorioDocumento'
+import PageHeader, { PAGE_HEADER_ACTION } from '@/components/PageHeader'
 
 export type { StatusRelatorio } from '@/lib/useRelatorio'
 
@@ -119,47 +120,41 @@ export default function RelatorioShell({
 
   return (
     <div className="min-h-screen bg-gray-50 page-bottom-safe page-enter">
-      <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 px-4 md:px-6 lg:px-8 z-[10]">
-        <div className="flex items-center gap-2 mb-3">
-          <button
-            type="button"
-            onClick={() => router.push('/relatorios')}
-            className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 transition-colors flex-none"
-            aria-label="Voltar para Relatórios"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-600" strokeWidth={2} />
-          </button>
-          <h1 className="text-xl font-bold text-gray-900 flex-1 min-w-0 truncate tracking-tight">{titulo}</h1>
+      <PageHeader
+        title={titulo}
+        onBack={() => router.push('/relatorios')}
+        backLabel="Voltar para Relatórios"
+        actions={
           <button
             type="button"
             onClick={onRecarregar}
             disabled={status === 'loading' || atualizando}
-            className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100
-                       transition-colors flex-none disabled:opacity-40"
+            className={PAGE_HEADER_ACTION}
             aria-label="Atualizar dados do relatório"
           >
             <RefreshCw
-              className={`w-4 h-4 text-gray-600 ${status === 'loading' || atualizando ? 'animate-spin' : ''}`}
+              className={`w-4 h-4 ${status === 'loading' || atualizando ? 'animate-spin' : ''}`}
               strokeWidth={2}
             />
           </button>
-        </div>
+        }
+      >
         {filtros}
-      </div>
+      </PageHeader>
 
       <div className="page-content space-y-3">
         {status === 'loading' && (
           <div className="space-y-3 skeleton-group">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
               {[1, 2, 3, 4].map(i => (
-                <div key={i} className="bg-white rounded-2xl shadow-card border border-gray-100 p-3.5 space-y-2">
+                <div key={i} className="bg-white rounded-2xl shadow-soft p-3.5 space-y-2">
                   <div className="h-2.5 bg-gray-100 rounded-full w-16" />
                   <div className="h-5 bg-gray-100 rounded-full w-24" />
                 </div>
               ))}
             </div>
             {[1, 2, 3].map(i => (
-              <div key={i} className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 space-y-3">
+              <div key={i} className="bg-white rounded-3xl shadow-soft p-4 space-y-3">
                 <div className="h-4 bg-gray-100 rounded-full w-32" />
                 <div className="h-3 bg-gray-100 rounded-full w-full" />
                 <div className="h-16 bg-gray-100 rounded-2xl" />
@@ -169,7 +164,7 @@ export default function RelatorioShell({
         )}
 
         {status === 'error' && (
-          <div className="bg-white rounded-3xl shadow-card border border-gray-100">
+          <div className="bg-white rounded-3xl shadow-soft">
             <EmptyState
               icon={IconeErro}
               title="Não foi possível carregar o relatório"

@@ -9,6 +9,7 @@ import {
   RELATORIOS_DISPONIVEIS,
   type RelatorioDisponivel,
 } from '@/lib/relatoriosItems'
+import PageHeader from '@/components/PageHeader'
 
 function normalizar(texto: string): string {
   return texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -76,8 +77,7 @@ export default function RelatoriosPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 page-bottom-safe page-enter">
-      <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 px-4 md:px-6 lg:px-8 z-[10]">
-        <h1 className="text-xl font-bold text-gray-900 tracking-tight mb-3">Relatórios</h1>
+      <PageHeader title="Relatórios">
         <div className="relative">
           <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
@@ -85,16 +85,16 @@ export default function RelatoriosPage() {
             onChange={e => setTermo(e.target.value)}
             placeholder="Buscar por relatório ou pergunta…"
             aria-label="Buscar relatório"
-            className="w-full pl-10 pr-3 py-2.5 rounded-2xl bg-white border border-gray-100 shadow-card
+            className="w-full pl-10 pr-3 py-2.5 rounded-full bg-white border-0
                        text-sm text-gray-700 placeholder:text-gray-400
-                       focus:outline-none focus:ring-2 focus:ring-primary-300"
+                       focus:outline-none focus:ring-2 focus:ring-white/60"
           />
         </div>
-      </div>
+      </PageHeader>
 
       <div className="page-content mt-4 space-y-5">
         {grupos.length === 0 ? (
-          <div className="bg-white rounded-3xl shadow-card border border-gray-100">
+          <div className="bg-white rounded-3xl shadow-soft">
             <EmptyState
               icon={FileSearch}
               title="Nenhum relatório encontrado"
@@ -105,7 +105,7 @@ export default function RelatoriosPage() {
           grupos.map(grupo => (
             <section key={grupo.chave} className="space-y-2">
               <div className="px-1">
-                <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wide">{grupo.titulo}</h2>
+                <h2 className="text-xs font-bold text-gray-500">{grupo.titulo}</h2>
                 <p className="text-[11px] text-gray-400 leading-snug">{grupo.descricao}</p>
               </div>
               {grupo.itens.map(relatorio => (

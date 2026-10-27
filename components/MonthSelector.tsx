@@ -60,7 +60,7 @@ export default function MonthSelector({ value, onChange, onOpenSelector, classNa
   }
 
   return (
-    <div className={`flex items-center justify-between bg-white dark:bg-gray-900 rounded-2xl shadow-card border border-gray-100 dark:border-gray-800 px-1 py-1 ${className}`}>
+    <div className={`flex items-center justify-between bg-white dark:bg-gray-900 rounded-2xl shadow-soft dark:border-gray-800 px-1 py-1 ${className}`}>
       <button
         onClick={(e) => { onChange(subMonths(value, 1)); e.currentTarget.blur() }}
         className="p-2.5 rounded-xl tap-scale hover:bg-gray-50 dark:hover:bg-gray-800

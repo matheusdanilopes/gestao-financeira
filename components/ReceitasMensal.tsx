@@ -429,7 +429,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
     <div className="space-y-3">
 
       {/* Resumo */}
-      <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
+      <div className="bg-white rounded-3xl shadow-soft p-4">
         <div className="flex items-center gap-2 mb-3.5">
           <div className="w-7 h-7 rounded-xl bg-emerald-100 flex items-center justify-center">
             <TrendingUp className="w-4 h-4 text-emerald-600" />
@@ -438,11 +438,11 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
         </div>
         <div className="grid grid-cols-2 gap-2.5 mb-3.5">
           <div className="bg-gray-50 rounded-2xl p-3 text-center">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">Previsto</p>
+            <p className="text-[11px] font-semibold text-gray-500 mb-0.5">Previsto</p>
             <p className="text-base font-bold text-gray-800 num">{formatBRL(totalPrevisto)}</p>
           </div>
           <div className="bg-emerald-50 rounded-2xl p-3 text-center">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-500 mb-0.5">Recebido</p>
+            <p className="text-[11px] font-semibold text-emerald-500 mb-0.5">Recebido</p>
             <p className="text-base font-bold text-emerald-700 num">{formatBRL(totalRecebido)}</p>
           </div>
         </div>
@@ -504,7 +504,7 @@ export default function ReceitasMensal({ mesSelecionado, autoOpen }: { mesSeleci
       )}
 
       {/* Lista */}
-      <div className="bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden divide-y divide-gray-100">
+      <div className="bg-white rounded-3xl shadow-soft overflow-hidden divide-y divide-gray-100">
         {itensFiltrados.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-14 gap-3">
             <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center">

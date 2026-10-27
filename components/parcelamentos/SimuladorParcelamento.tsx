@@ -103,7 +103,7 @@ export default function SimuladorParcelamento({ relatorio }: Props) {
   }, [simulavel, relatorio, limites, valorNum, mesInicioIdx, responsavel])
 
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-card border border-gray-100 dark:border-gray-800 overflow-hidden">
+    <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-soft dark:border-gray-800 overflow-hidden">
       <button
         type="button"
         onClick={() => setExpandido(v => !v)}

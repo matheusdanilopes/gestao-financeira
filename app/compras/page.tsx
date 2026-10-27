@@ -22,6 +22,7 @@ import { classificarTipoGasto, somarValorFatura, type TipoGasto, type Assinatura
 import { ativaEfetivaNoMes, type HistoricoStatusEntry } from '@/lib/assinaturaStatus'
 import { AUTH_DISABLED } from '@/lib/authConfig'
 import { sanitizarDescricao, atualizarAprendizado } from '@/lib/ragClassificacao'
+import PageHeader from '@/components/PageHeader'
 
 type Compra = {
   id: string
@@ -653,18 +654,15 @@ export default function ComprasPage() {
         </div>
       )}
 
-      <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 z-[10]">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">Compras</h1>
-            <UltimaImportacaoInfo />
-          </div>
-        </div>
-        <MonthSelector
-          value={mesGlobal}
-          onChange={setMesAtual}
-        />
-      </div>
+      <PageHeader
+        title="Compras"
+        subtitle={<UltimaImportacaoInfo className="text-white/75" />}
+        bell
+        sync
+        bleed
+      >
+        <MonthSelector tone="inverse" value={mesGlobal} onChange={setMesAtual} />
+      </PageHeader>
 
       {/* Filtros: acompanha o tema do app (claro/escuro) em vez de ficar sempre escuro */}
       <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-transparent shadow-card dark:shadow-none rounded-2xl p-3 mb-3 space-y-2.5">
@@ -885,7 +883,7 @@ export default function ComprasPage() {
       {loading ? (
         <div className="space-y-3">
           {[0, 1].map(g => (
-            <div key={g} className="bg-white rounded-3xl border border-gray-100 shadow-card overflow-hidden skeleton-group">
+            <div key={g} className="bg-white rounded-3xl shadow-soft overflow-hidden skeleton-group">
               {/* Cabeçalho de grupo skeleton */}
               <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
                 <div className="h-3 bg-gray-200 rounded-lg w-28" />
@@ -905,7 +903,7 @@ export default function ComprasPage() {
           ))}
         </div>
       ) : grupos.length === 0 ? (
-        <div className="bg-white rounded-3xl border border-gray-100 shadow-card">
+        <div className="bg-white rounded-3xl shadow-soft">
           <EmptyState
             icon={ShoppingBag}
             title="Nenhuma compra encontrada"
@@ -917,7 +915,7 @@ export default function ComprasPage() {
           {grupos.map(([dateKey, items], groupIdx) => {
             const subtotal = somarValorFatura(items)
             return (
-              <div key={dateKey} className="bg-white rounded-3xl border border-gray-100 shadow-card overflow-hidden list-item-enter" style={{ animationDelay: `${Math.min(groupIdx, 3) * 40}ms` }}>
+              <div key={dateKey} className="bg-white rounded-3xl shadow-soft overflow-hidden list-item-enter" style={{ animationDelay: `${Math.min(groupIdx, 3) * 40}ms` }}>
                 <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
                   <span className="text-xs font-semibold text-gray-500 capitalize">
                     {formatarCabecalhoData(dateKey)}

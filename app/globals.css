@@ -205,6 +205,12 @@ body.theme-transition {
 .dark input::placeholder,
 .dark textarea::placeholder { color: var(--color-muted) !important; }
 
+/* Topo índigo no modo escuro: o .bg-white das pílulas ativas e campos vira um
+   branco translúcido — o slate do card ficaria apagado sobre o índigo escuro. */
+.dark [data-page-header] .bg-white {
+  background-color: rgba(255, 255, 255, 0.18) !important;
+}
+
 /* ─── BottomNav/TopNav glassmorphism + safe-area ─────────────────────────── */
 [data-bottom-nav='true'] {
   background: rgba(255, 255, 255, 0.88);

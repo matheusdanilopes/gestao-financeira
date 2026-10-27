@@ -21,6 +21,7 @@ import { useHeyGestorAtivo } from '@/lib/heyGestorStore'
 import { suportaReconhecimentoVoz } from '@/lib/useVoice'
 import TelegramVinculo from '@/components/TelegramVinculo'
 import { METAS_GASTO } from '@/lib/metasGasto'
+import PageHeader from '@/components/PageHeader'
 
 interface LogEntry {
   id: string
@@ -126,7 +127,7 @@ function SecaoCartao({
       {expandido && (
         <div className="px-4 pb-5 pt-4 space-y-4 border-t border-primary-100 dark:border-primary-900/30 bg-white dark:bg-gray-800/30">
           <div>
-            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wider">Dia de Vencimento</label>
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">Dia de Vencimento</label>
             <input
               type="number"
               min={1}
@@ -137,7 +138,7 @@ function SecaoCartao({
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wider">Ajuste Fino do Fechamento</label>
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">Ajuste Fino do Fechamento</label>
             <div className="flex gap-2">
               {([-1, 0, 1] as const).map((v) => (
                 <button
@@ -156,7 +157,7 @@ function SecaoCartao({
             </div>
           </div>
           <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-100 dark:border-primary-800 rounded-2xl p-3.5">
-            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider mb-0.5">Fechamento calculado</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-0.5">Fechamento calculado</p>
             <p className="font-semibold text-primary-700 dark:text-primary-400">{descricaoFechamento(diaVenc, ajuste)}</p>
           </div>
         </div>
@@ -184,7 +185,7 @@ function SettingsCard({
   className?: string
 }) {
   return (
-    <div className={`bg-white rounded-3xl shadow-card border border-gray-100 p-4 mb-4 ${className}`}>
+    <div className={`bg-white rounded-3xl shadow-soft p-4 mb-4 ${className}`}>
       <h2 className={`text-base font-semibold flex items-center gap-2.5 text-gray-800 tracking-tight ${description ? 'mb-1' : 'mb-4'}`}>
         <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
           <Icon className="w-4 h-4 text-gray-500" />
@@ -855,9 +856,7 @@ function ConfiguracoesContent() {
   return (
     <div className="min-h-screen bg-gray-50 page-content page-bottom-safe page-enter">
       {/* Header */}
-      <div className="sticky top-0 lg:top-14 sticky-header pt-3 pb-3 z-10">
-        <h1 className="text-xl font-bold text-gray-900 tracking-tight">Configurações</h1>
-      </div>
+      <PageHeader title="Configurações" bell bleed />
 
       {/* Tabs */}
       <div className="flex overflow-x-auto gap-2 mb-4 mt-3 pb-0.5 scrollbar-hide">

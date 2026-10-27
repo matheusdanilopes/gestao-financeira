@@ -98,7 +98,7 @@ export default function RelatorioDadosIAPage() {
         </div>
       }
     >
-      <section className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 space-y-3">
+      <section className="bg-white rounded-3xl shadow-soft p-4 space-y-3">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-primary-50 flex items-center justify-center shrink-0">
             <Sparkles className="w-4 h-4 text-primary-600" strokeWidth={1.8} />
@@ -166,7 +166,7 @@ export default function RelatorioDadosIAPage() {
         )}
       </section>
 
-      <section className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 space-y-3">
+      <section className="bg-white rounded-3xl shadow-soft p-4 space-y-3">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
             <FileText className="w-4 h-4 text-violet-600" strokeWidth={1.8} />
@@ -204,7 +204,7 @@ export default function RelatorioDadosIAPage() {
       </section>
 
       {previa && (
-        <section className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 space-y-3">
+        <section className="bg-white rounded-3xl shadow-soft p-4 space-y-3">
           <h2 className="font-bold text-gray-900 tracking-tight">Prévia do pacote</h2>
           <p className="text-xs text-gray-500 leading-snug">
             Primeiros trechos do Markdown que será copiado — o arquivo completo inclui todas as seções marcadas.

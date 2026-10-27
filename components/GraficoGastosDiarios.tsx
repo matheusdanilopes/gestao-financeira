@@ -637,14 +637,14 @@ export default function GraficoGastosDiarios({
           {/* Summary row */}
           <div className="flex items-end justify-between mb-3">
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-0.5">
+              <p className="text-[11px] font-semibold text-gray-500 mb-0.5">
                 Total da fatura
               </p>
               <p className="text-2xl font-bold text-violet-500 num leading-none">{formatBRL(totalFat)}</p>
             </div>
             {peakDay.total > 0 && (
               <div className="text-right">
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-0.5">
+                <p className="text-[11px] font-semibold text-gray-500 mb-0.5">
                   Maior gasto
                 </p>
                 <div className="flex items-center justify-end gap-1.5">

@@ -53,7 +53,7 @@ export function Cartao({
   children: React.ReactNode
 }) {
   return (
-    <section className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 space-y-3">
+    <section className="bg-white rounded-3xl shadow-soft p-4 space-y-3">
       <div className="flex items-center gap-3">
         <div className={`w-9 h-9 rounded-xl ${corFundo} flex items-center justify-center shrink-0`}>
           <Icon className={`w-4 h-4 ${corIcone}`} strokeWidth={1.8} />
@@ -121,7 +121,7 @@ function Recolhivel({ titulo, subtitulo, Icon, children }: {
         type="button"
         onClick={() => setAberto(v => !v)}
         aria-expanded={aberto}
-        className="w-full bg-white rounded-3xl shadow-card border border-gray-100 p-4 flex items-center gap-3 text-left
+        className="w-full bg-white rounded-3xl shadow-soft p-4 flex items-center gap-3 text-left
                    hover:bg-gray-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-300"
       >
         <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
@@ -204,11 +204,11 @@ export function Diagnostico({
   const pontos = indicadores.reduce((s, i) => s + i.nota * i.peso, 0)
 
   return (
-    <section className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 space-y-4">
+    <section className="bg-white rounded-3xl shadow-soft p-4 space-y-4">
       <div className="flex items-center gap-4">
         <AnelNota nota={nota} />
         <div className="min-w-0 space-y-1">
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+          <p className="text-xs font-semibold text-gray-500">
             Saúde financeira · <span className={corNota(nota).texto}>{rotuloNota(nota)}</span>
           </p>
           {delta !== null && (
@@ -1133,7 +1133,7 @@ export function LimitesAnalise({ analise: a, metricas: m }: { analise: AnaliseIA
   const avisos = [...m.qualidade.avisos, ...a.limitacoes]
   if (avisos.length === 0) return null
   return (
-    <details className="bg-white rounded-3xl shadow-card border border-gray-100 p-4 group">
+    <details className="bg-white rounded-3xl shadow-soft p-4 group">
       <summary className="flex items-center gap-2 text-xs font-semibold text-gray-500 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
         <Info className="w-3.5 h-3.5" /> Limites desta análise ({avisos.length})
         <ChevronDown className="w-3.5 h-3.5 ml-auto transition-transform group-open:rotate-180" />

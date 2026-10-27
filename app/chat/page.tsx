@@ -140,42 +140,42 @@ export default function ChatPage() {
       {menuAberto && <div className="fixed inset-0 z-[150]" onClick={() => setMenuAberto(false)} />}
 
       {/* ── Cabeçalho ── */}
-      <header className={`sticky top-0 z-[160] sticky-header border-b border-gray-100 dark:border-gray-700/60 transition-[padding] duration-200 ${headerCompacto ? 'py-1.5' : 'py-2'}`}>
+      <header className={`sticky top-0 z-[160] bg-primary-600 dark:bg-primary-900 text-white pt-[calc(0.25rem+var(--safe-top))] transition-[padding] duration-200 ${headerCompacto ? 'pb-1.5' : 'pb-2'}`}>
         <div className="flex items-center gap-1 px-1">
           <button
             onClick={() => { setMenuAberto(false); setDrawerAberto(true) }}
             aria-label="Histórico de conversas"
-            className="w-11 h-11 rounded-xl flex items-center justify-center text-gray-500 dark:text-gray-400 shrink-0 transition-all duration-200 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 active:scale-95"
+            className="w-11 h-11 rounded-full flex items-center justify-center text-white shrink-0 transition-all duration-200 hover:bg-white/15 active:scale-95"
           >
             <History className="w-5 h-5" />
           </button>
 
           <div className="flex-1 min-w-0 flex items-center justify-center gap-2">
-            <div className={`w-7 h-7 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-sm transition-transform duration-200 ${headerCompacto ? 'scale-90' : ''}`}>
+            <div className={`w-7 h-7 rounded-full bg-white/15 flex items-center justify-center shrink-0 transition-transform duration-200 ${headerCompacto ? 'scale-90' : ''}`}>
               <Sparkles className="w-4 h-4 text-white" />
             </div>
             <div className="min-w-0 text-center">
-              <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight truncate tracking-tight">
+              <p className="font-semibold text-white text-sm leading-tight truncate tracking-tight">
                 IA Financeira
               </p>
               <div className={`flex items-center justify-center gap-1.5 overflow-hidden transition-all duration-200 ${headerCompacto ? 'max-h-0 opacity-0' : 'max-h-4 opacity-100 mt-0.5'}`}>
-                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${chat.streaming ? 'bg-violet-400 animate-pulse' : 'bg-emerald-400'}`} />
-                <span className="text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${chat.streaming ? 'bg-amber-300 animate-pulse' : 'bg-emerald-300'}`} />
+                <span className="text-[11px] text-white/75 whitespace-nowrap">
                   {chat.streaming ? (chat.status ?? 'Analisando') : `Pronta · ${mesAtual}`}
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center shrink-0">
-            <NotificacoesBell />
+          <div className="flex items-center gap-1 shrink-0">
+            <NotificacoesBell tone="inverse" />
             <div className="relative">
               <button
                 onClick={() => setMenuAberto(v => !v)}
                 aria-label="Mais opções"
                 aria-expanded={menuAberto}
                 aria-haspopup="menu"
-                className="w-11 h-11 rounded-xl flex items-center justify-center text-gray-500 dark:text-gray-400 transition-all duration-200 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 active:scale-95"
+                className="w-11 h-11 rounded-full flex items-center justify-center text-white transition-all duration-200 hover:bg-white/15 active:scale-95"
               >
                 <MoreHorizontal className="w-5 h-5" />
               </button>

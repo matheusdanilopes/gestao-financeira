@@ -409,7 +409,7 @@ export default function ParcelamentosMensal({ mesAtual, onResumo }: Props) {
       <div className="space-y-6 skeleton-group" aria-hidden="true">
         <div className="space-y-3">
           {[0, 1, 2].map(i => (
-            <div key={i} className="bg-white dark:bg-gray-900 rounded-3xl shadow-card border border-gray-100 dark:border-gray-800 p-4 space-y-3">
+            <div key={i} className="bg-white dark:bg-gray-900 rounded-3xl shadow-soft dark:border-gray-800 p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-gray-100 dark:bg-white/[0.06]" />
                 <div className="h-4 w-24 bg-gray-100 dark:bg-white/[0.06] rounded-full" />
@@ -419,7 +419,7 @@ export default function ParcelamentosMensal({ mesAtual, onResumo }: Props) {
             </div>
           ))}
         </div>
-        <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-card border border-gray-100 dark:border-gray-800 p-4 space-y-3">
+        <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-soft dark:border-gray-800 p-4 space-y-3">
           <div className="h-4 w-40 bg-gray-100 dark:bg-white/[0.06] rounded-full" />
           <div className="h-9 w-full bg-gray-100 dark:bg-white/[0.06] rounded-xl" />
           {[0, 1, 2, 3].map(i => (
@@ -434,15 +434,15 @@ export default function ParcelamentosMensal({ mesAtual, onResumo }: Props) {
     <div className="space-y-6 content-enter">
       <div className="space-y-3">
         {totalLimite > 0 && (
-          <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-card border border-gray-100 dark:border-gray-800 p-4">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-0.5">Total comprometido no mês</p>
+          <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-soft dark:border-gray-800 p-4">
+            <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-500 mb-0.5">Total comprometido no mês</p>
             <p className="text-lg font-bold text-gray-800 dark:text-gray-100 num">
               {formatBRL(totalComprometido)} <span className="text-sm font-medium text-gray-400">/ {formatBRL(totalLimite)}</span>
             </p>
           </div>
         )}
 
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 px-1">Limites por pessoa</p>
+        <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-500 px-1">Limites por pessoa</p>
 
         {RESPONSAVEIS.map(responsavel => {
           const limite = limites[responsavel] ?? 0
@@ -467,7 +467,7 @@ export default function ParcelamentosMensal({ mesAtual, onResumo }: Props) {
           const bgPct = pct >= 100 ? 'bg-red-100 dark:bg-red-900/30' : pct >= 80 ? 'bg-amber-100 dark:bg-amber-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30'
 
           return (
-            <div key={responsavel} className="bg-white dark:bg-gray-900 rounded-3xl shadow-card border border-gray-100 dark:border-gray-800 p-4">
+            <div key={responsavel} className="bg-white dark:bg-gray-900 rounded-3xl shadow-soft dark:border-gray-800 p-4">
               <div className="flex items-center gap-2 mb-3">
                 <div className={`w-8 h-8 rounded-xl ${iconBg} flex items-center justify-center`}>
                   <Layers className={`w-4 h-4 ${texto}`} />
@@ -487,7 +487,7 @@ export default function ParcelamentosMensal({ mesAtual, onResumo }: Props) {
                 >
                   {formatBRL(gasto)}
                 </p>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mt-0.5">
+                <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-500 mt-0.5">
                   comprometido este mês
                 </p>
                 {origensComValor.length > 1 && (
@@ -528,7 +528,7 @@ export default function ParcelamentosMensal({ mesAtual, onResumo }: Props) {
 
               <div className="pt-3 border-t border-gray-50 dark:border-gray-800/60">
                 <div className="flex items-center justify-between gap-2 mb-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Limite mensal</span>
+                  <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-500">Limite mensal</span>
                   {previstoPessoa > 0 && (
                     <span className="text-[10px] text-gray-400 dark:text-gray-500">
                       Previsto da fatura <span className="font-semibold text-gray-500 dark:text-gray-400 num">{formatBRL(previstoPessoa)}</span>
@@ -606,7 +606,7 @@ export default function ParcelamentosMensal({ mesAtual, onResumo }: Props) {
         })}
       </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-card border border-gray-100 dark:border-gray-800 p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-soft dark:border-gray-800 p-4">
         <div className="flex items-center gap-2 mb-3">
           <div className="w-8 h-8 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
             <ClipboardList className="w-4 h-4 text-gray-600 dark:text-gray-300" />

@@ -14,6 +14,7 @@ import { fileToBase64, abortTimeout, compressImage, callAnalyze } from '@/lib/im
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useOnline } from '@/lib/useOnline'
+import PageHeader, { PAGE_HEADER_ACTION, PAGE_HEADER_PILL } from '@/components/PageHeader'
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
@@ -643,7 +644,7 @@ function WishlistCard({
     <SwipeableItem onDelete={() => onExcluir(item.id)} requireConfirmation>
       <div
         id={`wishlist-item-${item.id}`}
-        className={`rounded-2xl shadow-card border border-gray-100 overflow-hidden bg-white border-l-4 ${cfg.borderClass}${highlighted ? ' animate-wishlist-highlight' : ''}${isExiting ? ' card-realize-exit' : ''}`}
+        className={`rounded-2xl shadow-soft overflow-hidden bg-white border-l-4 ${cfg.borderClass}${highlighted ? ' animate-wishlist-highlight' : ''}${isExiting ? ' card-realize-exit' : ''}`}
       >
         {/* Clickable card body */}
         <button
@@ -780,7 +781,7 @@ function CardRealizado({
 }) {
   return (
     <SwipeableItem onDelete={() => onExcluir(item.id)} requireConfirmation>
-      <div className="w-full bg-white rounded-2xl p-4 shadow-card border border-gray-100">
+      <div className="w-full bg-white rounded-2xl p-4 shadow-soft">
         {/* Nome + restaurar */}
         <div className="flex items-start gap-2.5 mb-2">
           {item.emoji && (
@@ -1224,62 +1225,57 @@ function WishlistContent() {
 
   return (
     <div className="min-h-screen pb-32 page-enter">
-      {/* Header */}
-      <div className="sticky top-0 z-10 sticky-header border-b border-gray-100 px-4 pb-3">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 rounded-2xl bg-pink-50 flex items-center justify-center flex-none">
-            <Heart className="w-5 h-5 text-pink-500" strokeWidth={1.8} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-bold text-gray-900 leading-none">Wishlist Familiar</h1>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {ativos.length} {ativos.length === 1 ? 'desejo' : 'desejos'}
-              {historico.length > 0 && (
-                <span className="text-green-600 font-medium"> · {historico.length} realizados</span>
-              )}
-              {totalAtivos > 0 && (
-                <span className="text-gray-500 font-semibold num"> · {formatBRL(totalAtivos)}</span>
-              )}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => { setBuscaAberta(v => !v); if (buscaAberta) setBusca('') }}
-            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors
-                        ${buscaAberta ? 'bg-primary-100 text-primary-600' : 'text-gray-400 hover:bg-gray-100'}`}
-            aria-label="Buscar"
-          >
-            <Search className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => { setItemEditando(null); setModalAberto(true) }}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary-600 text-white text-xs font-bold
-                       hover:bg-primary-700 transition-all ease-spring active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-          >
-            <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
-            Novo
-          </button>
-        </div>
-
-        {/* Busca */}
+      <PageHeader
+        title="Wishlist Familiar"
+        icon={Heart}
+        subtitle={
+          <>
+            {ativos.length} {ativos.length === 1 ? 'desejo' : 'desejos'}
+            {historico.length > 0 && <> · {historico.length} realizados</>}
+            {totalAtivos > 0 && <span className="font-semibold num"> · {formatBRL(totalAtivos)}</span>}
+          </>
+        }
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => { setBuscaAberta(v => !v); if (buscaAberta) setBusca('') }}
+              className={`${PAGE_HEADER_ACTION} ${buscaAberta ? '!bg-white !text-primary-600' : ''}`}
+              aria-label="Buscar"
+              aria-pressed={buscaAberta}
+            >
+              <Search className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => { setItemEditando(null); setModalAberto(true) }}
+              className={`${PAGE_HEADER_PILL} !bg-white !text-primary-700 hover:!bg-primary-50`}
+            >
+              <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
+              Novo
+            </button>
+          </>
+        }
+      >
         {buscaAberta && (
-          <div className="mb-3">
-            <input
-              autoFocus
-              type="text"
-              value={busca}
-              onChange={e => setBusca(e.target.value)}
-              placeholder="Buscar desejo…"
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-900
-                         placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
-            />
-          </div>
+          <input
+            autoFocus
+            type="text"
+            value={busca}
+            onChange={e => setBusca(e.target.value)}
+            placeholder="Buscar desejo…"
+            aria-label="Buscar desejo"
+            className="w-full px-4 py-2.5 rounded-full bg-white border-0 text-sm font-medium text-gray-900
+                       placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-white/60"
+          />
         )}
+      </PageHeader>
 
+      {/* Filtros, abas e pessoas */}
+      <div className="px-4 space-y-3">
         {/* Filtros: categoria + ordenação numa linha só */}
         {aba === 'ativos' && (
-          <div className="flex gap-2 mb-3">
+          <div className="flex gap-2">
             <FilterSelect
               value={filtroCategoria ?? ''}
               onChange={v => setFiltroCategoria(v || null)}
@@ -1319,13 +1315,13 @@ function WishlistContent() {
         )}
 
         {/* Tabs */}
-        <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
+        <div className="flex gap-1 p-1 bg-gray-100 rounded-full">
           {(['ativos', 'historico'] as const).map(tab => (
             <button
               key={tab}
               type="button"
               onClick={() => { setAba(tab); setFiltroUsuario(null) }}
-              className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-150
+              className={`flex-1 py-2 rounded-full text-xs font-semibold transition-all duration-150
                           ${aba === tab ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
             >
               {tab === 'ativos'
@@ -1337,7 +1333,7 @@ function WishlistContent() {
 
         {/* Cards de usuário */}
         {usuariosConhecidos.length > 1 && (
-          <div className="flex gap-2 mt-2.5">
+          <div className="flex gap-2">
             {statsAtuais.map(stat => {
               const isActive = filtroUsuario === stat.email
               const cor = corUsuario(stat.email)
@@ -1393,7 +1389,7 @@ function WishlistContent() {
       </div>
 
       {/* Content */}
-      <div className="px-4 pt-4">
+      <div className="px-4 pt-3">
         {(aba === 'ativos' ? ativosFiltrados : historicoDis).length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-16 h-16 rounded-3xl bg-pink-50 flex items-center justify-center mb-4">

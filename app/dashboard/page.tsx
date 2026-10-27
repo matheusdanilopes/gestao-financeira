@@ -710,7 +710,7 @@ export default function Dashboard() {
       />
 
       {/* ── Topo colorido: saldo do mês ── */}
-      <header className="bg-primary-600 dark:bg-primary-900 text-white px-5 md:px-6 lg:px-8
+      <header data-page-header className="bg-primary-600 dark:bg-primary-900 text-white px-5 md:px-6 lg:px-8
                          pt-[calc(1rem+var(--safe-top))] pb-11 lg:pt-6 lg:pb-8 lg:mt-4 lg:mx-8 lg:rounded-3xl">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">

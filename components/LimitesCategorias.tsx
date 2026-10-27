@@ -171,7 +171,7 @@ export default function LimitesCategorias({ mesAtual, cartao1Nome = 'Cartão 1',
   if (embutido) return conteudo
 
   return (
-    <div className="bg-white rounded-3xl shadow-card border border-gray-100 p-4">
+    <div className="bg-white rounded-3xl shadow-soft p-4">
       <div className="flex items-center gap-2 mb-3">
         <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center">
           <Target className="w-4 h-4 text-amber-600" />

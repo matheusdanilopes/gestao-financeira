@@ -56,7 +56,7 @@ export default function KpisRelatorio({ kpis }: { kpis: KpiRelatorio[] }) {
       {kpis.map(kpi => (
         <div
           key={kpi.label}
-          className="bg-white rounded-2xl shadow-card border border-gray-100 p-3.5 space-y-1"
+          className="bg-white rounded-2xl shadow-soft p-3.5 space-y-1"
         >
           <p className="text-[11px] font-semibold text-gray-500 tracking-tight leading-tight">{kpi.label}</p>
           <p className={`text-lg font-bold value-tight leading-tight ${kpi.corValor ?? 'text-gray-900'}`}>

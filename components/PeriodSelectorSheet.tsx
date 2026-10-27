@@ -276,7 +276,7 @@ export default function PeriodSelectorSheet({
             visible ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'
           }`}>
             <div className="px-4 pt-5 pb-2 border-b border-gray-100 dark:border-gray-800">
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 text-center uppercase tracking-wide">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 text-center">
                 Selecionar período
               </h2>
             </div>
@@ -293,7 +293,7 @@ export default function PeriodSelectorSheet({
                style={{ paddingTop: 'env(safe-area-inset-top)' }}
           >
             <div className="px-4 pt-5 pb-2 border-b border-gray-100 dark:border-gray-800">
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 text-center uppercase tracking-wide">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 text-center">
                 Selecionar período
               </h2>
             </div>

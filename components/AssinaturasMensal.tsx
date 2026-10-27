@@ -594,7 +594,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
 
       {/* Resumo: Total ativo/mês + Detectado no mês */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-white rounded-2xl shadow-card border border-gray-100 p-4 text-center">
+        <div className="bg-white rounded-2xl shadow-soft p-4 text-center">
           <div className="flex items-center justify-center gap-1.5 mb-1.5">
             <Repeat className="w-3.5 h-3.5 text-primary-500 dark:text-primary-400" />
             <p className="text-xs text-gray-400 font-medium">Total ativo/mês</p>
@@ -602,7 +602,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
           <p className="text-xl font-bold text-primary-700 num leading-none">{formatBRL(totalAtivo)}</p>
           <p className="text-xs text-gray-400 mt-1">{itensAtivosNoMes.length} ativa(s)</p>
         </div>
-        <div className="bg-white rounded-2xl shadow-card border border-gray-100 p-4 text-center">
+        <div className="bg-white rounded-2xl shadow-soft p-4 text-center">
           <p className="text-xs text-gray-400 font-medium mb-1.5">Detectado em {mesFmt}</p>
           <p className="text-xl font-bold text-green-700 num leading-none">{formatBRL(detectadasValor)}</p>
           <p className="text-xs text-gray-400 mt-1">{detectadasCount}/{itensAtivosNoMes.length} identificadas</p>
@@ -736,7 +736,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
         const totalGrupoAtivo = grupo.filter(i => ativaNoMes(i, mesSelecionado, statusHistorico)).reduce((acc, i) => acc + valorParaMes(i, mesSelecionado, historico), 0)
 
         return (
-          <div key={key} className="bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden">
+          <div key={key} className="bg-white rounded-3xl shadow-soft overflow-hidden">
             <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <CreditCard className="w-3.5 h-3.5 text-gray-400" />
@@ -852,7 +852,7 @@ export default function AssinaturasMensal({ mesSelecionado }: Props) {
       })}
 
       {itensFiltrados.length === 0 && (
-        <div className="bg-white rounded-3xl shadow-card border border-gray-100">
+        <div className="bg-white rounded-3xl shadow-soft">
           <EmptyState
             icon={Repeat}
             title="Nenhuma assinatura"

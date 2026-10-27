@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, type FormEvent } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
-  ArrowLeft, Plus, Minus, Check, Pencil, MoreHorizontal, Crown, Heart,
+  Plus, Minus, Check, Pencil, MoreHorizontal, Crown, Heart,
   Trash2, X, ChevronRight,
 } from 'lucide-react'
 import Link from 'next/link'
@@ -13,6 +13,7 @@ import { SwipeableItem } from '@/components/SwipeableItem'
 import { useItensLista, useSublistasLista, type ItemListaCompras, type ListaComMeta } from '@/lib/useListasCompras'
 import { supabase } from '@/lib/supabaseClient'
 import { formatBRL, mascaraMoeda, formatarMoedaInput, parseMoeda } from '@/lib/format'
+import PageHeader from '@/components/PageHeader'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -131,7 +132,7 @@ function BottomSheetPrecoPago({
         return (
           <>
             <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-700 mx-auto mb-5" />
-            <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-0.5 font-semibold uppercase tracking-wide">Marcar como comprado</p>
+            <p className="text-xs text-gray-500 dark:text-gray-500 mb-0.5 font-semibold">Marcar como comprado</p>
             <p className="text-base font-bold text-gray-900 dark:text-white mb-5 truncate">{item.nome}</p>
 
             <form onSubmit={e => { e.preventDefault(); handleConfirmar(parsearPreco(valor)) }}>
@@ -244,7 +245,7 @@ function BottomSheetEditarItem({
       {close => (
         <>
           <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-700 mx-auto mb-5" />
-          <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-4 font-semibold uppercase tracking-wide">Editar item</p>
+          <p className="text-xs text-gray-500 dark:text-gray-500 mb-4 font-semibold">Editar item</p>
 
           <div className="space-y-4">
             {/* Nome */}
@@ -615,16 +616,16 @@ function InputAdicionarItem({
         value={valor}
         onChange={e => setValor(e.target.value)}
         placeholder="Adicionar item…"
-        className="flex-1 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3.5 py-2.5
-                   placeholder-gray-400 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-400
-                   focus:border-transparent transition-all"
+        className="flex-1 text-sm bg-white border-0 rounded-full px-4 py-2.5
+                   placeholder-gray-400 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-white/60
+                   transition-all"
         maxLength={120}
       />
       <button
         type="submit"
         disabled={!valor.trim() || loading}
-        className="w-10 h-10 flex items-center justify-center bg-primary-600 text-white
-                   rounded-xl disabled:opacity-40 active:scale-95 transition-all flex-none"
+        className="w-10 h-10 flex items-center justify-center bg-white text-primary-600
+                   rounded-full disabled:opacity-60 active:scale-95 transition-all flex-none"
         aria-label="Adicionar"
       >
         <Plus className="w-5 h-5" strokeWidth={2.5} />
@@ -835,7 +836,7 @@ function BottomSheetAcoesSublista({
       {close => (
         <>
           <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-700 mx-auto mb-4" />
-          <p className="text-xs text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wide mb-1">Sublista</p>
+          <p className="text-xs text-gray-500 dark:text-gray-500 font-semibold mb-1">Sublista</p>
           <p className="text-base font-bold text-gray-900 dark:text-white mb-5 truncate">{sublista.nome}</p>
 
           {confirmarExclusao ? (
@@ -1043,68 +1044,49 @@ export default function DetalheListaPage() {
   return (
     <div className="min-h-screen pb-40 page-enter">
       {/* Header sticky */}
-      <div className="sticky top-0 z-10 sticky-header border-b border-gray-100 dark:border-gray-800 px-4 pt-4 pb-3">
-        <div className="flex items-center gap-3 mb-3">
-          <button
-            type="button"
-            onClick={handleBack}
-            className="w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center
-                       text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-90 transition-all flex-none"
-            aria-label="Voltar"
-          >
-            <ArrowLeft className="w-4 h-4" strokeWidth={2.5} />
-          </button>
-          <div className="flex-1 min-w-0">
-            {/* Breadcrumb completo: sempre visível, mostra todo o caminho até o nó atual.
-                Itens não-atuais recebem um "chip" (fundo + padding) para deixar claro que são
-                tocáveis — antes eram só texto cinza sem affordance de botão. */}
-            <div className="flex items-center gap-1 flex-wrap">
-              {breadcrumbs.map((crumb, i) => {
-                const isCurrent = i === breadcrumbs.length - 1
-                return (
+      <PageHeader
+        onBack={handleBack}
+        icon={Crown}
+        title={breadcrumbs.length > 0 ? breadcrumbs[breadcrumbs.length - 1].nome : '…'}
+        subtitle={(breadcrumbs.length > 1 || temTotais) ? (
+          <div className="space-y-1">
+            {/* Caminho até o nó atual: cada nível é um chip tocável */}
+            {breadcrumbs.length > 1 && (
+              <div className="flex items-center gap-1 flex-wrap">
+                {breadcrumbs.slice(0, -1).map((crumb, i) => (
                   <span key={crumb.id} className="flex items-center gap-1">
-                    {i > 0 && <ChevronRight className="w-3 h-3 text-gray-300 dark:text-gray-600 flex-none" strokeWidth={2.5} />}
-                    {isCurrent ? (
-                      <span className="text-lg font-bold text-gray-900 dark:text-white leading-tight truncate max-w-[200px]">{crumb.nome}</span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => router.push(`/listas-compras/${crumb.id}`)}
-                        className="text-sm font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800
-                                   hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30
-                                   px-2 py-1 rounded-lg transition-colors truncate max-w-[140px]"
-                      >
-                        {crumb.nome}
-                      </button>
-                    )}
+                    {i > 0 && <ChevronRight className="w-3 h-3 text-white/60 flex-none" strokeWidth={2.5} />}
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/listas-compras/${crumb.id}`)}
+                      className="text-xs font-medium text-white bg-white/15 hover:bg-white/25
+                                 px-2 py-0.5 rounded-full transition-colors truncate max-w-[140px]"
+                    >
+                      {crumb.nome}
+                    </button>
                   </span>
-                )
-              })}
-              {breadcrumbs.length === 0 && (
-                <span className="text-lg font-bold text-gray-900 dark:text-white">…</span>
-              )}
-            </div>
+                ))}
+              </div>
+            )}
             {temTotais && (
-              <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+              <div className="flex items-center gap-3 flex-wrap">
                 {totalPrevisto > 0 && (
-                  <span className="text-[11px] text-gray-400 dark:text-gray-500">
-                    Prev: <span className="font-semibold text-gray-600 dark:text-gray-300 num">{formatBRL(totalPrevisto)}</span>
+                  <span>
+                    Prev: <span className="font-semibold text-white num">{formatBRL(totalPrevisto)}</span>
                   </span>
                 )}
                 {totalPago > 0 && (
-                  <span className="text-[11px] text-gray-400 dark:text-gray-500">
-                    Pago: <span className="font-semibold text-green-600 dark:text-green-400 num">{formatBRL(totalPago)}</span>
+                  <span>
+                    Pago: <span className="font-semibold text-emerald-200 num">{formatBRL(totalPago)}</span>
                   </span>
                 )}
               </div>
             )}
           </div>
-          <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center flex-none">
-            <Crown className="w-5 h-5 text-amber-600 dark:text-amber-400" strokeWidth={1.8} />
-          </div>
-        </div>
+        ) : undefined}
+      >
         <InputAdicionarItem onAdicionar={adicionarItem} emailAtual={emailAtual} />
-      </div>
+      </PageHeader>
 
       {/* Seção Sublistas — visível quando depth < 3 */}
       {canAddSublistas && (
@@ -1119,7 +1101,7 @@ export default function DetalheListaPage() {
             <>
               {sublistas.length > 0 && (
                 <>
-                  <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">Sublistas</p>
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-500 mb-2">Sublistas</p>
                   <div className="space-y-2 mb-3">
                     {sublistas.map(sub => (
                       <SublistaCard key={sub.id} sublista={sub} onAcoes={(s) => setSublistaAcoes(s)} onExcluir={excluirSublista} />
@@ -1131,7 +1113,7 @@ export default function DetalheListaPage() {
                 <InputCriarSublista onCriar={criarSublista} />
               </div>
               {sublistas.length > 0 && (pendentes.length > 0 || comprados.length > 0) && (
-                <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">Itens diretos</p>
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-500 mb-2">Itens diretos</p>
               )}
             </>
           )}
