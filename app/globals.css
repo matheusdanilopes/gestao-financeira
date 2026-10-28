@@ -210,6 +210,12 @@ body.theme-transition {
 .dark [data-page-header] .bg-white {
   background-color: rgba(255, 255, 255, 0.18) !important;
 }
+/* Painéis flutuantes abertos a partir do topo (ex.: notificações) mantêm a
+   superfície opaca — senão o conteúdo fica ilegível sobre a página. */
+.dark [data-page-header] [data-popover].bg-white,
+.dark [data-page-header] [data-popover] .bg-white {
+  background-color: var(--color-surface) !important;
+}
 
 /* ─── BottomNav/TopNav glassmorphism + safe-area ─────────────────────────── */
 [data-bottom-nav='true'] {
