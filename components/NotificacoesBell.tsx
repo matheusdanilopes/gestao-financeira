@@ -461,7 +461,7 @@ export default memo(function NotificacoesBell({ tone = 'default' }: { tone?: 'de
       </button>
 
       {aberto && (
-        <div className="absolute right-0 top-full mt-2.5
+        <div data-popover className="absolute right-0 top-full mt-2.5
                         w-[340px] lg:w-[400px] max-w-[calc(100vw-16px)]
                         bg-white dark:bg-gray-900
                         rounded-2xl shadow-float
