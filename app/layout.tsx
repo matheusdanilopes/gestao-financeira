@@ -31,11 +31,11 @@ export const metadata: Metadata = {
   description: 'Controle de finanças com Matheus e Jeniffer',
   icons: {
     icon: [
-      { url: '/icon-192-v3.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icon-512-v3.png', sizes: '512x512', type: 'image/png' },
+      { url: '/icon-192-v4.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512-v4.png', sizes: '512x512', type: 'image/png' },
     ],
     apple: [
-      { url: '/apple-touch-icon-v3.png', sizes: '180x180', type: 'image/png' },
+      { url: '/apple-touch-icon-v4.png', sizes: '180x180', type: 'image/png' },
     ],
   },
 }
