@@ -16,6 +16,8 @@ const CACHE_NAME = 'gestao-financeira-v18'
 // tratá-los como recurso novo, nunca visto antes.
 // v4: identidade visual trocada de roxo/índigo para azul navy — ícones renomeados
 // para -v3 e splashes ganharam sufixo -v2 pelo mesmo motivo (cache interno do iOS).
+// Os maskable (-v4) foram refeitos full-bleed: a versão anterior tinha o tile
+// arredondado dentro de uma moldura, e o Android exibia "um quadrado dentro do outro".
 const STATIC_CACHE_NAME = 'gestao-financeira-static-v4'
 
 const OFFLINE_HTML = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Carregando…</title><script>setTimeout(function(){location.reload()},4000)<\/script></head><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0"><p>Reconectando…</p></body></html>'
@@ -116,8 +118,8 @@ const PRECACHE_STATIC = [
   '/apple-touch-icon-v3.png',
   '/icon-192-v3.png',
   '/icon-512-v3.png',
-  '/icon-192-maskable-v3.png',
-  '/icon-512-maskable-v3.png',
+  '/icon-192-maskable-v4.png',
+  '/icon-512-maskable-v4.png',
   '/splash-1125x2436-v2.png',
   '/splash-1170x2532-v2.png',
   '/splash-1179x2556-v2.png',
