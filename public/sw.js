@@ -18,6 +18,8 @@ const CACHE_NAME = 'gestao-financeira-v18'
 // para -v3 e splashes ganharam sufixo -v2 pelo mesmo motivo (cache interno do iOS).
 // Os maskable (-v4) foram refeitos full-bleed: a versão anterior tinha o tile
 // arredondado dentro de uma moldura, e o Android exibia "um quadrado dentro do outro".
+// Os ícones "any" e o apple-touch-icon (-v4) também viraram full-bleed: launchers que
+// usam o ícone "any" (ex.: One UI) mostravam o tile arredondado com cantos de outra cor.
 const STATIC_CACHE_NAME = 'gestao-financeira-static-v4'
 
 const OFFLINE_HTML = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Carregando…</title><script>setTimeout(function(){location.reload()},4000)<\/script></head><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0"><p>Reconectando…</p></body></html>'
@@ -115,9 +117,9 @@ const PRECACHE_ROUTES = [
 // Pré-cacheados no install para nunca depender de uma busca de rede no momento em
 // que o iOS captura o ícone/splash do app.
 const PRECACHE_STATIC = [
-  '/apple-touch-icon-v3.png',
-  '/icon-192-v3.png',
-  '/icon-512-v3.png',
+  '/apple-touch-icon-v4.png',
+  '/icon-192-v4.png',
+  '/icon-512-v4.png',
   '/icon-192-maskable-v4.png',
   '/icon-512-maskable-v4.png',
   '/splash-1125x2436-v2.png',
@@ -322,7 +324,7 @@ self.addEventListener('push', function (event) {
     PERSISTENT_TAGS.some(function (t) { return tag === t || tag.startsWith(t + '-') })
   const options = {
     body: data.body || '',
-    icon: '/icon-192-v3.png',
+    icon: '/icon-192-v4.png',
     badge: '/badge.png',
     tag,
     renotify: true,
