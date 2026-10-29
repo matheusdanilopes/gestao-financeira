@@ -81,7 +81,7 @@ async function buscarDonoCartoes(): Promise<DonoCartao> {
 // Recipe de foco premium equivalente à classe `.input-base` de app/globals.css,
 // aplicada via `focus-within` no wrapper (o input em si fica transparente) —
 // evita depender da ordem de cascata do CSS para permitir campos compactos.
-const CAMPO_FOCO = 'focus-within:border-primary-400 focus-within:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] dark:focus-within:shadow-[0_0_0_3px_rgba(129,140,248,0.18)] transition-shadow'
+const CAMPO_FOCO = 'focus-within:border-primary-400 focus-within:shadow-[0_0_0_3px_rgba(37,99,235,0.12)] dark:focus-within:shadow-[0_0_0_3px_rgba(96,165,250,0.18)] transition-shadow'
 
 export default function ParcelamentosMensal({ mesAtual, onResumo }: Props) {
   const [limites, setLimites] = useState<Record<string, number>>({})

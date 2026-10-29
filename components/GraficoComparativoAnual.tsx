@@ -21,7 +21,7 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend)
 
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 
-const COR_ATUAL    = { r: 99,  g: 102, b: 241 } // indigo-500
+const COR_ATUAL    = { r: 37,  g: 99,  b: 235 } // primary-500
 const COR_ANTERIOR = { r: 148, g: 163, b: 184 } // slate-400
 
 function rgba(c: { r: number; g: number; b: number }, a = 1) {

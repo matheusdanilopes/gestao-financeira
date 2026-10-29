@@ -108,13 +108,13 @@ export function useAnalyticsData(filters: AnalyticsFilters) {
         {
           label: 'Gastos mensais',
           data: sorted.map(([, v]) => v),
-          borderColor: '#6366f1',
-          backgroundColor: 'rgba(99,102,241,0.08)',
+          borderColor: '#2563eb',
+          backgroundColor: 'rgba(37,99,235,0.08)',
           fill: true,
           tension: 0.35,
           pointRadius: 4,
           pointHoverRadius: 7,
-          pointBackgroundColor: '#6366f1',
+          pointBackgroundColor: '#2563eb',
           pointBorderColor: '#fff',
           pointBorderWidth: 2,
         },
@@ -171,14 +171,14 @@ export function useAnalyticsData(filters: AnalyticsFilters) {
         {
           label: String(yearA ?? ''),
           data: Array.from({ length: 12 }, (_, i) => getTotal(yearA, i + 1)),
-          backgroundColor: 'rgba(99,102,241,0.4)',
+          backgroundColor: 'rgba(37,99,235,0.4)',
           borderRadius: 4,
           borderSkipped: false,
         },
         {
           label: String(yearB ?? ''),
           data: Array.from({ length: 12 }, (_, i) => getTotal(yearB, i + 1)),
-          backgroundColor: 'rgba(99,102,241,0.85)',
+          backgroundColor: 'rgba(37,99,235,0.85)',
           borderRadius: 4,
           borderSkipped: false,
         },
@@ -308,7 +308,7 @@ export function useAnalyticsData(filters: AnalyticsFilters) {
     return {
       labels: months,
       datasets: [
-        { label: 'Valor Restante', data: months.map((m) => (byMonth.get(m)?.receita ?? 0) - (byMonth.get(m)?.gasto ?? 0)), borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.1)', fill: true },
+        { label: 'Valor Restante', data: months.map((m) => (byMonth.get(m)?.receita ?? 0) - (byMonth.get(m)?.gasto ?? 0)), borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.1)', fill: true },
       ],
     }
   }, [revenues, rows])
