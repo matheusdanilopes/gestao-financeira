@@ -29,7 +29,7 @@ interface Props {
   relatorio: RelatorioCartoes | null
 }
 
-const CAMPO_FOCO = 'focus-within:border-primary-400 focus-within:shadow-[0_0_0_3px_rgba(99,102,241,0.12)] dark:focus-within:shadow-[0_0_0_3px_rgba(129,140,248,0.18)] transition-shadow'
+const CAMPO_FOCO = 'focus-within:border-primary-400 focus-within:shadow-[0_0_0_3px_rgba(37,99,235,0.12)] dark:focus-within:shadow-[0_0_0_3px_rgba(96,165,250,0.18)] transition-shadow'
 
 export default function SimuladorParcelamento({ relatorio }: Props) {
   const [expandido, setExpandido] = useState(false)

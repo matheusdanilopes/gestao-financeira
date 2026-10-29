@@ -7,9 +7,9 @@ export default function Loading() {
       <div
         className="w-16 h-16 rounded-3xl flex items-center justify-center"
         style={{
-          background: 'linear-gradient(145deg, #6366f1 0%, #4f46e5 55%, #4338ca 100%)',
+          background: 'linear-gradient(145deg, #2563eb 0%, #1e40af 55%, #1e3a8a 100%)',
           boxShadow:
-            '0 12px 32px rgba(79,70,229,0.40), 0 4px 10px rgba(79,70,229,0.25), inset 0 1px 0 rgba(255,255,255,0.22)',
+            '0 12px 32px rgba(30,64,175,0.40), 0 4px 10px rgba(30,64,175,0.25), inset 0 1px 0 rgba(255,255,255,0.22)',
         }}
       >
         {/* TrendingUp icon inline — sem dependência de Lucide no Server Component */}
@@ -30,8 +30,8 @@ export default function Loading() {
       <div
         className="w-5 h-5 rounded-full border-2 animate-spin"
         style={{
-          borderColor: 'rgba(99,102,241,0.2)',
-          borderTopColor: '#6366f1',
+          borderColor: 'rgba(37,99,235,0.2)',
+          borderTopColor: '#2563eb',
         }}
       />
     </div>

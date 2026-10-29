@@ -11,7 +11,7 @@ export async function fireWishlistConfetti(clientX: number, clientY: number): Pr
     scalar: 0.85,
     ticks: 55,
     origin: { x: clientX / window.innerWidth, y: clientY / window.innerHeight },
-    colors: ['#10b981', '#34d399', '#6ee7b7', '#4f46e5', '#818cf8', '#fbbf24'],
+    colors: ['#10b981', '#34d399', '#6ee7b7', '#1e40af', '#60a5fa', '#fbbf24'],
     gravity: 1.2,
     disableForReducedMotion: true,
   })

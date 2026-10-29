@@ -998,7 +998,7 @@ export default function ComprasPage() {
                                     <span
                                       className="w-2.5 h-2.5 rounded-full shrink-0"
                                       style={{
-                                        background: `conic-gradient(#6366f1 ${Math.round((c.parcela_atual! / c.total_parcelas!) * 360)}deg, #c7d2fe 0deg)`,
+                                        background: `conic-gradient(#2563eb ${Math.round((c.parcela_atual! / c.total_parcelas!) * 360)}deg, #bfdbfe 0deg)`,
                                       }}
                                       aria-hidden="true"
                                     />
@@ -1118,7 +1118,7 @@ export default function ComprasPage() {
                             ? 'bg-blue-600 text-white border-blue-600'
                             : r === 'Jeniffer'
                               ? 'bg-pink-500 text-white border-pink-500'
-                              : 'bg-primary-600 text-white border-purple-600'
+                              : 'bg-primary-600 text-white border-primary-600'
                           : 'bg-white text-gray-500 border-gray-200'
                       }`}
                     >

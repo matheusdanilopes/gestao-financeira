@@ -65,15 +65,15 @@ export default function LoginPage() {
       {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
         <div className="absolute -top-40 -right-40 w-[480px] h-[480px] rounded-full bg-primary-100 opacity-50 blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-[480px] h-[480px] rounded-full bg-violet-100 opacity-40 blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-[480px] h-[480px] rounded-full bg-primary-100 opacity-40 blur-3xl" />
         {/* Terceiro blob sutil no centro */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-indigo-50 opacity-30 blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-primary-50 opacity-30 blur-3xl" />
       </div>
 
       <div className="bg-white rounded-3xl shadow-card-md border border-gray-100 w-full max-w-sm p-8 relative page-enter">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8 gap-1">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-primary-600 flex items-center justify-center mb-3 shadow-md">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center mb-3 shadow-md">
             <TrendingUp className="w-7 h-7 text-white" strokeWidth={2} />
           </div>
           <h1 className="text-xl font-bold text-gray-900 tracking-tight">Gestão Financeira</h1>

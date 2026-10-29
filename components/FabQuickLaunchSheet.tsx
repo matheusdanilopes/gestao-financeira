@@ -786,7 +786,7 @@ export default function FabQuickLaunchSheet({
                     }}
                     className="relative w-14 h-14 rounded-full bg-white dark:bg-gray-800 text-primary-600 dark:text-primary-400
                                flex items-center justify-center tap-scale
-                               shadow-[0_10px_28px_-6px_rgba(79,70,229,0.55)] ring-1 ring-black/5 dark:ring-white/10
+                               shadow-[0_10px_28px_-6px_rgba(30,64,175,0.55)] ring-1 ring-black/5 dark:ring-white/10
                                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                   >
                     <Icon className="w-6 h-6" strokeWidth={2} />

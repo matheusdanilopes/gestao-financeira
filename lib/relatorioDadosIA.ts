@@ -427,7 +427,7 @@ export function montarDocumentoDadosIA(relatorio: RelatorioDadosIA): DocumentoRe
     subtitulo: `${formatarMes(primeiro)} a ${formatarMes(ultimo)} (${relatorio.janela} ${relatorio.janela === 1 ? 'mês' : 'meses'}) · modo ${relatorio.nivel}`,
     nomeArquivo: `dados-financeiros-${format(ultimo, 'yyyy-MM')}-${relatorio.janela}m`,
     avisos: relatorio.erros,
-    corCabecalho: [79, 70, 229],
+    corCabecalho: [30, 64, 175],
     secoes: relatorio.secoes,
     notaRodape:
       'Dados exportados do app de gestão financeira. Todos os valores em BRL. Ao analisar, não some despesas do planejamento com compras do cartão: o pagamento da fatura já representa as compras.',
