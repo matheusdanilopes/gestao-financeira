@@ -16,6 +16,7 @@ import { notificarWishlist } from '@/lib/notificacoes'
 import { compressImage, abortTimeout, callAnalyze } from '@/lib/imageUtils'
 import { useOnline } from '@/lib/useOnline'
 import { enqueueOp } from '@/lib/offlineQueue'
+import { encontrarDuplicado, mensagemDuplicado } from '@/lib/listaMercadoDuplicados'
 import { mascaraMoeda, parseMoeda } from '@/lib/format'
 import { suportaReconhecimentoVoz } from '@/lib/useVoice'
 
@@ -185,6 +186,7 @@ function QuickAddMercado({
   const [nome, setNome] = useState('')
   const [quantidade, setQuantidade] = useState(1)
   const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
 
   useEffect(() => {
     const t = setTimeout(() => nomeRef.current?.focus(), 120)
@@ -204,6 +206,18 @@ function QuickAddMercado({
       criado_por,
     }
     try {
+      // Bloqueia itens duplicados (pendentes ou comprados ainda na lista).
+      // Offline a consulta falha e o item segue para a fila normalmente.
+      const { data: existentes, error: erroBusca } = await supabase
+        .from('lista_mercado_itens')
+        .select('nome, comprado')
+      if (erroBusca) throw erroBusca
+      const duplicado = encontrarDuplicado(existentes ?? [], payload.nome)
+      if (duplicado) {
+        setErro(mensagemDuplicado(duplicado))
+        setSalvando(false)
+        return
+      }
       const { error } = await supabase.from('lista_mercado_itens').insert([payload])
       if (error) throw error
       window.dispatchEvent(new CustomEvent('lista-mercado:refresh'))
@@ -244,12 +258,13 @@ function QuickAddMercado({
       <input
         ref={nomeRef}
         value={nome}
-        onChange={e => setNome(e.target.value)}
+        onChange={e => { setNome(e.target.value); if (erro) setErro('') }}
         placeholder="Nome do item"
         className="input-base"
         maxLength={60}
         required
       />
+      {erro && <p className="-mt-2 text-xs text-red-500 font-medium">{erro}</p>}
 
       <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 rounded-2xl px-4 py-3">
         <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Quantidade</span>
