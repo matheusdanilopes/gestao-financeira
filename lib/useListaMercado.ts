@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import { useDataSync } from './useDataSync'
+import { encontrarDuplicado } from './listaMercadoDuplicados'
 import {
   enqueueOp,
   dequeueOp,
@@ -30,6 +31,11 @@ export type ItemMercado = {
 
 export type OfflineSyncStatus = 'synced' | 'pending' | 'syncing' | 'error'
 
+export type ResultadoAdicionar =
+  | { ok: true }
+  | { ok: false; motivo: 'vazio' }
+  | { ok: false; motivo: 'duplicado'; item: ItemMercado }
+
 async function getUsuario(): Promise<string | null> {
   try {
     // getSession() lê do armazenamento local (sem chamada de rede),
@@ -43,6 +49,9 @@ async function getUsuario(): Promise<string | null> {
 
 export function useListaMercado() {
   const [itens, setItens] = useState<ItemMercado[]>([])
+  // Espelho síncrono de `itens` para checagens (ex.: duplicados) sem recriar callbacks
+  const itensRef = useRef<ItemMercado[]>([])
+  itensRef.current = itens
   const [pendingCount, setPendingCount] = useState(0)
   const [pendingOps, setPendingOps] = useState<PendingOp[]>([])
   const [syncStatus, setSyncStatus] = useState<OfflineSyncStatus>('synced')
@@ -234,10 +243,14 @@ export function useListaMercado() {
   }, [refreshCount])
 
   // ── Adicionar ──────────────────────────────────────────────────────────────
-  const adicionar = useCallback(async (nome: string, quantidade = 1) => {
+  const adicionar = useCallback(async (nome: string, quantidade = 1): Promise<ResultadoAdicionar> => {
     const nomeTrimado = nome.trim()
-    if (!nomeTrimado) return
+    if (!nomeTrimado) return { ok: false, motivo: 'vazio' }
     const criado_por = await getUsuario()
+    // Bloqueia duplicados (pendentes ou já comprados que ainda estão na lista).
+    // Checado após o último await para não haver corrida entre envios rápidos.
+    const duplicado = encontrarDuplicado(itensRef.current, nomeTrimado)
+    if (duplicado) return { ok: false, motivo: 'duplicado', item: duplicado }
     const payload = {
       nome: nomeTrimado,
       quantidade,
@@ -249,6 +262,7 @@ export function useListaMercado() {
     const now = new Date().toISOString()
     const tempItem: ItemMercado = { ...payload, id: tempId, created_at: now, updated_at: now }
 
+    itensRef.current = [tempItem, ...itensRef.current]
     setItens(prev => [tempItem, ...prev])
 
     try {
@@ -270,6 +284,7 @@ export function useListaMercado() {
       })
       refreshCount()
     }
+    return { ok: true }
   }, [refreshCount])
 
   // ── Alterar quantidade ─────────────────────────────────────────────────────

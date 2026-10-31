@@ -9,7 +9,8 @@ import {
 import ModalPortal from '@/components/ModalPortal'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { CameraOCR } from '@/components/CameraOCR'
-import { useListaMercado, type ItemMercado } from '@/lib/useListaMercado'
+import { useListaMercado, type ItemMercado, type ResultadoAdicionar } from '@/lib/useListaMercado'
+import { mensagemDuplicado } from '@/lib/listaMercadoDuplicados'
 import { type PendingOp } from '@/lib/offlineQueue'
 import { useHistoricoCompras } from '@/lib/useHistoricoCompras'
 import { formatBRL, mascaraMoeda, formatarMoedaInput, parseMoeda } from '@/lib/format'
@@ -849,7 +850,7 @@ function SubtotalBar({
 function InputAdicionar({
   onAdicionar,
 }: {
-  onAdicionar: (nome: string, quantidade: number) => Promise<void>
+  onAdicionar: (nome: string, quantidade: number) => Promise<ResultadoAdicionar>
 }) {
   const [valor, setValor] = useState('')
   const [historico, setHistorico] = useState<string[]>([])
@@ -888,7 +889,14 @@ function InputAdicionar({
     if (!nome) return
     setErro('')
     try {
-      await onAdicionar(nome, quantidade)
+      const resultado = await onAdicionar(nome, quantidade)
+      if (!resultado.ok) {
+        if (resultado.motivo === 'duplicado') {
+          setErro(mensagemDuplicado(resultado.item))
+          setSugestoes([])
+        }
+        return
+      }
       salvarHistorico(nome)
       setHistorico(carregarHistorico())
       setValor('')
