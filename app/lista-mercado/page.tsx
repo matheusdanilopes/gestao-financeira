@@ -4,13 +4,14 @@ import { useState, useRef, useEffect, useCallback, type FormEvent, type ChangeEv
 import { useRouter } from 'next/navigation'
 import {
   ShoppingBasket, Plus, Minus, Check, Pencil, ChevronDown, ChevronUp,
-  WifiOff, RefreshCw, AlertCircle, History, Camera,
+  WifiOff, RefreshCw, AlertCircle, History, Camera, LayoutGrid,
 } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
 import { SwipeableItem } from '@/components/SwipeableItem'
 import { CameraOCR } from '@/components/CameraOCR'
 import { useListaMercado, type ItemMercado, type ResultadoAdicionar } from '@/lib/useListaMercado'
 import { mensagemDuplicado } from '@/lib/listaMercadoDuplicados'
+import { SETORES, SETOR_EMOJI, setorDoItem, agruparPorSetor, type Setor } from '@/lib/setoresMercado'
 import { type PendingOp } from '@/lib/offlineQueue'
 import { useHistoricoCompras } from '@/lib/useHistoricoCompras'
 import { formatBRL, mascaraMoeda, formatarMoedaInput, parseMoeda } from '@/lib/format'
@@ -20,6 +21,7 @@ import PageHeader, { PAGE_HEADER_PILL } from '@/components/PageHeader'
 
 const HIST_KEY = 'lista-mercado-historico'
 const HINT_KEY = 'lista-mercado-swipe-hint'
+const AGRUPAR_SETOR_KEY = 'lista-mercado-agrupar-setor'
 const MAX_HIST = 50
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -598,6 +600,60 @@ function BottomSheetPendingOps({
   )
 }
 
+// ── Bottom sheet de setor ─────────────────────────────────────────────────────
+
+function BottomSheetSetor({
+  item,
+  onClose,
+  onEscolher,
+}: {
+  item: ItemMercado
+  onClose: () => void
+  onEscolher: (setor: Setor) => void
+}) {
+  const atual = setorDoItem(item)
+  return (
+    <ModalPortal>
+      <div
+        className="fixed inset-0 z-[200] flex items-end modal-overlay"
+        style={{ background: 'rgba(0,0,0,0.45)' }}
+        onClick={e => e.target === e.currentTarget && onClose()}
+      >
+        <div className="w-full bg-white rounded-t-3xl shadow-2xl px-5 pt-2 pb-8 modal-sheet">
+          <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5" />
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-full bg-primary-50 flex items-center justify-center flex-none">
+              <LayoutGrid className="w-5 h-5 text-primary-600" strokeWidth={1.8} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-base font-bold text-gray-900">Setor do mercado</p>
+              <p className="text-xs text-gray-400 truncate">{item.nome}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {SETORES.map(setor => (
+              <button
+                key={setor}
+                type="button"
+                onClick={() => { onEscolher(setor); onClose() }}
+                aria-pressed={setor === atual}
+                className={`flex items-center gap-2 px-3 py-3 rounded-2xl border text-sm font-semibold text-left
+                            transition-all active:scale-[0.97]
+                            ${setor === atual
+                              ? 'border-primary-400 bg-primary-50 text-primary-700'
+                              : 'border-gray-100 text-gray-700 hover:bg-gray-50'}`}
+              >
+                <span aria-hidden className="text-base">{SETOR_EMOJI[setor]}</span>
+                <span className="truncate">{setor}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </ModalPortal>
+  )
+}
+
 // ── Linha de item ─────────────────────────────────────────────────────────────
 
 function ItemRow({
@@ -609,6 +665,7 @@ function ItemRow({
   onExcluir,
   onAbrirPreco,
   onAbrirConfirmarCompra,
+  onAbrirSetor,
 }: {
   item: ItemMercado
   mostraHint: boolean
@@ -618,6 +675,7 @@ function ItemRow({
   onExcluir: (id: string) => void
   onAbrirPreco: (item: ItemMercado) => void
   onAbrirConfirmarCompra: (item: ItemMercado) => void
+  onAbrirSetor: (item: ItemMercado) => void
 }) {
   const [editandoNome, setEditandoNome] = useState(false)
   const [nomeLocal, setNomeLocal] = useState(item.nome)
@@ -709,11 +767,25 @@ function ItemRow({
           {erroNome && !editandoNome && (
             <p role="alert" className="mt-0.5 text-[11px] text-red-500 font-medium">{erroNome}</p>
           )}
-          {item.criado_por && !editandoNome && !item.comprado && (
-            <span className={`inline-block mt-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full
-                              ${corUsuario(item.criado_por)}`}>
-              {nomeCurto(item.criado_por)}
-            </span>
+          {!editandoNome && !item.comprado && (
+            <div className="flex flex-wrap items-center gap-1 mt-0.5">
+              {item.criado_por && (
+                <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full
+                                  ${corUsuario(item.criado_por)}`}>
+                  {nomeCurto(item.criado_por)}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => onAbrirSetor(item)}
+                aria-label={`Setor: ${setorDoItem(item)}. Trocar setor`}
+                className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full
+                           bg-gray-100 text-gray-500 hover:bg-gray-200 active:scale-95 transition-all"
+              >
+                <span aria-hidden>{SETOR_EMOJI[setorDoItem(item)]}</span>
+                {setorDoItem(item)}
+              </button>
+            </div>
           )}
           {mostraHint && !item.comprado && (
             <span className="block text-[10px] text-gray-300 italic mt-0.5">← deslize para excluir</span>
@@ -985,7 +1057,7 @@ export default function ListaMercadoPage() {
   const router = useRouter()
   const {
     itens,
-    adicionar, alterarQuantidade, definirPreco, editarNome,
+    adicionar, alterarQuantidade, definirPreco, editarNome, definirSetor,
     toggleComprado, excluir, limparComprados,
     isOnline, pendingCount, pendingOps, syncStatus, flushQueue, clearPendingQueue,
   } = useListaMercado()
@@ -999,6 +1071,23 @@ export default function ListaMercadoPage() {
   const [hintVisto, setHintVisto] = useState(true)
   const [compradosAbertos, setCompradosAbertos] = useState(true)
   const [successToast, setSuccessToast] = useState(false)
+  const [itemSetor, setItemSetor] = useState<ItemMercado | null>(null)
+  const [agruparSetor, setAgruparSetor] = useState(false)
+
+  // Preferência de agrupamento por setor, salva por aparelho
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(AGRUPAR_SETOR_KEY) === '1') setAgruparSetor(true)
+    } catch { /* storage indisponível */ }
+  }, [])
+
+  function alternarAgrupamento() {
+    setAgruparSetor(v => {
+      const novo = !v
+      try { localStorage.setItem(AGRUPAR_SETOR_KEY, novo ? '1' : '0') } catch { /* ignore */ }
+      return novo
+    })
+  }
 
   useEffect(() => {
     if (!localStorage.getItem(HINT_KEY)) setHintVisto(false)
@@ -1103,15 +1192,27 @@ export default function ListaMercadoPage() {
           </div>
         }
         actions={
-          <button
-            type="button"
-            onClick={() => router.push('/lista-mercado/historico')}
-            aria-label="Histórico de compras"
-            className={PAGE_HEADER_PILL}
-          >
-            <History className="w-3.5 h-3.5" strokeWidth={2} />
-            <span>Histórico</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={alternarAgrupamento}
+              aria-pressed={agruparSetor}
+              aria-label="Organizar por setor do mercado"
+              className={`${PAGE_HEADER_PILL} ${agruparSetor ? '!bg-white !text-primary-700' : ''}`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" strokeWidth={2} />
+              <span>Setores</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/lista-mercado/historico')}
+              aria-label="Histórico de compras"
+              className={PAGE_HEADER_PILL}
+            >
+              <History className="w-3.5 h-3.5" strokeWidth={2} />
+              <span>Histórico</span>
+            </button>
+          </div>
         }
       >
         <InputAdicionar onAdicionar={adicionar} />
@@ -1137,19 +1238,34 @@ export default function ListaMercadoPage() {
         </div>
       ) : (
         <div className="bg-white mt-2 rounded-2xl mx-4 overflow-hidden shadow-soft">
-          {/* Pendentes */}
-          {pendentes.map((item, idx) => (
-            <div key={item.id} className="list-item-enter" style={{ animationDelay: `${Math.min(idx, 5) * 25}ms` }}>
-              <ItemRow
-                item={item}
-                mostraHint={idx === 0 && !hintVisto}
-                onToggle={handleToggle}
-                onAlterarQtd={handleQtd}
-                onEditarNome={editarNome}
-                onExcluir={handleExcluir}
-                onAbrirPreco={setItemPreco}
-                onAbrirConfirmarCompra={setItemConfirmando}
-              />
+          {/* Pendentes (agrupados por setor ou em lista única) */}
+          {(agruparSetor ? agruparPorSetor(pendentes) : [{ setor: null, itens: pendentes }]).map(grupo => (
+            <div key={grupo.setor ?? 'todos'}>
+              {grupo.setor && (
+                <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 border-b border-gray-100">
+                  <span aria-hidden className="text-sm">{SETOR_EMOJI[grupo.setor]}</span>
+                  <span className="text-xs font-bold text-gray-600 flex-1 tracking-tight">{grupo.setor}</span>
+                  <span className="text-[10px] font-semibold text-gray-400 tabular-nums">{grupo.itens.length}</span>
+                </div>
+              )}
+              {grupo.itens.map(item => {
+                const idx = pendentes.indexOf(item)
+                return (
+                  <div key={item.id} className="list-item-enter" style={{ animationDelay: `${Math.min(idx, 5) * 25}ms` }}>
+                    <ItemRow
+                      item={item}
+                      mostraHint={idx === 0 && !hintVisto}
+                      onToggle={handleToggle}
+                      onAlterarQtd={handleQtd}
+                      onEditarNome={editarNome}
+                      onExcluir={handleExcluir}
+                      onAbrirPreco={setItemPreco}
+                      onAbrirConfirmarCompra={setItemConfirmando}
+                      onAbrirSetor={setItemSetor}
+                    />
+                  </div>
+                )
+              })}
             </div>
           ))}
 
@@ -1184,11 +1300,21 @@ export default function ListaMercadoPage() {
                   onExcluir={handleExcluir}
                   onAbrirPreco={setItemPreco}
                   onAbrirConfirmarCompra={setItemConfirmando}
+                  onAbrirSetor={setItemSetor}
                 />
               ))}
             </>
           )}
         </div>
+      )}
+
+      {/* Bottom sheet de setor */}
+      {itemSetor && (
+        <BottomSheetSetor
+          item={itemSetor}
+          onClose={() => setItemSetor(null)}
+          onEscolher={setor => definirSetor(itemSetor.id, setor)}
+        />
       )}
 
       {/* Bottom sheet de operações pendentes */}

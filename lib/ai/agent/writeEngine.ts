@@ -36,6 +36,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { EnrichedData } from '../types'
 import { casaBusca, distanciaEdicao, normalizar, normalizarMes, type Referencias } from './queryEngine'
 import { formatBRL } from '../../format'
+import { detectarSetor } from '../../setoresMercado'
 
 // Sessão do usuário (app) ou service role (webhook do Telegram).
 type Supabase = SupabaseClient
@@ -738,6 +739,7 @@ async function executarPayload(ctx: ContextoEscrita, op: OperacaoDoLote): Promis
         preco_unit: null,
         comprado: false,
         criado_por: ctx.usuario,
+        category: detectarSetor(String(p.nome ?? '')),
       })
       return error ? erro(error.message) : { ok: true }
     }

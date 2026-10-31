@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import { useDataSync } from './useDataSync'
 import { encontrarDuplicado } from './listaMercadoDuplicados'
+import { detectarSetor, normalizarSetor, SETOR_PADRAO, type Setor } from './setoresMercado'
 import {
   enqueueOp,
   dequeueOp,
@@ -25,6 +26,8 @@ export type ItemMercado = {
   preco_unit: number | null
   comprado: boolean
   criado_por: string | null
+  /** Setor do mercado (ver lib/setoresMercado). Coluna com default 'Outros' no banco. */
+  category?: string | null
   created_at: string
   updated_at: string
 }
@@ -257,6 +260,7 @@ export function useListaMercado() {
       preco_unit: null as number | null,
       comprado: false,
       criado_por,
+      category: detectarSetor(nomeTrimado),
     }
     const tempId = crypto.randomUUID()
     const now = new Date().toISOString()
@@ -308,8 +312,21 @@ export function useListaMercado() {
     // Mesma regra da adição: não permite renomear para o nome de outro item da lista
     const duplicado = encontrarDuplicado(itensRef.current.filter(i => i.id !== id), nomeTrimado)
     if (duplicado) return { ok: false, motivo: 'duplicado', item: duplicado }
-    _salvar(id, { nome: nomeTrimado })
+    // Se o setor atual veio da detecção automática (não foi escolhido à mão),
+    // recalcula para o novo nome
+    const atual = itensRef.current.find(i => i.id === id)
+    const setorSalvo = normalizarSetor(atual?.category)
+    const setorAutomatico = !setorSalvo || setorSalvo === SETOR_PADRAO
+      || (atual != null && setorSalvo === detectarSetor(atual.nome))
+    _salvar(id, setorAutomatico
+      ? { nome: nomeTrimado, category: detectarSetor(nomeTrimado) }
+      : { nome: nomeTrimado })
     return { ok: true }
+  }, [_salvar])
+
+  // ── Definir setor (manual) ─────────────────────────────────────────────────
+  const definirSetor = useCallback((id: string, setor: Setor) => {
+    _salvar(id, { category: setor })
   }, [_salvar])
 
   // ── Toggle comprado ────────────────────────────────────────────────────────
@@ -389,6 +406,7 @@ export function useListaMercado() {
     alterarQuantidade,
     definirPreco,
     editarNome,
+    definirSetor,
     toggleComprado,
     excluir,
     limparComprados,
