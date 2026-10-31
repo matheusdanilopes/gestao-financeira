@@ -6,13 +6,9 @@ import {
   registrarHistoricoServer,
   type ItemNotificacao,
 } from '@/lib/notificacoesServer'
+import { detectarSetor, normalizarSetor } from '@/lib/setoresMercado'
 
 type SupabaseClient = ReturnType<typeof criarSupabaseServer>
-
-const CATEGORIAS_VALIDAS = [
-  'Proteínas', 'Carboidratos', 'Hortifruti', 'Laticínios', 'Temperos',
-  'Congelados', 'Bebidas', 'Higiene', 'Limpeza', 'Outros',
-]
 
 type RawItem = Record<string, unknown>
 
@@ -27,13 +23,14 @@ function parseItem(raw: RawItem) {
   const unit: string =
     typeof raw.unit === 'string' && raw.unit.trim() ? raw.unit.trim() : 'unidade'
 
-  const categoryRaw = typeof raw.category === 'string' ? raw.category.trim() : 'Outros'
-  const category = CATEGORIAS_VALIDAS.includes(categoryRaw) ? categoryRaw : 'Outros'
+  // Setor informado (atual ou categoria antiga) ou detectado pelo nome
+  const categoriaInformada = normalizarSetor(typeof raw.category === 'string' ? raw.category : null)
+  const category = categoriaInformada ?? detectarSetor(nome)
 
   const estimated_price: number | null =
     typeof raw.estimated_price === 'number' ? raw.estimated_price : null
 
-  return { nome, quantidade, unit, category, estimated_price }
+  return { nome, quantidade, unit, category, categoriaInformada, estimated_price }
 }
 
 async function processarItem(
@@ -42,7 +39,7 @@ async function processarItem(
   userId: string | null,
   deUsuario: string,
 ): Promise<{ notifItem: ItemNotificacao; itemId: string; merged: boolean } | null> {
-  const { nome, quantidade, unit, category, estimated_price } = parseItem(raw)
+  const { nome, quantidade, unit, category, categoriaInformada, estimated_price } = parseItem(raw)
   if (!nome) return null
 
   // Smart merge: case-insensitive lookup
@@ -60,7 +57,8 @@ async function processarItem(
       updated_at: new Date().toISOString(),
     }
     if (unit && unit !== 'unidade') updatePayload.unit = unit
-    if (category) updatePayload.category = category
+    // Na mesclagem só troca o setor se ele foi informado explicitamente
+    if (categoriaInformada) updatePayload.category = categoriaInformada
     if (estimated_price !== null) updatePayload.estimated_price = estimated_price
 
     const { error: updateError } = await supabase

@@ -17,6 +17,7 @@ import { compressImage, abortTimeout, callAnalyze } from '@/lib/imageUtils'
 import { useOnline } from '@/lib/useOnline'
 import { enqueueOp } from '@/lib/offlineQueue'
 import { encontrarDuplicado, mensagemDuplicado } from '@/lib/listaMercadoDuplicados'
+import { detectarSetor } from '@/lib/setoresMercado'
 import { mascaraMoeda, parseMoeda } from '@/lib/format'
 import { suportaReconhecimentoVoz } from '@/lib/useVoice'
 
@@ -204,6 +205,7 @@ function QuickAddMercado({
       preco_unit: null as number | null,
       comprado:   false,
       criado_por,
+      category:   detectarSetor(nome),
     }
     try {
       // Bloqueia itens duplicados (pendentes ou comprados ainda na lista).

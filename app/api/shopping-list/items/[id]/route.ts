@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireShoppingListAuth } from '@/lib/serverAuth'
 import { registrarHistoricoServer } from '@/lib/notificacoesServer'
-
-const CATEGORIAS_VALIDAS = [
-  'Proteínas', 'Carboidratos', 'Hortifruti', 'Laticínios', 'Temperos',
-  'Congelados', 'Bebidas', 'Higiene', 'Limpeza', 'Outros',
-]
+import { normalizarSetor, SETOR_PADRAO } from '@/lib/setoresMercado'
 
 export async function PUT(
   req: NextRequest,
@@ -53,7 +49,8 @@ export async function PUT(
 
   const categoryRaw = typeof body.category === 'string' ? body.category.trim() : null
   if (categoryRaw) {
-    updates.category = CATEGORIAS_VALIDAS.includes(categoryRaw) ? categoryRaw : 'Outros'
+    // Aceita os setores atuais e as categorias antigas (convertidas)
+    updates.category = normalizarSetor(categoryRaw) ?? SETOR_PADRAO
   }
 
   if (typeof body.estimated_price === 'number') {

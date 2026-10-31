@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireShoppingListAuth } from '@/lib/serverAuth'
-
-const CATEGORIAS_ORDEM = [
-  'Proteínas', 'Carboidratos', 'Hortifruti', 'Laticínios', 'Temperos',
-  'Congelados', 'Bebidas', 'Higiene', 'Limpeza', 'Outros',
-]
+import { agruparPorSetor } from '@/lib/setoresMercado'
 
 export async function GET(req: NextRequest) {
   const { supabase, unauthorized } = await requireShoppingListAuth(req)
@@ -21,29 +17,17 @@ export async function GET(req: NextRequest) {
 
   const allItems = items ?? []
 
-  const grouped: Record<string, typeof allItems> = {}
-  for (const item of allItems) {
-    const cat: string = item.category ?? 'Outros'
-    if (!grouped[cat]) grouped[cat] = []
-    grouped[cat].push(item)
-  }
-
-  const categorias = Object.keys(grouped).sort((a, b) => {
-    const ai = CATEGORIAS_ORDEM.indexOf(a)
-    const bi = CATEGORIAS_ORDEM.indexOf(b)
-    if (ai === -1 && bi === -1) return a.localeCompare(b, 'pt-BR')
-    if (ai === -1) return 1
-    if (bi === -1) return -1
-    return ai - bi
-  })
+  // Agrupa pelos setores do mercado (categorias antigas são convertidas e
+  // itens sem setor são classificados pelo nome)
+  const grupos = agruparPorSetor(allItems as { nome: string; category?: string | null }[])
 
   return NextResponse.json({
     success: true,
     total_itens: allItems.length,
     quantidade_total: allItems.reduce((s: number, i: { quantidade?: number }) => s + (i.quantidade ?? 1), 0),
-    categorias: categorias.map(cat => ({
-      categoria: cat,
-      itens: grouped[cat],
+    categorias: grupos.map(g => ({
+      categoria: g.setor,
+      itens: g.itens,
     })),
   })
 }
