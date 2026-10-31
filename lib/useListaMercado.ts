@@ -136,7 +136,8 @@ export function useListaMercado() {
       const { data, error } = await supabase
         .from('lista_mercado_itens')
         .select('*')
-        .order('created_at', { ascending: true })
+        // Mais recentes primeiro: novas adições aparecem no topo da lista
+        .order('created_at', { ascending: false })
       if (error) throw error
       return data ?? []
     },
@@ -172,7 +173,7 @@ export function useListaMercado() {
           return Object.keys(p).length ? { ...item, ...p } : item
         }),
         ...offlineCreates,
-      ].sort((a, b) => a.created_at.localeCompare(b.created_at))
+      ].sort((a, b) => b.created_at.localeCompare(a.created_at))
 
       setItens(merged)
     },
@@ -248,7 +249,7 @@ export function useListaMercado() {
     const now = new Date().toISOString()
     const tempItem: ItemMercado = { ...payload, id: tempId, created_at: now, updated_at: now }
 
-    setItens(prev => [...prev, tempItem])
+    setItens(prev => [tempItem, ...prev])
 
     try {
       const { data, error } = await supabase
