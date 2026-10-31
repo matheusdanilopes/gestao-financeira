@@ -614,18 +614,27 @@ function ItemRow({
   mostraHint: boolean
   onToggle: (id: string) => void
   onAlterarQtd: (id: string, delta: number) => void
-  onEditarNome: (id: string, nome: string) => void
+  onEditarNome: (id: string, nome: string) => ResultadoAdicionar
   onExcluir: (id: string) => void
   onAbrirPreco: (item: ItemMercado) => void
   onAbrirConfirmarCompra: (item: ItemMercado) => void
 }) {
   const [editandoNome, setEditandoNome] = useState(false)
   const [nomeLocal, setNomeLocal] = useState(item.nome)
+  const [erroNome, setErroNome] = useState('')
   const inputNomeRef = useRef<HTMLInputElement>(null)
+
+  // Esconde o aviso de nome duplicado após alguns segundos
+  useEffect(() => {
+    if (!erroNome) return
+    const t = setTimeout(() => setErroNome(''), 4000)
+    return () => clearTimeout(t)
+  }, [erroNome])
 
   useEffect(() => { setNomeLocal(item.nome) }, [item.nome])
 
   function ativarEdicao() {
+    setErroNome('')
     setEditandoNome(true)
     setTimeout(() => inputNomeRef.current?.focus(), 50)
   }
@@ -633,8 +642,14 @@ function ItemRow({
   function salvarNome() {
     setEditandoNome(false)
     if (nomeLocal.trim() && nomeLocal.trim() !== item.nome) {
-      onEditarNome(item.id, nomeLocal.trim())
-      salvarHistorico(nomeLocal.trim())
+      const resultado = onEditarNome(item.id, nomeLocal.trim())
+      if (resultado.ok) {
+        salvarHistorico(nomeLocal.trim())
+      } else {
+        // Duplicado: volta ao nome original e avisa
+        setNomeLocal(item.nome)
+        if (resultado.motivo === 'duplicado') setErroNome(mensagemDuplicado(resultado.item))
+      }
     } else {
       setNomeLocal(item.nome)
     }
@@ -690,6 +705,9 @@ function ItemRow({
               <span className="break-words line-clamp-2 flex-1 min-w-0">{item.nome}</span>
               <Pencil className="w-3 h-3 text-gray-300 flex-none mt-0.5" strokeWidth={2} />
             </button>
+          )}
+          {erroNome && !editandoNome && (
+            <p role="alert" className="mt-0.5 text-[11px] text-red-500 font-medium">{erroNome}</p>
           )}
           {item.criado_por && !editandoNome && !item.comprado && (
             <span className={`inline-block mt-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full

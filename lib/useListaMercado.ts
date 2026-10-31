@@ -302,10 +302,14 @@ export function useListaMercado() {
   }, [_salvar])
 
   // ── Editar nome ────────────────────────────────────────────────────────────
-  const editarNome = useCallback((id: string, nome: string) => {
+  const editarNome = useCallback((id: string, nome: string): ResultadoAdicionar => {
     const nomeTrimado = nome.trim()
-    if (!nomeTrimado) return
+    if (!nomeTrimado) return { ok: false, motivo: 'vazio' }
+    // Mesma regra da adição: não permite renomear para o nome de outro item da lista
+    const duplicado = encontrarDuplicado(itensRef.current.filter(i => i.id !== id), nomeTrimado)
+    if (duplicado) return { ok: false, motivo: 'duplicado', item: duplicado }
     _salvar(id, { nome: nomeTrimado })
+    return { ok: true }
   }, [_salvar])
 
   // ── Toggle comprado ────────────────────────────────────────────────────────
