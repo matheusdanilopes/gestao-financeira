@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, type FormEvent, type ChangeEv
 import { useRouter } from 'next/navigation'
 import {
   ShoppingBasket, Plus, Minus, Check, Pencil, ChevronDown, ChevronUp,
-  WifiOff, RefreshCw, AlertCircle, History, Camera, LayoutGrid,
+  WifiOff, RefreshCw, AlertCircle, AlertTriangle, History, Camera, LayoutGrid, Undo2, Search, X,
 } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
 import { SwipeableItem } from '@/components/SwipeableItem'
@@ -15,6 +15,12 @@ import { SETORES, SETOR_EMOJI, setorDoItem, agruparPorSetor, type Setor } from '
 import { type PendingOp } from '@/lib/offlineQueue'
 import { useHistoricoCompras } from '@/lib/useHistoricoCompras'
 import { formatBRL, mascaraMoeda, formatarMoedaInput, parseMoeda } from '@/lib/format'
+import {
+  usePrecosAnteriores, precoAnteriorDe, alertaPreco, alertaTotal, type PrecoAnterior,
+} from '@/lib/precosMercado'
+import {
+  filtrarComprados, ORDENS_COMPRADOS, ehOrdemComprados, type OrdemComprados,
+} from '@/lib/compradosMercado'
 import PageHeader, { PAGE_HEADER_PILL } from '@/components/PageHeader'
 
 // ── Constantes ────────────────────────────────────────────────────────────────
@@ -22,7 +28,13 @@ import PageHeader, { PAGE_HEADER_PILL } from '@/components/PageHeader'
 const HIST_KEY = 'lista-mercado-historico'
 const HINT_KEY = 'lista-mercado-swipe-hint'
 const AGRUPAR_SETOR_KEY = 'lista-mercado-agrupar-setor'
+const ORDEM_COMPRADOS_KEY = 'lista-mercado-ordem-comprados'
+/** A partir de quantos comprados aparecem busca, filtro e ordenação. */
+const MIN_COMPRADOS_FILTRO = 3
 const MAX_HIST = 50
+const UNDO_MS = 5000
+/** Quantidade máxima lida do texto ("Leite 2"). Números maiores ficam no nome ("Farinha 500"). */
+const MAX_QTD_TEXTO = 99
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -71,34 +83,119 @@ function carregarHistorico(): string[] {
   } catch { return [] }
 }
 
-// Máscara de moeda "centavos primeiro": o usuário digita só números e a
-// vírgula decimal aparece sozinha (ex: digitar 1250 vira "12,50").
+// "Leite 2" / "Leite 2x" → 2 unidades de Leite. Números grandes ("Farinha 500",
+// "Leite 1000") quase sempre são peso/volume ou erro de digitação, então ficam no nome.
 function parsearInput(text: string): { nome: string; quantidade: number } {
-  const match = text.match(/^(.+?)\s+(\d+)x?$/i)
+  const match = text.trim().match(/^(.+?)\s+(\d{1,3})x?$/i)
   if (match) {
     const qtd = parseInt(match[2], 10)
-    if (qtd >= 1 && qtd <= 999) return { nome: match[1].trim(), quantidade: qtd }
+    if (qtd >= 1 && qtd <= MAX_QTD_TEXTO) return { nome: match[1].trim(), quantidade: qtd }
   }
   return { nome: text.trim(), quantidade: 1 }
+}
+
+function dataCurta(iso: string): string {
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime())
+    ? ''
+    : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+}
+
+// ── Peças compartilhadas dos sheets de preço ─────────────────────────────────
+
+/** "Última compra: R$ 4,99 · 12/10  [Usar]" — preenche o campo com um toque. */
+function UltimoPreco({ anterior, onUsar }: { anterior: PrecoAnterior | null; onUsar: (preco: number) => void }) {
+  if (!anterior) return null
+  return (
+    <button
+      type="button"
+      onClick={() => onUsar(anterior.preco)}
+      className="w-full flex items-center justify-between gap-2 mb-2 px-3.5 py-2.5 rounded-2xl bg-gray-50
+                 text-left active:bg-gray-100 transition-colors"
+    >
+      <span className="text-xs text-gray-500 font-medium">
+        Última compra: <span className="font-bold text-gray-700 num">{formatBRL(anterior.preco)}</span>
+        {dataCurta(anterior.data) && <span className="text-gray-400"> · {dataCurta(anterior.data)}</span>}
+      </span>
+      <span className="text-xs font-bold text-primary-600 flex-none">Usar</span>
+    </button>
+  )
+}
+
+function AvisoValor({ mensagem }: { mensagem: string | null }) {
+  if (!mensagem) return null
+  return (
+    <div role="alert" className="mb-3 flex items-start gap-2 px-3.5 py-3 rounded-2xl bg-amber-50 text-amber-800">
+      <AlertTriangle className="w-4 h-4 flex-none mt-0.5 text-amber-500" strokeWidth={2.2} />
+      <p className="text-xs font-semibold leading-snug">
+        {mensagem} <span className="font-medium">Toque de novo para confirmar.</span>
+      </p>
+    </div>
+  )
+}
+
+/**
+ * Exige um segundo toque quando o valor parece erro de digitação.
+ * `tentar()` devolve true quando pode prosseguir. Mudar o valor zera a confirmação.
+ */
+function useConfirmacaoValor(alerta: string | null) {
+  const [visto, setVisto] = useState<string | null>(null)
+  const pendente = alerta != null && visto === alerta
+  function tentar(): boolean {
+    if (alerta && visto !== alerta) { setVisto(alerta); return false }
+    return true
+  }
+  return { avisoVisivel: pendente ? alerta : null, pendente, tentar }
+}
+
+function Stepper({ valor, onChange }: { valor: number; onChange: (v: number) => void }) {
+  return (
+    <div className="flex items-center gap-4">
+      <button
+        type="button"
+        onClick={() => onChange(Math.max(1, valor - 1))}
+        disabled={valor <= 1}
+        aria-label="Diminuir quantidade"
+        className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 disabled:opacity-30 transition-colors active:scale-90"
+      >
+        <Minus className="w-5 h-5" strokeWidth={2.5} />
+      </button>
+      <span className="flex-1 text-center text-3xl font-bold text-gray-900 tabular-nums num">{valor}</span>
+      <button
+        type="button"
+        onClick={() => onChange(valor + 1)}
+        aria-label="Aumentar quantidade"
+        className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors active:scale-90"
+      >
+        <Plus className="w-5 h-5" strokeWidth={2.5} />
+      </button>
+    </div>
+  )
 }
 
 // ── Bottom sheet de preço ─────────────────────────────────────────────────────
 
 function BottomSheetPreco({
   item,
+  anterior,
   isOnline,
   onClose,
   onConfirmar,
 }: {
   item: ItemMercado
+  anterior: PrecoAnterior | null
   isOnline: boolean
   onClose: () => void
-  onConfirmar: (preco: number | null) => void
+  onConfirmar: (preco: number | null, qtd: number) => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [valor, setValor] = useState(formatarMoedaInput(item.preco_unit))
+  const [qtd, setQtd] = useState(item.quantidade)
   const [keyboardOffset, setKeyboardOffset] = useState(0)
   const [cameraAberta, setCameraAberta] = useState(false)
+
+  const precoNum = valor.trim() ? parseMoeda(valor) : null
+  const confirmacao = useConfirmacaoValor(alertaPreco(precoNum, anterior))
 
   useEffect(() => {
     const t = setTimeout(() => inputRef.current?.focus(), 150)
@@ -121,14 +218,15 @@ function BottomSheetPreco({
   }, [])
 
   function handleConfirmar() {
-    onConfirmar(valor.trim() ? parseMoeda(valor) : null)
+    if (!confirmacao.tentar()) return
+    onConfirmar(precoNum, qtd)
     onClose()
   }
 
-  // Confirma direto a partir da câmera — sem segunda confirmação no sheet
+  // Valor lido pela câmera volta para o campo — passa pela mesma conferência
   function handleCameraConfirmar(preco: number) {
-    onConfirmar(preco)
-    onClose()
+    setValor(formatarMoedaInput(preco))
+    setCameraAberta(false)
   }
 
   return (
@@ -142,9 +240,14 @@ function BottomSheetPreco({
           <div className="w-full bg-white rounded-t-3xl shadow-2xl px-5 pt-2 pb-6 modal-sheet">
             <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mb-5" />
             <p className="text-xs text-gray-500 mb-0.5 font-semibold">Preço unitário de</p>
-            <p className="text-base font-bold text-gray-900 mb-5 truncate">{item.nome}</p>
+            <p className="text-base font-bold text-gray-900 mb-4 truncate">{item.nome}</p>
 
             <form onSubmit={e => { e.preventDefault(); handleConfirmar() }}>
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-gray-500 mb-2">Quantidade</label>
+                <Stepper valor={qtd} onChange={setQtd} />
+              </div>
+              <UltimoPreco anterior={anterior} onUsar={p => setValor(formatarMoedaInput(p))} />
               <div className="relative mb-3">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-semibold">R$</span>
                 <input
@@ -155,10 +258,13 @@ function BottomSheetPreco({
                   onChange={e => setValor(mascaraMoeda(e.target.value))}
                   onKeyDown={e => e.key === 'Escape' && onClose()}
                   placeholder="0,00"
+                  enterKeyHint="done"
                   className="w-full pl-10 pr-4 py-3.5 rounded-2xl border border-gray-200 text-sm font-semibold text-gray-900
                              placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
                 />
               </div>
+
+              <AvisoValor mensagem={confirmacao.avisoVisivel} />
 
               {isOnline && (
                 <button
@@ -175,7 +281,7 @@ function BottomSheetPreco({
                 {item.preco_unit != null && (
                   <button
                     type="button"
-                    onClick={() => { onConfirmar(null); onClose() }}
+                    onClick={() => { onConfirmar(null, qtd); onClose() }}
                     className="px-4 py-3.5 rounded-2xl border border-gray-200 text-sm font-semibold text-gray-500
                                hover:bg-gray-50 transition-colors active:scale-[0.97]"
                   >
@@ -187,8 +293,9 @@ function BottomSheetPreco({
                   Cancelar
                 </button>
                 <button type="submit"
-                  className="flex-1 py-3.5 rounded-full bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 transition-colors active:scale-[0.97]">
-                  Confirmar
+                  className={`flex-1 py-3.5 rounded-full text-white text-sm font-semibold transition-colors active:scale-[0.97]
+                              ${confirmacao.pendente ? 'bg-amber-500 hover:bg-amber-600' : 'bg-primary-600 hover:bg-primary-700'}`}>
+                  {confirmacao.pendente ? 'Confirmar mesmo assim' : 'Confirmar'}
                 </button>
               </div>
             </form>
@@ -211,11 +318,13 @@ function BottomSheetPreco({
 
 function BottomSheetConfirmarCompra({
   item,
+  anterior,
   isOnline,
   onClose,
   onConfirmar,
 }: {
   item: ItemMercado
+  anterior: PrecoAnterior | null
   isOnline: boolean
   onClose: () => void
   onConfirmar: (qtd: number, preco: number | null) => void
@@ -243,6 +352,13 @@ function BottomSheetConfirmarCompra({
 
   const precoNum = preco.trim() ? parseMoeda(preco) : null
   const subtotal = precoNum != null && !isNaN(precoNum) ? qtd * precoNum : null
+  const confirmacao = useConfirmacaoValor(alertaPreco(precoNum, anterior))
+
+  function handleComprado() {
+    if (!confirmacao.tentar()) return
+    onConfirmar(qtd, precoNum)
+    onClose()
+  }
 
   function handlePrecoCamera(valor: number) {
     setPreco(formatarMoedaInput(valor))
@@ -274,29 +390,13 @@ function BottomSheetConfirmarCompra({
             {/* Quantidade */}
             <div className="mb-4">
               <label className="block text-xs font-semibold text-gray-500 mb-2">Quantidade</label>
-              <div className="flex items-center gap-4">
-                <button
-                  type="button"
-                  onClick={() => setQtd(q => Math.max(1, q - 1))}
-                  disabled={qtd <= 1}
-                  className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 disabled:opacity-30 transition-colors active:scale-90"
-                >
-                  <Minus className="w-5 h-5" strokeWidth={2.5} />
-                </button>
-                <span className="flex-1 text-center text-3xl font-bold text-gray-900 tabular-nums num">{qtd}</span>
-                <button
-                  type="button"
-                  onClick={() => setQtd(q => q + 1)}
-                  className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors active:scale-90"
-                >
-                  <Plus className="w-5 h-5" strokeWidth={2.5} />
-                </button>
-              </div>
+              <Stepper valor={qtd} onChange={setQtd} />
             </div>
 
             {/* Preço unitário */}
             <div className="mb-4">
               <label className="block text-xs font-semibold text-gray-500 mb-2">Preço unitário</label>
+              <UltimoPreco anterior={anterior} onUsar={p => setPreco(formatarMoedaInput(p))} />
               <div className="relative mb-2">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-semibold">R$</span>
                 <input
@@ -305,8 +405,12 @@ function BottomSheetConfirmarCompra({
                   inputMode="decimal"
                   value={preco}
                   onChange={e => setPreco(mascaraMoeda(e.target.value))}
-                  onKeyDown={e => e.key === 'Escape' && onClose()}
+                  onKeyDown={e => {
+                    if (e.key === 'Escape') onClose()
+                    if (e.key === 'Enter') { e.preventDefault(); handleComprado() }
+                  }}
                   placeholder="0,00"
+                  enterKeyHint="done"
                   className="w-full pl-10 pr-4 py-3.5 rounded-2xl border border-gray-200 text-sm font-semibold text-gray-900
                              placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent"
                 />
@@ -331,6 +435,8 @@ function BottomSheetConfirmarCompra({
               </div>
             )}
 
+            <AvisoValor mensagem={confirmacao.avisoVisivel} />
+
             {/* Ações */}
             <div className="flex gap-3">
               <button
@@ -342,12 +448,13 @@ function BottomSheetConfirmarCompra({
               </button>
               <button
                 type="button"
-                onClick={() => { onConfirmar(qtd, precoNum); onClose() }}
-                className="flex-1 py-3.5 rounded-full bg-primary-600 text-white text-sm font-semibold
-                           hover:bg-primary-700 transition-colors active:scale-[0.97] flex items-center justify-center gap-2"
+                onClick={handleComprado}
+                className={`flex-1 py-3.5 rounded-full text-white text-sm font-semibold transition-colors active:scale-[0.97]
+                            flex items-center justify-center gap-2
+                            ${confirmacao.pendente ? 'bg-amber-500 hover:bg-amber-600' : 'bg-primary-600 hover:bg-primary-700'}`}
               >
                 <Check className="w-4 h-4" strokeWidth={2.5} />
-                Comprado
+                {confirmacao.pendente ? 'Confirmar mesmo assim' : 'Comprado'}
               </button>
             </div>
           </div>
@@ -407,6 +514,15 @@ function BottomSheetFinalizarCompra({
 
   const valorNum = parseMoeda(valor)
   const valido = !isNaN(valorNum) && valorNum >= 0
+  const todosComPreco = comprados.length > 0 && comprados.every(i => i.preco_unit != null)
+  const confirmacao = useConfirmacaoValor(
+    valido ? alertaTotal(valorNum, totalCalculado, todosComPreco) : null,
+  )
+
+  function handleSalvar() {
+    if (!valido || salvando || !confirmacao.tentar()) return
+    onFinalizar(valorNum)
+  }
 
   return (
     <ModalPortal>
@@ -460,8 +576,12 @@ function BottomSheetFinalizarCompra({
                 inputMode="decimal"
                 value={valor}
                 onChange={e => setValor(mascaraMoeda(e.target.value))}
-                onKeyDown={e => e.key === 'Escape' && onClose()}
+                onKeyDown={e => {
+                  if (e.key === 'Escape') onClose()
+                  if (e.key === 'Enter') { e.preventDefault(); handleSalvar() }
+                }}
                 placeholder="0,00"
+                enterKeyHint="done"
                 className="w-full pl-10 pr-4 py-3.5 rounded-2xl border border-gray-200 text-sm font-semibold text-gray-900
                            placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent"
               />
@@ -472,6 +592,8 @@ function BottomSheetFinalizarCompra({
               </p>
             )}
           </div>
+
+          <AvisoValor mensagem={confirmacao.avisoVisivel} />
 
           <div className="flex gap-3">
             <button
@@ -484,17 +606,18 @@ function BottomSheetFinalizarCompra({
             <button
               type="button"
               disabled={!valido || salvando}
-              onClick={() => valido && onFinalizar(valorNum)}
-              className="flex-1 py-3.5 rounded-full bg-primary-600 text-white text-sm font-semibold
-                         hover:bg-primary-700 disabled:opacity-50 transition-colors active:scale-[0.97]
-                         flex items-center justify-center gap-2"
+              onClick={handleSalvar}
+              className={`flex-1 py-3.5 rounded-full text-white text-sm font-semibold
+                          disabled:opacity-50 transition-colors active:scale-[0.97]
+                          flex items-center justify-center gap-2
+                          ${confirmacao.pendente ? 'bg-amber-500 hover:bg-amber-600' : 'bg-primary-600 hover:bg-primary-700'}`}
             >
               {salvando ? (
                 <RefreshCw className="w-4 h-4 animate-spin" />
               ) : (
                 <Check className="w-4 h-4" strokeWidth={2.5} />
               )}
-              Salvar no Histórico
+              {confirmacao.pendente ? 'Salvar mesmo assim' : 'Salvar no Histórico'}
             </button>
           </div>
         </div>
@@ -713,32 +836,41 @@ function ItemRow({
     }
   }
 
+  // Toque principal da linha (checkbox ou nome): marca como comprado conferindo
+  // qtd/preço; num item já comprado, o checkbox desmarca (com "Desfazer").
+  function acaoCheckbox() {
+    if (item.comprado) onToggle(item.id)
+    else onAbrirConfirmarCompra(item)
+  }
+
   const subtotal = item.quantidade * (item.preco_unit ?? 0)
 
   return (
-    <SwipeableItem onDelete={() => onExcluir(item.id)} disabled={editandoNome} requireConfirmation>
+    <SwipeableItem onDelete={() => onExcluir(item.id)} disabled={editandoNome}>
       <div
-        className={`flex items-center gap-3 px-4 bg-white border-b border-gray-50
-                    transition-all duration-200 ease-smooth ${item.comprado ? 'opacity-40 py-2.5' : 'py-3.5'}`}
+        className={`flex items-center gap-2 pl-4 pr-3 bg-white border-b border-gray-50
+                    transition-all duration-200 ease-smooth ${item.comprado ? 'py-2' : 'py-2.5'}`}
       >
         {/* Checkbox — 44px touch target */}
         <button
           type="button"
-          onClick={() => item.comprado ? onToggle(item.id) : onAbrirConfirmarCompra(item)}
-          aria-label={item.comprado ? 'Desmarcar' : 'Marcar como comprado'}
-          className={`flex-none w-6 h-6 rounded-full border-2 flex items-center justify-center
-                      transition-all duration-150 active:scale-90
-                      ${item.comprado
-                        ? 'bg-green-500 border-green-500'
-                        : 'border-gray-300 hover:border-primary-400'
-                      }`}
-          style={{ minWidth: 44, minHeight: 44, margin: '-9px -5px' }}
+          onClick={acaoCheckbox}
+          aria-label={item.comprado ? `Desmarcar ${item.nome}` : `Marcar ${item.nome} como comprado`}
+          className="flex-none flex items-center justify-center active:scale-90 transition-transform"
+          style={{ minWidth: 44, minHeight: 44, margin: '0 -6px' }}
         >
-          {item.comprado && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
+          <span
+            className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-150
+                        ${item.comprado
+                          ? 'bg-green-500 border-green-500'
+                          : 'border-gray-300'}`}
+          >
+            {item.comprado && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
+          </span>
         </button>
 
         {/* Nome + autor */}
-        <div className="flex-1 min-w-0">
+        <div className={`flex-1 min-w-0 ${item.comprado ? 'opacity-50' : ''}`}>
           {editandoNome ? (
             <input
               ref={inputNomeRef}
@@ -750,25 +882,28 @@ function ItemRow({
                 if (e.key === 'Enter') e.currentTarget.blur()
                 if (e.key === 'Escape') { setNomeLocal(item.nome); setEditandoNome(false) }
               }}
+              autoCapitalize="sentences"
+              autoCorrect="on"
+              spellCheck
+              enterKeyHint="done"
               className="w-full text-sm font-medium text-gray-900 bg-transparent border-b border-primary-400
-                         focus:outline-none py-0.5"
+                         focus:outline-none py-1.5"
             />
           ) : (
             <button
               type="button"
-              onClick={ativarEdicao}
-              className={`text-left text-sm font-medium leading-snug flex items-start gap-1.5 w-full
+              onClick={item.comprado ? () => onAbrirPreco(item) : acaoCheckbox}
+              className={`text-left text-sm font-medium leading-snug w-full min-h-[32px] py-1
                           ${item.comprado ? 'line-through text-gray-400' : 'text-gray-900'}`}
             >
-              <span className="break-words line-clamp-2 flex-1 min-w-0">{item.nome}</span>
-              <Pencil className="w-3 h-3 text-gray-300 flex-none mt-0.5" strokeWidth={2} />
+              <span className="break-words line-clamp-2">{item.nome}</span>
             </button>
           )}
           {erroNome && !editandoNome && (
             <p role="alert" className="mt-0.5 text-[11px] text-red-500 font-medium">{erroNome}</p>
           )}
           {!editandoNome && !item.comprado && (
-            <div className="flex flex-wrap items-center gap-1 mt-0.5">
+            <div className="flex flex-wrap items-center gap-1">
               {item.criado_por && (
                 <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full
                                   ${corUsuario(item.criado_por)}`}>
@@ -779,7 +914,7 @@ function ItemRow({
                 type="button"
                 onClick={() => onAbrirSetor(item)}
                 aria-label={`Setor: ${setorDoItem(item)}. Trocar setor`}
-                className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full
+                className="inline-flex items-center gap-0.5 text-[11px] font-semibold px-2 py-1 rounded-full
                            bg-gray-100 text-gray-500 hover:bg-gray-200 active:scale-95 transition-all"
               >
                 <span aria-hidden>{SETOR_EMOJI[setorDoItem(item)]}</span>
@@ -788,58 +923,170 @@ function ItemRow({
             </div>
           )}
           {mostraHint && !item.comprado && (
-            <span className="block text-[10px] text-gray-300 italic mt-0.5">← deslize para excluir</span>
+            <span className="block text-[10px] text-gray-300 italic mt-0.5">
+              Toque no nome para marcar · ← deslize para excluir
+            </span>
           )}
         </div>
 
-        {/* Controles de quantidade */}
-        <div className="flex items-center gap-0.5 flex-none">
-          <button
-            type="button"
-            onClick={() => onAlterarQtd(item.id, -1)}
-            disabled={item.quantidade <= 1}
-            className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 disabled:opacity-30 transition-colors active:scale-90"
-            aria-label="Diminuir quantidade"
-          >
-            <Minus className="w-3 h-3" strokeWidth={2.5} />
-          </button>
-          <span className="text-sm font-semibold text-gray-900 w-6 text-center tabular-nums">
-            {item.quantidade}
-          </span>
-          <button
-            type="button"
-            onClick={() => onAlterarQtd(item.id, +1)}
-            className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors active:scale-90"
-            aria-label="Aumentar quantidade"
-          >
-            <Plus className="w-3 h-3" strokeWidth={2.5} />
-          </button>
-        </div>
+        {!item.comprado && !editandoNome && (
+          <>
+            {/* Renomear: ação separada para não abrir o teclado por engano */}
+            <button
+              type="button"
+              onClick={ativarEdicao}
+              aria-label={`Renomear ${item.nome}`}
+              className="flex-none w-9 h-9 rounded-full flex items-center justify-center text-gray-300
+                         hover:text-gray-500 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+            >
+              <Pencil className="w-4 h-4" strokeWidth={2} />
+            </button>
 
-        {/* Preço / subtotal — só exibe após o item ser tickado */}
+            {/* Controles de quantidade — 36px por botão */}
+            <div className="flex items-center gap-0.5 flex-none">
+              <button
+                type="button"
+                onClick={() => onAlterarQtd(item.id, -1)}
+                disabled={item.quantidade <= 1}
+                className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 disabled:opacity-30 transition-colors active:scale-90"
+                aria-label={`Diminuir quantidade de ${item.nome}`}
+              >
+                <Minus className="w-4 h-4" strokeWidth={2.5} />
+              </button>
+              <span className="text-base font-bold text-gray-900 min-w-[28px] text-center tabular-nums">
+                {item.quantidade}
+              </span>
+              <button
+                type="button"
+                onClick={() => onAlterarQtd(item.id, +1)}
+                className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors active:scale-90"
+                aria-label={`Aumentar quantidade de ${item.nome}`}
+              >
+                <Plus className="w-4 h-4" strokeWidth={2.5} />
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* Quantidade × preço — item comprado; toque abre o sheet para corrigir */}
         {item.comprado && (
           <button
             type="button"
             onClick={() => onAbrirPreco(item)}
-            className="flex-none text-right min-w-[64px] active:scale-95 transition-transform"
-            aria-label="Definir preço"
+            className="flex-none text-right min-w-[72px] min-h-[44px] px-1 flex flex-col items-end justify-center
+                       rounded-xl active:bg-gray-50 active:scale-95 transition-all"
+            aria-label={`Corrigir quantidade e preço de ${item.nome}`}
           >
             {item.preco_unit != null ? (
-              <div>
+              <>
                 <p className="text-[10px] text-gray-400 leading-none num">
-                  {formatBRL(item.preco_unit)}/un
+                  {item.quantidade} × {formatBRL(item.preco_unit)}
                 </p>
                 <p className="text-sm font-bold text-gray-700 num mt-0.5">
                   {formatBRL(subtotal)}
                 </p>
-              </div>
+              </>
             ) : (
-              <span className="text-xs text-primary-500 font-semibold">+ preço</span>
+              <>
+                <p className="text-[10px] text-gray-400 leading-none num">{item.quantidade} un.</p>
+                <span className="text-xs text-primary-500 font-semibold mt-0.5">+ preço</span>
+              </>
             )}
           </button>
         )}
       </div>
     </SwipeableItem>
+  )
+}
+
+// ── Busca / filtro / ordenação dos comprados ─────────────────────────────────
+
+function FiltrosComprados({
+  busca,
+  onBusca,
+  soSemPreco,
+  onSoSemPreco,
+  qtdSemPreco,
+  ordem,
+  onOrdem,
+}: {
+  busca: string
+  onBusca: (v: string) => void
+  soSemPreco: boolean
+  onSoSemPreco: (v: boolean) => void
+  qtdSemPreco: number
+  ordem: OrdemComprados
+  onOrdem: (o: OrdemComprados) => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  return (
+    <div className="px-3 pt-2.5 pb-2 bg-gray-50 border-b border-gray-100 space-y-2">
+      <div className="relative">
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" strokeWidth={2} />
+        <input
+          ref={inputRef}
+          type="search"
+          value={busca}
+          onChange={e => onBusca(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Escape') onBusca('')
+            if (e.key === 'Enter') e.currentTarget.blur()
+          }}
+          placeholder="Buscar nos comprados…"
+          aria-label="Buscar nos itens comprados"
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+          enterKeyHint="search"
+          className="w-full h-11 pl-10 pr-11 rounded-xl bg-white border border-gray-200 text-sm font-medium text-gray-900
+                     placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent
+                     [&::-webkit-search-cancel-button]:hidden"
+        />
+        {busca && (
+          <button
+            type="button"
+            onClick={() => { onBusca(''); inputRef.current?.focus() }}
+            aria-label="Limpar busca"
+            className="absolute right-0 top-0 w-11 h-11 flex items-center justify-center text-gray-400 active:text-gray-600"
+          >
+            <X className="w-4 h-4" strokeWidth={2.5} />
+          </button>
+        )}
+      </div>
+
+      <div className="flex items-center gap-1.5 overflow-x-auto -mx-3 px-3 scrollbar-hide">
+        {(qtdSemPreco > 0 || soSemPreco) && (
+          <button
+            type="button"
+            onClick={() => onSoSemPreco(!soSemPreco)}
+            aria-pressed={soSemPreco}
+            className={`flex-none h-9 px-3 rounded-full text-xs font-bold border transition-colors active:scale-95
+                        ${soSemPreco
+                          ? 'bg-amber-500 border-amber-500 text-white'
+                          : 'bg-white border-amber-200 text-amber-700'}`}
+          >
+            Sem preço · {qtdSemPreco}
+          </button>
+        )}
+        <div role="radiogroup" aria-label="Ordenar comprados" className="flex-none flex items-center gap-1 ml-auto">
+          {ORDENS_COMPRADOS.map(o => (
+            <button
+              key={o.valor}
+              type="button"
+              role="radio"
+              aria-checked={ordem === o.valor}
+              onClick={() => onOrdem(o.valor)}
+              className={`flex-none h-9 px-3 rounded-full text-xs font-semibold border transition-colors active:scale-95
+                          ${ordem === o.valor
+                            ? 'bg-gray-900 border-gray-900 text-white'
+                            : 'bg-white border-gray-200 text-gray-600'}`}
+            >
+              {o.rotulo}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -1002,6 +1249,19 @@ function InputAdicionar({
     await submeter(valor)
   }
 
+  // Sugestão só preenche o campo (mantendo a quantidade digitada): um toque
+  // errado na lista não adiciona item nenhum — o usuário confirma no botão +.
+  function escolherSugestao(s: string) {
+    const { quantidade } = parsearInput(valor)
+    setValor(quantidade > 1 ? `${s} ${quantidade}` : s)
+    setSugestoes([])
+    if (erro) setErro('')
+    inputRef.current?.focus()
+  }
+
+  const previa = parsearInput(valor)
+  const mostraPrevia = !erro && sugestoes.length === 0 && previa.nome !== '' && previa.quantidade > 1
+
   return (
     <div className="relative">
       <form onSubmit={handleSubmit} className="flex gap-2">
@@ -1012,6 +1272,11 @@ function InputAdicionar({
           onChange={handleChange}
           onBlur={() => setTimeout(() => setSugestoes([]), 150)}
           placeholder="Adicionar item… (ex: Leite 2)"
+          autoCapitalize="sentences"
+          autoCorrect="on"
+          spellCheck
+          autoComplete="off"
+          enterKeyHint="send"
           className="flex-1 px-4 py-2.5 rounded-full bg-white border-0 text-sm font-medium text-gray-900
                      placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-white/60"
         />
@@ -1034,14 +1299,22 @@ function InputAdicionar({
             <button
               key={s}
               type="button"
-              onMouseDown={() => submeter(s)}
-              className="w-full text-left px-4 py-3 text-sm text-gray-800 hover:bg-gray-50 transition-colors
-                         border-b border-gray-50 last:border-0 font-medium"
+              // preventDefault mantém o foco no campo (o blur esconderia a lista)
+              onPointerDown={e => e.preventDefault()}
+              onClick={() => escolherSugestao(s)}
+              className="w-full text-left px-4 py-3.5 text-sm text-gray-800 hover:bg-gray-50 active:bg-gray-100
+                         transition-colors border-b border-gray-50 last:border-0 font-medium"
             >
               {s}
             </button>
           ))}
         </div>
+      )}
+
+      {mostraPrevia && (
+        <p className="text-xs text-white/90 mt-1.5 font-medium px-1">
+          Vai adicionar: <span className="font-bold">{previa.quantidade}× {previa.nome}</span>
+        </p>
       )}
 
       {erro && (
@@ -1056,12 +1329,57 @@ function InputAdicionar({
 export default function ListaMercadoPage() {
   const router = useRouter()
   const {
-    itens,
-    adicionar, alterarQuantidade, definirPreco, editarNome, definirSetor,
-    toggleComprado, excluir, limparComprados,
+    itens: todosItens,
+    adicionar, alterarQuantidade, editarNome, definirSetor,
+    toggleComprado, restaurar, excluir, limparComprados,
     isOnline, pendingCount, pendingOps, syncStatus, flushQueue, clearPendingQueue,
   } = useListaMercado()
   const { salvar: salvarHistorico } = useHistoricoCompras()
+  const precosAnteriores = usePrecosAnteriores()
+
+  // ── Desfazer ──────────────────────────────────────────────────────────────
+  // Exclusões ficam só ocultas por UNDO_MS e são efetivadas depois (ou quando
+  // outra ação substitui o aviso / a página é fechada). Marcar/desmarcar e
+  // corrigir preço são aplicados na hora e o "Desfazer" restaura o estado anterior.
+  const [ocultos, setOcultos] = useState<ReadonlySet<string>>(() => new Set())
+  const [undo, setUndo] = useState<{ id: number; mensagem: string } | null>(null)
+  const undoRef = useRef<{ id: number; desfazer: () => void; efetivar?: () => void } | null>(null)
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const efetivarUndo = useCallback(() => {
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    undoTimerRef.current = null
+    const atual = undoRef.current
+    undoRef.current = null
+    setUndo(null)
+    atual?.efetivar?.()
+  }, [])
+
+  const oferecerUndo = useCallback((mensagem: string, desfazer: () => void, efetivar?: () => void) => {
+    efetivarUndo()
+    const id = Date.now()
+    undoRef.current = { id, desfazer, efetivar }
+    setUndo({ id, mensagem })
+    undoTimerRef.current = setTimeout(efetivarUndo, UNDO_MS)
+  }, [efetivarUndo])
+
+  function desfazer() {
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    undoTimerRef.current = null
+    const atual = undoRef.current
+    undoRef.current = null
+    setUndo(null)
+    atual?.desfazer()
+  }
+
+  // Saiu da página com uma exclusão pendente: efetiva
+  useEffect(() => () => {
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    undoRef.current?.efetivar?.()
+    undoRef.current = null
+  }, [])
+
+  const itens = ocultos.size ? todosItens.filter(i => !ocultos.has(i.id)) : todosItens
 
   const [pendingOpsAberto, setPendingOpsAberto] = useState(false)
   const [itemPreco, setItemPreco] = useState<ItemMercado | null>(null)
@@ -1070,6 +1388,11 @@ export default function ListaMercadoPage() {
   const [salvandoHistorico, setSalvandoHistorico] = useState(false)
   const [hintVisto, setHintVisto] = useState(true)
   const [compradosAbertos, setCompradosAbertos] = useState(true)
+  const [buscaComprados, setBuscaComprados] = useState('')
+  const [soSemPreco, setSoSemPreco] = useState(false)
+  const [ordemComprados, setOrdemComprados] = useState<OrdemComprados>('recentes')
+  // Quando cada item foi marcado nesta sessão — base da ordem "Recentes"
+  const [marcadoEm, setMarcadoEm] = useState<Record<string, number>>({})
   const [successToast, setSuccessToast] = useState(false)
   const [itemSetor, setItemSetor] = useState<ItemMercado | null>(null)
   const [agruparSetor, setAgruparSetor] = useState(false)
@@ -1078,8 +1401,19 @@ export default function ListaMercadoPage() {
   useEffect(() => {
     try {
       if (localStorage.getItem(AGRUPAR_SETOR_KEY) === '1') setAgruparSetor(true)
+      const ordemSalva = localStorage.getItem(ORDEM_COMPRADOS_KEY)
+      if (ehOrdemComprados(ordemSalva)) setOrdemComprados(ordemSalva)
     } catch { /* storage indisponível */ }
   }, [])
+
+  function escolherOrdemComprados(ordem: OrdemComprados) {
+    setOrdemComprados(ordem)
+    try { localStorage.setItem(ORDEM_COMPRADOS_KEY, ordem) } catch { /* ignore */ }
+  }
+
+  function registrarMarcacao(id: string) {
+    setMarcadoEm(prev => ({ ...prev, [id]: Date.now() }))
+  }
 
   function alternarAgrupamento() {
     setAgruparSetor(v => {
@@ -1104,33 +1438,88 @@ export default function ListaMercadoPage() {
   }, [hintVisto, itens.length])
 
   const comprados = itens.filter(i => i.comprado)
+  const compradosSemPreco = comprados.filter(i => i.preco_unit == null).length
+  const mostraFiltrosComprados = comprados.length >= MIN_COMPRADOS_FILTRO
+  // Filtro "sem preço" se desfaz sozinho quando não sobra item sem preço
+  const filtroSemPrecoAtivo = soSemPreco && compradosSemPreco > 0
+  const filtrandoComprados = mostraFiltrosComprados && (buscaComprados.trim() !== '' || filtroSemPrecoAtivo)
+  const compradosVisiveis = mostraFiltrosComprados
+    ? filtrarComprados(comprados, {
+        busca: buscaComprados,
+        soSemPreco: filtroSemPrecoAtivo,
+        ordem: ordemComprados,
+        marcadoEm,
+      })
+    : filtrarComprados(comprados, { busca: '', soSemPreco: false, ordem: 'recentes', marcadoEm })
   const pendentes = itens.filter(i => !i.comprado)
   const todosVisiveis = [...pendentes, ...comprados]
   const total    = todosVisiveis.reduce((s, i) => s + i.quantidade * (i.preco_unit ?? 0), 0)
   const semPreco = todosVisiveis.filter(i => i.preco_unit == null).length
   const totalComprados = comprados.reduce((s, i) => s + i.quantidade * (i.preco_unit ?? 0), 0)
 
-  const handleToggle = useCallback((id: string) => toggleComprado(id, itens), [toggleComprado, itens])
-  const handleQtd    = useCallback((id: string, d: number) => alterarQuantidade(id, d, itens), [alterarQuantidade, itens])
+  function snapshot(item: ItemMercado) {
+    return { comprado: item.comprado, quantidade: item.quantidade, preco_unit: item.preco_unit }
+  }
+
+  function handleToggle(id: string) {
+    const item = itens.find(i => i.id === id)
+    if (!item) return
+    const antes = snapshot(item)
+    toggleComprado(id, itens)
+    if (!item.comprado) registrarMarcacao(id)
+    oferecerUndo(
+      item.comprado ? `"${item.nome}" voltou para pendentes` : `"${item.nome}" marcado como comprado`,
+      () => restaurar(id, antes),
+    )
+  }
+  const handleQtd = useCallback((id: string, d: number) => alterarQuantidade(id, d, itens), [alterarQuantidade, itens])
+
   function handleExcluir(id: string) {
-    excluir(id)
+    const item = itens.find(i => i.id === id)
+    if (!item) return
+    setOcultos(prev => new Set(prev).add(id))
+    oferecerUndo(
+      `"${item.nome}" excluído`,
+      () => setOcultos(prev => { const n = new Set(prev); n.delete(id); return n }),
+      () => {
+        excluir(id)
+        setOcultos(prev => { const n = new Set(prev); n.delete(id); return n })
+      },
+    )
+  }
+
+  // Aplica qtd e preço de uma vez (um único salvamento) e oferece "Desfazer"
+  function aplicarCompra(item: ItemMercado, campos: { comprado: boolean; quantidade: number; preco_unit: number | null }, mensagem: string) {
+    const antes = snapshot(item)
+    restaurar(item.id, campos)
+    oferecerUndo(mensagem, () => restaurar(item.id, antes))
   }
 
   function handleConfirmarCompra(qtd: number, preco: number | null) {
     if (!itemConfirmando) return
-    const id = itemConfirmando.id
-    if (qtd !== itemConfirmando.quantidade) {
-      alterarQuantidade(id, qtd - itemConfirmando.quantidade, itens)
-    }
-    definirPreco(id, preco)
-    toggleComprado(id, itens)
+    const item = itens.find(i => i.id === itemConfirmando.id) ?? itemConfirmando
+    registrarMarcacao(item.id)
+    aplicarCompra(item, { comprado: true, quantidade: Math.max(1, qtd), preco_unit: preco },
+      `"${item.nome}" marcado como comprado`)
+  }
+
+  function handleCorrigirPreco(preco: number | null, qtd: number) {
+    if (!itemPreco) return
+    const item = itens.find(i => i.id === itemPreco.id) ?? itemPreco
+    if (preco === item.preco_unit && qtd === item.quantidade) return
+    aplicarCompra(item, { comprado: item.comprado, quantidade: Math.max(1, qtd), preco_unit: preco },
+      `"${item.nome}" atualizado`)
   }
 
   async function handleFinalizar(valorTotal: number) {
+    efetivarUndo()
     setSalvandoHistorico(true)
     try {
       await salvarHistorico(itens, valorTotal)
       await limparComprados(itens)
+      setBuscaComprados('')
+      setSoSemPreco(false)
+      setMarcadoEm({})
       setFinalizandoCompra(false)
       setSuccessToast(true)
       setTimeout(() => setSuccessToast(false), 3500)
@@ -1282,14 +1671,44 @@ export default function ListaMercadoPage() {
                   <Check className="w-3 h-3 text-white" strokeWidth={3} />
                 </span>
                 <span className="text-xs font-bold text-gray-500 flex-1 text-left tracking-tight">
-                  Comprados · {comprados.length}
+                  Comprados · {filtrandoComprados
+                    ? `${compradosVisiveis.length} de ${comprados.length}`
+                    : comprados.length}
                 </span>
+                {!filtrandoComprados && compradosSemPreco > 0 && (
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full tabular-nums">
+                    {compradosSemPreco} s/ preço
+                  </span>
+                )}
                 {compradosAbertos
                   ? <ChevronUp className="w-3.5 h-3.5 text-gray-400 flex-none" strokeWidth={2} />
                   : <ChevronDown className="w-3.5 h-3.5 text-gray-400 flex-none" strokeWidth={2} />
                 }
               </button>
-              {compradosAbertos && comprados.map(item => (
+              {compradosAbertos && mostraFiltrosComprados && (
+                <FiltrosComprados
+                  busca={buscaComprados}
+                  onBusca={setBuscaComprados}
+                  soSemPreco={filtroSemPrecoAtivo}
+                  onSoSemPreco={setSoSemPreco}
+                  qtdSemPreco={compradosSemPreco}
+                  ordem={ordemComprados}
+                  onOrdem={escolherOrdemComprados}
+                />
+              )}
+              {compradosAbertos && compradosVisiveis.length === 0 && (
+                <div className="px-4 py-6 text-center">
+                  <p className="text-sm text-gray-500 font-medium">Nenhum comprado encontrado</p>
+                  <button
+                    type="button"
+                    onClick={() => { setBuscaComprados(''); setSoSemPreco(false) }}
+                    className="mt-2 min-h-[44px] px-4 text-sm font-bold text-primary-600 active:text-primary-700"
+                  >
+                    Limpar busca
+                  </button>
+                </div>
+              )}
+              {compradosAbertos && compradosVisiveis.map(item => (
                 <ItemRow
                   key={item.id}
                   item={item}
@@ -1332,6 +1751,7 @@ export default function ListaMercadoPage() {
       {itemConfirmando && (
         <BottomSheetConfirmarCompra
           item={itemConfirmando}
+          anterior={precoAnteriorDe(precosAnteriores, itemConfirmando.nome)}
           isOnline={isOnline}
           onClose={() => setItemConfirmando(null)}
           onConfirmar={handleConfirmarCompra}
@@ -1342,9 +1762,10 @@ export default function ListaMercadoPage() {
       {itemPreco && (
         <BottomSheetPreco
           item={itemPreco}
+          anterior={precoAnteriorDe(precosAnteriores, itemPreco.nome)}
           isOnline={isOnline}
           onClose={() => setItemPreco(null)}
-          onConfirmar={preco => definirPreco(itemPreco.id, preco)}
+          onConfirmar={handleCorrigirPreco}
         />
       )}
 
@@ -1373,6 +1794,28 @@ export default function ListaMercadoPage() {
               className="text-xs font-bold text-emerald-200 hover:text-white py-1 px-2.5 rounded-lg bg-white/15 hover:bg-white/25 transition-colors"
             >
               Ver
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Desfazer — fica logo acima da barra de subtotal, ao alcance do polegar */}
+      {undo && !successToast && (
+        <div
+          key={undo.id}
+          className="fixed left-3 right-3 z-[60] max-w-md mx-auto toast-enter"
+          style={{ bottom: `calc(${totalItens > 0 ? '8.5rem' : '5rem'} + var(--safe-bottom))` }}
+        >
+          <div role="status" className="flex items-center gap-3 bg-gray-900 text-white rounded-2xl pl-4 pr-2 py-2 shadow-float">
+            <p className="flex-1 min-w-0 text-sm font-medium truncate">{undo.mensagem}</p>
+            <button
+              type="button"
+              onClick={desfazer}
+              className="flex-none flex items-center gap-1.5 min-h-[44px] px-4 rounded-xl bg-white/15
+                         text-sm font-bold text-amber-300 active:bg-white/25 transition-colors"
+            >
+              <Undo2 className="w-4 h-4" strokeWidth={2.5} />
+              Desfazer
             </button>
           </div>
         </div>
