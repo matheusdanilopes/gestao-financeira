@@ -336,6 +336,11 @@ export function useListaMercado() {
     _salvar(id, { comprado: !item.comprado })
   }, [_salvar])
 
+  // ── Restaurar campos (usado pelo "Desfazer") ─────────────────────────────
+  const restaurar = useCallback((id: string, campos: Partial<Pick<ItemMercado, 'comprado' | 'quantidade' | 'preco_unit'>>) => {
+    _salvar(id, campos)
+  }, [_salvar])
+
   // ── Excluir ────────────────────────────────────────────────────────────────
   const excluir = useCallback(async (id: string) => {
     if (timersRef.current[id]) clearTimeout(timersRef.current[id])
@@ -408,6 +413,7 @@ export function useListaMercado() {
     editarNome,
     definirSetor,
     toggleComprado,
+    restaurar,
     excluir,
     limparComprados,
     isOnline,
