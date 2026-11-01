@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, type FormEvent, type ChangeEv
 import { useRouter } from 'next/navigation'
 import {
   ShoppingBasket, Plus, Minus, Check, Pencil, ChevronDown, ChevronUp,
-  WifiOff, RefreshCw, AlertCircle, AlertTriangle, History, Camera, LayoutGrid, Undo2,
+  WifiOff, RefreshCw, AlertCircle, AlertTriangle, History, Camera, LayoutGrid, Undo2, Search, X,
 } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
 import { SwipeableItem } from '@/components/SwipeableItem'
@@ -18,6 +18,9 @@ import { formatBRL, mascaraMoeda, formatarMoedaInput, parseMoeda } from '@/lib/f
 import {
   usePrecosAnteriores, precoAnteriorDe, alertaPreco, alertaTotal, type PrecoAnterior,
 } from '@/lib/precosMercado'
+import {
+  filtrarComprados, ORDENS_COMPRADOS, ehOrdemComprados, type OrdemComprados,
+} from '@/lib/compradosMercado'
 import PageHeader, { PAGE_HEADER_PILL } from '@/components/PageHeader'
 
 // ── Constantes ────────────────────────────────────────────────────────────────
@@ -25,6 +28,9 @@ import PageHeader, { PAGE_HEADER_PILL } from '@/components/PageHeader'
 const HIST_KEY = 'lista-mercado-historico'
 const HINT_KEY = 'lista-mercado-swipe-hint'
 const AGRUPAR_SETOR_KEY = 'lista-mercado-agrupar-setor'
+const ORDEM_COMPRADOS_KEY = 'lista-mercado-ordem-comprados'
+/** A partir de quantos comprados aparecem busca, filtro e ordenação. */
+const MIN_COMPRADOS_FILTRO = 3
 const MAX_HIST = 50
 const UNDO_MS = 5000
 /** Quantidade máxima lida do texto ("Leite 2"). Números maiores ficam no nome ("Farinha 500"). */
@@ -993,6 +999,97 @@ function ItemRow({
   )
 }
 
+// ── Busca / filtro / ordenação dos comprados ─────────────────────────────────
+
+function FiltrosComprados({
+  busca,
+  onBusca,
+  soSemPreco,
+  onSoSemPreco,
+  qtdSemPreco,
+  ordem,
+  onOrdem,
+}: {
+  busca: string
+  onBusca: (v: string) => void
+  soSemPreco: boolean
+  onSoSemPreco: (v: boolean) => void
+  qtdSemPreco: number
+  ordem: OrdemComprados
+  onOrdem: (o: OrdemComprados) => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  return (
+    <div className="px-3 pt-2.5 pb-2 bg-gray-50 border-b border-gray-100 space-y-2">
+      <div className="relative">
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" strokeWidth={2} />
+        <input
+          ref={inputRef}
+          type="search"
+          value={busca}
+          onChange={e => onBusca(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Escape') onBusca('')
+            if (e.key === 'Enter') e.currentTarget.blur()
+          }}
+          placeholder="Buscar nos comprados…"
+          aria-label="Buscar nos itens comprados"
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+          enterKeyHint="search"
+          className="w-full h-11 pl-10 pr-11 rounded-xl bg-white border border-gray-200 text-sm font-medium text-gray-900
+                     placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent
+                     [&::-webkit-search-cancel-button]:hidden"
+        />
+        {busca && (
+          <button
+            type="button"
+            onClick={() => { onBusca(''); inputRef.current?.focus() }}
+            aria-label="Limpar busca"
+            className="absolute right-0 top-0 w-11 h-11 flex items-center justify-center text-gray-400 active:text-gray-600"
+          >
+            <X className="w-4 h-4" strokeWidth={2.5} />
+          </button>
+        )}
+      </div>
+
+      <div className="flex items-center gap-1.5 overflow-x-auto -mx-3 px-3 scrollbar-hide">
+        {(qtdSemPreco > 0 || soSemPreco) && (
+          <button
+            type="button"
+            onClick={() => onSoSemPreco(!soSemPreco)}
+            aria-pressed={soSemPreco}
+            className={`flex-none h-9 px-3 rounded-full text-xs font-bold border transition-colors active:scale-95
+                        ${soSemPreco
+                          ? 'bg-amber-500 border-amber-500 text-white'
+                          : 'bg-white border-amber-200 text-amber-700'}`}
+          >
+            Sem preço · {qtdSemPreco}
+          </button>
+        )}
+        <div role="radiogroup" aria-label="Ordenar comprados" className="flex-none flex items-center gap-1 ml-auto">
+          {ORDENS_COMPRADOS.map(o => (
+            <button
+              key={o.valor}
+              type="button"
+              role="radio"
+              aria-checked={ordem === o.valor}
+              onClick={() => onOrdem(o.valor)}
+              className={`flex-none h-9 px-3 rounded-full text-xs font-semibold border transition-colors active:scale-95
+                          ${ordem === o.valor
+                            ? 'bg-gray-900 border-gray-900 text-white'
+                            : 'bg-white border-gray-200 text-gray-600'}`}
+            >
+              {o.rotulo}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Barra de subtotal flutuante ───────────────────────────────────────────────
 
 function SubtotalBar({
@@ -1291,6 +1388,11 @@ export default function ListaMercadoPage() {
   const [salvandoHistorico, setSalvandoHistorico] = useState(false)
   const [hintVisto, setHintVisto] = useState(true)
   const [compradosAbertos, setCompradosAbertos] = useState(true)
+  const [buscaComprados, setBuscaComprados] = useState('')
+  const [soSemPreco, setSoSemPreco] = useState(false)
+  const [ordemComprados, setOrdemComprados] = useState<OrdemComprados>('recentes')
+  // Quando cada item foi marcado nesta sessão — base da ordem "Recentes"
+  const [marcadoEm, setMarcadoEm] = useState<Record<string, number>>({})
   const [successToast, setSuccessToast] = useState(false)
   const [itemSetor, setItemSetor] = useState<ItemMercado | null>(null)
   const [agruparSetor, setAgruparSetor] = useState(false)
@@ -1299,8 +1401,19 @@ export default function ListaMercadoPage() {
   useEffect(() => {
     try {
       if (localStorage.getItem(AGRUPAR_SETOR_KEY) === '1') setAgruparSetor(true)
+      const ordemSalva = localStorage.getItem(ORDEM_COMPRADOS_KEY)
+      if (ehOrdemComprados(ordemSalva)) setOrdemComprados(ordemSalva)
     } catch { /* storage indisponível */ }
   }, [])
+
+  function escolherOrdemComprados(ordem: OrdemComprados) {
+    setOrdemComprados(ordem)
+    try { localStorage.setItem(ORDEM_COMPRADOS_KEY, ordem) } catch { /* ignore */ }
+  }
+
+  function registrarMarcacao(id: string) {
+    setMarcadoEm(prev => ({ ...prev, [id]: Date.now() }))
+  }
 
   function alternarAgrupamento() {
     setAgruparSetor(v => {
@@ -1325,6 +1438,19 @@ export default function ListaMercadoPage() {
   }, [hintVisto, itens.length])
 
   const comprados = itens.filter(i => i.comprado)
+  const compradosSemPreco = comprados.filter(i => i.preco_unit == null).length
+  const mostraFiltrosComprados = comprados.length >= MIN_COMPRADOS_FILTRO
+  // Filtro "sem preço" se desfaz sozinho quando não sobra item sem preço
+  const filtroSemPrecoAtivo = soSemPreco && compradosSemPreco > 0
+  const filtrandoComprados = mostraFiltrosComprados && (buscaComprados.trim() !== '' || filtroSemPrecoAtivo)
+  const compradosVisiveis = mostraFiltrosComprados
+    ? filtrarComprados(comprados, {
+        busca: buscaComprados,
+        soSemPreco: filtroSemPrecoAtivo,
+        ordem: ordemComprados,
+        marcadoEm,
+      })
+    : filtrarComprados(comprados, { busca: '', soSemPreco: false, ordem: 'recentes', marcadoEm })
   const pendentes = itens.filter(i => !i.comprado)
   const todosVisiveis = [...pendentes, ...comprados]
   const total    = todosVisiveis.reduce((s, i) => s + i.quantidade * (i.preco_unit ?? 0), 0)
@@ -1340,6 +1466,7 @@ export default function ListaMercadoPage() {
     if (!item) return
     const antes = snapshot(item)
     toggleComprado(id, itens)
+    if (!item.comprado) registrarMarcacao(id)
     oferecerUndo(
       item.comprado ? `"${item.nome}" voltou para pendentes` : `"${item.nome}" marcado como comprado`,
       () => restaurar(id, antes),
@@ -1371,6 +1498,7 @@ export default function ListaMercadoPage() {
   function handleConfirmarCompra(qtd: number, preco: number | null) {
     if (!itemConfirmando) return
     const item = itens.find(i => i.id === itemConfirmando.id) ?? itemConfirmando
+    registrarMarcacao(item.id)
     aplicarCompra(item, { comprado: true, quantidade: Math.max(1, qtd), preco_unit: preco },
       `"${item.nome}" marcado como comprado`)
   }
@@ -1389,6 +1517,9 @@ export default function ListaMercadoPage() {
     try {
       await salvarHistorico(itens, valorTotal)
       await limparComprados(itens)
+      setBuscaComprados('')
+      setSoSemPreco(false)
+      setMarcadoEm({})
       setFinalizandoCompra(false)
       setSuccessToast(true)
       setTimeout(() => setSuccessToast(false), 3500)
@@ -1540,14 +1671,44 @@ export default function ListaMercadoPage() {
                   <Check className="w-3 h-3 text-white" strokeWidth={3} />
                 </span>
                 <span className="text-xs font-bold text-gray-500 flex-1 text-left tracking-tight">
-                  Comprados · {comprados.length}
+                  Comprados · {filtrandoComprados
+                    ? `${compradosVisiveis.length} de ${comprados.length}`
+                    : comprados.length}
                 </span>
+                {!filtrandoComprados && compradosSemPreco > 0 && (
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full tabular-nums">
+                    {compradosSemPreco} s/ preço
+                  </span>
+                )}
                 {compradosAbertos
                   ? <ChevronUp className="w-3.5 h-3.5 text-gray-400 flex-none" strokeWidth={2} />
                   : <ChevronDown className="w-3.5 h-3.5 text-gray-400 flex-none" strokeWidth={2} />
                 }
               </button>
-              {compradosAbertos && comprados.map(item => (
+              {compradosAbertos && mostraFiltrosComprados && (
+                <FiltrosComprados
+                  busca={buscaComprados}
+                  onBusca={setBuscaComprados}
+                  soSemPreco={filtroSemPrecoAtivo}
+                  onSoSemPreco={setSoSemPreco}
+                  qtdSemPreco={compradosSemPreco}
+                  ordem={ordemComprados}
+                  onOrdem={escolherOrdemComprados}
+                />
+              )}
+              {compradosAbertos && compradosVisiveis.length === 0 && (
+                <div className="px-4 py-6 text-center">
+                  <p className="text-sm text-gray-500 font-medium">Nenhum comprado encontrado</p>
+                  <button
+                    type="button"
+                    onClick={() => { setBuscaComprados(''); setSoSemPreco(false) }}
+                    className="mt-2 min-h-[44px] px-4 text-sm font-bold text-primary-600 active:text-primary-700"
+                  >
+                    Limpar busca
+                  </button>
+                </div>
+              )}
+              {compradosAbertos && compradosVisiveis.map(item => (
                 <ItemRow
                   key={item.id}
                   item={item}
