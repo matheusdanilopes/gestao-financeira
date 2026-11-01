@@ -16,7 +16,7 @@ import { ptBR } from 'date-fns/locale'
 import { AlertCircle, Layers } from 'lucide-react'
 import { formatBRL } from '@/lib/format'
 import { supabase } from '@/lib/supabaseClient'
-import { classificarTipoGasto, type AssinaturaAtiva } from '@/lib/composicaoFatura'
+import { classificarTipoGasto, comporValorFatura, type AssinaturaAtiva } from '@/lib/composicaoFatura'
 import { ativaEfetivaNoMes, type HistoricoStatusEntry } from '@/lib/assinaturaStatus'
 import { useIsDark } from '@/lib/useIsDark'
 import { CHART_ANIMATION, tooltipCfg, axisColors, legendCfg } from '@/lib/chartTheme'
@@ -42,6 +42,7 @@ interface TransacaoRow {
   parcela_atual: number | string | null
   total_parcelas: number | string | null
   status: string | null
+  conciliacao_ref: string | null
   projeto_fatura: string
 }
 
@@ -97,7 +98,7 @@ export default function GraficoComposicaoFatura({ mesAtual, ativo = true }: Prop
         // incluir cartão 1/2 classificaria as assinaturas deles como compra nova.
         supabase
           .from('transacoes_nubank')
-          .select('valor, responsavel, descricao, parcela_atual, total_parcelas, status, projeto_fatura')
+          .select('valor, responsavel, descricao, parcela_atual, total_parcelas, status, conciliacao_ref, projeto_fatura')
           .eq('cartao', 'nubank')
           .in('projeto_fatura', mesesFatura),
         supabase
@@ -124,25 +125,22 @@ export default function GraficoComposicaoFatura({ mesAtual, ativo = true }: Prop
           .map(a => ({ nome: a.nome, responsavel: a.responsavel, valor: a.valor, moeda: a.moeda }))]
       }))
 
-      const porMes = new Map<string, { existente: number; assinatura: number; novo: number }>()
-      for (const mes of mesesFatura) porMes.set(mes, { existente: 0, assinatura: 0, novo: 0 })
-
+      // Mesma regra de estornos do total da fatura (comporValorFatura): compra
+      // estornada e estorno com par se cancelam; estorno sem par abate uma parte.
+      const txPorMes = new Map<string, TransacaoRow[]>(mesesFatura.map(m => [m, []]))
       for (const t of ((transacoes ?? []) as TransacaoRow[])) {
-        // Estornos e compras estornadas se cancelam; como segmento de barra não
-        // fazem sentido — mesma regra usada na composição da fatura do Resumo.
-        if (t.status === 'ESTORNO' || t.status === 'ESTORNADO') continue
-        const alvo = porMes.get(t.projeto_fatura)
-        if (!alvo) continue
-        const tipo = classificarTipoGasto(
+        txPorMes.get(t.projeto_fatura)?.push({ ...t, valor: Number(t.valor ?? 0) })
+      }
+      const porMes = new Map(mesesFatura.map(mes => [mes, comporValorFatura(txPorMes.get(mes) ?? [], t =>
+        classificarTipoGasto(
           t.descricao,
           t.parcela_atual == null ? null : Number(t.parcela_atual),
           t.total_parcelas == null ? null : Number(t.total_parcelas),
           t.responsavel,
-          assinAtivasPorMes.get(t.projeto_fatura) ?? [],
+          assinAtivasPorMes.get(mes) ?? [],
           t.valor,
-        )
-        alvo[tipo] += Number(t.valor ?? 0)
-      }
+        ),
+      )]))
 
       const entry: Dados = {
         labels: mesesFatura.map(m => format(new Date(m + 'T12:00:00'), 'MMM/yy', { locale: ptBR })),
