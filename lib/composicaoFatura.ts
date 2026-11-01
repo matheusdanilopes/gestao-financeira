@@ -67,3 +67,43 @@ export function classificarTipoGasto(
   if (parcela && parcela.atual >= 2) return 'existente'
   return 'novo'
 }
+
+export type ComposicaoPorTipo = Record<TipoGasto, number>
+
+/**
+ * Decompõe o valor gasto de um conjunto de transações em parcelas antigas,
+ * compras novas e assinaturas, com o mesmo tratamento de estornos de
+ * somarValorFatura — a soma das partes bate com o total exibido:
+ * - compra ESTORNADO e estorno com par (conciliacao_ref) se cancelam → ignorados;
+ * - estorno SEM par é abatido do tipo em que ele próprio se classifica (ex.: um
+ *   estorno "2/5" abate parcelas antigas). Se esse tipo não comportar o crédito
+ *   inteiro, o excedente é abatido dos demais, para nenhuma parte ficar negativa.
+ */
+export function comporValorFatura<T extends TransacaoParaTotal>(
+  transacoes: T[],
+  classificar: (t: T) => TipoGasto
+): ComposicaoPorTipo {
+  const comp: ComposicaoPorTipo = { existente: 0, novo: 0, assinatura: 0 }
+  const creditos: { tipo: TipoGasto; valor: number }[] = []
+  for (const t of transacoes) {
+    if (t.status === 'ESTORNADO') continue
+    if (t.status === 'ESTORNO') {
+      if (!t.conciliacao_ref) creditos.push({ tipo: classificar(t), valor: t.valor })
+      continue
+    }
+    comp[classificar(t)] += t.valor
+  }
+  const ordem: TipoGasto[] = ['novo', 'existente', 'assinatura']
+  for (const c of creditos) {
+    let restante = c.valor
+    for (const tipo of [c.tipo, ...ordem.filter(o => o !== c.tipo)]) {
+      if (restante <= 0) break
+      const abate = Math.min(Math.max(comp[tipo], 0), restante)
+      comp[tipo] -= abate
+      restante -= abate
+    }
+    // Crédito maior que tudo: mantém a soma igual ao total (que fica negativo).
+    if (restante > 0) comp[c.tipo] -= restante
+  }
+  return comp
+}

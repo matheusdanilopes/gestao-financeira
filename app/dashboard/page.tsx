@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
-import { classificarTipoGasto, somarValorFatura, type TipoGasto } from '@/lib/composicaoFatura'
+import { classificarTipoGasto, comporValorFatura, somarValorFatura, type TipoGasto } from '@/lib/composicaoFatura'
 import { type ReservaFatura, type BaixaReserva } from '@/lib/reservasFatura'
-import { calcularPendentesFatura, type AssinaturaPendenteRow, type TransacaoPendenteRow } from '@/lib/pendentesFatura'
+import { calcularPendentesFatura, type AssinaturaPendenteRow } from '@/lib/pendentesFatura'
 import { BarChart2, BarChart3, CalendarRange, CreditCard, Wallet, PiggyBank, Layers, Scale, TrendingUp, TrendingDown, LineChart, Activity, Eye, EyeOff, Receipt, ShoppingCart, ShoppingBasket, Download, Sparkles } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
@@ -339,10 +339,6 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   // "Restante" de cada pessoa e no saldo do mês. As parcelas projetadas abatem as
   // reservas: numa fatura ainda sem lançamentos, a parcela de uma compra prevista já
   // feita está em "Parcelas previstas" — sem isso ela seria descontada duas vezes.
-  type TransacaoRow = TransacaoPendenteRow
-  const txFaturaList: TransacaoRow[] = transacoesFatura.filter(
-    t => t.status !== 'ESTORNO' && t.status !== 'ESTORNADO'
-  )
   const pendentes = calcularPendentesFatura({
     mes,
     assinaturas: (assinaturasData || []) as AssinaturaPendenteRow[],
@@ -391,15 +387,13 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
 
   // Decompõe o valor gasto (atual) de cada responsável em: parcelas pré-existentes (2/X em diante),
   // novas parcelas/compras à vista (1/X) e assinaturas — para exibir sobreposto na barra da fatura.
+  // Usa as mesmas transações e regra de estornos do "atual" (somarValorFatura): um
+  // estorno sem par abate o total, então precisa abater também uma das partes.
   function montarComposicao(responsavel: string): ComposicaoGastos {
-    let existente = 0, novo = 0, assinatura = 0
-    for (const t of txFaturaList.filter((tx: TransacaoRow) => tx.responsavel === responsavel)) {
-      const tipo = classificarTipoGasto(t.descricao, t.parcela_atual, t.total_parcelas, t.responsavel, assinAtivas, t.valor)
-      if (tipo === 'assinatura') assinatura += t.valor
-      else if (tipo === 'existente') existente += t.valor
-      else novo += t.valor
-    }
-    return { existente, novo, assinatura }
+    return comporValorFatura(
+      transacoesFatura.filter(t => (t.responsavel || '') === responsavel),
+      t => classificarTipoGasto(t.descricao, t.parcela_atual, t.total_parcelas, t.responsavel, assinAtivas, t.valor)
+    )
   }
 
   // Um bloco por cartão adicional do principal. Todas as funções acima já são
