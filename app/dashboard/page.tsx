@@ -90,7 +90,7 @@ const GraficoAnual = dynamic(() => import('@/components/GraficoAnual'), {
 })
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { usePrefetchPages } from '@/lib/usePrefetchPages'
-import { formatBRL as fmt, formatBRLCompacto, formatDecimal } from '@/lib/format'
+import { formatBRL as fmt, formatDecimal } from '@/lib/format'
 import { nomeDoUsuario } from '@/lib/notificacoes'
 import { tipoCartaoPorItem, removerPrefixoCartao, ehLinhaDeReceita } from '@/lib/tipoCartao'
 import {
@@ -656,13 +656,11 @@ export default function Dashboard() {
     try { localStorage.setItem(CHAVE_OCULTAR_SALDO, novo ? '1' : '0') } catch { /* ignora */ }
   }, [ocultarSaldo])
   const mascarar = useCallback((v: number) => (ocultarSaldo ? 'R$ ••••' : fmt(v)), [ocultarSaldo])
-  // Receita/Gastos do topo: sem centavos, para caber numa linha sem cortar
   // Detalhes que saíram da linha sob a barra para não poluir o topo: ficam no (i) do saldo
   const detalheSaldo = [
     resumoCaixa.pendentesNaFatura > 0 && `Inclui ${mascarar(resumoCaixa.pendentesNaFatura)} que ainda vão cair na fatura.`,
     resumoCaixa.saldoPrevisto !== heroSaldo && resumoCaixa.receitaTotal > 0 && `Saldo previsto (planejamento): ${mascarar(resumoCaixa.saldoPrevisto)}.`,
   ].filter(Boolean).map(t => `${t} `).join('')
-  const mascararInteiro = useCallback((v: number) => (ocultarSaldo ? 'R$ ••••' : formatBRLCompacto(Math.round(v))), [ocultarSaldo])
 
   const totalInvestido = useMemo(
     () => investimentos.reduce((a, i) => a + i.aportado, 0),
@@ -743,7 +741,10 @@ export default function Dashboard() {
               <div className="skeleton-inverse h-4 w-36 rounded-full" />
               <div className="skeleton-inverse h-10 w-56" />
               <div className="skeleton-inverse h-1.5 w-full rounded-full" />
-              <div className="skeleton-inverse h-3.5 w-48 rounded-full" />
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <div className="skeleton-inverse h-12 rounded-xl" />
+                <div className="skeleton-inverse h-12 rounded-xl" />
+              </div>
             </div>
           ) : (
             <div className="content-enter">
@@ -780,18 +781,24 @@ export default function Dashboard() {
                 <span className="font-semibold num">{formatDecimal(resumoCaixa.percentualComprometimento)}%</span> da renda comprometida
               </p>
 
-              <p className="mt-2 flex items-center gap-4 text-[13px] text-white/85">
-                <span className="inline-flex items-center gap-1.5">
-                  <TrendingUp className="w-3.5 h-3.5 text-emerald-200" aria-hidden="true" />
-                  <span className="sr-only">Receita</span>
-                  <span key={resumoCaixa.receitaTotal} className="font-semibold num value-update">{mascararInteiro(resumoCaixa.receitaTotal)}</span>
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <TrendingDown className="w-3.5 h-3.5 text-red-200" aria-hidden="true" />
-                  <span className="sr-only">Gastos</span>
-                  <span key={resumoCaixa.totalGastos} className="font-semibold num value-update">{mascararInteiro(resumoCaixa.totalGastos)}</span>
-                </span>
-              </p>
+              {/* Rótulo em cima e valor embaixo: o valor ocupa a largura toda do
+                  card e cabe com centavos, sem cortar com reticências */}
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                <div className="bg-white/10 rounded-xl px-3 py-2 min-w-0">
+                  <p className="flex items-center gap-1 text-[11px] text-white/75 leading-none">
+                    <TrendingUp className="w-3 h-3 text-emerald-200" aria-hidden="true" />
+                    Receita
+                  </p>
+                  <p key={resumoCaixa.receitaTotal} className="mt-1 text-[15px] font-bold num value-update whitespace-nowrap">{mascarar(resumoCaixa.receitaTotal)}</p>
+                </div>
+                <div className="bg-white/10 rounded-xl px-3 py-2 min-w-0">
+                  <p className="flex items-center gap-1 text-[11px] text-white/75 leading-none">
+                    <TrendingDown className="w-3 h-3 text-red-200" aria-hidden="true" />
+                    Gastos
+                  </p>
+                  <p key={resumoCaixa.totalGastos} className="mt-1 text-[15px] font-bold num value-update whitespace-nowrap">{mascarar(resumoCaixa.totalGastos)}</p>
+                </div>
+              </div>
             </div>
           )}
         </div>

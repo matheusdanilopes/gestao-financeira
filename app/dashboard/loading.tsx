@@ -20,7 +20,10 @@ export default function Loading() {
           <div className="skeleton-inverse h-4 w-36 rounded-full" />
           <div className="skeleton-inverse h-10 w-56" />
           <div className="skeleton-inverse h-1.5 w-full rounded-full" />
-          <div className="skeleton-inverse h-3.5 w-48 rounded-full" />
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <div className="skeleton-inverse h-12 rounded-xl" />
+            <div className="skeleton-inverse h-12 rounded-xl" />
+          </div>
         </div>
       </div>
 
