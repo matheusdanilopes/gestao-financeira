@@ -15,6 +15,7 @@ import { useMes } from '@/components/MesProvider'
 import MonthSelector from '@/components/MonthSelector'
 import NotificacoesBell from '@/components/NotificacoesBell'
 import UltimaImportacaoInfo from '@/components/UltimaImportacaoInfo'
+import { ValoresOcultosProvider, GraficoOcultavel, MASCARA_VALOR } from '@/components/ValoresOcultos'
 import DataStatusIndicator from '@/components/DataStatusIndicator'
 import { useRefreshContext } from '@/components/RefreshProvider'
 import { useCountUp } from '@/lib/useCountUp'
@@ -643,7 +644,8 @@ export default function Dashboard() {
 
   const { syncState } = useRefreshContext()
 
-  // Olho do topo: esconde os valores do resumo (saldo, receita, gastos).
+  // Olho do topo: esconde todos os valores do dashboard — textos viram
+  // MASCARA_VALOR e gráficos ficam borrados (via ValoresOcultosProvider).
   // Preferência por aparelho — fica no localStorage.
   const [ocultarSaldo, setOcultarSaldo] = useState(false)
   useEffect(() => {
@@ -657,7 +659,7 @@ export default function Dashboard() {
     setOcultarSaldo(novo)
     try { localStorage.setItem(CHAVE_OCULTAR_SALDO, novo ? '1' : '0') } catch { /* ignora */ }
   }, [ocultarSaldo])
-  const mascarar = useCallback((v: number) => (ocultarSaldo ? 'R$ ••••' : fmt(v)), [ocultarSaldo])
+  const mascarar = useCallback((v: number) => (ocultarSaldo ? MASCARA_VALOR : fmt(v)), [ocultarSaldo])
   // Detalhes que saíram da linha sob a barra para não poluir o topo: ficam no (i) do saldo
   const detalheSaldo = [
     resumoCaixa.pendentesNaFatura > 0 && `Inclui ${mascarar(resumoCaixa.pendentesNaFatura)} que ainda vão cair na fatura.`,
@@ -686,6 +688,7 @@ export default function Dashboard() {
   const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
 
   return (
+    <ValoresOcultosProvider ocultar={ocultarSaldo}>
     <div className="min-h-screen bg-gray-50 page-bottom-safe page-enter">
 
       <PeriodSelectorSheet
@@ -877,7 +880,7 @@ export default function Dashboard() {
                   <p className="text-xs font-medium text-gray-500 mb-1.5">Total atual</p>
                   {(() => {
                     const totalExibido = fatura.totalRealizado > 0 ? fatura.totalRealizado : totalProjecaoParcelas
-                    const totalStr = fmt(totalExibido)
+                    const totalStr = mascarar(totalExibido)
                     const commaIdx = totalStr.lastIndexOf(',')
                     const intPart = commaIdx >= 0 ? totalStr.slice(0, commaIdx) : totalStr
                     const decPart = commaIdx >= 0 ? totalStr.slice(commaIdx) : ''
@@ -929,7 +932,7 @@ export default function Dashboard() {
                                 <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{card.label}</span>
                               </div>
                               <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 num shrink-0">
-                                {fmt(card.atual)} <span className="font-normal text-gray-400">/ {card.previsto > 0 ? fmt(card.previsto) : '–'}</span>
+                                {mascarar(card.atual)} <span className="font-normal text-gray-400">/ {card.previsto > 0 ? mascarar(card.previsto) : '–'}</span>
                               </span>
                             </div>
                           ))}
@@ -946,8 +949,8 @@ export default function Dashboard() {
                                 <div className={`w-2 h-2 rounded-full shrink-0 ${cor.ponto}`} />
                                 <span className={`text-[11px] font-semibold truncate ${cor.tileTexto}`}>{t.responsavel} total</span>
                               </div>
-                              <p className="text-xl font-bold text-gray-900 num">{fmt(t.atual)}</p>
-                              <p className="text-[11px] text-gray-400 num mt-0.5">de {fmt(t.previsto)}</p>
+                              <p className="text-xl font-bold text-gray-900 num">{mascarar(t.atual)}</p>
+                              <p className="text-[11px] text-gray-400 num mt-0.5">de {mascarar(t.previsto)}</p>
                             </div>
                           )
                         })}
@@ -1025,12 +1028,12 @@ export default function Dashboard() {
                         {/* Aportado / meta */}
                         <div className="flex items-baseline justify-between gap-2">
                           <span className={`text-base font-bold num ${concluido ? 'text-emerald-600' : 'text-gray-800'}`}>
-                            {fmt(inv.aportado)}
+                            {mascarar(inv.aportado)}
                           </span>
                           <div className="text-right">
-                            <span className="text-xs text-gray-400 num">Calculado Atual {fmt(meta)}</span>
+                            <span className="text-xs text-gray-400 num">Calculado Atual {mascarar(meta)}</span>
                             {metaPrevista !== meta && metaPrevista > 0 && (
-                              <span className="block text-[10px] text-gray-500 num">Previsto {fmt(metaPrevista)}</span>
+                              <span className="block text-[10px] text-gray-500 num">Previsto {mascarar(metaPrevista)}</span>
                             )}
                           </div>
                         </div>
@@ -1042,7 +1045,7 @@ export default function Dashboard() {
                   {investimentos.length > 0 && (
                     <div className="flex items-center justify-between px-1 pt-1">
                       <span className="text-xs text-gray-400 font-medium">Total aportado</span>
-                      <span className="text-sm font-bold text-violet-700 num">{fmt(totalInvestido)}</span>
+                      <span className="text-sm font-bold text-violet-700 num">{mascarar(totalInvestido)}</span>
                     </div>
                   )}
                 </div>
@@ -1093,14 +1096,16 @@ export default function Dashboard() {
               <p className="text-xs text-gray-400 mb-4 ml-10">
                 {visaoGastosDiarios === 'burndown' ? 'Consumo do previsto · Toque para detalhes' : 'Dia a dia · Toque para detalhes'}
               </p>
-              <GraficoGastosDiarios
-                mesAtual={mesAtual}
-                cartao1Nome={fatura.cartao1Nome}
-                cartao2Nome={fatura.cartao2Nome}
-                visao={visaoGastosDiarios}
-                previsto={{ matheus: fatura.principalPrevistoPorResponsavel.Matheus ?? 0, jeniffer: fatura.principalPrevistoPorResponsavel.Jeniffer ?? 0, cartao1: fatura.cartao1Previsto, cartao2: fatura.cartao2Previsto }}
-                dataFechamentoFatura={dataFechamentoNubank}
-              />
+              <GraficoOcultavel>
+                <GraficoGastosDiarios
+                  mesAtual={mesAtual}
+                  cartao1Nome={fatura.cartao1Nome}
+                  cartao2Nome={fatura.cartao2Nome}
+                  visao={visaoGastosDiarios}
+                  previsto={{ matheus: fatura.principalPrevistoPorResponsavel.Matheus ?? 0, jeniffer: fatura.principalPrevistoPorResponsavel.Jeniffer ?? 0, cartao1: fatura.cartao1Previsto, cartao2: fatura.cartao2Previsto }}
+                  dataFechamentoFatura={dataFechamentoNubank}
+                />
+              </GraficoOcultavel>
             </div>
 
             {/* Planejado · Fatura · Limites num único card — antes eram três cards
@@ -1126,6 +1131,7 @@ export default function Dashboard() {
               <p className="text-xs text-gray-400 mb-4 ml-10">
                 Maiores variações vs. média das faturas anteriores
               </p>
+              <GraficoOcultavel>
               <LazyRender alturaPlaceholder={280}>
                 <GraficoVariacaoCategorias
                   mesAtual={mesAtual}
@@ -1133,6 +1139,7 @@ export default function Dashboard() {
                   ativo={aba === 'graficos'}
                 />
               </LazyRender>
+              </GraficoOcultavel>
             </div>
 
             <div className="bg-white rounded-3xl shadow-soft p-4 lg:col-span-2">
@@ -1148,9 +1155,11 @@ export default function Dashboard() {
               <p className="text-xs text-gray-400 mb-4 ml-10">
                 Últimas 6 faturas do NuBank · Parcelas, assinaturas e compras novas
               </p>
+              <GraficoOcultavel>
               <LazyRender alturaPlaceholder={280}>
                 <GraficoComposicaoFatura mesAtual={mesAtual} ativo={aba === 'graficos'} />
               </LazyRender>
+              </GraficoOcultavel>
             </div>
 
             <div className="bg-white rounded-3xl shadow-soft p-4">
@@ -1164,6 +1173,7 @@ export default function Dashboard() {
                 </h2>
               </div>
               <p className="text-xs text-gray-400 mb-4 ml-10">Parcelas em aberto · Toque duas vezes no mês para ver detalhes</p>
+              <GraficoOcultavel>
               <LazyRender alturaPlaceholder={280}>
                 <GraficoProjecao
                   mesInicio={mesAtual}
@@ -1174,6 +1184,7 @@ export default function Dashboard() {
                   ativo={aba === 'graficos'}
                 />
               </LazyRender>
+              </GraficoOcultavel>
             </div>
 
             <div className="bg-white rounded-3xl shadow-soft p-4">
@@ -1187,9 +1198,11 @@ export default function Dashboard() {
                 </h2>
               </div>
               <p className="text-xs text-gray-400 mb-4 ml-10">Divisão dos aportes do mês</p>
+              <GraficoOcultavel>
               <LazyRender alturaPlaceholder={224}>
                 <GraficoAlocacaoInvestimentos mesAtual={mesAtual} ativo={aba === 'graficos'} />
               </LazyRender>
+              </GraficoOcultavel>
             </div>
 
             <div className="bg-white rounded-3xl shadow-soft p-4 lg:col-span-2">
@@ -1203,9 +1216,11 @@ export default function Dashboard() {
                 </h2>
               </div>
               <p className="text-xs text-gray-400 mb-4 ml-10">Últimos 6 meses · Passe o cursor para detalhes</p>
+              <GraficoOcultavel>
               <LazyRender alturaPlaceholder={280}>
                 <GraficoEvolucaoMensal mesAtual={mesAtual} ativo={aba === 'graficos'} />
               </LazyRender>
+              </GraficoOcultavel>
             </div>
 
             <div className="bg-white rounded-3xl shadow-soft p-4 lg:col-span-2">
@@ -1219,9 +1234,11 @@ export default function Dashboard() {
                 </h2>
               </div>
               <p className="text-xs text-gray-400 mb-4 ml-10">Últimos 6 meses · Realizado vs. Meta</p>
+              <GraficoOcultavel>
               <LazyRender alturaPlaceholder={280}>
                 <GraficoEvolucaoInvestimentos mesAtual={mesAtual} ativo={aba === 'graficos'} />
               </LazyRender>
+              </GraficoOcultavel>
             </div>
 
             <div className="bg-white rounded-3xl shadow-soft p-4 lg:col-span-2">
@@ -1235,9 +1252,11 @@ export default function Dashboard() {
                 </h2>
               </div>
               <p className="text-xs text-gray-400 mb-4 ml-10">Receitas, despesas e saldo mês a mês</p>
+              <GraficoOcultavel>
               <LazyRender alturaPlaceholder={280}>
                 <GraficoAnual ano={mesAtual.getFullYear()} />
               </LazyRender>
+              </GraficoOcultavel>
             </div>
 
             <div className="bg-white rounded-3xl shadow-soft p-4 lg:col-span-2">
@@ -1251,9 +1270,11 @@ export default function Dashboard() {
                 </h2>
               </div>
               <p className="text-xs text-gray-400 mb-4 ml-10">Despesas do ano contra o ano anterior</p>
+              <GraficoOcultavel>
               <LazyRender alturaPlaceholder={280}>
                 <GraficoComparativoAnual ano={mesAtual.getFullYear()} ativo={aba === 'graficos'} />
               </LazyRender>
+              </GraficoOcultavel>
             </div>
 
           </div>
@@ -1276,5 +1297,6 @@ export default function Dashboard() {
         onVerCompras={verComprasDoTipo}
       />
     </div>
+    </ValoresOcultosProvider>
   )
 }

@@ -3,7 +3,7 @@
 import { X } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
 import { useState, useMemo, useEffect } from 'react'
-import { formatBRL } from '@/lib/format'
+import { useFormatarValor } from '@/components/ValoresOcultos'
 
 type CampoFiltro = 'responsavel' | 'tipo' | 'cartao' | 'categoria' | 'descricao'
 
@@ -61,6 +61,7 @@ interface Props {
 }
 
 export default function DrawerDetalhes({ aberto, onClose, dados, cartaoLabels }: Props) {
+  const formatBRL = useFormatarValor()
   const [filtroCampo, setFiltroCampo] = useState<CampoFiltro>('responsavel')
   const [filtroValor, setFiltroValor] = useState('Todos')
   const [filtroCampo2, setFiltroCampo2] = useState<CampoFiltro>('cartao')

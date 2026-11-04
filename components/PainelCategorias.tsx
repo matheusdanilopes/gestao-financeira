@@ -4,6 +4,7 @@ import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import { PieChart } from 'lucide-react'
 import { InfoPopover } from '@/components/InfoPopover'
+import { GraficoOcultavel } from '@/components/ValoresOcultos'
 
 const GraficoCategoriasDespesas = dynamic(
   () => import('@/components/GraficoCategoriasDespesas'),
@@ -99,6 +100,8 @@ export default function PainelCategorias({
         </div>
       </div>
 
+      {/* Olho fechado no Dashboard: só o conteúdo é borrado, título e abas seguem legíveis */}
+      <GraficoOcultavel>
       {jaAbertas.has('planejado') && (
         <div className={aba === 'planejado' ? '' : 'hidden'}>
           <p className="text-xs text-gray-400 mb-4">Previsto x pago · Toque numa coluna para detalhes</p>
@@ -126,6 +129,7 @@ export default function PainelCategorias({
           />
         </div>
       )}
+      </GraficoOcultavel>
     </div>
   )
 }

@@ -8,7 +8,7 @@
 import React, { useState } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, CalendarClock, ChevronDown, ChevronRight, Repeat, ShoppingBag, type LucideIcon } from 'lucide-react'
-import { formatBRL as fmt } from '@/lib/format'
+import { useFormatarValor } from '@/components/ValoresOcultos'
 import { estiloResponsavel } from '@/lib/responsavelStyle'
 
 export interface ComposicaoGastos {
@@ -76,6 +76,7 @@ interface ItemACair {
 
 /** Uma linha do detalhe "a cair" (aberto sob demanda): ícone, rótulo, valor. */
 function LinhaACair({ item }: { item: ItemACair }) {
+  const fmt = useFormatarValor()
   const conteudo = (
     <>
       <item.Icone className="w-3 h-3 text-gray-400 shrink-0" />
@@ -96,6 +97,7 @@ interface Props {
 }
 
 export default function BlocoFaturaPrincipal({ bloco, onComposicao, onProjecao }: Props) {
+  const fmt = useFormatarValor()
   const cor = estiloResponsavel(bloco.responsavel)
   const [detalheAberto, setDetalheAberto] = useState(false)
 

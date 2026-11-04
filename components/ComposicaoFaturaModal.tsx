@@ -2,7 +2,7 @@
 
 import { X } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
-import { formatBRL } from '@/lib/format'
+import { useFormatarValor } from '@/components/ValoresOcultos'
 import type { TipoGasto } from '@/lib/composicaoFatura'
 
 export interface ComposicaoFaturaDados {
@@ -38,6 +38,7 @@ const LINHAS = [
 ]
 
 export default function ComposicaoFaturaModal({ aberto, onClose, dados, onVerCompras }: Props) {
+  const formatBRL = useFormatarValor()
   if (!aberto || !dados) return null
 
   const total = dados.total > 0 ? dados.total : 1
