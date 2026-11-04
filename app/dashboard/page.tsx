@@ -12,7 +12,6 @@ import { BarChart2, BarChart3, CalendarRange, CreditCard, PiggyBank, Layers, Sca
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
 import MonthSelector from '@/components/MonthSelector'
-import UltimaImportacaoInfo from '@/components/UltimaImportacaoInfo'
 import NotificacoesBell from '@/components/NotificacoesBell'
 import DataStatusIndicator from '@/components/DataStatusIndicator'
 import { useRefreshContext } from '@/components/RefreshProvider'
@@ -91,7 +90,7 @@ const GraficoAnual = dynamic(() => import('@/components/GraficoAnual'), {
 })
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { usePrefetchPages } from '@/lib/usePrefetchPages'
-import { formatBRL as fmt, formatDecimal } from '@/lib/format'
+import { formatBRL as fmt, formatBRLCompacto, formatDecimal } from '@/lib/format'
 import { tipoCartaoPorItem, removerPrefixoCartao, ehLinhaDeReceita } from '@/lib/tipoCartao'
 import {
   calcularResumoSaldo, calcularReceitaTotal,
@@ -620,10 +619,6 @@ export default function Dashboard() {
     resumoCaixa.sobraLiquida >= 0 && resumoCaixa.receitaTotal > 0 && (resumoCaixa.sobraLiquida / resumoCaixa.receitaTotal) * 100 <= 10,
     [resumoCaixa.sobraLiquida, resumoCaixa.receitaTotal]
   )
-  const saldoPrevistoWarning = useMemo(() =>
-    resumoCaixa.saldoPrevisto >= 0 && resumoCaixa.receitaTotal > 0 && (resumoCaixa.saldoPrevisto / resumoCaixa.receitaTotal) * 100 <= 10,
-    [resumoCaixa.saldoPrevisto, resumoCaixa.receitaTotal]
-  )
 
   // Barra e saldo ficam sobre o topo índigo: branco = saudável, âmbar/vermelho
   // claros mantêm o alerta legível sobre o fundo colorido.
@@ -659,6 +654,13 @@ export default function Dashboard() {
     try { localStorage.setItem(CHAVE_OCULTAR_SALDO, novo ? '1' : '0') } catch { /* ignora */ }
   }, [ocultarSaldo])
   const mascarar = useCallback((v: number) => (ocultarSaldo ? 'R$ ••••' : fmt(v)), [ocultarSaldo])
+  // Receita/Gastos do topo: sem centavos, para caber numa linha sem cortar
+  // Detalhes que saíram da linha sob a barra para não poluir o topo: ficam no (i) do saldo
+  const detalheSaldo = [
+    resumoCaixa.pendentesNaFatura > 0 && `Inclui ${mascarar(resumoCaixa.pendentesNaFatura)} que ainda vão cair na fatura.`,
+    resumoCaixa.saldoPrevisto !== heroSaldo && resumoCaixa.receitaTotal > 0 && `Saldo previsto (planejamento): ${mascarar(resumoCaixa.saldoPrevisto)}.`,
+  ].filter(Boolean).map(t => `${t} `).join('')
+  const mascararInteiro = useCallback((v: number) => (ocultarSaldo ? 'R$ ••••' : formatBRLCompacto(Math.round(v))), [ocultarSaldo])
 
   const totalInvestido = useMemo(
     () => investimentos.reduce((a, i) => a + i.aportado, 0),
@@ -694,12 +696,11 @@ export default function Dashboard() {
       {/* ── Topo colorido: saldo do mês ── */}
       <header data-page-header className="bg-primary-600 dark:bg-primary-900 text-white px-5 md:px-6 lg:px-8
                          pt-[calc(1rem+var(--safe-top))] pb-10 lg:pt-6 lg:pb-8 lg:mt-4 lg:mx-8 lg:rounded-3xl">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[13px] text-white/80 leading-tight">{saudacao},</p>
-            <h1 className="text-lg font-bold leading-tight truncate">Matheus e Jeniffer</h1>
-            <UltimaImportacaoInfo className="text-white/70" />
-          </div>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="min-w-0 truncate text-base leading-tight">
+            <span className="text-white/80">{saudacao},</span>{' '}
+            <span className="font-bold">Matheus e Jeniffer</span>
+          </h1>
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
@@ -722,7 +723,8 @@ export default function Dashboard() {
             onChange={setMesAtual}
             onOpenSelector={() => setSeletorAberto(true)}
           />
-          {syncState && (
+          {/* Só aparece quando há algo a avisar: sem conexão ou sincronizando */}
+          {syncState && (syncState.status === 'offline' || syncState.status === 'loading') && (
             <DataStatusIndicator
               status={syncState.status}
               lastUpdated={syncState.lastUpdated}
@@ -738,17 +740,14 @@ export default function Dashboard() {
               <div className="skeleton-inverse h-4 w-36 rounded-full" />
               <div className="skeleton-inverse h-10 w-56" />
               <div className="skeleton-inverse h-1.5 w-full rounded-full" />
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <div className="skeleton-inverse h-8 rounded-xl" />
-                <div className="skeleton-inverse h-8 rounded-xl" />
-              </div>
+              <div className="skeleton-inverse h-3.5 w-48 rounded-full" />
             </div>
           ) : (
             <div className="content-enter">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm text-white/85 flex items-center gap-1">
                   {resumoCaixa.faturaEhPrevisto ? 'Saldo estimado do mês' : 'Saldo atual do mês'}
-                  <InfoPopover tone="inverse" texto="Quanto sobra da renda após todos os gastos do mês. 'Saldo atual' usa os lançamentos reais da fatura NuBank mais o que ainda vai cair nela: assinaturas que não apareceram na fatura e compras previstas ainda não feitas. 'Saldo estimado' aparece quando a fatura ainda não tem lançamentos — o valor é calculado com base nas parcelas em andamento. Branco = saldo saudável, âmbar = sobra abaixo de 10% da renda, vermelho = saldo negativo. A barra mostra o % da renda comprometido com gastos." />
+                  <InfoPopover tone="inverse" texto={`${detalheSaldo}Quanto sobra da renda após todos os gastos do mês. 'Saldo atual' usa os lançamentos reais da fatura NuBank mais o que ainda vai cair nela: assinaturas que não apareceram na fatura e compras previstas ainda não feitas. 'Saldo estimado' aparece quando a fatura ainda não tem lançamentos — o valor é calculado com base nas parcelas em andamento. Branco = saldo saudável, âmbar = sobra abaixo de 10% da renda, vermelho = saldo negativo. A barra mostra o % da renda comprometido com gastos.`} />
                 </p>
                 {resumoCaixa.todasDespesasPagas ? (
                   <span key="historico" className="text-xs rounded-full px-2.5 py-1 font-semibold bg-white/15 badge-fade-in">
@@ -776,28 +775,20 @@ export default function Dashboard() {
               </div>
               <p className="mt-2 text-[13px] text-white/85 leading-snug">
                 <span className="font-semibold num">{formatDecimal(resumoCaixa.percentualComprometimento)}%</span> da renda comprometida
-                {resumoCaixa.pendentesNaFatura > 0 && (
-                  <> · inclui <span className="font-semibold num">{mascarar(resumoCaixa.pendentesNaFatura)}</span> a cair</>
-                )}
-                {resumoCaixa.saldoPrevisto !== heroSaldo && resumoCaixa.receitaTotal > 0 && (
-                  <> · previsto <span className={`font-semibold num ${
-                    resumoCaixa.saldoPrevisto < 0 ? 'text-red-200' : saldoPrevistoWarning ? 'text-amber-200' : ''
-                  }`}>{mascarar(resumoCaixa.saldoPrevisto)}</span></>
-                )}
               </p>
 
-              <div className="grid grid-cols-2 gap-2 mt-3">
-                <div className="bg-white/10 rounded-xl px-3 py-1.5 flex items-center gap-1.5 min-w-0">
-                  <TrendingUp className="w-3.5 h-3.5 text-emerald-200 shrink-0" />
-                  <p className="text-[11px] text-white/80 shrink-0">Receita</p>
-                  <p key={resumoCaixa.receitaTotal} className="ml-auto text-[13px] font-bold num value-update truncate">{mascarar(resumoCaixa.receitaTotal)}</p>
-                </div>
-                <div className="bg-white/10 rounded-xl px-3 py-1.5 flex items-center gap-1.5 min-w-0">
-                  <TrendingDown className="w-3.5 h-3.5 text-red-200 shrink-0" />
-                  <p className="text-[11px] text-white/80 shrink-0">Gastos</p>
-                  <p key={resumoCaixa.totalGastos} className="ml-auto text-[13px] font-bold num value-update truncate">{mascarar(resumoCaixa.totalGastos)}</p>
-                </div>
-              </div>
+              <p className="mt-2 flex items-center gap-4 text-[13px] text-white/85">
+                <span className="inline-flex items-center gap-1.5">
+                  <TrendingUp className="w-3.5 h-3.5 text-emerald-200" aria-hidden="true" />
+                  <span className="sr-only">Receita</span>
+                  <span key={resumoCaixa.receitaTotal} className="font-semibold num value-update">{mascararInteiro(resumoCaixa.receitaTotal)}</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <TrendingDown className="w-3.5 h-3.5 text-red-200" aria-hidden="true" />
+                  <span className="sr-only">Gastos</span>
+                  <span key={resumoCaixa.totalGastos} className="font-semibold num value-update">{mascararInteiro(resumoCaixa.totalGastos)}</span>
+                </span>
+              </p>
             </div>
           )}
         </div>

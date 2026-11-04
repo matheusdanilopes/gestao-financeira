@@ -8,11 +8,8 @@ export default function Loading() {
       <div className="route-progress" />
       <div className="bg-primary-600 dark:bg-primary-900 px-5 md:px-6 lg:px-8
                       pt-[calc(1rem+var(--safe-top))] pb-10 lg:pt-6 lg:pb-8 lg:mt-4 lg:mx-8 lg:rounded-3xl">
-        <div className="flex items-start justify-between">
-          <div className="space-y-2">
-            <div className="skeleton-inverse h-3 w-16 rounded-full" />
-            <div className="skeleton-inverse h-5 w-40 rounded-full" />
-          </div>
+        <div className="flex items-center justify-between">
+          <div className="skeleton-inverse h-4 w-52 rounded-full" />
           <div className="flex gap-2">
             <div className="skeleton-inverse w-11 h-11 rounded-full" />
             <div className="skeleton-inverse w-11 h-11 rounded-full" />
@@ -23,10 +20,7 @@ export default function Loading() {
           <div className="skeleton-inverse h-4 w-36 rounded-full" />
           <div className="skeleton-inverse h-10 w-56" />
           <div className="skeleton-inverse h-1.5 w-full rounded-full" />
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <div className="skeleton-inverse h-8 rounded-xl" />
-            <div className="skeleton-inverse h-8 rounded-xl" />
-          </div>
+          <div className="skeleton-inverse h-3.5 w-48 rounded-full" />
         </div>
       </div>
 
