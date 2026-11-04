@@ -8,7 +8,7 @@ import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
 import { classificarTipoGasto, comporValorFatura, somarValorFatura, type TipoGasto } from '@/lib/composicaoFatura'
 import { type ReservaFatura, type BaixaReserva } from '@/lib/reservasFatura'
 import { calcularPendentesFatura, type AssinaturaPendenteRow } from '@/lib/pendentesFatura'
-import { BarChart2, BarChart3, CalendarRange, CreditCard, Wallet, PiggyBank, Layers, Scale, TrendingUp, TrendingDown, LineChart, Activity, Eye, EyeOff, Receipt, ShoppingCart, ShoppingBasket, Download, Sparkles } from 'lucide-react'
+import { BarChart2, BarChart3, CalendarRange, CreditCard, PiggyBank, Layers, Scale, TrendingUp, TrendingDown, LineChart, Activity, Eye, EyeOff, Receipt, ShoppingCart, ShoppingBasket, Download, Sparkles } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
 import Link from 'next/link'
@@ -856,84 +856,7 @@ export default function Dashboard() {
         {/* ── Resumo tab ── */}
         <div key={`resumo-${aba}`} className={aba === 'resumo' ? 'tab-enter-left space-y-4' : 'hidden'}>
 
-          {/* ── 1. Atalhos ── */}
-          <nav aria-label="Atalhos" className="grid grid-cols-5 gap-1 lg:flex lg:gap-6 pb-1">
-            {ATALHOS.filter(a => online || a.offline).map(({ label, Icon, href }) => {
-              const conteudo = (
-                <>
-                  <span className="w-[52px] h-[52px] min-[380px]:w-14 min-[380px]:h-14 rounded-full bg-primary-50 text-primary-600 flex items-center justify-center">
-                    <Icon className="w-[22px] h-[22px]" strokeWidth={2} />
-                  </span>
-                  <span className="text-[11px] min-[380px]:text-xs font-semibold text-gray-700 text-center leading-tight">{label}</span>
-                </>
-              )
-              const classe = 'flex flex-col items-center gap-2 tap-scale rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400'
-              return online ? (
-                <Link key={label} href={href} className={classe}>{conteudo}</Link>
-              ) : (
-                <a key={label} href={href} className={classe}>{conteudo}</a>
-              )
-            })}
-          </nav>
-
-          {/* ── 2. Indicadores secundários ── */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-white rounded-2xl shadow-soft p-3">
-              {carregando ? (
-                <div className="skeleton-group space-y-2">
-                  <div className="h-3 bg-gray-100 rounded w-2/3" />
-                  <div className="h-5 bg-gray-100 rounded w-full" />
-                </div>
-              ) : (
-                <div className="content-enter">
-                  <div className="flex items-center gap-1 mb-1.5">
-                    <Wallet className="w-3 h-3 text-gray-400" />
-                    <p className="text-xs font-medium text-gray-500">Fixas</p>
-                  </div>
-                  <p key={resumoCaixa.contasFixas} className="text-sm font-bold text-gray-700 num value-update">{fmt(resumoCaixa.contasFixas)}</p>
-                </div>
-              )}
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-soft p-3">
-              {carregando ? (
-                <div className="skeleton-group space-y-2">
-                  <div className="h-3 bg-gray-100 rounded w-2/3" />
-                  <div className="h-5 bg-gray-100 rounded w-full" />
-                </div>
-              ) : (
-                <div className="content-enter">
-                  <div className="flex items-center gap-1 mb-1.5">
-                    <CreditCard className="w-3 h-3 text-gray-400" />
-                    <p className="text-xs font-medium text-gray-500">Fatura</p>
-                  </div>
-                  <p key={resumoCaixa.fatura} className="text-sm font-bold text-gray-700 num value-update">{fmt(resumoCaixa.fatura)}</p>
-                  {resumoCaixa.faturaEhPrevisto && (
-                    <p className="text-[10px] text-amber-600 font-medium mt-0.5">estimado</p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-soft p-3">
-              {carregando ? (
-                <div className="skeleton-group space-y-2">
-                  <div className="h-3 bg-gray-100 rounded w-2/3" />
-                  <div className="h-5 bg-gray-100 rounded w-full" />
-                </div>
-              ) : (
-                <div className="content-enter">
-                  <div className="flex items-center gap-1 mb-1.5">
-                    <PiggyBank className="w-3 h-3 text-violet-400" />
-                    <p className="text-xs font-medium text-gray-500">Investido</p>
-                  </div>
-                  <p key={totalInvestido} className="text-sm font-bold text-violet-700 num value-update">{fmt(totalInvestido)}</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* ── 3. Cartões de crédito ── */}
+          {/* ── 1. Fatura dos cartões (primeiro item: visível ao abrir o app) ── */}
           <div className="bg-white rounded-3xl shadow-soft p-4">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -1054,7 +977,28 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* ── 4. Investimentos ── */}
+
+          {/* ── 2. Atalhos ── */}
+          <nav aria-label="Atalhos" className="grid grid-cols-5 gap-1 lg:flex lg:gap-6 pb-1">
+            {ATALHOS.filter(a => online || a.offline).map(({ label, Icon, href }) => {
+              const conteudo = (
+                <>
+                  <span className="w-[52px] h-[52px] min-[380px]:w-14 min-[380px]:h-14 rounded-full bg-primary-50 text-primary-600 flex items-center justify-center">
+                    <Icon className="w-[22px] h-[22px]" strokeWidth={2} />
+                  </span>
+                  <span className="text-[11px] min-[380px]:text-xs font-semibold text-gray-700 text-center leading-tight">{label}</span>
+                </>
+              )
+              const classe = 'flex flex-col items-center gap-2 tap-scale rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400'
+              return online ? (
+                <Link key={label} href={href} className={classe}>{conteudo}</Link>
+              ) : (
+                <a key={label} href={href} className={classe}>{conteudo}</a>
+              )
+            })}
+          </nav>
+
+          {/* ── 3. Investimentos ── */}
           {(carregando || investimentos.length > 0) && (
             <div className="bg-white rounded-3xl shadow-soft p-4">
               <div className="flex items-center justify-between mb-4">
