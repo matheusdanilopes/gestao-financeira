@@ -8,17 +8,14 @@ import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
 import { classificarTipoGasto, comporValorFatura, somarValorFatura, type TipoGasto } from '@/lib/composicaoFatura'
 import { type ReservaFatura, type BaixaReserva } from '@/lib/reservasFatura'
 import { calcularPendentesFatura, type AssinaturaPendenteRow } from '@/lib/pendentesFatura'
-import { BarChart2, BarChart3, CalendarRange, CreditCard, Wallet, PiggyBank, Layers, Scale, TrendingUp, TrendingDown, LineChart, Activity, Eye, EyeOff, Receipt, ShoppingCart, ShoppingBasket, Download, Sparkles } from 'lucide-react'
+import { BarChart2, BarChart3, CalendarRange, CreditCard, PiggyBank, Layers, Scale, TrendingUp, TrendingDown, LineChart, Activity, Eye, EyeOff } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
-import Link from 'next/link'
 import MonthSelector from '@/components/MonthSelector'
-import UltimaImportacaoInfo from '@/components/UltimaImportacaoInfo'
 import NotificacoesBell from '@/components/NotificacoesBell'
 import DataStatusIndicator from '@/components/DataStatusIndicator'
 import { useRefreshContext } from '@/components/RefreshProvider'
 import { useCountUp } from '@/lib/useCountUp'
-import { useOnline } from '@/lib/useOnline'
 import type { ComposicaoFaturaDados } from '@/components/ComposicaoFaturaModal'
 import dynamic from 'next/dynamic'
 
@@ -94,6 +91,7 @@ const GraficoAnual = dynamic(() => import('@/components/GraficoAnual'), {
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { usePrefetchPages } from '@/lib/usePrefetchPages'
 import { formatBRL as fmt, formatDecimal } from '@/lib/format'
+import { nomeDoUsuario } from '@/lib/notificacoes'
 import { tipoCartaoPorItem, removerPrefixoCartao, ehLinhaDeReceita } from '@/lib/tipoCartao'
 import {
   calcularResumoSaldo, calcularReceitaTotal,
@@ -470,18 +468,6 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
 
 const CHAVE_OCULTAR_SALDO = 'dashboard:ocultar-saldo'
 
-// Atalhos do topo do Resumo, do mais usado para o menos usado. `offline`:
-// rota que funciona sem conexão (mesmo critério do ROTAS_OFFLINE do BottomNav)
-// — é a única que aparece offline, e abre por navegação completa para o
-// service worker servir a página do cache.
-const ATALHOS: { label: string; Icon: React.ComponentType<{ className?: string; strokeWidth?: number }>; href: string; offline?: boolean }[] = [
-  { label: 'Despesas', Icon: Receipt, href: '/financas?tab=despesas' },
-  { label: 'Compras', Icon: ShoppingCart, href: '/compras' },
-  { label: 'Mercado', Icon: ShoppingBasket, href: '/lista-mercado', offline: true },
-  { label: 'Assistente', Icon: Sparkles, href: '/chat' },
-  { label: 'Importar', Icon: Download, href: '/importar' },
-]
-
 const FATURA_INICIAL: FaturaState = {
   totalRealizado: 0,
   principalBlocks: [],
@@ -628,15 +614,12 @@ export default function Dashboard() {
 
   const carregando = status === 'loading'
 
+  const nomeLogado = emailUsuario ? nomeDoUsuario(emailUsuario) : null
   const isMatheus = !emailUsuario || emailUsuario.toLowerCase().includes('matheus')
 
   const saldoAtualWarning = useMemo(() =>
     resumoCaixa.sobraLiquida >= 0 && resumoCaixa.receitaTotal > 0 && (resumoCaixa.sobraLiquida / resumoCaixa.receitaTotal) * 100 <= 10,
     [resumoCaixa.sobraLiquida, resumoCaixa.receitaTotal]
-  )
-  const saldoPrevistoWarning = useMemo(() =>
-    resumoCaixa.saldoPrevisto >= 0 && resumoCaixa.receitaTotal > 0 && (resumoCaixa.saldoPrevisto / resumoCaixa.receitaTotal) * 100 <= 10,
-    [resumoCaixa.saldoPrevisto, resumoCaixa.receitaTotal]
   )
 
   // Barra e saldo ficam sobre o topo índigo: branco = saudável, âmbar/vermelho
@@ -657,9 +640,6 @@ export default function Dashboard() {
   const saldoDec = idxVirgula >= 0 ? saldoTexto.slice(idxVirgula) : ''
 
   const { syncState } = useRefreshContext()
-  // useOnline (e não o isOnline do sync): é igual no servidor e no 1º render
-  // do cliente, então os atalhos não causam erro de hidratação.
-  const online = useOnline()
 
   // Olho do topo: esconde os valores do resumo (saldo, receita, gastos).
   // Preferência por aparelho — fica no localStorage.
@@ -676,6 +656,11 @@ export default function Dashboard() {
     try { localStorage.setItem(CHAVE_OCULTAR_SALDO, novo ? '1' : '0') } catch { /* ignora */ }
   }, [ocultarSaldo])
   const mascarar = useCallback((v: number) => (ocultarSaldo ? 'R$ ••••' : fmt(v)), [ocultarSaldo])
+  // Detalhes que saíram da linha sob a barra para não poluir o topo: ficam no (i) do saldo
+  const detalheSaldo = [
+    resumoCaixa.pendentesNaFatura > 0 && `Inclui ${mascarar(resumoCaixa.pendentesNaFatura)} que ainda vão cair na fatura.`,
+    resumoCaixa.saldoPrevisto !== heroSaldo && resumoCaixa.receitaTotal > 0 && `Saldo previsto (planejamento): ${mascarar(resumoCaixa.saldoPrevisto)}.`,
+  ].filter(Boolean).map(t => `${t} `).join('')
 
   const totalInvestido = useMemo(
     () => investimentos.reduce((a, i) => a + i.aportado, 0),
@@ -710,13 +695,13 @@ export default function Dashboard() {
 
       {/* ── Topo colorido: saldo do mês ── */}
       <header data-page-header className="bg-primary-600 dark:bg-primary-900 text-white px-5 md:px-6 lg:px-8
-                         pt-[calc(1rem+var(--safe-top))] pb-11 lg:pt-6 lg:pb-8 lg:mt-4 lg:mx-8 lg:rounded-3xl">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[13px] text-white/80 leading-tight">{saudacao},</p>
-            <h1 className="text-lg font-bold leading-tight truncate">Matheus e Jeniffer</h1>
-            <UltimaImportacaoInfo className="text-white/70" />
-          </div>
+                         pt-[calc(1rem+var(--safe-top))] pb-10 lg:pt-6 lg:pb-8 lg:mt-4 lg:mx-8 lg:rounded-3xl">
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="min-w-0 truncate text-base leading-tight">
+            {/* Nome de quem está logado; até o e-mail carregar, só a saudação */}
+            <span className="text-white/80">{saudacao}{nomeLogado ? ',' : ''}</span>
+            {nomeLogado && <>{' '}<span className="font-bold">{nomeLogado}</span></>}
+          </h1>
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
@@ -732,14 +717,15 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-between gap-2">
+        <div className="mt-3 flex items-center justify-between gap-2">
           <MonthSelector
             tone="inverse"
             value={mesAtual}
             onChange={setMesAtual}
             onOpenSelector={() => setSeletorAberto(true)}
           />
-          {syncState && (
+          {/* Só aparece quando há algo a avisar: sem conexão ou sincronizando */}
+          {syncState && (syncState.status === 'offline' || syncState.status === 'loading') && (
             <DataStatusIndicator
               status={syncState.status}
               lastUpdated={syncState.lastUpdated}
@@ -749,15 +735,15 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div className="mt-5">
+        <div className="mt-4">
           {carregando ? (
             <div className="space-y-3" aria-hidden="true">
               <div className="skeleton-inverse h-4 w-36 rounded-full" />
               <div className="skeleton-inverse h-10 w-56" />
               <div className="skeleton-inverse h-1.5 w-full rounded-full" />
-              <div className="grid grid-cols-2 gap-2.5 pt-1">
-                <div className="skeleton-inverse h-14 rounded-2xl" />
-                <div className="skeleton-inverse h-14 rounded-2xl" />
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <div className="skeleton-inverse h-12 rounded-xl" />
+                <div className="skeleton-inverse h-12 rounded-xl" />
               </div>
             </div>
           ) : (
@@ -765,7 +751,7 @@ export default function Dashboard() {
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm text-white/85 flex items-center gap-1">
                   {resumoCaixa.faturaEhPrevisto ? 'Saldo estimado do mês' : 'Saldo atual do mês'}
-                  <InfoPopover tone="inverse" texto="Quanto sobra da renda após todos os gastos do mês. 'Saldo atual' usa os lançamentos reais da fatura NuBank mais o que ainda vai cair nela: assinaturas que não apareceram na fatura e compras previstas ainda não feitas. 'Saldo estimado' aparece quando a fatura ainda não tem lançamentos — o valor é calculado com base nas parcelas em andamento. Branco = saldo saudável, âmbar = sobra abaixo de 10% da renda, vermelho = saldo negativo. A barra mostra o % da renda comprometido com gastos." />
+                  <InfoPopover tone="inverse" texto={`${detalheSaldo}Quanto sobra da renda após todos os gastos do mês. 'Saldo atual' usa os lançamentos reais da fatura NuBank mais o que ainda vai cair nela: assinaturas que não apareceram na fatura e compras previstas ainda não feitas. 'Saldo estimado' aparece quando a fatura ainda não tem lançamentos — o valor é calculado com base nas parcelas em andamento. Branco = saldo saudável, âmbar = sobra abaixo de 10% da renda, vermelho = saldo negativo. A barra mostra o % da renda comprometido com gastos.`} />
                 </p>
                 {resumoCaixa.todasDespesasPagas ? (
                   <span key="historico" className="text-xs rounded-full px-2.5 py-1 font-semibold bg-white/15 badge-fade-in">
@@ -793,34 +779,24 @@ export default function Dashboard() {
               </div>
               <p className="mt-2 text-[13px] text-white/85 leading-snug">
                 <span className="font-semibold num">{formatDecimal(resumoCaixa.percentualComprometimento)}%</span> da renda comprometida
-                {resumoCaixa.pendentesNaFatura > 0 && (
-                  <> · inclui <span className="font-semibold num">{mascarar(resumoCaixa.pendentesNaFatura)}</span> a cair</>
-                )}
-                {resumoCaixa.saldoPrevisto !== heroSaldo && resumoCaixa.receitaTotal > 0 && (
-                  <> · previsto <span className={`font-semibold num ${
-                    resumoCaixa.saldoPrevisto < 0 ? 'text-red-200' : saldoPrevistoWarning ? 'text-amber-200' : ''
-                  }`}>{mascarar(resumoCaixa.saldoPrevisto)}</span></>
-                )}
               </p>
 
-              <div className="grid grid-cols-2 gap-2.5 mt-4">
-                <div className="bg-white/10 rounded-2xl px-3.5 py-3 flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-emerald-400/20 text-emerald-200 flex items-center justify-center shrink-0">
-                    <TrendingUp className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs text-white/80 leading-none">Receita</p>
-                    <p key={resumoCaixa.receitaTotal} className="text-[15px] font-bold num mt-1 value-update truncate">{mascarar(resumoCaixa.receitaTotal)}</p>
-                  </div>
+              {/* Rótulo em cima e valor embaixo: o valor ocupa a largura toda do
+                  card e cabe com centavos, sem cortar com reticências */}
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                <div className="bg-white/10 rounded-xl px-3 py-2 min-w-0">
+                  <p className="flex items-center gap-1 text-[11px] text-white/75 leading-none">
+                    <TrendingUp className="w-3 h-3 text-emerald-200" aria-hidden="true" />
+                    Receita
+                  </p>
+                  <p key={resumoCaixa.receitaTotal} className="mt-1 text-[15px] font-bold num value-update whitespace-nowrap">{mascarar(resumoCaixa.receitaTotal)}</p>
                 </div>
-                <div className="bg-white/10 rounded-2xl px-3.5 py-3 flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-red-400/20 text-red-200 flex items-center justify-center shrink-0">
-                    <TrendingDown className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs text-white/80 leading-none">Gastos</p>
-                    <p key={resumoCaixa.totalGastos} className="text-[15px] font-bold num mt-1 value-update truncate">{mascarar(resumoCaixa.totalGastos)}</p>
-                  </div>
+                <div className="bg-white/10 rounded-xl px-3 py-2 min-w-0">
+                  <p className="flex items-center gap-1 text-[11px] text-white/75 leading-none">
+                    <TrendingDown className="w-3 h-3 text-red-200" aria-hidden="true" />
+                    Gastos
+                  </p>
+                  <p key={resumoCaixa.totalGastos} className="mt-1 text-[15px] font-bold num value-update whitespace-nowrap">{mascarar(resumoCaixa.totalGastos)}</p>
                 </div>
               </div>
             </div>
@@ -833,7 +809,7 @@ export default function Dashboard() {
       <div className="page-content">
 
         {/* Abas com pílula deslizante */}
-        <div className="relative grid grid-cols-2 bg-gray-100 rounded-full p-1 mb-5 lg:max-w-xs">
+        <div className="relative grid grid-cols-2 bg-gray-100 rounded-full p-1 mb-4 lg:max-w-xs">
           <span
             aria-hidden="true"
             className={`absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] rounded-full bg-white shadow-sm
@@ -856,86 +832,9 @@ export default function Dashboard() {
         {/* ── Resumo tab ── */}
         <div key={`resumo-${aba}`} className={aba === 'resumo' ? 'tab-enter-left space-y-4' : 'hidden'}>
 
-          {/* ── 1. Atalhos ── */}
-          <nav aria-label="Atalhos" className="grid grid-cols-5 gap-1 lg:flex lg:gap-6 pb-1">
-            {ATALHOS.filter(a => online || a.offline).map(({ label, Icon, href }) => {
-              const conteudo = (
-                <>
-                  <span className="w-[52px] h-[52px] min-[380px]:w-14 min-[380px]:h-14 rounded-full bg-primary-50 text-primary-600 flex items-center justify-center">
-                    <Icon className="w-[22px] h-[22px]" strokeWidth={2} />
-                  </span>
-                  <span className="text-[11px] min-[380px]:text-xs font-semibold text-gray-700 text-center leading-tight">{label}</span>
-                </>
-              )
-              const classe = 'flex flex-col items-center gap-2 tap-scale rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400'
-              return online ? (
-                <Link key={label} href={href} className={classe}>{conteudo}</Link>
-              ) : (
-                <a key={label} href={href} className={classe}>{conteudo}</a>
-              )
-            })}
-          </nav>
-
-          {/* ── 2. Indicadores secundários ── */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-white rounded-2xl shadow-soft p-3">
-              {carregando ? (
-                <div className="skeleton-group space-y-2">
-                  <div className="h-3 bg-gray-100 rounded w-2/3" />
-                  <div className="h-5 bg-gray-100 rounded w-full" />
-                </div>
-              ) : (
-                <div className="content-enter">
-                  <div className="flex items-center gap-1 mb-1.5">
-                    <Wallet className="w-3 h-3 text-gray-400" />
-                    <p className="text-xs font-medium text-gray-500">Fixas</p>
-                  </div>
-                  <p key={resumoCaixa.contasFixas} className="text-sm font-bold text-gray-700 num value-update">{fmt(resumoCaixa.contasFixas)}</p>
-                </div>
-              )}
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-soft p-3">
-              {carregando ? (
-                <div className="skeleton-group space-y-2">
-                  <div className="h-3 bg-gray-100 rounded w-2/3" />
-                  <div className="h-5 bg-gray-100 rounded w-full" />
-                </div>
-              ) : (
-                <div className="content-enter">
-                  <div className="flex items-center gap-1 mb-1.5">
-                    <CreditCard className="w-3 h-3 text-gray-400" />
-                    <p className="text-xs font-medium text-gray-500">Fatura</p>
-                  </div>
-                  <p key={resumoCaixa.fatura} className="text-sm font-bold text-gray-700 num value-update">{fmt(resumoCaixa.fatura)}</p>
-                  {resumoCaixa.faturaEhPrevisto && (
-                    <p className="text-[10px] text-amber-600 font-medium mt-0.5">estimado</p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-soft p-3">
-              {carregando ? (
-                <div className="skeleton-group space-y-2">
-                  <div className="h-3 bg-gray-100 rounded w-2/3" />
-                  <div className="h-5 bg-gray-100 rounded w-full" />
-                </div>
-              ) : (
-                <div className="content-enter">
-                  <div className="flex items-center gap-1 mb-1.5">
-                    <PiggyBank className="w-3 h-3 text-violet-400" />
-                    <p className="text-xs font-medium text-gray-500">Investido</p>
-                  </div>
-                  <p key={totalInvestido} className="text-sm font-bold text-violet-700 num value-update">{fmt(totalInvestido)}</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* ── 3. Cartões de crédito ── */}
+          {/* ── 1. Fatura dos cartões (primeiro item: visível ao abrir o app) ── */}
           <div className="bg-white rounded-3xl shadow-soft p-4">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between gap-2 mb-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-primary-50 flex items-center justify-center">
                   <CreditCard className="w-4 h-4 text-primary-600" />
@@ -948,10 +847,9 @@ export default function Dashboard() {
               {dataFechamentoNubank && !carregando && (() => {
                 const d = new Date(dataFechamentoNubank + 'T12:00:00')
                 return (
-                  <div className="shrink-0 bg-gray-100 dark:bg-white/15 rounded-xl px-3 py-1.5 text-center">
-                    <p className="text-[11px] font-medium text-gray-500 dark:text-gray-300 leading-none">Fecha</p>
-                    <p className="text-sm font-bold text-gray-800 dark:text-white num leading-snug mt-0.5">{format(d, 'dd/MM')}</p>
-                    <p className="text-[10px] text-gray-500 dark:text-gray-300 leading-none mt-0.5">{format(d, 'EEEE', { locale: ptBR }).replace(/^\w/, c => c.toUpperCase())}</p>
+                  <div className="shrink-0 bg-gray-100 dark:bg-white/15 rounded-full px-3 py-1 text-xs text-gray-500 dark:text-gray-300 whitespace-nowrap">
+                    Fecha <span className="font-bold text-gray-800 dark:text-white num">{format(d, 'dd/MM')}</span>
+                    {' · '}{format(d, 'EEE', { locale: ptBR }).replace('.', '')}
                   </div>
                 )
               })()}
@@ -968,7 +866,7 @@ export default function Dashboard() {
             ) : (
               <div className="content-enter">
                 {/* Total */}
-                <div className="mb-6 pb-5 border-b border-gray-100">
+                <div className="mb-4 pb-4 border-b border-gray-100">
                   <p className="text-xs font-medium text-gray-500 mb-1.5">Total atual</p>
                   {(() => {
                     const totalExibido = fatura.totalRealizado > 0 ? fatura.totalRealizado : totalProjecaoParcelas
@@ -978,7 +876,7 @@ export default function Dashboard() {
                     const decPart = commaIdx >= 0 ? totalStr.slice(commaIdx) : ''
                     return (
                       <>
-                        <p className="text-4xl font-bold text-gray-900 num leading-none">
+                        <p className="text-3xl font-bold text-gray-900 num leading-none">
                           {intPart}<span className="text-gray-300">{decPart}</span>
                         </p>
                         {fatura.totalRealizado === 0 && totalProjecaoParcelas > 0 && (
@@ -1054,7 +952,8 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* ── 4. Investimentos ── */}
+
+          {/* ── 2. Investimentos ── */}
           {(carregando || investimentos.length > 0) && (
             <div className="bg-white rounded-3xl shadow-soft p-4">
               <div className="flex items-center justify-between mb-4">
