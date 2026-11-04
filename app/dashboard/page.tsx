@@ -91,6 +91,7 @@ const GraficoAnual = dynamic(() => import('@/components/GraficoAnual'), {
 import { useGlobalSync } from '@/lib/useGlobalSync'
 import { usePrefetchPages } from '@/lib/usePrefetchPages'
 import { formatBRL as fmt, formatBRLCompacto, formatDecimal } from '@/lib/format'
+import { nomeDoUsuario } from '@/lib/notificacoes'
 import { tipoCartaoPorItem, removerPrefixoCartao, ehLinhaDeReceita } from '@/lib/tipoCartao'
 import {
   calcularResumoSaldo, calcularReceitaTotal,
@@ -613,6 +614,7 @@ export default function Dashboard() {
 
   const carregando = status === 'loading'
 
+  const nomeLogado = emailUsuario ? nomeDoUsuario(emailUsuario) : null
   const isMatheus = !emailUsuario || emailUsuario.toLowerCase().includes('matheus')
 
   const saldoAtualWarning = useMemo(() =>
@@ -698,8 +700,9 @@ export default function Dashboard() {
                          pt-[calc(1rem+var(--safe-top))] pb-10 lg:pt-6 lg:pb-8 lg:mt-4 lg:mx-8 lg:rounded-3xl">
         <div className="flex items-center justify-between gap-3">
           <h1 className="min-w-0 truncate text-base leading-tight">
-            <span className="text-white/80">{saudacao},</span>{' '}
-            <span className="font-bold">Matheus e Jeniffer</span>
+            {/* Nome de quem está logado; até o e-mail carregar, só a saudação */}
+            <span className="text-white/80">{saudacao}{nomeLogado ? ',' : ''}</span>
+            {nomeLogado && <>{' '}<span className="font-bold">{nomeLogado}</span></>}
           </h1>
           <div className="flex items-center gap-2 shrink-0">
             <button
