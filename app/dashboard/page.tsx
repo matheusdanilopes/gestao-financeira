@@ -8,17 +8,15 @@ import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
 import { classificarTipoGasto, comporValorFatura, somarValorFatura, type TipoGasto } from '@/lib/composicaoFatura'
 import { type ReservaFatura, type BaixaReserva } from '@/lib/reservasFatura'
 import { calcularPendentesFatura, type AssinaturaPendenteRow } from '@/lib/pendentesFatura'
-import { BarChart2, BarChart3, CalendarRange, CreditCard, PiggyBank, Layers, Scale, TrendingUp, TrendingDown, LineChart, Activity, Eye, EyeOff, Receipt, ShoppingCart, ShoppingBasket, Download, Sparkles } from 'lucide-react'
+import { BarChart2, BarChart3, CalendarRange, CreditCard, PiggyBank, Layers, Scale, TrendingUp, TrendingDown, LineChart, Activity, Eye, EyeOff } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
-import Link from 'next/link'
 import MonthSelector from '@/components/MonthSelector'
 import UltimaImportacaoInfo from '@/components/UltimaImportacaoInfo'
 import NotificacoesBell from '@/components/NotificacoesBell'
 import DataStatusIndicator from '@/components/DataStatusIndicator'
 import { useRefreshContext } from '@/components/RefreshProvider'
 import { useCountUp } from '@/lib/useCountUp'
-import { useOnline } from '@/lib/useOnline'
 import type { ComposicaoFaturaDados } from '@/components/ComposicaoFaturaModal'
 import dynamic from 'next/dynamic'
 
@@ -470,18 +468,6 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
 
 const CHAVE_OCULTAR_SALDO = 'dashboard:ocultar-saldo'
 
-// Atalhos do topo do Resumo, do mais usado para o menos usado. `offline`:
-// rota que funciona sem conexão (mesmo critério do ROTAS_OFFLINE do BottomNav)
-// — é a única que aparece offline, e abre por navegação completa para o
-// service worker servir a página do cache.
-const ATALHOS: { label: string; Icon: React.ComponentType<{ className?: string; strokeWidth?: number }>; href: string; offline?: boolean }[] = [
-  { label: 'Despesas', Icon: Receipt, href: '/financas?tab=despesas' },
-  { label: 'Compras', Icon: ShoppingCart, href: '/compras' },
-  { label: 'Mercado', Icon: ShoppingBasket, href: '/lista-mercado', offline: true },
-  { label: 'Assistente', Icon: Sparkles, href: '/chat' },
-  { label: 'Importar', Icon: Download, href: '/importar' },
-]
-
 const FATURA_INICIAL: FaturaState = {
   totalRealizado: 0,
   principalBlocks: [],
@@ -657,9 +643,6 @@ export default function Dashboard() {
   const saldoDec = idxVirgula >= 0 ? saldoTexto.slice(idxVirgula) : ''
 
   const { syncState } = useRefreshContext()
-  // useOnline (e não o isOnline do sync): é igual no servidor e no 1º render
-  // do cliente, então os atalhos não causam erro de hidratação.
-  const online = useOnline()
 
   // Olho do topo: esconde os valores do resumo (saldo, receita, gastos).
   // Preferência por aparelho — fica no localStorage.
@@ -755,9 +738,9 @@ export default function Dashboard() {
               <div className="skeleton-inverse h-4 w-36 rounded-full" />
               <div className="skeleton-inverse h-10 w-56" />
               <div className="skeleton-inverse h-1.5 w-full rounded-full" />
-              <div className="grid grid-cols-2 gap-2.5 pt-1">
-                <div className="skeleton-inverse h-14 rounded-2xl" />
-                <div className="skeleton-inverse h-14 rounded-2xl" />
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <div className="skeleton-inverse h-8 rounded-xl" />
+                <div className="skeleton-inverse h-8 rounded-xl" />
               </div>
             </div>
           ) : (
@@ -803,24 +786,16 @@ export default function Dashboard() {
                 )}
               </p>
 
-              <div className="grid grid-cols-2 gap-2.5 mt-4">
-                <div className="bg-white/10 rounded-2xl px-3.5 py-3 flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-emerald-400/20 text-emerald-200 flex items-center justify-center shrink-0">
-                    <TrendingUp className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs text-white/80 leading-none">Receita</p>
-                    <p key={resumoCaixa.receitaTotal} className="text-[15px] font-bold num mt-1 value-update truncate">{mascarar(resumoCaixa.receitaTotal)}</p>
-                  </div>
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                <div className="bg-white/10 rounded-xl px-3 py-1.5 flex items-center gap-1.5 min-w-0">
+                  <TrendingUp className="w-3.5 h-3.5 text-emerald-200 shrink-0" />
+                  <p className="text-[11px] text-white/80 shrink-0">Receita</p>
+                  <p key={resumoCaixa.receitaTotal} className="ml-auto text-[13px] font-bold num value-update truncate">{mascarar(resumoCaixa.receitaTotal)}</p>
                 </div>
-                <div className="bg-white/10 rounded-2xl px-3.5 py-3 flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-red-400/20 text-red-200 flex items-center justify-center shrink-0">
-                    <TrendingDown className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs text-white/80 leading-none">Gastos</p>
-                    <p key={resumoCaixa.totalGastos} className="text-[15px] font-bold num mt-1 value-update truncate">{mascarar(resumoCaixa.totalGastos)}</p>
-                  </div>
+                <div className="bg-white/10 rounded-xl px-3 py-1.5 flex items-center gap-1.5 min-w-0">
+                  <TrendingDown className="w-3.5 h-3.5 text-red-200 shrink-0" />
+                  <p className="text-[11px] text-white/80 shrink-0">Gastos</p>
+                  <p key={resumoCaixa.totalGastos} className="ml-auto text-[13px] font-bold num value-update truncate">{mascarar(resumoCaixa.totalGastos)}</p>
                 </div>
               </div>
             </div>
@@ -978,27 +953,7 @@ export default function Dashboard() {
           </div>
 
 
-          {/* ── 2. Atalhos ── */}
-          <nav aria-label="Atalhos" className="grid grid-cols-5 gap-1 lg:flex lg:gap-6 pb-1">
-            {ATALHOS.filter(a => online || a.offline).map(({ label, Icon, href }) => {
-              const conteudo = (
-                <>
-                  <span className="w-[52px] h-[52px] min-[380px]:w-14 min-[380px]:h-14 rounded-full bg-primary-50 text-primary-600 flex items-center justify-center">
-                    <Icon className="w-[22px] h-[22px]" strokeWidth={2} />
-                  </span>
-                  <span className="text-[11px] min-[380px]:text-xs font-semibold text-gray-700 text-center leading-tight">{label}</span>
-                </>
-              )
-              const classe = 'flex flex-col items-center gap-2 tap-scale rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400'
-              return online ? (
-                <Link key={label} href={href} className={classe}>{conteudo}</Link>
-              ) : (
-                <a key={label} href={href} className={classe}>{conteudo}</a>
-              )
-            })}
-          </nav>
-
-          {/* ── 3. Investimentos ── */}
+          {/* ── 2. Investimentos ── */}
           {(carregando || investimentos.length > 0) && (
             <div className="bg-white rounded-3xl shadow-soft p-4">
               <div className="flex items-center justify-between mb-4">

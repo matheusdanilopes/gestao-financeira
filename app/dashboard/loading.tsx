@@ -1,6 +1,6 @@
 /**
  * Skeleton com o mesmo formato do Dashboard (topo índigo + folha sobreposta +
- * atalhos + cards) — quando o conteúdo chega, nada "pula" de lugar.
+ * fatura) — quando o conteúdo chega, nada "pula" de lugar.
  */
 export default function Loading() {
   return (
@@ -23,9 +23,9 @@ export default function Loading() {
           <div className="skeleton-inverse h-4 w-36 rounded-full" />
           <div className="skeleton-inverse h-10 w-56" />
           <div className="skeleton-inverse h-1.5 w-full rounded-full" />
-          <div className="grid grid-cols-2 gap-2.5 pt-1">
-            <div className="skeleton-inverse h-14 rounded-2xl" />
-            <div className="skeleton-inverse h-14 rounded-2xl" />
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <div className="skeleton-inverse h-8 rounded-xl" />
+            <div className="skeleton-inverse h-8 rounded-xl" />
           </div>
         </div>
       </div>
@@ -33,19 +33,6 @@ export default function Loading() {
       <div className="-mt-6 lg:mt-0 rounded-t-3xl lg:rounded-none bg-gray-50 pt-5 lg:pt-6">
         <div className="page-content space-y-4">
           <div className="skeleton h-10 w-full lg:max-w-xs rounded-full mb-5" />
-          <div className="grid grid-cols-5 gap-1 lg:flex lg:gap-6">
-            {[0, 1, 2, 3, 4].map(i => (
-              <div key={i} className="flex flex-col items-center gap-2">
-                <div className="skeleton w-[52px] h-[52px] min-[380px]:w-14 min-[380px]:h-14 rounded-full" />
-                <div className="skeleton h-2.5 w-11 rounded-full" />
-              </div>
-            ))}
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="skeleton h-16 rounded-2xl" />
-            <div className="skeleton h-16 rounded-2xl" />
-            <div className="skeleton h-16 rounded-2xl" />
-          </div>
           <div className="skeleton h-64 w-full rounded-3xl" />
         </div>
       </div>
