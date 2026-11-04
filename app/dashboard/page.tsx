@@ -693,7 +693,7 @@ export default function Dashboard() {
 
       {/* ── Topo colorido: saldo do mês ── */}
       <header data-page-header className="bg-primary-600 dark:bg-primary-900 text-white px-5 md:px-6 lg:px-8
-                         pt-[calc(1rem+var(--safe-top))] pb-11 lg:pt-6 lg:pb-8 lg:mt-4 lg:mx-8 lg:rounded-3xl">
+                         pt-[calc(1rem+var(--safe-top))] pb-10 lg:pt-6 lg:pb-8 lg:mt-4 lg:mx-8 lg:rounded-3xl">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[13px] text-white/80 leading-tight">{saudacao},</p>
@@ -715,7 +715,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-between gap-2">
+        <div className="mt-3 flex items-center justify-between gap-2">
           <MonthSelector
             tone="inverse"
             value={mesAtual}
@@ -732,7 +732,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div className="mt-5">
+        <div className="mt-4">
           {carregando ? (
             <div className="space-y-3" aria-hidden="true">
               <div className="skeleton-inverse h-4 w-36 rounded-full" />
@@ -808,7 +808,7 @@ export default function Dashboard() {
       <div className="page-content">
 
         {/* Abas com pílula deslizante */}
-        <div className="relative grid grid-cols-2 bg-gray-100 rounded-full p-1 mb-5 lg:max-w-xs">
+        <div className="relative grid grid-cols-2 bg-gray-100 rounded-full p-1 mb-4 lg:max-w-xs">
           <span
             aria-hidden="true"
             className={`absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] rounded-full bg-white shadow-sm
@@ -833,7 +833,7 @@ export default function Dashboard() {
 
           {/* ── 1. Fatura dos cartões (primeiro item: visível ao abrir o app) ── */}
           <div className="bg-white rounded-3xl shadow-soft p-4">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between gap-2 mb-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-primary-50 flex items-center justify-center">
                   <CreditCard className="w-4 h-4 text-primary-600" />
@@ -846,10 +846,9 @@ export default function Dashboard() {
               {dataFechamentoNubank && !carregando && (() => {
                 const d = new Date(dataFechamentoNubank + 'T12:00:00')
                 return (
-                  <div className="shrink-0 bg-gray-100 dark:bg-white/15 rounded-xl px-3 py-1.5 text-center">
-                    <p className="text-[11px] font-medium text-gray-500 dark:text-gray-300 leading-none">Fecha</p>
-                    <p className="text-sm font-bold text-gray-800 dark:text-white num leading-snug mt-0.5">{format(d, 'dd/MM')}</p>
-                    <p className="text-[10px] text-gray-500 dark:text-gray-300 leading-none mt-0.5">{format(d, 'EEEE', { locale: ptBR }).replace(/^\w/, c => c.toUpperCase())}</p>
+                  <div className="shrink-0 bg-gray-100 dark:bg-white/15 rounded-full px-3 py-1 text-xs text-gray-500 dark:text-gray-300 whitespace-nowrap">
+                    Fecha <span className="font-bold text-gray-800 dark:text-white num">{format(d, 'dd/MM')}</span>
+                    {' · '}{format(d, 'EEE', { locale: ptBR }).replace('.', '')}
                   </div>
                 )
               })()}
@@ -866,7 +865,7 @@ export default function Dashboard() {
             ) : (
               <div className="content-enter">
                 {/* Total */}
-                <div className="mb-6 pb-5 border-b border-gray-100">
+                <div className="mb-4 pb-4 border-b border-gray-100">
                   <p className="text-xs font-medium text-gray-500 mb-1.5">Total atual</p>
                   {(() => {
                     const totalExibido = fatura.totalRealizado > 0 ? fatura.totalRealizado : totalProjecaoParcelas
@@ -876,7 +875,7 @@ export default function Dashboard() {
                     const decPart = commaIdx >= 0 ? totalStr.slice(commaIdx) : ''
                     return (
                       <>
-                        <p className="text-4xl font-bold text-gray-900 num leading-none">
+                        <p className="text-3xl font-bold text-gray-900 num leading-none">
                           {intPart}<span className="text-gray-300">{decPart}</span>
                         </p>
                         {fatura.totalRealizado === 0 && totalProjecaoParcelas > 0 && (

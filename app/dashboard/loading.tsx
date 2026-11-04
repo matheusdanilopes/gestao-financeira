@@ -7,7 +7,7 @@ export default function Loading() {
     <div className="min-h-screen bg-gray-50 page-bottom-safe" aria-hidden="true">
       <div className="route-progress" />
       <div className="bg-primary-600 dark:bg-primary-900 px-5 md:px-6 lg:px-8
-                      pt-[calc(1rem+var(--safe-top))] pb-11 lg:pt-6 lg:pb-8 lg:mt-4 lg:mx-8 lg:rounded-3xl">
+                      pt-[calc(1rem+var(--safe-top))] pb-10 lg:pt-6 lg:pb-8 lg:mt-4 lg:mx-8 lg:rounded-3xl">
         <div className="flex items-start justify-between">
           <div className="space-y-2">
             <div className="skeleton-inverse h-3 w-16 rounded-full" />
@@ -18,8 +18,8 @@ export default function Loading() {
             <div className="skeleton-inverse w-11 h-11 rounded-full" />
           </div>
         </div>
-        <div className="skeleton-inverse mt-4 h-11 w-52 rounded-full" />
-        <div className="mt-5 space-y-3">
+        <div className="skeleton-inverse mt-3 h-11 w-52 rounded-full" />
+        <div className="mt-4 space-y-3">
           <div className="skeleton-inverse h-4 w-36 rounded-full" />
           <div className="skeleton-inverse h-10 w-56" />
           <div className="skeleton-inverse h-1.5 w-full rounded-full" />
@@ -32,7 +32,7 @@ export default function Loading() {
 
       <div className="-mt-6 lg:mt-0 rounded-t-3xl lg:rounded-none bg-gray-50 pt-5 lg:pt-6">
         <div className="page-content space-y-4">
-          <div className="skeleton h-10 w-full lg:max-w-xs rounded-full mb-5" />
+          <div className="skeleton h-10 w-full lg:max-w-xs rounded-full mb-4" />
           <div className="skeleton h-64 w-full rounded-3xl" />
         </div>
       </div>
