@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
@@ -13,6 +14,7 @@ import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
 import MonthSelector from '@/components/MonthSelector'
 import NotificacoesBell from '@/components/NotificacoesBell'
+import UltimaImportacaoInfo from '@/components/UltimaImportacaoInfo'
 import DataStatusIndicator from '@/components/DataStatusIndicator'
 import { useRefreshContext } from '@/components/RefreshProvider'
 import { useCountUp } from '@/lib/useCountUp'
@@ -697,11 +699,15 @@ export default function Dashboard() {
       <header data-page-header className="bg-primary-600 dark:bg-primary-900 text-white px-5 md:px-6 lg:px-8
                          pt-[calc(1rem+var(--safe-top))] pb-10 lg:pt-6 lg:pb-8 lg:mt-4 lg:mx-8 lg:rounded-3xl">
         <div className="flex items-center justify-between gap-3">
-          <h1 className="min-w-0 truncate text-base leading-tight">
-            {/* Nome de quem está logado; até o e-mail carregar, só a saudação */}
-            <span className="text-white/80">{saudacao}{nomeLogado ? ',' : ''}</span>
-            {nomeLogado && <>{' '}<span className="font-bold">{nomeLogado}</span></>}
-          </h1>
+          <div className="min-w-0">
+            <h1 className="truncate text-base leading-tight">
+              {/* Nome de quem está logado; até o e-mail carregar, só a saudação */}
+              <span className="text-white/80">{saudacao}{nomeLogado ? ',' : ''}</span>
+              {nomeLogado && <>{' '}<span className="font-bold">{nomeLogado}</span></>}
+            </h1>
+            {/* Momento da última importação; toque leva para a tela de importação */}
+            <UltimaImportacaoInfo href="/importar" className="text-white/75" />
+          </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
@@ -781,23 +787,24 @@ export default function Dashboard() {
                 <span className="font-semibold num">{formatDecimal(resumoCaixa.percentualComprometimento)}%</span> da renda comprometida
               </p>
 
-              {/* Rótulo em cima e valor embaixo: o valor ocupa a largura toda do
+              {/* Cards clicáveis: Receita → aba Receitas, Gastos → aba Despesas.
+                  Rótulo em cima e valor embaixo: o valor ocupa a largura toda do
                   card e cabe com centavos, sem cortar com reticências */}
               <div className="grid grid-cols-2 gap-2 mt-3">
-                <div className="bg-white/10 rounded-xl px-3 py-2 min-w-0">
+                <Link href="/financas?tab=receitas" className="block bg-white/10 rounded-xl px-3 py-2 min-w-0 tap-scale focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
                   <p className="flex items-center gap-1 text-[11px] text-white/75 leading-none">
                     <TrendingUp className="w-3 h-3 text-emerald-200" aria-hidden="true" />
                     Receita
                   </p>
                   <p key={resumoCaixa.receitaTotal} className="mt-1 text-[15px] font-bold num value-update whitespace-nowrap">{mascarar(resumoCaixa.receitaTotal)}</p>
-                </div>
-                <div className="bg-white/10 rounded-xl px-3 py-2 min-w-0">
+                </Link>
+                <Link href="/financas?tab=despesas" className="block bg-white/10 rounded-xl px-3 py-2 min-w-0 tap-scale focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
                   <p className="flex items-center gap-1 text-[11px] text-white/75 leading-none">
                     <TrendingDown className="w-3 h-3 text-red-200" aria-hidden="true" />
                     Gastos
                   </p>
                   <p key={resumoCaixa.totalGastos} className="mt-1 text-[15px] font-bold num value-update whitespace-nowrap">{mascarar(resumoCaixa.totalGastos)}</p>
-                </div>
+                </Link>
               </div>
             </div>
           )}
