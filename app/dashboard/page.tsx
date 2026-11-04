@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
@@ -13,6 +14,8 @@ import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
 import MonthSelector from '@/components/MonthSelector'
 import NotificacoesBell from '@/components/NotificacoesBell'
+import UltimaImportacaoInfo from '@/components/UltimaImportacaoInfo'
+import { ValoresOcultosProvider, GraficoOcultavel, MASCARA_VALOR } from '@/components/ValoresOcultos'
 import DataStatusIndicator from '@/components/DataStatusIndicator'
 import { useRefreshContext } from '@/components/RefreshProvider'
 import { useCountUp } from '@/lib/useCountUp'
@@ -641,7 +644,8 @@ export default function Dashboard() {
 
   const { syncState } = useRefreshContext()
 
-  // Olho do topo: esconde os valores do resumo (saldo, receita, gastos).
+  // Olho do topo: esconde todos os valores do dashboard — textos viram
+  // MASCARA_VALOR e gráficos ficam borrados (via ValoresOcultosProvider).
   // Preferência por aparelho — fica no localStorage.
   const [ocultarSaldo, setOcultarSaldo] = useState(false)
   useEffect(() => {
@@ -655,7 +659,7 @@ export default function Dashboard() {
     setOcultarSaldo(novo)
     try { localStorage.setItem(CHAVE_OCULTAR_SALDO, novo ? '1' : '0') } catch { /* ignora */ }
   }, [ocultarSaldo])
-  const mascarar = useCallback((v: number) => (ocultarSaldo ? 'R$ ••••' : fmt(v)), [ocultarSaldo])
+  const mascarar = useCallback((v: number) => (ocultarSaldo ? MASCARA_VALOR : fmt(v)), [ocultarSaldo])
   // Detalhes que saíram da linha sob a barra para não poluir o topo: ficam no (i) do saldo
   const detalheSaldo = [
     resumoCaixa.pendentesNaFatura > 0 && `Inclui ${mascarar(resumoCaixa.pendentesNaFatura)} que ainda vão cair na fatura.`,
@@ -684,6 +688,7 @@ export default function Dashboard() {
   const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
 
   return (
+    <ValoresOcultosProvider ocultar={ocultarSaldo}>
     <div className="min-h-screen bg-gray-50 page-bottom-safe page-enter">
 
       <PeriodSelectorSheet
@@ -697,11 +702,15 @@ export default function Dashboard() {
       <header data-page-header className="bg-primary-600 dark:bg-primary-900 text-white px-5 md:px-6 lg:px-8
                          pt-[calc(1rem+var(--safe-top))] pb-10 lg:pt-6 lg:pb-8 lg:mt-4 lg:mx-8 lg:rounded-3xl">
         <div className="flex items-center justify-between gap-3">
-          <h1 className="min-w-0 truncate text-base leading-tight">
-            {/* Nome de quem está logado; até o e-mail carregar, só a saudação */}
-            <span className="text-white/80">{saudacao}{nomeLogado ? ',' : ''}</span>
-            {nomeLogado && <>{' '}<span className="font-bold">{nomeLogado}</span></>}
-          </h1>
+          <div className="min-w-0">
+            <h1 className="truncate text-base leading-tight">
+              {/* Nome de quem está logado; até o e-mail carregar, só a saudação */}
+              <span className="text-white/80">{saudacao}{nomeLogado ? ',' : ''}</span>
+              {nomeLogado && <>{' '}<span className="font-bold">{nomeLogado}</span></>}
+            </h1>
+            {/* Momento da última importação; toque leva para a tela de importação */}
+            <UltimaImportacaoInfo href="/importar" className="text-white/75" />
+          </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
@@ -781,23 +790,24 @@ export default function Dashboard() {
                 <span className="font-semibold num">{formatDecimal(resumoCaixa.percentualComprometimento)}%</span> da renda comprometida
               </p>
 
-              {/* Rótulo em cima e valor embaixo: o valor ocupa a largura toda do
+              {/* Cards clicáveis: Receita → aba Receitas, Gastos → aba Despesas.
+                  Rótulo em cima e valor embaixo: o valor ocupa a largura toda do
                   card e cabe com centavos, sem cortar com reticências */}
               <div className="grid grid-cols-2 gap-2 mt-3">
-                <div className="bg-white/10 rounded-xl px-3 py-2 min-w-0">
+                <Link href="/financas?tab=receitas" className="block bg-white/10 rounded-xl px-3 py-2 min-w-0 tap-scale focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
                   <p className="flex items-center gap-1 text-[11px] text-white/75 leading-none">
                     <TrendingUp className="w-3 h-3 text-emerald-200" aria-hidden="true" />
                     Receita
                   </p>
                   <p key={resumoCaixa.receitaTotal} className="mt-1 text-[15px] font-bold num value-update whitespace-nowrap">{mascarar(resumoCaixa.receitaTotal)}</p>
-                </div>
-                <div className="bg-white/10 rounded-xl px-3 py-2 min-w-0">
+                </Link>
+                <Link href="/financas?tab=despesas" className="block bg-white/10 rounded-xl px-3 py-2 min-w-0 tap-scale focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
                   <p className="flex items-center gap-1 text-[11px] text-white/75 leading-none">
                     <TrendingDown className="w-3 h-3 text-red-200" aria-hidden="true" />
                     Gastos
                   </p>
                   <p key={resumoCaixa.totalGastos} className="mt-1 text-[15px] font-bold num value-update whitespace-nowrap">{mascarar(resumoCaixa.totalGastos)}</p>
-                </div>
+                </Link>
               </div>
             </div>
           )}
@@ -870,7 +880,7 @@ export default function Dashboard() {
                   <p className="text-xs font-medium text-gray-500 mb-1.5">Total atual</p>
                   {(() => {
                     const totalExibido = fatura.totalRealizado > 0 ? fatura.totalRealizado : totalProjecaoParcelas
-                    const totalStr = fmt(totalExibido)
+                    const totalStr = mascarar(totalExibido)
                     const commaIdx = totalStr.lastIndexOf(',')
                     const intPart = commaIdx >= 0 ? totalStr.slice(0, commaIdx) : totalStr
                     const decPart = commaIdx >= 0 ? totalStr.slice(commaIdx) : ''
@@ -922,7 +932,7 @@ export default function Dashboard() {
                                 <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{card.label}</span>
                               </div>
                               <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 num shrink-0">
-                                {fmt(card.atual)} <span className="font-normal text-gray-400">/ {card.previsto > 0 ? fmt(card.previsto) : '–'}</span>
+                                {mascarar(card.atual)} <span className="font-normal text-gray-400">/ {card.previsto > 0 ? mascarar(card.previsto) : '–'}</span>
                               </span>
                             </div>
                           ))}
@@ -939,8 +949,8 @@ export default function Dashboard() {
                                 <div className={`w-2 h-2 rounded-full shrink-0 ${cor.ponto}`} />
                                 <span className={`text-[11px] font-semibold truncate ${cor.tileTexto}`}>{t.responsavel} total</span>
                               </div>
-                              <p className="text-xl font-bold text-gray-900 num">{fmt(t.atual)}</p>
-                              <p className="text-[11px] text-gray-400 num mt-0.5">de {fmt(t.previsto)}</p>
+                              <p className="text-xl font-bold text-gray-900 num">{mascarar(t.atual)}</p>
+                              <p className="text-[11px] text-gray-400 num mt-0.5">de {mascarar(t.previsto)}</p>
                             </div>
                           )
                         })}
@@ -1018,12 +1028,12 @@ export default function Dashboard() {
                         {/* Aportado / meta */}
                         <div className="flex items-baseline justify-between gap-2">
                           <span className={`text-base font-bold num ${concluido ? 'text-emerald-600' : 'text-gray-800'}`}>
-                            {fmt(inv.aportado)}
+                            {mascarar(inv.aportado)}
                           </span>
                           <div className="text-right">
-                            <span className="text-xs text-gray-400 num">Calculado Atual {fmt(meta)}</span>
+                            <span className="text-xs text-gray-400 num">Calculado Atual {mascarar(meta)}</span>
                             {metaPrevista !== meta && metaPrevista > 0 && (
-                              <span className="block text-[10px] text-gray-500 num">Previsto {fmt(metaPrevista)}</span>
+                              <span className="block text-[10px] text-gray-500 num">Previsto {mascarar(metaPrevista)}</span>
                             )}
                           </div>
                         </div>
@@ -1035,7 +1045,7 @@ export default function Dashboard() {
                   {investimentos.length > 0 && (
                     <div className="flex items-center justify-between px-1 pt-1">
                       <span className="text-xs text-gray-400 font-medium">Total aportado</span>
-                      <span className="text-sm font-bold text-violet-700 num">{fmt(totalInvestido)}</span>
+                      <span className="text-sm font-bold text-violet-700 num">{mascarar(totalInvestido)}</span>
                     </div>
                   )}
                 </div>
@@ -1086,14 +1096,16 @@ export default function Dashboard() {
               <p className="text-xs text-gray-400 mb-4 ml-10">
                 {visaoGastosDiarios === 'burndown' ? 'Consumo do previsto · Toque para detalhes' : 'Dia a dia · Toque para detalhes'}
               </p>
-              <GraficoGastosDiarios
-                mesAtual={mesAtual}
-                cartao1Nome={fatura.cartao1Nome}
-                cartao2Nome={fatura.cartao2Nome}
-                visao={visaoGastosDiarios}
-                previsto={{ matheus: fatura.principalPrevistoPorResponsavel.Matheus ?? 0, jeniffer: fatura.principalPrevistoPorResponsavel.Jeniffer ?? 0, cartao1: fatura.cartao1Previsto, cartao2: fatura.cartao2Previsto }}
-                dataFechamentoFatura={dataFechamentoNubank}
-              />
+              <GraficoOcultavel>
+                <GraficoGastosDiarios
+                  mesAtual={mesAtual}
+                  cartao1Nome={fatura.cartao1Nome}
+                  cartao2Nome={fatura.cartao2Nome}
+                  visao={visaoGastosDiarios}
+                  previsto={{ matheus: fatura.principalPrevistoPorResponsavel.Matheus ?? 0, jeniffer: fatura.principalPrevistoPorResponsavel.Jeniffer ?? 0, cartao1: fatura.cartao1Previsto, cartao2: fatura.cartao2Previsto }}
+                  dataFechamentoFatura={dataFechamentoNubank}
+                />
+              </GraficoOcultavel>
             </div>
 
             {/* Planejado · Fatura · Limites num único card — antes eram três cards
@@ -1119,6 +1131,7 @@ export default function Dashboard() {
               <p className="text-xs text-gray-400 mb-4 ml-10">
                 Maiores variações vs. média das faturas anteriores
               </p>
+              <GraficoOcultavel>
               <LazyRender alturaPlaceholder={280}>
                 <GraficoVariacaoCategorias
                   mesAtual={mesAtual}
@@ -1126,6 +1139,7 @@ export default function Dashboard() {
                   ativo={aba === 'graficos'}
                 />
               </LazyRender>
+              </GraficoOcultavel>
             </div>
 
             <div className="bg-white rounded-3xl shadow-soft p-4 lg:col-span-2">
@@ -1141,9 +1155,11 @@ export default function Dashboard() {
               <p className="text-xs text-gray-400 mb-4 ml-10">
                 Últimas 6 faturas do NuBank · Parcelas, assinaturas e compras novas
               </p>
+              <GraficoOcultavel>
               <LazyRender alturaPlaceholder={280}>
                 <GraficoComposicaoFatura mesAtual={mesAtual} ativo={aba === 'graficos'} />
               </LazyRender>
+              </GraficoOcultavel>
             </div>
 
             <div className="bg-white rounded-3xl shadow-soft p-4">
@@ -1157,6 +1173,7 @@ export default function Dashboard() {
                 </h2>
               </div>
               <p className="text-xs text-gray-400 mb-4 ml-10">Parcelas em aberto · Toque duas vezes no mês para ver detalhes</p>
+              <GraficoOcultavel>
               <LazyRender alturaPlaceholder={280}>
                 <GraficoProjecao
                   mesInicio={mesAtual}
@@ -1167,6 +1184,7 @@ export default function Dashboard() {
                   ativo={aba === 'graficos'}
                 />
               </LazyRender>
+              </GraficoOcultavel>
             </div>
 
             <div className="bg-white rounded-3xl shadow-soft p-4">
@@ -1180,9 +1198,11 @@ export default function Dashboard() {
                 </h2>
               </div>
               <p className="text-xs text-gray-400 mb-4 ml-10">Divisão dos aportes do mês</p>
+              <GraficoOcultavel>
               <LazyRender alturaPlaceholder={224}>
                 <GraficoAlocacaoInvestimentos mesAtual={mesAtual} ativo={aba === 'graficos'} />
               </LazyRender>
+              </GraficoOcultavel>
             </div>
 
             <div className="bg-white rounded-3xl shadow-soft p-4 lg:col-span-2">
@@ -1196,9 +1216,11 @@ export default function Dashboard() {
                 </h2>
               </div>
               <p className="text-xs text-gray-400 mb-4 ml-10">Últimos 6 meses · Passe o cursor para detalhes</p>
+              <GraficoOcultavel>
               <LazyRender alturaPlaceholder={280}>
                 <GraficoEvolucaoMensal mesAtual={mesAtual} ativo={aba === 'graficos'} />
               </LazyRender>
+              </GraficoOcultavel>
             </div>
 
             <div className="bg-white rounded-3xl shadow-soft p-4 lg:col-span-2">
@@ -1212,9 +1234,11 @@ export default function Dashboard() {
                 </h2>
               </div>
               <p className="text-xs text-gray-400 mb-4 ml-10">Últimos 6 meses · Realizado vs. Meta</p>
+              <GraficoOcultavel>
               <LazyRender alturaPlaceholder={280}>
                 <GraficoEvolucaoInvestimentos mesAtual={mesAtual} ativo={aba === 'graficos'} />
               </LazyRender>
+              </GraficoOcultavel>
             </div>
 
             <div className="bg-white rounded-3xl shadow-soft p-4 lg:col-span-2">
@@ -1228,9 +1252,11 @@ export default function Dashboard() {
                 </h2>
               </div>
               <p className="text-xs text-gray-400 mb-4 ml-10">Receitas, despesas e saldo mês a mês</p>
+              <GraficoOcultavel>
               <LazyRender alturaPlaceholder={280}>
                 <GraficoAnual ano={mesAtual.getFullYear()} />
               </LazyRender>
+              </GraficoOcultavel>
             </div>
 
             <div className="bg-white rounded-3xl shadow-soft p-4 lg:col-span-2">
@@ -1244,9 +1270,11 @@ export default function Dashboard() {
                 </h2>
               </div>
               <p className="text-xs text-gray-400 mb-4 ml-10">Despesas do ano contra o ano anterior</p>
+              <GraficoOcultavel>
               <LazyRender alturaPlaceholder={280}>
                 <GraficoComparativoAnual ano={mesAtual.getFullYear()} ativo={aba === 'graficos'} />
               </LazyRender>
+              </GraficoOcultavel>
             </div>
 
           </div>
@@ -1269,5 +1297,6 @@ export default function Dashboard() {
         onVerCompras={verComprasDoTipo}
       />
     </div>
+    </ValoresOcultosProvider>
   )
 }
