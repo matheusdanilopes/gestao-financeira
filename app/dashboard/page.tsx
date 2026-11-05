@@ -145,6 +145,8 @@ interface ResumoCaixaState {
   pendentesNaFatura: number
   extras: number
   totalGastos: number
+  /** Valor do card "Gastos": previsto da tela de Despesas, ou o lançado quando maior. */
+  totalGastosDespesas: number
   sobraLiquida: number
   saldoPrevisto: number
   percentualComprometimento: number
@@ -365,6 +367,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     contasFixas: contasFixasAtual,
     temLancamentosEfetivos,
     totalGastos,
+    totalGastosDespesas,
     saldo: sobraLiquida,
     saldoPrevisto,
   } = calcularResumoSaldo(planRows, (todasTransacoesFatura || []) as TransacaoSaldoRow[], pendentes.total)
@@ -463,7 +466,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     resumoCaixa: {
       receitaTotal, contasFixas: contasFixasAtual,
       fatura: faturaEfetiva, faturaEhPrevisto: !temLancamentosEfetivos, pendentesNaFatura, extras: 0,
-      totalGastos, sobraLiquida, saldoPrevisto, percentualComprometimento,
+      totalGastos, totalGastosDespesas, sobraLiquida, saldoPrevisto, percentualComprometimento,
       todasDespesasPagas,
     },
     investimentos: (invData || []).map(i => ({ ...i, aportado: aportadoMap[i.id] || 0 })),
@@ -500,7 +503,7 @@ const FATURA_INICIAL: FaturaState = {
 
 const RESUMO_INICIAL: ResumoCaixaState = {
   receitaTotal: 0, contasFixas: 0, fatura: 0, faturaEhPrevisto: false, pendentesNaFatura: 0, extras: 0,
-  totalGastos: 0, sobraLiquida: 0, saldoPrevisto: 0, percentualComprometimento: 0,
+  totalGastos: 0, totalGastosDespesas: 0, sobraLiquida: 0, saldoPrevisto: 0, percentualComprometimento: 0,
   todasDespesasPagas: false,
 }
 
@@ -596,7 +599,7 @@ export default function Dashboard() {
   )
 
   const { status, isOnline } = useGlobalSync({
-    cacheKey: `dashboard-v3:${format(mesAtual, 'yyyy-MM')}`,
+    cacheKey: `dashboard-v4:${format(mesAtual, 'yyyy-MM')}`,
     tables: ['transacoes_nubank', 'planejamento', 'investimentos', 'investimentos_aportes', 'reservas_fatura', 'reservas_fatura_baixas'],
     fetcher,
     onData: applyData,
@@ -607,7 +610,7 @@ export default function Dashboard() {
     if (!isOnline) return
 
     const prefetch = async (mes: Date) => {
-      const storageKey = `datasync:dashboard-v3:${format(mes, 'yyyy-MM')}`
+      const storageKey = `datasync:dashboard-v4:${format(mes, 'yyyy-MM')}`
       if (localStorage.getItem(storageKey)) return
       try {
         const data = await carregarDados(mes)
@@ -824,7 +827,7 @@ export default function Dashboard() {
                     <TrendingDown className="w-3 h-3 text-red-200" aria-hidden="true" />
                     Gastos
                   </p>
-                  <p key={resumoCaixa.totalGastos} className="mt-1 text-[15px] font-bold num value-update whitespace-nowrap">{mascarar(resumoCaixa.totalGastos)}</p>
+                  <p key={resumoCaixa.totalGastosDespesas} className="mt-1 text-[15px] font-bold num value-update whitespace-nowrap">{mascarar(resumoCaixa.totalGastosDespesas)}</p>
                 </Link>
               </div>
             </div>
