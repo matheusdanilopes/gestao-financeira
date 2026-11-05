@@ -10,7 +10,7 @@ import { classificarTipoGasto, comporValorFatura, somarValorFatura, type TipoGas
 import { type ReservaFatura, type BaixaReserva } from '@/lib/reservasFatura'
 import { calcularPendentesFatura, type AssinaturaPendenteRow } from '@/lib/pendentesFatura'
 import { BarChart2, BarChart3, CalendarRange, CreditCard, PiggyBank, Layers, Scale, TrendingUp, TrendingDown, LineChart, Activity, Eye, EyeOff, ShoppingCart, ShoppingBasket } from 'lucide-react'
-import { RoboAvatar } from '@/components/chat/RoboAvatar'
+import { criarIconeFin } from '@/components/chat/IconeFin'
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
 import MonthSelector from '@/components/MonthSelector'
@@ -474,9 +474,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
 const CHAVE_OCULTAR_SALDO = 'dashboard:ocultar-saldo'
 
 /** O Fin no atalho: o mesmo robô do chat, um pouco maior que os ícones vizinhos para o rosto ser legível. */
-function IconeFin() {
-  return <RoboAvatar tamanho={22} className="-my-1 text-primary-600 dark:text-primary-300" />
-}
+const IconeFin = criarIconeFin(22)
 
 // Atalhos do Resumo. `offline`: rota que
 // funciona sem conexão (mesmo critério do ROTAS_OFFLINE do BottomNav) — é a

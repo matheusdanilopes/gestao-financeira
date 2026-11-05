@@ -1,6 +1,6 @@
-import type { LucideIcon } from 'lucide-react'
+import { criarIconeFin, type IconeCompativel } from '@/components/chat/IconeFin'
 import {
-  Wallet, CreditCard, ListChecks, FileText, Sparkles, SlidersHorizontal,
+  Wallet, CreditCard, ListChecks, FileText, SlidersHorizontal,
   Receipt, TrendingUp, PiggyBank,
   ShoppingCart, RepeatIcon, Layers,
   Heart, ShoppingBasket, Crown,
@@ -10,7 +10,7 @@ import {
 export interface NavModuleItem {
   href: string
   label: string
-  Icon: LucideIcon
+  Icon: IconeCompativel
   iconColor: string
   iconBg: string
   /** Só aparece no dropdown desktop — ex: Analytics, pensado pra tela larga. */
@@ -20,7 +20,7 @@ export interface NavModuleItem {
 export interface NavModule {
   key: string
   label: string
-  Icon: LucideIcon
+  Icon: IconeCompativel
   items: NavModuleItem[]
 }
 
@@ -69,12 +69,14 @@ const relatorios: NavModule = {
   ],
 }
 
+// O Fin aparece como ele mesmo (o robô do chat), não como um ícone genérico:
+// 20px no cabeçalho do grupo e na barra desktop, 26px no item do menu.
 const ia: NavModule = {
   key: 'ia',
   label: 'IA',
-  Icon: Sparkles,
+  Icon: criarIconeFin(20),
   items: [
-    { href: '/chat', label: 'Fin', Icon: Sparkles, iconColor: 'text-primary-600', iconBg: 'bg-primary-50' },
+    { href: '/chat', label: 'Fin', Icon: criarIconeFin(26), iconColor: 'text-primary-600', iconBg: 'bg-primary-50' },
   ],
 }
 
