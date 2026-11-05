@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Bar, Line } from 'react-chartjs-2'
+import { Bar, Doughnut, Line } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -9,6 +9,7 @@ import {
   BarElement,
   PointElement,
   LineElement,
+  ArcElement,
   Tooltip,
   Legend,
 } from 'chart.js'
@@ -19,7 +20,7 @@ import { makeCrosshairPlugin } from '@/lib/chartPlugins'
 import { CHART_ANIMATION, tooltipCfg, legendCfg, axisColors } from '@/lib/chartTheme'
 import { formatarValorGrafico, type EspecGrafico } from '@/lib/graficoChat'
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, Tooltip, Legend)
+ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, ArcElement, Tooltip, Legend)
 
 /**
  * Paleta categórica em ordem fixa (nunca ciclada), com passos próprios para o
@@ -27,6 +28,9 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineEleme
  */
 const SERIES_CLARO = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100']
 const SERIES_ESCURO = ['#3987e5', '#d95926', '#199e70', '#c98500']
+/** Rosca tem até 8 fatias: as 4 cores das séries + 4 que não colidem com elas. */
+const FATIAS_CLARO = [...SERIES_CLARO, '#8b5cf6', '#e0457b', '#0ea5b7', '#94a3b8']
+const FATIAS_ESCURO = [...SERIES_ESCURO, '#9d7bf7', '#e2628f', '#22b8cc', '#7c8798']
 
 /** Eixo em valor curto ("R$ 1,2 mil") — o tooltip mostra o valor completo. */
 function eixoCurto(v: number, unidade: EspecGrafico['unidade']): string {
@@ -36,6 +40,80 @@ function eixoCurto(v: number, unidade: EspecGrafico['unidade']): string {
   if (abs >= 1_000_000) return `${prefixo}${(v / 1_000_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mi`
   if (abs >= 1_000) return `${prefixo}${(v / 1_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil`
   return `${prefixo}${v.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`
+}
+
+/**
+ * Composição de um total: rosca com o total no centro e, embaixo, a legenda
+ * com valor e fatia de cada parte — no celular a legenda lateral não cabe.
+ */
+function Rosca({ grafico, isDark }: { grafico: EspecGrafico; isDark: boolean }) {
+  const { rotulos, series, unidade, titulo } = grafico
+  const valores = series[0].valores
+  const total = valores.reduce((a, v) => a + v, 0)
+  const cores = isDark ? FATIAS_ESCURO : FATIAS_CLARO
+  const superficie = isDark ? '#1f2937' : '#ffffff'
+  // Maior fatia primeiro: a leitura começa pelo que mais pesa.
+  // "Outros" fica sempre por último, qualquer que seja o tamanho.
+  const ehOutros = (i: number) => /^outros?$/i.test(rotulos[i].trim())
+  const ordem = rotulos.map((_, i) => i)
+    .sort((a, b) => Number(ehOutros(a)) - Number(ehOutros(b)) || valores[b] - valores[a])
+
+  const data = {
+    labels: ordem.map(i => rotulos[i]),
+    datasets: [{
+      data: ordem.map(i => valores[i]),
+      backgroundColor: ordem.map((_, k) => cores[k]),
+      borderColor: superficie,
+      borderWidth: 2,
+      hoverOffset: 6,
+    }],
+  }
+  const options: ChartOptions<'doughnut'> = {
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: '68%',
+    animation: { animateRotate: true, duration: 700 },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        ...tooltipCfg(isDark),
+        callbacks: {
+          label: (item: TooltipItem<'doughnut'>) => {
+            const v = Number(item.raw)
+            const pct = total > 0 ? (v / total) * 100 : 0
+            return `${formatarValorGrafico(v, unidade)} · ${pct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
+          },
+        },
+      },
+    },
+  }
+
+  return (
+    <div>
+      <div className="relative mx-auto" style={{ height: 160, width: 160 }} role="img" aria-label={titulo || 'Gráfico'}>
+        <Doughnut data={data} options={options} />
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <span className="text-[10px] text-gray-500 dark:text-gray-400">Total</span>
+          <span className="text-sm font-bold text-gray-800 dark:text-gray-100 num">{eixoCurto(Math.round(total), unidade)}</span>
+        </div>
+      </div>
+      <ul className="mt-3 space-y-1.5">
+        {ordem.map((i, k) => {
+          const pct = total > 0 ? (valores[i] / total) * 100 : 0
+          return (
+            <li key={rotulos[i] + i} className="flex items-center gap-2 text-xs">
+              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: cores[k] }} />
+              <span className="flex-1 min-w-0 truncate text-gray-700 dark:text-gray-300">{rotulos[i]}</span>
+              <span className="num text-gray-800 dark:text-gray-100 font-medium whitespace-nowrap">{formatarValorGrafico(valores[i], unidade)}</span>
+              <span className="num w-11 text-right text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                {pct.toLocaleString('pt-BR', { maximumFractionDigits: pct < 10 ? 1 : 0 })}%
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
 }
 
 export default function GraficoChat({ grafico }: { grafico: EspecGrafico }) {
@@ -149,6 +227,8 @@ export default function GraficoChat({ grafico }: { grafico: EspecGrafico }) {
             </tbody>
           </table>
         </div>
+      ) : tipo === 'rosca' ? (
+        <Rosca grafico={grafico} isDark={isDark} />
       ) : (
         <div style={{ height: altura }} role="img" aria-label={titulo || 'Gráfico'}>
           {tipo === 'linha'

@@ -1,7 +1,10 @@
 'use client'
 
-import { Sparkles, TrendingUp, Calendar, PieChart, Wallet } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { TrendingUp, Calendar, PieChart, Wallet } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { RoboAvatar, type HumorRobo } from './RoboAvatar'
+import { saudacaoDoHorario } from '@/lib/chatSugestoes'
 
 /**
  * Boas-vindas do chat.
@@ -37,31 +40,55 @@ const SUGESTOES_RAPIDAS = [
 
 export function ChatEmptyState({
   onEscolher,
+  nome,
+  humor = 'idle',
 }: {
   onEscolher: (texto: string) => void
+  /** Primeiro nome de quem está logado, quando dá para saber. */
+  nome?: string | null
+  /** Expressão do robô (ouvindo, por exemplo, quando a pergunta é por voz). */
+  humor?: HumorRobo
 }) {
+  // Hora do aparelho, não do servidor: calculada só depois de montar para o
+  // HTML pré-renderizado não divergir do cliente (fuso diferente).
+  const [periodo, setPeriodo] = useState<string | null>(null)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPeriodo(saudacaoDoHorario())
+  }, [])
+  const saudacao = `${periodo ?? 'Olá'}${nome ? `, ${nome}` : ''}!`
 
   return (
     <section className="flex flex-col items-center [justify-content:safe_center] min-h-full gap-3.5 page-enter">
-      <div className="relative shrink-0">
-        <div className="w-14 h-14 [@media(max-height:680px)]:w-11 [@media(max-height:680px)]:h-11 rounded-full bg-primary-600 flex items-center justify-center shadow-card-md transition-all">
-          <Sparkles className="w-7 h-7 [@media(max-height:680px)]:w-5 [@media(max-height:680px)]:h-5 text-white" />
+      {/* O robô "fala" a saudação: o balão sai dele, como numa conversa. */}
+      <div className="flex flex-col items-center gap-2 shrink-0">
+        <div className="relative text-primary-900 dark:text-black">
+          <div className="absolute inset-1 rounded-full bg-primary-400/25 dark:bg-primary-500/20 blur-xl" aria-hidden />
+          <RoboAvatar
+            humor={humor}
+            tamanho={76}
+            className="relative [@media(max-height:680px)]:w-14 [@media(max-height:680px)]:h-14"
+          />
         </div>
-        <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-400 border-2 border-gray-50 dark:border-gray-900 rounded-full" />
-      </div>
 
-      <div className="text-center space-y-1 px-2">
-        <h2 className="font-bold text-gray-800 dark:text-gray-100 text-[15px] tracking-tight text-balance">
-          Pergunte o que quiser sobre o seu dinheiro
-        </h2>
-        <p className="text-[13px] text-gray-500 dark:text-gray-400 leading-snug text-balance max-w-[290px] mx-auto [@media(max-height:680px)]:hidden">
-          Consulto suas compras, contas e investimentos reais para responder com números.
-        </p>
+        <div className="relative max-w-[300px] bg-white dark:bg-gray-800 rounded-3xl px-4 py-3 shadow-card text-center chat-pop-in">
+          <span
+            className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45 bg-white dark:bg-gray-800"
+            aria-hidden
+          />
+          <h2 className="relative font-bold text-gray-800 dark:text-gray-100 text-[15px] tracking-tight text-balance">
+            {saudacao} <span className="inline-block origin-[70%_70%] animate-[aceno_1.8s_ease-in-out_0.4s_2]">👋</span>
+          </h2>
+          <p className="relative mt-0.5 text-[13px] text-gray-500 dark:text-gray-400 leading-snug text-balance">
+            Sou seu assistente financeiro. Olho suas compras, contas e investimentos de verdade
+            <span className="[@media(max-height:680px)]:hidden"> e te respondo com números</span>. Por onde começamos?
+          </p>
+        </div>
       </div>
 
       <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/20 [@media(max-height:600px)]:hidden">
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-        <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">Conectado aos seus dados</span>
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
+        <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">Online e conectado aos seus dados</span>
       </div>
 
       <div className="w-full grid grid-cols-2 gap-2">

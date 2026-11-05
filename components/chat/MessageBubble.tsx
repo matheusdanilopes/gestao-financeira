@@ -1,9 +1,19 @@
 'use client'
 
-import { memo } from 'react'
-import { Sparkles, User, Search, Volume2, Send, AlertTriangle } from 'lucide-react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { User, Search, Volume2, Send, AlertTriangle, Copy, Check } from 'lucide-react'
 import { MarkdownMessage } from './MarkdownMessage'
+import { RoboAvatar, type HumorRobo } from './RoboAvatar'
 import type { ChatMessage } from '@/lib/useChatFinanceiro'
+
+/** Moldura do robô nas bolhas: mesmo tamanho do avatar do usuário. */
+function AvatarRobo({ humor = 'idle', estatico }: { humor?: HumorRobo; estatico?: boolean }) {
+  return (
+    <div className="w-8 h-8 rounded-full bg-primary-50 dark:bg-primary-900/60 ring-1 ring-primary-100 dark:ring-primary-800 flex items-center justify-center shrink-0 text-primary-900 dark:text-black">
+      <RoboAvatar humor={humor} tamanho={26} estatico={estatico} />
+    </div>
+  )
+}
 
 function Avatar({ role }: { role: 'user' | 'assistant' }) {
   return role === 'user' ? (
@@ -11,9 +21,48 @@ function Avatar({ role }: { role: 'user' | 'assistant' }) {
       <User className="w-4 h-4 text-white" />
     </div>
   ) : (
-    <div className="w-8 h-8 rounded-full bg-violet-500 flex items-center justify-center shrink-0 shadow-sm">
-      <Sparkles className="w-3.5 h-3.5 text-white" />
-    </div>
+    <AvatarRobo estatico />
+  )
+}
+
+const horaDe = (ts: number) =>
+  new Date(ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+
+/** Remove a marcação para copiar só o texto que a pessoa leu. */
+function textoPuro(md: string): string {
+  return md
+    .replace(/```grafico[\s\S]*?```/g, '')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/(^|\s)_(.+?)_(?=\s|$)/g, '$1$2')
+    .replace(/^#+\s*/gm, '')
+    .trim()
+}
+
+function BotaoCopiar({ texto }: { texto: string }) {
+  const [copiado, setCopiado] = useState(false)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
+
+  const copiar = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(textoPuro(texto))
+      setCopiado(true)
+      if (timer.current) clearTimeout(timer.current)
+      timer.current = setTimeout(() => setCopiado(false), 1600)
+    } catch { /* área de transferência bloqueada: nada a fazer */ }
+  }, [texto])
+
+  return (
+    <button
+      onClick={copiar}
+      aria-label={copiado ? 'Resposta copiada' : 'Copiar resposta'}
+      className={`inline-flex items-center gap-1.5 text-[11px] rounded-full transition-colors ${
+        copiado ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400 dark:text-gray-500 hover:text-primary-600 dark:hover:text-primary-400'
+      }`}
+    >
+      {copiado ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+      {copiado ? 'Copiado' : 'Copiar'}
+    </button>
   )
 }
 
@@ -78,15 +127,24 @@ export const MessageBubble = memo(function MessageBubble({
             via Telegram
           </span>
         )}
-        {!ehUsuario && onOuvir && (
-          <button
-            onClick={() => onOuvir(mensagem.content)}
-            aria-label="Ouvir resposta"
-            className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-gray-400 dark:text-gray-500 rounded-full transition-colors hover:text-violet-600 dark:hover:text-violet-400"
-          >
-            <Volume2 className="w-3.5 h-3.5" />
-            Ouvir
-          </button>
+        {!ehUsuario && (
+          <div className="mt-2 flex items-center gap-3">
+            {onOuvir && (
+              <button
+                onClick={() => onOuvir(mensagem.content)}
+                aria-label="Ouvir resposta"
+                className="inline-flex items-center gap-1.5 text-[11px] text-gray-400 dark:text-gray-500 rounded-full transition-colors hover:text-primary-600 dark:hover:text-primary-400"
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+                Ouvir
+              </button>
+            )}
+            <BotaoCopiar texto={mensagem.content} />
+            <time className="ml-auto text-[10px] text-gray-300 dark:text-gray-600 tabular-nums">{horaDe(mensagem.ts)}</time>
+          </div>
+        )}
+        {ehUsuario && (
+          <time className="block mt-1 text-right text-[10px] text-white/60 tabular-nums">{horaDe(mensagem.ts)}</time>
         )}
         {!ehUsuario && mensagem.ferramentas && <TrilhaFerramentas itens={mensagem.ferramentas} />}
       </div>
@@ -105,15 +163,13 @@ export const StreamingBubble = memo(function StreamingBubble({
   ferramentas: string[]
 }) {
   return (
-    <article className="list-item-enter flex gap-2.5 items-end">
-      <div className="w-8 h-8 rounded-full bg-violet-500 flex items-center justify-center shrink-0 shadow-sm">
-        <Sparkles className="w-3.5 h-3.5 text-white animate-pulse" />
-      </div>
+    <article className="list-item-enter flex gap-2.5 items-end" aria-live="polite" aria-busy="true">
+      <AvatarRobo humor={texto ? 'falando' : 'pensando'} />
       <div className="max-w-[88%] sm:max-w-[80%] lg:max-w-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-3xl rounded-bl-md px-4 py-3.5 shadow-card min-w-[180px]">
         {texto ? (
           <>
             <MarkdownMessage texto={texto} />
-            <span className="inline-block w-1.5 h-3.5 ml-0.5 align-middle bg-violet-500 rounded-sm animate-pulse" />
+            <span className="inline-block w-1.5 h-3.5 ml-0.5 align-middle bg-primary-500 rounded-sm animate-pulse" />
           </>
         ) : (
           <AtividadeAgente status={status} ferramentas={ferramentas} />
@@ -132,13 +188,13 @@ function AtividadeAgente({ status, ferramentas }: { status: string | null; ferra
           {[0, 240, 480].map(delay => (
             <span
               key={delay}
-              className="w-1.5 h-1.5 rounded-full bg-violet-400 dark:bg-violet-500"
+              className="w-1.5 h-1.5 rounded-full bg-primary-400 dark:bg-primary-500"
               style={{ animation: 'chat-dot 1.2s ease-in-out infinite', animationDelay: `${delay}ms` }}
             />
           ))}
         </span>
         <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-          {status ?? 'Analisando seus dados'}
+          {status ?? 'Pensando…'}
         </span>
       </div>
 
