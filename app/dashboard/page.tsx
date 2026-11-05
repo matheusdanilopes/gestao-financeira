@@ -478,7 +478,7 @@ const CHAVE_OCULTAR_SALDO = 'dashboard:ocultar-saldo'
 // worker servir a página do cache.
 const ATALHOS: { label: string; Icon: React.ComponentType<{ className?: string; strokeWidth?: number }>; href: string; offline?: boolean }[] = [
   { label: 'Mercado', Icon: ShoppingBasket, href: '/lista-mercado', offline: true },
-  { label: 'Assistente', Icon: Sparkles, href: '/chat' },
+  { label: 'Fin', Icon: Sparkles, href: '/chat' },
   { label: 'Compras', Icon: ShoppingCart, href: '/compras' },
 ]
 

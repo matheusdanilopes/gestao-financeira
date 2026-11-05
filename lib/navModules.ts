@@ -74,7 +74,7 @@ const ia: NavModule = {
   label: 'IA',
   Icon: Sparkles,
   items: [
-    { href: '/chat', label: 'Assistente IA', Icon: Sparkles, iconColor: 'text-primary-600', iconBg: 'bg-primary-50' },
+    { href: '/chat', label: 'Fin', Icon: Sparkles, iconColor: 'text-primary-600', iconBg: 'bg-primary-50' },
   ],
 }
 
