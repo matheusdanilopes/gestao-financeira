@@ -73,7 +73,7 @@ const relatorios: NavModule = {
 // 20px no cabeçalho do grupo e na barra desktop, 26px no item do menu.
 const ia: NavModule = {
   key: 'ia',
-  label: 'IA',
+  label: 'Assistente',
   Icon: criarIconeFin(20),
   items: [
     { href: '/chat', label: 'Fin', Icon: criarIconeFin(26), iconColor: 'text-primary-600', iconBg: 'bg-primary-50' },
