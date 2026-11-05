@@ -9,7 +9,7 @@ import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
 import { classificarTipoGasto, comporValorFatura, somarValorFatura, type TipoGasto } from '@/lib/composicaoFatura'
 import { type ReservaFatura, type BaixaReserva } from '@/lib/reservasFatura'
 import { calcularPendentesFatura, type AssinaturaPendenteRow } from '@/lib/pendentesFatura'
-import { BarChart2, BarChart3, CalendarRange, CreditCard, PiggyBank, Layers, Scale, TrendingUp, TrendingDown, LineChart, Activity, Eye, EyeOff, Receipt, ShoppingCart, ShoppingBasket, Download, Sparkles } from 'lucide-react'
+import { BarChart2, BarChart3, CalendarRange, CreditCard, PiggyBank, Layers, Scale, TrendingUp, TrendingDown, LineChart, Activity, Eye, EyeOff, ShoppingCart, ShoppingBasket, Sparkles } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
 import MonthSelector from '@/components/MonthSelector'
@@ -472,16 +472,14 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
 
 const CHAVE_OCULTAR_SALDO = 'dashboard:ocultar-saldo'
 
-// Atalhos do Resumo, do mais usado para o menos usado. `offline`: rota que
+// Atalhos do Resumo. `offline`: rota que
 // funciona sem conexão (mesmo critério do ROTAS_OFFLINE do BottomNav) — é a
 // única que aparece offline, e abre por navegação completa para o service
 // worker servir a página do cache.
 const ATALHOS: { label: string; Icon: React.ComponentType<{ className?: string; strokeWidth?: number }>; href: string; offline?: boolean }[] = [
-  { label: 'Despesas', Icon: Receipt, href: '/financas?tab=despesas' },
-  { label: 'Compras', Icon: ShoppingCart, href: '/compras' },
   { label: 'Mercado', Icon: ShoppingBasket, href: '/lista-mercado', offline: true },
   { label: 'Assistente', Icon: Sparkles, href: '/chat' },
-  { label: 'Importar', Icon: Download, href: '/importar' },
+  { label: 'Compras', Icon: ShoppingCart, href: '/compras' },
 ]
 
 const FATURA_INICIAL: FaturaState = {
@@ -858,26 +856,23 @@ export default function Dashboard() {
         {/* ── Resumo tab ── */}
         <div key={`resumo-${aba}`} className={aba === 'resumo' ? 'tab-enter-left space-y-4' : 'hidden'}>
 
-          {/* ── 1. Atalhos — uma fileira de pílulas (36px de altura, rola na
-                 horizontal) para não empurrar a fatura: o bloco do 1º usuário
-                 continua visível ao abrir o app ── */}
-          <nav aria-label="Atalhos" className="-mx-4 md:-mx-6 lg:mx-0 -mb-1">
-            <div className="flex gap-2 overflow-x-auto scrollbar-hide px-4 md:px-6 lg:px-0 lg:flex-wrap">
-              {ATALHOS.filter(a => online || a.offline).map(({ label, Icon, href }) => {
-                const conteudo = (
-                  <>
-                    <Icon className="w-4 h-4 text-primary-600 dark:text-primary-300 shrink-0" strokeWidth={2.25} />
-                    {label}
-                  </>
-                )
-                const classe = 'shrink-0 inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-white dark:bg-white/10 shadow-soft text-[13px] font-semibold text-gray-700 dark:text-gray-200 whitespace-nowrap tap-scale focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400'
-                return online ? (
-                  <Link key={label} href={href} className={classe}>{conteudo}</Link>
-                ) : (
-                  <a key={label} href={href} className={classe}>{conteudo}</a>
-                )
-              })}
-            </div>
+          {/* ── 1. Atalhos — uma fileira de pílulas de 36px, para não empurrar a
+                 fatura: o bloco do 1º usuário continua visível ao abrir o app ── */}
+          <nav aria-label="Atalhos" className="grid grid-cols-3 gap-2 lg:flex -mb-1">
+            {ATALHOS.filter(a => online || a.offline).map(({ label, Icon, href }) => {
+              const conteudo = (
+                <>
+                  <Icon className="w-4 h-4 text-primary-600 dark:text-primary-300 shrink-0" strokeWidth={2.25} />
+                  {label}
+                </>
+              )
+              const classe = 'inline-flex items-center justify-center gap-1.5 h-9 px-2 lg:px-4 rounded-full bg-white dark:bg-white/10 shadow-soft text-[13px] font-semibold text-gray-700 dark:text-gray-200 whitespace-nowrap min-w-0 tap-scale focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400'
+              return online ? (
+                <Link key={label} href={href} className={classe}>{conteudo}</Link>
+              ) : (
+                <a key={label} href={href} className={classe}>{conteudo}</a>
+              )
+            })}
           </nav>
 
           {/* ── 2. Fatura dos cartões (logo após os atalhos: visível ao abrir o app) ── */}
