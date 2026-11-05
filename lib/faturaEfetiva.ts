@@ -88,7 +88,17 @@ export interface EfetivoCartao {
  * `linhas` são as linhas de planejamento daquela fatura; quando alguma foi marcada
  * como paga, somam-se apenas as pagas (é o que já saiu da conta).
  */
-function efetivoDe(linhas: PlanejamentoSaldoRow[], atual: number, pendente = 0): EfetivoCartao {
+function efetivoDe(
+  linhas: PlanejamentoSaldoRow[],
+  atual: number,
+  pendente = 0,
+  /**
+   * 'lancado' (padrão): sem pagamento, vale o que já caiu (+ pendentes) ou o previsto.
+   * 'maiorQuePrevisto': sem pagamento, vale o previsto da tela de Despesas, e o
+   * lançado (+ pendentes) só quando passar dele.
+   */
+  modo: 'lancado' | 'maiorQuePrevisto' = 'lancado'
+): EfetivoCartao {
   const previsto = linhas.reduce((acc, p) => acc + previstoDe(p), 0)
   const pagas = linhas.filter(p => p.pago)
   // `pendente` (assinaturas e compras previstas que ainda vão cair) só soma ao que
@@ -96,7 +106,9 @@ function efetivoDe(linhas: PlanejamentoSaldoRow[], atual: number, pendente = 0):
   // própria estimativa do mês.
   const efetivo = pagas.length > 0
     ? pagas.reduce((acc, p) => acc + realizadoDe(p), 0)
-    : atual > 0 ? atual + pendente : previsto
+    : modo === 'maiorQuePrevisto'
+      ? Math.max(previsto, atual + pendente)
+      : atual > 0 ? atual + pendente : previsto
   return { previsto, atual, efetivo, temDados: atual > 0 || pagas.length > 0 }
 }
 
@@ -109,7 +121,8 @@ export function calcularEfetivoPorCartao(
   plan: PlanejamentoSaldoRow[],
   transacoes: TransacaoSaldoRow[],
   /** O que ainda vai cair na fatura do principal, por responsável (lib/pendentesFatura). */
-  pendentesPrincipal: Record<string, number> = {}
+  pendentesPrincipal: Record<string, number> = {},
+  modo: 'lancado' | 'maiorQuePrevisto' = 'lancado'
 ): Record<TipoCartao, EfetivoCartao> {
   const resultado = {} as Record<TipoCartao, EfetivoCartao>
 
@@ -118,7 +131,7 @@ export function calcularEfetivoPorCartao(
     const tx = transacoesDoCartao(transacoes, tipo)
 
     if (tipo !== 'principal') {
-      resultado[tipo] = efetivoDe(linhas, somarValorFatura(tx))
+      resultado[tipo] = efetivoDe(linhas, somarValorFatura(tx), 0, modo)
       continue
     }
 
@@ -131,7 +144,7 @@ export function calcularEfetivoPorCartao(
     for (const responsavel of responsaveis) {
       const linhasResp = linhas.filter(p => (p.responsavel || '') === responsavel)
       const atualResp = somarValorFatura(tx.filter(t => (t.responsavel || '') === responsavel))
-      const parcial = efetivoDe(linhasResp, atualResp, pendentesPrincipal[responsavel] ?? 0)
+      const parcial = efetivoDe(linhasResp, atualResp, pendentesPrincipal[responsavel] ?? 0, modo)
       previsto += parcial.previsto
       atual += parcial.atual
       efetivo += parcial.efetivo
@@ -150,6 +163,12 @@ export interface ResumoSaldo {
   /** Parte da faturaEfetiva que ainda não caiu: assinaturas e compras previstas. */
   pendentesNaFatura: number
   totalGastos: number
+  /**
+   * Gastos pela ótica da tela de Despesas: contas fixas + cada fatura pelo valor
+   * previsto (ou pago), trocado pelo total lançado (+ pendentes) só quando este for
+   * maior. Usado no card "Gastos" do Dashboard; não altera `saldo`.
+   */
+  totalGastosDespesas: number
   saldo: number
   saldoPrevisto: number
   temLancamentosEfetivos: boolean
@@ -168,6 +187,8 @@ export function calcularResumoSaldo(
   const faturaEfetiva = TIPOS_CARTAO.reduce((acc, tipo) => acc + porCartao[tipo].efetivo, 0)
   const temLancamentosEfetivos = TIPOS_CARTAO.some(tipo => porCartao[tipo].temDados)
   const totalGastos = contasFixas + faturaEfetiva
+  const porCartaoDespesas = calcularEfetivoPorCartao(plan, transacoes, pendentesPrincipal, 'maiorQuePrevisto')
+  const totalGastosDespesas = contasFixas + TIPOS_CARTAO.reduce((acc, tipo) => acc + porCartaoDespesas[tipo].efetivo, 0)
 
   return {
     receitaTotal,
@@ -175,6 +196,7 @@ export function calcularResumoSaldo(
     faturaEfetiva,
     pendentesNaFatura: Math.max(0, Math.round((porCartao.principal.efetivo - semPendentes) * 100) / 100),
     totalGastos,
+    totalGastosDespesas,
     saldo: receitaTotal - totalGastos,
     saldoPrevisto: receitaTotal - calcularTotalPlanejado(plan),
     temLancamentosEfetivos,
