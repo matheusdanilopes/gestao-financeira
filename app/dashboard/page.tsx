@@ -9,7 +9,7 @@ import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
 import { classificarTipoGasto, comporValorFatura, somarValorFatura, type TipoGasto } from '@/lib/composicaoFatura'
 import { type ReservaFatura, type BaixaReserva } from '@/lib/reservasFatura'
 import { calcularPendentesFatura, type AssinaturaPendenteRow } from '@/lib/pendentesFatura'
-import { BarChart2, BarChart3, CalendarRange, CreditCard, PiggyBank, Layers, Scale, TrendingUp, TrendingDown, LineChart, Activity, Eye, EyeOff } from 'lucide-react'
+import { BarChart2, BarChart3, CalendarRange, CreditCard, PiggyBank, Layers, Scale, TrendingUp, TrendingDown, LineChart, Activity, Eye, EyeOff, ShoppingCart, ShoppingBasket, Sparkles } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
 import MonthSelector from '@/components/MonthSelector'
@@ -19,6 +19,7 @@ import { ValoresOcultosProvider, GraficoOcultavel, MASCARA_VALOR } from '@/compo
 import DataStatusIndicator from '@/components/DataStatusIndicator'
 import { useRefreshContext } from '@/components/RefreshProvider'
 import { useCountUp } from '@/lib/useCountUp'
+import { useOnline } from '@/lib/useOnline'
 import type { ComposicaoFaturaDados } from '@/components/ComposicaoFaturaModal'
 import dynamic from 'next/dynamic'
 
@@ -471,6 +472,16 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
 
 const CHAVE_OCULTAR_SALDO = 'dashboard:ocultar-saldo'
 
+// Atalhos do Resumo. `offline`: rota que
+// funciona sem conexão (mesmo critério do ROTAS_OFFLINE do BottomNav) — é a
+// única que aparece offline, e abre por navegação completa para o service
+// worker servir a página do cache.
+const ATALHOS: { label: string; Icon: React.ComponentType<{ className?: string; strokeWidth?: number }>; href: string; offline?: boolean }[] = [
+  { label: 'Mercado', Icon: ShoppingBasket, href: '/lista-mercado', offline: true },
+  { label: 'Assistente', Icon: Sparkles, href: '/chat' },
+  { label: 'Compras', Icon: ShoppingCart, href: '/compras' },
+]
+
 const FATURA_INICIAL: FaturaState = {
   totalRealizado: 0,
   principalBlocks: [],
@@ -643,6 +654,9 @@ export default function Dashboard() {
   const saldoDec = idxVirgula >= 0 ? saldoTexto.slice(idxVirgula) : ''
 
   const { syncState } = useRefreshContext()
+  // useOnline (e não o isOnline do sync): é igual no servidor e no 1º render
+  // do cliente, então os atalhos não causam erro de hidratação.
+  const online = useOnline()
 
   // Olho do topo: esconde todos os valores do dashboard — textos viram
   // MASCARA_VALOR e gráficos ficam borrados (via ValoresOcultosProvider).
@@ -819,7 +833,7 @@ export default function Dashboard() {
       <div className="page-content">
 
         {/* Abas com pílula deslizante */}
-        <div className="relative grid grid-cols-2 bg-gray-100 rounded-full p-1 mb-4 lg:max-w-xs">
+        <div className="relative grid grid-cols-2 bg-gray-100 rounded-full p-1 mb-3 lg:max-w-xs">
           <span
             aria-hidden="true"
             className={`absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] rounded-full bg-white shadow-sm
@@ -842,7 +856,26 @@ export default function Dashboard() {
         {/* ── Resumo tab ── */}
         <div key={`resumo-${aba}`} className={aba === 'resumo' ? 'tab-enter-left space-y-4' : 'hidden'}>
 
-          {/* ── 1. Fatura dos cartões (primeiro item: visível ao abrir o app) ── */}
+          {/* ── 1. Atalhos — uma fileira de pílulas de 36px, para não empurrar a
+                 fatura: o bloco do 1º usuário continua visível ao abrir o app ── */}
+          <nav aria-label="Atalhos" className="grid grid-cols-3 gap-2 lg:flex -mb-1">
+            {ATALHOS.filter(a => online || a.offline).map(({ label, Icon, href }) => {
+              const conteudo = (
+                <>
+                  <Icon className="w-4 h-4 text-primary-600 dark:text-primary-300 shrink-0" strokeWidth={2.25} />
+                  {label}
+                </>
+              )
+              const classe = 'inline-flex items-center justify-center gap-1.5 h-9 px-2 lg:px-4 rounded-full bg-white dark:bg-white/10 shadow-soft text-[13px] font-semibold text-gray-700 dark:text-gray-200 whitespace-nowrap min-w-0 tap-scale focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400'
+              return online ? (
+                <Link key={label} href={href} className={classe}>{conteudo}</Link>
+              ) : (
+                <a key={label} href={href} className={classe}>{conteudo}</a>
+              )
+            })}
+          </nav>
+
+          {/* ── 2. Fatura dos cartões (logo após os atalhos: visível ao abrir o app) ── */}
           <div className="bg-white rounded-3xl shadow-soft p-4">
             <div className="flex items-center justify-between gap-2 mb-3">
               <div className="flex items-center gap-2">
@@ -963,7 +996,7 @@ export default function Dashboard() {
           </div>
 
 
-          {/* ── 2. Investimentos ── */}
+          {/* ── 3. Investimentos ── */}
           {(carregando || investimentos.length > 0) && (
             <div className="bg-white rounded-3xl shadow-soft p-4">
               <div className="flex items-center justify-between mb-4">
