@@ -80,7 +80,7 @@ export function ChatEmptyState({
             {saudacao} <span className="inline-block origin-[70%_70%] animate-[aceno_1.8s_ease-in-out_0.4s_2]">👋</span>
           </h2>
           <p className="relative mt-0.5 text-[13px] text-gray-500 dark:text-gray-400 leading-snug text-balance">
-            Sou seu assistente financeiro. Olho suas compras, contas e investimentos de verdade
+            Eu sou o Fin, seu assistente financeiro. Olho suas compras, contas e investimentos de verdade
             <span className="[@media(max-height:680px)]:hidden"> e te respondo com números</span>. Por onde começamos?
           </p>
         </div>

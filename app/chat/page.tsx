@@ -211,7 +211,7 @@ export default function ChatPage() {
             <button
               type="button"
               onClick={reagir}
-              aria-label="Assistente financeiro"
+              aria-label="Fin, seu assistente financeiro"
               className={`relative rounded-full bg-white/15 ring-1 ring-white/25 flex items-center justify-center shrink-0 text-primary-900 transition-all duration-200 active:scale-95 ${headerCompacto ? 'w-9 h-9' : 'w-11 h-11'}`}
             >
               <RoboAvatar humor={humor} tamanho={headerCompacto ? 30 : 36} />
@@ -224,7 +224,7 @@ export default function ChatPage() {
             </button>
             <div className="min-w-0">
               <p className="font-semibold text-white text-sm leading-tight truncate tracking-tight">
-                Assistente Financeiro
+                Fin
               </p>
               <p
                 className="text-[11px] leading-tight text-white/75 whitespace-nowrap truncate mt-0.5"
