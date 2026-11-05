@@ -13,7 +13,8 @@
  *   ```
  */
 
-export type TipoGrafico = 'barra' | 'barra_horizontal' | 'linha'
+/** rosca = composição de um total (fatia de cada categoria/pessoa/cartão). */
+export type TipoGrafico = 'barra' | 'barra_horizontal' | 'linha' | 'rosca'
 export type UnidadeGrafico = 'brl' | 'pct' | 'numero'
 
 export interface SerieGrafico {
@@ -34,7 +35,9 @@ export const LINGUAGEM_GRAFICO = 'grafico'
 export const MAX_SERIES = 4
 export const MAX_ROTULOS = 12
 
-const TIPOS: TipoGrafico[] = ['barra', 'barra_horizontal', 'linha']
+const TIPOS: TipoGrafico[] = ['barra', 'barra_horizontal', 'linha', 'rosca']
+/** Mais fatias que isso viram confete: a rosca cede lugar à barra horizontal. */
+export const MAX_FATIAS = 8
 const UNIDADES: UnidadeGrafico[] = ['brl', 'pct', 'numero']
 
 const numero = (v: unknown): number | null => {
@@ -66,6 +69,14 @@ export function lerGrafico(json: string): EspecGrafico | null {
     series.push({ nome: typeof nome === 'string' && nome.trim() ? nome.trim().slice(0, 32) : `Série ${series.length + 1}`, valores: nums as number[] })
   }
   if (series.length === 0) return null
+
+  // Rosca só faz sentido para partes de um mesmo total: uma série, valores
+  // positivos e poucas fatias. Fora disso o mesmo dado vira ranking em barras.
+  if (tipo === 'rosca') {
+    const valida = series.length === 1 && rotulos.length >= 2 && rotulos.length <= MAX_FATIAS &&
+      series[0].valores.every(v => v >= 0) && series[0].valores.some(v => v > 0)
+    if (!valida) return { tipo: 'barra_horizontal', titulo, rotulos, series, unidade }
+  }
 
   return { tipo, titulo, rotulos, series, unidade }
 }

@@ -10,24 +10,20 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { History, MoreHorizontal, Plus, Sparkles, Trash2, AlertTriangle, RotateCcw, Volume2, VolumeX, MicOff } from 'lucide-react'
-import { format } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
+import { History, MoreHorizontal, Plus, Trash2, AlertTriangle, RotateCcw, Volume2, VolumeX, MicOff, ArrowDown } from 'lucide-react'
 import NotificacoesBell from '@/components/NotificacoesBell'
 import { MessageBubble, StreamingBubble } from '@/components/chat/MessageBubble'
 import { Composer } from '@/components/chat/Composer'
 import { ConversationDrawer } from '@/components/chat/ConversationDrawer'
 import { ChatEmptyState } from '@/components/chat/ChatEmptyState'
+import { RoboAvatar, type HumorRobo } from '@/components/chat/RoboAvatar'
 import { useChatFinanceiro } from '@/lib/useChatFinanceiro'
 import { useVoice } from '@/lib/useVoice'
+import { sugestoesParaResposta } from '@/lib/chatSugestoes'
+import { supabase } from '@/lib/supabaseClient'
+import { responsavelDoEmail } from '@/lib/ai/agent/interlocutor'
 
-const FOLLOWUPS = [
-  'O que está puxando esse número?',
-  'Como foi no mês passado?',
-  'O que dá para cortar?',
-  'Detalhe por categoria',
-  'E nos próximos meses?',
-]
+const minusculaInicial = (t: string) => t.charAt(0).toLowerCase() + t.slice(1)
 
 /** Distância do fim a partir da qual paramos de acompanhar o scroll. */
 const MARGEM_AUTOSCROLL = 160
@@ -43,12 +39,50 @@ export default function ChatPage() {
   const [menuAberto, setMenuAberto] = useState(false)
   const [headerCompacto, setHeaderCompacto] = useState(false)
   const [erroVoz, setErroVoz] = useState<string | null>(null)
+  const [longeDoFim, setLongeDoFim] = useState(false)
+  // Reação curta do robô (pulinho feliz) ao chegar uma resposta ou ao ser tocado.
+  const [reagindo, setReagindo] = useState(false)
+  const reacaoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [nome, setNome] = useState<string | null>(null)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const fimRef = useRef<HTMLDivElement>(null)
   const seguirFimRef = useRef(true)
 
-  const mesAtual = useMemo(() => format(new Date(), 'MMM/yyyy', { locale: ptBR }).toUpperCase(), [])
+  // Quem está logado, para o assistente cumprimentar pelo nome.
+  useEffect(() => {
+    let ativo = true
+    supabase.auth.getSession().then(({ data }) => {
+      if (ativo) setNome(responsavelDoEmail(data.session?.user?.email))
+    })
+    return () => { ativo = false }
+  }, [])
+
+  const reagir = useCallback(() => {
+    setReagindo(true)
+    if (reacaoTimer.current) clearTimeout(reacaoTimer.current)
+    reacaoTimer.current = setTimeout(() => setReagindo(false), 1300)
+  }, [])
+  useEffect(() => () => { if (reacaoTimer.current) clearTimeout(reacaoTimer.current) }, [])
+
+  // Expressão do robô: espelha o que está acontecendo na conversa.
+  const humor: HumorRobo = voz.ouvindo
+    ? 'ouvindo'
+    : chat.streaming
+      ? (chat.textoParcial ? 'falando' : 'pensando')
+      : voz.falando
+        ? 'falando'
+        : reagindo
+          ? 'feliz'
+          : 'idle'
+
+  const statusTexto = voz.ouvindo
+    ? 'ouvindo você…'
+    : chat.streaming
+      ? (chat.textoParcial ? 'digitando…' : `${minusculaInicial(chat.status ?? 'pensando').replace(/…$/, '')}…`)
+      : voz.falando
+        ? 'falando…'
+        : 'online'
 
   const vazio = chat.mensagens.length === 0 && !chat.streaming && !chat.carregandoHistorico
 
@@ -59,6 +93,7 @@ export default function ChatPage() {
     function aoRolar() {
       const perto = el!.scrollHeight - el!.scrollTop - el!.clientHeight < MARGEM_AUTOSCROLL
       seguirFimRef.current = perto
+      setLongeDoFim(!perto)
       setHeaderCompacto(el!.scrollTop > 24)
     }
     el.addEventListener('scroll', aoRolar, { passive: true })
@@ -121,8 +156,28 @@ export default function ChatPage() {
     if (ultima?.role === 'assistant') voz.falar(ultima.content)
   }, [chat.mensagens, voz.autoFalar, voz])
 
-  const ultimaEhResposta =
-    chat.mensagens.length > 0 && chat.mensagens[chat.mensagens.length - 1].role === 'assistant'
+  // Resposta nova chegou → o robô comemora (só turnos novos, não histórico).
+  const totalParaReacaoRef = useRef(0)
+  useEffect(() => {
+    const total = chat.mensagens.length
+    const chegouUmaNova = total - totalParaReacaoRef.current === 1
+    totalParaReacaoRef.current = total
+    // Fora do corpo síncrono do efeito (mesma convenção de lib/useVoice.ts).
+    if (chegouUmaNova && chat.mensagens[total - 1]?.role === 'assistant') Promise.resolve().then(reagir)
+  }, [chat.mensagens, reagir])
+
+  const irParaOFim = useCallback(() => {
+    seguirFimRef.current = true
+    setLongeDoFim(false)
+    fimRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }, [])
+
+  const ultimaMsg = chat.mensagens[chat.mensagens.length - 1]
+  const ultimaEhResposta = ultimaMsg?.role === 'assistant'
+  const sugestoes = useMemo(
+    () => (ultimaEhResposta ? sugestoesParaResposta(ultimaMsg.content) : null),
+    [ultimaEhResposta, ultimaMsg],
+  )
 
   return (
     <div className="fixed inset-0 flex flex-col bg-gray-50 dark:bg-gray-900 pb-16">
@@ -150,20 +205,33 @@ export default function ChatPage() {
             <History className="w-5 h-5" />
           </button>
 
-          <div className="flex-1 min-w-0 flex items-center justify-center gap-2">
-            <div className={`w-7 h-7 rounded-full bg-white/15 flex items-center justify-center shrink-0 transition-transform duration-200 ${headerCompacto ? 'scale-90' : ''}`}>
-              <Sparkles className="w-4 h-4 text-white" />
-            </div>
-            <div className="min-w-0 text-center">
+          <div className="flex-1 min-w-0 flex items-center justify-center gap-2.5">
+            {/* Tocar no robô arranca um pulinho: pequeno, mas é o que faz ele
+                parecer alguém do outro lado e não um ícone. */}
+            <button
+              type="button"
+              onClick={reagir}
+              aria-label="Fin, seu assistente financeiro"
+              className={`relative rounded-full bg-white/15 ring-1 ring-white/25 flex items-center justify-center shrink-0 text-primary-900 transition-all duration-200 active:scale-95 ${headerCompacto ? 'w-9 h-9' : 'w-11 h-11'}`}
+            >
+              <RoboAvatar humor={humor} tamanho={headerCompacto ? 30 : 36} />
+              <span
+                className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-primary-600 dark:border-primary-900 ${
+                  voz.ouvindo ? 'bg-red-400 animate-pulse' : chat.streaming ? 'bg-amber-300 animate-pulse' : 'bg-emerald-400'
+                }`}
+                aria-hidden
+              />
+            </button>
+            <div className="min-w-0">
               <p className="font-semibold text-white text-sm leading-tight truncate tracking-tight">
-                IA Financeira
+                Fin
               </p>
-              <div className={`flex items-center justify-center gap-1.5 overflow-hidden transition-all duration-200 ${headerCompacto ? 'max-h-0 opacity-0' : 'max-h-4 opacity-100 mt-0.5'}`}>
-                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${chat.streaming ? 'bg-amber-300 animate-pulse' : 'bg-emerald-300'}`} />
-                <span className="text-[11px] text-white/75 whitespace-nowrap">
-                  {chat.streaming ? (chat.status ?? 'Analisando') : `Pronta · ${mesAtual}`}
-                </span>
-              </div>
+              <p
+                className="text-[11px] leading-tight text-white/75 whitespace-nowrap truncate mt-0.5"
+                aria-live="polite"
+              >
+                {statusTexto}
+              </p>
             </div>
           </div>
 
@@ -250,7 +318,7 @@ export default function ChatPage() {
             ))}
           </div>
         ) : vazio ? (
-          <ChatEmptyState onEscolher={enviar} />
+          <ChatEmptyState onEscolher={enviar} nome={nome} humor={humor} />
         ) : (
           <>
             {chat.restaurada && (
@@ -304,17 +372,25 @@ export default function ChatPage() {
               </div>
             )}
 
-            {ultimaEhResposta && !chat.streaming && !chat.erro && (
-              <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 pl-10">
-                {FOLLOWUPS.map(chip => (
-                  <button
-                    key={chip}
-                    onClick={() => enviar(chip)}
-                    className="shrink-0 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-full px-3.5 py-2 border border-transparent transition-colors duration-200 hover:bg-primary-100 hover:text-primary-700 hover:border-primary-200 dark:hover:bg-primary-900/40 dark:hover:text-primary-400 dark:hover:border-primary-700 whitespace-nowrap"
-                  >
-                    {chip}
-                  </button>
-                ))}
+            {sugestoes && !chat.streaming && !chat.erro && (
+              <div key={ultimaMsg.id} className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 pl-10 -mr-4 pr-4">
+                {sugestoes.chips.map((chip, i) => {
+                  const destaque = sugestoes.confirmacao && i === 0
+                  return (
+                    <button
+                      key={chip}
+                      onClick={() => enviar(chip)}
+                      style={{ animationDelay: `${120 + i * 70}ms` }}
+                      className={`chat-pop-in shrink-0 text-xs rounded-full px-3.5 py-2 border transition-colors duration-200 whitespace-nowrap ${
+                        destaque
+                          ? 'bg-primary-600 text-white border-primary-600 font-semibold shadow-sm hover:bg-primary-700'
+                          : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-primary-50 hover:text-primary-700 hover:border-primary-200 dark:hover:bg-primary-900/40 dark:hover:text-primary-400 dark:hover:border-primary-700'
+                      }`}
+                    >
+                      {chip}
+                    </button>
+                  )
+                })}
               </div>
             )}
           </>
@@ -322,6 +398,16 @@ export default function ChatPage() {
 
         <div ref={fimRef} />
       </main>
+
+      {longeDoFim && !vazio && (
+        <button
+          onClick={irParaOFim}
+          aria-label="Ir para a última mensagem"
+          className="chat-pop-in fixed right-4 bottom-[calc(8.5rem+var(--safe-bottom))] lg:bottom-24 z-[141] w-10 h-10 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-card-md text-gray-600 dark:text-gray-300 flex items-center justify-center transition-transform active:scale-95"
+        >
+          <ArrowDown className="w-4 h-4" />
+        </button>
+      )}
 
       <Composer
         valor={input}

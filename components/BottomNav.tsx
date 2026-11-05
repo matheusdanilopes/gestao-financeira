@@ -687,7 +687,7 @@ export default memo(function BottomNav() {
 
           <DesktopNavLink
             href="/chat"
-            label="IA"
+            label="Fin"
             icon={NAV_MODULES.ia.Icon}
             isActive={pathname === '/chat'}
           />

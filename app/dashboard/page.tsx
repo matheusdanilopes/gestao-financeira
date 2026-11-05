@@ -9,7 +9,8 @@ import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
 import { classificarTipoGasto, comporValorFatura, somarValorFatura, type TipoGasto } from '@/lib/composicaoFatura'
 import { type ReservaFatura, type BaixaReserva } from '@/lib/reservasFatura'
 import { calcularPendentesFatura, type AssinaturaPendenteRow } from '@/lib/pendentesFatura'
-import { BarChart2, BarChart3, CalendarRange, CreditCard, PiggyBank, Layers, Scale, TrendingUp, TrendingDown, LineChart, Activity, Eye, EyeOff, ShoppingCart, ShoppingBasket, Sparkles } from 'lucide-react'
+import { BarChart2, BarChart3, CalendarRange, CreditCard, PiggyBank, Layers, Scale, TrendingUp, TrendingDown, LineChart, Activity, Eye, EyeOff, ShoppingCart, ShoppingBasket } from 'lucide-react'
+import { criarIconeFin } from '@/components/chat/IconeFin'
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
 import MonthSelector from '@/components/MonthSelector'
@@ -472,13 +473,16 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
 
 const CHAVE_OCULTAR_SALDO = 'dashboard:ocultar-saldo'
 
+/** O Fin no atalho: o mesmo robô do chat, um pouco maior que os ícones vizinhos para o rosto ser legível. */
+const IconeFin = criarIconeFin(22)
+
 // Atalhos do Resumo. `offline`: rota que
 // funciona sem conexão (mesmo critério do ROTAS_OFFLINE do BottomNav) — é a
 // única que aparece offline, e abre por navegação completa para o service
 // worker servir a página do cache.
 const ATALHOS: { label: string; Icon: React.ComponentType<{ className?: string; strokeWidth?: number }>; href: string; offline?: boolean }[] = [
   { label: 'Mercado', Icon: ShoppingBasket, href: '/lista-mercado', offline: true },
-  { label: 'Assistente', Icon: Sparkles, href: '/chat' },
+  { label: 'Fin', Icon: IconeFin, href: '/chat' },
   { label: 'Compras', Icon: ShoppingCart, href: '/compras' },
 ]
 
