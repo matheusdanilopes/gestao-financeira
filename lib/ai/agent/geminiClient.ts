@@ -130,6 +130,12 @@ export interface OpcoesChamada {
   thinkingBudget?: number
   /** Modelo desta chamada (padrão: GEMINI_MODEL). */
   modelo?: string
+  /**
+   * 'NONE' mantém as ferramentas declaradas mas proíbe chamá-las — o jeito de
+   * forçar a resposta em texto. Tirar as ferramentas de uma conversa que já
+   * tem chamadas fazia o Gemini 3 devolver vazio.
+   */
+  modoFerramentas?: 'AUTO' | 'NONE'
   /** 'application/json' força a resposta em JSON (sem ferramentas). */
   responseMimeType?: string
   /** Esquema (subconjunto OpenAPI) que a resposta JSON deve seguir. */
@@ -191,7 +197,7 @@ function montarCorpo(opts: OpcoesChamada): string {
       ? { systemInstruction: { role: 'user', parts: [{ text: opts.systemInstruction }] } }
       : {}),
     ...(opts.tools && opts.tools.length > 0
-      ? { tools: [{ functionDeclarations: opts.tools }], toolConfig: { functionCallingConfig: { mode: 'AUTO' } } }
+      ? { tools: [{ functionDeclarations: opts.tools }], toolConfig: { functionCallingConfig: { mode: opts.modoFerramentas ?? 'AUTO' } } }
       : {}),
     generationConfig: configGeracao(opts),
   })

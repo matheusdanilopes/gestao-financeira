@@ -68,7 +68,12 @@ export interface ContextoPipeline {
   aoProgresso?: (feitas: number, total: number) => void
 }
 
-const CONFIANCA_MINIMA_IA = 0.6
+/**
+ * Abaixo disto o palpite vai para revisão. Era 0,6, mas na primeira rodada em
+ * produção (08/11/2026) o modelo deu exatamente 0,60–0,65 para chutes como
+ * "Havan" → Moradia e "Mercadolivre*Mercadol" → Moradia.
+ */
+const CONFIANCA_MINIMA_IA = 0.7
 const ORIGENS_HUMANAS = new Set(['MANUAL', 'USUARIO'])
 
 const mesmaCompra = (a: { chave: string; total: number; resp: string; valor: number }, b: typeof a) =>
@@ -212,7 +217,10 @@ export async function decidirCategorias(
         categoria: r.categoria,
         confianca: r.confianca,
         origem: 'IA',
-        status: r.categoria === 'Outros' || r.confianca < CONFIANCA_MINIMA_IA ? 'revisao_pendente' : 'automatico',
+        // Marketplace sem vendedor e sem nome dado pelo casal: qualquer resposta é chute.
+        status: r.categoria === 'Outros' || r.confianca < CONFIANCA_MINIMA_IA || (g.est.generico && !g.representante.descricao_personalizada)
+          ? 'revisao_pendente'
+          : 'automatico',
         motivo: r.motivo,
       })
     })

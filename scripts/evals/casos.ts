@@ -105,6 +105,31 @@ export const CASOS: CasoAvaliacao[] = [
     espera: { contem: ['607,16', '561,94'], algumaFerramenta: ['consultar_transacoes', 'comparar_periodos', 'explorar_dados'] },
   },
 
+  {
+    id: 'real-ifood-com-ifd',
+    categoria: 'lastro',
+    descricao: 'Buscou só "ifood" e deixou de fora os pedidos IFD* — respondeu R$ 1.784,51 em 2026 (real: R$ 4.346,10).',
+    hoje: '2026-11-08',
+    quem: 'matheus',
+    pergunta: 'Quanto gastei com iFood nas faturas de janeiro a outubro de 2026?',
+    // SQL: responsavel='Matheus' and (descricao ilike '%ifood%' or descricao ilike 'ifd%')
+    //      and projeto_fatura between '2026-02-01' and '2026-11-01' → 84 compras, R$ 4.221,25 (Saúde R$ 639,67)
+    espera: { contem: ['4.221,25'], algumaFerramenta: ['consultar_transacoes', 'explorar_dados'] },
+  },
+  {
+    id: 'real-ifood-correcao-ifd',
+    categoria: 'conversa',
+    descricao: 'Depois da correção "ifd também é iFood", o Fin consultou certo mas respondeu "Não consegui formular".',
+    hoje: '2026-11-08',
+    quem: 'matheus',
+    historico: [
+      { role: 'user', content: 'Quanto gastei com iFood nas faturas de janeiro a outubro de 2026?' },
+      { role: 'assistant', content: 'Nas faturas de janeiro a outubro você gastou R$ 1.784,51 com iFood (41 lançamentos).' },
+    ],
+    pergunta: 'As compras com ifd no início são iFood também',
+    espera: { contem: ['4.221,25'], naoContem: [/Não consegui formular/] },
+  },
+
   // ─── Recorte ────────────────────────────────────────────────────────────────
   {
     id: 'real-sem-picpay',
