@@ -23,6 +23,19 @@ Opções: `--so id1,id2`, `--categoria <lastro|recorte|analise|tempo|operacao|co
 `--repetir N` (mede consistência — o modelo não é determinístico), `--minimo 0.9` (exit 1 abaixo disso).
 O relatório detalhado fica em `scripts/evals/resultados/` (fora do git).
 
+## Categorização das compras
+
+```bash
+node --env-file=.env.local node_modules/.bin/tsx scripts/evals/categorias.ts               # acerto + simulação dos "Outros"
+node --env-file=.env.local node_modules/.bin/tsx scripts/evals/categorias.ts --so acerto --amostra 200
+```
+
+- **acerto**: re-categoriza compras que o casal rotulou à mão, sem a memória daquele estabelecimento
+  (deixa-um-de-fora), e mede o acerto por fonte (parcela, memória, regra, IA) e quantas iriam para "Outros".
+- **outros**: mostra para onde iriam as compras hoje em "Outros" (não manuais). Nada é gravado.
+
+Os testes automáticos ficam em `lib/categorizacao/*.test.ts` (rodam no `npm test`).
+
 ## Ciclo de melhoria
 
 1. Usuário marca 👎 numa resposta (e diz o que estava errado).

@@ -90,6 +90,7 @@ export function criarSupabaseFalso(inicial: Record<string, Linha[]> = {}) {
     let valores: Linha | Linha[] | null = null
     let ordem: { coluna: string; asc: boolean } | null = null
     let limite: number | null = null
+    let faixa: [number, number] | null = null
     let unico: 'maybe' | 'single' | null = null
 
     const linhas = () => (tabelas[tabela] ??= [])
@@ -110,6 +111,7 @@ export function criarSupabaseFalso(inicial: Record<string, Linha[]> = {}) {
         const { coluna, asc } = ordem
         sel = [...sel].sort((a, b) => (String(a[coluna]) < String(b[coluna]) ? -1 : 1) * (asc ? 1 : -1))
       }
+      if (faixa) sel = sel.slice(faixa[0], faixa[1] + 1)
       if (limite !== null) sel = sel.slice(0, limite)
       if (unico) return { data: sel[0] ?? null, error: null }
       return { data: sel, error: null }
@@ -123,6 +125,28 @@ export function criarSupabaseFalso(inicial: Record<string, Linha[]> = {}) {
       eq: (c: string, v: unknown) => { filtros.push(l => l[c] === v); return builder },
       neq: (c: string, v: unknown) => { filtros.push(l => l[c] !== v); return builder },
       in: (c: string, vs: unknown[]) => { filtros.push(l => vs.includes(l[c])); return builder },
+      is: (c: string, v: null) => { filtros.push(l => (l[c] ?? null) === v); return builder },
+      gt: (c: string, v: number) => { filtros.push(l => Number(l[c]) > v); return builder },
+      not: (c: string, op: string, v: unknown) => {
+        filtros.push(l => (op === 'is' ? (l[c] ?? null) !== v : l[c] !== v))
+        return builder
+      },
+      ilike: (c: string, padrao: string) => {
+        const re = new RegExp('^' + padrao.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*').replace(/_/g, '.') + '$', 'i')
+        filtros.push(l => re.test(String(l[c] ?? '')))
+        return builder
+      },
+      // "col.is.null,col.eq.valor" — qualquer uma das condições.
+      or: (expr: string) => {
+        const conds = expr.split(',').map(c => {
+          const [col, op, ...resto] = c.split('.')
+          const v = resto.join('.')
+          return (l: Linha) => (op === 'is' && v === 'null' ? (l[col] ?? null) === null : String(l[col]) === v)
+        })
+        filtros.push(l => conds.some(f => f(l)))
+        return builder
+      },
+      range: (de: number, ate: number) => { faixa = [de, ate]; return builder },
       order: (coluna: string, o?: { ascending?: boolean }) => { ordem = { coluna, asc: o?.ascending !== false }; return builder },
       limit: (n: number) => { limite = n; return builder },
       maybeSingle: () => { unico = 'maybe'; return Promise.resolve(executar()) },

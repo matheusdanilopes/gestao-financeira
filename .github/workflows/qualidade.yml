@@ -20,5 +20,5 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      - run: npx eslint lib/ai lib/graficoChat.ts lib/useChatFinanceiro.ts components/chat app/api/chat app/chat scripts
+      - run: npx eslint lib/ai lib/categorizacao lib/categorizarTransacoes.ts lib/ragClassificacao.ts lib/graficoChat.ts lib/useChatFinanceiro.ts components/chat app/api/chat app/api/categorizar app/api/classificar app/api/nubank/importar app/chat scripts
       - run: npm test

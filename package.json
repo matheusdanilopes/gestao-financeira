@@ -10,7 +10,8 @@
     "test": "tsx --test \"lib/**/*.test.ts\" \"scripts/**/*.test.ts\"",
     "evals": "tsx scripts/evals/rodar.ts",
     "evals:negativos": "tsx scripts/evals/exportar-negativos.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "evals:categorias": "tsx scripts/evals/categorias.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
