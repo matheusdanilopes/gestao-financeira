@@ -160,7 +160,10 @@ const ehGemini3 = (modelo: string) => /^gemini-3/.test(modelo)
  */
 function nivelRaciocinio(orcamento: number): 'minimal' | 'low' | 'medium' | 'high' {
   if (orcamento <= 0) return 'minimal'
-  if (orcamento <= 1024) return 'low'
+  // O agente usa 2048 → low. Com "medium", cada resposta do chat passou a
+  // levar 30–60 s (08/11/2026) — e no celular a conexão cai se a pessoa sai
+  // do app nesse meio-tempo. O raciocínio pesado fica com as ferramentas.
+  if (orcamento <= 2048) return 'low'
   if (orcamento <= 8192) return 'medium'
   return 'high'
 }

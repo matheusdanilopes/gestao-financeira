@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { lerSSE } from '@/lib/sseStream'
+import { aguardarResposta, SEM_SINAL_MS } from '@/lib/chatRecuperacao'
 import type { TelaAtual } from '@/lib/ai/types'
 
 export interface ChatMessage {
@@ -75,6 +76,12 @@ export function useChatFinanceiro(tela: TelaAtual = 'geral') {
   // aproveitar o texto parcial: ele pertence à conversa que acabou de sair
   // da tela e apareceria como resposta órfã na conversa nova.
   const descartarParcialRef = useRef(false)
+  // Conexão do turno: hora do último evento recebido (inclui o ping de 8 s),
+  // pedido de reconexão (o app voltou do segundo plano com o stream parado) e
+  // pedido para parar de procurar a resposta (botão de parar).
+  const ultimoEventoRef = useRef(0)
+  const reconectarRef = useRef(false)
+  const pararRecuperacaoRef = useRef(false)
   // Espelho de `mensagens` para montar o histórico de reserva sem
   // recriar `enviar` a cada mensagem.
   const mensagensRef = useRef<ChatMessage[]>([])
@@ -161,6 +168,10 @@ export function useChatFinanceiro(tela: TelaAtual = 'geral') {
     const controller = new AbortController()
     abortRef.current = controller
     descartarParcialRef.current = false
+    reconectarRef.current = false
+    pararRecuperacaoRef.current = false
+    ultimoEventoRef.current = Date.now()
+    let terminou = false
 
     let acumulado = ''
     let aviso: string | undefined
@@ -198,6 +209,8 @@ export function useChatFinanceiro(tela: TelaAtual = 'geral') {
       }
 
       for await (const evento of lerSSE(res.body)) {
+        ultimoEventoRef.current = Date.now()
+        if (evento.tipo === 'done' || evento.tipo === 'error') terminou = true
         switch (evento.tipo) {
           case 'meta': {
             const id = evento.dados.conversation_id
@@ -258,8 +271,12 @@ export function useChatFinanceiro(tela: TelaAtual = 'geral') {
           }
         }
       }
+      // Stream fechado sem "done" nem "error": a conexão caiu no meio.
+      if (!terminou) throw new Error('stream interrompido')
     } catch (err) {
-      if ((err as Error)?.name === 'AbortError') {
+      const reconectar = reconectarRef.current
+      reconectarRef.current = false
+      if ((err as Error)?.name === 'AbortError' && !reconectar) {
         // Parada explícita pelo usuário: preserva o que já tinha chegado.
         if (acumulado.trim() && !descartarParcialRef.current) {
           setMensagens(prev => [...prev, {
@@ -271,7 +288,28 @@ export function useChatFinanceiro(tela: TelaAtual = 'geral') {
           }])
         }
       } else {
-        setErro({ codigo: 'REDE', mensagem: 'Falha de conexão. Verifique sua internet e tente novamente.' })
+        // A conexão caiu (quase sempre: a pessoa saiu do app no meio da
+        // espera). O servidor termina e grava a resposta mesmo assim — busca
+        // no histórico antes de falar em erro.
+        const convId = convIdRef.current
+        let recuperada = false
+        if (convId && !descartarParcialRef.current) {
+          setTextoParcial('')
+          setStatus('A conexão caiu — buscando sua resposta…')
+          const historico = await aguardarResposta(
+            () => carregarHistorico(convId),
+            conteudo,
+            () => convIdRef.current === convId && !descartarParcialRef.current && !pararRecuperacaoRef.current,
+            { visivel: () => typeof document === 'undefined' || document.visibilityState !== 'hidden' }
+          )
+          if (historico) {
+            setMensagens(historico)
+            recuperada = true
+          }
+        }
+        if (!recuperada && !pararRecuperacaoRef.current) {
+          setErro({ codigo: 'REDE', mensagem: 'Falha de conexão. Verifique sua internet e tente novamente.' })
+        }
       }
     } finally {
       abortRef.current = null
@@ -280,10 +318,25 @@ export function useChatFinanceiro(tela: TelaAtual = 'geral') {
       setTextoParcial('')
       setFerramentas([])
     }
-  }, [tela, guardarConversa])
+  }, [tela, guardarConversa, carregarHistorico])
 
   const cancelar = useCallback(() => {
+    pararRecuperacaoRef.current = true
     abortRef.current?.abort()
+  }, [])
+
+  // Voltou para o app com uma resposta em andamento e sem sinal do servidor
+  // há um tempo: a conexão morreu em segundo plano (alguns navegadores deixam
+  // o fetch "pendurado" em vez de falhar). Encerra e vai buscar no histórico.
+  useEffect(() => {
+    const aoVoltar = () => {
+      if (document.visibilityState !== 'visible' || !abortRef.current) return
+      if (Date.now() - ultimoEventoRef.current < SEM_SINAL_MS) return
+      reconectarRef.current = true
+      abortRef.current.abort()
+    }
+    document.addEventListener('visibilitychange', aoVoltar)
+    return () => document.removeEventListener('visibilitychange', aoVoltar)
   }, [])
 
   const tentarNovamente = useCallback(() => {
