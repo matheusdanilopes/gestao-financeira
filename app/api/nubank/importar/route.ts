@@ -19,6 +19,8 @@ import { sincronizarAssinaturasMoedaEstrangeira, AssinaturaSincronizada } from '
 import { LinhaValidacaoInsert, linhaDeTransacao, linhaDeEstorno } from '@/lib/importValidacao'
 
 export const maxDuration = 300
+/** A categorização em background precisa terminar antes do limite da função. */
+const PRAZO_CATEGORIZACAO_MS = 270_000
 
 const CARTOES_VALIDOS = ['nubank', 'cartao1', 'cartao2'] as const
 type CartaoValido = typeof CARTOES_VALIDOS[number]
@@ -246,6 +248,7 @@ async function salvarTransacoes(
 }
 
 export async function POST(req: NextRequest) {
+  const inicioRequisicao = Date.now()
   const auth = await autenticar(req)
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status })
@@ -415,7 +418,11 @@ export async function POST(req: NextRequest) {
 
         after(async () => {
           try {
-            const resultado = await categorizarTransacoes(supabase, geminiKey, hashesImportados, true)
+            const resultado = await categorizarTransacoes(supabase, geminiKey, {
+              hashLinhas: hashesImportados,
+              modo: 'novas',
+              deadlineMs: inicioRequisicao + PRAZO_CATEGORIZACAO_MS,
+            })
             if (jobId) {
               await supabase.from('categorization_jobs').update({
                 status: 'done',

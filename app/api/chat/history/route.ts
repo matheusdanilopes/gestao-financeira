@@ -31,10 +31,11 @@ export async function GET(req: NextRequest) {
     .neq('role', 'system')
     .order('created_at', { ascending: true })
 
-  // A trilha de ferramentas é opcional: sem a coluna (migration ainda não
-  // aplicada), o histórico sai sem ela em vez de não sair.
-  let { data, error } = await buscar('role, content, created_at, canal, ferramentas')
-  if (error) ({ data, error } = await buscar('role, content, created_at, canal'))
+  // Trilha de ferramentas e avaliação são opcionais: sem as colunas (migration
+  // ainda não aplicada), o histórico sai sem elas em vez de não sair.
+  let { data, error } = await buscar('id, role, content, created_at, canal, ferramentas, avaliacao')
+  if (error) ({ data, error } = await buscar('id, role, content, created_at, canal, ferramentas'))
+  if (error) ({ data, error } = await buscar('id, role, content, created_at, canal'))
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })

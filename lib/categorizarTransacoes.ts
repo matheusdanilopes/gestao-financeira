@@ -1,235 +1,149 @@
-import { SupabaseClient } from '@supabase/supabase-js'
+/**
+ * Categorização das compras: lê do banco, decide (lib/categorizacao/pipeline)
+ * e grava. Único caminho usado pela importação, pelo botão "Categorizar com
+ * IA" (/api/categorizar) e por /api/classificar — antes eram três cópias, uma
+ * delas ainda no Gemini 1.5.
+ */
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
-import { sanitizarDescricao, buscarTodasAprendidas, encontrarCategoriaHistorico } from '@/lib/ragClassificacao'
+import { MemoriaCategorias, type EntradaMemoria } from '@/lib/categorizacao/memoria'
+import {
+  decidirCategorias,
+  type TransacaoParaCategorizar,
+  type CompraCategorizada,
+  type Decisao,
+} from '@/lib/categorizacao/pipeline'
 
-const LOTE = 20
-const DELAY_ENTRE_LOTES_MS = 5000
-const GEMINI_MODEL = 'gemini-2.5-flash'
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
-const CONFIANCA_PADRAO_IA = 0.85
+/**
+ * - novas:     só o que está sem categoria (importação).
+ * - pendentes: sem categoria + "Outros" que não foi escolhido à mão (padrão do botão).
+ * - tudo:      também refaz o que foi decidido automaticamente (IA, memória, regra, parcela).
+ */
+export type ModoCategorizacao = 'novas' | 'pendentes' | 'tudo'
 
-function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
-
-function extrairRetryDelay(errText: string): number {
-  const match = errText.match(/"retryDelay":\s*"(\d+)s"/)
-  return match ? (parseInt(match[1]) + 2) * 1000 : 60000
-}
-
-function isCotaDiaria(errText: string): boolean {
-  return errText.includes('GenerateRequestsPerDayPerProjectPerModel')
-}
-
-async function categorizarLote(
-  transacoes: { hash_linha: string; descricao: string }[],
-  apiKey: string,
-  categoriasPermitidas: string[]
-): Promise<string[]> {
-  const lista = transacoes.map((t, i) => `${i + 1}. ${t.descricao}`).join('\n')
-
-  const prompt = `Categorize cada transação abaixo com UMA das categorias: ${categoriasPermitidas.join(', ')}.
-
-Transações:
-${lista}
-
-Retorne um JSON no formato: {"categorias": ["Categoria1", "Categoria2", ...]}
-A lista deve ter exatamente ${transacoes.length} itens, na mesma ordem das transações.`
-
-  const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: 'application/json' },
-    }),
-  })
-
-  if (!res.ok) {
-    const body = await res.text()
-    throw new Error(`Gemini erro ${res.status}: ${body}`)
-  }
-
-  const data = await res.json()
-  const texto = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-  if (!texto) throw new Error('Resposta vazia da IA')
-
-  const { categorias } = JSON.parse(texto)
-  if (!Array.isArray(categorias) || categorias.length !== transacoes.length) {
-    throw new Error(
-      `Número de categorias retornado (${categorias?.length}) diferente do esperado (${transacoes.length})`
-    )
-  }
-
-  const fallback = categoriasPermitidas.includes('Outros') ? 'Outros' : categoriasPermitidas[0]
-  return categorias.map((c: string) => (categoriasPermitidas.includes(c) ? c : fallback))
-}
-
-async function categorizarLoteComRetry(
-  transacoes: { hash_linha: string; descricao: string }[],
-  apiKey: string,
-  categoriasPermitidas: string[],
-  maxRetries = 2
-): Promise<string[]> {
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await categorizarLote(transacoes, apiKey, categoriasPermitidas)
-    } catch (err) {
-      const errStr = String(err)
-      const is429 = errStr.includes('429')
-      if (!is429 || attempt === maxRetries) throw err
-      if (isCotaDiaria(errStr)) throw new Error('COTA_DIARIA_ESGOTADA')
-      const waitMs = extrairRetryDelay(errStr)
-      console.warn(`[categorizar] 429 recebido, aguardando ${waitMs}ms antes de retry ${attempt + 1}/${maxRetries}`)
-      await sleep(waitMs)
-    }
-  }
-  throw new Error('Max retries exceeded')
+export interface OpcoesCategorizar {
+  hashLinhas?: string[]
+  modo?: ModoCategorizacao
+  /** Prazo para parar com elegância (o resto fica para a próxima rodada). */
+  deadlineMs?: number
+  aoProgresso?: (feitas: number, total: number) => void
 }
 
 export interface ResultadoCategorizar {
   categorized: number
   total: number
   cotaDiariaEsgotada: boolean
+  /** Quantas ficaram marcadas para o casal conferir (palpite fraco ou "Outros"). */
+  revisaoPendente?: number
+  /** Quantas foram decididas por cada fonte. */
+  porOrigem?: Record<string, number>
   erros?: string[]
 }
 
-/**
- * Categoriza transações via Gemini AI.
- * - `hashLinhas`: se fornecido, restringe às transações com esses hashes.
- * - `somenteSemCategoria`: quando true, categoriza apenas linhas com categoria NULL
- *   (ignorando as já categorizadas por IA). Use true ao chamar do fluxo de importação
- *   para não reprocessar no Gemini transações que já foram categorizadas.
- */
+const COLUNAS = 'hash_linha, descricao, descricao_personalizada, valor, parcela_atual, total_parcelas, responsavel, categoria, categoria_origem'
+const ORIGENS_AUTOMATICAS = ['IA', 'HISTORICO', 'REGRA', 'PARCELA', 'RAG']
+const PAGINA = 1000
+
+type Linha = TransacaoParaCategorizar & { categoria: string | null; categoria_origem: string | null }
+
+/** O PostgREST devolve no máximo 1000 linhas por consulta: lê página a página. */
+async function lerTodas<T>(consulta: (de: number, ate: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> {
+  const todas: T[] = []
+  for (let de = 0; ; de += PAGINA) {
+    const { data, error } = await consulta(de, de + PAGINA - 1)
+    if (error) throw new Error(error.message)
+    todas.push(...(data ?? []))
+    if (!data || data.length < PAGINA) return todas
+  }
+}
+
+export async function carregarMemoria(supabase: SupabaseClient, permitidas: string[]): Promise<MemoriaCategorias> {
+  const [aprendidas, manuais] = await Promise.all([
+    lerTodas<{ descricao_limpa: string; categoria_validada: string; frequencia: number }>((de, ate) =>
+      supabase.from('classificacoes_aprendidas').select('descricao_limpa, categoria_validada, frequencia').range(de, ate)),
+    lerTodas<{ descricao: string; categoria: string }>((de, ate) =>
+      supabase.from('transacoes_nubank').select('descricao, categoria')
+        .in('categoria_origem', ['MANUAL', 'USUARIO']).not('categoria', 'is', null).range(de, ate)),
+  ])
+  const entradas: EntradaMemoria[] = [
+    ...aprendidas.map(a => ({ descricao: a.descricao_limpa, categoria: a.categoria_validada, peso: a.frequencia ?? 1, formatoAntigo: true })),
+    ...manuais.map(m => ({ descricao: m.descricao, categoria: m.categoria, peso: 1 })),
+  ]
+  return new MemoriaCategorias(entradas, permitidas)
+}
+
 export async function categorizarTransacoes(
   supabase: SupabaseClient,
-  apiKey: string,
-  hashLinhas?: string[],
-  somenteSemCategoria = false
+  apiKey: string | undefined,
+  opcoes: OpcoesCategorizar = {}
 ): Promise<ResultadoCategorizar> {
-  const { data: configuracoes } = await supabase
-    .from('configuracoes')
-    .select('chave, valor')
-    .eq('chave', 'categorias_compras')
-    .maybeSingle()
-  const categoriasPermitidas = parseCategoriasConfig(configuracoes?.valor) || CATEGORIAS_PADRAO
+  const modo = opcoes.modo ?? 'pendentes'
+  const { data: config } = await supabase
+    .from('configuracoes').select('valor').eq('chave', 'categorias_compras').maybeSingle()
+  const permitidas = parseCategoriasConfig(config?.valor) || CATEGORIAS_PADRAO
 
-  let query = supabase
-    .from('transacoes_nubank')
-    .select('hash_linha, descricao')
+  const linhas = await lerTodas<Linha>((de, ate) => {
+    let q = supabase.from('transacoes_nubank').select(COLUNAS).or('is_estorno.is.null,is_estorno.eq.false')
+    if (opcoes.hashLinhas?.length) q = q.in('hash_linha', opcoes.hashLinhas)
+    return q.order('data', { ascending: false }).range(de, ate)
+  })
+  const alvo = linhas.filter(l => {
+    if (!l.categoria) return true
+    if (modo === 'novas') return false
+    const automatica = ORIGENS_AUTOMATICAS.includes(l.categoria_origem ?? '')
+    if (l.categoria === 'Outros' && (automatica || !l.categoria_origem)) return true
+    return modo === 'tudo' && automatica
+  })
+  if (alvo.length === 0) return { categorized: 0, total: 0, cotaDiariaEsgotada: false }
 
-  if (somenteSemCategoria) {
-    query = query.is('categoria', null)
-  } else {
-    query = query.or('categoria.is.null,categoria_origem.eq.IA')
-  }
+  const memoria = await carregarMemoria(supabase, permitidas)
+  // Parcelas já categorizadas (fora do alvo) servem de referência para as irmãs.
+  const alvoHashes = new Set(alvo.map(a => a.hash_linha))
+  const categorizadas: CompraCategorizada[] = (await lerTodas<Linha>((de, ate) =>
+    supabase.from('transacoes_nubank').select(COLUNAS).gt('total_parcelas', 1).not('categoria', 'is', null).range(de, ate)))
+    .filter(l => !alvoHashes.has(l.hash_linha))
 
-  if (hashLinhas && hashLinhas.length > 0) {
-    query = query.in('hash_linha', hashLinhas)
-  }
+  const resultado = await decidirCategorias(alvo, {
+    permitidas,
+    memoria,
+    categorizadas,
+    ia: apiKey ? { apiKey, deadlineMs: opcoes.deadlineMs ?? Date.now() + 240_000, pausaEntreLotesMs: 1_500 } : undefined,
+    aoProgresso: opcoes.aoProgresso,
+  })
 
-  const { data: transacoes, error } = await query
-
-  if (error) throw new Error(error.message)
-  if (!transacoes || transacoes.length === 0) {
-    return { categorized: 0, total: 0, cotaDiariaEsgotada: false }
-  }
-
-  let totalCategorized = 0
-  const erros: string[] = []
-  let cotaDiariaEsgotada = false
-
-  // Antes de chamar a IA, reaproveita correções manuais já feitas pelo
-  // usuário para o mesmo estabelecimento (ou nome muito similar).
-  const aprendidas = await buscarTodasAprendidas(supabase)
-  const comHistorico: { hash_linha: string; descricao: string; categoria: string }[] = []
-  const semHistorico: typeof transacoes = []
-
-  for (const t of transacoes) {
-    const categoriaHistorico = aprendidas.length > 0
-      ? encontrarCategoriaHistorico(sanitizarDescricao(t.descricao), aprendidas)
-      : null
-    if (categoriaHistorico && categoriasPermitidas.includes(categoriaHistorico)) {
-      comHistorico.push({ hash_linha: t.hash_linha, descricao: t.descricao, categoria: categoriaHistorico })
-    } else {
-      semHistorico.push(t)
-    }
-  }
-
-  if (comHistorico.length > 0) {
-    const updateResults = await Promise.all(
-      comHistorico.map(t =>
-        supabase
-          .from('transacoes_nubank')
-          .update({
-            categoria: t.categoria,
-            categoria_origem: 'HISTORICO',
-            categoria_confianca: 1,
-          })
-          .eq('hash_linha', t.hash_linha)
-      )
-    )
-    const updateErrors = updateResults
-      .map((r, i) => (r.error ? `${comHistorico[i].hash_linha.slice(0, 8)}: ${r.error.message}` : null))
-      .filter((e): e is string => e !== null)
-    if (updateErrors.length > 0) {
-      erros.push(`Falha ao aplicar histórico em ${updateErrors.length} transação(ões): ${updateErrors.join('; ')}`)
-    }
-    totalCategorized += comHistorico.length - updateErrors.length
-  }
-
-  for (let i = 0; i < semHistorico.length; i += LOTE) {
-    if (cotaDiariaEsgotada) break
-
-    const lote = semHistorico.slice(i, i + LOTE)
-    const numLote = Math.floor(i / LOTE) + 1
-
-    try {
-      const categorias = await categorizarLoteComRetry(lote, apiKey, categoriasPermitidas)
-
-      const updateResults = await Promise.all(
-        lote.map((t, j) =>
-          supabase
-            .from('transacoes_nubank')
-            .update({
-              categoria: categorias[j],
-              categoria_origem: 'IA',
-              categoria_confianca: CONFIANCA_PADRAO_IA,
-            })
-            .eq('hash_linha', t.hash_linha)
-        )
-      )
-
-      const updateErrors = updateResults
-        .map((r, i) => (r.error ? `${lote[i].hash_linha.slice(0, 8)}: ${r.error.message}` : null))
-        .filter((e): e is string => e !== null)
-
-      if (updateErrors.length > 0) {
-        throw new Error(`Falha ao salvar ${updateErrors.length} categoria(s): ${updateErrors.join('; ')}`)
-      }
-
-      totalCategorized += lote.length
-
-      if (i + LOTE < semHistorico.length) {
-        await sleep(DELAY_ENTRE_LOTES_MS)
-      }
-    } catch (err) {
-      const errStr = String(err)
-      if (errStr.includes('COTA_DIARIA_ESGOTADA')) {
-        cotaDiariaEsgotada = true
-        erros.push(`Cota diária do Gemini esgotada após ${totalCategorized} transações. Tente novamente amanhã.`)
-      } else {
-        const msg = `Lote ${numLote}: ${errStr}`
-        console.error('[categorizar]', msg)
-        erros.push(msg)
-      }
-    }
-  }
+  const erros = [...resultado.erros, ...(await gravarDecisoes(supabase, resultado.decisoes))]
+  const porOrigem: Record<string, number> = {}
+  for (const d of resultado.decisoes) porOrigem[d.origem] = (porOrigem[d.origem] ?? 0) + 1
 
   return {
-    categorized: totalCategorized,
-    total: transacoes.length,
-    cotaDiariaEsgotada,
+    categorized: resultado.decisoes.length,
+    total: alvo.length,
+    cotaDiariaEsgotada: resultado.cotaDiariaEsgotada,
+    revisaoPendente: resultado.decisoes.filter(d => d.status === 'revisao_pendente').length,
+    porOrigem,
     erros: erros.length > 0 ? erros : undefined,
   }
+}
+
+/** Grava em blocos: uma atualização por combinação de categoria/origem/confiança/status. */
+export async function gravarDecisoes(supabase: SupabaseClient, decisoes: Decisao[]): Promise<string[]> {
+  const blocos = new Map<string, { campos: Record<string, unknown>; hashes: string[] }>()
+  for (const d of decisoes) {
+    const confianca = Math.round(d.confianca * 100) / 100
+    const k = `${d.categoria}|${d.origem}|${confianca}|${d.status}`
+    const b = blocos.get(k) ?? {
+      campos: { categoria: d.categoria, categoria_origem: d.origem, categoria_confianca: confianca, classificacao_status: d.status },
+      hashes: [],
+    }
+    b.hashes.push(d.hash_linha)
+    blocos.set(k, b)
+  }
+  const erros: string[] = []
+  for (const b of blocos.values()) {
+    for (let i = 0; i < b.hashes.length; i += 200) {
+      const { error } = await supabase.from('transacoes_nubank').update(b.campos).in('hash_linha', b.hashes.slice(i, i + 200))
+      if (error) erros.push(`Falha ao gravar ${b.campos.categoria}: ${error.message}`)
+    }
+  }
+  return erros
 }

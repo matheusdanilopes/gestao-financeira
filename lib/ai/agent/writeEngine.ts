@@ -576,8 +576,45 @@ export function avisosDeDuplicidade(data: EnrichedData, proposta: Proposta): str
 
 // ─── Estágio: grava a proposta como pendente, sem executar nada ──────────────
 
-export async function estagiarProposta(ctx: ContextoEscrita, proposta: Proposta, avisosDuplicidade: string[] = []): Promise<string> {
+/** Início do retorno quando a operação proposta já é a pendente (nada foi gravado). */
+export const PREFIXO_JA_PENDENTE = 'ESSA OPERAÇÃO JÁ ESTÁ PENDENTE:'
+
+/** Igualdade estrutural de payloads (ordem das chaves não importa). */
+export function mesmoPayload(a: unknown, b: unknown): boolean {
+  const norm = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(norm)
+    if (v && typeof v === 'object') {
+      return Object.keys(v as Record<string, unknown>)
+        .sort()
+        .filter(k => (v as Record<string, unknown>)[k] !== undefined)
+        .map(k => [k, norm((v as Record<string, unknown>)[k])])
+    }
+    return v
+  }
+  return JSON.stringify(norm(a)) === JSON.stringify(norm(b))
+}
+
+export async function estagiarProposta(
+  ctx: ContextoEscrita,
+  proposta: Proposta,
+  avisosDuplicidade: string[] = [],
+  /** false quando a pendente foi criada nesta mesma resposta (é só a soma do lote crescendo). */
+  avisarSubstituicao = true
+): Promise<string> {
   if (!proposta.ok) return proposta.mensagem
+
+  // A MESMA operação já está pendente: o usuário provavelmente respondeu "sim"
+  // e o modelo, em vez de confirmar, propôs de novo. Recriar cancelava a
+  // pendente, repetia o aviso de duplicidade e a pessoa precisava dizer "sim"
+  // duas vezes (visto no histórico real). Nada muda no banco.
+  const anterior = await buscarPendente(ctx)
+  if (anterior && anterior.tipo === proposta.tipo && mesmoPayload(anterior.payload, proposta.payload)) {
+    return (
+      `${PREFIXO_JA_PENDENTE} ${anterior.resumo}\n` +
+      'Nada novo foi preparado. Se a última mensagem do usuário aprova ("sim", "pode", "confirma", "isso"), chame ' +
+      'confirmar_operacao agora. Se não, mostre o resumo e pergunte se ele confirma.'
+    )
+  }
 
   // Uma proposta nova cancela qualquer pendente anterior desta conversa: só
   // pode haver uma por vez, senão um "sim" mais tarde fica ambíguo sobre qual
@@ -607,10 +644,17 @@ export async function estagiarProposta(ctx: ContextoEscrita, proposta: Proposta,
       'Avise o usuário disso com destaque, mostrando o que já existe, e pergunte se quer incluir MESMO ASSIM ' +
       '(ou se prefere tirar o item repetido / cancelar). '
     : ''
+  // Substituir em silêncio já fez um item sumir ("inclua desodorante Jennifer"
+  // cancelou o "desodorante Mateus", quando a pessoa queria os dois).
+  const orientacaoSubstituida = anterior && avisarSubstituicao
+    ? `A proposta anterior ("${anterior.resumo}") foi DESCARTADA e substituída por esta. Diga isso ao usuário e ` +
+      'pergunte se ele queria as duas — se sim, refaça com propor_lote incluindo ambas. '
+    : ''
   return (
     `PROPOSTA PENDENTE DE CONFIRMAÇÃO: ${proposta.resumo}\n` +
     orientacaoLote +
     orientacaoDuplicidade +
+    orientacaoSubstituida +
     'Mostre esse resumo ao usuário nesta resposta e pergunte se confirma. NÃO chame confirmar_operacao ' +
     'ou cancelar_operacao agora — isso só acontece numa mensagem FUTURA do usuário, depois que ele responder.'
   )

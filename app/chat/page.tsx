@@ -330,7 +330,12 @@ export default function ChatPage() {
             )}
 
             {chat.mensagens.map(m => (
-              <MessageBubble key={m.id} mensagem={m} onOuvir={voz.suportaFala ? voz.falar : undefined} />
+              <MessageBubble
+                key={m.id}
+                mensagem={m}
+                onOuvir={voz.suportaFala ? voz.falar : undefined}
+                onAvaliar={chat.avaliar}
+              />
             ))}
 
             {chat.streaming && (

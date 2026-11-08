@@ -21,7 +21,8 @@ import { calcularProjetoFatura } from '@/lib/fatura'
 import { classificarTipoGasto, somarValorFatura, type TipoGasto, type AssinaturaAtiva } from '@/lib/composicaoFatura'
 import { ativaEfetivaNoMes, type HistoricoStatusEntry } from '@/lib/assinaturaStatus'
 import { AUTH_DISABLED } from '@/lib/authConfig'
-import { sanitizarDescricao, atualizarAprendizado } from '@/lib/ragClassificacao'
+import { atualizarAprendizado, categoriaFoiEscolhida, origemAposEdicao } from '@/lib/ragClassificacao'
+import { ehMesmaCompra, descricaoSemParcela } from '@/lib/categorizacao/normalizacao'
 import PageHeader from '@/components/PageHeader'
 
 type Compra = {
@@ -36,6 +37,7 @@ type Compra = {
   parcela_atual: number | null
   total_parcelas: number | null
   categoria: string | null
+  categoria_origem?: string | null
   cartao?: string
   created_at?: string
   status?: string | null
@@ -411,6 +413,7 @@ export default function ComprasPage() {
     if (!formEditar.descricao.trim() || isNaN(valor) || valor <= 0) return
 
     setSalvando(true)
+    const escolheuCategoria = categoriaFoiEscolhida(modalEditar.categoria, formEditar.categoria)
     const novoProjetoFatura = calcularProjetoFatura(
       new Date(formEditar.data_compra + 'T12:00:00'),
       diaVencimento,
@@ -424,8 +427,10 @@ export default function ComprasPage() {
         valor,
         responsavel: formEditar.responsavel,
         categoria: formEditar.categoria || null,
-        categoria_origem: formEditar.categoria ? 'MANUAL' : null,
-        categoria_confianca: formEditar.categoria ? 1 : null,
+        // Salvar outro campo não transforma a categoria automática em "escolha manual".
+        categoria_origem: origemAposEdicao(modalEditar.categoria, modalEditar.categoria_origem, formEditar.categoria),
+        ...(escolheuCategoria ? { categoria_confianca: 1, classificacao_status: 'validado' } : {}),
+        ...(!formEditar.categoria ? { categoria_confianca: null } : {}),
         data: formEditar.data_compra,
         projeto_fatura: novoProjetoFatura,
       })
@@ -434,11 +439,14 @@ export default function ComprasPage() {
     setSalvando(false)
     if (error) { console.error('[salvarEdicao]', error); showToast(error.message || 'Erro ao salvar', 'erro'); return }
 
-    // Memoriza a correção para que a IA não erre de novo neste estabelecimento.
-    if (formEditar.categoria) {
-      const descricaoLimpa = sanitizarDescricao(formEditar.descricao.trim())
-      atualizarAprendizado(supabase, descricaoLimpa, formEditar.categoria).catch(err =>
+    // Só uma categoria ESCOLHIDA agora vira memória — e vale para as outras
+    // parcelas da mesma compra que ainda estão com categoria automática.
+    if (escolheuCategoria) {
+      atualizarAprendizado(supabase, formEditar.descricao.trim(), formEditar.categoria).catch(err =>
         console.error('[salvarEdicao] falha ao memorizar categoria', err)
+      )
+      aplicarNasOutrasParcelas(modalEditar, formEditar.categoria, formEditar.responsavel, valor).catch(err =>
+        console.error('[salvarEdicao] falha ao atualizar as outras parcelas', err)
       )
     }
 
@@ -449,6 +457,27 @@ export default function ComprasPage() {
     )
     showToast('Compra atualizada!')
     setModalEditar(null)
+    refetch()
+  }
+
+  async function aplicarNasOutrasParcelas(compra: Compra, categoria: string, responsavel: string, valor: number) {
+    if ((compra.total_parcelas ?? 0) <= 1) return
+    const base = descricaoSemParcela(compra.descricao).replace(/[%_\\]/g, m => `\\${m}`)
+    const { data: candidatas } = await supabase
+      .from('transacoes_nubank')
+      .select('hash_linha, descricao, total_parcelas, responsavel, valor, categoria_origem')
+      .eq('total_parcelas', compra.total_parcelas)
+      .eq('responsavel', responsavel)
+      .ilike('descricao', `${base}%`)
+    const referencia = { descricao: compra.descricao, total_parcelas: compra.total_parcelas, responsavel, valor }
+    const irmas = (candidatas ?? [])
+      .filter(c => c.hash_linha !== compra.hash_linha && c.categoria_origem !== 'MANUAL' && ehMesmaCompra(referencia, c))
+      .map(c => c.hash_linha)
+    if (irmas.length === 0) return
+    await supabase
+      .from('transacoes_nubank')
+      .update({ categoria, categoria_origem: 'PARCELA', categoria_confianca: 0.97, classificacao_status: 'automatico' })
+      .in('hash_linha', irmas)
     refetch()
   }
 

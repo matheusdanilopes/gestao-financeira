@@ -40,3 +40,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .claude/
+
+# avaliações do Fin (saída local)
+/scripts/evals/resultados/

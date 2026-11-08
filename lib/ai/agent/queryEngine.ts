@@ -740,6 +740,15 @@ export function consultarTransacoes(data: EnrichedData, f: FiltroTransacoes, ref
 
   if (encontradas.some(t => mesEfetivo(t) === refs.faturaEmFormacao)) {
     linhas.push(`Obs.: a fatura de ${fmtMes(refs.mesApp)} ainda está em formação (hoje é dia ${refs.diaAtual}) — o valor ainda vai subir.`)
+    // "Quanto gastamos no X?" sem mês, feito no começo do mês, devolvia só os
+    // poucos dias da fatura nova — e a pessoa queria o mês que acabou de fechar.
+    const soMesCorrente = !porDia && mesInicio === refs.mesApp && (mesFim ?? refs.mesApp) === refs.mesApp
+    if (soMesCorrente) {
+      linhas.push(
+        `Se a pergunta não disse o mês, mostre também a fatura fechada de ${fmtMes(refs.mesAppAnterior)} ` +
+        `(mesInicio=mesFim=${refs.mesAppAnterior}) — o mês corrente ainda tem poucos lançamentos.`
+      )
+    }
   }
   if (avisoFuturo) linhas.push(avisoFuturo)
   if (f.apenasParceladas === true) {
@@ -1262,6 +1271,8 @@ export interface FiltroComparacao {
   responsavel?: string
   categoria?: string
   cartao?: string
+  /** Tira um cartão da conta ("desconsidere o PicPay") sem perder as contas fixas. */
+  excluirCartao?: string
   busca?: string
   incluirContasFixas?: boolean
   mesmoPonto?: boolean
@@ -1278,8 +1289,12 @@ export function compararPeriodos(data: EnrichedData, f: FiltroComparacao, refs: 
   const responsavel = resolverResponsavel(f.responsavel, data)
   const categoria = resolverCategoria(f.categoria, data)
   const cartao = resolverCartao(f.cartao, data)
+  const excluirCartao = resolverCartao(f.excluirCartao, data)
   const busca = typeof f.busca === 'string' && f.busca.trim() ? f.busca.trim() : undefined
+  // Contas fixas não pertencem a cartão nenhum: com filtro de UM cartão (ou de
+  // texto) elas não fazem sentido. Excluir um cartão, por outro lado, mantém.
   const incluirFixas = f.incluirContasFixas === true && !cartao && !busca
+  const fixasIgnoradas = f.incluirContasFixas === true && !incluirFixas
 
   const labels = cartaoLabelsFromPlanejamento(data.planejamento)
   const noIntervalo = (mes: string, ini: string, fim: string) => mes >= ini && mes <= fim
@@ -1299,6 +1314,7 @@ export function compararPeriodos(data: EnrichedData, f: FiltroComparacao, refs: 
     (!responsavel || t.responsavel === responsavel) &&
     (!categoria || (t.categoria ?? '') === categoria) &&
     (!cartao || (t.cartao ?? 'nubank') === cartao) &&
+    (!excluirCartao || (t.cartao ?? 'nubank') !== excluirCartao) &&
     (!busca || casaCompra(t, busca))
 
   // Com o corte, os dois lados usam a mesma régua (data da compra ≤ dia equivalente).
@@ -1331,6 +1347,7 @@ export function compararPeriodos(data: EnrichedData, f: FiltroComparacao, refs: 
     responsavel && `responsável=${responsavel}`,
     categoria && `categoria=${categoria}`,
     cartao && `cartão=${nomeCartao(cartao, labels)}`,
+    excluirCartao && `sem o cartão ${nomeCartao(excluirCartao, labels)}`,
     busca && `descrição contém "${busca}"`,
   ])
 
@@ -1338,7 +1355,12 @@ export function compararPeriodos(data: EnrichedData, f: FiltroComparacao, refs: 
     `CONSULTA: comparação — A=${rotuloA} vs B=${rotuloB} (dimensão: ${dimensao}; filtros: ${escopo})`,
     incluirFixas
       ? 'Base: cartão + contas fixas (mesma base do "Total do mês" do snapshot).'
-      : 'Base: SÓ compras de cartão (sem contas fixas). Para comparar o total do mês, use incluirContasFixas=true.',
+      : fixasIgnoradas
+        ? '⚠️ Base: SÓ compras de cartão — as contas fixas NÃO entraram porque há filtro de ' +
+          `${cartao ? 'cartão' : 'descrição'}. Este total não é comparável com um "total do mês" (cartões + contas fixas). ` +
+          (cartao ? 'Para tirar só um cartão mantendo as contas fixas, use excluirCartao em vez de cartao. ' : '') +
+          'Diga ao usuário qual base o número usa.'
+        : 'Base: SÓ compras de cartão (sem contas fixas). Para comparar o total do mês, use incluirContasFixas=true.',
     `Total A: ${R(totalA)} | Total B: ${R(totalB)} | Variação: ${R(totalA - totalB)} (${totalB > 0 ? pct(variacao) : 'sem base'})`,
   ]
   if (cortarB) {

@@ -14,7 +14,14 @@
 
 import type { FunctionDeclaration } from './tools'
 
-export const GEMINI_MODEL = 'gemini-2.5-flash'
+/**
+ * Modelo do assistente (chat do app, Telegram, resumo e transcrição).
+ * GEMINI_MODEL_CHAT no ambiente troca sem mudar código — inclusive para
+ * voltar ao anterior se o novo se comportar mal.
+ */
+export const GEMINI_MODEL = process.env.GEMINI_MODEL_CHAT?.trim() || 'gemini-3.8-flash'
+/** Modelo das rotinas que ainda não migraram (análise de comportamento). */
+export const GEMINI_MODEL_LEGADO = 'gemini-2.5-flash'
 const BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
 
 // ─── Tipos do protocolo ──────────────────────────────────────────────────────
@@ -25,6 +32,12 @@ export interface GeminiPart {
   inlineData?: { mimeType: string; data: string }
   functionCall?: { name: string; args?: Record<string, unknown> }
   functionResponse?: { name: string; response: Record<string, unknown> }
+  /**
+   * Assinatura do raciocínio (família Gemini 3). Vem na parte da chamada de
+   * ferramenta e PRECISA voltar na mesma parte na rodada seguinte — sem ela a
+   * API recusa a requisição.
+   */
+  thoughtSignature?: string
 }
 
 export interface GeminiContent {
@@ -35,6 +48,30 @@ export interface GeminiContent {
 export interface ChamadaFerramenta {
   name: string
   args: Record<string, unknown>
+  /** thoughtSignature recebida com a chamada — devolvida intacta ao modelo. */
+  assinatura?: string
+}
+
+/** Tokens gastos numa chamada (usageMetadata do Gemini). */
+export interface UsoTokens {
+  entrada: number
+  saida: number
+  raciocinio: number
+}
+
+export function somarUso(a: UsoTokens | undefined, b: UsoTokens | undefined): UsoTokens {
+  return {
+    entrada: (a?.entrada ?? 0) + (b?.entrada ?? 0),
+    saida: (a?.saida ?? 0) + (b?.saida ?? 0),
+    raciocinio: (a?.raciocinio ?? 0) + (b?.raciocinio ?? 0),
+  }
+}
+
+function lerUso(json: unknown): UsoTokens | undefined {
+  const u = (json as { usageMetadata?: Record<string, unknown> } | null)?.usageMetadata
+  if (!u) return undefined
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
+  return { entrada: n(u.promptTokenCount), saida: n(u.candidatesTokenCount), raciocinio: n(u.thoughtsTokenCount) }
 }
 
 /** Resultado de uma rodada: ou o modelo pediu ferramentas, ou produziu texto. */
@@ -42,6 +79,7 @@ export interface RodadaGemini {
   texto: string
   chamadas: ChamadaFerramenta[]
   finishReason?: string
+  uso?: UsoTokens
 }
 
 export class GeminiError extends Error {
@@ -90,6 +128,8 @@ export interface OpcoesChamada {
   maxOutputTokens?: number
   /** Tokens de raciocínio interno. 0 desliga (tarefas mecânicas, como resumir). */
   thinkingBudget?: number
+  /** Modelo desta chamada (padrão: GEMINI_MODEL). */
+  modelo?: string
   /** 'application/json' força a resposta em JSON (sem ferramentas). */
   responseMimeType?: string
   /** Esquema (subconjunto OpenAPI) que a resposta JSON deve seguir. */
@@ -102,6 +142,47 @@ export interface OpcoesChamada {
 // vazia. Agora o raciocínio tem teto próprio e a resposta tem folga.
 const ORCAMENTO_RACIOCINIO = 2048
 const TETO_SAIDA = 8192
+/** Na família 3 o nível de raciocínio não tem teto em tokens: mais folga para a resposta. */
+const TETO_SAIDA_GEMINI3 = 16384
+
+const ehGemini3 = (modelo: string) => /^gemini-3/.test(modelo)
+
+/**
+ * A família Gemini 3 troca o orçamento em tokens por um nível de raciocínio
+ * (mandar os dois é erro). Mantemos a mesma régua para quem chama: 0 =
+ * mecânico (resumir, transcrever), o padrão do agente = médio.
+ */
+function nivelRaciocinio(orcamento: number): 'minimal' | 'low' | 'medium' | 'high' {
+  if (orcamento <= 0) return 'minimal'
+  if (orcamento <= 1024) return 'low'
+  if (orcamento <= 8192) return 'medium'
+  return 'high'
+}
+
+function configGeracao(opts: OpcoesChamada): Record<string, unknown> {
+  const modelo = opts.modelo ?? GEMINI_MODEL
+  const orcamento = opts.thinkingBudget ?? ORCAMENTO_RACIOCINIO
+  const formato = {
+    ...(opts.responseMimeType ? { responseMimeType: opts.responseMimeType } : {}),
+    ...(opts.responseSchema ? { responseSchema: opts.responseSchema } : {}),
+  }
+  if (ehGemini3(modelo)) {
+    // Sem temperature: o Google recomenda o padrão (1.0) na família 3 —
+    // temperaturas baixas podem fazer o modelo entrar em repetição.
+    return {
+      maxOutputTokens: opts.maxOutputTokens ?? TETO_SAIDA_GEMINI3,
+      thinkingConfig: { thinkingLevel: nivelRaciocinio(orcamento) },
+      ...formato,
+    }
+  }
+  return {
+    // Baixa: a tarefa é ler números e explicá-los, não criar texto variado.
+    temperature: opts.temperature ?? 0.2,
+    maxOutputTokens: opts.maxOutputTokens ?? TETO_SAIDA,
+    thinkingConfig: { thinkingBudget: orcamento },
+    ...formato,
+  }
+}
 
 function montarCorpo(opts: OpcoesChamada): string {
   return JSON.stringify({
@@ -112,14 +193,7 @@ function montarCorpo(opts: OpcoesChamada): string {
     ...(opts.tools && opts.tools.length > 0
       ? { tools: [{ functionDeclarations: opts.tools }], toolConfig: { functionCallingConfig: { mode: 'AUTO' } } }
       : {}),
-    generationConfig: {
-      // Baixa: a tarefa é ler números e explicá-los, não criar texto variado.
-      temperature: opts.temperature ?? 0.2,
-      maxOutputTokens: opts.maxOutputTokens ?? TETO_SAIDA,
-      thinkingConfig: { thinkingBudget: opts.thinkingBudget ?? ORCAMENTO_RACIOCINIO },
-      ...(opts.responseMimeType ? { responseMimeType: opts.responseMimeType } : {}),
-      ...(opts.responseSchema ? { responseSchema: opts.responseSchema } : {}),
-    },
+    generationConfig: configGeracao(opts),
   })
 }
 
@@ -211,7 +285,11 @@ function extrairRodada(candidato: unknown): RodadaGemini {
 
   for (const p of parts) {
     if (p.functionCall?.name) {
-      chamadas.push({ name: p.functionCall.name, args: p.functionCall.args ?? {} })
+      chamadas.push({
+        name: p.functionCall.name,
+        args: p.functionCall.args ?? {},
+        ...(p.thoughtSignature ? { assinatura: p.thoughtSignature } : {}),
+      })
     } else if (typeof p.text === 'string') {
       texto += p.text
     }
@@ -223,10 +301,10 @@ function extrairRodada(candidato: unknown): RodadaGemini {
 // ─── Chamada não-streaming (rodadas de raciocínio/ferramenta) ────────────────
 
 export async function gerarRodada(opts: OpcoesChamada): Promise<RodadaGemini> {
-  const url = `${BASE}/${GEMINI_MODEL}:generateContent?key=${opts.apiKey}`
+  const url = `${BASE}/${opts.modelo ?? GEMINI_MODEL}:generateContent?key=${opts.apiKey}`
   const { res } = await comRetentativas(url, opts, false)
   const json = await res.json()
-  return extrairRodada(json.candidates?.[0])
+  return { ...extrairRodada(json.candidates?.[0]), uso: lerUso(json) }
 }
 
 // ─── Chamada com streaming (resposta final ao usuário) ───────────────────────
@@ -236,6 +314,8 @@ export interface PedacoStream {
   texto?: string
   chamadas?: ChamadaFerramenta[]
   finishReason?: string
+  /** Só no pedaço 'fim'. */
+  uso?: UsoTokens
 }
 
 /**
@@ -244,7 +324,7 @@ export interface PedacoStream {
  * chamadas para o chamador decidir o que fazer (o loop do agente reexecuta).
  */
 export async function* gerarStream(opts: OpcoesChamada): AsyncGenerator<PedacoStream> {
-  const url = `${BASE}/${GEMINI_MODEL}:streamGenerateContent?alt=sse&key=${opts.apiKey}`
+  const url = `${BASE}/${opts.modelo ?? GEMINI_MODEL}:streamGenerateContent?alt=sse&key=${opts.apiKey}`
   const { res, liberar } = await comRetentativas(url, opts, true)
 
   if (!res.body) {
@@ -253,7 +333,7 @@ export async function* gerarStream(opts: OpcoesChamada): AsyncGenerator<PedacoSt
     const rodada = await gerarRodada(opts)
     if (rodada.chamadas.length > 0) yield { tipo: 'chamadas', chamadas: rodada.chamadas }
     if (rodada.texto) yield { tipo: 'texto', texto: rodada.texto }
-    yield { tipo: 'fim', finishReason: rodada.finishReason }
+    yield { tipo: 'fim', finishReason: rodada.finishReason, uso: rodada.uso }
     return
   }
 
@@ -261,6 +341,8 @@ export async function* gerarStream(opts: OpcoesChamada): AsyncGenerator<PedacoSt
   const decoder = new TextDecoder()
   let buffer = ''
   let finishReason: string | undefined
+  // O Gemini repete usageMetadata nos pedaços; o último é o total da chamada.
+  let uso: UsoTokens | undefined
   const chamadasAcumuladas: ChamadaFerramenta[] = []
 
   try {
@@ -280,6 +362,7 @@ export async function* gerarStream(opts: OpcoesChamada): AsyncGenerator<PedacoSt
 
         let json: { candidates?: unknown[] }
         try { json = JSON.parse(payload) } catch { continue }
+        uso = lerUso(json) ?? uso
 
         const rodada = extrairRodada(json.candidates?.[0])
         if (rodada.finishReason) finishReason = rodada.finishReason
@@ -293,7 +376,7 @@ export async function* gerarStream(opts: OpcoesChamada): AsyncGenerator<PedacoSt
   }
 
   if (chamadasAcumuladas.length > 0) yield { tipo: 'chamadas', chamadas: chamadasAcumuladas }
-  yield { tipo: 'fim', finishReason }
+  yield { tipo: 'fim', finishReason, uso }
 }
 
 // ─── Resumo de conversa longa ────────────────────────────────────────────────

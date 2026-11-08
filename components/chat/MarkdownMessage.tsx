@@ -2,7 +2,7 @@
 
 import { memo, type ReactNode } from 'react'
 import dynamic from 'next/dynamic'
-import { lerGrafico, LINGUAGEM_GRAFICO } from '@/lib/graficoChat'
+import { lerGrafico, ehLinguagemGrafico } from '@/lib/graficoChat'
 
 // Chart.js só é baixado quando uma resposta traz gráfico.
 const GraficoChat = dynamic(() => import('./GraficoChat'), {
@@ -101,7 +101,7 @@ export const MarkdownMessage = memo(function MarkdownMessage({ texto }: { texto:
       }
       const fechado = i < linhas.length
       i++
-      if (linguagem === LINGUAGEM_GRAFICO) {
+      if (ehLinguagemGrafico(linguagem)) {
         const grafico = lerGrafico(conteudo.join('\n'))
         if (grafico) blocos.push(<GraficoChat key={`graf-${i}`} grafico={grafico} />)
         // Ainda chegando no streaming: reserva o espaço em vez de mostrar JSON.

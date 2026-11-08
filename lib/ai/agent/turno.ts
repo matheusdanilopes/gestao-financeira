@@ -15,7 +15,7 @@ import { computeInsights } from '../insightsEngine'
 import type { TelaAtual } from '../types'
 import { construirReferencias } from './queryEngine'
 import { buildSystemPrompt, buildBlockedPrompt } from './systemPrompt'
-import { executarAgente, type AgentEvent } from './runAgent'
+import { executarAgente, type AgentEvent, type MetaResposta } from './runAgent'
 import { GeminiError } from './geminiClient'
 import { carregarContexto, salvarMensagem, historicoComReserva, type FerramentaUsada } from './conversation'
 import type { Interlocutor } from './interlocutor'
@@ -100,6 +100,7 @@ export async function* executarTurno(e: EntradaTurno): AsyncGenerator<AgentEvent
   let textoFinal = ''
   let ferramentas: string[] = []
   let trilha: FerramentaUsada[] = []
+  let meta: MetaResposta | undefined
 
   for await (const evento of executarAgente({
     apiKey: e.apiKey,
@@ -121,20 +122,25 @@ export async function* executarTurno(e: EntradaTurno): AsyncGenerator<AgentEvent
       textoFinal = evento.texto
       ferramentas = evento.ferramentas
       trilha = evento.trilha
+      meta = evento.meta
     } else {
       yield evento
     }
   }
 
+  let mensagemId: string | null = null
   if (textoFinal) {
-    const id = await salvarMensagem(supabase, conversationId, 'assistant', textoFinal, e.interlocutor.canal, trilha)
-    naoSalvou ||= id === null
-    e.aoGravarResposta?.(id)
+    mensagemId = await salvarMensagem(
+      supabase, conversationId, 'assistant', textoFinal, e.interlocutor.canal, trilha,
+      meta ? { ...meta, tela: e.tela ?? null } : undefined
+    )
+    naoSalvou ||= mensagemId === null
+    e.aoGravarResposta?.(mensagemId)
   }
   if (naoSalvou) {
     yield { type: 'aviso', texto: 'Esta troca não foi salva no histórico. A conversa continua, mas pode não aparecer ao reabrir.' }
   }
-  yield { type: 'done', texto: textoFinal, ferramentas, trilha }
+  yield { type: 'done', texto: textoFinal, ferramentas, trilha, meta, mensagemId }
 }
 
 export interface ErroDescrito {
