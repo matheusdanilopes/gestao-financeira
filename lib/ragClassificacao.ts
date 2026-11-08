@@ -1,246 +1,85 @@
-import { SupabaseClient } from '@supabase/supabase-js'
+/**
+ * Aprendizado de categorias: quando o casal escolhe uma categoria à mão, ela
+ * vira memória para as próximas compras do mesmo estabelecimento
+ * (lib/categorizacao/memoria.ts lê esta tabela).
+ *
+ * Mudanças (08/11/2026):
+ *  - a chave é o ESTABELECIMENTO normalizado ("mercadolivre blzcosme"), não a
+ *    descrição com parcela ("MERCADOLIVRE BLZCOSME PARCELA 1 5");
+ *  - a memória é do casal (user_id 'default'): antes a tela de compras gravava
+ *    em 'default' e a rota de feedback no id de cada um — duas memórias;
+ *  - marketplace genérico não é memorizado (o nome não diz o que foi comprado);
+ *  - o classificador antigo (Gemini 1.5, uma chamada por compra) saiu: tudo
+ *    passa por lib/categorizarTransacoes.ts.
+ */
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { normalizarEstabelecimento } from './categorizacao/normalizacao'
 
-const GEMINI_MODEL = 'gemini-1.5-flash'
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
+export const USUARIO_MEMORIA = 'default'
 
-export const CONFIANCA_VALIDADO = 90
-
-// ── Types ─────────────────────────────────────────────────────────────────
-
-export interface ResultadoClassificacaoRAG {
-  categoria: string
-  confianca: number
-  justificativa: string
-}
-
-export interface ClassificacaoAprendida {
-  descricao_limpa: string
-  categoria_validada: string
-  frequencia: number
-}
-
-// ── Sanitization ──────────────────────────────────────────────────────────
-// Removes card-statement noise: dates, transaction IDs, asterisks, currency.
-// Example: "IFOOD *LANCHES 12/05" → "IFOOD LANCHES"
+/** Chave usada na memória para uma descrição de fatura. */
 export function sanitizarDescricao(descricao: string): string {
-  return descricao
-    .toUpperCase()
-    // DD/MM, MM/YYYY, DD/MM/YYYY, MM/YY
-    .replace(/\b\d{1,2}\/\d{2}(?:\/\d{2,4})?\b/g, '')
-    // HH:MM timestamps
-    .replace(/\b\d{2}:\d{2}\b/g, '')
-    // asterisks (e.g. IFOOD*LANCHES, IFOOD * LANCHES)
-    .replace(/\s*\*\s*/g, ' ')
-    // long numeric sequences — transaction IDs (≥5 digits)
-    .replace(/\b\d{5,}\b/g, '')
-    // R$ currency prefix
-    .replace(/R\$\s*/gi, '')
-    // any remaining non-alphanumeric char except spaces
-    .replace(/[^A-Z0-9\s]/g, ' ')
-    // collapse runs of whitespace
-    .replace(/\s+/g, ' ')
-    .trim()
+  return normalizarEstabelecimento(descricao).chave
 }
 
-// ── Similarity ────────────────────────────────────────────────────────────
-// Jaccard similarity over tokens of length ≥ 3 to rank fuzzy candidates.
-function calcularSimilaridade(a: string, b: string): number {
-  const tokensA = new Set(a.split(' ').filter(t => t.length >= 3))
-  const tokensB = new Set(b.split(' ').filter(t => t.length >= 3))
-  if (tokensA.size === 0 && tokensB.size === 0) return 1
-  const intersection = [...tokensA].filter(t => tokensB.has(t)).length
-  const union = new Set([...tokensA, ...tokensB]).size
-  return union === 0 ? 0 : intersection / union
+/**
+ * A edição de uma compra deve virar aprendizado? Só quando a pessoa ESCOLHEU
+ * a categoria agora. Antes, salvar qualquer campo (valor, responsável, nome)
+ * regravava a categoria atual como "manual" e a memorizava — foi assim que
+ * "Outros" dado pela IA virou regra e se espalhou para 123 compras.
+ */
+export function categoriaFoiEscolhida(categoriaAntes: string | null | undefined, categoriaDepois: string | null | undefined): boolean {
+  return !!categoriaDepois && categoriaDepois !== (categoriaAntes ?? '')
 }
 
-// ── RAG Context Retrieval ─────────────────────────────────────────────────
-// Returns up to `limite` historical classifications ranked by:
-//   1. Exact description match (highest priority)
-//   2. Fuzzy match via primary-token ILIKE + JS-side Jaccard scoring
-export async function buscarContextoRAG(
-  supabase: SupabaseClient,
-  descricaoLimpa: string,
-  userId = 'default',
-  limite = 3
-): Promise<ClassificacaoAprendida[]> {
-  // Exact match
-  const { data: exact } = await supabase
-    .from('classificacoes_aprendidas')
-    .select('descricao_limpa, categoria_validada, frequencia')
-    .eq('user_id', userId)
-    .eq('descricao_limpa', descricaoLimpa)
-    .order('frequencia', { ascending: false })
-    .limit(limite)
-
-  if (exact && exact.length > 0) return exact as ClassificacaoAprendida[]
-
-  // Fuzzy: use the first long token (≥4 chars) as a broad filter in Supabase,
-  // then re-rank by Jaccard similarity on the JS side.
-  const tokens = descricaoLimpa.split(' ').filter(t => t.length >= 4)
-  if (tokens.length === 0) return []
-
-  const { data: candidates } = await supabase
-    .from('classificacoes_aprendidas')
-    .select('descricao_limpa, categoria_validada, frequencia')
-    .eq('user_id', userId)
-    .ilike('descricao_limpa', `%${tokens[0]}%`)
-    .order('frequencia', { ascending: false })
-    .limit(20)
-
-  if (!candidates || candidates.length === 0) return []
-
-  return (candidates as ClassificacaoAprendida[])
-    .map(m => ({ item: m, score: calcularSimilaridade(descricaoLimpa, m.descricao_limpa) }))
-    .sort((a, b) => b.score - a.score || b.item.frequencia - a.item.frequencia)
-    .slice(0, limite)
-    .map(({ item }) => item)
-}
-
-// ── Bulk History Lookup ──────────────────────────────────────────────────
-// Used to check user-corrected history for a whole batch before falling
-// back to the AI, so a merchant corrected once doesn't need correcting again.
-const LIMIAR_SIMILARIDADE_HISTORICO = 0.6
-
-export async function buscarTodasAprendidas(
-  supabase: SupabaseClient,
-  userId = 'default'
-): Promise<ClassificacaoAprendida[]> {
-  const { data } = await supabase
-    .from('classificacoes_aprendidas')
-    .select('descricao_limpa, categoria_validada, frequencia')
-    .eq('user_id', userId)
-  return (data as ClassificacaoAprendida[]) || []
-}
-
-// Returns the learned category for an exact match, or the best fuzzy match
-// (Jaccard similarity >= LIMIAR_SIMILARIDADE_HISTORICO) — same "muito
-// similar" establishment. Returns null when no match is close enough,
-// leaving the caller free to fall back to the AI.
-export function encontrarCategoriaHistorico(
-  descricaoLimpa: string,
-  aprendidas: ClassificacaoAprendida[]
+/** Origem a gravar depois de uma edição: só vira MANUAL quem a pessoa trocou. */
+export function origemAposEdicao(
+  categoriaAntes: string | null | undefined,
+  origemAntes: string | null | undefined,
+  categoriaDepois: string | null | undefined
 ): string | null {
-  const exata = aprendidas.find(a => a.descricao_limpa === descricaoLimpa)
-  if (exata) return exata.categoria_validada
-
-  let melhor: { categoria: string; score: number } | null = null
-  for (const item of aprendidas) {
-    const score = calcularSimilaridade(descricaoLimpa, item.descricao_limpa)
-    if (score >= LIMIAR_SIMILARIDADE_HISTORICO && (!melhor || score > melhor.score)) {
-      melhor = { categoria: item.categoria_validada, score }
-    }
-  }
-  return melhor?.categoria ?? null
+  if (!categoriaDepois) return null
+  return categoriaFoiEscolhida(categoriaAntes, categoriaDepois) ? 'MANUAL' : (origemAntes ?? null)
 }
 
-// ── Dynamic Prompt Construction ───────────────────────────────────────────
-
-function construirContextoMemoria(contexto: ClassificacaoAprendida[]): string {
-  if (contexto.length === 0) {
-    return 'Nenhum histórico disponível para esta transação.'
-  }
-  return contexto
-    .map(c =>
-      `- Para "${c.descricao_limpa}", classificado como "${c.categoria_validada}" (${c.frequencia}x confirmado)`
-    )
-    .join('\n')
-}
-
-// Calls Gemini 1.5 Flash with a RAG-enriched prompt.
-// Returns categoria, confianca (0–100) and justificativa.
-export async function classificarComGemini(
-  descricao: string,
-  descricaoLimpa: string,
-  contexto: ClassificacaoAprendida[],
-  apiKey: string,
-  categoriasPermitidas: string[]
-): Promise<ResultadoClassificacaoRAG> {
-  const memoriaContexto = construirContextoMemoria(contexto)
-
-  const prompt = `Você é um classificador de gastos financeiros de cartão de crédito.
-Categorize a transação abaixo usando EXATAMENTE UMA das categorias permitidas.
-
-Categorias permitidas: ${categoriasPermitidas.join(', ')}
-
-Histórico de classificações do usuário para transações similares:
-${memoriaContexto}
-
-Transação atual: "${descricao}"
-Descrição normalizada: "${descricaoLimpa}"
-
-Regras para o campo "confianca" (0–100):
-- Correspondência exata no histórico: confiança >= 95
-- Correspondência parcial forte (mesmo estabelecimento): confiança 70–89
-- Sem histórico relevante, deduzido por contexto: confiança 40–69
-- Totalmente incerto: confiança < 40
-
-Retorne APENAS um JSON válido com exatamente estas chaves:
-{"categoria": "...", "confianca": 0, "justificativa": "..."}`
-
-  const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: 'application/json' },
-    }),
-  })
-
-  if (!res.ok) {
-    const body = await res.text()
-    throw new Error(`Gemini erro ${res.status}: ${body}`)
-  }
-
-  const data = await res.json()
-  const texto = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-  if (!texto) throw new Error('Resposta vazia da IA')
-
-  const resultado = JSON.parse(texto) as ResultadoClassificacaoRAG
-
-  // Sanitize: keep categoria within the allowed list
-  const fallback = categoriasPermitidas.includes('Outros') ? 'Outros' : categoriasPermitidas[0]
-  if (!categoriasPermitidas.includes(resultado.categoria)) {
-    resultado.categoria = fallback
-    resultado.confianca = Math.min(Number(resultado.confianca) || 0, 40)
-  }
-  resultado.confianca = Math.max(0, Math.min(100, Math.round(Number(resultado.confianca))))
-
-  return resultado
-}
-
-// ── Learning Update ───────────────────────────────────────────────────────
-// Upserts into classificacoes_aprendidas:
-//   - If the (user_id, descricao_limpa) pair exists → update categoria_validada
-//     and increment frequencia.
-//   - Otherwise → insert with frequencia = 1.
+/**
+ * Soma uma escolha à memória. Ignora marketplace genérico. Devolve false
+ * quando não memorizou.
+ */
 export async function atualizarAprendizado(
   supabase: SupabaseClient,
-  descricaoLimpa: string,
+  descricao: string,
   categoriaValidada: string,
-  userId = 'default'
-): Promise<void> {
-  const { data: existing } = await supabase
+  userId = USUARIO_MEMORIA
+): Promise<boolean> {
+  const est = normalizarEstabelecimento(descricao)
+  if (est.generico || !est.chave) return false
+
+  const { data: existente } = await supabase
     .from('classificacoes_aprendidas')
-    .select('id, frequencia')
+    .select('id, frequencia, categoria_validada')
     .eq('user_id', userId)
-    .eq('descricao_limpa', descricaoLimpa)
+    .eq('descricao_limpa', est.chave)
     .maybeSingle()
 
-  if (existing) {
+  if (existente) {
+    // Mudou de ideia: a nova escolha substitui e o contador recomeça.
+    const mudou = existente.categoria_validada !== categoriaValidada
     await supabase
       .from('classificacoes_aprendidas')
       .update({
         categoria_validada: categoriaValidada,
-        frequencia: existing.frequencia + 1,
+        frequencia: mudou ? 1 : existente.frequencia + 1,
         ultima_atualizacao: new Date().toISOString(),
       })
-      .eq('id', existing.id)
+      .eq('id', existente.id)
   } else {
     await supabase.from('classificacoes_aprendidas').insert({
       user_id: userId,
-      descricao_limpa: descricaoLimpa,
+      descricao_limpa: est.chave,
       categoria_validada: categoriaValidada,
       frequencia: 1,
     })
   }
+  return true
 }

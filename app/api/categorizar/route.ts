@@ -1,101 +1,27 @@
+/**
+ * POST /api/categorizar — botão "Categorizar com IA".
+ *
+ * Corpo opcional: { modo?: 'pendentes' | 'tudo' }
+ *  - pendentes (padrão): compras sem categoria + "Outros" que não foi escolhido à mão;
+ *  - tudo: refaz também o que foi decidido automaticamente.
+ *
+ * A decisão em si fica em lib/categorizarTransacoes.ts (mesmo caminho da
+ * importação). Aqui só o controle do job que a tela acompanha.
+ */
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
-import { CATEGORIAS_PADRAO, parseCategoriasConfig } from '@/lib/categorias'
-import { sanitizarDescricao, buscarTodasAprendidas, encontrarCategoriaHistorico } from '@/lib/ragClassificacao'
+import { categorizarTransacoes, type ModoCategorizacao } from '@/lib/categorizarTransacoes'
 
 export const maxDuration = 300
 
-const LOTE = 20
-const DELAY_ENTRE_LOTES_MS = 5000
-const GEMINI_MODEL = 'gemini-2.5-flash'
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
-const CONFIANCA_PADRAO_IA = 0.85
 const JOB_STALE_MS = 6 * 60 * 1000
+/** Folga para gravar o resultado do job antes do limite da função. */
+const PRAZO_MS = 270_000
 
-function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
-
-function isStaleJob(startedAt: string): boolean {
-  return Date.now() - new Date(startedAt).getTime() > JOB_STALE_MS
-}
-
-function extrairRetryDelay(errText: string): number {
-  const match = errText.match(/"retryDelay":\s*"(\d+)s"/)
-  return match ? (parseInt(match[1]) + 2) * 1000 : 60000
-}
-
-function isCotaDiaria(errText: string): boolean {
-  return errText.includes('GenerateRequestsPerDayPerProjectPerModel')
-}
-
-async function categorizarLote(
-  transacoes: { hash_linha: string; descricao: string }[],
-  apiKey: string,
-  categoriasPermitidas: string[]
-): Promise<string[]> {
-  const lista = transacoes.map((t, i) => `${i + 1}. ${t.descricao}`).join('\n')
-
-  const prompt = `Categorize cada transação abaixo com UMA das categorias: ${categoriasPermitidas.join(', ')}.
-
-Transações:
-${lista}
-
-Retorne um JSON no formato: {"categorias": ["Categoria1", "Categoria2", ...]}
-A lista deve ter exatamente ${transacoes.length} itens, na mesma ordem das transações.`
-
-  const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: 'application/json' },
-    }),
-  })
-
-  if (!res.ok) {
-    const body = await res.text()
-    throw new Error(`Gemini erro ${res.status}: ${body}`)
-  }
-
-  const data = await res.json()
-  const texto = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-  if (!texto) throw new Error('Resposta vazia da IA')
-
-  const { categorias } = JSON.parse(texto)
-  if (!Array.isArray(categorias) || categorias.length !== transacoes.length) {
-    throw new Error(`Número de categorias retornado (${categorias?.length}) diferente do esperado (${transacoes.length})`)
-  }
-
-  const fallback = categoriasPermitidas.includes('Outros') ? 'Outros' : categoriasPermitidas[0]
-  return categorias.map((c: string) => (categoriasPermitidas.includes(c) ? c : fallback))
-}
-
-async function categorizarLoteComRetry(
-  transacoes: { hash_linha: string; descricao: string }[],
-  apiKey: string,
-  categoriasPermitidas: string[],
-  maxRetries = 2
-): Promise<string[]> {
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await categorizarLote(transacoes, apiKey, categoriasPermitidas)
-    } catch (err) {
-      const errStr = String(err)
-      const is429 = errStr.includes('429')
-
-      if (!is429 || attempt === maxRetries) throw err
-      if (isCotaDiaria(errStr)) throw new Error('COTA_DIARIA_ESGOTADA')
-
-      const waitMs = extrairRetryDelay(errStr)
-      console.warn(`[categorizar] 429 recebido, aguardando ${waitMs}ms antes de retry ${attempt + 1}/${maxRetries}`)
-      await sleep(waitMs)
-    }
-  }
-  throw new Error('Max retries exceeded')
-}
+const isStaleJob = (startedAt: string) => Date.now() - new Date(startedAt).getTime() > JOB_STALE_MS
 
 export async function POST(req: NextRequest) {
+  const inicio = Date.now()
   const { supabase, unauthorized } = await requireAuth(req)
   if (unauthorized) return unauthorized
 
@@ -103,6 +29,12 @@ export async function POST(req: NextRequest) {
   if (!apiKey) {
     return NextResponse.json({ error: 'GEMINI_API_KEY não configurada' }, { status: 500 })
   }
+
+  let modo: ModoCategorizacao = 'pendentes'
+  try {
+    const body = await req.json()
+    if (body?.modo === 'tudo') modo = 'tudo'
+  } catch { /* sem corpo: modo padrão */ }
 
   // Evita iniciar dois jobs simultâneos
   const { data: runningJob } = await supabase
@@ -117,7 +49,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ running: true, message: 'Categorização já em andamento' })
   }
 
-  // Cria o job imediatamente para que o cliente possa rastreá-lo
   const { data: job } = await supabase
     .from('categorization_jobs')
     .insert({ status: 'running' })
@@ -125,143 +56,37 @@ export async function POST(req: NextRequest) {
     .single()
   const jobId: string | undefined = job?.id
 
+  // Progresso para a tela, sem gravar a cada compra.
+  let ultimoProgresso = 0
+  const aoProgresso = (feitas: number, total: number) => {
+    if (!jobId || Date.now() - ultimoProgresso < 3_000) return
+    ultimoProgresso = Date.now()
+    void supabase.from('categorization_jobs').update({ total, categorized: feitas }).eq('id', jobId).then(() => {})
+  }
+
   try {
-    const { data: configuracoes } = await supabase
-      .from('configuracoes')
-      .select('chave, valor')
-      .eq('chave', 'categorias_compras')
-      .maybeSingle()
-    const categoriasPermitidas = parseCategoriasConfig(configuracoes?.valor) || CATEGORIAS_PADRAO
-
-    const { data: transacoes, error } = await supabase
-      .from('transacoes_nubank')
-      .select('hash_linha, descricao, categoria, categoria_origem')
-      .or('categoria.is.null,categoria_origem.eq.IA')
-      .order('data', { ascending: false })
-
-    if (error) {
-      if (jobId) await supabase.from('categorization_jobs').update({ status: 'error', finished_at: new Date().toISOString() }).eq('id', jobId)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    if (!transacoes || transacoes.length === 0) {
-      if (jobId) {
-        await supabase.from('categorization_jobs')
-          .update({ status: 'done', total: 0, categorized: 0, finished_at: new Date().toISOString() })
-          .eq('id', jobId)
-      }
-      return NextResponse.json({ categorized: 0, total: 0, message: 'Nenhuma transação sem categoria' })
-    }
-
-    // Atualiza o total para que o cliente veja o progresso esperado
-    if (jobId) {
-      await supabase.from('categorization_jobs').update({ total: transacoes.length }).eq('id', jobId)
-    }
-
-    let totalCategorized = 0
-    const erros: string[] = []
-    let cotaDiariaEsgotada = false
-
-    // Antes de chamar a IA, reaproveita correções manuais já feitas pelo
-    // usuário para o mesmo estabelecimento (ou nome muito similar).
-    const aprendidas = await buscarTodasAprendidas(supabase)
-    const comHistorico: { hash_linha: string; descricao: string; categoria: string }[] = []
-    const semHistorico: typeof transacoes = []
-
-    for (const t of transacoes) {
-      const categoriaHistorico = aprendidas.length > 0
-        ? encontrarCategoriaHistorico(sanitizarDescricao(t.descricao), aprendidas)
-        : null
-      if (categoriaHistorico && categoriasPermitidas.includes(categoriaHistorico)) {
-        comHistorico.push({ hash_linha: t.hash_linha, descricao: t.descricao, categoria: categoriaHistorico })
-      } else {
-        semHistorico.push(t)
-      }
-    }
-
-    if (comHistorico.length > 0) {
-      const updateResults = await Promise.all(
-        comHistorico.map(t =>
-          supabase
-            .from('transacoes_nubank')
-            .update({
-              categoria: t.categoria,
-              categoria_origem: 'HISTORICO',
-              categoria_confianca: 1,
-            })
-            .eq('hash_linha', t.hash_linha)
-        )
-      )
-      const updateErrors = updateResults
-        .map((r, i) => (r.error ? `${comHistorico[i].hash_linha.slice(0, 8)}: ${r.error.message}` : null))
-        .filter((e): e is string => e !== null)
-      if (updateErrors.length > 0) {
-        erros.push(`Falha ao aplicar histórico em ${updateErrors.length} transação(ões): ${updateErrors.join('; ')}`)
-      }
-      totalCategorized += comHistorico.length - updateErrors.length
-    }
-
-    for (let i = 0; i < semHistorico.length; i += LOTE) {
-      if (cotaDiariaEsgotada) break
-
-      const lote = semHistorico.slice(i, i + LOTE)
-      const numLote = Math.floor(i / LOTE) + 1
-
-      try {
-        const categorias = await categorizarLoteComRetry(lote, apiKey, categoriasPermitidas)
-
-        await Promise.all(
-          lote.map((t, j) =>
-            supabase
-              .from('transacoes_nubank')
-              .update({
-                categoria: categorias[j],
-                categoria_origem: 'IA',
-                categoria_confianca: CONFIANCA_PADRAO_IA,
-              })
-              .eq('hash_linha', t.hash_linha)
-          )
-        )
-
-        totalCategorized += lote.length
-
-        if (i + LOTE < semHistorico.length) {
-          await sleep(DELAY_ENTRE_LOTES_MS)
-        }
-      } catch (err) {
-        const errStr = String(err)
-        if (errStr.includes('COTA_DIARIA_ESGOTADA')) {
-          cotaDiariaEsgotada = true
-          erros.push(`Cota diária do Gemini esgotada após ${totalCategorized} transações. Tente novamente amanhã.`)
-        } else {
-          const msg = `Lote ${numLote}: ${errStr}`
-          console.error('[categorizar]', msg)
-          erros.push(msg)
-        }
-      }
-    }
+    const resultado = await categorizarTransacoes(supabase, apiKey, { modo, deadlineMs: inicio + PRAZO_MS, aoProgresso })
 
     if (jobId) {
       await supabase.from('categorization_jobs').update({
         status: 'done',
-        categorized: totalCategorized,
-        cota_diaria_esgotada: cotaDiariaEsgotada,
-        erros: erros.length > 0 ? erros : null,
+        total: resultado.total,
+        categorized: resultado.categorized,
+        cota_diaria_esgotada: resultado.cotaDiariaEsgotada,
+        erros: resultado.erros ?? null,
         finished_at: new Date().toISOString(),
       }).eq('id', jobId)
     }
 
     return NextResponse.json({
-      categorized: totalCategorized,
-      total: transacoes.length,
-      cotaDiariaEsgotada,
-      erros: erros.length > 0 ? erros : undefined,
+      ...resultado,
+      message: resultado.total === 0 ? 'Nenhuma compra para categorizar' : undefined,
     })
   } catch (error) {
     console.error('[categorizar]', error)
     if (jobId) {
       await supabase.from('categorization_jobs')
-        .update({ status: 'error', finished_at: new Date().toISOString() })
+        .update({ status: 'error', erros: [String(error)], finished_at: new Date().toISOString() })
         .eq('id', jobId)
     }
     return NextResponse.json({ error: 'Erro interno no servidor' }, { status: 500 })

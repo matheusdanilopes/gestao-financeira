@@ -8,7 +8,7 @@ interface FeedbackBody {
 }
 
 export async function POST(req: NextRequest) {
-  const { user, supabase, unauthorized } = await requireAuth(req)
+  const { supabase, unauthorized } = await requireAuth(req)
   if (unauthorized) return unauthorized
 
   let body: FeedbackBody
@@ -19,8 +19,6 @@ export async function POST(req: NextRequest) {
   }
 
   const { hash_linha, categoria_validada } = body
-  // user_id always comes from the authenticated session
-  const user_id = user.id
 
   if (!hash_linha || !categoria_validada) {
     return NextResponse.json(
@@ -41,7 +39,8 @@ export async function POST(req: NextRequest) {
 
   const descricaoLimpa = sanitizarDescricao(transacao.descricao)
 
-  await atualizarAprendizado(supabase, descricaoLimpa, categoria_validada, user_id)
+  // Memória do casal (compartilhada), não por pessoa.
+  await atualizarAprendizado(supabase, transacao.descricao, categoria_validada)
 
   const { error: updErr } = await supabase
     .from('transacoes_nubank')
