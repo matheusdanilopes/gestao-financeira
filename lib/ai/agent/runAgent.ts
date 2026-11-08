@@ -18,15 +18,43 @@
 import {
   gerarStream,
   gerarRodada,
+  somarUso,
   GeminiError,
+  GEMINI_MODEL,
   type GeminiContent,
   type ChamadaFerramenta,
+  type UsoTokens,
 } from './geminiClient'
+import { indexarEvidencias, verificarLastro, instrucaoRevisaoLastro, avisoSemLastro } from './lastro'
+import { promptComoEvidencia } from './systemPrompt'
 import { FINANCIAL_TOOLS, executarFerramenta, rotuloFerramenta, type EstadoTurno } from './tools'
 import type { ContextoEscrita } from './writeEngine'
 import type { Referencias } from './queryEngine'
 import type { GatewayDados } from '../data/gateway'
 import type { FerramentaUsada } from './conversation'
+
+/**
+ * Registro de como uma resposta foi produzida — gravado junto com ela para
+ * auditoria e para alimentar o conjunto de avaliação (scripts/evals).
+ */
+export interface MetaResposta {
+  modelo: string
+  /** Chamadas ao modelo neste turno (rodadas de ferramenta + revisões). */
+  rodadas: number
+  uso: UsoTokens
+  duracaoMs: number
+  /** Motivo de cada revisão automática feita ('conduta' | 'lastro'). */
+  revisoes: string[]
+  lastro: {
+    /** Valores em R$ citados na resposta final. */
+    citados: number
+    /** Valores que ficaram sem origem nas consultas (o usuário recebeu aviso). */
+    semLastro: string[]
+  }
+}
+
+/** Quanto do resultado de cada ferramenta fica gravado na trilha. */
+const LIMITE_RESULTADO_GRAVADO = 4_000
 
 export type AgentEvent =
   /** Mensagem curta de progresso (ex.: "Consultando compras no cartão"). */
@@ -40,7 +68,7 @@ export type AgentEvent =
   /** Algo que o usuário precisa saber além da resposta (ex.: a conversa não foi salva). */
   | { type: 'aviso'; texto: string }
   /** Fim do turno com o texto completo consolidado. */
-  | { type: 'done'; texto: string; ferramentas: string[]; trilha: FerramentaUsada[] }
+  | { type: 'done'; texto: string; ferramentas: string[]; trilha: FerramentaUsada[]; meta?: MetaResposta; mensagemId?: string | null }
 
 /**
  * Rodadas em que o modelo ainda pode pedir ferramentas. Com a calculadora e a
@@ -115,6 +143,7 @@ function montarContents(historico: HistoricoMensagem[], pergunta: string): Gemin
 }
 
 export async function* executarAgente(input: AgentInput): AsyncGenerator<AgentEvent> {
+  const inicio = Date.now()
   const contents = montarContents(input.historico, input.pergunta)
   const ferramentasUsadas: string[] = []
   const trilha: FerramentaUsada[] = []
@@ -123,8 +152,29 @@ export async function* executarAgente(input: AgentInput): AsyncGenerator<AgentEv
   // só possa agir sobre uma proposta feita numa mensagem ANTERIOR do usuário,
   // nunca sobre uma que o próprio modelo acabou de fazer nesta mesma resposta.
   const estadoTurno: EstadoTurno = { propostaNesteTurno: false, propostas: [] }
-  // Uma revisão por turno: se a reescrita também sair ruim, ela vale assim mesmo.
-  let revisada = false
+
+  // Tudo o que o modelo leu neste turno e pode citar: o snapshot (no prompt de
+  // sistema), o que o usuário escreveu e, abaixo, cada resultado de ferramenta.
+  // Respostas anteriores do assistente — e o resumo delas no prompt — ficam
+  // de fora de propósito.
+  const evidencias: string[] = [
+    promptComoEvidencia(input.systemPrompt),
+    input.pergunta,
+    ...input.historico.filter(m => m.role === 'user').map(m => m.content),
+  ]
+  const revisoes: string[] = []
+  let uso: UsoTokens = { entrada: 0, saida: 0, raciocinio: 0 }
+  let chamadasModelo = 0
+  let lastroFinal: MetaResposta['lastro'] = { citados: 0, semLastro: [] }
+
+  const meta = (): MetaResposta => ({
+    modelo: GEMINI_MODEL,
+    rodadas: chamadasModelo,
+    uso,
+    duracaoMs: Date.now() - inicio,
+    revisoes,
+    lastro: lastroFinal,
+  })
 
   for (let rodada = 0; rodada <= MAX_RODADAS_FERRAMENTA; rodada++) {
     const tempoEsgotado = Date.now() >= input.deadlineMs - 3_000
@@ -138,6 +188,7 @@ export async function* executarAgente(input: AgentInput): AsyncGenerator<AgentEv
     let chamadas: ChamadaFerramenta[] = []
     let finishReason: string | undefined
 
+    chamadasModelo++
     for await (const pedaco of gerarStream({
       apiKey: input.apiKey,
       systemInstruction: input.systemPrompt,
@@ -152,6 +203,7 @@ export async function* executarAgente(input: AgentInput): AsyncGenerator<AgentEv
         chamadas = pedaco.chamadas
       } else if (pedaco.tipo === 'fim') {
         finishReason = pedaco.finishReason
+        uso = somarUso(uso, pedaco.uso)
       }
     }
 
@@ -163,39 +215,60 @@ export async function* executarAgente(input: AgentInput): AsyncGenerator<AgentEv
         // Resposta vazia (bloqueio de segurança, corte prematuro). Uma nova
         // tentativa sem ferramentas costuma resolver; se não, avisamos.
         if (oferecerFerramentas) {
+          chamadasModelo++
           const retry = await gerarRodada({
             apiKey: input.apiKey,
             systemInstruction: input.systemPrompt,
             contents,
             deadlineMs: input.deadlineMs,
           })
+          uso = somarUso(uso, retry.uso)
           textoFinal = retry.texto.trim()
           if (textoFinal) yield { type: 'delta', texto: textoFinal }
         }
         if (!textoFinal) {
           textoFinal = RESPOSTA_VAZIA
           yield { type: 'delta', texto: textoFinal }
-        }
-      } else if (!revisada && !input.semFerramentas && Date.now() < input.deadlineMs - 10_000) {
-        const correcao = revisarResposta(textoFinal, ferramentasUsadas.length > 0)
-        if (correcao) {
-          revisada = true
-          yield { type: 'reset' }
-          yield { type: 'status', texto: 'Revisando a resposta' }
-          contents.push({ role: 'model', parts: [{ text: textoRodada }] })
-          contents.push({ role: 'user', parts: [{ text: correcao }] })
-          // A última rodada não oferece ferramentas; a revisão pode precisar delas.
-          if (rodada >= MAX_RODADAS_FERRAMENTA - 1) rodada = MAX_RODADAS_FERRAMENTA - 2
-          continue
+          yield { type: 'done', texto: textoFinal, ferramentas: ferramentasUsadas, trilha, meta: meta() }
+          return
         }
       }
-      if (textoFinal && finishReason === 'MAX_TOKENS') {
+
+      const temTempo = !input.semFerramentas && Date.now() < input.deadlineMs - 10_000
+      // Revisão 1 — conduta: recusa sem consultar, jargão interno.
+      const correcao = !revisoes.includes('conduta') && temTempo
+        ? revisarResposta(textoFinal, ferramentasUsadas.length > 0)
+        : null
+      // Revisão 2 — lastro: valor em R$ que não veio de lugar nenhum.
+      const lastro = verificarLastro(textoFinal, indexarEvidencias(evidencias))
+      lastroFinal = { citados: lastro.citados, semLastro: lastro.semLastro }
+      const revisarLastro = !correcao && lastro.semLastro.length > 0 && !revisoes.includes('lastro') && temTempo
+
+      if (correcao || revisarLastro) {
+        revisoes.push(correcao ? 'conduta' : 'lastro')
+        yield { type: 'reset' }
+        yield { type: 'status', texto: correcao ? 'Revisando a resposta' : 'Conferindo os números nos dados' }
+        contents.push({ role: 'model', parts: [{ text: textoRodada }] })
+        contents.push({ role: 'user', parts: [{ text: correcao ?? instrucaoRevisaoLastro(lastro.semLastro) }] })
+        // A última rodada não oferece ferramentas; a revisão pode precisar delas.
+        if (rodada >= MAX_RODADAS_FERRAMENTA - 1) rodada = MAX_RODADAS_FERRAMENTA - 2
+        continue
+      }
+
+      // Sem revisão possível (já revisou ou sem tempo) e ainda há valor sem
+      // origem: a resposta segue, mas a pessoa fica sabendo.
+      if (lastro.semLastro.length > 0) {
+        const aviso = avisoSemLastro(lastro.semLastro)
+        textoFinal += aviso
+        yield { type: 'delta', texto: aviso }
+      }
+      if (finishReason === 'MAX_TOKENS') {
         const aviso = '\n\n_(resposta truncada por tamanho — peça a continuação se precisar do restante)_'
         textoFinal += aviso
         yield { type: 'delta', texto: aviso }
       }
 
-      yield { type: 'done', texto: textoFinal, ferramentas: ferramentasUsadas, trilha }
+      yield { type: 'done', texto: textoFinal, ferramentas: ferramentasUsadas, trilha, meta: meta() }
       return
     }
 
@@ -211,7 +284,11 @@ export async function* executarAgente(input: AgentInput): AsyncGenerator<AgentEv
 
     contents.push({
       role: 'model',
-      parts: selecionadas.map(c => ({ functionCall: { name: c.name, args: c.args } })),
+      // A assinatura volta exatamente na parte em que veio (exigência do Gemini 3).
+      parts: selecionadas.map(c => ({
+        functionCall: { name: c.name, args: c.args },
+        ...(c.assinatura ? { thoughtSignature: c.assinatura } : {}),
+      })),
     })
 
     const respostas: GeminiContent['parts'] = []
@@ -220,11 +297,21 @@ export async function* executarAgente(input: AgentInput): AsyncGenerator<AgentEv
       yield { type: 'status', texto: rotulo }
       yield { type: 'tool', nome: chamada.name, rotulo }
       ferramentasUsadas.push(chamada.name)
-      trilha.push({ nome: chamada.name, rotulo, args: chamada.args })
 
+      const t0 = Date.now()
       const resultado = await executarFerramenta(chamada.name, chamada.args, input.gateway, input.refs, {
         ctx: input.escrita,
         estado: estadoTurno,
+      })
+      evidencias.push(resultado)
+      trilha.push({
+        nome: chamada.name,
+        rotulo,
+        args: chamada.args,
+        resultado: resultado.length > LIMITE_RESULTADO_GRAVADO
+          ? `${resultado.slice(0, LIMITE_RESULTADO_GRAVADO)}… [+${resultado.length - LIMITE_RESULTADO_GRAVADO} caracteres]`
+          : resultado,
+        ms: Date.now() - t0,
       })
       respostas.push({
         functionResponse: {
@@ -234,14 +321,14 @@ export async function* executarAgente(input: AgentInput): AsyncGenerator<AgentEv
       })
     }
 
-    contents.push({ role: 'function', parts: respostas })
+    contents.push({ role: 'user', parts: respostas })
   }
 
   // Saiu do laço sem resposta textual: aconteceu apenas se o modelo insistiu em
   // pedir ferramentas em todas as rodadas. Melhor um aviso honesto que silêncio.
   textoFinal = textoFinal || RESPOSTA_VAZIA
   yield { type: 'delta', texto: textoFinal }
-  yield { type: 'done', texto: textoFinal, ferramentas: ferramentasUsadas, trilha }
+  yield { type: 'done', texto: textoFinal, ferramentas: ferramentasUsadas, trilha, meta: meta() }
 }
 
 export { GeminiError }

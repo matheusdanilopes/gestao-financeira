@@ -208,6 +208,10 @@ export interface FerramentaUsada {
   nome: string
   rotulo: string
   args?: Record<string, unknown>
+  /** O que a ferramenta devolveu ao modelo (truncado) — a evidência da resposta. */
+  resultado?: string
+  /** Tempo de execução da ferramenta. */
+  ms?: number
 }
 
 /** Tentativas de gravação além da primeira (falha de rede, sem resposta HTTP). */
@@ -219,8 +223,16 @@ const esperar = (ms: number) => new Promise(r => setTimeout(r, ms))
  * Coluna nova ainda não criada no banco (código do app à frente da migration):
  * a mensagem é gravada sem ela em vez de se perder.
  */
-const colunaAusente = (e: { code?: string; message?: string }) =>
-  e.code === 'PGRST204' || e.code === '42703' || /ferramentas/.test(e.message ?? '')
+const COLUNAS_OPCIONAIS = ['ferramentas', 'meta'] as const
+
+/** Qual coluna opcional o erro diz que não existe (null se o erro é outro). */
+function colunaAusente(e: { code?: string; message?: string }, linha: Record<string, unknown>): string | null {
+  const presentes = COLUNAS_OPCIONAIS.filter(c => c in linha)
+  if (presentes.length === 0) return null
+  const citada = presentes.find(c => new RegExp(`\\b${c}\\b`).test(e.message ?? ''))
+  if (citada) return citada
+  return e.code === 'PGRST204' || e.code === '42703' ? presentes[presentes.length - 1] : null
+}
 
 /**
  * Grava uma mensagem no histórico e devolve o id — ou null se a gravação
@@ -239,11 +251,13 @@ export async function salvarMensagem(
   role: 'user' | 'assistant',
   content: string,
   canal: CanalConversa = 'app',
-  ferramentas?: FerramentaUsada[]
+  ferramentas?: FerramentaUsada[],
+  meta?: Record<string, unknown>
 ): Promise<string | null> {
   const id = crypto.randomUUID()
-  let linha: Record<string, unknown> = { id, conversation_id: conversationId, role, content, canal }
+  const linha: Record<string, unknown> = { id, conversation_id: conversationId, role, content, canal }
   if (ferramentas && ferramentas.length > 0) linha.ferramentas = ferramentas
+  if (meta) linha.meta = meta
 
   for (let tentativa = 0; ; tentativa++) {
     const { error } = await supabase
@@ -251,9 +265,9 @@ export async function salvarMensagem(
       .upsert(linha, { onConflict: 'id', ignoreDuplicates: true })
     if (!error) return id
 
-    if ('ferramentas' in linha && colunaAusente(error)) {
-      const { ferramentas: _, ...semFerramentas } = linha
-      linha = semFerramentas
+    const ausente = colunaAusente(error, linha)
+    if (ausente) {
+      delete linha[ausente]
       continue
     }
     // Com resposta do PostgREST (code preenchido) o erro é de dado ou de

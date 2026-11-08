@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { User, Search, Volume2, Send, AlertTriangle, Copy, Check } from 'lucide-react'
+import { User, Search, Volume2, Send, AlertTriangle, Copy, Check, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { MarkdownMessage } from './MarkdownMessage'
 import { RoboAvatar, type HumorRobo } from './RoboAvatar'
 import type { ChatMessage } from '@/lib/useChatFinanceiro'
@@ -67,6 +67,80 @@ function BotaoCopiar({ texto }: { texto: string }) {
 }
 
 /**
+ * 👍/👎 da resposta. O 👎 abre um campo opcional "o que estava errado?" — é
+ * dele que saem os casos do conjunto de avaliação do Fin.
+ */
+function Avaliacao({
+  valor,
+  onAvaliar,
+}: {
+  valor: 1 | -1 | null | undefined
+  onAvaliar: (valor: 1 | -1 | null, comentario?: string) => void
+}) {
+  const [comentando, setComentando] = useState(false)
+  const [comentario, setComentario] = useState('')
+  const [enviado, setEnviado] = useState(false)
+
+  const base = 'inline-flex items-center rounded-full p-1 transition-colors'
+  const inativo = 'text-gray-400 dark:text-gray-500 hover:text-primary-600 dark:hover:text-primary-400'
+
+  return (
+    <>
+      <span className="inline-flex items-center gap-0.5">
+        <button
+          onClick={() => { setComentando(false); onAvaliar(valor === 1 ? null : 1) }}
+          aria-label={valor === 1 ? 'Desfazer avaliação positiva' : 'Resposta útil'}
+          aria-pressed={valor === 1}
+          className={`${base} ${valor === 1 ? 'text-emerald-600 dark:text-emerald-400' : inativo}`}
+        >
+          <ThumbsUp className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={() => {
+            const novo = valor === -1 ? null : -1
+            setComentando(novo === -1)
+            setEnviado(false)
+            onAvaliar(novo)
+          }}
+          aria-label={valor === -1 ? 'Desfazer avaliação negativa' : 'Resposta com problema'}
+          aria-pressed={valor === -1}
+          className={`${base} ${valor === -1 ? 'text-rose-600 dark:text-rose-400' : inativo}`}
+        >
+          <ThumbsDown className="w-3.5 h-3.5" />
+        </button>
+      </span>
+      {comentando && valor === -1 && (
+        <form
+          className="basis-full mt-1 flex items-center gap-1.5"
+          onSubmit={e => {
+            e.preventDefault()
+            if (!comentario.trim()) return
+            onAvaliar(-1, comentario.trim())
+            setEnviado(true)
+            setComentando(false)
+          }}
+        >
+          <input
+            autoFocus
+            value={comentario}
+            onChange={e => setComentario(e.target.value)}
+            maxLength={1000}
+            placeholder="O que estava errado? (opcional)"
+            className="flex-1 min-w-0 text-[12px] rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-3 py-1.5 text-gray-700 dark:text-gray-200 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-400"
+          />
+          <button type="submit" className="text-[11px] font-medium text-primary-600 dark:text-primary-400 px-2 py-1.5">
+            Enviar
+          </button>
+        </form>
+      )}
+      {enviado && valor === -1 && (
+        <span className="basis-full text-[10px] text-gray-400 dark:text-gray-500">Obrigado — isso ajuda o Fin a melhorar.</span>
+      )}
+    </>
+  )
+}
+
+/**
  * Trilha do que a IA consultou para chegar à resposta. Existe para responder
  * à desconfiança natural de "de onde ela tirou esse número" — e para deixar
  * visível que a consulta aos dados de fato aconteceu.
@@ -93,10 +167,12 @@ const TrilhaFerramentas = memo(function TrilhaFerramentas({ itens }: { itens: st
 export const MessageBubble = memo(function MessageBubble({
   mensagem,
   onOuvir,
+  onAvaliar,
 }: {
   mensagem: ChatMessage
   /** Presente só quando o navegador suporta síntese de fala. */
   onOuvir?: (texto: string) => void
+  onAvaliar?: (idLocal: string, valor: 1 | -1 | null, comentario?: string) => void
 }) {
   const ehUsuario = mensagem.role === 'user'
 
@@ -128,7 +204,7 @@ export const MessageBubble = memo(function MessageBubble({
           </span>
         )}
         {!ehUsuario && (
-          <div className="mt-2 flex items-center gap-3">
+          <div className="mt-2 flex flex-wrap items-center gap-3">
             {onOuvir && (
               <button
                 onClick={() => onOuvir(mensagem.content)}
@@ -140,6 +216,9 @@ export const MessageBubble = memo(function MessageBubble({
               </button>
             )}
             <BotaoCopiar texto={mensagem.content} />
+            {onAvaliar && mensagem.dbId && (
+              <Avaliacao valor={mensagem.avaliacao} onAvaliar={(v, c) => onAvaliar(mensagem.id, v, c)} />
+            )}
             <time className="ml-auto text-[10px] text-gray-300 dark:text-gray-600 tabular-nums">{horaDe(mensagem.ts)}</time>
           </div>
         )}

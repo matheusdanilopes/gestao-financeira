@@ -31,6 +31,15 @@ export interface EspecGrafico {
 }
 
 export const LINGUAGEM_GRAFICO = 'grafico'
+
+/**
+ * A linha de abertura do bloco cercado é de gráfico? Tolerante a texto depois
+ * da linguagem: o modelo já escreveu "```grafico com JSON numa linha só:"
+ * (copiando o prompt) e o gráfico saiu na tela como código cru.
+ */
+export function ehLinguagemGrafico(linguagem: string): boolean {
+  return linguagem.trim().toLowerCase().startsWith(LINGUAGEM_GRAFICO)
+}
 /** Mais que isso não se lê numa tela de celular. */
 export const MAX_SERIES = 4
 export const MAX_ROTULOS = 12

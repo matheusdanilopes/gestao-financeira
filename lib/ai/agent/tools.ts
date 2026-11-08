@@ -58,6 +58,7 @@ import {
   type PropostaOk,
   confirmarOperacao,
   cancelarOperacao,
+  PREFIXO_JA_PENDENTE,
   type ContextoEscrita,
 } from './writeEngine'
 
@@ -243,8 +244,9 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
         responsavel: str(`Só compras desta pessoa. ${RESPONSAVEL}`),
         categoria: str('Só esta categoria.'),
         cartao: str('Só este cartão.', ['nubank', 'cartao1', 'cartao2']),
+        excluirCartao: str('Tira este cartão da conta e mantém o resto, inclusive as contas fixas ("desconsidere o PicPay").', ['nubank', 'cartao1', 'cartao2']),
         busca: str('Só compras cuja descrição contém este texto (ex.: "ifood").'),
-        incluirContasFixas: bool('true = soma também as contas fixas do planejamento nos dois períodos.'),
+        incluirContasFixas: bool('true = soma também as contas fixas do planejamento nos dois períodos (ignorado com cartao ou busca).'),
         mesmoPonto: bool('true = no período de comparação, só entram compras feitas até o dia equivalente a hoje (comparação justa com o mês em formação).'),
       },
     },
@@ -681,11 +683,19 @@ export interface EstadoTurno {
 async function estagiar(
   escrita: { ctx: ContextoEscrita; estado: EstadoTurno }, data: EnrichedData, proposta: Proposta
 ): Promise<string> {
-  escrita.estado.propostaNesteTurno = true
-  if (!proposta.ok) return await estagiarProposta(escrita.ctx, proposta)
+  if (!proposta.ok) {
+    escrita.estado.propostaNesteTurno = true
+    return await estagiarProposta(escrita.ctx, proposta)
+  }
   const acumuladas = [...escrita.estado.propostas, proposta]
   const combinada = combinarPropostas(acumuladas)
-  const resultado = await estagiarProposta(escrita.ctx, combinada, avisosDeDuplicidade(data, combinada))
+  const resultado = await estagiarProposta(
+    escrita.ctx, combinada, avisosDeDuplicidade(data, combinada), escrita.estado.propostas.length === 0
+  )
+  // Proposta idêntica à pendente (de uma mensagem anterior): nada foi criado
+  // agora, então confirmar nesta resposta continua sendo aprovação legítima.
+  if (resultado.startsWith(PREFIXO_JA_PENDENTE)) return resultado
+  escrita.estado.propostaNesteTurno = true
   if (resultado.startsWith('PROPOSTA PENDENTE')) escrita.estado.propostas = acumuladas
   return resultado
 }
@@ -865,6 +875,7 @@ export async function executarFerramenta(
           responsavel: asString(args.responsavel),
           categoria: asString(args.categoria),
           cartao: asString(args.cartao),
+          excluirCartao: asString(args.excluirCartao),
           busca: asString(args.busca),
           incluirContasFixas: asBool(args.incluirContasFixas),
           mesmoPonto: asBool(args.mesmoPonto),

@@ -7,7 +7,7 @@
  * "a fundo" de conselho genérico de finanças.
  */
 
-import { gerarStream, GeminiError } from '@/lib/ai/agent/geminiClient'
+import { gerarStream, GeminiError, GEMINI_MODEL_LEGADO } from '@/lib/ai/agent/geminiClient'
 import type { AnaliseIA, MetricasComportamento, ObjetivoAnalise, ParametrosAnalise } from './tipos'
 import { OBJETIVOS_ANALISE, destaqueCurto } from './tipos'
 
@@ -352,6 +352,8 @@ async function chamar(
     deadlineMs,
     systemInstruction: SYSTEM_PROMPT,
     contents: [{ role: 'user', parts: [{ text: pedido }] }],
+    // Continua no modelo anterior: a troca de modelo foi só do assistente (Fin).
+    modelo: GEMINI_MODEL_LEGADO,
     temperature: 0.4,
     maxOutputTokens: thinkingBudget + 12_000,
     thinkingBudget,

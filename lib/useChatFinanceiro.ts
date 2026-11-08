@@ -24,6 +24,10 @@ export interface ChatMessage {
   telegram?: boolean
   /** Aviso do servidor sobre esta resposta (ex.: não foi salva no histórico). */
   aviso?: string
+  /** Id da mensagem no banco — necessário para avaliar (👍/👎). */
+  dbId?: string
+  /** 👍 (1) / 👎 (-1) dado pelo usuário. */
+  avaliacao?: 1 | -1 | null
 }
 
 /** Quantas mensagens da tela vão junto como histórico de reserva. */
@@ -82,8 +86,9 @@ export function useChatFinanceiro(tela: TelaAtual = 'geral') {
     if (!res.ok) return []
     const json = await res.json()
     return ((json.mensagens ?? []) as Array<{
-      role: string; content: string; created_at?: string; canal?: string
+      id?: string; role: string; content: string; created_at?: string; canal?: string
       ferramentas?: Array<{ rotulo?: string }> | null
+      avaliacao?: number | null
     }>)
       .map(m => ({
         id: novoId(),
@@ -94,6 +99,8 @@ export function useChatFinanceiro(tela: TelaAtual = 'geral') {
         ferramentas: Array.isArray(m.ferramentas)
           ? m.ferramentas.map(f => f?.rotulo).filter((r): r is string => typeof r === 'string')
           : undefined,
+        dbId: typeof m.id === 'string' ? m.id : undefined,
+        avaliacao: m.avaliacao === 1 || m.avaliacao === -1 ? m.avaliacao : null,
       }))
   }, [])
 
@@ -233,6 +240,8 @@ export function useChatFinanceiro(tela: TelaAtual = 'geral') {
                 ferramentas: [...usadas],
                 ts: Date.now(),
                 aviso,
+                dbId: typeof evento.dados.message_id === 'string' ? evento.dados.message_id : undefined,
+                avaliacao: null,
               }])
             }
             acumulado = ''
@@ -328,6 +337,27 @@ export function useChatFinanceiro(tela: TelaAtual = 'geral') {
     } catch { /* exclusão é best-effort */ }
   }, [novaConversa])
 
+  // ── Avaliação (👍/👎) ──
+  // Otimista: marca na hora e desfaz se o servidor recusar.
+  const avaliar = useCallback(async (idLocal: string, valor: 1 | -1 | null, comentario?: string) => {
+    const alvo = mensagensRef.current.find(m => m.id === idLocal)
+    if (!alvo?.dbId) return
+    const anterior = alvo.avaliacao ?? null
+    const aplicar = (v: 1 | -1 | null) =>
+      setMensagens(prev => prev.map(m => (m.id === idLocal ? { ...m, avaliacao: v } : m)))
+    aplicar(valor)
+    try {
+      const res = await fetch('/api/chat/avaliacao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message_id: alvo.dbId, avaliacao: valor, comentario }),
+      })
+      if (!res.ok) aplicar(anterior)
+    } catch {
+      aplicar(anterior)
+    }
+  }, [])
+
   return {
     mensagens,
     streaming,
@@ -345,5 +375,6 @@ export function useChatFinanceiro(tela: TelaAtual = 'geral') {
     abrirConversa,
     listarConversas,
     excluirConversa,
+    avaliar,
   }
 }

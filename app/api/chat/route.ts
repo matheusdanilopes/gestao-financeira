@@ -17,7 +17,7 @@
  *   delta   { texto }          pedaço da resposta
  *   reset   {}                 descarte o texto parcial desta rodada
  *   aviso   { texto }          algo além da resposta (ex.: troca não salva)
- *   done    { texto, ferramentas }
+ *   done    { texto, ferramentas, message_id }  message_id = id gravado (para 👍/👎)
  *   error   { codigo, mensagem, diaria?, segundos? }
  */
 
@@ -157,7 +157,7 @@ function despachar(evento: AgentEvent, enviar: (tipo: string, payload: unknown) 
       break
     case 'done':
       // Só chega depois que a resposta foi gravada na conversa.
-      enviar('done', { texto: evento.texto, ferramentas: evento.ferramentas })
+      enviar('done', { texto: evento.texto, ferramentas: evento.ferramentas, message_id: evento.mensagemId ?? null })
       break
   }
 }
