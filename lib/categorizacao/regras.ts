@@ -38,6 +38,8 @@ const REGRAS: Regra[] = [
   { nome: 'software e IA', padrao: /\b(anthropic|claude ai|claude|openai|chatgpt|lovable|github|vercel|supabase|notion|canva|adobe|microsoft|google one|google cloud|icloud|apple com bill|apple com br|dropbox|cursor)\b/, categorias: ['Tecnologia'] },
   { nome: 'eletrônicos', padrao: /\b(kabum|fastshop|fast shop|samsung|xiaomi|positivo|acessorios para cel\w*|celulares?)\b/, categorias: ['Tecnologia'] },
   { nome: 'roupas e calçados', padrao: /\b(renner|riachuelo|zara|hering|shein|centauro|netshoes|marisa|pernambucanas|youcom|cea modas|calcados|calcado|sapataria)\b/, categorias: ['Vestuário'] },
+  // Peças de roupa: aparece sobretudo no nome que o casal dá a uma compra de marketplace/loja de departamento.
+  { nome: 'peças de roupa', padrao: /\b(roupas?|camisas?|camisetas?|calcas?|calcinhas?|shorts?|bermudas?|blusas?|vestidos?|saias?|tenis|sapatos?|sandalias?|chinelos?|meias?|cuecas?|sutias?|biquinis?|pijamas?|jaquetas?|casacos?|moletons?|leggings?|uniformes?)\b/, categorias: ['Vestuário'] },
   { nome: 'cosméticos', padrao: /\b(boticario|oboticario|natura|sephora|eudora|avon|quem disse berenice|perfumaria|mac cosmetics|granado)\b/, categorias: ['Cosméticos', 'Beleza'] },
   { nome: 'serviço de beleza', padrao: /\b(salao|cabeleire\w*|barbearia|manicure|esmalteria|depila\w*|estetica|sobrancelha|lash)\b/, categorias: ['Beleza', 'Cosméticos'] },
   { nome: 'supermercado', padrao: /\b(supermercado\w*|super mercado|hipermercado|atacadao|atacadista|assai|carrefour|angeloni|condor|muffato|big ?bom|savegnago|hortifruti|sacolao|cidade cancao)\b/, categorias: ['Mercado'] },

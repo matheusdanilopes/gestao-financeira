@@ -99,6 +99,7 @@ test('regras acertam os estabelecimentos inequívocos dos rótulos reais', () =>
     ['Decolar C - NuPay - Parcela 5/12', 35.14, 'Viagem'],
     ['Posto Sao Vicente', 115.5, 'Combustível'],
     ['Vegas Auto Posto Vegas', 8.99, 'Alimentação'], // lanche na conveniência
+    ['Shorts p/ Jogar e calcinhas Havan', 25.55, 'Vestuário'], // nome dado pelo casal
   ]
   for (const [descricao, valor, esperado] of casos) {
     const r = aplicarRegras(normalizarEstabelecimento(descricao).chave, valor, PERMITIDAS)
@@ -110,6 +111,7 @@ test('regras não decidem o ambíguo nem usam categoria não configurada', () =>
   assert.equal(aplicarRegras('posto bosque ii', 45, PERMITIDAS), null, 'posto entre R$ 30 e R$ 60: deixa para memória/IA')
   assert.equal(aplicarRegras('mercadolivre mercadol', 50, PERMITIDAS), null)
   assert.equal(aplicarRegras('thaynara', 90, PERMITIDAS), null)
+  assert.equal(aplicarRegras('espelho maquiagem carro', 28.86, PERMITIDAS), null, 'nome ambíguo fica para a IA')
   assert.equal(aplicarRegras('petz', 80, PERMITIDAS), null, 'Pet não está nas categorias do casal')
   assert.equal(aplicarRegras('petz', 80, [...PERMITIDAS, 'Pet'])?.categoria, 'Pet')
 })
@@ -256,7 +258,7 @@ test('ordem das fontes: parcela → memória → regra → IA', async () => {
 test('parcelas da mesma compra recebem a mesma categoria e vão uma vez só para a IA', async () => {
   const prompts: string[] = []
   const r = await decidirCategorias([
-    tx('p1', 'Havan Maringa Avenida - Parcela 1/10', 25.55, { total_parcelas: 10, parcela_atual: 1, descricao_personalizada: 'Shorts p/ Jogar e calcinhas Havan' }),
+    tx('p1', 'Havan Maringa Avenida - Parcela 1/10', 25.55, { total_parcelas: 10, parcela_atual: 1, descricao_personalizada: 'Kit da Ana' }),
     tx('p2', 'Havan Maringa Avenida - Parcela 2/10', 25.49, { total_parcelas: 10, parcela_atual: 2 }),
     tx('p5', 'Havan Maringa Avenida - Parcela 5/10', 16.99, { total_parcelas: 10, parcela_atual: 5 }),
   ], {
@@ -274,7 +276,7 @@ test('parcelas da mesma compra recebem a mesma categoria e vão uma vez só para
   assert.equal(cat.p2, 'Vestuário', 'mesma compra, mesma categoria')
   assert.equal(cat.p5, 'Moradia', 'outra compra na mesma loja decide sozinha')
   assert.equal((prompts[0].match(/^- id=/gm) ?? []).length, 2, 'duas compras, não três parcelas')
-  assert.match(prompts[0], /Shorts p\/ Jogar/, 'o nome dado pelo casal chega à IA')
+  assert.match(prompts[0], /Kit da Ana/, 'o nome dado pelo casal chega à IA')
 })
 
 test('palpite fraco e "Outros" ficam para revisão; falha técnica não vira "Outros"', async () => {
@@ -297,6 +299,30 @@ test('palpite fraco e "Outros" ficam para revisão; falha técnica não vira "Ou
   assert.equal(d.y.status, 'revisao_pendente')
   assert.equal(d.z, undefined)
   assert.deepEqual(r.semDecisao, ['z'])
+})
+
+test('chute não fica "automático": confiança < 0,7 e marketplace sem pista vão para revisão', async () => {
+  const r = await decidirCategorias([
+    tx('h1', 'Havan Maringa Avenida - Parcela 3/10', 53.34, { total_parcelas: 10, parcela_atual: 3 }),
+    tx('h2', 'Mercadolivre*Rubensma', 20.45),
+    tx('h3', 'Daiso Brasil Catuai Sh', 36.97),
+    tx('h4', 'Mercadolivre*Mercadol', 46.66, { descricao_personalizada: 'Kit de pincéis' }),
+  ], {
+    permitidas: PERMITIDAS,
+    memoria: new MemoriaCategorias([], PERMITIDAS),
+    categorizadas: [],
+    ia: iaFalsa(ids => ids.map(id => ({
+      id,
+      categoria: id === '4' ? 'Cosméticos' : 'Moradia',
+      // Valores reais da primeira rodada em produção.
+      confianca: id === '1' ? 0.8 : id === '2' ? 0.6 : 0.85,
+    }))),
+  })
+  const st = Object.fromEntries(r.decisoes.map(d => [d.hash_linha, d.status]))
+  assert.equal(st.h1, 'revisao_pendente', 'Havan sem nome: chute, mesmo com 0,8')
+  assert.equal(st.h2, 'revisao_pendente', '0,6 é palpite')
+  assert.equal(st.h3, 'automatico')
+  assert.equal(st.h4, 'automatico', 'marketplace com nome dado pelo casal tem pista')
 })
 
 test('cota diária esgotada: para de chamar a IA e deixa o resto sem categoria', async () => {
