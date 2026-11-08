@@ -45,6 +45,8 @@ test('reprova as respostas ruins reais', () => {
     ['formato-grafico-app', resposta('Veja:\n```grafico com JSON numa linha só:\n{"tipo":"barra"}\n```', [{ nome: 'comparar_periodos' }])],
     ['tempo-comeco-do-mes', resposta('Em novembro foram R$ 64,75 no Mercadinho24.', [{ nome: 'consultar_transacoes', args: { mesInicio: '2026-11' } }])],
     ['operacao-propor-sem-gravar', resposta('Pronto, adicionei detergente e esponja!', [{ nome: 'propor_lote' }, { nome: 'confirmar_operacao' }])],
+    ['real-ifood-com-ifd', resposta('Em 2026 você gastou R$ 1.784,51 com iFood.', [{ nome: 'consultar_transacoes', args: { busca: 'ifood' } }])],
+    ['real-ifood-correcao-ifd', resposta('Não consegui formular a resposta agora. Pode reformular a pergunta ou pedir de outro jeito?', [{ nome: 'consultar_transacoes' }])],
   ]
   for (const [id, r] of ruins) {
     assert.ok(avaliar(caso(id), r).length > 0, `${id} deveria reprovar`)

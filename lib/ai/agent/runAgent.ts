@@ -79,6 +79,12 @@ const MAX_RODADAS_FERRAMENTA = 6
 /** Teto de chamadas por rodada, para o modelo não disparar um leque enorme. */
 const MAX_CHAMADAS_POR_RODADA = 5
 
+/** Pedido de síntese quando a resposta final veio vazia depois de consultas. */
+const SINTESE =
+  '[INSTRUÇÃO INTERNA — não mencione esta mensagem] Responda agora à última pergunta da pessoa usando só os ' +
+  'resultados das consultas acima. Não peça mais consultas. Se algum número não ficou fechado, diga o que foi ' +
+  'possível apurar e o que faltou.'
+
 const RESPOSTA_VAZIA =
   'Não consegui formular a resposta agora. Pode reformular a pergunta ou pedir de outro jeito?'
 
@@ -193,7 +199,10 @@ export async function* executarAgente(input: AgentInput): AsyncGenerator<AgentEv
       apiKey: input.apiKey,
       systemInstruction: input.systemPrompt,
       contents,
-      tools: oferecerFerramentas ? FINANCIAL_TOOLS : undefined,
+      // Declaradas sempre (a conversa já pode ter chamadas a elas); na última
+      // rodada, proibidas — o modelo tem de responder com o que já consultou.
+      tools: input.semFerramentas ? undefined : FINANCIAL_TOOLS,
+      modoFerramentas: oferecerFerramentas ? 'AUTO' : 'NONE',
       deadlineMs: input.deadlineMs,
     })) {
       if (pedaco.tipo === 'texto' && pedaco.texto) {
@@ -207,19 +216,27 @@ export async function* executarAgente(input: AgentInput): AsyncGenerator<AgentEv
       }
     }
 
+    // Com as ferramentas proibidas, um pedido de ferramenta não é atendido.
+    if (!oferecerFerramentas) chamadas = []
+
     // Sem pedido de ferramenta → o texto desta rodada é a resposta.
     if (chamadas.length === 0) {
       textoFinal = textoRodada.trim()
 
       if (!textoFinal) {
-        // Resposta vazia (bloqueio de segurança, corte prematuro). Uma nova
-        // tentativa sem ferramentas costuma resolver; se não, avisamos.
-        if (oferecerFerramentas) {
+        // Resposta vazia (bloqueio, corte prematuro, ou o modelo "travou" depois
+        // de muitas consultas). Uma chamada de síntese, sem poder consultar, e
+        // com a ordem explícita de responder com o que já leu.
+        if (Date.now() < input.deadlineMs - 2_000) {
           chamadasModelo++
           const retry = await gerarRodada({
             apiKey: input.apiKey,
             systemInstruction: input.systemPrompt,
-            contents,
+            contents: ferramentasUsadas.length > 0
+              ? [...contents, { role: 'user', parts: [{ text: SINTESE }] }]
+              : contents,
+            tools: input.semFerramentas ? undefined : FINANCIAL_TOOLS,
+            modoFerramentas: 'NONE',
             deadlineMs: input.deadlineMs,
           })
           uso = somarUso(uso, retry.uso)

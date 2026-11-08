@@ -175,7 +175,9 @@ test('modelo que só pede ferramentas: última rodada sem ferramentas e resposta
   const enviados = simularGemini([[chamada('listar_dimensoes')]])
   const { done } = await rodarTurno('Pergunta')
   assert.match(done.texto, /Não consegui formular a resposta/)
-  assert.equal(enviados.at(-1)!.tools, undefined, 'a última rodada não oferece ferramentas')
+  const ultima = enviados.at(-1)! as unknown as { tools?: unknown; toolConfig?: { functionCallingConfig: { mode: string } } }
+  assert.ok(ultima.tools, 'continuam declaradas (a conversa já tem chamadas a elas)')
+  assert.equal(ultima.toolConfig?.functionCallingConfig.mode, 'NONE', 'mas proibidas na rodada final')
 })
 
 test('resposta vazia → nova tentativa sem stream', async () => {

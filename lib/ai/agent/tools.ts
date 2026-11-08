@@ -97,6 +97,9 @@ const UM_MES = 'Para um mês só, mande mesInicio e mesFim iguais; só mesInicio
 // descartado em silêncio, devolvendo o total de todo mundo.
 const RESPONSAVEL = 'Nome exato do responsável, como aparece em listar_dimensoes (ex.: uma das pessoas, ou o rótulo usado para gastos conjuntos).'
 const AGRUPAR = ['mes', 'categoria', 'responsavel', 'cartao', 'descricao']
+const BUSCA_OU =
+  'Ignora acentos e maiúsculas. Vários termos com "|" valem como OU, numa consulta só (ex.: "uber|99"). ' +
+  '"ifood" já inclui os pedidos que vêm na fatura como "IFD*Loja" (comida e farmácia).'
 
 // ─── Declarações ─────────────────────────────────────────────────────────────
 
@@ -122,7 +125,7 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
     parameters: {
       type: 'OBJECT',
       properties: {
-        busca: str('Texto procurado na descrição do estabelecimento (ex.: "ifood", "uber", "posto"). Ignora acentos e maiúsculas.'),
+        busca: str(`Texto procurado na descrição do estabelecimento (ex.: "uber", "posto"). ${BUSCA_OU}`),
         categoria: str('Categoria financeira exata (ex.: Alimentação, Transporte). Use listar_dimensoes se não souber.'),
         responsavel: str(`Quem fez a compra. ${RESPONSAVEL}`),
         cartao: str('Cartão usado.', ['nubank', 'cartao1', 'cartao2']),
@@ -245,7 +248,7 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
         categoria: str('Só esta categoria.'),
         cartao: str('Só este cartão.', ['nubank', 'cartao1', 'cartao2']),
         excluirCartao: str('Tira este cartão da conta e mantém o resto, inclusive as contas fixas ("desconsidere o PicPay").', ['nubank', 'cartao1', 'cartao2']),
-        busca: str('Só compras cuja descrição contém este texto (ex.: "ifood").'),
+        busca: str(`Só compras cuja descrição contém este texto. ${BUSCA_OU}`),
         incluirContasFixas: bool('true = soma também as contas fixas do planejamento nos dois períodos (ignorado com cartao ou busca).'),
         mesmoPonto: bool('true = no período de comparação, só entram compras feitas até o dia equivalente a hoje (comparação justa com o mês em formação).'),
       },
@@ -389,7 +392,7 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
       type: 'OBJECT',
       properties: {
         fonte: str('Fonte de dados.', IDS_FONTES),
-        busca: str('Texto procurado em todos os campos de texto da fonte (ignora acentos e maiúsculas).'),
+        busca: str(`Texto procurado em todos os campos de texto da fonte. ${BUSCA_OU}`),
         filtros: {
           type: 'ARRAY',
           description: 'Filtros por campo, todos combinados (E). Datas no formato AAAA-MM-DD; em campos de data, "igual" casa o dia inteiro.',
@@ -757,12 +760,60 @@ async function prepararHistorico(gw: GatewayDados, nome: string, args: Record<st
   }
 }
 
+// ─── Parâmetros vindos do modelo ─────────────────────────────────────────────
+// O modelo às vezes manda o nome "quase certo": agrupar_por, expressao no
+// singular. Antes isso era ignorado em silêncio — o agrupamento não acontecia,
+// o cálculo voltava "nenhuma expressão" e ele gastava rodadas tentando de novo
+// (conversa de 08/11/2026). Agora o nome é corrigido; o que não dá para
+// reconhecer volta como aviso no resultado.
+
+const PARAMETROS = new Map(FINANCIAL_TOOLS.map(t => [t.name, new Set(Object.keys(t.parameters.properties ?? {}))]))
+
+const APELIDOS_PARAMETRO: Record<string, Record<string, string>> = {
+  calcular: { expressao: 'expressoes', expressions: 'expressoes', expression: 'expressoes', conta: 'expressoes', contas: 'expressoes' },
+}
+
+const paraCamel = (k: string) => k.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase())
+
+export function normalizarArgumentos(
+  nome: string,
+  args: Record<string, unknown> = {}
+): { args: Record<string, unknown>; ignorados: string[] } {
+  const validos = PARAMETROS.get(nome)
+  if (!validos) return { args, ignorados: [] }
+  const saida: Record<string, unknown> = {}
+  const ignorados: string[] = []
+  // Primeiro os nomes exatos, para que a forma declarada vença uma variação repetida.
+  const entradas = Object.entries(args).sort(([a], [b]) => Number(!validos.has(a)) - Number(!validos.has(b)))
+  for (const [k, v] of entradas) {
+    const chave = validos.has(k) ? k : APELIDOS_PARAMETRO[nome]?.[k] ?? paraCamel(k)
+    if (!validos.has(chave)) { ignorados.push(k); continue }
+    if (chave in saida) continue
+    saida[chave] = v
+  }
+  return { args: saida, ignorados }
+}
+
 /**
  * Despacha uma chamada de ferramenta. Devolve sempre uma string legível —
  * inclusive para nome desconhecido (alucinação) ou erro interno, para que o
  * loop do agente possa continuar em vez de abortar o turno.
  */
 export async function executarFerramenta(
+  nome: string,
+  argsBrutos: Record<string, unknown>,
+  gw: GatewayDados,
+  refs: Referencias,
+  escrita: { ctx: ContextoEscrita; estado: EstadoTurno }
+): Promise<string> {
+  const { args, ignorados } = normalizarArgumentos(nome, argsBrutos)
+  const resultado = await despachar(nome, args, gw, refs, escrita)
+  if (ignorados.length === 0) return resultado
+  return `${resultado}\n⚠️ Parâmetro(s) ignorado(s) por não existirem em ${nome}: ${ignorados.join(', ')}. ` +
+    `Válidos: ${[...(PARAMETROS.get(nome) ?? [])].join(', ')}. Se a consulta dependia deles, refaça com o nome certo.`
+}
+
+async function despachar(
   nome: string,
   args: Record<string, unknown>,
   gw: GatewayDados,

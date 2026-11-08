@@ -103,14 +103,37 @@ export function limparDescricao(descricao: string): string {
 const textoDeBusca = (s: string) => normalizar(s).replace(/[^a-z0-9]+/g, ' ').trim()
 
 /**
+ * Apelidos de busca: o termo que a pessoa usa × como aparece na fatura. Os
+ * pedidos do iFood vêm como "IFD*Pizzaria X" — buscar "ifood" achava só os
+ * pagos via NuPay e deixava de fora 59% do gasto real (conversa de 08/11/2026).
+ */
+const APELIDOS_BUSCA: Record<string, RegExp> = {
+  ifood: /^ifd /,
+}
+
+/** "ifood|ifd", "ifood ou ifd" → alternativas (qualquer uma casa). */
+export function alternativasDeBusca(busca: string): string[] {
+  return busca.split(/\s*\|\s*|\s+ou\s+/i).map(s => s.trim()).filter(Boolean)
+}
+
+/**
  * A descrição casa com a busca se: contém o texto (sem acento/pontuação), ou o
  * contém ignorando espaços ("mercado livre" × "MERCADOLIVRE"), ou contém todas
- * as palavras da busca em qualquer ordem.
+ * as palavras da busca em qualquer ordem. Vários termos separados por "|" (ou
+ * "ou") casam se qualquer um casar.
  */
 export function casaBusca(descricao: string, busca: string): boolean {
+  const alternativas = alternativasDeBusca(busca)
+  if (alternativas.length > 1) return alternativas.some(a => casaTermo(descricao, a))
+  return casaTermo(descricao, busca)
+}
+
+function casaTermo(descricao: string, busca: string): boolean {
   const d = textoDeBusca(descricao)
   const b = textoDeBusca(busca)
   if (!b) return true
+  const apelido = APELIDOS_BUSCA[b]
+  if (apelido && apelido.test(d)) return true
   if (d.includes(b)) return true
   const bJunto = b.replace(/ /g, '')
   if (bJunto.length >= 3 && d.replace(/ /g, '').includes(bJunto)) return true
