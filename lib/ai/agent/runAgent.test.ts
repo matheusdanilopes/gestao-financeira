@@ -209,12 +209,12 @@ test('dados bloqueados pela auditoria: sem ferramentas e sem revisão', async ()
 
 // ─── Configuração do modelo e erros ──────────────────────────────────────────
 
-test('Gemini 3.8 Flash: nível de raciocínio, sem temperatura, com ferramentas em AUTO', async () => {
+test('Gemini 3.8 Flash: raciocínio low (latência), sem temperatura, com ferramentas em AUTO', async () => {
   const enviados = simularGemini([[texto('Oi!')]])
   await rodarTurno('Oi')
   const corpo = enviados[0] as unknown as Record<string, unknown>
   assert.match(enviados[0].url, /models\/gemini-3\.8-flash:streamGenerateContent/)
-  assert.deepEqual(enviados[0].generationConfig.thinkingConfig, { thinkingLevel: 'medium' })
+  assert.deepEqual(enviados[0].generationConfig.thinkingConfig, { thinkingLevel: 'low' })
   assert.equal(enviados[0].generationConfig.temperature, undefined)
   assert.equal(enviados[0].generationConfig.maxOutputTokens, 16384)
   assert.deepEqual(corpo.toolConfig, { functionCallingConfig: { mode: 'AUTO' } })

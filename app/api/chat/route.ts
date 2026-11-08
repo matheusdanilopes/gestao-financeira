@@ -19,9 +19,10 @@
  *   aviso   { texto }          algo além da resposta (ex.: troca não salva)
  *   done    { texto, ferramentas, message_id }  message_id = id gravado (para 👍/👎)
  *   error   { codigo, mensagem, diaria?, segundos? }
+ *   ping    {}                 sinal de vida a cada 8 s (o app detecta conexão morta)
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
 import type { AgentEvent } from '@/lib/ai/agent/runAgent'
 import { garantirConversa } from '@/lib/ai/agent/conversation'
@@ -35,6 +36,7 @@ import type { TelaAtual } from '@/lib/ai/types'
 export const maxDuration = 90
 
 const ORCAMENTO_MS = 75_000
+const PING_MS = 8_000
 const LIMITE_PERGUNTA = 2_000
 const LIMITE_DADOS_EXTRA = 4_000
 
@@ -92,37 +94,56 @@ export async function POST(req: NextRequest) {
 
   const encoder = new TextEncoder()
 
+  let conectado = true
   const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
+    start(controller) {
+      // O celular derruba a conexão quando a pessoa sai do app no meio da
+      // espera. O turno NÃO pode depender dela: ele roda até o fim, grava a
+      // resposta no histórico, e o app a busca ao voltar (useChatFinanceiro).
       const enviar = (tipo: string, payload: unknown) => {
+        if (!conectado) return
         try { controller.enqueue(encoder.encode(sse(tipo, payload))) }
-        catch { /* cliente desconectou */ }
+        catch { conectado = false /* cliente desconectou */ }
       }
+      // Sinal de vida enquanto o modelo pensa (dá para ficar 20 s sem nenhum
+      // evento): o app usa para saber se a conexão ainda está de pé.
+      const ping = setInterval(() => enviar('ping', {}), PING_MS)
 
-      try {
-        enviar('meta', { conversation_id: conversationId })
+      const turno = (async () => {
+        try {
+          enviar('meta', { conversation_id: conversationId })
 
-        for await (const evento of executarTurno({
-          apiKey,
-          supabase,
-          userId: user.id,
-          // Quem pergunta na primeira pessoa é o usuário logado.
-          interlocutor: criarInterlocutor(user.email, 'app'),
-          conversationId,
-          pergunta: conteudoUsuario,
-          tela: body.tela,
-          reenvio: body.reenvio,
-          historicoCliente: body.historico,
-          deadlineMs,
-        })) {
-          despachar(evento, enviar)
+          for await (const evento of executarTurno({
+            apiKey,
+            supabase,
+            userId: user.id,
+            // Quem pergunta na primeira pessoa é o usuário logado.
+            interlocutor: criarInterlocutor(user.email, 'app'),
+            conversationId,
+            pergunta: conteudoUsuario,
+            tela: body.tela,
+            reenvio: body.reenvio,
+            historicoCliente: body.historico,
+            deadlineMs,
+          })) {
+            despachar(evento, enviar)
+          }
+        } catch (err) {
+          console.error('[chat]', err instanceof Error ? err.message : err)
+          enviar('error', descreverErro(err))
+        } finally {
+          clearInterval(ping)
+          try { controller.close() } catch { /* já fechado */ }
         }
-      } catch (err) {
-        console.error('[chat]', err instanceof Error ? err.message : err)
-        enviar('error', descreverErro(err))
-      } finally {
-        try { controller.close() } catch { /* já fechado */ }
-      }
+      })()
+
+      // Mantém a função viva até o turno terminar mesmo se o cliente sair —
+      // senão a resposta nunca era gravada e a pergunta ficava sem resposta.
+      after(turno)
+    },
+    cancel() {
+      // Cliente desconectou: o turno segue (ver after acima), só para de enviar.
+      conectado = false
     },
   })
 
