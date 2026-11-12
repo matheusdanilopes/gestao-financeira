@@ -35,6 +35,15 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
 
+## IA: Gemini com contingência no Groq
+
+Todas as funções de IA (chat/Fin, Telegram, categorização, análise de comportamento, OCR de preço, identificação de produto e transcrição de áudio) usam o Gemini e, se ele falhar (cota, créditos esgotados, sobrecarga, tempo ou modelo fora do ar), caem automaticamente no [Groq](https://console.groq.com) — o mesmo esquema do HealthCoach (`lib/ai/agent/groqClient.ts`).
+
+- `GROQ_API_KEY` — liga a contingência. Sem ela, nada muda: só o Gemini é usado.
+- `GROQ_MODEL` (opcional) — primeiro modelo tentado no Groq; os demais candidatos ficam no código, porque o Groq aposenta modelos com frequência.
+
+O chat continua consultando os dados com as ferramentas também pelo Groq; áudio vai para o Whisper do Groq. A resposta gravada registra em `meta.modelo` qual provedor respondeu (ex.: `groq:llama-3.3-70b-versatile`).
+
 ## Assessor financeiro no Telegram
 
 O mesmo agente de IA do chat do app responde pelo Telegram, por texto ou áudio, com os dados do usuário que conectou o Telegram. Perguntas na primeira pessoa ("quanto **eu** gastei?") usam os dados desse usuário; "nós", "a gente" ou perguntas sem pessoa usam o casal todo. Lançamentos (pagar conta, nova despesa etc.) só são gravados depois de tocar em **✅ Confirmar**. Vários lançamentos numa mensagem só ("paguei luz 150, água 80 e internet 100", "coloca arroz, feijão e café na lista") viram um lote, confirmado de uma vez — no app e no Telegram.

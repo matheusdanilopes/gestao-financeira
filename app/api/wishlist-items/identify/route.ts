@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
+import { gerarRodada, GEMINI_MODEL_LEGADO } from '@/lib/ai/agent/geminiClient'
 
 export const maxDuration = 30
-
-const GEMINI_MODEL = 'gemini-2.5-flash'
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
 const VALID_CATEGORIAS = ['Eletrônicos', 'Casa', 'Moda', 'Viagem', 'Lazer', 'Esporte', 'Saúde', 'Educação', 'Outros']
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp']
@@ -44,37 +42,30 @@ export async function POST(req: NextRequest) {
 {"nome":"Nome do produto","descricao":"descricao breve ou null","preco":0.00,"categoria":"categoria ou null"}
 Regras: nome max 60 chars obrigatório. descricao max 100 chars ou null. preco em reais como numero (ex: 49.90) se visível, senão null. categoria deve ser uma de [Eletrônicos, Casa, Moda, Viagem, Lazer, Esporte, Saúde, Educação, Outros] ou null. Se nao houver produto claro, use nome "Produto identificado".`
 
-  let geminiRes: Response
+  // Gemini com retentativas; se ele falhar, o Groq (visão) responde.
+  let fullText: string
   try {
-    geminiRes = await fetch(GEMINI_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify({
-        contents: [{ parts: [
+    const rodada = await gerarRodada({
+      apiKey,
+      modelo: GEMINI_MODEL_LEGADO,
+      deadlineMs: Date.now() + 25_000,
+      temperature: 0.1,
+      maxOutputTokens: 512,
+      thinkingBudget: 0,
+      contents: [{
+        role: 'user',
+        parts: [
           { text: prompt },
-          { inline_data: { mime_type: mimeType, data: imageBase64 } },
-        ]}],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 512 },
-      }),
-      signal: AbortSignal.timeout(20000),
+          { inlineData: { mimeType, data: imageBase64 } },
+        ],
+      }],
     })
-  } catch {
+    fullText = rodada.texto.trim()
+  } catch (err) {
+    console.error('[wishlist-identify] IA indisponível:', err instanceof Error ? err.message : err)
     return NextResponse.json({ error: 'Serviço de IA indisponível' }, { status: 502 })
   }
-
-  if (!geminiRes.ok) {
-    return NextResponse.json({ error: 'Erro no serviço de IA' }, { status: 502 })
-  }
-
-  let json: unknown
-  try { json = await geminiRes.json() } catch {
-    return NextResponse.json({ error: 'Resposta Gemini inválida' }, { status: 502 })
-  }
-
-  type GeminiResp = { candidates?: { content?: { parts?: { text?: string }[] } }[] }
-  const parts = (json as GeminiResp)?.candidates?.[0]?.content?.parts ?? []
-  const fullText = parts.map((p: { text?: string }) => p.text ?? '').join('').trim()
-  if (!fullText) return NextResponse.json({ error: 'Gemini retornou vazio' }, { status: 502 })
+  if (!fullText) return NextResponse.json({ error: 'IA retornou vazio' }, { status: 502 })
 
   const normalised = fullText.replace(/[""„‟«»]/g, '"').replace(/[''‚‛]/g, "'")
   const match = normalised.match(/\{[\s\S]*\}/)

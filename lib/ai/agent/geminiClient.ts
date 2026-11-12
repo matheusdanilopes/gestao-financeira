@@ -13,6 +13,7 @@
  */
 
 import type { FunctionDeclaration } from './tools'
+import { gerarRodadaGroq, groqConfigurado, transcreverAudioGroq } from './groqClient'
 
 /**
  * Modelo do assistente (chat do app, Telegram, resumo e transcrição).
@@ -80,6 +81,8 @@ export interface RodadaGemini {
   chamadas: ChamadaFerramenta[]
   finishReason?: string
   uso?: UsoTokens
+  /** Modelo que respondeu (ex.: 'gemini-3.8-flash' ou 'groq:llama-3.3-70b-versatile'). */
+  modelo?: string
 }
 
 export class GeminiError extends Error {
@@ -142,6 +145,34 @@ export interface OpcoesChamada {
   responseSchema?: Record<string, unknown>
 }
 
+// ─── Contingência (Groq) ─────────────────────────────────────────────────────
+
+/**
+ * Tempo guardado para o Groq quando o Gemini falha. Sem isto as retentativas
+ * do Gemini consumiam o orçamento inteiro e a contingência nunca rodava.
+ */
+const RESERVA_CONTINGENCIA_MS = 12_000
+
+/** Até quando o Gemini pode retentar antes de ceder a vez ao Groq. */
+function limiteGemini(opts: OpcoesChamada): number {
+  if (!groqConfigurado()) return opts.deadlineMs
+  const restante = opts.deadlineMs - Date.now()
+  return opts.deadlineMs - Math.min(RESERVA_CONTINGENCIA_MS, Math.max(0, restante) * 0.4)
+}
+
+/** Cai no Groq; se ele também falhar, propaga o erro ORIGINAL do Gemini. */
+async function contingencia(opts: OpcoesChamada, erroGemini: unknown): Promise<RodadaGemini> {
+  if (!groqConfigurado()) throw erroGemini
+  const motivo = erroGemini instanceof Error ? erroGemini.message : String(erroGemini)
+  console.error('[ia] Gemini falhou, usando o Groq:', motivo.slice(0, 300))
+  try {
+    return await gerarRodadaGroq(opts)
+  } catch (erroGroq) {
+    console.error('[ia] Contingência no Groq também falhou:', erroGroq instanceof Error ? erroGroq.message : erroGroq)
+    throw erroGemini
+  }
+}
+
 // No Gemini 2.5 o raciocínio interno ("thinking") conta dentro de
 // maxOutputTokens. Com o orçamento dinâmico padrão e teto de 4096, uma pergunta
 // difícil podia gastar quase tudo pensando e devolver a resposta cortada — ou
@@ -193,9 +224,27 @@ function configGeracao(opts: OpcoesChamada): Record<string, unknown> {
   }
 }
 
+/**
+ * O Gemini 3 recusa chamadas de ferramenta sem thoughtSignature no turno
+ * atual. Quando uma rodada veio do Groq não há assinatura — o valor abaixo é
+ * o indicado pelo Google para conversas montadas fora do Gemini.
+ */
+const ASSINATURA_EXTERNA = 'skip_thought_signature_validator'
+
+function contentsParaModelo(opts: OpcoesChamada): GeminiContent[] {
+  if (!ehGemini3(opts.modelo ?? GEMINI_MODEL)) return opts.contents
+  return opts.contents.map(c => {
+    if (c.role !== 'model' || c.parts.some(p => p.thoughtSignature)) return c
+    // Em chamadas paralelas o Gemini assina só a primeira; fazemos o mesmo.
+    const primeira = c.parts.findIndex(p => p.functionCall)
+    if (primeira < 0) return c
+    return { ...c, parts: c.parts.map((p, i) => (i === primeira ? { ...p, thoughtSignature: ASSINATURA_EXTERNA } : p)) }
+  })
+}
+
 function montarCorpo(opts: OpcoesChamada): string {
   return JSON.stringify({
-    contents: opts.contents,
+    contents: contentsParaModelo(opts),
     ...(opts.systemInstruction
       ? { systemInstruction: { role: 'user', parts: [{ text: opts.systemInstruction }] } }
       : {}),
@@ -228,22 +277,26 @@ async function comRetentativas(
   aceitaStream: boolean
 ): Promise<TentativaOk> {
   const corpo = montarCorpo(opts)
+  // Com contingência, as retentativas param antes do fim do orçamento para
+  // sobrar tempo ao Groq. A leitura de um stream já aberto usa o prazo cheio.
+  const limite = limiteGemini(opts)
   let ultimoErro: Error | null = null
   let sobrecarregado = false
 
   for (let tentativa = 0; tentativa <= MAX_TENTATIVAS; tentativa++) {
-    if (Date.now() >= opts.deadlineMs) break
+    if (Date.now() >= limite) break
 
     if (tentativa > 0) {
       const espera = sobrecarregado ? 1200 * 2 ** (tentativa - 1) : tentativa * 600
-      const restante = opts.deadlineMs - Date.now()
+      const restante = limite - Date.now()
       if (restante <= 0) break
       await new Promise(r => setTimeout(r, Math.min(espera, restante)))
     }
 
     const controller = new AbortController()
-    const restante = Math.max(1000, opts.deadlineMs - Date.now())
-    const timeout = aceitaStream ? restante : Math.min(TIMEOUT_TENTATIVA_MS, restante)
+    const timeout = aceitaStream
+      ? Math.max(1000, opts.deadlineMs - Date.now())
+      : Math.min(TIMEOUT_TENTATIVA_MS, Math.max(1000, limite - Date.now()))
     const timer = setTimeout(() => controller.abort(), timeout)
 
     let res: Response
@@ -309,11 +362,21 @@ function extrairRodada(candidato: unknown): RodadaGemini {
 
 // ─── Chamada não-streaming (rodadas de raciocínio/ferramenta) ────────────────
 
-export async function gerarRodada(opts: OpcoesChamada): Promise<RodadaGemini> {
-  const url = `${BASE}/${opts.modelo ?? GEMINI_MODEL}:generateContent?key=${opts.apiKey}`
+async function gerarRodadaGemini(opts: OpcoesChamada): Promise<RodadaGemini> {
+  const modelo = opts.modelo ?? GEMINI_MODEL
+  const url = `${BASE}/${modelo}:generateContent?key=${opts.apiKey}`
   const { res } = await comRetentativas(url, opts, false)
   const json = await res.json()
-  return { ...extrairRodada(json.candidates?.[0]), uso: lerUso(json) }
+  return { ...extrairRodada(json.candidates?.[0]), uso: lerUso(json), modelo }
+}
+
+/** Uma rodada no Gemini; se ele falhar, no Groq (quando GROQ_API_KEY existe). */
+export async function gerarRodada(opts: OpcoesChamada): Promise<RodadaGemini> {
+  try {
+    return await gerarRodadaGemini(opts)
+  } catch (err) {
+    return contingencia(opts, err)
+  }
 }
 
 // ─── Chamada com streaming (resposta final ao usuário) ───────────────────────
@@ -325,6 +388,8 @@ export interface PedacoStream {
   finishReason?: string
   /** Só no pedaço 'fim'. */
   uso?: UsoTokens
+  /** Só no pedaço 'fim': o modelo que respondeu. */
+  modelo?: string
 }
 
 /**
@@ -332,17 +397,30 @@ export interface PedacoStream {
  * Se o modelo decidir chamar uma ferramenta no meio do stream, emitimos as
  * chamadas para o chamador decidir o que fazer (o loop do agente reexecuta).
  */
+function* emitirRodada(rodada: RodadaGemini): Generator<PedacoStream> {
+  if (rodada.chamadas.length > 0) yield { tipo: 'chamadas', chamadas: rodada.chamadas }
+  if (rodada.texto) yield { tipo: 'texto', texto: rodada.texto }
+  yield { tipo: 'fim', finishReason: rodada.finishReason, uso: rodada.uso, modelo: rodada.modelo }
+}
+
 export async function* gerarStream(opts: OpcoesChamada): AsyncGenerator<PedacoStream> {
-  const url = `${BASE}/${opts.modelo ?? GEMINI_MODEL}:streamGenerateContent?alt=sse&key=${opts.apiKey}`
-  const { res, liberar } = await comRetentativas(url, opts, true)
+  const modelo = opts.modelo ?? GEMINI_MODEL
+  const url = `${BASE}/${modelo}:streamGenerateContent?alt=sse&key=${opts.apiKey}`
+  let tentativa: TentativaOk
+  try {
+    tentativa = await comRetentativas(url, opts, true)
+  } catch (err) {
+    // Gemini fora antes de começar a responder: a rodada sai inteira do Groq
+    // (sem streaming). Falha no meio do stream não tem como trocar de provedor.
+    yield* emitirRodada(await contingencia(opts, err))
+    return
+  }
+  const { res, liberar } = tentativa
 
   if (!res.body) {
     liberar()
     // Sem corpo legível: cai para a versão não-streaming em vez de falhar.
-    const rodada = await gerarRodada(opts)
-    if (rodada.chamadas.length > 0) yield { tipo: 'chamadas', chamadas: rodada.chamadas }
-    if (rodada.texto) yield { tipo: 'texto', texto: rodada.texto }
-    yield { tipo: 'fim', finishReason: rodada.finishReason, uso: rodada.uso }
+    yield* emitirRodada(await gerarRodada(opts))
     return
   }
 
@@ -385,7 +463,7 @@ export async function* gerarStream(opts: OpcoesChamada): AsyncGenerator<PedacoSt
   }
 
   if (chamadasAcumuladas.length > 0) yield { tipo: 'chamadas', chamadas: chamadasAcumuladas }
-  yield { tipo: 'fim', finishReason, uso }
+  yield { tipo: 'fim', finishReason, uso, modelo }
 }
 
 // ─── Resumo de conversa longa ────────────────────────────────────────────────
@@ -432,7 +510,7 @@ export async function resumirConversa(
 /**
  * Transcreve uma mensagem de voz (o Gemini aceita áudio embutido). Devolve
  * null se não houver fala inteligível — o chamador pede para a pessoa repetir
- * em vez de mandar ruído para o agente.
+ * em vez de mandar ruído para o agente. Com o Gemini fora, usa o Whisper do Groq.
  */
 export async function transcreverAudio(
   apiKey: string,
@@ -440,7 +518,28 @@ export async function transcreverAudio(
   mimeType: string,
   deadlineMs: number
 ): Promise<string | null> {
-  const rodada = await gerarRodada({
+  try {
+    return await transcreverAudioGemini(apiKey, audioBase64, mimeType, deadlineMs)
+  } catch (err) {
+    if (!groqConfigurado()) throw err
+    console.error('[ia] Transcrição no Gemini falhou, usando o Whisper do Groq:', err instanceof Error ? err.message : err)
+    try {
+      return await transcreverAudioGroq(audioBase64, mimeType, deadlineMs)
+    } catch (erroGroq) {
+      console.error('[ia] Whisper do Groq também falhou:', erroGroq instanceof Error ? erroGroq.message : erroGroq)
+      throw err
+    }
+  }
+}
+
+async function transcreverAudioGemini(
+  apiKey: string,
+  audioBase64: string,
+  mimeType: string,
+  deadlineMs: number
+): Promise<string | null> {
+  // Direto no Gemini: o chat do Groq não aceita áudio — a reserva é o Whisper.
+  const rodada = await gerarRodadaGemini({
     apiKey,
     deadlineMs,
     temperature: 0,
