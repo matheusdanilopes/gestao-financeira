@@ -39,8 +39,10 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 Todas as funções de IA (chat/Fin, Telegram, categorização, análise de comportamento, OCR de preço, identificação de produto e transcrição de áudio) usam o Gemini e, se ele falhar (cota, créditos esgotados, sobrecarga, tempo ou modelo fora do ar), caem automaticamente no [Groq](https://console.groq.com) — o mesmo esquema do HealthCoach (`lib/ai/agent/groqClient.ts`).
 
-- `GROQ_API_KEY` — liga a contingência. Sem ela, nada muda: só o Gemini é usado.
+- `GROQ_API_KEY` — liga a contingência. Sem ela, nada muda: só o Gemini é usado. Cadastre para **Production e Preview** (as URLs de teste de cada branch usam Preview).
 - `GROQ_MODEL` (opcional) — primeiro modelo tentado no Groq; os demais candidatos ficam no código, porque o Groq aposenta modelos com frequência.
+
+Quando a reserva também falha, a mensagem de erro diz o motivo (chave ausente ou inválida, pedido grande demais para o plano, limite atingido). A Análise do Fin manda ao Groq uma versão enxuta do pedido (sem a lista de lançamentos), porque o limite de tokens por minuto do Groq é bem menor que o do Gemini.
 
 O chat continua consultando os dados com as ferramentas também pelo Groq; áudio vai para o Whisper do Groq. A resposta gravada registra em `meta.modelo` qual provedor respondeu (ex.: `groq:llama-3.3-70b-versatile`).
 

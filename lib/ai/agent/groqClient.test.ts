@@ -6,6 +6,7 @@ import { test, beforeEach, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
 import { gerarRodada, gerarStream, transcreverAudio, GeminiError, type PedacoStream } from './geminiClient'
 import { converterEsquema, converterMensagens } from './groqClient'
+import { descreverErro } from './turno'
 import type { FunctionDeclaration } from './tools'
 
 const fetchOriginal = globalThis.fetch
@@ -184,4 +185,38 @@ test('transcrição: Gemini fora → Whisper do Groq', async () => {
   assert.equal(r, 'gastei 50 reais no mercado')
   assert.match(chamadas[1].url, /audio\/transcriptions$/)
   assert.ok(chamadas[1].corpo instanceof FormData)
+})
+
+// ─── Pedido enxuto e motivo da falha na tela ─────────────────────────────────
+
+test('pedido grande: a reserva recebe a versão enxuta e um teto de resposta menor', async () => {
+  const chamadas = simular({ gemini: [semCreditos()], groq: [groqTexto('{"ok":true}')] })
+  const r = await gerarRodada({
+    ...prazo(),
+    maxOutputTokens: 20_000,
+    contents: [{ role: 'user', parts: [{ text: 'PEDIDO COMPLETO com todos os lançamentos' }] }],
+    reserva: { contents: [{ role: 'user', parts: [{ text: 'PEDIDO ENXUTO' }] }], maxOutputTokens: 4096 },
+  })
+  assert.equal(r.texto, '{"ok":true}')
+  const corpo = chamadas.find(c => c.url.includes('api.groq.com'))!.corpo as { messages: Array<{ content: unknown }>; max_completion_tokens: number }
+  assert.match(JSON.stringify(corpo.messages), /PEDIDO ENXUTO/)
+  assert.doesNotMatch(JSON.stringify(corpo.messages), /PEDIDO COMPLETO/)
+  assert.equal(corpo.max_completion_tokens, 4096)
+})
+
+test('reserva sem chave: a mensagem diz que falta a GROQ_API_KEY', async () => {
+  delete process.env.GROQ_API_KEY
+  simular({ gemini: [semCreditos()] })
+  const err = await gerarRodada({ ...prazo(), contents: [{ role: 'user', parts: [{ text: 'oi' }] }] }).catch(e => e)
+  assert.ok(err instanceof GeminiError && err.codigo === 'CREDITOS')
+  assert.match(descreverErro(err).mensagem, /GROQ_API_KEY/)
+})
+
+test('reserva grande demais em todos os modelos: a mensagem diz o motivo', async () => {
+  const grande = () => new Response('{"error":{"message":"Request too large for model: Limit 12000, Requested 19000"}}', { status: 413 })
+  simular({ gemini: [semCreditos()], groq: [grande(), grande(), grande(), grande(), grande()] })
+  const err = await gerarRodada({ ...prazo(), contents: [{ role: 'user', parts: [{ text: 'oi' }] }] }).catch(e => e)
+  assert.ok(err instanceof GeminiError && err.codigo === 'CREDITOS')
+  assert.equal(err.reserva?.estado, 'falhou')
+  assert.match(descreverErro(err).mensagem, /limite de tamanho do plano do Groq/)
 })

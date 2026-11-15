@@ -94,6 +94,14 @@ export class GeminiError extends Error {
     super(message)
     this.name = 'GeminiError'
   }
+
+  /**
+   * O que aconteceu com a reserva (Groq) quando este erro chegou a quem
+   * chamou: não configurada, ou tentada e falhou (com o motivo). Sem isto a
+   * tela só dizia "créditos do Gemini acabaram" — sem saber se a reserva
+   * sequer existia.
+   */
+  reserva?: { estado: 'nao_configurada' | 'falhou'; motivo?: string }
 }
 
 // ─── Retentativas ────────────────────────────────────────────────────────────
@@ -143,6 +151,12 @@ export interface OpcoesChamada {
   responseMimeType?: string
   /** Esquema (subconjunto OpenAPI) que a resposta JSON deve seguir. */
   responseSchema?: Record<string, unknown>
+  /**
+   * Pedido alternativo para a reserva (Groq), cujo limite de tokens por
+   * minuto é bem menor que o do Gemini: quem manda pedidos grandes (Análise
+   * do Fin) fornece uma versão enxuta.
+   */
+  reserva?: { contents?: GeminiContent[]; maxOutputTokens?: number }
 }
 
 // ─── Contingência (Groq) ─────────────────────────────────────────────────────
@@ -162,13 +176,22 @@ function limiteGemini(opts: OpcoesChamada): number {
 
 /** Cai no Groq; se ele também falhar, propaga o erro ORIGINAL do Gemini. */
 async function contingencia(opts: OpcoesChamada, erroGemini: unknown): Promise<RodadaGemini> {
-  if (!groqConfigurado()) throw erroGemini
+  if (!groqConfigurado()) {
+    if (erroGemini instanceof GeminiError) erroGemini.reserva = { estado: 'nao_configurada' }
+    throw erroGemini
+  }
   const motivo = erroGemini instanceof Error ? erroGemini.message : String(erroGemini)
   console.error('[ia] Gemini falhou, usando o Groq:', motivo.slice(0, 300))
   try {
-    return await gerarRodadaGroq(opts)
+    return await gerarRodadaGroq({
+      ...opts,
+      ...(opts.reserva?.contents ? { contents: opts.reserva.contents } : {}),
+      ...(opts.reserva?.maxOutputTokens ? { maxOutputTokens: opts.reserva.maxOutputTokens } : {}),
+    })
   } catch (erroGroq) {
-    console.error('[ia] Contingência no Groq também falhou:', erroGroq instanceof Error ? erroGroq.message : erroGroq)
+    const motivoGroq = erroGroq instanceof Error ? erroGroq.message : String(erroGroq)
+    console.error('[ia] Contingência no Groq também falhou:', motivoGroq)
+    if (erroGemini instanceof GeminiError) erroGemini.reserva = { estado: 'falhou', motivo: motivoGroq }
     throw erroGemini
   }
 }
