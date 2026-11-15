@@ -7,7 +7,7 @@ import { formatBRL } from '@/lib/format'
 import { formatarMes } from '@/lib/relatoriosFormat'
 import type { DocumentoRelatorio } from '@/lib/relatorioDocumento'
 import type { ResultadoAnalise } from './tipos'
-import { OBJETIVOS_ANALISE, PESOS_SAUDE, rotuloJanela } from './tipos'
+import { OBJETIVOS_ANALISE, PESOS_SAUDE, rotuloFaturaFoco } from './tipos'
 
 const NIVEL: Record<string, string> = { alta: 'Alta', media: 'Média', baixa: 'Baixa' }
 const DIFICULDADE: Record<string, string> = { facil: 'Fácil', media: 'Média', dificil: 'Difícil' }
@@ -36,7 +36,7 @@ export function montarDocumentoAnalise(r: ResultadoAnalise): DocumentoRelatorio 
   return {
     titulo: 'Análise do Fin',
     subtitulo: m.mesFoco
-      ? `${rotuloJanela(p.janela)}: ${rotuloMesIso(m.mesFoco.mes)} vs. ${m.mesFoco.mesesBase} meses anteriores · ${rotuloEscopo(p.escopo)}${objetivo}`
+      ? `${rotuloFaturaFoco(m.mesFoco).titulo} (${rotuloFaturaFoco(m.mesFoco).compras}) vs. ${m.mesFoco.mesesBase} meses anteriores · ${rotuloEscopo(p.escopo)}${objetivo}`
       : `${rotuloMesIso(m.periodo.inicio)} a ${rotuloMesIso(m.periodo.fim)} · ${rotuloEscopo(p.escopo)}${objetivo}`,
     nomeArquivo: `analise-do-fin-${r.geradaEm.substring(0, 10)}`,
     corCabecalho: [124, 58, 237],
@@ -170,7 +170,7 @@ export function montarDocumentoAnalise(r: ResultadoAnalise): DocumentoRelatorio 
       },
       ...(m.mesFoco
         ? [{
-            titulo: `Lançamentos das faturas de ${rotuloMesIso(m.mesFoco.mes)}`,
+            titulo: `Lançamentos da ${rotuloFaturaFoco(m.mesFoco).titulo.toLowerCase()} (${rotuloFaturaFoco(m.mesFoco).compras})`,
             explicacao: 'Parcelas em andamento entram com a data de abertura da fatura — não são compras novas.',
             colunas: ['Data', 'Descrição', 'Categoria', 'Responsável', 'Tipo', 'Valor'],
             linhas: m.mesFoco.lancamentos.map(l => [

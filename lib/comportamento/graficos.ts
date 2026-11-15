@@ -13,6 +13,7 @@
 import type { ChartConfiguration, Plugin } from 'chart.js'
 import { rotuloMesIso } from './documento'
 import type { MetricasComportamento } from './tipos'
+import { rotuloFaturaFoco } from './tipos'
 
 export interface TemaGrafico {
   escuro: boolean
@@ -187,7 +188,7 @@ export function graficoCategorias(m: MetricasComportamento, tema: TemaGrafico): 
   const top = linhas.filter(l => l.agora > 0 || l.normal > 0).slice(0, 8)
   if (top.length === 0) return null
   const [rotuloAgora, rotuloNormal] = m.mesFoco
-    ? [rotuloMesIso(m.mesFoco.mes), 'Média dos meses anteriores']
+    ? [rotuloFaturaFoco(m.mesFoco).titulo, 'Média das faturas anteriores']
     : ['Média dos últimos 3 meses', 'Média dos meses anteriores']
   return {
     type: 'bar',

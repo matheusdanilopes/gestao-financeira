@@ -9,10 +9,10 @@
 
 import Link from 'next/link'
 import {
-  TrendingUp, TrendingDown, Lightbulb, MessageCircle, ShieldCheck, Calculator, ChevronDown, Wallet, Sparkles,
+  TrendingUp, TrendingDown, Lightbulb, CalendarDays, MessageCircle, ShieldCheck, Calculator, ChevronDown, Wallet, Sparkles,
 } from 'lucide-react'
 import { RoboAvatar } from '@/components/chat/RoboAvatar'
-import { destaqueCurto } from '@/lib/comportamento/tipos'
+import { destaqueCurto, rotuloFaturaFoco } from '@/lib/comportamento/tipos'
 import { rotuloMesIso } from '@/lib/comportamento/documento'
 import type { AnaliseIA, IndicadorSaude, MetricasComportamento, ProximoMes } from '@/lib/comportamento/tipos'
 import { AnelNota, rotuloNota } from './ResultadoComportamento'
@@ -59,9 +59,16 @@ function ComoCalculei({ children }: { children: React.ReactNode }) {
 
 // ─── Recado do Fin ───────────────────────────────────────────────────────────
 
-export function RecadoFin({ analise: a }: { analise: AnaliseIA }) {
+export function RecadoFin({ analise: a, metricas: m }: { analise: AnaliseIA; metricas?: MetricasComportamento }) {
+  const fatura = m?.mesFoco ? rotuloFaturaFoco(m.mesFoco) : null
   return (
     <Caixa>
+      {fatura && (
+        <p className="text-[11px] font-semibold text-gray-500 flex items-center gap-1.5">
+          <CalendarDays className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
+          {fatura.titulo} · {fatura.compras}
+        </p>
+      )}
       <div className="flex items-start gap-3">
         <RoboAvatar tamanho={48} humor="feliz" titulo="Fin" className="shrink-0" />
         <div className="min-w-0 flex-1 rounded-2xl rounded-tl-md bg-primary-50 px-3.5 py-3 space-y-1.5">

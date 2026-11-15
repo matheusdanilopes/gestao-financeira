@@ -974,8 +974,22 @@ function calcularMesFoco(
     categorias,
     estabelecimentos,
     novidades,
+    periodoCompras: periodoDasCompras(lancamentos),
     lancamentos,
   }
+}
+
+/**
+ * De quando a quando são as compras da fatura. A fatura paga em outubro tem
+ * compras de fim de agosto a fim de setembro: sem dizer isso, "outubro"
+ * engana quem lê.
+ */
+function periodoDasCompras(lancamentos: LancamentoFatura[]): { inicio: string; fim: string } | null {
+  const novas = lancamentos.filter(l => l.tipo === 'compra_nova' && /^\d{4}-\d{2}-\d{2}$/.test(l.data))
+  const base = novas.length > 0 ? novas : lancamentos.filter(l => /^\d{4}-\d{2}-\d{2}$/.test(l.data))
+  if (base.length === 0) return null
+  const datas = base.map(l => l.data).sort()
+  return { inicio: datas[0], fim: datas[datas.length - 1] }
 }
 
 // ─── Nota de saúde financeira ────────────────────────────────────────────────

@@ -20,7 +20,7 @@ import {
   graficoSaldo,
   type TemaGrafico,
 } from '@/lib/comportamento/graficos'
-import { PESOS_SAUDE } from '@/lib/comportamento/tipos'
+import { PESOS_SAUDE, rotuloFaturaFoco } from '@/lib/comportamento/tipos'
 import type {
   AnaliseIA, Comparativo, FixoVariavel, LancamentoFatura, MesFoco, MetricasComportamento, ProximoMes,
 } from '@/lib/comportamento/tipos'
@@ -489,11 +489,11 @@ export function BlocoMesFoco({ mesFoco: f }: { mesFoco: MesFoco }) {
 
   return (
     <Cartao
-      titulo={`${rotuloMesIso(f.mes)} vs. seu normal`}
+      titulo={`${rotuloFaturaFoco(f).titulo} vs. seu normal`}
       Icon={CalendarCheck}
       corIcone="text-primary-600"
       corFundo="bg-primary-50"
-      subtitulo={`Barra azul: o mês · cinza: média de ${f.mesesBase} ${f.mesesBase === 1 ? 'mês anterior' : 'meses anteriores'}`}
+      subtitulo={`${rotuloFaturaFoco(f).compras[0].toUpperCase()}${rotuloFaturaFoco(f).compras.slice(1)} · azul: esta fatura · cinza: média de ${f.mesesBase} ${f.mesesBase === 1 ? 'mês anterior' : 'meses anteriores'}`}
     >
       {f.saldo && f.receita && (
         <div className={`rounded-2xl border p-3 ${f.saldo.atual < 0 ? 'bg-red-50 border-red-100' : 'bg-green-50 border-green-100'}`}>
@@ -534,6 +534,10 @@ export function BlocoMesFoco({ mesFoco: f }: { mesFoco: MesFoco }) {
       <ComoCalculei>
         <ul className="list-disc pl-4 space-y-1">
           <li><b>Faturas do cartão</b>: as faturas pagas em {rotuloMesIso(f.mes)}, pelo valor pago — é o que sai do saldo.</li>
+          <li>
+            O cartão conta pela <b>fatura</b>, não pela data da compra: a fatura paga em {rotuloMesIso(f.mes)} traz{' '}
+            {rotuloFaturaFoco(f).compras}. Receita e contas são do próprio mês.
+          </li>
           <li>
             Dessas faturas, {formatBRL(f.parcelasEmAndamento.valor.atual)} são <b>parcelas de compras antigas</b>{' '}
             ({f.parcelasEmAndamento.quantidade} {f.parcelasEmAndamento.quantidade === 1 ? 'parcela' : 'parcelas'} 2/N em diante).

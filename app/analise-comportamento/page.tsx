@@ -308,7 +308,7 @@ export default function AnaliseDoFinPage() {
               </div>
             )}
 
-            <RecadoFin analise={ultima.analise} />
+            <RecadoFin analise={ultima.analise} metricas={ultima.metricas} />
             <SaudeSimples metricas={ultima.metricas} notaAnterior={anterior?.nota ?? null} />
             {ultima.metricas.proximoMes && <ProximoMesSimples p={ultima.metricas.proximoMes} />}
             <Descobertas analise={ultima.analise} />

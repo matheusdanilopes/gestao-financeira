@@ -33,6 +33,29 @@ export function destaqueCurto(destaque: string | undefined): string {
   return numero || t
 }
 
+const MESES_CURTOS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
+
+/** 'YYYY-MM' → 'out/2026'. */
+export function mesCurtoAno(mes: string): string {
+  const [a, m] = mes.split('-').map(Number)
+  return `${MESES_CURTOS[(m || 1) - 1]}/${a}`
+}
+
+/** 'YYYY-MM-DD' → '25/08'. */
+const diaMes = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
+
+/**
+ * Como chamar o mês em foco sem enganar: "Fatura de out/2026 · compras de
+ * 25/08 a 24/09". As compras do cartão contam pela fatura em que caíram, não
+ * pela data da compra.
+ */
+export function rotuloFaturaFoco(f: Pick<MesFoco, 'mes' | 'periodoCompras'>): { titulo: string; compras: string } {
+  return {
+    titulo: `Fatura de ${mesCurtoAno(f.mes)}`,
+    compras: f.periodoCompras ? `compras de ${diaMes(f.periodoCompras.inicio)} a ${diaMes(f.periodoCompras.fim)}` : 'compras da fatura paga no mês',
+  }
+}
+
 /** Etapas que a rota anuncia (evento "status") e a tela mostra, na ordem. */
 export const ETAPAS_ANALISE = [
   'Lendo suas faturas e contas',
@@ -214,6 +237,12 @@ export interface MesFoco {
   estabelecimentos: Array<{ nome: string; quantidade: number; total: number; quantidadeBase: number }>
   /** Categorias/lugares que apareceram agora e não existiam nos meses de base. */
   novidades: string[]
+  /**
+   * Primeira e última data das compras da fatura ('YYYY-MM-DD'). A fatura
+   * paga em outubro tem compras de agosto/setembro. Opcional: análises
+   * salvas antes deste campo não o têm.
+   */
+  periodoCompras?: { inicio: string; fim: string } | null
   /** Todas as linhas das faturas pagas no mês. */
   lancamentos: LancamentoFatura[]
 }

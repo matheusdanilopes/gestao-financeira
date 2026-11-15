@@ -6,9 +6,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { calcularOportunidades } from './oportunidades'
-import { aplicarOportunidades, ajustarEconomias, normalizarAnalise } from './analista'
+import { aplicarOportunidades, ajustarEconomias, normalizarAnalise, semAvisosRepetidos } from './analista'
 import { indexarEvidenciasAnalise, removerSemLastro, valoresSemLastro, evidenciaDoPlano } from './conferencia'
-import type { AnaliseIA, CategoriaComportamento, MetricasComportamento } from './tipos'
+import type { AnaliseIA, CategoriaComportamento, MesFoco, MetricasComportamento } from './tipos'
+import { rotuloFaturaFoco } from './tipos'
 import {
   contextoAnaliseParaChat, separarContexto, LIMITE_CONTEXTO_CHAT, MARCA_CONTEXTO_ANALISE, SEPARADOR_CONTEXTO,
 } from './contextoChat'
@@ -204,4 +205,65 @@ test('o balão mostra só a pergunta; o contexto vira etiqueta', () => {
   const gravado = `Me ajuda com as dicas?${SEPARADOR_CONTEXTO}${MARCA_CONTEXTO_ANALISE} (feita por você...)`
   assert.deepEqual(separarContexto(gravado), { texto: 'Me ajuda com as dicas?', anexo: 'Análise do Fin' })
   assert.deepEqual(separarContexto('Quanto gastei?'), { texto: 'Quanto gastei?' })
+})
+
+// ─── Fatura em foco ("Último mês") ───────────────────────────────────────────
+
+const cmp = (atual: number, base: number) => ({ atual, base, variacaoPct: base > 0 ? Math.round(((atual - base) / base) * 1000) / 10 : null })
+
+function mesFoco(lancamentos: MesFoco['lancamentos'], categorias: MesFoco['categorias']): MesFoco {
+  return {
+    mes: '2026-10', mesesBase: 6,
+    compras: { valor: cmp(2625, 5682), quantidade: cmp(60, 90), ticketMedio: cmp(44, 63) },
+    parcelasEmAndamento: { valor: cmp(4592, 3080), quantidade: 40 },
+    faturas: cmp(6131, 7577), contas: cmp(4388, 3717), receita: cmp(12045, 13010), saldo: cmp(1525, 1700),
+    microgastos: { valor: cmp(679, 929), quantidade: cmp(41, 55) },
+    novosParcelamentos: { quantidade: cmp(3, 9), valorFinanciado: cmp(1200, 3000) },
+    fimDeSemanaPctValor: cmp(30, 30), categorias, estabelecimentos: [], novidades: [],
+    periodoCompras: { inicio: '2026-08-25', fim: '2026-09-24' },
+    lancamentos,
+  }
+}
+
+test('rótulo da fatura em foco diz de quando são as compras', () => {
+  const r = rotuloFaturaFoco({ mes: '2026-10', periodoCompras: { inicio: '2026-08-25', fim: '2026-09-24' } })
+  assert.equal(r.titulo, 'Fatura de out/2026')
+  assert.equal(r.compras, 'compras de 25/08 a 24/09')
+})
+
+test('categoria em alta por uma compra parcelada única não vira economia mensal', () => {
+  const lanc = (descricao: string, categoria: string, valor: number, parcela: string | null) =>
+    ({ data: '2026-08-25', descricao, categoria, responsavel: 'Matheus', cartao: 'nubank', valor, parcela, tipo: 'compra_nova' as const })
+  const m = metricas({
+    modo: 'ultimo_mes',
+    mesFoco: mesFoco(
+      [
+        lanc('Varejo Car - Parcela 1/8', 'Transporte', 112.23, '1/8'), // 897,84 cheio
+        lanc('Uber', 'Transporte', 18.8, null),
+        ...Array.from({ length: 12 }, (_, i) => lanc(`Ifood ${i}`, 'Delivery', 40, null)),
+      ],
+      [{ categoria: 'Transporte', ...cmp(1080, 217) }, { categoria: 'Delivery', ...cmp(480, 250) }],
+    ),
+  })
+  const ids = calcularOportunidades(m).map(o => o.id)
+  assert.equal(ids.includes('categoria:Transporte'), false)
+  // Delivery subiu por muitas compras pequenas: é hábito, continua.
+  assert.equal(ids.includes('categoria:Delivery'), true)
+})
+
+test('quando o app reduz a economia, a conta da dica termina no valor mostrado', () => {
+  const m = metricas({ fixoVariavel: { ...metricas().fixoVariavel!, variavel: { cartao: 600, contas: 0, total: 600 }, fixo: { contas: 0, parcelas: 0, assinaturas: 0, total: 0 } } })
+  const r = ajustarEconomias(aplicarOportunidades(analise(), calcularOportunidades(m)), m)
+  const delivery = r.planoDeAcao[0]
+  assert.ok(delivery.economiaMensal < 300)
+  assert.match(delivery.regra ?? '', new RegExp(`Ajustado para R\\$\\s?${delivery.economiaMensal}`))
+})
+
+test('limitação da IA que repete um aviso do app sai', () => {
+  const avisos = ['Aportes de investimento e estornos não têm responsável no app; na visão de Matheus eles ficam de fora.']
+  const r = semAvisosRepetidos([
+    'Aportes de investimento e estornos não possuem responsável informado e ficaram fora desta análise.',
+    'Os lançamentos de novembro ainda estão parciais.',
+  ], avisos)
+  assert.deepEqual(r, ['Os lançamentos de novembro ainda estão parciais.'])
 })
