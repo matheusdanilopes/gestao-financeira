@@ -313,7 +313,7 @@ export default function AnaliseDoFinPage() {
             {ultima.metricas.proximoMes && <ProximoMesSimples p={ultima.metricas.proximoMes} />}
             <Descobertas analise={ultima.analise} />
             <Dicas analise={ultima.analise} />
-            <ConversarComFin analise={ultima.analise} />
+            <ConversarComFin />
             <SeloConferencia analise={ultima.analise} />
 
             <VerDetalhes metricas={ultima.metricas} analise={ultima.analise} />

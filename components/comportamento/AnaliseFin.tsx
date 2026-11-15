@@ -249,11 +249,11 @@ export function Dicas({ analise: a }: { analise: AnaliseIA }) {
 
 // ─── Conversar com o Fin ─────────────────────────────────────────────────────
 
-export function ConversarComFin({ analise: a }: { analise: AnaliseIA }) {
-  const pergunta = `Na minha análise você disse: "${a.manchete}" Me ajuda a colocar suas dicas em prática este mês?`
+export function ConversarComFin() {
+  // O chat abre uma conversa nova com esta análise anexada (lib/comportamento/contextoChat).
   return (
     <Link
-      href={`/chat?pergunta=${encodeURIComponent(pergunta)}`}
+      href="/chat?analise=1"
       className="w-full py-3.5 rounded-full font-semibold text-sm text-white bg-primary-600 flex items-center justify-center gap-2
                  transition-all duration-150 ease-spring active:scale-[0.98]
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-400"

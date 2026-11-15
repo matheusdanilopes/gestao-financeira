@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, type KeyboardEvent } from 'react'
-import { ArrowUp, Mic, Square } from 'lucide-react'
+import { ArrowUp, Mic, Square, Paperclip, X } from 'lucide-react'
 
 const ALTURA_MAXIMA = 132
 
@@ -25,6 +25,7 @@ export function Composer({
   suportaEscuta,
   ouvindo,
   onMic,
+  anexo,
 }: {
   valor: string
   onChange: (v: string) => void
@@ -35,6 +36,8 @@ export function Composer({
   suportaEscuta?: boolean
   ouvindo?: boolean
   onMic?: () => void
+  /** Contexto que vai junto da próxima pergunta (ex.: a Análise do Fin). */
+  anexo?: { rotulo: string; onRemover: () => void }
 }) {
   const ref = useRef<HTMLTextAreaElement>(null)
 
@@ -56,6 +59,22 @@ export function Composer({
 
   return (
     <div className="fixed bottom-[calc(4rem+var(--safe-bottom))] lg:bottom-0 left-0 right-0 sticky-header border-t border-gray-100 dark:border-gray-700/60 px-3 py-2.5 z-[140]">
+      {anexo && (
+        <div className="max-w-md lg:max-w-3xl mx-auto mb-2">
+          <span className="inline-flex items-center gap-1.5 max-w-full rounded-full bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 text-xs font-semibold pl-2.5 pr-1 py-1">
+            <Paperclip className="w-3 h-3 shrink-0" />
+            <span className="truncate">O Fin vai usar a {anexo.rotulo}</span>
+            <button
+              type="button"
+              onClick={anexo.onRemover}
+              aria-label="Não usar a análise nesta conversa"
+              className="w-5 h-5 rounded-full flex items-center justify-center hover:bg-violet-100 dark:hover:bg-violet-800/50 shrink-0"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        </div>
+      )}
       <div className="max-w-md lg:max-w-3xl mx-auto flex gap-2 items-end">
         {ouvindo ? (
           <div className="flex-1 flex items-center gap-2 bg-red-50 dark:bg-red-900/20 rounded-2xl px-4 py-3 text-sm text-red-600 dark:text-red-400">

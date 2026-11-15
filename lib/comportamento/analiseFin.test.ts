@@ -9,6 +9,9 @@ import { calcularOportunidades } from './oportunidades'
 import { aplicarOportunidades, ajustarEconomias, normalizarAnalise } from './analista'
 import { indexarEvidenciasAnalise, removerSemLastro, valoresSemLastro, evidenciaDoPlano } from './conferencia'
 import type { AnaliseIA, CategoriaComportamento, MetricasComportamento } from './tipos'
+import {
+  contextoAnaliseParaChat, separarContexto, LIMITE_CONTEXTO_CHAT, MARCA_CONTEXTO_ANALISE, SEPARADOR_CONTEXTO,
+} from './contextoChat'
 
 function categoria(nome: string, recente: number, anterior: number): CategoriaComportamento {
   return {
@@ -176,4 +179,29 @@ test('economia anual da dica (× 12) tem lastro', () => {
   const a = aplicarOportunidades(analise({ manchete: 'Dá para guardar R$ 6.000 por ano seguindo minhas dicas.' }), ops)
   // 300 + 200 = 500 por mês → 6.000 por ano.
   assert.deepEqual(valoresSemLastro(a, indexarEvidenciasAnalise(m, ops, [evidenciaDoPlano(a)])).semLastro, [])
+})
+
+// ─── Contexto para o chat ("Conversar com o Fin") ────────────────────────────
+
+test('contexto do chat traz recado, nota e dicas com economia, dentro do limite do servidor', () => {
+  const m = metricas()
+  const a = aplicarOportunidades(analise(), calcularOportunidades(m))
+  const r = { parametros: { janela: 12 as const, escopo: 'casal' as const, objetivo: 'entender' as const }, metricas: m, analise: a, geradaEm: '2026-11-15T12:00:00Z' }
+  const ctx = contextoAnaliseParaChat(r)
+  assert.ok(ctx.startsWith(MARCA_CONTEXTO_ANALISE))
+  assert.match(ctx, /Nota de saúde financeira: 60\/100/)
+  assert.match(ctx, /Voltar o delivery ao normal — economia R\$\s?300,00\/mês/)
+  assert.ok(ctx.length <= LIMITE_CONTEXTO_CHAT)
+
+  // Análise enorme: as partes menos importantes saem, o começo fica.
+  const grande = { ...r, analise: { ...a, padroes: Array.from({ length: 40 }, (_, i) => ({ ...a.padroes[0], titulo: `Padrão ${i}`, descricao: 'x'.repeat(150) })) } }
+  const cortado = contextoAnaliseParaChat(grande)
+  assert.ok(cortado.length <= LIMITE_CONTEXTO_CHAT)
+  assert.match(cortado, /Dicas dadas/)
+})
+
+test('o balão mostra só a pergunta; o contexto vira etiqueta', () => {
+  const gravado = `Me ajuda com as dicas?${SEPARADOR_CONTEXTO}${MARCA_CONTEXTO_ANALISE} (feita por você...)`
+  assert.deepEqual(separarContexto(gravado), { texto: 'Me ajuda com as dicas?', anexo: 'Análise do Fin' })
+  assert.deepEqual(separarContexto('Quanto gastei?'), { texto: 'Quanto gastei?' })
 })
