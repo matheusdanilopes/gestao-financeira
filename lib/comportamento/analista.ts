@@ -49,7 +49,7 @@ GLOSSÁRIO DAS MÉTRICAS
 - Visão individual (escopo com um nome): só as linhas com aquele responsável; o saldo das telas do app é sempre do casal. Ao citar saldo nessa visão, deixe claro que é o saldo daquela pessoa.
 - fixoVariavel: gasto médio mensal separado em fixo (contas que se repetem, parcelas de compras antigas, assinaturas) e variável (compras novas no cartão, ajusteFatura = fatura paga − soma das compras, contas fora da rotina). pctFixo = quanto do gasto já vem comprometido. O plano de ação deve atacar sobretudo o variável, que se decide no dia a dia; o fixo só cai renegociando, cancelando ou deixando parcelas terminarem.
 - proximoMes: o próximo mês. receita (planejada ou média) − contas − parcelas já contratadas − assinaturas = margemLivre, o que sobra para compras novas e imprevistos. variavelHabitual = o gasto variável de um mês típico; folga = margemLivre − variavelHabitual (negativa: no ritmo atual, o próximo mês fecha no vermelho, e o tamanho do corte necessário é esse valor). tetoSemanal = quanto dá para gastar por semana em compras novas sem fechar no vermelho. Use esses números para dizer, em reais, o que fazer no próximo mês.
-- resumo: médias de TODOS os meses fechados (receita, gasto e saldo na mesma base; mês sem receita lançada entra com zero e aparece nos avisos). tendenciaGastoPct = últimos 3 meses vs. 3 anteriores. oscilacaoGastoPct = coeficiente de variação.
+- resumo: médias de TODOS os meses fechados (receita, gasto e saldo na mesma base; mês sem receita lançada entra com zero e aparece nos avisos). tendenciaGastoPct = últimos 3 meses vs. 3 anteriores. oscilacaoGastoPct = coeficiente de variação. receitaRecorrenteMedia = a renda sem as entradas extraordinárias listadas em receitasExtras (férias, 13º, cashback, bicos); taxaPoupancaSemExtras = quanto sobraria só com a renda recorrente. Quando houver receitasExtras, diga se a sobra do período depende delas — um mês "no azul" por causa das férias não é hábito.
 - saude: nota 0–100 calculada por regra fixa. Explique o que puxa a nota para cima e para baixo; não recalcule.
 - PARCELAS EM ANDAMENTO: a cada fatura, a importação lança as parcelas de compras antigas (parcela 2/N em diante) com a DATA DE ABERTURA DA FATURA, não com a data em que a compra foi feita. Elas NÃO são compras novas nem decisões de gasto daquele dia. Um volume grande de lançamentos no primeiro dia da fatura é isso — nunca o interprete como "dia de muitas compras", impulso ou farra. Todas as métricas de comportamento (quando, ticket, microgastos, estabelecimentos, comprasAtipicas, diasIntensos) já as excluem; elas só entram nos totais de fatura (gastoCartao) e em parcelamentos.compromissoFuturo.
 - quando: baseado em "compras novas" (à vista ou 1ª parcela, valor cheio da compra) pela data da compra. diasSemana/fasesDoMes têm pctValor e pctQuantidade (uniforme seria ~14% por dia e ~17% por fase); o hábito é a quantidade, o valor pode ser puxado por uma compra só. semanaDoRecebimento.pctValor = % do valor gasto até 6 dias após entrar receita; esperadoPct = % dos dias do período que caem nessas semanas (depende de quantos recebimentos há por mês). Só há concentração quando pctValor passa bem de esperadoPct.
@@ -60,6 +60,7 @@ GLOSSÁRIO DAS MÉTRICAS
 - planejamento: pontualidade = pagasComAtraso de contasComDatas (só essas têm as duas datas; não use contasPagas como base). aderenciaPct = realizado / previsto das contas pagas; itensQueEstouram = contas que passam do previsto na maioria dos meses.
 - investimentos: mesesDeReserva = saldo informado dos investimentos ÷ gasto médio mensal (quantos meses a reserva cobre; referência 6). pctDaReceita = aporte médio mensal / receita média. Quando vierem null, a pessoa não registra investimentos no app: não afirme que ela não tem reserva.
 - comprasAtipicas: compras muito acima da mediana da própria categoria (possíveis compras por impulso ou eventos).
+- sinais: achados conferidos direto no banco, nas últimas faturas. cobrancasRecorrentes.naoCadastradas = cobram todo mês no cartão e não estão nas assinaturas do app (o casal pode ter esquecido delas); pausadasCobradas = assinatura pausada/inativa no app que continua sendo cobrada; precoDiferente = cobrada com valor diferente do cadastrado (reajuste); iofMensal = IOF de compras internacionais recorrentes; categoriaInconsistente = a mesma cobrança caindo em categorias diferentes. cobrancasDuplicadas = mesma compra lançada mais de uma vez no mesmo dia (valorAMais = o que pode ter sido cobrado a mais). estornos.comprasDevolvidas = compras estornadas por inteiro (já tiradas das métricas de comportamento); estornos.duplicados = estorno lançado duas vezes no app. categorizacao e faturasSemDetalhe dizem o quanto confiar nas categorias. Use esses achados em riscos, dicas ou perguntas sempre que existirem — são concretos e acionáveis. Trate duplicidades e cobranças de assinatura pausada como "vale conferir na fatura", nunca como erro certo do banco ou do cartão.
 - modo "ultimo_mes": o foco é mesFoco, a FATURA PAGA no último mês fechado. As compras do cartão contam pela fatura em que caíram, não pela data da compra: a fatura paga em outubro tem compras feitas entre mesFoco.periodoCompras.inicio e .fim (em geral fim de agosto a fim de setembro). Por isso NUNCA diga "em outubro você comprou/gastou/reduziu"; diga "na fatura de outubro" ou "nas compras de 25/08 a 24/09". Receita, contas e saldo, esses sim, são do mês. A série mensal e os demais blocos de meses servem de "normal" para comparação; a série mensal e os demais blocos de meses servem de "normal" para comparação. Cada Comparativo traz atual (mês em foco), base (média dos meses anteriores) e variacaoPct. mesFoco.novidades = categorias/lugares que não apareciam antes. Junto vem a TABELA DE LANÇAMENTOS com todas as linhas das faturas pagas no mês: use-a para ir ao detalhe (compras específicas, repetições, horários do mês, quem comprou), sempre separando compra_nova de parcela_em_andamento. No modo "ultimo_mes", seja concreto sobre ESTE mês: o que fugiu do normal, por quê, e o que fazer já no mês seguinte.
 
 FORMATO — CURTO E VISUAL
@@ -206,6 +207,21 @@ export function enxugarMetricas(m: MetricasComportamento): MetricasComportamento
     estabelecimentos: m.estabelecimentos.slice(0, 8),
     categorias: m.categorias.slice(0, 10),
     comprasAtipicas: m.comprasAtipicas.slice(0, 5),
+    resumo: { ...m.resumo, ...(m.resumo.receitasExtras ? { receitasExtras: m.resumo.receitasExtras.slice(-4) } : {}) },
+    ...(m.sinais
+      ? {
+          sinais: {
+            ...m.sinais,
+            cobrancasRecorrentes: {
+              ...m.sinais.cobrancasRecorrentes,
+              naoCadastradas: m.sinais.cobrancasRecorrentes.naoCadastradas.slice(0, 3),
+              categoriaInconsistente: m.sinais.cobrancasRecorrentes.categoriaInconsistente.slice(0, 2),
+            },
+            cobrancasDuplicadas: m.sinais.cobrancasDuplicadas.slice(0, 3),
+            estornos: { ...m.sinais.estornos, comprasDevolvidas: m.sinais.estornos.comprasDevolvidas.slice(0, 3) },
+          },
+        }
+      : {}),
     mesFoco: m.mesFoco
       ? {
           ...m.mesFoco,

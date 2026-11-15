@@ -14,7 +14,9 @@
 
 import type { MetricasComportamento } from './tipos'
 
-export type TipoOportunidade = 'categoria_em_alta' | 'microgastos' | 'lugar_frequente' | 'assinaturas' | 'conta_estoura'
+export type TipoOportunidade =
+  | 'categoria_em_alta' | 'microgastos' | 'lugar_frequente' | 'assinaturas' | 'conta_estoura'
+  | 'assinatura_pausada_cobrada' | 'cobranca_recorrente'
 
 export interface Oportunidade {
   /** Identificador estável que a IA devolve na dica ("categoria:Delivery"). */
@@ -148,6 +150,32 @@ export function calcularOportunidades(m: MetricasComportamento): Oportunidade[] 
         regra: `${assin.ativas} assinaturas ativas (${reais(assin.custoMensal)} por mês). Estimativa mínima: cancelar a mais barata, ${maisBarata.nome} (${reais(economia)}).`,
       })
     }
+  }
+
+  // 4b. Do banco: assinatura pausada/inativa no app que continua sendo cobrada.
+  // A economia é a cobrança inteira — é dinheiro que não deveria sair.
+  for (const a of (m.sinais?.cobrancasRecorrentes.pausadasCobradas ?? []).filter(a => a.valor >= MINIMO).slice(0, 2)) {
+    ops.push({
+      id: `pausada:${a.nome}`,
+      tipo: 'assinatura_pausada_cobrada',
+      titulo: `Confirmar o cancelamento de ${a.nome}`,
+      categoria: a.categoria,
+      economiaMensal: arred(a.valor),
+      regra: `${a.nome} está pausada ou inativa no app, mas foi cobrada ${reais(a.valor)} em ${a.ultimaCobranca.split('-').reverse().join('/')}.`,
+    })
+  }
+
+  // 4c. Do banco: cobrança mensal que não está nas assinaturas. A promessa é
+  // a cobrança, se a pessoa não usa o serviço — por isso só as duas maiores.
+  for (const r of (m.sinais?.cobrancasRecorrentes.naoCadastradas ?? []).filter(r => r.valor >= MINIMO).slice(0, 2)) {
+    ops.push({
+      id: `recorrente:${r.descricao}`,
+      tipo: 'cobranca_recorrente',
+      titulo: `Revisar a cobrança mensal de ${r.descricao}`,
+      categoria: r.categoria,
+      economiaMensal: arred(r.valor),
+      regra: `${r.descricao} cobra ${reais(r.valor)} todo mês (${r.faturas} faturas seguidas) e não está nas assinaturas do app. Se não usa, cancelar = ${reais(r.valor)} por mês.`,
+    })
   }
 
   // 5. Contas que passam do previsto quase todo mês: voltar ao previsto.
