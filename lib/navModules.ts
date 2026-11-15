@@ -1,17 +1,16 @@
-import { criarIconeFin, type IconeCompativel } from '@/components/chat/IconeFin'
+import { IconeFin, type IconeCompativel } from '@/components/chat/IconeFin'
 import {
-  Wallet, CreditCard, ListChecks, FileText, SlidersHorizontal,
-  Receipt, TrendingUp, PiggyBank,
-  ShoppingCart, RepeatIcon, Layers,
-  Heart, ShoppingBasket, Crown,
-  BarChart3, BookmarkPlus,
-} from 'lucide-react'
+  IconeCarteira, IconeCartao, IconeChecklist, IconeEngrenagem,
+  IconeDespesas, IconeReceitas, IconeCofrinho,
+  IconeCarrinho, IconeAssinaturas, IconeParcelas, IconeComprasPrevistas,
+  IconeCoracao, IconeCesta, IconeCoroa,
+  IconeRelatorio, IconeGrafico,
+} from '@/components/icones/IconesIlustrados'
 
 export interface NavModuleItem {
   href: string
   label: string
   Icon: IconeCompativel
-  iconColor: string
   iconBg: string
   /** Só aparece no dropdown desktop — ex: Analytics, pensado pra tela larga. */
   desktopOnly?: boolean
@@ -27,65 +26,65 @@ export interface NavModule {
 const financas: NavModule = {
   key: 'financas',
   label: 'Finanças',
-  Icon: Wallet,
+  Icon: IconeCarteira,
   items: [
-    { href: '/financas?tab=despesas', label: 'Despesas', Icon: Receipt, iconColor: 'text-red-500', iconBg: 'bg-red-50' },
-    { href: '/financas?tab=receitas', label: 'Receitas', Icon: TrendingUp, iconColor: 'text-green-600', iconBg: 'bg-green-50' },
-    { href: '/financas?tab=investimentos', label: 'Investimentos', Icon: PiggyBank, iconColor: 'text-blue-600', iconBg: 'bg-blue-50' },
-    { href: '/analise-comportamento', label: 'Análise do Fin', Icon: criarIconeFin(20), iconColor: 'text-violet-600 dark:text-violet-400', iconBg: 'bg-violet-50 dark:bg-violet-900/20' },
+    { href: '/financas?tab=despesas', label: 'Despesas', Icon: IconeDespesas, iconBg: 'bg-red-50' },
+    { href: '/financas?tab=receitas', label: 'Receitas', Icon: IconeReceitas, iconBg: 'bg-green-50' },
+    { href: '/financas?tab=investimentos', label: 'Investimentos', Icon: IconeCofrinho, iconBg: 'bg-blue-50' },
+    { href: '/analise-comportamento', label: 'Análise do Fin', Icon: IconeFin, iconBg: 'bg-violet-50 dark:bg-violet-900/20' },
   ],
 }
 
 const cartao: NavModule = {
   key: 'cartao',
   label: 'Cartão',
-  Icon: CreditCard,
+  Icon: IconeCartao,
   items: [
-    { href: '/compras', label: 'Compras', Icon: ShoppingCart, iconColor: 'text-orange-500 dark:text-orange-400', iconBg: 'bg-orange-50 dark:bg-orange-900/20' },
-    { href: '/assinaturas', label: 'Assinaturas', Icon: RepeatIcon, iconColor: 'text-indigo-600 dark:text-indigo-400', iconBg: 'bg-indigo-50 dark:bg-indigo-900/20' },
-    { href: '/parcelamentos', label: 'Parcelamentos', Icon: Layers, iconColor: 'text-teal-600 dark:text-teal-400', iconBg: 'bg-teal-50 dark:bg-teal-900/20' },
-    { href: '/compras-previstas', label: 'Compras previstas', Icon: BookmarkPlus, iconColor: 'text-emerald-600 dark:text-emerald-400', iconBg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+    { href: '/compras', label: 'Compras', Icon: IconeCarrinho, iconBg: 'bg-orange-50 dark:bg-orange-900/20' },
+    { href: '/assinaturas', label: 'Assinaturas', Icon: IconeAssinaturas, iconBg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+    { href: '/parcelamentos', label: 'Parcelamentos', Icon: IconeParcelas, iconBg: 'bg-teal-50 dark:bg-teal-900/20' },
+    { href: '/compras-previstas', label: 'Compras previstas', Icon: IconeComprasPrevistas, iconBg: 'bg-emerald-50 dark:bg-emerald-900/20' },
   ],
 }
 
 const listas: NavModule = {
   key: 'listas',
   label: 'Listas & Desejos',
-  Icon: ListChecks,
+  Icon: IconeChecklist,
   items: [
-    { href: '/wishlist', label: 'Wishlist', Icon: Heart, iconColor: 'text-pink-500 dark:text-pink-400', iconBg: 'bg-pink-50 dark:bg-pink-900/20' },
-    { href: '/lista-mercado', label: 'Mercado', Icon: ShoppingBasket, iconColor: 'text-green-600 dark:text-green-400', iconBg: 'bg-green-50 dark:bg-green-900/20' },
-    { href: '/listas-compras', label: 'Princesa', Icon: Crown, iconColor: 'text-amber-600 dark:text-amber-400', iconBg: 'bg-amber-50 dark:bg-amber-900/20' },
+    { href: '/wishlist', label: 'Wishlist', Icon: IconeCoracao, iconBg: 'bg-pink-50 dark:bg-pink-900/20' },
+    { href: '/lista-mercado', label: 'Mercado', Icon: IconeCesta, iconBg: 'bg-green-50 dark:bg-green-900/20' },
+    { href: '/listas-compras', label: 'Princesa', Icon: IconeCoroa, iconBg: 'bg-amber-50 dark:bg-amber-900/20' },
   ],
 }
 
 const relatorios: NavModule = {
   key: 'relatorios',
   label: 'Relatórios',
-  Icon: FileText,
+  Icon: IconeRelatorio,
   items: [
-    { href: '/relatorios', label: 'Relatórios', Icon: FileText, iconColor: 'text-sky-600 dark:text-sky-400', iconBg: 'bg-sky-50 dark:bg-sky-900/20' },
-    { href: '/analytics', label: 'Analytics', Icon: BarChart3, iconColor: 'text-violet-600 dark:text-violet-400', iconBg: 'bg-violet-50 dark:bg-violet-900/20', desktopOnly: true },
+    { href: '/relatorios', label: 'Relatórios', Icon: IconeRelatorio, iconBg: 'bg-sky-50 dark:bg-sky-900/20' },
+    { href: '/analytics', label: 'Analytics', Icon: IconeGrafico, iconBg: 'bg-violet-50 dark:bg-violet-900/20', desktopOnly: true },
   ],
 }
 
-// O Fin aparece como ele mesmo (o robô do chat), não como um ícone genérico:
-// 20px no cabeçalho do grupo e na barra desktop, 26px no item do menu.
+// Todos os ícones são ilustrados (components/icones/IconesIlustrados.tsx), no
+// mesmo estilo do Fin — que aparece como ele mesmo, o robô do chat.
 const ia: NavModule = {
   key: 'ia',
   label: 'Assistente',
-  Icon: criarIconeFin(20),
+  Icon: IconeFin,
   items: [
-    { href: '/chat', label: 'Fin', Icon: criarIconeFin(26), iconColor: 'text-primary-600', iconBg: 'bg-primary-50' },
+    { href: '/chat', label: 'Fin', Icon: IconeFin, iconBg: 'bg-primary-50' },
   ],
 }
 
 const configuracoes: NavModule = {
   key: 'configuracoes',
   label: 'Configurações',
-  Icon: SlidersHorizontal,
+  Icon: IconeEngrenagem,
   items: [
-    { href: '/configuracoes', label: 'Configurações', Icon: SlidersHorizontal, iconColor: 'text-gray-600', iconBg: 'bg-gray-100' },
+    { href: '/configuracoes', label: 'Configurações', Icon: IconeEngrenagem, iconBg: 'bg-gray-100' },
   ],
 }
 

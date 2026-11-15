@@ -3,8 +3,9 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  LayoutDashboard, Sparkles, Plus, MoreHorizontal, WifiOff, ChevronDown, ChevronRight, ShoppingBasket, FileSpreadsheet, X,
+  Sparkles, Plus, WifiOff, ChevronDown, ChevronRight, FileSpreadsheet, X,
 } from 'lucide-react'
+import { IconePainel, IconeMais, IconeCesta } from '@/components/icones/IconesIlustrados'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useCategorizacao } from '@/components/CategorizacaoProvider'
 import { useImportacaoScript } from '@/components/ImportacaoScriptProvider'
@@ -99,7 +100,7 @@ function ModuleItemsList({
   return (
     <>
       {items.map((item, i) => {
-        const { href, label, Icon, iconColor, iconBg } = item
+        const { href, label, Icon, iconBg } = item
         const ativo = pathname !== undefined && itemAtivo(pathname, item)
         return (
           <Link
@@ -119,7 +120,7 @@ function ModuleItemsList({
           >
             <div className={`w-9 h-9 rounded-xl ${iconBg} flex items-center justify-center shrink-0
                              transition-transform duration-200 group-active:scale-90`}>
-              <Icon className={`w-[18px] h-[18px] ${iconColor}`} strokeWidth={1.9} />
+              <Icon className="w-[26px] h-[26px]" />
             </div>
             <span className={`flex-1 text-sm font-semibold leading-tight
                               ${ativo ? 'text-primary-700 dark:text-primary-300' : 'text-gray-700 dark:text-gray-200'}`}>
@@ -162,7 +163,7 @@ function MobileMenuPopover({
         {grupos.map(({ key, mod, items }, gi) => (
           <div key={key} className={gi > 0 ? 'mt-1 pt-1 border-t border-gray-100/80 dark:border-gray-800' : ''}>
             <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 px-3 pt-2 pb-1.5">
-              <mod.Icon className="w-3.5 h-3.5" strokeWidth={2} aria-hidden="true" />
+              <mod.Icon className="w-[18px] h-[18px] -my-1" />
               {mod.label}
             </p>
             <ModuleItemsList
@@ -222,11 +223,7 @@ function OfflineNavItem({
     >
       <span className={`flex items-center justify-center w-14 h-9 rounded-2xl transition-colors duration-200
                         ${isActive ? 'bg-primary-100' : ''}`}>
-        <Icon
-          className={`transition-colors duration-200 w-[24px] h-[24px]
-                      ${isActive ? 'text-primary-600' : 'text-gray-400'}`}
-          strokeWidth={isActive ? 2.5 : 1.8}
-        />
+        <Icon className={`w-7 h-7 text-gray-400 transition-transform duration-200 ${isActive ? 'scale-110' : ''}`} />
       </span>
       <span className={`text-[11px] font-semibold transition-colors duration-200 leading-none
                         ${isActive ? 'text-primary-600' : 'text-gray-500'}`}>
@@ -256,13 +253,9 @@ function MobileMenuButton({
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400
                  focus-visible:ring-offset-1 rounded-xl"
     >
-      <span className={`flex items-center justify-center w-10 h-6 rounded-full transition-colors duration-200
+      <span className={`flex items-center justify-center w-12 h-7 rounded-full transition-colors duration-200
                         ${isActive ? 'bg-primary-100' : ''}`}>
-        <Icon
-          className={`transition-colors duration-200 w-[20px] h-[20px]
-                      ${isActive ? 'text-primary-600' : 'text-gray-400'}`}
-          strokeWidth={isActive ? 2.5 : 1.8}
-        />
+        <Icon className={`w-6 h-6 text-gray-400 transition-transform duration-200 ${isActive ? 'scale-110' : ''}`} />
       </span>
       <span className={`text-[10px] font-medium transition-colors duration-200 leading-none
                         ${isActive ? 'text-primary-600' : 'text-gray-400'}`}>
@@ -290,13 +283,9 @@ function MobileNavItem({
                  focus-visible:ring-offset-1 rounded-xl"
       aria-current={isActive ? 'page' : undefined}
     >
-      <span className={`flex items-center justify-center w-10 h-6 rounded-full transition-colors duration-200
+      <span className={`flex items-center justify-center w-12 h-7 rounded-full transition-colors duration-200
                         ${isActive ? 'bg-primary-100' : ''}`}>
-        <Icon
-          className={`transition-colors duration-200 w-[20px] h-[20px]
-                      ${isActive ? 'text-primary-600' : 'text-gray-400'}`}
-          strokeWidth={isActive ? 2.5 : 1.8}
-        />
+        <Icon className={`w-6 h-6 text-gray-400 transition-transform duration-200 ${isActive ? 'scale-110' : ''}`} />
       </span>
       <span className={`text-[10px] font-medium transition-colors duration-200 leading-none
                         ${isActive ? 'text-primary-600' : 'text-gray-400'}`}>
@@ -324,10 +313,7 @@ function DesktopNavLink({
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-1"
       aria-current={isActive ? 'page' : undefined}
     >
-      <Icon
-        className={`w-4 h-4 transition-colors duration-200 ${isActive ? 'text-primary-600' : 'text-gray-500'}`}
-        strokeWidth={isActive ? 2.5 : 1.8}
-      />
+      <Icon className="w-5 h-5 -my-0.5 text-gray-400" />
       <span className={`text-[13px] font-medium leading-none transition-colors duration-200
                         ${isActive ? 'text-primary-600' : 'text-gray-600'}`}>
         {label}
@@ -356,10 +342,7 @@ function DesktopModuleButton({
                   transition-colors duration-200
                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-1`}
     >
-      <mod.Icon
-        className={`w-4 h-4 transition-colors duration-200 ${isActive || isOpen ? 'text-primary-600' : 'text-gray-500'}`}
-        strokeWidth={isActive || isOpen ? 2.5 : 1.8}
-      />
+      <mod.Icon className="w-5 h-5 -my-0.5 text-gray-400" />
       <span className={`text-[13px] font-medium leading-none transition-colors duration-200
                         ${isActive || isOpen ? 'text-primary-600' : 'text-gray-600'}`}>
         {mod.label}
@@ -561,7 +544,7 @@ export default memo(function BottomNav() {
             <OfflineNavItem
               href="/dashboard"
               label="Dashboard"
-              icon={LayoutDashboard}
+              icon={IconePainel}
               isActive={pathname === '/dashboard'}
             />
 
@@ -591,7 +574,7 @@ export default memo(function BottomNav() {
             <OfflineNavItem
               href="/lista-mercado"
               label="Lista Mercado"
-              icon={ShoppingBasket}
+              icon={IconeCesta}
               isActive={pathname ? pathname === '/lista-mercado' || pathname.startsWith('/lista-mercado/') : false}
             />
           </div>
@@ -601,7 +584,7 @@ export default memo(function BottomNav() {
             <MobileNavItem
               href="/dashboard"
               label="Dashboard"
-              icon={LayoutDashboard}
+              icon={IconePainel}
               isActive={pathname === '/dashboard'}
             />
 
@@ -646,7 +629,7 @@ export default memo(function BottomNav() {
 
             <MobileMenuButton
               label="Extras"
-              icon={MoreHorizontal}
+              icon={IconeMais}
               isActive={isExtrasActive || openMenu === 'extras'}
               ariaExpanded={openMenu === 'extras'}
               onClick={() => alternarMenu('extras')}
@@ -659,7 +642,7 @@ export default memo(function BottomNav() {
           <DesktopNavLink
             href="/dashboard"
             label="Dashboard"
-            icon={LayoutDashboard}
+            icon={IconePainel}
             isActive={pathname === '/dashboard'}
           />
 

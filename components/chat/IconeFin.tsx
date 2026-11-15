@@ -7,15 +7,10 @@ import { RoboAvatar } from './RoboAvatar'
 export type IconeCompativel = ComponentType<{ className?: string; strokeWidth?: number }>
 
 /**
- * O Fin como ícone. O tamanho é fixo por uso (o rosto precisa ser um pouco
- * maior que um ícone de traço para ser legível); da className recebida só a
- * cor é aproveitada — as classes de largura/altura do ícone são descartadas.
+ * O Fin como ícone, no mesmo molde dos ícones ilustrados da navegação
+ * (components/icones/IconesIlustrados.tsx): o tamanho vem das classes w-/h-
+ * da className, que sobrepõem o width/height do SVG.
  */
-export function criarIconeFin(tamanho: number): IconeCompativel {
-  function IconeFin({ className = '' }: { className?: string }) {
-    const semTamanho = className.split(/\s+/).filter(c => c && !/^(w|h)-/.test(c)).join(' ')
-    return <RoboAvatar tamanho={tamanho} className={`-my-1 ${semTamanho}`} />
-  }
-  IconeFin.displayName = `IconeFin${tamanho}`
-  return IconeFin
+export function IconeFin({ className = '' }: { className?: string; strokeWidth?: number }) {
+  return <RoboAvatar tamanho={24} className={className} />
 }

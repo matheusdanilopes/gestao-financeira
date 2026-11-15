@@ -6,11 +6,12 @@ import {
 } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Heart, ShoppingBasket, Mic, ChevronLeft,
+  ChevronLeft,
   Plus, Minus, Check, Loader2, Camera,
   Image as ImageIcon, Sparkles, PenLine, AlertCircle, RotateCcw,
 } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
+import { IconeCoracao, IconeCesta, IconeMicrofone } from '@/components/icones/IconesIlustrados'
 import { supabase } from '@/lib/supabaseClient'
 import { notificarWishlist } from '@/lib/notificacoes'
 import { compressImage, abortTimeout, callAnalyze } from '@/lib/imageUtils'
@@ -641,14 +642,14 @@ const OPCOES = [
     targetView: 'wishlist-method' as View | null,
     href:       null as string | null,
     label:      'Wishlist',
-    Icon:       Heart,
+    Icon:       IconeCoracao,
   },
   {
     id:         'mercado' as const,
     targetView: 'mercado' as View | null,
     href:       null as string | null,
     label:      'Lista de Mercado',
-    Icon:       ShoppingBasket,
+    Icon:       IconeCesta,
   },
   {
     id:         'voz' as const,
@@ -658,7 +659,7 @@ const OPCOES = [
     targetView: null as View | null,
     href:       '/chat?voz=1' as string | null,
     label:      'Perguntar por Voz',
-    Icon:       Mic,
+    Icon:       IconeMicrofone,
   },
 ]
 
@@ -806,7 +807,7 @@ export default function FabQuickLaunchSheet({
                                shadow-[0_10px_28px_-6px_rgba(30,64,175,0.55)] ring-1 ring-black/5 dark:ring-white/10
                                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
                   >
-                    <Icon className="w-6 h-6" strokeWidth={2} />
+                    <Icon className="w-8 h-8 text-gray-400" />
                     <span
                       className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-[110px]
                                  px-2.5 py-1 rounded-full bg-white/95 dark:bg-gray-800/95
