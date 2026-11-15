@@ -36,6 +36,16 @@ function valoresDerivados(m: MetricasComportamento, ops: Oportunidade[]): number
   anual(m.assinaturas.custoMensal)
   if (m.fixoVariavel) { anual(m.fixoVariavel.fixo.total); anual(m.fixoVariavel.variavel.total) }
   if (m.proximoMes) { v.push(m.proximoMes.folga, m.proximoMes.margemLivre, m.proximoMes.tetoSemanal) }
+  if (m.resumo.receitaRecorrenteMedia !== undefined) {
+    anual(m.resumo.receitaRecorrenteMedia)
+    v.push(m.resumo.receitaMedia - m.resumo.receitaRecorrenteMedia)
+  }
+  if (m.sinais) {
+    const r = m.sinais.cobrancasRecorrentes
+    for (const x of [...r.naoCadastradas, ...r.pausadasCobradas]) anual(x.valor)
+    for (const x of r.precoDiferente) v.push(x.valorCobrado - x.valorCadastrado)
+    anual(r.iofMensal)
+  }
   for (const o of ops) anual(o.economiaMensal)
   // A soma das dicas escolhidas entra depois (indexarComPlano).
   return v.filter(Number.isFinite)

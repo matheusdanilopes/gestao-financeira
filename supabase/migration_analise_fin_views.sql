@@ -236,8 +236,7 @@ LEFT JOIN LATERAL (
 -- até 3,5 dias) e cobrada na fatura do mês passado ou depois.
 --   situacao  cadastrada | preco_diferente | inativa_cobrada | nao_cadastrada
 --   tipo      iof (imposto de compra internacional) | cobranca
-DROP VIEW IF EXISTS public.vw_analise_recorrencias;
-CREATE VIEW public.vw_analise_recorrencias
+CREATE OR REPLACE VIEW public.vw_analise_recorrencias
 WITH (security_invoker = true) AS
 WITH compras AS (
   SELECT
@@ -301,7 +300,6 @@ SELECT
   g.lista_categorias,
   g.responsavel,
   g.cartao,
-  g.desvio_dia,
   a.id AS assinatura_id,
   a.nome AS assinatura_nome,
   a.valor AS assinatura_valor,
@@ -310,7 +308,8 @@ SELECT
     WHEN NOT public.analise_assinatura_ativa_em(a.id, g.ultima_data) THEN 'inativa_cobrada'
     WHEN abs(g.valor_ultimo - a.valor) > greatest(0.05, a.valor * 0.02) THEN 'preco_diferente'
     ELSE 'cadastrada'
-  END AS situacao
+  END AS situacao,
+  g.desvio_dia
 FROM grupos g
 LEFT JOIN LATERAL (
   SELECT a.id, a.nome, a.valor, a.ativa

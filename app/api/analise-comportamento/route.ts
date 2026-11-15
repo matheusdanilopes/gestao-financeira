@@ -6,7 +6,9 @@
  * da janela e usa bastante raciocínio do modelo, então não faz sentido gastar
  * cota a cada visita à página.
  *
- *   auth → dados (GatewayDados, leitura fresca) → métricas determinísticas
+ *   auth → dados (GatewayDados, leitura fresca) + views do banco
+ *        (vw_analise_*: recorrências, estornos, chaves das contas…)
+ *        → métricas determinísticas
  *        → analista (Gemini, JSON estruturado) → SSE
  *
  * Eventos:
@@ -23,6 +25,7 @@ import { agoraBrasil } from '@/lib/ai/tempo'
 import { descreverErro } from '@/lib/ai/agent/turno'
 import { responsavelDoEmail } from '@/lib/ai/agent/interlocutor'
 import { calcularMetricas } from '@/lib/comportamento/metricas'
+import { carregarFontesBanco } from '@/lib/comportamento/fontesBanco'
 import { analisarComportamento, AnaliseFormatoError } from '@/lib/comportamento/analista'
 import {
   ETAPAS_ANALISE,
@@ -88,12 +91,16 @@ export async function POST(req: NextRequest) {
         enviar('status', { texto: ETAPAS_ANALISE[0] })
         // Leitura fresca: a análise precisa refletir o que acabou de ser lançado.
         const gateway = new GatewayDados(supabase, user.id)
-        const { dados, certificado } = await gateway.iniciar(true)
+        // As views nunca derrubam a análise: o que falhar vira aviso.
+        const [{ dados, certificado }, fontes] = await Promise.all([
+          gateway.iniciar(true),
+          carregarFontesBanco(supabase),
+        ])
         const hoje = agoraBrasil()
 
         enviar('status', { texto: ETAPAS_ANALISE[1] })
         const primeiro = gateway.cobertura.primeiroNoBanco
-        const metricas = calcularMetricas(dados, parametros, hoje, primeiro)
+        const metricas = calcularMetricas(dados, parametros, hoje, primeiro, fontes)
         if (!certificado.certificado) {
           metricas.qualidade.avisos.push(`A auditoria dos dados encontrou inconsistências: ${certificado.resumo}`)
         }

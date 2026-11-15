@@ -32,6 +32,7 @@ import { ehDespesaReal, ehLinhaDeReceita, removerPrefixoCartao } from '@/lib/tip
 import { calcularEfetivoPorCartao, type PlanejamentoSaldoRow, type TransacaoSaldoRow } from '@/lib/faturaEfetiva'
 import { extrairParcela, type ParcelaInfo } from '@/lib/parcelaDescricao'
 import type { EnrichedData, Planejamento, Transacao } from '@/lib/ai/types'
+import type { FontesBanco } from './fontesBanco'
 import type {
   CategoriaComportamento,
   Comparativo,
@@ -48,6 +49,7 @@ import type {
   MesFoco,
   ParametrosAnalise,
   ProximoMes,
+  SinaisBanco,
 } from './tipos'
 import { JANELA_ULTIMO_MES, MESES_BASE_ULTIMO_MES, PESOS_SAUDE } from './tipos'
 
@@ -152,6 +154,42 @@ const ehReceita = (p: Planejamento) => ehLinhaDeReceita(p.item)
 const valorConta = (p: Planejamento) =>
   p.pago ? Number(p.valor_real ?? p.valor_previsto ?? 0) : Number(p.valor_previsto ?? 0)
 
+const PARCELA_NO_NOME = /(parcela\s*)?\d+\s*\/\s*\d+/gi
+
+/**
+ * Chave de uma conta do planejamento — a mesma em todos os meses. Espelha
+ * `analise_chave_conta` do banco (usada quando a view não está disponível):
+ * sem prefixo de cartão, sem a parcela ("Imposto de Renda 4/8") e sem um
+ * "Prestação"/"Parcela" no começo ("Prestação Giardini" = "Giardini").
+ */
+export function chaveContaLocal(item: string | null | undefined): string {
+  return removerPrefixoCartao(item)
+    .replace(PARCELA_NO_NOME, ' ')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/^(prestacao|parcela)\s+/, '')
+}
+
+/** Nome da conta para exibir: sem prefixo de cartão nem parcela. */
+const rotuloConta = (item: string | null | undefined) =>
+  removerPrefixoCartao(item).replace(PARCELA_NO_NOME, ' ').replace(/[\s–-]+$/, '').replace(/\s+/g, ' ').trim()
+
+/** Parcela da conta (das colunas ou do "N/M" no nome), ou null se não é parcelada. */
+function parcelaConta(p: Planejamento): { atual: number; total: number } | null {
+  const m = /(\d+)\s*\/\s*(\d+)/.exec(p.item ?? '')
+  const atual = Number(p.parcela_atual ?? m?.[1] ?? 0)
+  const total = Number(p.total_parcelas ?? m?.[2] ?? 0)
+  return total > 1 && atual > 0 ? { atual, total } : null
+}
+
+const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+const brl = (v: number) => BRL.format(r2(v)).replace(/\s/g, ' ')
+const NOMES_MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
+const nomeMes = (m: string) => `${NOMES_MES[Number(m.substring(5, 7)) - 1]}/${m.substring(2, 4)}`
+const ROTULO_CARTAO: Record<string, string> = { nubank: 'cartão principal', cartao1: 'cartão 1', cartao2: 'cartão 2' }
+
 const cacheParcela = new WeakMap<Transacao, ParcelaInfo | null>()
 function parcelaDe(t: Transacao): ParcelaInfo | null {
   if (!cacheParcela.has(t)) cacheParcela.set(t, extrairParcela(t.descricao, t.parcela_atual, t.total_parcelas))
@@ -170,10 +208,14 @@ export function calcularMetricas(
   parametros: Pick<ParametrosAnalise, 'janela' | 'escopo'>,
   hoje: Date,
   primeiroMesComDados: string | null,
+  /** Views do banco (fontesBanco.ts). Sem elas, o cálculo é o de antes. */
+  fontes: FontesBanco | null = null,
 ): MetricasComportamento {
   const { janela, escopo } = parametros
   const doEscopo = filtroEscopo(escopo)
   const avisos = [...(dados.avisos ?? [])]
+  const chaveConta = (p: Planejamento) =>
+    (p.id ? fontes?.planejamento.get(p.id)?.chave : undefined) || chaveContaLocal(p.item)
 
   // No modo "último mês", a série mensal traz o mês em foco e os 6 anteriores
   // (o "normal" de referência); o comportamento (quando, quanto, onde) é
@@ -206,7 +248,13 @@ export function calcularMetricas(
   const setTodos = new Set(todos)
 
   // ── Fontes filtradas pelo escopo e pela janela ──
-  const transacoesEscopo = dados.transacoes.filter(t => Number(t.valor) > 0 && doEscopo(t.responsavel))
+  // Compra devolvida por um estorno total, mas não marcada como ESTORNADO no
+  // app: continuava contando como gasto em categorias, lugares e hábitos.
+  const devolvidas = new Set((fontes?.estornos ?? [])
+    .filter(e => e.situacao === 'original_ativo' && e.originalId)
+    .map(e => e.originalId as string))
+  const transacoesEscopo = dados.transacoes.filter(t =>
+    Number(t.valor) > 0 && doEscopo(t.responsavel) && !(t.id && devolvidas.has(t.id)))
   const transacoes = transacoesEscopo.filter(t => setTodos.has((t.projeto_fatura ?? '').substring(0, 7)))
   const planejamento = dados.planejamento.filter(p =>
     setTodos.has((p.mes_referencia ?? '').substring(0, 7)) && doEscopo(p.responsavel))
@@ -223,10 +271,13 @@ export function calcularMetricas(
   // Receita marcada como recebida vale pelo recebido. Num mês fechado sem a
   // marcação vale a prevista, como no Dashboard: esquecer de marcar não pode
   // virar "mês sem receita". No mês em andamento, só o que já entrou.
+  // Num mês fechado com recebimento registrado mas sem a marcação, vale o
+  // que entrou de fato (o salário que veio menor que o previsto).
   const valorReceita = (p: Planejamento, fechado: boolean) => {
     if (p.pago) return Number(p.valor_real ?? p.valor_previsto ?? 0)
-    if (fechado) return Number(p.valor_previsto ?? 0)
-    return p.id ? recebimentosPorId.get(p.id)?.total ?? 0 : 0
+    const recebido = p.id ? recebimentosPorId.get(p.id)?.total ?? 0 : 0
+    if (fechado) return recebido > 0 ? recebido : Number(p.valor_previsto ?? 0)
+    return recebido
   }
 
   // Aportes e estornos não têm responsável: só fazem sentido na visão do casal.
@@ -307,6 +358,23 @@ export function calcularMetricas(
     mesMaisBarato: ordenadosPorGasto.length
       ? { mes: ordenadosPorGasto[ordenadosPorGasto.length - 1].mes, valor: ordenadosPorGasto[ordenadosPorGasto.length - 1].gastoTotal }
       : null,
+  }
+
+  // ── Receita recorrente × extraordinária (classificação do banco) ──
+  // Férias, 13º e cashback engordam a média e a "sobra" de meses isolados.
+  const recorrenteDe = (p: Planejamento) => (p.id ? fontes?.planejamento.get(p.id)?.receitaRecorrente : undefined)
+  if (temReceita && receitas.some(p => recorrenteDe(p) === false)) {
+    const extras = receitas
+      .filter(p => recorrenteDe(p) === false && setFechados.has(p.mes_referencia.substring(0, 7)))
+      .map(p => ({ mes: p.mes_referencia.substring(0, 7), item: removerPrefixoCartao(p.item).replace(/^\[RECEITA\]\s*/, '').trim(), valor: r2(valorReceita(p, true)) }))
+      .filter(e => e.valor > 0)
+      .sort((a, b) => a.mes.localeCompare(b.mes))
+    const totalExtras = soma(extras.map(e => e.valor))
+    const recorrenteTotal = receitaTotal - totalExtras
+    const gastoTotalFechados = soma(mesesFechados.map(m => m.gastoTotal))
+    resumo.receitaRecorrenteMedia = r2(recorrenteTotal / Math.max(1, mesesFechados.length))
+    resumo.receitasExtras = extras
+    resumo.taxaPoupancaSemExtras = recorrenteTotal > 0 ? r1(((recorrenteTotal - gastoTotalFechados) / recorrenteTotal) * 100) : null
   }
 
   // ── Quando gasta (compras novas, pela data da compra) ──
@@ -570,8 +638,8 @@ export function calcularMetricas(
   for (const p of pagas) {
     const previsto = Number(p.valor_previsto ?? 0)
     if (previsto <= 0) continue
-    const rotulo = removerPrefixoCartao(p.item)
-    const chave = rotulo.toLowerCase()
+    const rotulo = rotuloConta(p.item)
+    const chave = chaveConta(p)
     const atual = porItem.get(chave) ?? { rotulo, categoria: p.categoria || 'Sem categoria', avaliados: 0, estouros: [] }
     atual.avaliados += 1
     const real = Number(p.valor_real ?? previsto)
@@ -604,14 +672,14 @@ export function calcularMetricas(
   const mesesPorConta = new Map<string, Set<string>>()
   for (const p of contasFechadas) {
     if (valorConta(p) <= 0) continue
-    const chave = removerPrefixoCartao(p.item).toLowerCase()
+    const chave = chaveConta(p)
     const meses = mesesPorConta.get(chave) ?? new Set<string>()
     meses.add(p.mes_referencia.substring(0, 7))
     mesesPorConta.set(chave, meses)
   }
   const minimoRecorrente = Math.max(1, Math.ceil(fechados.length * 0.6))
   const ehRecorrente = (p: Planejamento) =>
-    (mesesPorConta.get(removerPrefixoCartao(p.item).toLowerCase())?.size ?? 0) >= minimoRecorrente
+    (mesesPorConta.get(chaveConta(p))?.size ?? 0) >= minimoRecorrente
   const contasFixas = soma(contasFechadas.filter(ehRecorrente).map(valorConta)) / nFechados
   const contasVariaveis = soma(contasFechadas.filter(p => !ehRecorrente(p)).map(valorConta)) / nFechados
   const transacoesFechadas = transacoes.filter(t => setFechados.has(t.projeto_fatura.substring(0, 7)))
@@ -651,9 +719,20 @@ export function calcularMetricas(
   const receitaProxima = receitaPlanejada > 0 ? receitaPlanejada : receitaMedia
   // Um mês planejado só em parte não pode esconder contas que sempre vêm:
   // as recorrentes ainda não lançadas entram pela média.
-  const chavesPlanejadas = new Set(contasPlanejadas.map(p => removerPrefixoCartao(p.item).toLowerCase()))
+  const chavesPlanejadas = new Set(contasPlanejadas.map(chaveConta))
+  // Conta parcelada cuja última parcela já passou ("Formatura 5/5") não volta.
+  const ultimaPorChave = new Map<string, Planejamento>()
+  for (const p of contas) {
+    const atual = ultimaPorChave.get(chaveConta(p))
+    if (!atual || p.mes_referencia > atual.mes_referencia) ultimaPorChave.set(chaveConta(p), p)
+  }
+  const encerrada = (p: Planejamento) => {
+    const ultima = ultimaPorChave.get(chaveConta(p))
+    const parcela = ultima ? parcelaConta(ultima) : null
+    return !!parcela && parcela.atual >= parcela.total && ultima!.mes_referencia.substring(0, 7) < mesProximo
+  }
   const recorrentesFaltando = soma(contasFechadas
-    .filter(p => ehRecorrente(p) && !chavesPlanejadas.has(removerPrefixoCartao(p.item).toLowerCase()))
+    .filter(p => ehRecorrente(p) && !encerrada(p) && !chavesPlanejadas.has(chaveConta(p)))
     .map(valorConta)) / nFechados
   const contasProximas = contasPlanejadas.length > 0
     ? soma(contasPlanejadas.map(p => Number(p.valor_previsto ?? 0))) + recorrentesFaltando
@@ -727,6 +806,17 @@ export function calcularMetricas(
     : []
   const desejos = dados.desejos ?? []
   const realizadosNoPeriodo = desejos.filter(d => d.realizado && d.realizado_em && setTodos.has(d.realizado_em.substring(0, 7)))
+
+  // ── Sinais do banco ──
+  const sinais = fontes ? calcularSinais(fontes, { doEscopo, visaoCasal, setTodos, setFechados, avisos }) : undefined
+  if (!visaoCasal) {
+    const conjunto = dados.transacoes.filter(t =>
+      Number(t.valor) > 0 && normalizarPessoa(t.responsavel) === 'conjunto' && setFechados.has((t.projeto_fatura ?? '').substring(0, 7)))
+    const total = soma(conjunto.map(t => Number(t.valor)))
+    if (total > 0) {
+      avisos.push(`As compras do Conjunto (${brl(total / Math.max(1, fechados.length))} por mês em média, ${conjunto.length} lançamentos no período) ficam fora desta visão individual.`)
+    }
+  }
 
   const metricas: MetricasComportamento = {
     geradoEm: new Date().toISOString(),
@@ -825,6 +915,7 @@ export function calcularMetricas(
       comprasAnalisadas: novas.length,
       avisos,
     },
+    ...(sinais ? { sinais } : {}),
   }
 
   if (comReceita.length === 0) {
@@ -836,6 +927,111 @@ export function calcularMetricas(
 
   metricas.saude = avaliarSaude(metricas, comDatas)
   return metricas
+}
+
+// ─── Sinais do banco ─────────────────────────────────────────────────────────
+
+/**
+ * Achados das views do banco, recortados pelo escopo da análise. Os de
+ * cobrança (recorrências, duplicadas) olham as últimas faturas, qualquer que
+ * seja a janela: são para agir agora. Os de qualidade seguem a janela.
+ */
+export function calcularSinais(
+  fontes: FontesBanco,
+  ctx: {
+    doEscopo: (resp: string | null | undefined) => boolean
+    visaoCasal: boolean
+    setTodos: Set<string>
+    setFechados: Set<string>
+    avisos: string[]
+  },
+): SinaisBanco {
+  const { doEscopo, visaoCasal, setTodos, setFechados, avisos } = ctx
+  const daPessoa = (resp: string | null) => visaoCasal || (resp !== null && doEscopo(resp))
+
+  if (fontes.falhas.length > 0) {
+    avisos.push('Parte das conferências feitas no banco (assinaturas, estornos, categorias) não pôde ser lida agora; a análise usa só os lançamentos.')
+  }
+
+  // Cobranças recorrentes. A mesma assinatura pode aparecer com dois
+  // descritores na fatura ("Netflix.Com" e "Netflix Entretenimento").
+  const recorrencias = fontes.recorrencias.filter(r => daPessoa(r.responsavel))
+  const cadastradas = new Set(recorrencias
+    .filter(r => r.assinaturaId && (r.situacao === 'cadastrada' || r.situacao === 'preco_diferente'))
+    .map(r => r.assinaturaId))
+  const porAssinatura = <T>(lista: typeof recorrencias, mapa: (r: (typeof recorrencias)[number]) => T): T[] => {
+    const vistos = new Set<string>()
+    return lista.filter(r => {
+      const chave = r.assinaturaId ?? r.descricao
+      if (vistos.has(chave)) return false
+      vistos.add(chave)
+      return true
+    }).map(mapa)
+  }
+  const cobrancas = recorrencias.filter(r => r.tipo === 'cobranca')
+  const cobrancasRecorrentes: SinaisBanco['cobrancasRecorrentes'] = {
+    cadastradasCobradas: cadastradas.size,
+    naoCadastradas: cobrancas
+      .filter(r => r.situacao === 'nao_cadastrada')
+      .sort((a, b) => b.valorUltimo - a.valorUltimo)
+      .slice(0, 6)
+      .map(r => ({ descricao: r.descricao.slice(0, 40), valor: r2(r.valorUltimo), faturas: r.faturas, categoria: r.categoria || 'Sem categoria', responsavel: r.responsavel })),
+    pausadasCobradas: porAssinatura(cobrancas.filter(r => r.situacao === 'inativa_cobrada'), r => ({
+      nome: r.assinaturaNome ?? r.descricao, valor: r2(r.valorUltimo), ultimaCobranca: r.ultimaData, categoria: r.categoria || 'Sem categoria',
+    })),
+    precoDiferente: porAssinatura(cobrancas.filter(r => r.situacao === 'preco_diferente'), r => ({
+      nome: r.assinaturaNome ?? r.descricao, valorCadastrado: r2(r.assinaturaValor ?? 0), valorCobrado: r2(r.valorUltimo),
+    })),
+    iofMensal: r2(soma(recorrencias.filter(r => r.tipo === 'iof').map(r => r.valorUltimo))),
+    categoriaInconsistente: cobrancas
+      .filter(r => r.categoriasUsadas > 1)
+      .slice(0, 5)
+      .map(r => ({ descricao: r.descricao.slice(0, 40), categorias: r.listaCategorias ?? '' })),
+  }
+
+  const cobrancasDuplicadas = fontes.duplicadas
+    .filter(d => daPessoa(d.responsavel) && d.valorAMais > 0)
+    .slice(0, 5)
+    .map(d => ({ descricao: d.descricao.slice(0, 40), valor: r2(d.valor), data: d.data, vezes: d.vezes, valorAMais: r2(d.valorAMais) }))
+
+  // Estornos não têm responsável: só na visão do casal.
+  const estornosJanela = visaoCasal ? fontes.estornos.filter(e => setTodos.has(e.projetoFatura)) : []
+  const estornos: SinaisBanco['estornos'] = {
+    pareados: estornosJanela.filter(e => e.situacao === 'pareado').length,
+    comprasDevolvidas: estornosJanela
+      .filter(e => e.situacao === 'original_ativo')
+      .map(e => ({ descricao: (e.originalDescricao ?? e.descricao).slice(0, 40), valor: r2(e.valor), data: e.data })),
+    semPar: estornosJanela.filter(e => e.situacao === 'sem_par').length,
+    duplicados: estornosJanela
+      .filter(e => e.situacao === 'duplicado')
+      .map(e => ({ descricao: e.descricao.slice(0, 40), valor: r2(e.valor), data: e.data })),
+  }
+
+  // Categorização: compras da janela com categoria a revisar ou vazia.
+  const cat = fontes.categorizacao.filter(c => setTodos.has(c.mes) && (visaoCasal || doEscopo(c.responsavel)))
+  const valorTotal = soma(cat.map(c => c.valor))
+  const valorDuvidoso = soma(cat.map(c => c.revisaoPendenteValor + c.semCategoriaValor))
+  const categorizacao = {
+    comprasDuvidosas: soma(cat.map(c => c.revisaoPendente + c.semCategoria)),
+    valorDuvidoso: r2(valorDuvidoso),
+    pctDoValor: pct(valorDuvidoso, valorTotal),
+  }
+  if (categorizacao.pctDoValor >= 3) {
+    avisos.push(`${categorizacao.comprasDuvidosas} compras (${brl(valorDuvidoso)}, ${categorizacao.pctDoValor}% do valor do período) estão com categoria a revisar ou sem categoria: os números por categoria podem mudar depois da revisão.`)
+  }
+
+  // Fatura paga sem as compras importadas: o gasto entra, o detalhe não.
+  const faturasSemDetalhe = visaoCasal
+    ? fontes.cobertura
+        .filter(c => setFechados.has(c.mes) && c.paga && (c.pctSemDetalhe ?? 0) >= 50)
+        .map(c => ({ mes: c.mes, cartao: ROTULO_CARTAO[c.cartao] ?? c.cartao, valorSemDetalhe: r2(c.valorPago - c.valorImportado) }))
+    : []
+  if (faturasSemDetalhe.length > 0) {
+    const lista = faturasSemDetalhe.map(f => `${f.cartao} em ${nomeMes(f.mes)}`).join(', ')
+    avisos.push(`Faturas pagas sem compras importadas (${lista}): ${brl(soma(faturasSemDetalhe.map(f => f.valorSemDetalhe)))} entram no gasto, mas não em categorias, lugares nem horários.`)
+  }
+
+  return { cobrancasRecorrentes, cobrancasDuplicadas, estornos, categorizacao, faturasSemDetalhe }
 }
 
 // ─── Último mês fechado vs. o normal ─────────────────────────────────────────

@@ -335,6 +335,16 @@ export interface MetricasComportamento {
     oscilacaoGastoPct: number
     mesMaisCaro: { mes: string; valor: number } | null
     mesMaisBarato: { mes: string; valor: number } | null
+    /**
+     * Receita sem as entradas extraordinárias (férias, 13º, cashback…), média
+     * dos meses fechados. Vem do banco (vw_analise_planejamento); ausente em
+     * análises antigas ou sem a view.
+     */
+    receitaRecorrenteMedia?: number
+    /** Soma das receitas extraordinárias dos meses fechados, com o que entrou. */
+    receitasExtras?: Array<{ mes: string; item: string; valor: number }>
+    /** Quanto sobra da renda recorrente: (receita recorrente − gasto) / receita recorrente. */
+    taxaPoupancaSemExtras?: number | null
   }
   saude: { nota: number; indicadores: IndicadorSaude[] }
   quando: {
@@ -408,6 +418,49 @@ export interface MetricasComportamento {
   estornos: { quantidade: number; total: number }
   desejos: { pendentes: number; valorPendente: number; realizadosNoPeriodo: number; valorRealizado: number }
   qualidade: { comprasSemCategoriaPct: number; comprasAnalisadas: number; avisos: string[] }
+  /** Achados conferidos direto no banco (views vw_analise_*). Ausente em análises antigas. */
+  sinais?: SinaisBanco
+}
+
+/**
+ * O que o banco mostra e as médias escondem: cobranças que se repetem sem
+ * cadastro, assinatura pausada ainda cobrada, cobrança lançada em dobro,
+ * estorno cuja compra ainda conta como gasto e dados que pedem revisão.
+ */
+export interface SinaisBanco {
+  cobrancasRecorrentes: {
+    /** Assinaturas cadastradas que o banco viu cobradas nas últimas faturas. */
+    cadastradasCobradas: number
+    /** Cobram todo mês no cartão e não estão nas assinaturas do app. */
+    naoCadastradas: Array<{ descricao: string; valor: number; faturas: number; categoria: string; responsavel: string | null }>
+    /** Assinatura pausada/inativa no app, mas cobrada mesmo assim. */
+    pausadasCobradas: Array<{ nome: string; valor: number; ultimaCobranca: string; categoria: string }>
+    /** Cobrada com valor diferente do cadastrado. */
+    precoDiferente: Array<{ nome: string; valorCadastrado: number; valorCobrado: number }>
+    /** IOF de compras internacionais recorrentes, por mês. */
+    iofMensal: number
+    /** Mesma cobrança lançada em categorias diferentes de uma fatura para outra. */
+    categoriaInconsistente: Array<{ descricao: string; categorias: string }>
+  }
+  /** Mesma compra (descrição, valor, data) lançada mais de uma vez, sem assinatura que explique. */
+  cobrancasDuplicadas: Array<{ descricao: string; valor: number; data: string; vezes: number; valorAMais: number }>
+  estornos: {
+    pareados: number
+    /** Estornos totais cuja compra continuava contando como gasto — tirada das métricas de comportamento. */
+    comprasDevolvidas: Array<{ descricao: string; valor: number; data: string }>
+    /** Parciais ou sem a compra no app. */
+    semPar: number
+    /** O mesmo estorno lançado de novo. */
+    duplicados: Array<{ descricao: string; valor: number; data: string }>
+  }
+  categorizacao: {
+    /** Compras do período aguardando revisão ou sem categoria. */
+    comprasDuvidosas: number
+    valorDuvidoso: number
+    pctDoValor: number
+  }
+  /** Faturas pagas (meses fechados) sem compras importadas: entram no gasto, não nas categorias. */
+  faturasSemDetalhe: Array<{ mes: string; cartao: string; valorSemDetalhe: number }>
 }
 
 // ─── Leitura do analista (IA) ────────────────────────────────────────────────
