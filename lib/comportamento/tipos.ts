@@ -46,8 +46,8 @@ const diaMes = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
 
 /**
  * Como chamar o mês em foco sem enganar: "Fatura de out/2026 · compras de
- * 25/08 a 24/09". As compras do cartão contam pela fatura em que caíram, não
- * pela data da compra.
+ * 25/09 a 24/10". É a fatura paga com o dinheiro de outubro (a que vence em
+ * novembro), como no Dashboard; as compras contam por ela, não pela data.
  */
 export function rotuloFaturaFoco(f: Pick<MesFoco, 'mes' | 'periodoCompras'>): { titulo: string; compras: string } {
   return {
@@ -90,9 +90,15 @@ export interface MesComportamento {
   mes: string
   /** true para o mês corrente, ainda em andamento (fora das médias). */
   parcial: boolean
-  /** Recebida quando marcada; num mês fechado sem a marcação, a prevista (como no app). */
+  /** Receita prevista no planejamento — a mesma do Dashboard. */
   receita: number
-  /** Fatura efetiva, como no Dashboard: valor pago na linha do cartão; sem pagamento marcado, a soma das compras. */
+  /** O que entrou de fato: o valor real das receitas marcadas como recebidas + recebimentos registrados das demais. */
+  receitaRecebida?: number
+  /**
+   * Fatura efetiva, como no Dashboard: a linha do cartão no mês M paga a fatura
+   * que vence em M+1 — o valor pago; sem pagamento marcado, a soma das compras
+   * dessa fatura (estorno sem par abate); sem compras, o previsto.
+   */
   gastoCartao: number
   contas: number
   gastoTotal: number
@@ -239,7 +245,7 @@ export interface MesFoco {
   novidades: string[]
   /**
    * Primeira e última data das compras da fatura ('YYYY-MM-DD'). A fatura
-   * paga em outubro tem compras de agosto/setembro. Opcional: análises
+   * paga em outubro (vence em novembro) tem compras de setembro/outubro. Opcional: análises
    * salvas antes deste campo não o têm.
    */
   periodoCompras?: { inicio: string; fim: string } | null

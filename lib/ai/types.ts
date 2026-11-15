@@ -45,6 +45,9 @@ export interface Estorno {
   cartao?: string
   projeto_fatura: string
   status: string
+  responsavel?: string | null
+  /** Id da compra que o estorno devolve; sem ele, o estorno abate a fatura (como no Dashboard). */
+  conciliacao_ref?: string | null
 }
 
 export interface Assinatura {
