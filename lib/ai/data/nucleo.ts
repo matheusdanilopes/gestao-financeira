@@ -34,7 +34,7 @@ export class DadosIndisponiveisError extends Error {
 const STATUS_ESTORNO = new Set(['ESTORNO', 'ESTORNADO'])
 
 const COLUNAS_COMPRA = ['id', 'descricao', 'valor', 'responsavel', 'categoria', 'projeto_fatura', 'data', 'cartao', 'parcela_atual', 'total_parcelas', 'status', 'created_at']
-const OPCIONAIS_COMPRA = ['descricao_personalizada']
+const OPCIONAIS_COMPRA = ['descricao_personalizada', 'conciliacao_ref']
 const COLUNAS_PLANEJAMENTO = ['id', 'item', 'responsavel', 'valor_previsto', 'categoria', 'mes_referencia', 'parcela_atual', 'total_parcelas', 'data_vencimento', 'data_pagamento', 'valor_real', 'pago', 'created_at']
 
 /** Recorte de compras + planejamento (+ estornos, que moram na mesma tabela das compras). */
@@ -59,7 +59,7 @@ export async function carregarHistorico(
   ]
 
   const [compras, planejamento] = await Promise.all([
-    obrigatoria('as compras de cartão', () => lerTabela<Transacao & { status?: string | null }>(supabase, {
+    obrigatoria('as compras de cartão', () => lerTabela<Transacao & { status?: string | null; conciliacao_ref?: string | null }>(supabase, {
       tabela: 'transacoes_nubank',
       colunas: COLUNAS_COMPRA,
       opcionais: OPCIONAIS_COMPRA,
@@ -89,6 +89,8 @@ export async function carregarHistorico(
         cartao: t.cartao,
         projeto_fatura: t.projeto_fatura,
         status: t.status,
+        responsavel: t.responsavel,
+        conciliacao_ref: t.conciliacao_ref ?? null,
       })
     } else {
       transacoes.push(t)

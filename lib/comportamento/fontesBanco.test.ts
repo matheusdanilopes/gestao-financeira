@@ -56,14 +56,32 @@ test('conta parcelada no nome é fixa (antes contava como gasto fora da rotina)'
   assert.equal(m.fixoVariavel?.variavel.contas, 0)
 })
 
-test('mês fechado com recebimento registrado e sem marcação vale o recebido', () => {
+test('receita é a prevista (como no Dashboard); o que entrou vai em receitaRecebida', () => {
   const d = dados()
   const out = d.planejamento.find(p => p.id === 'sal-2026-10')!
   out.pago = false
   out.valor_real = null
   d.recebimentos = [{ planejamento_id: 'sal-2026-10', valor: 9500, data_recebimento: '2026-10-05', observacao: null }]
   const m = calcularMetricas(d, { janela: 6, escopo: 'casal' }, HOJE, '2026-05-01')
-  assert.equal(m.mensal.find(x => x.mes === '2026-10')?.receita, 9500)
+  const out26 = m.mensal.find(x => x.mes === '2026-10')!
+  assert.equal(out26.receita, 10000)
+  assert.equal(out26.receitaRecebida, 9500)
+})
+
+test('mês M paga a fatura que vence em M+1 (regra do Dashboard)', () => {
+  const d = dados()
+  // Fatura que vence em novembro: pertence a outubro.
+  d.transacoes.push(compra('nov', '2026-11', 'Loja Nova', 700, { categoria: 'Vestuário', data: '2026-10-10' }))
+  d.planejamento.push(conta('fat-out', '2026-10', '[PRINCIPAL] Matheus', 700, { pago: false, valor_real: null, categoria: 'Cartão' }))
+  // Estorno sem par na mesma fatura: abate o total enquanto ela não foi paga.
+  d.estornos.push({ descricao: 'Estorno de compra (Loja Nova)', valor: 100, data: '2026-10-12', cartao: 'nubank', projeto_fatura: '2026-11-01', status: 'ESTORNO', responsavel: 'Matheus', conciliacao_ref: null })
+  const m = calcularMetricas(d, { janela: 6, escopo: 'casal' }, HOJE, '2026-05-01')
+  const out = m.mensal.find(x => x.mes === '2026-10')!
+  // Compras da fatura que vence em novembro (700) − estorno sem par (100).
+  assert.equal(out.gastoCartao, 600)
+  assert.ok(m.categorias.some(c => c.categoria === 'Vestuário'))
+  // Maio paga a fatura que vence em junho (a padaria de 300).
+  assert.equal(m.mensal.find(x => x.mes === '2026-05')!.gastoCartao, 300)
 })
 
 test('receita extraordinária fica separada da recorrente', () => {

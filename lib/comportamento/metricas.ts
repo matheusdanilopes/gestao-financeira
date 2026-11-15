@@ -8,13 +8,14 @@
  *  - o pacote fica pequeno o bastante para caber, junto com o raciocínio,
  *    no orçamento de tempo de uma requisição.
  *
- * Convenções (as mesmas dos relatórios):
- *  - compras do cartão contam no mês da fatura (projeto_fatura);
- *  - saldo do mês = a mesma conta do Dashboard e de Finanças: fatura efetiva
- *    (o valor pago na linha do cartão; sem pagamento marcado, a soma das
- *    compras) + contas reais do planejamento (sem as linhas de fatura, que
- *    duplicariam as compras). Receita = a recebida quando marcada; num mês
- *    fechado sem recebimento marcado, a prevista — como no app;
+ * Convenções — o Dashboard é a regra (lib/faturaEfetiva.ts):
+ *  - o mês M do planejamento paga a fatura que vence em M+1: as compras com
+ *    projeto_fatura = M+1 pertencem ao mês M (hábitos, categorias, lugares e
+ *    a "fatura paga em M" do modo último mês);
+ *  - saldo do mês = receita prevista − contas (pagas pelo real, abertas pelo
+ *    previsto) − faturas (o pago na linha do cartão; sem pagamento, as compras
+ *    da fatura M+1 com estorno sem par abatendo; sem compras, o previsto).
+ *    receitaRecebida traz, à parte, o que entrou de fato;
  *  - as médias usam todos os meses fechados (receita, gasto e saldo sobre a
  *    mesma base);
  *  - "compra nova" = compra à vista ou 1ª parcela. É ela que mostra o momento
@@ -150,6 +151,14 @@ function chaveEstabelecimento(t: Transacao): { chave: string; rotulo: string } {
 
 const ehReceita = (p: Planejamento) => ehLinhaDeReceita(p.item)
 
+/**
+ * Mês do planejamento em que a compra pesa: o mês M paga a fatura que vence
+ * em M+1 (projeto_fatura), como no Dashboard.
+ */
+export const mesDoOrcamento = (projetoFatura: string | null | undefined) =>
+  somarMes((projetoFatura ?? '').substring(0, 7), -1)
+const mesDe = (t: { projeto_fatura?: string | null }) => mesDoOrcamento(t.projeto_fatura)
+
 /** Valor da conta no mês: o pago quando pago; o previsto enquanto em aberto. */
 const valorConta = (p: Planejamento) =>
   p.pago ? Number(p.valor_real ?? p.valor_previsto ?? 0) : Number(p.valor_previsto ?? 0)
@@ -253,9 +262,11 @@ export function calcularMetricas(
   const devolvidas = new Set((fontes?.estornos ?? [])
     .filter(e => e.situacao === 'original_ativo' && e.originalId)
     .map(e => e.originalId as string))
-  const transacoesEscopo = dados.transacoes.filter(t =>
-    Number(t.valor) > 0 && doEscopo(t.responsavel) && !(t.id && devolvidas.has(t.id)))
-  const transacoes = transacoesEscopo.filter(t => setTodos.has((t.projeto_fatura ?? '').substring(0, 7)))
+  // Para o total da fatura vale a conta do Dashboard (a compra devolvida conta
+  // e o estorno sem par abate); para o comportamento, ela sai.
+  const transacoesDoEscopo = dados.transacoes.filter(t => Number(t.valor) > 0 && doEscopo(t.responsavel))
+  const transacoesEscopo = transacoesDoEscopo.filter(t => !(t.id && devolvidas.has(t.id)))
+  const transacoes = transacoesEscopo.filter(t => setTodos.has(mesDe(t)))
   const planejamento = dados.planejamento.filter(p =>
     setTodos.has((p.mes_referencia ?? '').substring(0, 7)) && doEscopo(p.responsavel))
   const contas = planejamento.filter(p => ehDespesaReal(p.item))
@@ -268,17 +279,12 @@ export function calcularMetricas(
     if (r.data_recebimento) atual.datas.push(r.data_recebimento)
     recebimentosPorId.set(r.planejamento_id, atual)
   }
-  // Receita marcada como recebida vale pelo recebido. Num mês fechado sem a
-  // marcação vale a prevista, como no Dashboard: esquecer de marcar não pode
-  // virar "mês sem receita". No mês em andamento, só o que já entrou.
-  // Num mês fechado com recebimento registrado mas sem a marcação, vale o
-  // que entrou de fato (o salário que veio menor que o previsto).
-  const valorReceita = (p: Planejamento, fechado: boolean) => {
-    if (p.pago) return Number(p.valor_real ?? p.valor_previsto ?? 0)
-    const recebido = p.id ? recebimentosPorId.get(p.id)?.total ?? 0 : 0
-    if (fechado) return recebido > 0 ? recebido : Number(p.valor_previsto ?? 0)
-    return recebido
-  }
+  // Receita = a prevista, como no Dashboard (calcularReceitaTotal). O que
+  // entrou de fato vai à parte: o real da receita marcada como recebida, ou
+  // os recebimentos registrados das demais.
+  const valorReceita = (p: Planejamento) => Number(p.valor_previsto ?? 0)
+  const recebidoDe = (p: Planejamento) =>
+    p.pago ? Number(p.valor_real ?? p.valor_previsto ?? 0) : (p.id ? recebimentosPorId.get(p.id)?.total ?? 0 : 0)
 
   // Aportes e estornos não têm responsável: só fazem sentido na visão do casal.
   const visaoCasal = escopo === 'casal'
@@ -291,26 +297,35 @@ export function calcularMetricas(
 
   // ── Série mensal ──
   const mensal: MesComportamento[] = todos.map(mes => {
-    const doMes = transacoes.filter(t => t.projeto_fatura.startsWith(mes))
+    const doMes = transacoes.filter(t => mesDe(t) === mes)
     const planMes = planejamento.filter(p => p.mes_referencia.startsWith(mes))
-    // Fatura efetiva, pela mesma função do Dashboard: valor pago na linha do
-    // cartão → compras importadas → previsto.
+    // Fatura efetiva, pela mesma função e com as mesmas linhas do Dashboard:
+    // valor pago na linha do cartão → compras da fatura M+1 (estorno sem par
+    // abate) → previsto.
+    const linhasFatura: TransacaoSaldoRow[] = [
+      ...transacoesDoEscopo.filter(t => mesDe(t) === mes),
+      ...(dados.estornos ?? [])
+        .filter(e => e.status === 'ESTORNO' && mesDe(e) === mes && doEscopo(e.responsavel))
+        .map(e => ({ valor: Number(e.valor), status: e.status, conciliacao_ref: e.conciliacao_ref ?? null, responsavel: e.responsavel ?? null, cartao: e.cartao })),
+    ] as TransacaoSaldoRow[]
     const porCartao = calcularEfetivoPorCartao(
       planMes.map((p): PlanejamentoSaldoRow => ({
         item: p.item, responsavel: p.responsavel, valor_previsto: p.valor_previsto,
         valor_real: p.valor_real ?? null, pago: !!p.pago,
       })),
-      doMes as TransacaoSaldoRow[],
+      linhasFatura,
     )
     const gastoCartao = soma(Object.values(porCartao).map(c => c.efetivo))
     const contasMes = soma(contas.filter(p => p.mes_referencia.startsWith(mes)).map(valorConta))
-    const receita = soma(receitas.filter(p => p.mes_referencia.startsWith(mes)).map(p => valorReceita(p, mes !== mesParcial)))
+    const receitasMes = receitas.filter(p => p.mes_referencia.startsWith(mes))
+    const receita = soma(receitasMes.map(valorReceita))
     const gastoTotal = gastoCartao + contasMes
     const novas = doMes.filter(ehCompraNova)
     return {
       mes,
       parcial: mes === mesParcial,
       receita: r2(receita),
+      receitaRecebida: r2(soma(receitasMes.map(recebidoDe))),
       gastoCartao: r2(gastoCartao),
       contas: r2(contasMes),
       gastoTotal: r2(gastoTotal),
@@ -366,7 +381,7 @@ export function calcularMetricas(
   if (temReceita && receitas.some(p => recorrenteDe(p) === false)) {
     const extras = receitas
       .filter(p => recorrenteDe(p) === false && setFechados.has(p.mes_referencia.substring(0, 7)))
-      .map(p => ({ mes: p.mes_referencia.substring(0, 7), item: removerPrefixoCartao(p.item).replace(/^\[RECEITA\]\s*/, '').trim(), valor: r2(valorReceita(p, true)) }))
+      .map(p => ({ mes: p.mes_referencia.substring(0, 7), item: removerPrefixoCartao(p.item).replace(/^\[RECEITA\]\s*/, '').trim(), valor: r2(valorReceita(p)) }))
       .filter(e => e.valor > 0)
       .sort((a, b) => a.mes.localeCompare(b.mes))
     const totalExtras = soma(extras.map(e => e.valor))
@@ -380,7 +395,7 @@ export function calcularMetricas(
   // ── Quando gasta (compras novas, pela data da compra) ──
   const novasBase = transacoes.filter(ehCompraNova)
   const mesFoco = fechados[fechados.length - 1]
-  const novas = modoMes ? novasBase.filter(t => t.projeto_fatura.startsWith(mesFoco)) : novasBase
+  const novas = modoMes ? novasBase.filter(t => mesDe(t) === mesFoco) : novasBase
   const novasComData = novas
     .map(t => ({ t, d: lerData(t.data), valor: valorDaCompra(t) }))
     .filter((x): x is { t: Transacao; d: Date; valor: number } => x.d !== null)
@@ -497,7 +512,7 @@ export function calcularMetricas(
     }
   })
   const micro = valoresNovas.filter(v => v <= LIMITE_MICROGASTO)
-  const mesesComCompra = modoMes ? 1 : Math.max(1, new Set(novas.map(t => t.projeto_fatura.substring(0, 7))).size)
+  const mesesComCompra = modoMes ? 1 : Math.max(1, new Set(novas.map(mesDe)).size)
 
   // ── Onde gasta: frequência por estabelecimento ──
   const estabMap = new Map<string, { rotulos: Map<string, number>; categoria: Map<string, number>; quantidade: number; total: number; meses: Set<string> }>()
@@ -509,7 +524,7 @@ export function calcularMetricas(
     atual.categoria.set(cat, (atual.categoria.get(cat) ?? 0) + 1)
     atual.quantidade += 1
     atual.total += valorDaCompra(t)
-    atual.meses.add(t.projeto_fatura.substring(0, 7))
+    atual.meses.add(mesDe(t))
     estabMap.set(chave, atual)
   }
   const maisFrequente = (m: Map<string, number>) => [...m.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? ''
@@ -535,7 +550,7 @@ export function calcularMetricas(
     m.set(mes, (m.get(mes) ?? 0) + valor)
     catMes.set(c, m)
   }
-  for (const t of transacoes) somarCat(t.categoria, t.projeto_fatura.substring(0, 7), t.valor)
+  for (const t of transacoes) somarCat(t.categoria, mesDe(t), t.valor)
   for (const p of contas) somarCat(p.categoria, p.mes_referencia.substring(0, 7), valorConta(p))
   const totalCategorias = soma([...catMes.values()].flatMap(m => [...m.values()]))
   const recentesMeses = fechados.slice(-3)
@@ -564,7 +579,7 @@ export function calcularMetricas(
 
   // ── Quem gasta (cartão) ──
   const respMap = new Map<string, { total: number; quantidade: number; valorNovas: number }>()
-  for (const t of transacoes.filter(t => setFechados.has(t.projeto_fatura.substring(0, 7)))) {
+  for (const t of transacoes.filter(t => setFechados.has(mesDe(t)))) {
     const nome = t.responsavel || 'Sem responsável'
     const atual = respMap.get(nome) ?? { total: 0, quantidade: 0, valorNovas: 0 }
     atual.total += t.valor
@@ -589,8 +604,10 @@ export function calcularMetricas(
   const parceladas = novas.filter(ehParcelada)
   const ultimaFaturaPorCartao = new Map<string, string>()
   const tetoFatura = somarMes(mesParcial, 1)
+  // Em meses do planejamento: a fatura aberta é a do mês corrente; a do mês
+  // seguinte só existe se já começou a receber compras.
   for (const t of transacoesEscopo) {
-    const mes = (t.projeto_fatura ?? '').substring(0, 7)
+    const mes = mesDe(t)
     const cartao = t.cartao ?? 'nubank'
     if (mes > tetoFatura) continue
     if (mes > (ultimaFaturaPorCartao.get(cartao) ?? '')) ultimaFaturaPorCartao.set(cartao, mes)
@@ -599,7 +616,7 @@ export function calcularMetricas(
   for (const t of transacoesEscopo) {
     const cartao = t.cartao ?? 'nubank'
     const base = ultimaFaturaPorCartao.get(cartao)
-    if (!base || !t.projeto_fatura.startsWith(base) || !ehParcelada(t)) continue
+    if (!base || mesDe(t) !== base || !ehParcelada(t)) continue
     const parcela = parcelaDe(t)
     const restantes = (parcela?.total ?? 1) - (parcela?.atual ?? 1)
     // Fatura de um mês à frente já importada (a fatura aberta): as parcelas
@@ -682,7 +699,7 @@ export function calcularMetricas(
     (mesesPorConta.get(chaveConta(p))?.size ?? 0) >= minimoRecorrente
   const contasFixas = soma(contasFechadas.filter(ehRecorrente).map(valorConta)) / nFechados
   const contasVariaveis = soma(contasFechadas.filter(p => !ehRecorrente(p)).map(valorConta)) / nFechados
-  const transacoesFechadas = transacoes.filter(t => setFechados.has(t.projeto_fatura.substring(0, 7)))
+  const transacoesFechadas = transacoes.filter(t => setFechados.has(mesDe(t)))
   const parcelasAntigas = soma(transacoesFechadas.filter(t => !ehCompraNova(t)).map(t => t.valor)) / nFechados
   const comprasDoMes = soma(transacoesFechadas.filter(ehCompraNova).map(t => t.valor)) / nFechados
   const assinaturasNoCartao = Math.min(custoAssinaturas, comprasDoMes)
@@ -802,7 +819,7 @@ export function calcularMetricas(
 
   // ── Estornos e desejos ──
   const estornos = visaoCasal
-    ? (dados.estornos ?? []).filter(e => setTodos.has((e.projeto_fatura ?? '').substring(0, 7)))
+    ? (dados.estornos ?? []).filter(e => setTodos.has(mesDe(e)))
     : []
   const desejos = dados.desejos ?? []
   const realizadosNoPeriodo = desejos.filter(d => d.realizado && d.realizado_em && setTodos.has(d.realizado_em.substring(0, 7)))
@@ -811,7 +828,7 @@ export function calcularMetricas(
   const sinais = fontes ? calcularSinais(fontes, { doEscopo, visaoCasal, setTodos, setFechados, avisos }) : undefined
   if (!visaoCasal) {
     const conjunto = dados.transacoes.filter(t =>
-      Number(t.valor) > 0 && normalizarPessoa(t.responsavel) === 'conjunto' && setFechados.has((t.projeto_fatura ?? '').substring(0, 7)))
+      Number(t.valor) > 0 && normalizarPessoa(t.responsavel) === 'conjunto' && setFechados.has(mesDe(t)))
     const total = soma(conjunto.map(t => Number(t.valor)))
     if (total > 0) {
       avisos.push(`As compras do Conjunto (${brl(total / Math.max(1, fechados.length))} por mês em média, ${conjunto.length} lançamentos no período) ficam fora desta visão individual.`)
@@ -995,7 +1012,7 @@ export function calcularSinais(
     .map(d => ({ descricao: d.descricao.slice(0, 40), valor: r2(d.valor), data: d.data, vezes: d.vezes, valorAMais: r2(d.valorAMais) }))
 
   // Estornos não têm responsável: só na visão do casal.
-  const estornosJanela = visaoCasal ? fontes.estornos.filter(e => setTodos.has(e.projetoFatura)) : []
+  const estornosJanela = visaoCasal ? fontes.estornos.filter(e => setTodos.has(mesDoOrcamento(e.projetoFatura))) : []
   const estornos: SinaisBanco['estornos'] = {
     pareados: estornosJanela.filter(e => e.situacao === 'pareado').length,
     comprasDevolvidas: estornosJanela
@@ -1008,7 +1025,7 @@ export function calcularSinais(
   }
 
   // Categorização: compras da janela com categoria a revisar ou vazia.
-  const cat = fontes.categorizacao.filter(c => setTodos.has(c.mes) && (visaoCasal || doEscopo(c.responsavel)))
+  const cat = fontes.categorizacao.filter(c => setTodos.has(mesDoOrcamento(c.mes)) && (visaoCasal || doEscopo(c.responsavel)))
   const valorTotal = soma(cat.map(c => c.valor))
   const valorDuvidoso = soma(cat.map(c => c.revisaoPendenteValor + c.semCategoriaValor))
   const categorizacao = {
@@ -1069,11 +1086,11 @@ function calcularMesFoco(
   const lancamentos: LancamentoFatura[] = []
 
   for (const t of transacoes) {
-    const a = agregados.get(t.projeto_fatura.substring(0, 7))
+    const a = agregados.get(mesDe(t))
     if (!a) continue
     const parcela = parcelaDe(t)
     const nova = ehCompraNova(t)
-    if (t.projeto_fatura.startsWith(mes)) {
+    if (mesDe(t) === mes) {
       lancamentos.push({
         data: (t.data ?? '').substring(0, 10),
         descricao: (t.descricao_personalizada || t.descricao || '').slice(0, 60),
@@ -1176,9 +1193,9 @@ function calcularMesFoco(
 }
 
 /**
- * De quando a quando são as compras da fatura. A fatura paga em outubro tem
- * compras de fim de agosto a fim de setembro: sem dizer isso, "outubro"
- * engana quem lê.
+ * De quando a quando são as compras da fatura. A fatura paga em outubro (a
+ * que vence em novembro) tem compras de fim de setembro a fim de outubro: sem
+ * dizer isso, "outubro" engana quem lê.
  */
 function periodoDasCompras(lancamentos: LancamentoFatura[]): { inicio: string; fim: string } | null {
   const novas = lancamentos.filter(l => l.tipo === 'compra_nova' && /^\d{4}-\d{2}-\d{2}$/.test(l.data))
