@@ -26,7 +26,8 @@ const GROQ_AUDIO_URL = 'https://api.groq.com/openai/v1/audio/transcriptions'
 // inteira. Os candidatos são tentados em ordem até um existir; o primeiro que
 // responde fica guardado para as próximas chamadas.
 const MODELOS_VISAO = ['qwen/qwen3.8-27b', 'meta-llama/llama-4-maverick-17b-128e-instruct', 'meta-llama/llama-4-scout-17b-16e-instruct']
-const MODELOS_TEXTO = ['qwen/qwen3.8-27b', 'llama-3.3-70b-versatile', 'openai/gpt-oss-120b']
+// O último tem limite de tokens por minuto maior: é o que sobra para pedidos grandes (Análise do Fin).
+const MODELOS_TEXTO = ['qwen/qwen3.8-27b', 'llama-3.3-70b-versatile', 'openai/gpt-oss-120b', 'meta-llama/llama-4-scout-17b-16e-instruct']
 const MODELOS_AUDIO = ['whisper-large-v3-turbo', 'whisper-large-v3']
 let modeloVisaoOk: string | null = null
 let modeloTextoOk: string | null = null

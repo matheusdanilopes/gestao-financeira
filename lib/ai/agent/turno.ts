@@ -150,7 +150,32 @@ export interface ErroDescrito {
   segundos?: number | null
 }
 
+/** Por que a reserva (Groq) não salvou a resposta, em uma frase para a tela. */
+export function motivoReserva(err: GeminiError): string {
+  const r = err.reserva
+  if (!r) return ''
+  if (r.estado === 'nao_configurada') return ' A IA reserva (Groq) não está ligada: falta a GROQ_API_KEY na Vercel.'
+  const m = r.motivo ?? ''
+  const porque =
+    /\b413\b|request too large|reduce your message size|tokens per minute|TPM/i.test(m) ? 'o pedido passou do limite de tamanho do plano do Groq'
+      : /\b401\b|invalid api key|invalid_api_key/i.test(m) ? 'a GROQ_API_KEY foi recusada (chave inválida)'
+        : /\b429\b|rate limit/i.test(m) ? 'o limite de uso do Groq foi atingido'
+          : /\b40[34]\b|model_not_found|decommissioned|does not exist/i.test(m) ? 'nenhum modelo da lista está disponível no Groq'
+            : /sem tempo|timeout|aborted/i.test(m) ? 'o Groq não respondeu a tempo'
+              : `erro do Groq (${m.slice(0, 80)})`
+  return ` A IA reserva (Groq) também falhou: ${porque}.`
+}
+
 export function descreverErro(err: unknown): ErroDescrito {
+  const base = descreverErroBase(err)
+  // A contingência entra em qualquer falha do Gemini: diga também o que houve com ela.
+  if (err instanceof GeminiError && err.reserva && err.codigo !== 'CREDITOS') {
+    return { ...base, mensagem: `${base.mensagem}${motivoReserva(err)}` }
+  }
+  return base
+}
+
+function descreverErroBase(err: unknown): ErroDescrito {
   if (err instanceof DadosIndisponiveisError) {
     // Sem compras ou sem planejamento a análise sairia errada — melhor dizer.
     return { codigo: 'DADOS', mensagem: 'Não consegui ler seus dados financeiros agora. Tente de novo em instantes.' }
@@ -169,7 +194,7 @@ export function descreverErro(err: unknown): ErroDescrito {
               : 'Muitas perguntas em pouco tempo. Aguarde alguns segundos e tente de novo.',
         }
       case 'CREDITOS':
-        return { codigo: 'CREDITOS', mensagem: 'Os créditos da IA (Gemini) acabaram. Ela volta a responder assim que o saldo for recarregado no Google AI Studio.' }
+        return { codigo: 'CREDITOS', mensagem: `Os créditos da IA (Gemini) acabaram.${motivoReserva(err)} Ela volta a responder assim que o saldo for recarregado no Google AI Studio.` }
       case 'OVERLOADED':
         return { codigo: 'OVERLOADED', mensagem: 'O serviço de IA está congestionado. Já tentei algumas vezes — tente de novo em instantes.' }
       case 'TIMEOUT':

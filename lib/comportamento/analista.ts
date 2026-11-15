@@ -192,12 +192,38 @@ function tabelaLancamentos(metricas: MetricasComportamento): string {
   ].join('\n')
 }
 
+/**
+ * Métricas sem o que mais pesa no pedido: lista de lançamentos, mapa de calor
+ * e caudas longas das listas. É o que vai para a reserva (Groq), cujo limite
+ * de tokens por minuto não comporta o pedido completo.
+ */
+export function enxugarMetricas(m: MetricasComportamento): MetricasComportamento {
+  const { mapaCalor: _mapa, ...quando } = m.quando
+  return {
+    ...m,
+    quando: { ...quando, diasIntensos: m.quando.diasIntensos.slice(0, 3) },
+    estabelecimentos: m.estabelecimentos.slice(0, 8),
+    categorias: m.categorias.slice(0, 10),
+    comprasAtipicas: m.comprasAtipicas.slice(0, 5),
+    mesFoco: m.mesFoco
+      ? {
+          ...m.mesFoco,
+          categorias: m.mesFoco.categorias.slice(0, 10),
+          estabelecimentos: m.mesFoco.estabelecimentos.slice(0, 8),
+          lancamentos: [],
+        }
+      : null,
+  }
+}
+
 function montarPedido(
-  metricas: MetricasComportamento,
+  metricasCompletas: MetricasComportamento,
   parametros: ParametrosAnalise,
   nomeUsuario: string | null,
   oportunidades: Oportunidade[],
+  compacto = false,
 ): string {
+  const metricas = compacto ? enxugarMetricas(metricasCompletas) : metricasCompletas
   const objetivo = OBJETIVOS_ANALISE.find(o => o.chave === parametros.objetivo)?.label ?? parametros.objetivo
   const quem = parametros.escopo === 'casal'
     ? 'a visão do casal (todos os responsáveis juntos, inclusive gastos do Conjunto)'
@@ -226,7 +252,7 @@ function montarPedido(
     '',
     oportunidadesParaPrompt(oportunidades),
     '',
-    tabelaLancamentos(metricas),
+    compacto ? '' : tabelaLancamentos(metricas),
   ].filter(Boolean).join('\n')
 }
 
@@ -378,11 +404,17 @@ interface Chamada {
   modelo?: string
 }
 
+type Conteudos = Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>
+
+/** Teto da resposta na reserva: o JSON da análise cabe com folga e sobra limite por minuto para o pedido. */
+const SAIDA_RESERVA = 4096
+
 async function chamar(
   apiKey: string,
-  contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>,
+  contents: Conteudos,
   deadlineMs: number,
   thinkingBudget: number,
+  contentsReserva: Conteudos,
 ): Promise<Chamada> {
   let saida = ''
   let finishReason: string | undefined
@@ -401,6 +433,7 @@ async function chamar(
     thinkingBudget,
     responseMimeType: 'application/json',
     responseSchema: ESQUEMA,
+    reserva: { contents: contentsReserva, maxOutputTokens: SAIDA_RESERVA },
   })) {
     if (pedaco.tipo === 'texto' && pedaco.texto) saida += pedaco.texto
     if (pedaco.tipo === 'fim') {
@@ -442,15 +475,19 @@ export async function analisarComportamento(opts: {
   const oportunidades = calcularOportunidades(opts.metricas)
   const pedido = montarPedido(opts.metricas, opts.parametros, opts.nomeUsuario, oportunidades)
   const inicial = [{ role: 'user' as const, parts: [{ text: pedido }] }]
+  const inicialReserva = [{
+    role: 'user' as const,
+    parts: [{ text: montarPedido(opts.metricas, opts.parametros, opts.nomeUsuario, oportunidades, true) }],
+  }]
 
   let chamada: Chamada
   try {
-    chamada = await chamar(opts.apiKey, inicial, opts.deadlineMs, 8192)
+    chamada = await chamar(opts.apiKey, inicial, opts.deadlineMs, 8192, inicialReserva)
   } catch (err) {
     const podeRepetir = err instanceof AnaliseFormatoError ||
       (err instanceof GeminiError && (err.codigo === 'TIMEOUT' || err.codigo === 'OVERLOADED'))
     if (!podeRepetir || opts.deadlineMs - Date.now() < 30_000) throw err
-    chamada = await chamar(opts.apiKey, inicial, opts.deadlineMs, 1024)
+    chamada = await chamar(opts.apiKey, inicial, opts.deadlineMs, 1024, inicialReserva)
   }
 
   const indice = () => indexarEvidenciasAnalise(opts.metricas, oportunidades, [evidenciaDoPlano(analise)])
@@ -459,11 +496,11 @@ export async function analisarComportamento(opts: {
 
   if (conferencia.semLastro.length > 0 && opts.deadlineMs - Date.now() >= TEMPO_REVISAO_MS) {
     try {
-      const revisada = await chamar(opts.apiKey, [
-        ...inicial,
+      const revisao: Conteudos = [
         { role: 'model', parts: [{ text: chamada.bruto }] },
         { role: 'user', parts: [{ text: pedidoRevisao(conferencia.semLastro) }] },
-      ], opts.deadlineMs, 1024)
+      ]
+      const revisada = await chamar(opts.apiKey, [...inicial, ...revisao], opts.deadlineMs, 1024, [...inicialReserva, ...revisao])
       const candidata = aplicarOportunidades(revisada.analise, oportunidades)
       const nova = valoresSemLastro(candidata, indexarEvidenciasAnalise(opts.metricas, oportunidades, [evidenciaDoPlano(candidata)]))
       if (nova.semLastro.length < conferencia.semLastro.length) {
