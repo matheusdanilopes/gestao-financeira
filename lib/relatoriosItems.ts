@@ -76,8 +76,8 @@ export const RELATORIOS_DISPONIVEIS: RelatorioDisponivel[] = [
   },
   {
     href: '/analise-comportamento',
-    titulo: 'Análise de Comportamento',
-    descricao: 'Analista de IA que estuda seus hábitos de gasto a fundo e monta um plano para melhorar a saúde financeira',
+    titulo: 'Análise do Fin',
+    descricao: 'O Fin estuda seus gastos, explica para onde o dinheiro vai e dá dicas com quanto cada uma economiza',
     Icon: Brain,
     iconBg: 'bg-violet-100',
     iconColor: 'text-violet-600',

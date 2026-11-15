@@ -26,6 +26,7 @@ import { NextRequest, NextResponse, after } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
 import type { AgentEvent } from '@/lib/ai/agent/runAgent'
 import { garantirConversa } from '@/lib/ai/agent/conversation'
+import { SEPARADOR_CONTEXTO } from '@/lib/comportamento/contextoChat'
 import { executarTurno, descreverErro } from '@/lib/ai/agent/turno'
 import { criarInterlocutor } from '@/lib/ai/agent/interlocutor'
 import type { TelaAtual } from '@/lib/ai/types'
@@ -77,7 +78,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'pergunta é obrigatória' }, { status: 400 })
   }
   const dadosExtra = body.dados?.trim().slice(0, LIMITE_DADOS_EXTRA)
-  const conteudoUsuario = dadosExtra ? `${pergunta}\n\nContexto da tela:\n${dadosExtra}` : pergunta
+  // O cliente separa de volta pelo mesmo separador (lib/comportamento/contextoChat).
+  const conteudoUsuario = dadosExtra ? `${pergunta}${SEPARADOR_CONTEXTO}${dadosExtra}` : pergunta
 
   const deadlineMs = Date.now() + ORCAMENTO_MS
 

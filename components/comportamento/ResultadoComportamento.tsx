@@ -4,10 +4,10 @@ import { useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import type { LucideIcon } from 'lucide-react'
 import {
-  Brain, Activity, CalendarDays, Store, TrendingUp, TrendingDown, Zap, ShieldCheck,
-  AlertTriangle, ListChecks, HelpCircle, Info, Layers, Coins, Minus,
+  Activity, CalendarDays, Store, TrendingUp, TrendingDown, Zap, ShieldCheck,
+  AlertTriangle, HelpCircle, Info, Layers, Coins, Minus, Target,
   CalendarCheck, Receipt, ChevronDown, Sparkle, Scale, PieChart,
-  Wallet, PiggyBank, Repeat, ShoppingBag, Gauge, Calculator, BarChart3, MessageSquareText,
+  Wallet, PiggyBank, Repeat, ShoppingBag, Gauge, Calculator, BarChart3,
 } from 'lucide-react'
 import GraficoBarrasMeses from '@/components/relatorios/GraficoBarrasMeses'
 import { formatBRL } from '@/lib/format'
@@ -20,9 +20,9 @@ import {
   graficoSaldo,
   type TemaGrafico,
 } from '@/lib/comportamento/graficos'
-import { PESOS_SAUDE, destaqueCurto } from '@/lib/comportamento/tipos'
+import { PESOS_SAUDE } from '@/lib/comportamento/tipos'
 import type {
-  AnaliseIA, Comparativo, FixoVariavel, LancamentoFatura, MesFoco, MetricasComportamento, Nivel, ProximoMes,
+  AnaliseIA, Comparativo, FixoVariavel, LancamentoFatura, MesFoco, MetricasComportamento, ProximoMes,
 } from '@/lib/comportamento/tipos'
 
 // Chart.js só é baixado quando há um resultado para desenhar.
@@ -174,12 +174,6 @@ export function AnelNota({ nota, tamanho = 96 }: { nota: number; tamanho?: numbe
   )
 }
 
-const ESTILO_NIVEL: Record<Nivel, string> = {
-  alta: 'bg-red-50 text-red-600 border-red-100',
-  media: 'bg-amber-50 text-amber-700 border-amber-100',
-  baixa: 'bg-gray-50 text-gray-500 border-gray-100',
-}
-
 function Chip({ children, classe }: { children: React.ReactNode; classe: string }) {
   return (
     <span className={`text-[10px] font-semibold rounded-lg px-1.5 py-0.5 border whitespace-nowrap ${classe}`}>
@@ -188,65 +182,34 @@ function Chip({ children, classe }: { children: React.ReactNode; classe: string 
   )
 }
 
-// ─── Diagnóstico (topo): nota com cada indicador à vista ─────────────────────
+// ─── A nota em detalhe: cada indicador e a conta ─────────────────────────────
 
-export function Diagnostico({
-  analise: a, metricas: m, notaAnterior,
-}: {
-  analise: AnaliseIA
-  metricas: MetricasComportamento
-  notaAnterior: number | null
-}) {
-  const nota = m.saude.nota
-  const delta = notaAnterior === null ? null : nota - notaAnterior
+export function NotaDetalhada({ metricas: m }: { metricas: MetricasComportamento }) {
   const indicadores = m.saude.indicadores.map(i => ({ ...i, peso: PESOS_SAUDE[i.chave] ?? 0 }))
   const pesoTotal = indicadores.reduce((s, i) => s + i.peso, 0)
   const pontos = indicadores.reduce((s, i) => s + i.nota * i.peso, 0)
+  const nota = m.saude.nota
+  if (indicadores.length === 0) return null
 
   return (
-    <section className="bg-white rounded-3xl shadow-soft p-4 space-y-4">
-      <div className="flex items-center gap-4">
-        <AnelNota nota={nota} />
-        <div className="min-w-0 space-y-1">
-          <p className="text-xs font-semibold text-gray-500">
-            Saúde financeira · <span className={corNota(nota).texto}>{rotuloNota(nota)}</span>
-          </p>
-          {delta !== null && (
-            <p className={`text-[11px] font-semibold ${delta > 0 ? 'text-green-600' : delta < 0 ? 'text-red-500' : 'text-gray-400'}`}>
-              {delta === 0 ? 'Igual à análise anterior' : `${delta > 0 ? '+' : ''}${delta} pontos desde a anterior`}
+    <Cartao titulo="Como a nota é formada" Icon={Gauge} corIcone="text-primary-600" corFundo="bg-primary-50"
+      subtitulo={`Nota ${nota} de 100 · ${rotuloNota(nota)}`}>
+      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5">
+        {indicadores.map(i => (
+          <li key={i.chave} className="space-y-1">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-xs font-medium text-gray-800 truncate">{i.nome}</span>
+              <span className={`text-xs font-bold num shrink-0 ${corNota(i.nota).texto}`}>{i.nota}</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+              <div className={`h-full rounded-full ${corNota(i.nota).barra}`} style={{ width: `${Math.max(2, i.nota)}%` }} />
+            </div>
+            <p className="text-[11px] text-gray-500 leading-snug">
+              {i.medida} <span className="text-gray-400">· ideal: {i.referencia}</span>
             </p>
-          )}
-          <p className="text-sm font-bold text-gray-900 leading-snug">{a.manchete}</p>
-        </div>
-      </div>
-
-      {a.resumo && (
-        <p className="text-xs text-gray-600 leading-relaxed">
-          <span className="font-semibold text-violet-700">{a.perfil.nome}.</span> {a.resumo.replace(/\n+/g, ' ')}
-        </p>
-      )}
-
-      {indicadores.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-gray-700">O que forma a nota</p>
-          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5">
-            {indicadores.map(i => (
-              <li key={i.chave} className="space-y-1">
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-xs font-medium text-gray-800 truncate">{i.nome}</span>
-                  <span className={`text-xs font-bold num shrink-0 ${corNota(i.nota).texto}`}>{i.nota}</span>
-                </div>
-                <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                  <div className={`h-full rounded-full ${corNota(i.nota).barra}`} style={{ width: `${Math.max(2, i.nota)}%` }} />
-                </div>
-                <p className="text-[11px] text-gray-500 leading-snug">
-                  {i.medida} <span className="text-gray-400">· ideal: {i.referencia}</span>
-                </p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+          </li>
+        ))}
+      </ul>
 
       {pesoTotal > 0 && (
         <ComoCalculei>
@@ -290,7 +253,7 @@ export function Diagnostico({
           </p>
         </ComoCalculei>
       )}
-    </section>
+    </Cartao>
   )
 }
 
@@ -656,92 +619,6 @@ export function BlocoProximoMes({ p }: { p: ProximoMes }) {
   )
 }
 
-// ─── Leitura da IA ───────────────────────────────────────────────────────────
-
-export function Padroes({ analise: a }: { analise: AnaliseIA }) {
-  if (a.padroes.length === 0) return null
-  return (
-    <Cartao titulo="O que os dados mostram" Icon={Brain} corIcone="text-violet-600" corFundo="bg-violet-50"
-      subtitulo="Leitura da IA a partir dos números calculados pelo app">
-      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {a.padroes.map(p => {
-          const cor = p.impacto === 'negativo' ? 'text-red-500' : p.impacto === 'positivo' ? 'text-green-600' : 'text-gray-700'
-          return (
-            <li key={p.titulo} className="rounded-2xl border border-gray-100 bg-gray-50 p-3 space-y-1">
-              <div className="flex items-start gap-2">
-                {/* Análises salvas antes do campo "destaque" não o têm. */}
-                <p className={`flex-1 text-xl font-bold num leading-none ${cor}`}>{destaqueCurto(p.destaque) || '•'}</p>
-                {p.relevancia === 'alta' && <Chip classe={ESTILO_NIVEL.alta}>Prioridade</Chip>}
-              </div>
-              <p className="text-xs font-semibold text-gray-900 leading-snug">{p.titulo}</p>
-              <p className="text-[11px] text-gray-500 leading-snug">{p.descricao}</p>
-            </li>
-          )
-        })}
-      </ul>
-    </Cartao>
-  )
-}
-
-export function PlanoDeAcao({ analise: a }: { analise: AnaliseIA }) {
-  const economiaTotal = a.planoDeAcao.reduce((s, x) => s + x.economiaMensal, 0)
-  if (a.planoDeAcao.length === 0) return null
-  return (
-    <Cartao titulo="Plano de ação" Icon={ListChecks} corIcone="text-primary-600" corFundo="bg-primary-50"
-      subtitulo={economiaTotal > 0 ? undefined : 'Sugestões da IA a partir dos seus números'}>
-      {economiaTotal > 0 && (
-        <div className="flex items-baseline gap-2 flex-wrap">
-          <span className="text-2xl font-bold text-green-600 num">{formatBRL(economiaTotal)}</span>
-          <span className="text-xs text-gray-500">por mês, se seguir o plano · {formatBRL(economiaTotal * 12)} por ano</span>
-        </div>
-      )}
-      <ol className="space-y-2.5">
-        {a.planoDeAcao.map((p, i) => (
-          <li key={p.acao} className="flex gap-2.5">
-            <span className="w-5 h-5 rounded-full bg-primary-50 text-primary-700 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
-              {i + 1}
-            </span>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-gray-900 leading-snug">{p.acao}</p>
-              <p className="text-[11px] text-gray-500 leading-snug">{p.porque}</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">{p.prazo}</p>
-            </div>
-            {p.economiaMensal > 0 && (
-              <span className="text-xs font-semibold text-green-600 num shrink-0 mt-0.5">−{formatBRL(p.economiaMensal)}/mês</span>
-            )}
-          </li>
-        ))}
-      </ol>
-
-      {a.metas.length > 0 && (
-        <div className="space-y-1.5 pt-1">
-          <p className="text-xs font-semibold text-gray-700">Metas para acompanhar</p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            {a.metas.map(meta => (
-              <div key={meta.meta} className="rounded-2xl bg-gray-50 border border-gray-100 p-3 space-y-0.5">
-                <p className="text-base font-bold text-sky-600 leading-tight">{meta.alvo}</p>
-                <p className="text-xs font-semibold text-gray-800 leading-snug">{meta.meta}</p>
-                <p className="text-[10px] text-gray-400">{meta.indicador} · {meta.prazo}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {economiaTotal > 0 && (
-        <ComoCalculei>
-          <p>
-            A economia de cada ação é uma estimativa da IA a partir da média mensal do gasto que ela ataca. O app
-            confere: ações sobre a mesma categoria não passam do que ela gasta por mês, e o total não passa de metade
-            do gasto que se decide no dia a dia.
-            {a.economiaAjustada && ' Nesta análise as estimativas da IA passavam desses limites e foram reduzidas.'}
-          </p>
-        </ComoCalculei>
-      )}
-    </Cartao>
-  )
-}
-
 // ─── Mapa de calor: dia da semana × fase do mês ──────────────────────────────
 
 function MapaCalor({ m }: { m: MetricasComportamento }) {
@@ -1053,9 +930,11 @@ function LeituraCompleta({ analise: a }: { analise: AnaliseIA }) {
   ] as const).filter(b => b.itens.length > 0)
   return (
     <>
-      <p className="text-xs text-gray-600 leading-snug rounded-2xl bg-violet-50 px-3 py-2">
-        <b className="text-violet-700">{a.perfil.nome}:</b> {a.perfil.descricao}
-      </p>
+      {a.perfil.descricao && (
+        <p className="text-xs text-gray-600 leading-snug rounded-2xl bg-violet-50 px-3 py-2">
+          <b className="text-violet-700">{a.perfil.nome}:</b> {a.perfil.descricao}
+        </p>
+      )}
       {blocos.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {blocos.map(b => (
@@ -1072,6 +951,19 @@ function LeituraCompleta({ analise: a }: { analise: AnaliseIA }) {
           ))}
         </div>
       )}
+      {a.metas.length > 0 && (
+        <Cartao titulo="Metas para acompanhar" Icon={Target} corIcone="text-sky-600" corFundo="bg-sky-50">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {a.metas.map(meta => (
+              <div key={meta.meta} className="rounded-2xl bg-gray-50 border border-gray-100 p-3 space-y-0.5">
+                <p className="text-base font-bold text-sky-600 leading-tight">{meta.alvo}</p>
+                <p className="text-xs font-semibold text-gray-800 leading-snug">{meta.meta}</p>
+                <p className="text-[10px] text-gray-400">{meta.indicador} · {meta.prazo}</p>
+              </div>
+            ))}
+          </div>
+        </Cartao>
+      )}
       {a.perguntas.length > 0 && (
         <Cartao titulo="Para refletir" Icon={HelpCircle} corIcone="text-indigo-600" corFundo="bg-indigo-50">
           <ul className="space-y-1.5">
@@ -1087,8 +979,8 @@ function LeituraCompleta({ analise: a }: { analise: AnaliseIA }) {
 
 // ─── Composição ──────────────────────────────────────────────────────────────
 
-/** Os números calculados pelo app (o que aparece já durante a análise). */
-export function BlocosNumeros({ metricas: m }: { metricas: MetricasComportamento }) {
+/** Os números calculados pelo app: aviso de escopo, mês em foco e médias do período. */
+export function BlocosNumeros({ metricas: m, comProximoMes = false }: { metricas: MetricasComportamento; comProximoMes?: boolean }) {
   return (
     <>
       {m.escopo !== 'casal' && (
@@ -1101,31 +993,28 @@ export function BlocosNumeros({ metricas: m }: { metricas: MetricasComportamento
       {m.mesFoco && <BlocoMesFoco mesFoco={m.mesFoco} />}
       <NumerosPeriodo m={m} />
       {/* Análises salvas antes deste bloco não têm o campo. */}
-      {m.proximoMes && <BlocoProximoMes p={m.proximoMes} />}
+      {comProximoMes && m.proximoMes && <BlocoProximoMes p={m.proximoMes} />}
     </>
   )
 }
 
-export function DetalhesRecolhidos({ metricas: m, analise: a }: { metricas: MetricasComportamento; analise?: AnaliseIA }) {
+/**
+ * Tudo o que é técnico, num lugar só e fechado por padrão: números mês a mês,
+ * a nota em detalhe, gráficos e a leitura completa do Fin.
+ */
+export function VerDetalhes({ metricas: m, analise: a }: { metricas: MetricasComportamento; analise: AnaliseIA }) {
   return (
-    <>
-      <Recolhivel
-        titulo="Seus gastos em detalhe"
-        subtitulo="Gráficos, categorias, lugares, parcelas, assinaturas e compras fora do padrão"
-        Icon={BarChart3}
-      >
-        <Detalhes m={m} />
-      </Recolhivel>
-      {a && (
-        <Recolhivel
-          titulo="Leitura completa da IA"
-          subtitulo="Perfil, gatilhos, riscos, pontos fortes e perguntas"
-          Icon={MessageSquareText}
-        >
-          <LeituraCompleta analise={a} />
-        </Recolhivel>
-      )}
-    </>
+    <Recolhivel
+      titulo="Ver todos os detalhes"
+      subtitulo="Números mês a mês, como a nota é formada, gráficos e a leitura completa do Fin"
+      Icon={BarChart3}
+    >
+      <BlocosNumeros metricas={m} />
+      <NotaDetalhada metricas={m} />
+      <Detalhes m={m} />
+      <LeituraCompleta analise={a} />
+      <LimitesAnalise analise={a} metricas={m} />
+    </Recolhivel>
   )
 }
 

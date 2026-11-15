@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
+import { gerarRodada, GEMINI_MODEL_LEGADO } from '@/lib/ai/agent/geminiClient'
 
 export const maxDuration = 30
-
-const GEMINI_MODEL = 'gemini-2.5-flash'
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 const MAX_BASE64_BYTES = 10 * 1024 * 1024 // ~7.5 MB decoded
@@ -50,31 +48,29 @@ Exemplos: "R$ 12,99" → 12.99 | "R$ 3,50" → 3.50 | "DE R$15,00 POR R$9,90" �
 
 Responda APENAS com o número ou null.`
 
-  let geminiRes: Response
+  // Gemini com retentativas; se ele falhar, o Groq (visão) responde.
+  let text: string
   try {
-    geminiRes = await fetch(GEMINI_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: prompt },
-            { inline_data: { mime_type: mimeType, data: imageBase64 } },
-          ],
-        }],
-        generationConfig: { temperature: 0, maxOutputTokens: 16 },
-      }),
+    const rodada = await gerarRodada({
+      apiKey,
+      modelo: GEMINI_MODEL_LEGADO,
+      deadlineMs: Date.now() + 25_000,
+      temperature: 0,
+      maxOutputTokens: 32,
+      thinkingBudget: 0,
+      contents: [{
+        role: 'user',
+        parts: [
+          { text: prompt },
+          { inlineData: { mimeType, data: imageBase64 } },
+        ],
+      }],
     })
-  } catch {
-    return NextResponse.json({ error: 'Gemini indisponível' }, { status: 502 })
+    text = rodada.texto.trim()
+  } catch (err) {
+    console.error('[ocr-preco] IA indisponível:', err instanceof Error ? err.message : err)
+    return NextResponse.json({ error: 'Serviço de OCR indisponível' }, { status: 502 })
   }
-
-  if (!geminiRes.ok) {
-    return NextResponse.json({ error: 'Erro no serviço de OCR' }, { status: geminiRes.status })
-  }
-
-  const json = await geminiRes.json()
-  const text = (json?.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim()
 
   if (!text || text.toLowerCase() === 'null') {
     return NextResponse.json({ preco: null })

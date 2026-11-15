@@ -24,18 +24,21 @@ export function rotuloEscopo(escopo: string): string {
 
 export function montarDocumentoAnalise(r: ResultadoAnalise): DocumentoRelatorio {
   const { analise: a, metricas: m, parametros: p } = r
-  const objetivo = OBJETIVOS_ANALISE.find(o => o.chave === p.objetivo)?.label ?? p.objetivo
+  // A tela não pede mais objetivo (padrão "entender"): só aparece quando foi escolhido.
+  const objetivo = p.objetivo && p.objetivo !== 'entender'
+    ? ` · objetivo: ${OBJETIVOS_ANALISE.find(o => o.chave === p.objetivo)?.label ?? p.objetivo}`
+    : ''
   const economiaTotal = a.planoDeAcao.reduce((s, x) => s + x.economiaMensal, 0)
   const indicadores = m.saude.indicadores.map(i => ({ ...i, peso: PESOS_SAUDE[i.chave] ?? 0 }))
   const pesoSaude = indicadores.reduce((s, i) => s + i.peso, 0)
   const pontosSaude = indicadores.reduce((s, i) => s + i.nota * i.peso, 0)
 
   return {
-    titulo: 'Análise de Comportamento Financeiro',
+    titulo: 'Análise do Fin',
     subtitulo: m.mesFoco
-      ? `${rotuloJanela(p.janela)}: ${rotuloMesIso(m.mesFoco.mes)} vs. ${m.mesFoco.mesesBase} meses anteriores · ${rotuloEscopo(p.escopo)} · objetivo: ${objetivo}`
-      : `${rotuloMesIso(m.periodo.inicio)} a ${rotuloMesIso(m.periodo.fim)} · ${rotuloEscopo(p.escopo)} · objetivo: ${objetivo}`,
-    nomeArquivo: `analise-comportamento-${r.geradaEm.substring(0, 10)}`,
+      ? `${rotuloJanela(p.janela)}: ${rotuloMesIso(m.mesFoco.mes)} vs. ${m.mesFoco.mesesBase} meses anteriores · ${rotuloEscopo(p.escopo)}${objetivo}`
+      : `${rotuloMesIso(m.periodo.inicio)} a ${rotuloMesIso(m.periodo.fim)} · ${rotuloEscopo(p.escopo)}${objetivo}`,
+    nomeArquivo: `analise-do-fin-${r.geradaEm.substring(0, 10)}`,
     corCabecalho: [124, 58, 237],
     resumo: [
       { label: 'Nota de saúde', valor: `${m.saude.nota}/100` },
@@ -47,7 +50,7 @@ export function montarDocumentoAnalise(r: ResultadoAnalise): DocumentoRelatorio 
     secoes: [
       {
         titulo: 'Diagnóstico',
-        colunas: ['Leitura do analista'],
+        colunas: ['Recado do Fin'],
         linhas: [[a.manchete], ...a.resumo.split(/\n\s*\n/).filter(Boolean).map(par => [par.trim()]), [`Perfil — ${a.perfil.nome}: ${a.perfil.descricao}`]],
       },
       {
@@ -97,16 +100,16 @@ export function montarDocumentoAnalise(r: ResultadoAnalise): DocumentoRelatorio 
           }]
         : []),
       {
-        titulo: 'O que os dados mostram (leitura da IA)',
+        titulo: 'O que o Fin descobriu',
         colunas: ['Padrão', 'Número-chave', 'O que acontece', 'Impacto', 'Relevância'],
         linhas: a.padroes.map(x => [x.titulo, x.destaque ?? '', [x.descricao, x.evidencia].filter(Boolean).join(' '), IMPACTO[x.impacto], NIVEL[x.relevancia]]),
       },
       {
-        titulo: 'Plano de ação',
-        explicacao: 'Economias estimadas pela IA e limitadas pelo app ao gasto real de cada categoria.',
-        colunas: ['Ação', 'Por quê', 'Dificuldade', 'Prazo', 'Economia/mês'],
-        linhas: a.planoDeAcao.map(x => [x.acao, x.porque, DIFICULDADE[x.dificuldade], x.prazo, x.economiaMensal]),
-        totais: [{ label: 'Economia mensal estimada', valor: economiaTotal }],
+        titulo: 'Dicas do Fin',
+        explicacao: 'A economia de cada dica é calculada pelo app a partir dos seus números (coluna "Como calculei").',
+        colunas: ['Dica', 'Por quê', 'Dificuldade', 'Prazo', 'Economia/mês', 'Como calculei'],
+        linhas: a.planoDeAcao.map(x => [x.acao, x.porque, DIFICULDADE[x.dificuldade], x.prazo, x.economiaMensal, x.regra ?? '']),
+        totais: [{ label: 'Economia por mês seguindo as dicas', valor: economiaTotal }],
       },
       {
         titulo: 'Metas para acompanhar',

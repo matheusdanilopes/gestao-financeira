@@ -13,6 +13,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { lerSSE } from '@/lib/sseStream'
 import { aguardarResposta, SEM_SINAL_MS } from '@/lib/chatRecuperacao'
 import type { TelaAtual } from '@/lib/ai/types'
+import { separarContexto } from '@/lib/comportamento/contextoChat'
 
 export interface ChatMessage {
   id: string
@@ -29,6 +30,16 @@ export interface ChatMessage {
   dbId?: string
   /** 👍 (1) / 👎 (-1) dado pelo usuário. */
   avaliacao?: 1 | -1 | null
+  /** Contexto que foi junto da pergunta (ex.: "Análise do Fin"), mostrado como etiqueta. */
+  anexo?: string
+}
+
+export interface OpcoesEnvio {
+  reenvio?: boolean
+  /** Contexto anexado à pergunta (campo `dados` de /api/chat; fica gravado na conversa). */
+  dados?: string
+  /** Etiqueta do contexto no balão. */
+  anexo?: string
 }
 
 /** Quantas mensagens da tela vão junto como histórico de reserva. */
@@ -55,7 +66,12 @@ const chaveConversa = (userId: string) => `chat_conv_id_${userId}`
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
-export function useChatFinanceiro(tela: TelaAtual = 'geral') {
+export function useChatFinanceiro(
+  tela: TelaAtual = 'geral',
+  /** iniciarNova: abre sem restaurar a última conversa (ex.: vindo da Análise do Fin). */
+  opcoesIniciais: { iniciarNova?: boolean } = {},
+) {
+  const iniciarNovaRef = useRef(opcoesIniciais.iniciarNova === true)
   const [mensagens, setMensagens] = useState<ChatMessage[]>([])
   const [streaming, setStreaming] = useState(false)
   const [textoParcial, setTextoParcial] = useState('')
@@ -72,6 +88,7 @@ export function useChatFinanceiro(tela: TelaAtual = 'geral') {
   const convIdRef = useRef<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const ultimaPerguntaRef = useRef<string | null>(null)
+  const ultimosDadosRef = useRef<string | undefined>(undefined)
   // Um cancelamento vindo de "nova conversa"/"abrir conversa" não deve
   // aproveitar o texto parcial: ele pertence à conversa que acabou de sair
   // da tela e apareceria como resposta órfã na conversa nova.
@@ -100,7 +117,10 @@ export function useChatFinanceiro(tela: TelaAtual = 'geral') {
       .map(m => ({
         id: novoId(),
         role: m.role === 'assistant' ? ('assistant' as const) : ('user' as const),
-        content: m.content,
+        // O servidor grava a pergunta com o contexto anexado: o balão mostra só a pergunta.
+        ...(m.role === 'assistant'
+          ? { content: m.content }
+          : (() => { const { texto, anexo } = separarContexto(m.content); return { content: texto, ...(anexo ? { anexo } : {}) } })()),
         ts: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
         telegram: m.canal === 'telegram',
         ferramentas: Array.isArray(m.ferramentas)
@@ -117,6 +137,8 @@ export function useChatFinanceiro(tela: TelaAtual = 'geral') {
       const uid = data.user?.id ?? 'anonymous'
       userIdRef.current = uid
 
+      // Vindo de outra tela com contexto próprio: começa uma conversa nova.
+      if (iniciarNovaRef.current) return
       let salva: string | null = null
       try { salva = localStorage.getItem(chaveConversa(uid)) } catch { /* storage indisponível */ }
       if (!salva || cancelado) return
@@ -146,19 +168,25 @@ export function useChatFinanceiro(tela: TelaAtual = 'geral') {
   }, [])
 
   // ── Envio ──
-  const enviar = useCallback(async (texto: string, opcoes?: { reenvio?: boolean }) => {
+  const enviar = useCallback(async (texto: string, opcoes?: OpcoesEnvio) => {
     const conteudo = texto.trim()
     if (!conteudo || abortRef.current) return
 
     const reenvio = opcoes?.reenvio === true
+    // Num reenvio o contexto da tentativa anterior vai de novo.
+    const dados = opcoes?.dados ?? (reenvio ? ultimosDadosRef.current : undefined)
 
     ultimaPerguntaRef.current = conteudo
+    ultimosDadosRef.current = dados
     setErro(null)
     setRestaurada(false)
     // Num reenvio a pergunta já está na tela (e já foi gravada no servidor):
     // repetir a bolha duplicaria a mensagem aqui e no histórico.
     if (!reenvio) {
-      setMensagens(prev => [...prev, { id: novoId(), role: 'user', content: conteudo, ts: Date.now() }])
+      setMensagens(prev => [...prev, {
+        id: novoId(), role: 'user', content: conteudo, ts: Date.now(),
+        ...(opcoes?.anexo ? { anexo: opcoes.anexo } : {}),
+      }])
     }
     setTextoParcial('')
     setFerramentas([])
@@ -190,6 +218,7 @@ export function useChatFinanceiro(tela: TelaAtual = 'geral') {
         signal: controller.signal,
         body: JSON.stringify({
           pergunta: conteudo,
+          ...(dados ? { dados } : {}),
           conversation_id: convIdRef.current ?? undefined,
           tela,
           reenvio,

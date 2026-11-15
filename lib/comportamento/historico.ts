@@ -71,6 +71,11 @@ export function salvarAnalise(resultado: ResultadoAnalise): void {
   ouvintes.forEach(fn => fn())
 }
 
+/** A última análise salva neste aparelho (fora de componentes: ex. o chat). */
+export function lerUltimaAnalise(): ResultadoAnalise | null {
+  return lerEstado().ultima
+}
+
 export function useAnalisesSalvas(): EstadoAnalises {
   return useSyncExternalStore(aoMudar, lerEstado, snapshotServidor)
 }

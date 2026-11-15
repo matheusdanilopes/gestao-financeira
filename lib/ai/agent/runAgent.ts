@@ -38,6 +38,7 @@ import type { FerramentaUsada } from './conversation'
  * auditoria e para alimentar o conjunto de avaliação (scripts/evals).
  */
 export interface MetaResposta {
+  /** Modelo(s) que responderam — mais de um quando o Groq cobriu o Gemini. */
   modelo: string
   /** Chamadas ao modelo neste turno (rodadas de ferramenta + revisões). */
   rodadas: number
@@ -171,10 +172,11 @@ export async function* executarAgente(input: AgentInput): AsyncGenerator<AgentEv
   const revisoes: string[] = []
   let uso: UsoTokens = { entrada: 0, saida: 0, raciocinio: 0 }
   let chamadasModelo = 0
+  const modelos = new Set<string>()
   let lastroFinal: MetaResposta['lastro'] = { citados: 0, semLastro: [] }
 
   const meta = (): MetaResposta => ({
-    modelo: GEMINI_MODEL,
+    modelo: modelos.size > 0 ? [...modelos].join(' + ') : GEMINI_MODEL,
     rodadas: chamadasModelo,
     uso,
     duracaoMs: Date.now() - inicio,
@@ -213,6 +215,7 @@ export async function* executarAgente(input: AgentInput): AsyncGenerator<AgentEv
       } else if (pedaco.tipo === 'fim') {
         finishReason = pedaco.finishReason
         uso = somarUso(uso, pedaco.uso)
+        if (pedaco.modelo) modelos.add(pedaco.modelo)
       }
     }
 
@@ -240,6 +243,7 @@ export async function* executarAgente(input: AgentInput): AsyncGenerator<AgentEv
             deadlineMs: input.deadlineMs,
           })
           uso = somarUso(uso, retry.uso)
+          if (retry.modelo) modelos.add(retry.modelo)
           textoFinal = retry.texto.trim()
           if (textoFinal) yield { type: 'delta', texto: textoFinal }
         }

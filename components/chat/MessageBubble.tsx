@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { User, Search, Volume2, Send, AlertTriangle, Copy, Check, ThumbsUp, ThumbsDown } from 'lucide-react'
+import { User, Search, Volume2, Send, AlertTriangle, Copy, Check, ThumbsUp, ThumbsDown, Paperclip } from 'lucide-react'
 import { MarkdownMessage } from './MarkdownMessage'
 import { RoboAvatar, type HumorRobo } from './RoboAvatar'
 import type { ChatMessage } from '@/lib/useChatFinanceiro'
@@ -187,6 +187,12 @@ export const MessageBubble = memo(function MessageBubble({
         }
       >
         {ehUsuario ? mensagem.content : <MarkdownMessage texto={mensagem.content} />}
+        {ehUsuario && mensagem.anexo && (
+          <span className="mt-1.5 flex items-center gap-1 justify-end text-[10px] leading-none text-white/75">
+            <Paperclip className="w-2.5 h-2.5" />
+            {mensagem.anexo}
+          </span>
+        )}
         {mensagem.aviso && (
           <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-snug text-amber-600 dark:text-amber-400">
             <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />

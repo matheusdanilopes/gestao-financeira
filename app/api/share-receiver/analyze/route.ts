@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
+import { gerarRodada, GEMINI_MODEL_LEGADO } from '@/lib/ai/agent/geminiClient'
 
 export const maxDuration = 30
-
-const GEMINI_MODEL = 'gemini-2.5-flash'
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 const MAX_BASE64_BYTES = 10 * 1024 * 1024
@@ -30,7 +28,8 @@ async function fetchImageWithRetry(url: string): Promise<{ base64: string; mimeT
 
 async function identificarProduto(
   base64: string,
-  mimeType: string
+  mimeType: string,
+  deadlineMs: number
 ): Promise<{ nome: string; descricao: string | null; preco: number | null } | { erro: string }> {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) return { erro: 'GEMINI_API_KEY não configurada' }
@@ -39,42 +38,30 @@ async function identificarProduto(
 {"nome":"Nome do produto, max 60 chars","descricao":"descricao curta ou null","preco":0.00}
 Regras: nome max 60 chars. descricao max 100 chars ou null. preco em reais como numero (ex: 49.90) se visivel na imagem, senão null. Se nao houver produto claro, use nome "Produto compartilhado".`
 
-  let res: Response
+  // Gemini com retentativas; se ele falhar, o Groq (visão) responde.
+  let fullText: string
   try {
-    res = await fetch(GEMINI_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: prompt },
-            { inline_data: { mime_type: mimeType, data: base64 } },
-          ],
-        }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 1024 },
-      }),
-      signal: AbortSignal.timeout(20000),
+    const rodada = await gerarRodada({
+      apiKey,
+      modelo: GEMINI_MODEL_LEGADO,
+      deadlineMs,
+      temperature: 0.1,
+      maxOutputTokens: 1024,
+      thinkingBudget: 0,
+      contents: [{
+        role: 'user',
+        parts: [
+          { text: prompt },
+          { inlineData: { mimeType, data: base64 } },
+        ],
+      }],
     })
+    fullText = rodada.texto.trim()
   } catch (e) {
-    return { erro: `fetch Gemini falhou: ${e instanceof Error ? e.message : 'unknown'}` }
+    return { erro: `IA falhou: ${e instanceof Error ? e.message.slice(0, 200) : 'unknown'}` }
   }
 
-  if (!res.ok) {
-    return { erro: `Gemini HTTP ${res.status}` }
-  }
-
-  let json: unknown
-  try {
-    json = await res.json()
-  } catch {
-    return { erro: `Resposta Gemini não é JSON` }
-  }
-
-  type GeminiResp = { candidates?: { content?: { parts?: { text?: string }[] } }[] }
-  const parts = (json as GeminiResp)?.candidates?.[0]?.content?.parts ?? []
-  const fullText = parts.map(p => p.text ?? '').join('').trim()
-
-  if (!fullText) return { erro: 'Gemini texto vazio' }
+  if (!fullText) return { erro: 'IA texto vazio' }
 
   const normalised = fullText
     .replace(/[""„‟«»]/g, '"')
@@ -98,6 +85,8 @@ Regras: nome max 60 chars. descricao max 100 chars ou null. preco em reais como 
 }
 
 export async function POST(req: NextRequest) {
+  // Orçamento da IA contado desde o início: o download da imagem já consome parte dos 30 s.
+  const deadlineMs = Date.now() + 26_000
   const { supabase, unauthorized } = await requireAuth(req)
   if (unauthorized) return unauthorized
 
@@ -163,7 +152,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const resultado = await identificarProduto(base64, mimeType)
+  const resultado = await identificarProduto(base64, mimeType, deadlineMs)
 
   if ('erro' in resultado) {
     await supabase.from('wishlist_items').update({

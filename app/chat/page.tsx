@@ -14,6 +14,8 @@ import { History, MoreHorizontal, Plus, Trash2, AlertTriangle, RotateCcw, Volume
 import NotificacoesBell from '@/components/NotificacoesBell'
 import { MessageBubble, StreamingBubble } from '@/components/chat/MessageBubble'
 import { Composer } from '@/components/chat/Composer'
+import { lerUltimaAnalise } from '@/lib/comportamento/historico'
+import { contextoAnaliseParaChat, rotuloAnexoAnalise } from '@/lib/comportamento/contextoChat'
 import { ConversationDrawer } from '@/components/chat/ConversationDrawer'
 import { ChatEmptyState } from '@/components/chat/ChatEmptyState'
 import { RoboAvatar, type HumorRobo } from '@/components/chat/RoboAvatar'
@@ -29,10 +31,14 @@ const minusculaInicial = (t: string) => t.charAt(0).toLowerCase() + t.slice(1)
 const MARGEM_AUTOSCROLL = 160
 
 export default function ChatPage() {
-  const chat = useChatFinanceiro('geral')
-  const voz = useVoice()
   const router = useRouter()
   const searchParams = useSearchParams()
+  // Vindo de "Conversar com o Fin" na Análise do Fin: conversa nova, com a
+  // análise anexada à primeira pergunta. Lido uma vez, antes de a URL ser limpa.
+  const [vindoDaAnalise] = useState(() => searchParams.get('analise') === '1')
+  const chat = useChatFinanceiro('geral', { iniciarNova: vindoDaAnalise })
+  const voz = useVoice()
+  const [anexoAnalise, setAnexoAnalise] = useState<{ rotulo: string; dados: string } | null>(null)
 
   const [input, setInput] = useState('')
   const [drawerAberto, setDrawerAberto] = useState(false)
@@ -112,8 +118,10 @@ export default function ChatPage() {
     seguirFimRef.current = true
     setInput('')
     voz.pararFala()
-    void chat.enviar(conteudo)
-  }, [input, chat, voz])
+    // A análise vai só na primeira pergunta: depois fica gravada na conversa.
+    void chat.enviar(conteudo, anexoAnalise ? { dados: anexoAnalise.dados, anexo: 'Análise do Fin' } : undefined)
+    setAnexoAnalise(null)
+  }, [input, chat, voz, anexoAnalise])
 
   // ── Pergunta por voz ──
   const onMic = useCallback(() => {
@@ -143,6 +151,23 @@ export default function ChatPage() {
     // onMic() dispara setState (ouvindo) ao iniciar o reconhecimento.
     Promise.resolve().then(() => onMic())
   }, [searchParams, voz.suportaEscuta, onMic, router])
+
+  // ── Vindo da Análise do Fin (/chat?analise=1): anexa a última análise
+  // salva no aparelho e sugere uma primeira pergunta. Some da URL para não
+  // voltar num refresh.
+  const analiseAplicadaRef = useRef(false)
+  useEffect(() => {
+    if (analiseAplicadaRef.current || !vindoDaAnalise) return
+    analiseAplicadaRef.current = true
+    router.replace('/chat', { scroll: false })
+    const ultima = lerUltimaAnalise()
+    if (!ultima) return
+    // Fora do corpo síncrono do efeito (mesma convenção do atalho de voz).
+    Promise.resolve().then(() => {
+      setAnexoAnalise({ rotulo: rotuloAnexoAnalise(ultima), dados: contextoAnaliseParaChat(ultima) })
+      setInput('Me ajuda a colocar as dicas da análise em prática este mês?')
+    })
+  }, [vindoDaAnalise, router])
 
   // ── Resposta falada: só a última mensagem de cada turno novo, nunca o
   // histórico restaurado (que chega de uma vez, crescendo mais que 1). ──
@@ -424,6 +449,7 @@ export default function ChatPage() {
         suportaEscuta={voz.suportaEscuta}
         ouvindo={voz.ouvindo}
         onMic={onMic}
+        anexo={anexoAnalise ? { rotulo: anexoAnalise.rotulo, onRemover: () => setAnexoAnalise(null) } : undefined}
       />
     </div>
   )
