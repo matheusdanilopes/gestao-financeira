@@ -20,7 +20,7 @@ import {
   graficoSaldo,
 } from './graficos'
 import type { Comparativo, ResultadoAnalise } from './tipos'
-import { OBJETIVOS_ANALISE, PESOS_SAUDE, destaqueCurto, rotuloJanela } from './tipos'
+import { OBJETIVOS_ANALISE, PESOS_SAUDE, destaqueCurto, rotuloFaturaFoco, rotuloJanela } from './tipos'
 
 const A4_H = 297
 const MX = 14
@@ -152,12 +152,15 @@ export async function exportarAnalisePdf(r: ResultadoAnalise): Promise<void> {
   doc.text('Análise do Fin', MX, y + 5)
   y += 10
   const periodo = m.mesFoco
-    ? `${rotuloMesIso(m.mesFoco.mes)} vs. ${m.mesFoco.mesesBase} meses anteriores`
+    ? `${rotuloFaturaFoco(m.mesFoco).titulo} (${rotuloFaturaFoco(m.mesFoco).compras}) vs. ${m.mesFoco.mesesBase} meses anteriores`
     : `${rotuloMesIso(m.periodo.inicio)} a ${rotuloMesIso(m.periodo.fim)}`
   fonte(9)
   cor(CINZA)
-  doc.text(limpar(`${rotuloJanela(p.janela)} · ${periodo} · ${rotuloEscopo(p.escopo)}${objetivo} · gerado em ${format(new Date(r.geradaEm), 'dd/MM/yyyy')}`), MX, y)
-  y += 8
+  // Com a fatura em foco o "Último mês" é redundante; e a linha quebra se não couber.
+  const cabecalho = `${m.mesFoco ? '' : `${rotuloJanela(p.janela)} · `}${periodo} · ${rotuloEscopo(p.escopo)}${objetivo} · gerado em ${format(new Date(r.geradaEm), 'dd/MM/yyyy')}`
+  const linhasCabecalho = doc.splitTextToSize(limpar(cabecalho), W) as string[]
+  doc.text(linhasCabecalho, MX, y)
+  y += 8 + (linhasCabecalho.length - 1) * 4
 
   // ── Nota + perfil ──
   const nota = m.saude.nota
@@ -253,7 +256,7 @@ export async function exportarAnalisePdf(r: ResultadoAnalise): Promise<void> {
   // ── Mês em foco: a conta do saldo e as barras mês × normal ──
   if (m.mesFoco) {
     const f = m.mesFoco
-    titulo(`${rotuloMesIso(f.mes)} vs. seu normal`, 8 * 6 + 8)
+    titulo(`${rotuloFaturaFoco(f).titulo} vs. seu normal`, 8 * 6 + 8)
     if (f.saldo && f.receita) {
       conta([
         ['Receita', f.receita.atual, '+'],
@@ -293,7 +296,7 @@ export async function exportarAnalisePdf(r: ResultadoAnalise): Promise<void> {
       y += 8
     }
     y += paragrafo(
-      `Azul: ${rotuloMesIso(f.mes)} · cinza: média de ${f.mesesBase} meses anteriores. Das faturas, ${formatBRL(f.parcelasEmAndamento.valor.atual)} são parcelas de compras antigas. Compras novas usam o valor cheio da compra (10× R$ 100 conta R$ 1.000), por isso não somam com as faturas.`,
+      `Azul: ${rotuloFaturaFoco(f).titulo.toLowerCase()} (${rotuloFaturaFoco(f).compras}; o cartão conta pela fatura, não pela data da compra) · cinza: média de ${f.mesesBase} meses anteriores. Das faturas, ${formatBRL(f.parcelasEmAndamento.valor.atual)} são parcelas de compras antigas. Compras novas usam o valor cheio da compra (10× R$ 100 conta R$ 1.000), por isso não somam com as faturas.`,
       MX, y, W, 7, 'normal', CINZA,
     ) + 4
   }
@@ -619,7 +622,7 @@ export async function exportarAnalisePdf(r: ResultadoAnalise): Promise<void> {
   if (m.mesFoco && m.mesFoco.lancamentos.length > 0) {
     doc.addPage()
     y = 16
-    titulo(`Apêndice: lançamentos das faturas de ${rotuloMesIso(m.mesFoco.mes)}`)
+    titulo(`Apêndice: lançamentos da ${rotuloFaturaFoco(m.mesFoco).titulo.toLowerCase()} (${rotuloFaturaFoco(m.mesFoco).compras})`)
     paragrafo('Parcelas em andamento entram com a data de abertura da fatura — não são compras novas.', MX, y - 2, W, 7.5, 'normal', CINZA)
     autoTable(doc, {
       startY: y + 3,

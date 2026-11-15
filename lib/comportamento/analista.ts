@@ -39,9 +39,10 @@ REGRAS INEGOCIÁVEIS
 6. Quando variacaoPct vier null, não invente percentual: diga que o gasto praticamente não existia antes.
 7. Uma compra grande e isolada distorce médias. Se uma compra atípica responder por boa parte de um dia, fase ou categoria, trate-a à parte e descreva o hábito pela quantidade de compras.
 8. O mês corrente é parcial: não trate os números dele como mês completo.
-9. DICAS (planoDeAcao): 3 a 5, da que mais ajuda para a que menos ajuda. Sempre que uma dica atacar uma das OPORTUNIDADES DE ECONOMIA listadas, preencha "oportunidade" com o id exato dela — o app usa a economia calculada por ele. Não repita a mesma oportunidade em duas dicas. Dica que não corta um gasto específico (organizar categorias, guardar dinheiro, renegociar, deixar parcelas acabarem) usa oportunidade vazia. Não escreva valor de economia na "acao"; no "porque" você pode citar o valor da oportunidade.
+9. DICAS (planoDeAcao): 3 a 5, da que mais ajuda para a que menos ajuda. Sempre que uma dica atacar uma das OPORTUNIDADES DE ECONOMIA listadas, preencha "oportunidade" com o id exato dela — o app usa a economia calculada por ele. Não repita a mesma oportunidade em duas dicas. Dica que não corta um gasto específico (organizar categorias, guardar dinheiro, renegociar, deixar parcelas acabarem) usa oportunidade vazia. Não escreva valor de economia em reais na "acao" nem no "porque": o app mostra a economia ao lado da dica (e pode ajustá-la).
 10. Ao menos uma dica deve ser sobre o PRÓXIMO MÊS quando houver proximoMes: quanto dá para gastar por semana (tetoSemanal) ou quanto precisa cortar (folga negativa).
-11. Respeite as limitações do dado (histórico curto, compras sem categoria, avisos) e registre-as em "limitacoes".
+11. Respeite as limitações do dado (histórico curto, compras sem categoria) e registre-as em "limitacoes". Não repita os avisos que já vêm em qualidade.avisos — o app já os mostra.
+12. Compra parcelada nova entra pelo valor cheio na fatura em que começou. Uma compra grande e única (ex.: 8× numa oficina) não é hábito mensal: não a trate como gasto que se repete nem como economia por mês.
 
 GLOSSÁRIO DAS MÉTRICAS
 - mensal[]: série por mês, com a mesma conta de saldo do Dashboard do app. gastoTotal = gastoCartao (fatura efetiva: o valor pago na linha do cartão; sem pagamento marcado, a soma das compras daquela fatura) + contas (despesas do planejamento, sem pagamento de fatura). receita = a recebida quando marcada; num mês fechado sem a marcação, a prevista. saldo = receita − gastoTotal; taxaPoupanca = saldo / receita. aportes = dinheiro investido no mês. Ao citar o saldo de um mês, mostre a conta (receita − faturas − contas) para a pessoa conseguir conferir no app.
@@ -59,7 +60,7 @@ GLOSSÁRIO DAS MÉTRICAS
 - planejamento: pontualidade = pagasComAtraso de contasComDatas (só essas têm as duas datas; não use contasPagas como base). aderenciaPct = realizado / previsto das contas pagas; itensQueEstouram = contas que passam do previsto na maioria dos meses.
 - investimentos: mesesDeReserva = saldo informado dos investimentos ÷ gasto médio mensal (quantos meses a reserva cobre; referência 6). pctDaReceita = aporte médio mensal / receita média. Quando vierem null, a pessoa não registra investimentos no app: não afirme que ela não tem reserva.
 - comprasAtipicas: compras muito acima da mediana da própria categoria (possíveis compras por impulso ou eventos).
-- modo "ultimo_mes": o foco é mesFoco (o último mês fechado, pelas faturas pagas nele); a série mensal e os demais blocos de meses servem de "normal" para comparação. Cada Comparativo traz atual (mês em foco), base (média dos meses anteriores) e variacaoPct. mesFoco.novidades = categorias/lugares que não apareciam antes. Junto vem a TABELA DE LANÇAMENTOS com todas as linhas das faturas pagas no mês: use-a para ir ao detalhe (compras específicas, repetições, horários do mês, quem comprou), sempre separando compra_nova de parcela_em_andamento. No modo "ultimo_mes", seja concreto sobre ESTE mês: o que fugiu do normal, por quê, e o que fazer já no mês seguinte.
+- modo "ultimo_mes": o foco é mesFoco, a FATURA PAGA no último mês fechado. As compras do cartão contam pela fatura em que caíram, não pela data da compra: a fatura paga em outubro tem compras feitas entre mesFoco.periodoCompras.inicio e .fim (em geral fim de agosto a fim de setembro). Por isso NUNCA diga "em outubro você comprou/gastou/reduziu"; diga "na fatura de outubro" ou "nas compras de 25/08 a 24/09". Receita, contas e saldo, esses sim, são do mês. A série mensal e os demais blocos de meses servem de "normal" para comparação; a série mensal e os demais blocos de meses servem de "normal" para comparação. Cada Comparativo traz atual (mês em foco), base (média dos meses anteriores) e variacaoPct. mesFoco.novidades = categorias/lugares que não apareciam antes. Junto vem a TABELA DE LANÇAMENTOS com todas as linhas das faturas pagas no mês: use-a para ir ao detalhe (compras específicas, repetições, horários do mês, quem comprou), sempre separando compra_nova de parcela_em_andamento. No modo "ultimo_mes", seja concreto sobre ESTE mês: o que fugiu do normal, por quê, e o que fazer já no mês seguinte.
 
 FORMATO — CURTO E VISUAL
 A tela e o PDF mostram gráficos dos números; o seu texto é a legenda que explica o que importa. Seja telegráfico: frases curtas, uma ideia por frase, sem repetir números que já estão em outro item, sem introduções ("É importante notar que…").
@@ -230,7 +231,7 @@ function montarPedido(
     : `apenas os lançamentos de ${parametros.escopo} (gastos do Conjunto ficam de fora)`
 
   const periodo = metricas.mesFoco
-    ? `Período: último mês fechado (${metricas.mesFoco.mes}, faturas pagas nele), comparado com os ${metricas.mesFoco.mesesBase} meses anteriores.`
+    ? `Período: fatura paga em ${metricas.mesFoco.mes}${metricas.mesFoco.periodoCompras ? ` (compras feitas de ${metricas.mesFoco.periodoCompras.inicio} a ${metricas.mesFoco.periodoCompras.fim})` : ''}, comparada com as dos ${metricas.mesFoco.mesesBase} meses anteriores.`
     : `Período: ${metricas.periodo.mesesFechados} meses fechados (${metricas.periodo.inicio} a ${metricas.periodo.fim}) + ${metricas.periodo.mesParcial} em andamento.`
   // A lista de lançamentos vai em tabela, fora do JSON.
   const semLancamentos: MetricasComportamento = metricas.mesFoco
@@ -349,6 +350,20 @@ export function aplicarOportunidades(analise: AnaliseIA, oportunidades: Oportuni
 const normalizarNome = (s: string) =>
   s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
 
+const BRL_INTEIRO = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
+const reaisInteiros = (v: number) => BRL_INTEIRO.format(v).replace(/\s/g, ' ')
+
+/** Limitações da IA que só repetem um aviso do app (o app já mostra os avisos). */
+export function semAvisosRepetidos(limitacoes: string[], avisos: string[]): string[] {
+  const palavras = (t: string) => new Set(normalizarNome(t).split(/[^a-z0-9]+/).filter(w => w.length > 3))
+  const dosAvisos = avisos.map(palavras)
+  return limitacoes.filter(l => {
+    const p = palavras(l)
+    if (p.size === 0) return false
+    return !dosAvisos.some(a => [...p].filter(w => a.has(w)).length / p.size >= 0.5)
+  })
+}
+
 /**
  * Prende as economias do plano ao que os dados permitem. A IA estima cada
  * ação isolada: duas ações sobre o mesmo gasto somam a economia duas vezes, e
@@ -365,7 +380,14 @@ export function ajustarEconomias(analise: AnaliseIA, metricas: MetricasComportam
     const total = itens.reduce((s, p) => s + p.economiaMensal, 0)
     if (total <= teto) return
     const fator = Math.max(0, teto) / total
-    for (const p of itens) p.economiaMensal = Math.floor(p.economiaMensal * fator)
+    for (const p of itens) {
+      const antes = p.economiaMensal
+      p.economiaMensal = Math.floor(p.economiaMensal * fator)
+      // A conta da dica precisa terminar no valor que a tela mostra.
+      if (p.regra && p.economiaMensal !== antes) {
+        p.regra = `${p.regra.replace(/\s*Ajustado para .*$/, '')} Ajustado para ${reaisInteiros(p.economiaMensal)} para não contar a mesma economia duas vezes.`
+      }
+    }
     ajustou = true
   }
 
@@ -520,6 +542,7 @@ export async function analisarComportamento(opts: {
     throw new AnaliseFormatoError('a conferência dos valores não deixou descobertas')
   }
 
+  analise = { ...analise, limitacoes: semAvisosRepetidos(analise.limitacoes, opts.metricas.qualidade.avisos) }
   return {
     ...ajustarEconomias(analise, opts.metricas),
     conferencia: { citados: conferencia.citados, removidos },

@@ -38,7 +38,7 @@ export function contextoAnaliseParaChat(r: ResultadoAnalise): string {
   const data = new Date(r.geradaEm).toLocaleDateString('pt-BR')
   const quem = p.escopo === 'casal' ? 'do casal' : `de ${p.escopo}`
   const periodo = m.mesFoco
-    ? `${mesIso(m.mesFoco.mes)} comparado com os ${m.mesFoco.mesesBase} meses anteriores`
+    ? `fatura paga em ${mesIso(m.mesFoco.mes)}${m.mesFoco.periodoCompras ? ` (compras de ${m.mesFoco.periodoCompras.inicio} a ${m.mesFoco.periodoCompras.fim}; o cartão conta pela fatura, não pela data da compra)` : ''}, comparada com os ${m.mesFoco.mesesBase} meses anteriores`
     : `${mesIso(m.periodo.inicio)} a ${mesIso(m.periodo.fim)}`
 
   // Em ordem de importância: o fim da lista é o primeiro a sair se não couber.

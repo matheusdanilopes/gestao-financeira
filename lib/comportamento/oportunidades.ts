@@ -36,6 +36,21 @@ const arred = (v: number) => Math.max(0, Math.floor(v))
 /** Economia mínima para valer uma dica: abaixo disso é ruído. */
 const MINIMO = 20
 
+/**
+ * Maior compra nova de cada categoria na fatura em foco, pelo valor cheio
+ * (parcela × total, como nas métricas do mês).
+ */
+function maiorCompraNovaPorCategoria(m: MetricasComportamento): Map<string, number> {
+  const maior = new Map<string, number>()
+  for (const l of m.mesFoco?.lancamentos ?? []) {
+    if (l.tipo !== 'compra_nova') continue
+    const total = Number(l.parcela?.split('/')[1]) || 1
+    const cheio = l.valor * total
+    if (cheio > (maior.get(l.categoria) ?? 0)) maior.set(l.categoria, cheio)
+  }
+  return maior
+}
+
 export function calcularOportunidades(m: MetricasComportamento): Oportunidade[] {
   const ops: Oportunidade[] = []
   const categoriasUsadas = new Set<string>()
@@ -43,8 +58,12 @@ export function calcularOportunidades(m: MetricasComportamento): Oportunidade[] 
   // 1. Categorias que subiram em relação ao normal: voltar ao normal.
   if (m.mesFoco) {
     const base = m.mesFoco.mesesBase
+    const maiorCompra = maiorCompraNovaPorCategoria(m)
     for (const c of [...m.mesFoco.categorias]
       .filter(c => c.categoria !== 'Sem categoria' && c.base > 0 && c.atual - c.base >= 50 && (c.variacaoPct ?? 0) >= 20)
+      // Uma compra só (ex.: 8× na oficina, pelo valor cheio) não é hábito:
+      // prometer essa diferença como economia por mês seria falso.
+      .filter(c => (maiorCompra.get(c.categoria) ?? 0) < (c.atual - c.base) * 0.5)
       .sort((a, b) => (b.atual - b.base) - (a.atual - a.base))
       .slice(0, 3)) {
       const economia = arred(c.atual - c.base)
@@ -55,7 +74,7 @@ export function calcularOportunidades(m: MetricasComportamento): Oportunidade[] 
         titulo: `Voltar ${c.categoria} ao normal`,
         categoria: c.categoria,
         economiaMensal: economia,
-        regra: `Compras novas em ${c.categoria} no mês (${reais(c.atual)}) − média dos ${base} meses anteriores (${reais(c.base)}) = ${reais(economia)}.`,
+        regra: `Compras novas em ${c.categoria} nesta fatura (${reais(c.atual)}) − média das ${base} faturas anteriores (${reais(c.base)}) = ${reais(economia)}.`,
       })
     }
   } else {
