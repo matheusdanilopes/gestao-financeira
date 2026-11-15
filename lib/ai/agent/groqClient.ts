@@ -55,7 +55,11 @@ function parametrosRaciocinio(modelo: string): Record<string, string> {
 }
 
 function modeloIndisponivel(status: number, corpo: string): boolean {
-  return status === 404 || /model_not_found|model_decommissioned|does not exist|decommissioned/i.test(corpo)
+  return status === 404 || /model_not_found|model_decommissioned|does not exist|decommissioned/i.test(corpo) ||
+    // Pedido maior que o limite de tokens por minuto DESTE modelo (comum na
+    // Análise do Fin, que manda todos os lançamentos do mês): outro modelo da
+    // lista pode ter limite maior.
+    status === 413 || /request too large|reduce your message size/i.test(corpo)
 }
 
 class ModeloIndisponivelError extends Error {}
