@@ -33,6 +33,13 @@ export function destaqueCurto(destaque: string | undefined): string {
   return numero || t
 }
 
+/** Etapas que a rota anuncia (evento "status") e a tela mostra, na ordem. */
+export const ETAPAS_ANALISE = [
+  'Lendo suas faturas e contas',
+  'Fazendo as contas do período',
+  'O Fin está escrevendo a análise',
+] as const
+
 /** 'casal' = todos os responsáveis; um nome = só os lançamentos daquela pessoa. */
 export type EscopoAnalise = 'casal' | 'Matheus' | 'Jeniffer'
 
@@ -400,7 +407,12 @@ export interface AnaliseIA {
     porque: string
     /** Categoria de onde sai a economia (como nos dados); vazio quando a ação não corta um gasto específico. */
     categoria?: string
+    /** Id da oportunidade de economia calculada pelo app ("categoria:Delivery"); vazio sem economia. */
+    oportunidade?: string
+    /** Economia mensal. Desde a Análise do Fin, calculada pelo app (não pela IA). */
     economiaMensal: number
+    /** A conta da economia, em português (para o "Como calculei"). */
+    regra?: string
     dificuldade: 'facil' | 'media' | 'dificil'
     prazo: string
   }>
@@ -412,6 +424,13 @@ export interface AnaliseIA {
    * que o gasto da categoria (ou do que o gasto variável) permite cortar.
    */
   economiaAjustada?: boolean
+  /**
+   * Conferência dos valores em R$ citados pelo Fin contra os números do app.
+   * `removidos` = valores sem origem que fizeram o item sair da análise.
+   */
+  conferencia?: { citados: number; removidos: string[] }
+  /** Modelo que escreveu a análise. */
+  modelo?: string
 }
 
 export interface ResultadoAnalise {

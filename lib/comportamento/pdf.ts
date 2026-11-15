@@ -142,19 +142,21 @@ export async function exportarAnalisePdf(r: ResultadoAnalise): Promise<void> {
   }
 
   // ── Cabeçalho ──
-  const objetivo = OBJETIVOS_ANALISE.find(o => o.chave === p.objetivo)?.label ?? p.objetivo
+  const objetivo = p.objetivo && p.objetivo !== 'entender'
+    ? ` · ${OBJETIVOS_ANALISE.find(o => o.chave === p.objetivo)?.label ?? p.objetivo}`
+    : ''
   preencher(VIOLETA)
   doc.rect(0, 0, 210, 3, 'F')
   fonte(17, 'bold')
   cor(TINTA)
-  doc.text('Análise de Comportamento Financeiro', MX, y + 5)
+  doc.text('Análise do Fin', MX, y + 5)
   y += 10
   const periodo = m.mesFoco
     ? `${rotuloMesIso(m.mesFoco.mes)} vs. ${m.mesFoco.mesesBase} meses anteriores`
     : `${rotuloMesIso(m.periodo.inicio)} a ${rotuloMesIso(m.periodo.fim)}`
   fonte(9)
   cor(CINZA)
-  doc.text(limpar(`${rotuloJanela(p.janela)} · ${periodo} · ${rotuloEscopo(p.escopo)} · ${objetivo} · gerado em ${format(new Date(r.geradaEm), 'dd/MM/yyyy')}`), MX, y)
+  doc.text(limpar(`${rotuloJanela(p.janela)} · ${periodo} · ${rotuloEscopo(p.escopo)}${objetivo} · gerado em ${format(new Date(r.geradaEm), 'dd/MM/yyyy')}`), MX, y)
   y += 8
 
   // ── Nota + perfil ──
@@ -372,7 +374,7 @@ export async function exportarAnalisePdf(r: ResultadoAnalise): Promise<void> {
 
   // ── Padrões em cartões ──
   if (a.padroes.length > 0) {
-    titulo('O que os dados mostram (leitura da IA)', 30)
+    titulo('O que o Fin descobriu', 30)
     const lc = (W - 4) / 2
     for (let k = 0; k < a.padroes.length; k += 2) {
       const par = a.padroes.slice(k, k + 2)
@@ -406,7 +408,7 @@ export async function exportarAnalisePdf(r: ResultadoAnalise): Promise<void> {
   // ── Plano de ação: cada ação com a sua economia ──
   const economia = a.planoDeAcao.reduce((s, x) => s + x.economiaMensal, 0)
   if (a.planoDeAcao.length > 0) {
-    titulo('Plano de ação', economia > 0 ? 24 : 12)
+    titulo('Dicas do Fin', economia > 0 ? 24 : 12)
     if (economia > 0) {
       fonte(18, 'bold')
       cor(VERDE)
@@ -414,7 +416,7 @@ export async function exportarAnalisePdf(r: ResultadoAnalise): Promise<void> {
       const lEco = doc.getTextWidth(limpar(formatBRL(economia)))
       fonte(9)
       cor(CINZA)
-      doc.text(limpar(`por mês, se seguir o plano · ${formatBRL(economia * 12)} por ano`), MX + lEco + 3, y + 6)
+      doc.text(limpar(`por mês, seguindo as dicas · ${formatBRL(economia * 12)} por ano`), MX + lEco + 3, y + 6)
       y += 11
     }
     a.planoDeAcao.forEach((acao, i) => {
@@ -442,7 +444,9 @@ export async function exportarAnalisePdf(r: ResultadoAnalise): Promise<void> {
     })
     if (economia > 0) {
       y += paragrafo(
-        `Como calculei: a economia de cada ação é uma estimativa da IA a partir da média mensal do gasto que ela ataca. O app limita as ações de uma categoria ao que ela gasta por mês, e o total a metade do gasto que se decide no dia a dia.${a.economiaAjustada ? ' Nesta análise as estimativas foram reduzidas para caber nesses limites.' : ''}`,
+        `Como calculei: ${a.planoDeAcao.some(x => x.regra)
+          ? a.planoDeAcao.filter(x => x.regra).map(x => x.regra).join(' ')
+          : 'a economia de cada ação é uma estimativa a partir da média mensal do gasto que ela ataca.'} O app limita as dicas de uma categoria ao que ela gasta por mês, e o total a metade do gasto que se decide no dia a dia.${a.economiaAjustada ? ' Nesta análise o total foi reduzido para caber nesses limites.' : ''}`,
         MX, y, W, 7, 'normal', CINZA,
       ) + 3
     }
@@ -645,5 +649,5 @@ export async function exportarAnalisePdf(r: ResultadoAnalise): Promise<void> {
     doc.text(`${i}/${paginas}`, MX + W, A4_H - 7, { align: 'right' })
   }
 
-  doc.save(`analise-comportamento-${r.geradaEm.substring(0, 10)}.pdf`)
+  doc.save(`analise-do-fin-${r.geradaEm.substring(0, 10)}.pdf`)
 }

@@ -1,6 +1,6 @@
 /**
- * POST /api/analise-comportamento — análise de comportamento financeiro sob
- * demanda, em streaming (SSE).
+ * POST /api/analise-comportamento — Análise do Fin, sob demanda, em
+ * streaming (SSE).
  *
  * Só roda quando o usuário pede (botão na tela): a análise lê todo o histórico
  * da janela e usa bastante raciocínio do modelo, então não faz sentido gastar
@@ -25,6 +25,7 @@ import { responsavelDoEmail } from '@/lib/ai/agent/interlocutor'
 import { calcularMetricas } from '@/lib/comportamento/metricas'
 import { analisarComportamento, AnaliseFormatoError } from '@/lib/comportamento/analista'
 import {
+  ETAPAS_ANALISE,
   JANELAS_ANALISE,
   OBJETIVOS_ANALISE,
   type EscopoAnalise,
@@ -84,13 +85,13 @@ export async function POST(req: NextRequest) {
       }
 
       try {
-        enviar('status', { texto: 'Lendo todo o seu histórico financeiro' })
+        enviar('status', { texto: ETAPAS_ANALISE[0] })
         // Leitura fresca: a análise precisa refletir o que acabou de ser lançado.
         const gateway = new GatewayDados(supabase, user.id)
         const { dados, certificado } = await gateway.iniciar(true)
         const hoje = agoraBrasil()
 
-        enviar('status', { texto: 'Calculando seus padrões de comportamento' })
+        enviar('status', { texto: ETAPAS_ANALISE[1] })
         const primeiro = gateway.cobertura.primeiroNoBanco
         const metricas = calcularMetricas(dados, parametros, hoje, primeiro)
         if (!certificado.certificado) {
@@ -106,7 +107,7 @@ export async function POST(req: NextRequest) {
           return
         }
 
-        enviar('status', { texto: 'O analista está estudando seus dados' })
+        enviar('status', { texto: ETAPAS_ANALISE[2] })
         const analise = await analisarComportamento({
           apiKey,
           metricas,
@@ -123,11 +124,11 @@ export async function POST(req: NextRequest) {
         }
         enviar('done', { resultado })
       } catch (err) {
-        console.error('[analise-comportamento]', err instanceof Error ? err.message : err)
+        console.error('[analise-fin]', err instanceof Error ? err.message : err)
         if (err instanceof AnaliseFormatoError) {
           enviar('error', {
             codigo: 'FORMATO',
-            mensagem: 'O analista não conseguiu concluir o relatório desta vez. Tente de novo — se persistir, escolha um período menor.',
+            mensagem: 'O Fin não conseguiu concluir a análise desta vez. Tente de novo — se persistir, escolha um período menor.',
           })
         } else {
           enviar('error', descreverErro(err))

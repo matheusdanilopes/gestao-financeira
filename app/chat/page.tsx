@@ -144,6 +144,19 @@ export default function ChatPage() {
     Promise.resolve().then(() => onMic())
   }, [searchParams, voz.suportaEscuta, onMic, router])
 
+  // ── Pergunta pronta vinda de outra tela (ex.: "Conversar com o Fin" na
+  // Análise do Fin): chega como /chat?pergunta=… e fica no campo para a pessoa
+  // revisar e enviar. Some da URL para não voltar num refresh.
+  const perguntaAplicadaRef = useRef(false)
+  useEffect(() => {
+    if (perguntaAplicadaRef.current) return
+    const pergunta = searchParams.get('pergunta')?.trim()
+    if (!pergunta) return
+    perguntaAplicadaRef.current = true
+    router.replace('/chat', { scroll: false })
+    Promise.resolve().then(() => setInput(pergunta.slice(0, 1000)))
+  }, [searchParams, router])
+
   // ── Resposta falada: só a última mensagem de cada turno novo, nunca o
   // histórico restaurado (que chega de uma vez, crescendo mais que 1). ──
   const totalMensagensRef = useRef(0)

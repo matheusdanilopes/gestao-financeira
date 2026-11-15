@@ -1,25 +1,23 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import {
-  Brain, Sparkles, Loader2, Check, AlertTriangle, FileDown, Copy, RefreshCw, ChevronDown,
-  CalendarDays, Store, Layers, Target,
-} from 'lucide-react'
+import { Loader2, Check, AlertTriangle, FileDown, Copy, RefreshCw, ChevronDown, Sparkles } from 'lucide-react'
 import SeletorOpcoes from '@/components/relatorios/SeletorOpcoes'
+import { RoboAvatar } from '@/components/chat/RoboAvatar'
+import { VerDetalhes } from '@/components/comportamento/ResultadoComportamento'
 import {
-  BlocosNumeros, DetalhesRecolhidos, Diagnostico, LimitesAnalise, Padroes, PlanoDeAcao,
-} from '@/components/comportamento/ResultadoComportamento'
+  ConversarComFin, Descobertas, Dicas, ProximoMesSimples, RecadoFin, SaudeSimples, SeloConferencia,
+} from '@/components/comportamento/AnaliseFin'
 import { lerSSE } from '@/lib/sseStream'
 import { copiarTexto, documentoParaMarkdown } from '@/lib/relatorioDocumento'
 import { montarDocumentoAnalise, rotuloEscopo } from '@/lib/comportamento/documento'
 import { salvarAnalise, useAnalisesSalvas } from '@/lib/comportamento/historico'
 import {
+  ETAPAS_ANALISE,
   JANELAS_ANALISE,
-  OBJETIVOS_ANALISE,
   type EscopoAnalise,
   type JanelaAnalise,
   type MetricasComportamento,
-  type ObjetivoAnalise,
   type ParametrosAnalise,
   type ResultadoAnalise,
   rotuloJanela,
@@ -32,72 +30,47 @@ const OPCOES_ESCOPO: { valor: EscopoAnalise; label: string }[] = [
   { valor: 'Matheus', label: 'Matheus' },
   { valor: 'Jeniffer', label: 'Jeniffer' },
 ]
-const LIMITE_CONTEXTO = 400
-
-const ETAPAS = [
-  'Lendo todo o seu histórico financeiro',
-  'Calculando seus padrões de comportamento',
-  'O analista está estudando seus dados',
-]
 
 /** Análises mais antigas que isso ganham um aviso de "dados desatualizados". */
 const DIAS_ANALISE_ANTIGA = 30
 
 type Fase = 'parado' | 'analisando' | 'erro'
 
-function formatarDataHora(iso: string): string {
-  const d = new Date(iso)
-  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+function formatarData(iso: string): string {
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 function diasDesde(iso: string): number {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
 }
 
-// ─── Formulário do pedido ────────────────────────────────────────────────────
+// ─── Pedido ──────────────────────────────────────────────────────────────────
 
 function PainelPedido({
-  parametros, onChange, onAnalisar, ocupado, compacto,
+  parametros, onChange, onAnalisar, compacto,
 }: {
   parametros: ParametrosAnalise
   onChange: (p: ParametrosAnalise) => void
   onAnalisar: () => void
-  ocupado: boolean
   compacto: boolean
 }) {
   return (
     <section className="bg-white rounded-3xl shadow-soft p-4 space-y-4">
       {!compacto && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-full bg-violet-100 flex items-center justify-center shrink-0">
-              <Brain className="w-5 h-5 text-violet-600" strokeWidth={1.8} />
-            </div>
-            <div>
-              <h2 className="font-bold text-gray-900 tracking-tight leading-tight">Seu analista financeiro pessoal</h2>
-              <p className="text-xs text-gray-500 leading-snug">
-                Estuda seus dados a fundo e explica os padrões por trás do seu dinheiro.
-              </p>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { Icon: CalendarDays, texto: 'Dias, semanas e fases do mês em que você mais gasta' },
-              { Icon: Store, texto: 'Lugares e categorias que puxam o orçamento' },
-              { Icon: Layers, texto: 'Parcelas, microgastos e compras por impulso' },
-              { Icon: Target, texto: 'Plano de ação e metas com economia estimada' },
-            ].map(({ Icon, texto }) => (
-              <div key={texto} className="flex items-start gap-2 rounded-2xl bg-gray-50 border border-gray-100 p-2.5">
-                <Icon className="w-3.5 h-3.5 text-violet-500 shrink-0 mt-0.5" strokeWidth={2} />
-                <p className="text-[11px] text-gray-600 leading-snug">{texto}</p>
-              </div>
-            ))}
+        <div className="flex items-start gap-3">
+          <RoboAvatar tamanho={52} humor="feliz" titulo="Fin" className="shrink-0" />
+          <div className="min-w-0 flex-1 rounded-2xl rounded-tl-md bg-primary-50 px-3.5 py-3 space-y-1">
+            <p className="text-[15px] font-bold text-gray-900 leading-snug">Oi! Posso dar uma olhada nos seus gastos?</p>
+            <p className="text-[13px] text-gray-700 leading-relaxed">
+              Eu leio suas faturas e contas, te conto para onde o dinheiro está indo e mostro onde dá para
+              economizar — com o valor de cada dica.
+            </p>
           </div>
         </div>
       )}
 
       <div className="space-y-2">
-        <p className="text-xs font-semibold text-gray-700">Período analisado</p>
+        <p className="text-xs font-semibold text-gray-700">Qual período?</p>
         <SeletorOpcoes
           opcoes={OPCOES_JANELA}
           valor={parametros.janela}
@@ -107,68 +80,23 @@ function PainelPedido({
       </div>
 
       <div className="space-y-2">
-        <p className="text-xs font-semibold text-gray-700">De quem</p>
+        <p className="text-xs font-semibold text-gray-700">De quem?</p>
         <SeletorOpcoes
           opcoes={OPCOES_ESCOPO}
           valor={parametros.escopo}
           onChange={v => onChange({ ...parametros, escopo: v })}
-          ariaLabel="Escopo da análise"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <p className="text-xs font-semibold text-gray-700">O que você quer conquistar</p>
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Objetivo">
-          {OBJETIVOS_ANALISE.map(o => {
-            const ativo = parametros.objetivo === o.chave
-            return (
-              <button
-                key={o.chave}
-                type="button"
-                onClick={() => onChange({ ...parametros, objetivo: o.chave as ObjetivoAnalise })}
-                aria-pressed={ativo}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all duration-150 tap-scale
-                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-300
-                            ${ativo
-                              ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
-                              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-              >
-                {o.label}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <label htmlFor="contexto-analise" className="text-xs font-semibold text-gray-700">
-          Algo que o analista deve saber? <span className="font-normal text-gray-400">(opcional)</span>
-        </label>
-        <textarea
-          id="contexto-analise"
-          value={parametros.contexto ?? ''}
-          onChange={e => onChange({ ...parametros, contexto: e.target.value.slice(0, LIMITE_CONTEXTO) })}
-          rows={2}
-          placeholder="Ex.: queremos trocar de carro no fim de 2027; sinto que gasto demais com delivery."
-          className="w-full px-3 py-2.5 rounded-2xl bg-gray-50 border border-gray-100 text-sm text-gray-700
-                     placeholder:text-gray-400 resize-none
-                     focus:outline-none focus:ring-2 focus:ring-primary-300"
+          ariaLabel="De quem são os gastos analisados"
         />
       </div>
 
       <button
         type="button"
         onClick={onAnalisar}
-        disabled={ocupado}
-        className="w-full py-3.5 rounded-full font-semibold text-sm text-white bg-primary-600 flex items-center justify-center gap-2 transition-all duration-150 ease-spring active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-400"
+        className="w-full py-3.5 rounded-full font-semibold text-sm text-white bg-primary-600 flex items-center justify-center gap-2 transition-all duration-150 ease-spring active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-400"
       >
-        {ocupado
-          ? <><Loader2 className="w-4 h-4 animate-spin" /> Analisando…</>
-          : <><Sparkles className="w-4 h-4" /> Analisar meu comportamento</>}
+        <Sparkles className="w-4 h-4" /> Pedir análise ao Fin
       </button>
-      <p className="text-[11px] text-gray-400 text-center leading-snug">
-        A análise só roda quando você pede. Ela lê todo o período escolhido e leva cerca de 1 minuto.
-      </p>
+      <p className="text-[11px] text-gray-400 text-center leading-snug">Leva cerca de 1 minuto.</p>
     </section>
   )
 }
@@ -179,26 +107,27 @@ function Progresso({ etapa, segundos }: { etapa: number; segundos: number }) {
   return (
     <section className="bg-white rounded-3xl shadow-soft p-4 space-y-3" aria-live="polite">
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-full bg-violet-50 flex items-center justify-center shrink-0">
-          <Brain className="w-4 h-4 text-violet-600 animate-pulse" strokeWidth={1.8} />
+        <RoboAvatar tamanho={44} humor="pensando" titulo="Fin pensando" className="shrink-0" />
+        <div className="flex-1 min-w-0">
+          <h2 className="font-bold text-gray-900 tracking-tight">O Fin está analisando…</h2>
+          <p className="text-[11px] text-gray-400">Pode levar até 1 minuto. Não feche esta tela.</p>
         </div>
-        <h2 className="font-bold text-gray-900 tracking-tight flex-1">Analisando…</h2>
         <span className="text-xs text-gray-400 num">{segundos}s</span>
       </div>
       <ol className="space-y-2">
-        {ETAPAS.map((texto, i) => {
+        {ETAPAS_ANALISE.map((texto, i) => {
           const feito = i < etapa
           const atual = i === etapa
           return (
             <li key={texto} className="flex items-center gap-2.5">
               <span
                 className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0
-                            ${feito ? 'bg-green-500' : atual ? 'bg-violet-100' : 'bg-gray-100'}`}
+                            ${feito ? 'bg-green-500' : atual ? 'bg-primary-100' : 'bg-gray-100'}`}
               >
                 {feito
                   ? <Check className="w-3 h-3 text-white" strokeWidth={3} />
                   : atual
-                    ? <Loader2 className="w-3 h-3 text-violet-600 animate-spin" />
+                    ? <Loader2 className="w-3 h-3 text-primary-600 animate-spin" />
                     : null}
               </span>
               <span className={`text-xs ${atual ? 'font-semibold text-gray-800' : feito ? 'text-gray-500' : 'text-gray-400'}`}>
@@ -208,18 +137,13 @@ function Progresso({ etapa, segundos }: { etapa: number; segundos: number }) {
           )
         })}
       </ol>
-      {etapa >= 2 && (
-        <p className="text-[11px] text-gray-400 leading-snug">
-          Enquanto o analista escreve, os números que ele está lendo já aparecem abaixo.
-        </p>
-      )}
     </section>
   )
 }
 
 // ─── Página ──────────────────────────────────────────────────────────────────
 
-export default function AnaliseComportamentoPage() {
+export default function AnaliseDoFinPage() {
   const { ultima, historico } = useAnalisesSalvas()
   const [parametros, setParametros] = useState<ParametrosAnalise>({ janela: 12, escopo: 'casal', objetivo: 'entender' })
   const [fase, setFase] = useState<Fase>('parado')
@@ -265,12 +189,12 @@ export default function AnaliseComportamentoPage() {
       })
       if (!res.ok || !res.body) {
         const corpo = await res.json().catch(() => null) as { error?: string } | null
-        throw new Error(res.status === 401 ? 'Sua sessão expirou. Entre de novo para analisar.' : corpo?.error ?? 'Não foi possível iniciar a análise.')
+        throw new Error(res.status === 401 ? 'Sua sessão expirou. Entre de novo para pedir a análise.' : corpo?.error ?? 'Não foi possível iniciar a análise.')
       }
 
       for await (const evento of lerSSE(res.body)) {
         if (evento.tipo === 'status') {
-          const idx = ETAPAS.indexOf(String(evento.dados.texto ?? ''))
+          const idx = (ETAPAS_ANALISE as readonly string[]).indexOf(String(evento.dados.texto ?? ''))
           if (idx >= 0) setEtapa(idx)
         } else if (evento.tipo === 'metricas') {
           setPrevia(evento.dados.metricas as MetricasComportamento)
@@ -300,7 +224,7 @@ export default function AnaliseComportamentoPage() {
       const { exportarAnalisePdf } = await import('@/lib/comportamento/pdf')
       await exportarAnalisePdf(ultima)
     }
-    catch (err) { console.error('[analise-comportamento] PDF:', err) }
+    catch (err) { console.error('[analise-fin] PDF:', err) }
     finally { setExportando(false) }
   }
 
@@ -324,12 +248,12 @@ export default function AnaliseComportamentoPage() {
   return (
     <div className="min-h-screen bg-gray-50 page-bottom-safe page-enter">
       <PageHeader
-        title="Análise de comportamento"
+        title="Análise do Fin"
         subtitle={
           <span className="block truncate">
             {ultima
-              ? `Última análise: ${formatarDataHora(ultima.geradaEm)} · ${rotuloJanela(ultima.parametros.janela)} · ${rotuloEscopo(ultima.parametros.escopo)}`
-              : 'Padrões de comportamento para melhorar sua saúde financeira'}
+              ? `${formatarData(ultima.geradaEm)} · ${rotuloJanela(ultima.parametros.janela)} · ${rotuloEscopo(ultima.parametros.escopo)}`
+              : 'Para onde vai seu dinheiro e como fazer sobrar mais'}
           </span>
         }
         actions={ultima && !analisando ? (
@@ -354,7 +278,7 @@ export default function AnaliseComportamentoPage() {
           <div className="bg-red-50 rounded-3xl p-4 flex gap-3" role="alert">
             <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" strokeWidth={2} />
             <div className="space-y-0.5">
-              <p className="text-xs font-semibold text-red-600">A análise não foi concluída</p>
+              <p className="text-xs font-semibold text-red-600">O Fin não conseguiu terminar a análise</p>
               <p className="text-xs text-red-500">{erro}</p>
             </div>
           </div>
@@ -365,17 +289,12 @@ export default function AnaliseComportamentoPage() {
             parametros={parametros}
             onChange={setParametros}
             onAnalisar={analisar}
-            ocupado={analisando}
             compacto={!!ultima}
           />
         )}
 
-        {analisando && previa && (
-          <>
-            <BlocosNumeros metricas={previa} />
-            <DetalhesRecolhidos metricas={previa} />
-          </>
-        )}
+        {/* Enquanto o Fin escreve, o número mais útil já aparece. */}
+        {analisando && previa?.proximoMes && <ProximoMesSimples p={previa.proximoMes} />}
 
         {!analisando && ultima && (
           <>
@@ -383,26 +302,29 @@ export default function AnaliseComportamentoPage() {
               <div className="bg-amber-50 rounded-3xl p-3.5 flex gap-3">
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" strokeWidth={2} />
                 <p className="text-xs text-amber-700 leading-snug">
-                  Esta análise tem {diasDesde(ultima.geradaEm)} dias — seus dados mudaram desde então. Toque em
-                  &ldquo;Nova análise&rdquo; para atualizar.
+                  Esta análise tem {diasDesde(ultima.geradaEm)} dias — seus gastos mudaram desde então. Toque em
+                  &ldquo;Nova&rdquo; para o Fin olhar de novo.
                 </p>
               </div>
             )}
 
-            <Diagnostico analise={ultima.analise} metricas={ultima.metricas} notaAnterior={anterior?.nota ?? null} />
-            <BlocosNumeros metricas={ultima.metricas} />
-            <Padroes analise={ultima.analise} />
-            <PlanoDeAcao analise={ultima.analise} />
-            <DetalhesRecolhidos metricas={ultima.metricas} analise={ultima.analise} />
-            <LimitesAnalise analise={ultima.analise} metricas={ultima.metricas} />
+            <RecadoFin analise={ultima.analise} />
+            <SaudeSimples metricas={ultima.metricas} notaAnterior={anterior?.nota ?? null} />
+            {ultima.metricas.proximoMes && <ProximoMesSimples p={ultima.metricas.proximoMes} />}
+            <Descobertas analise={ultima.analise} />
+            <Dicas analise={ultima.analise} />
+            <ConversarComFin analise={ultima.analise} />
+            <SeloConferencia analise={ultima.analise} />
+
+            <VerDetalhes metricas={ultima.metricas} analise={ultima.analise} />
 
             <div className="flex gap-2.5 pt-1">
               <button
                 type="button"
                 onClick={baixarPdf}
                 disabled={exportando}
-                className="flex-1 py-3 rounded-full font-semibold text-sm flex items-center justify-center gap-2
-                           bg-red-600 text-white hover:bg-red-700 transition-all duration-150 ease-spring
+                className="flex-1 py-3 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2
+                           bg-white text-gray-700 shadow-soft hover:bg-gray-50 transition-all duration-150 ease-spring
                            active:scale-[0.97] disabled:opacity-50"
               >
                 <FileDown className={`w-4 h-4 ${exportando ? 'animate-pulse' : ''}`} />
@@ -411,14 +333,14 @@ export default function AnaliseComportamentoPage() {
               <button
                 type="button"
                 onClick={copiar}
-                className="flex-1 py-3 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 bg-primary-50 text-primary-700 hover:bg-primary-100 transition-all duration-150 ease-spring active:scale-[0.97]"
+                className="flex-1 py-3 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 bg-white text-gray-700 shadow-soft hover:bg-gray-50 transition-all duration-150 ease-spring active:scale-[0.97]"
               >
                 {copiado ? <><Check className="w-4 h-4" /> Copiado!</> : <><Copy className="w-4 h-4" /> Copiar texto</>}
               </button>
             </div>
             <p className="text-[11px] text-gray-400 text-center leading-snug px-2">
-              Os números são calculados pelo app; a interpretação é feita por IA a partir deles. A última análise
-              fica salva neste aparelho.
+              Os números e a economia das dicas são calculados pelo app; o Fin explica o que eles significam.
+              A última análise fica salva neste aparelho.
             </p>
           </>
         )}
