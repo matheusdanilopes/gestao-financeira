@@ -10,6 +10,8 @@ import { format, startOfMonth } from 'date-fns'
 import FilterSelect from '@/components/FilterSelect'
 import { mascaraMoeda, parseMoeda, formatBRL } from '@/lib/format'
 import PageHeader from '@/components/PageHeader'
+import ComparacaoPrevisaoCard from '@/components/ComparacaoPrevisaoCard'
+import type { ComparacaoPrevisaoFatura } from '@/lib/comparacaoPrevisao'
 
 interface StatsFatura {
   noCSV: number
@@ -222,6 +224,7 @@ export default function ImportarPage() {
   const [detalheLogAberto, setDetalheLogAberto] = useState<string | null>(null)
   const [detalheLinhas, setDetalheLinhas] = useState<LinhaValidacao[] | null>(null)
   const [carregandoDetalhe, setCarregandoDetalhe] = useState(false)
+  const [detalheComparacao, setDetalheComparacao] = useState<ComparacaoPrevisaoFatura[] | null>(null)
   const [filtroBuscaDetalhe, setFiltroBuscaDetalhe] = useState('')
   const [filtroDecisaoDetalhe, setFiltroDecisaoDetalhe] = useState('')
   const [filtroValorMinDetalhe, setFiltroValorMinDetalhe] = useState('')
@@ -384,6 +387,7 @@ export default function ImportarPage() {
   async function abrirDetalhesLog(id: string) {
     setDetalheLogAberto(id)
     setDetalheLinhas(null)
+    setDetalheComparacao(null)
     setCarregandoDetalhe(true)
     setConfirmarAcao(null)
     setErroLinha(null)
@@ -395,6 +399,7 @@ export default function ImportarPage() {
       const res = await fetch(`/api/nubank/atividades/${id}/detalhes`)
       const data = res.ok ? await res.json() : { linhas: [] }
       setDetalheLinhas(data.linhas ?? [])
+      setDetalheComparacao(Array.isArray(data.comparacaoPrevisao) ? data.comparacaoPrevisao : null)
     } catch {
       setDetalheLinhas([])
     } finally {
@@ -405,6 +410,7 @@ export default function ImportarPage() {
   function fecharDetalhes() {
     setDetalheLogAberto(null)
     setDetalheLinhas(null)
+    setDetalheComparacao(null)
     setConfirmarAcao(null)
     setErroLinha(null)
     setFiltroBuscaDetalhe('')
@@ -1403,6 +1409,14 @@ export default function ImportarPage() {
             </div>
 
             <div className="p-4 space-y-2 pb-10">
+              {!carregandoDetalhe && detalheComparacao && detalheComparacao.length > 0 && (
+                <div className="space-y-3 mb-3">
+                  {detalheComparacao.map(c => (
+                    <ComparacaoPrevisaoCard key={`${c.cartao}-${c.fatura}`} comparacao={c} logId={detalheLogAberto} />
+                  ))}
+                </div>
+              )}
+
               {!carregandoDetalhe && detalheLinhas && detalheLinhas.length > 0 && (
                 <div className="space-y-2 mb-2">
                   <div className="relative">
