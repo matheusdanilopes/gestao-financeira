@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
 
     const csvText = await file.text()
     const transacoes = processarCSV(csvText, diaVencimento, ajusteFechamento)
-    await aplicarResponsavelDeParcelaAnterior(supabase, transacoes)
+    const origensResponsavel = await aplicarResponsavelDeParcelaAnterior(supabase, transacoes)
 
     const transacoesNormais = transacoes.filter(t => !t.is_estorno)
     const estornos = transacoes.filter(t => t.is_estorno)
@@ -180,7 +180,7 @@ export async function POST(req: NextRequest) {
           console.error('[import] Falha ao registrar log de atividade:', erroLog.message)
           return
         }
-        await salvarComparacaoNoLog(supabase, logRow?.id, await compararPrevisoes(supabase, previsoes))
+        await salvarComparacaoNoLog(supabase, logRow?.id, await compararPrevisoes(supabase, previsoes, origensResponsavel))
 
         if (!logRow?.id || linhas.length === 0) return
 

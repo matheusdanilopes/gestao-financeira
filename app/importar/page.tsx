@@ -1412,7 +1412,7 @@ export default function ImportarPage() {
               {!carregandoDetalhe && detalheComparacao && detalheComparacao.length > 0 && (
                 <div className="space-y-3 mb-3">
                   {detalheComparacao.map(c => (
-                    <ComparacaoPrevisaoCard key={`${c.cartao}-${c.fatura}`} comparacao={c} />
+                    <ComparacaoPrevisaoCard key={`${c.cartao}-${c.fatura}`} comparacao={c} logId={detalheLogAberto} />
                   ))}
                 </div>
               )}

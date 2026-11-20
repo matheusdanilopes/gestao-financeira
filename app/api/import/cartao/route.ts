@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     // O segundo corrige, só na primeira importação de cada fatura, as compras dos 2
     // últimos dias do ciclo que a fórmula colocou na fatura errada em relação ao
     // fechamento real cadastrado — ver lib/faturaVirada.ts.
-    await Promise.all([
+    const [origensResponsavel] = await Promise.all([
       aplicarResponsavelDeParcelaAnterior(supabase, transacoes),
       corrigirComprasDaViradaNaPrimeiraImportacao(supabase, transacoesNormais, cartao, diaVencimento, ajusteFechamento),
     ])
@@ -229,7 +229,7 @@ export async function POST(req: NextRequest) {
           console.error('[import/cartao] Falha ao registrar log de atividade:', erroLog.message)
           return
         }
-        await salvarComparacaoNoLog(supabase, logRow?.id, await compararPrevisoes(supabase, previsoes))
+        await salvarComparacaoNoLog(supabase, logRow?.id, await compararPrevisoes(supabase, previsoes, origensResponsavel))
 
         if (!logRow?.id || linhas.length === 0) return
 

@@ -396,14 +396,29 @@ function buildPayload(item: TransacaoNubank, extra: Record<string, unknown>): Re
  * memória, com índices pré-calculados (`cartao|total|descricao-sem-parcela`), em vez
  * de renormalizar todas as descrições do lote para cada item.
  */
+/**
+ * De onde veio o responsável de uma linha importada (por hash_linha). Usado para
+ * explicar, na comparação previsão × importado, por que uma parcela mudou de dono.
+ * Linhas ausentes do mapa ficaram com o responsável do parser (padrão do cartão ou
+ * regra da descrição).
+ */
+export interface OrigemResponsavel {
+  tipo: 'parcela_anterior_banco' | 'parcela_anterior_lote' | 'sem_parcela_anterior'
+  /** Responsável calculado pelo parser antes da herança. */
+  responsavelPadrao: string
+  /** Parcela de onde o responsável foi herdado (tipos parcela_anterior_*). */
+  referencia?: { descricao: string; parcela: string; responsavel: string }
+}
+
 export async function aplicarResponsavelDeParcelaAnterior(
   supabase: SupabaseClient,
   transacoes: TransacaoNubank[]
-): Promise<void> {
+): Promise<Map<string, OrigemResponsavel>> {
+  const origens = new Map<string, OrigemResponsavel>()
   const candidatasParceladas = transacoes.filter(
     item => !item.is_estorno && item.total_parcelas && item.parcela_atual && item.parcela_atual > 1
   )
-  if (candidatasParceladas.length === 0) return
+  if (candidatasParceladas.length === 0) return origens
 
   const cartoes = [...new Set(candidatasParceladas.map(i => i.cartao ?? 'nubank'))]
   const totais = [...new Set(candidatasParceladas.map(i => i.total_parcelas!))]
@@ -454,13 +469,37 @@ export async function aplicarResponsavelDeParcelaAnterior(
       t => t !== item && (t.parcela_atual ?? 0) < item.parcela_atual!
     )
 
+    const registroNoBanco = candidatoNoLote
+      ? undefined
+      : (parcelasNoBanco.get(chave) ?? []).find(r => r.parcela_atual < item.parcela_atual!)
     const responsavelAnterior = candidatoNoLote
       ? candidatoNoLote.responsavel
-      : ((parcelasNoBanco.get(chave) ?? []).find(r => r.parcela_atual < item.parcela_atual!)?.responsavel as
-          | 'Matheus'
-          | 'Jeniffer'
-          | 'Conjunto'
-          | undefined) ?? null
+      : ((registroNoBanco?.responsavel as 'Matheus' | 'Jeniffer' | 'Conjunto' | undefined) ?? null)
+
+    const responsavelPadrao = item.responsavel
+    if (candidatoNoLote && responsavelAnterior) {
+      origens.set(item.hash_linha, {
+        tipo: 'parcela_anterior_lote',
+        responsavelPadrao,
+        referencia: {
+          descricao: candidatoNoLote.descricao,
+          parcela: `${candidatoNoLote.parcela_atual}/${candidatoNoLote.total_parcelas}`,
+          responsavel: responsavelAnterior,
+        },
+      })
+    } else if (registroNoBanco && responsavelAnterior) {
+      origens.set(item.hash_linha, {
+        tipo: 'parcela_anterior_banco',
+        responsavelPadrao,
+        referencia: {
+          descricao: registroNoBanco.descricao,
+          parcela: `${registroNoBanco.parcela_atual}/${item.total_parcelas}`,
+          responsavel: responsavelAnterior,
+        },
+      })
+    } else {
+      origens.set(item.hash_linha, { tipo: 'sem_parcela_anterior', responsavelPadrao })
+    }
 
     if (responsavelAnterior) item.responsavel = responsavelAnterior
 
@@ -471,6 +510,8 @@ export async function aplicarResponsavelDeParcelaAnterior(
     )?.descricao_personalizada
     if (personalizadaAnterior) item.descricao_personalizada = personalizadaAnterior
   }
+
+  return origens
 }
 
 // ============================================================================

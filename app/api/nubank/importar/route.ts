@@ -114,7 +114,7 @@ async function salvarTransacoes(
   // O segundo corrige, só na primeira importação de cada fatura, as compras dos 2
   // últimos dias do ciclo que a fórmula colocou na fatura errada em relação ao
   // fechamento real cadastrado — ver lib/faturaVirada.ts.
-  await Promise.all([
+  const [origensResponsavel] = await Promise.all([
     aplicarResponsavelDeParcelaAnterior(supabase, transacoes),
     corrigirComprasDaViradaNaPrimeiraImportacao(supabase, transacoesNormais, cartao, diaVencimento, ajusteFechamento),
   ])
@@ -237,7 +237,7 @@ async function salvarTransacoes(
       .then(resultado => { assinaturasAtualizadas = resultado })
       .catch(err => console.error('[nubank/importar] Falha pós-import (assinaturas):', err)),
 
-    compararPrevisoes(supabase, previsoes)
+    compararPrevisoes(supabase, previsoes, origensResponsavel)
       .then(resultado => { comparacaoPrevisao = resultado }),
   ])
 

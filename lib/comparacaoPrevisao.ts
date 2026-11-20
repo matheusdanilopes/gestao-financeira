@@ -2,6 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js'
 import { buildContracts, extrairParcelamento, itensDoMes, type ItemParcelaProjetado } from '@/lib/parcelamentoProjecao'
 import { somarValorFatura } from '@/lib/composicaoFatura'
 import { descricoesParecidas, normalizarDescricaoSemParcela } from '@/lib/descricaoSimilaridade'
+import type { OrigemResponsavel } from '@/lib/conciliacao'
 
 // Comparação "previsão × importado" da PRIMEIRA importação de cada fatura.
 //
@@ -31,15 +32,28 @@ export interface ResumoPorResponsavel {
   porResponsavel: Record<string, number>
 }
 
+export type TipoMotivoResponsavel =
+  | 'parcela_anterior_nao_reconhecida'
+  | 'herdou_de_outra_compra'
+  | 'regra_da_importacao'
+
 export interface MudancaResponsavel {
+  /** id em transacoes_nubank — alvo da correção. */
+  transacaoId: string
   descricao: string
   parcela: string
   valor: number
+  /** Responsável previsto (o da parcela anterior na projeção). */
   de: string
+  /** Responsável gravado pela importação. */
   para: string
+  motivo: { tipo: TipoMotivoResponsavel; texto: string }
+  /** Decisão do usuário no detalhe da importação. */
+  resolucao?: { acao: 'corrigida' | 'mantida'; responsavel: string; em: string }
 }
 
 export interface MudancaValor {
+  transacaoId: string
   descricao: string
   parcela: string
   responsavel: string
@@ -141,6 +155,7 @@ export async function capturarPrevisoes(
 
 interface LinhaFatura {
   id: string
+  hash_linha?: string | null
   descricao: string
   valor: number
   status: string | null
@@ -153,17 +168,19 @@ interface LinhaFatura {
 /** Casa as parcelas previstas com o que foi gravado e resume as diferenças. */
 export async function compararPrevisoes(
   supabase: SupabaseClient,
-  previsoes: PrevisaoCapturada[]
+  previsoes: PrevisaoCapturada[],
+  /** Retorno de aplicarResponsavelDeParcelaAnterior (por hash_linha) — explica cada mudança. */
+  origens: Map<string, OrigemResponsavel> = new Map()
 ): Promise<ComparacaoPrevisaoFatura[]> {
   if (previsoes.length === 0) return []
   try {
     return await Promise.all(previsoes.map(async previsao => {
       const { data } = await supabase
         .from('transacoes_nubank')
-        .select('id, descricao, valor, status, conciliacao_ref, responsavel, parcela_atual, total_parcelas')
+        .select('id, hash_linha, descricao, valor, status, conciliacao_ref, responsavel, parcela_atual, total_parcelas')
         .eq('cartao', previsao.cartao)
         .eq('projeto_fatura', previsao.fatura)
-      return compararFatura(previsao, (data ?? []) as LinhaFatura[])
+      return compararFatura(previsao, (data ?? []) as LinhaFatura[], origens)
     }))
   } catch (err) {
     console.error('[comparacaoPrevisao] Falha ao comparar previsão:', err)
@@ -171,7 +188,11 @@ export async function compararPrevisoes(
   }
 }
 
-export function compararFatura(previsao: PrevisaoCapturada, linhas: LinhaFatura[]): ComparacaoPrevisaoFatura {
+export function compararFatura(
+  previsao: PrevisaoCapturada,
+  linhas: LinhaFatura[],
+  origens: Map<string, OrigemResponsavel> = new Map()
+): ComparacaoPrevisaoFatura {
   const previsto = resumoVazio()
   const realizado = resumoVazio()
   const parcelasRealizadas = resumoVazio()
@@ -225,15 +246,19 @@ export function compararFatura(previsao: PrevisaoCapturada, linhas: LinhaFatura[
     if (!mudouResp && !mudouValor) parcelasConfirmadas++
     if (mudouResp) {
       mudancasResponsavel.push({
+        transacaoId: escolhida.linha.id,
         descricao: escolhida.linha.descricao,
         parcela,
         valor: arred(escolhida.linha.valor),
         de: respPrevisto,
         para: respReal,
+        motivo: explicarMudanca(item, escolhida.linha, respPrevisto, respReal,
+          escolhida.linha.hash_linha ? origens.get(escolhida.linha.hash_linha) : undefined),
       })
     }
     if (mudouValor) {
       mudancasValor.push({
+        transacaoId: escolhida.linha.id,
         descricao: escolhida.linha.descricao,
         parcela,
         responsavel: respReal,
@@ -262,6 +287,94 @@ export function compararFatura(previsao: PrevisaoCapturada, linhas: LinhaFatura[
     mudancasResponsavel,
     mudancasValor,
     parcelasNaoVieram,
+  }
+}
+
+function parcelaAnteriorDe(item: ItemParcelaProjetado): string {
+  return `${item.parcelaAtual - 1}/${item.totalParcelas}`
+}
+
+/**
+ * Por que a parcela importada ficou com um responsável diferente do previsto. A
+ * previsão usa o responsável da parcela anterior; a importação tenta herdar o mesmo
+ * (aplicarResponsavelDeParcelaAnterior) e, se não acha a parcela anterior, fica com
+ * a regra do parser (padrão do cartão ou "jeniffer" na descrição → Jeniffer, senão Matheus).
+ */
+function explicarMudanca(
+  item: ItemParcelaProjetado,
+  linha: LinhaFatura,
+  de: string,
+  para: string,
+  origem: OrigemResponsavel | undefined
+): MudancaResponsavel['motivo'] {
+  const anterior = `"${item.descricao}" (parcela ${parcelaAnteriorDe(item)}, ${de})`
+
+  if (origem?.referencia && (origem.tipo === 'parcela_anterior_banco' || origem.tipo === 'parcela_anterior_lote')) {
+    const ref = origem.referencia
+    const onde = origem.tipo === 'parcela_anterior_lote' ? 'no próprio arquivo' : 'no banco'
+    return {
+      tipo: 'herdou_de_outra_compra',
+      texto: `Herdou o responsável de outra compra parecida ${onde}: "${ref.descricao}" (parcela ${ref.parcela}, ${ref.responsavel}), em vez de ${anterior}.`,
+    }
+  }
+
+  if (origem?.tipo === 'sem_parcela_anterior') {
+    const descricaoMudou = normalizarDescricaoSemParcela(item.descricao) !== normalizarDescricaoSemParcela(linha.descricao)
+    const causa = descricaoMudou
+      ? `a descrição mudou entre as faturas ("${item.descricao}" → "${linha.descricao}")`
+      : 'ela não foi encontrada no banco'
+    return {
+      tipo: 'parcela_anterior_nao_reconhecida',
+      texto: `A importação não reconheceu a parcela anterior ${anterior} porque ${causa}, e usou o responsável padrão da importação (${para}).`,
+    }
+  }
+
+  return {
+    tipo: 'regra_da_importacao',
+    texto: `A importação usou a regra padrão de responsável (${para}) em vez de herdar da parcela anterior ${anterior}.`,
+  }
+}
+
+/**
+ * Registra a decisão do usuário sobre uma mudança de responsável e, ao corrigir,
+ * move o valor da parcela de volta ao responsável previsto nos totais importados.
+ * Puro: a atualização de transacoes_nubank fica com o chamador.
+ */
+export function resolverMudancaResponsavel(
+  comparacao: ComparacaoPrevisaoFatura,
+  transacaoId: string,
+  acao: 'corrigir' | 'manter'
+): ComparacaoPrevisaoFatura {
+  const mudanca = comparacao.mudancasResponsavel.find(m => m.transacaoId === transacaoId)
+  if (!mudanca || mudanca.resolucao) return comparacao
+
+  const em = new Date().toISOString()
+  if (acao === 'manter') {
+    return {
+      ...comparacao,
+      mudancasResponsavel: comparacao.mudancasResponsavel.map(m =>
+        m === mudanca ? { ...m, resolucao: { acao: 'mantida', responsavel: m.para, em } } : m),
+    }
+  }
+
+  const realizado = structuredClone(comparacao.realizado)
+  const parcelasRealizadas = structuredClone(comparacao.parcelasRealizadas)
+  for (const resumo of [realizado, parcelasRealizadas]) {
+    somarEm(resumo, mudanca.para, -mudanca.valor)
+    somarEm(resumo, mudanca.de, mudanca.valor)
+    if (Math.abs(resumo.porResponsavel[mudanca.para] ?? 0) < 0.005) delete resumo.porResponsavel[mudanca.para]
+  }
+  const valorTambemMudou = comparacao.mudancasValor.some(v => v.transacaoId === transacaoId)
+
+  return {
+    ...comparacao,
+    realizado,
+    parcelasRealizadas,
+    parcelasConfirmadas: comparacao.parcelasConfirmadas + (valorTambemMudou ? 0 : 1),
+    mudancasValor: comparacao.mudancasValor.map(v =>
+      v.transacaoId === transacaoId ? { ...v, responsavel: mudanca.de } : v),
+    mudancasResponsavel: comparacao.mudancasResponsavel.map(m =>
+      m === mudanca ? { ...m, resolucao: { acao: 'corrigida', responsavel: m.de, em } } : m),
   }
 }
 

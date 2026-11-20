@@ -3,10 +3,10 @@
 import { useState } from 'react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { ArrowRight, ChevronDown, ChevronUp, Scale, UserRoundCog } from 'lucide-react'
+import { ArrowRight, Check, ChevronDown, ChevronUp, Info, Scale, Undo2, UserRoundCog } from 'lucide-react'
 import { formatBRL } from '@/lib/format'
 import { estiloResponsavel, RESPONSAVEIS } from '@/lib/responsavelStyle'
-import type { ComparacaoPrevisaoFatura } from '@/lib/comparacaoPrevisao'
+import type { ComparacaoPrevisaoFatura, MudancaResponsavel } from '@/lib/comparacaoPrevisao'
 
 const NOME_CARTAO: Record<string, string> = { nubank: 'NuBank', cartao1: 'Cartão 1', cartao2: 'Cartão 2' }
 
@@ -46,7 +46,89 @@ function Secao({ titulo, quantidade, destaque, abertaInicial, children }: {
   )
 }
 
-export default function ComparacaoPrevisaoCard({ comparacao: c }: { comparacao: ComparacaoPrevisaoFatura }) {
+function ItemMudancaResponsavel({ m, ocupado, erro, onResolver }: {
+  m: MudancaResponsavel
+  ocupado: boolean
+  erro?: string
+  onResolver: (acao: 'corrigir' | 'manter') => void
+}) {
+  return (
+    <div className="rounded-lg bg-white border border-amber-100 p-2 space-y-1.5 text-xs">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-gray-800 font-medium">{m.descricao}</p>
+          <p className="text-[10px] text-gray-400">Parcela {m.parcela} · {formatBRL(m.valor)}</p>
+        </div>
+        <span className="shrink-0 inline-flex items-center gap-1 font-semibold">
+          <span className={`px-1.5 py-0.5 rounded ${estiloResponsavel(m.de).badge}`}>{m.de}</span>
+          <ArrowRight className="w-3 h-3 text-gray-400" />
+          <span className={`px-1.5 py-0.5 rounded ${estiloResponsavel(m.para).badge}`}>{m.para}</span>
+        </span>
+      </div>
+
+      {m.motivo && (
+        <p className="flex items-start gap-1.5 text-[11px] text-gray-600 leading-snug">
+          <Info className="w-3.5 h-3.5 mt-px shrink-0 text-amber-500" />
+          <span><strong className="text-gray-700">Por quê:</strong> {m.motivo.texto}</span>
+        </p>
+      )}
+
+      {m.resolucao ? (
+        <p className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-700">
+          <Check className="w-3.5 h-3.5" />
+          {m.resolucao.acao === 'corrigida'
+            ? `Corrigido para ${m.resolucao.responsavel} — as próximas parcelas seguem este responsável.`
+            : `Mantido em ${m.resolucao.responsavel}.`}
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            disabled={ocupado}
+            onClick={() => onResolver('corrigir')}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-primary-600 text-white font-semibold hover:bg-primary-700 disabled:opacity-50 transition"
+          >
+            <Undo2 className="w-3.5 h-3.5" />
+            Voltar para {m.de}
+          </button>
+          <button
+            disabled={ocupado}
+            onClick={() => onResolver('manter')}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-700 font-semibold hover:bg-gray-50 disabled:opacity-50 transition"
+          >
+            Manter {m.para}
+          </button>
+        </div>
+      )}
+      {erro && <p className="text-[11px] text-red-600">{erro}</p>}
+    </div>
+  )
+}
+
+export default function ComparacaoPrevisaoCard({ comparacao: inicial, logId }: { comparacao: ComparacaoPrevisaoFatura; logId: string }) {
+  const [c, setC] = useState(inicial)
+  const [ocupadoId, setOcupadoId] = useState<string | null>(null)
+  const [erros, setErros] = useState<Record<string, string>>({})
+
+  async function resolver(transacaoId: string, acao: 'corrigir' | 'manter') {
+    setOcupadoId(transacaoId)
+    setErros(e => { const { [transacaoId]: _omit, ...resto } = e; return resto })
+    try {
+      const res = await fetch(`/api/nubank/atividades/${logId}/comparacao`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fatura: c.fatura, cartao: c.cartao, transacaoId, acao }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Erro ao salvar')
+      setC(data.comparacao)
+    } catch (err) {
+      setErros(e => ({ ...e, [transacaoId]: err instanceof Error ? err.message : String(err) }))
+    } finally {
+      setOcupadoId(null)
+    }
+  }
+
+  const pendentes = c.mudancasResponsavel.filter(m => !m.resolucao)
   const responsaveis = Array.from(new Set([
     ...Object.keys(c.previsto.porResponsavel),
     ...Object.keys(c.realizado.porResponsavel),
@@ -73,14 +155,16 @@ export default function ComparacaoPrevisaoCard({ comparacao: c }: { comparacao: 
         </div>
       </div>
 
-      {c.mudancasResponsavel.length > 0 ? (
+      {pendentes.length > 0 ? (
         <div className="flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
           <UserRoundCog className="w-4 h-4 shrink-0" />
-          <span><strong>{c.mudancasResponsavel.length}</strong> parcela(s) mudaram de responsável em relação à previsão.</span>
+          <span><strong>{pendentes.length}</strong> parcela(s) mudaram de responsável em relação à previsão — confira abaixo.</span>
         </div>
       ) : (
         <div className="rounded-xl bg-green-50 border border-green-100 px-3 py-2 text-xs text-green-700">
-          Nenhuma parcela prevista mudou de responsável.
+          {c.mudancasResponsavel.length > 0
+            ? 'Todas as mudanças de responsável foram conferidas.'
+            : 'Nenhuma parcela prevista mudou de responsável.'}
         </div>
       )}
 
@@ -140,19 +224,15 @@ export default function ComparacaoPrevisaoCard({ comparacao: c }: { comparacao: 
       </div>
 
       <div className="space-y-2">
-        <Secao titulo="Mudaram de responsável" quantidade={c.mudancasResponsavel.length} destaque abertaInicial>
-          {c.mudancasResponsavel.map((m, i) => (
-            <div key={i} className="flex items-center justify-between gap-2 text-xs">
-              <div className="min-w-0">
-                <p className="truncate text-gray-800">{m.descricao}</p>
-                <p className="text-[10px] text-gray-400">Parcela {m.parcela} · {formatBRL(m.valor)}</p>
-              </div>
-              <span className="shrink-0 inline-flex items-center gap-1 font-semibold">
-                <span className={`px-1.5 py-0.5 rounded ${estiloResponsavel(m.de).badge}`}>{m.de}</span>
-                <ArrowRight className="w-3 h-3 text-gray-400" />
-                <span className={`px-1.5 py-0.5 rounded ${estiloResponsavel(m.para).badge}`}>{m.para}</span>
-              </span>
-            </div>
+        <Secao titulo="Mudaram de responsável" quantidade={c.mudancasResponsavel.length} destaque={pendentes.length > 0} abertaInicial={pendentes.length > 0}>
+          {c.mudancasResponsavel.map(m => (
+            <ItemMudancaResponsavel
+              key={m.transacaoId}
+              m={m}
+              ocupado={ocupadoId === m.transacaoId}
+              erro={erros[m.transacaoId]}
+              onResolver={acao => resolver(m.transacaoId, acao)}
+            />
           ))}
         </Secao>
 
