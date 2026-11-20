@@ -11,6 +11,7 @@ import { validarDivergenciaFatura } from '@/lib/validacaoFatura'
 import { corrigirComprasDaViradaNaPrimeiraImportacao } from '@/lib/faturaVirada'
 import { sincronizarAssinaturasMoedaEstrangeira, AssinaturaSincronizada } from '@/lib/assinaturasSync'
 import { LinhaValidacaoInsert, linhaDeTransacao, linhaDeEstorno } from '@/lib/importValidacao'
+import { capturarPrevisoes, compararPrevisoes, salvarComparacaoNoLog } from '@/lib/comparacaoPrevisao'
 
 const CARTOES_VALIDOS = ['cartao1', 'cartao2'] as const
 type CartaoValido = typeof CARTOES_VALIDOS[number]
@@ -110,6 +111,10 @@ export async function POST(req: NextRequest) {
     type StatsFatura = { noCSV: number; inseridas: number; ignoradas: number; totalNoBanco: number }
     const faturaStats: Record<string, StatsFatura> = {}
     for (const f of mesesNoArquivo) faturaStats[f] = { noCSV: 0, inseridas: 0, ignoradas: 0, totalNoBanco: 0 }
+
+    // Primeira importação de uma fatura: guarda o que a projeção esperava dela, antes
+    // de gravar, para comparar com o importado no fim (ver lib/comparacaoPrevisao.ts).
+    const previsoes = await capturarPrevisoes(supabase, cartao, mesesNoArquivo)
 
     // Decide e grava o lote inteiro de uma vez: as decisões saem de um contexto
     // pré-carregado (nenhuma ida ao banco por linha) e as escritas vão agrupadas
@@ -224,6 +229,8 @@ export async function POST(req: NextRequest) {
           console.error('[import/cartao] Falha ao registrar log de atividade:', erroLog.message)
           return
         }
+        await salvarComparacaoNoLog(supabase, logRow?.id, await compararPrevisoes(supabase, previsoes))
+
         if (!logRow?.id || linhas.length === 0) return
 
         const { error: erroValidacoes } = await supabase.from('import_validacoes').insert(

@@ -17,6 +17,12 @@ import { validarDivergenciaFatura } from '@/lib/validacaoFatura'
 import { corrigirComprasDaViradaNaPrimeiraImportacao } from '@/lib/faturaVirada'
 import { sincronizarAssinaturasMoedaEstrangeira, AssinaturaSincronizada } from '@/lib/assinaturasSync'
 import { LinhaValidacaoInsert, linhaDeTransacao, linhaDeEstorno } from '@/lib/importValidacao'
+import {
+  capturarPrevisoes,
+  compararPrevisoes,
+  salvarComparacaoNoLog,
+  ComparacaoPrevisaoFatura,
+} from '@/lib/comparacaoPrevisao'
 
 export const maxDuration = 300
 /** A categorização em background precisa terminar antes do limite da função. */
@@ -130,6 +136,10 @@ async function salvarTransacoes(
   const faturaStats: Record<string, StatsFatura> = {}
   for (const f of mesesNoArquivo) faturaStats[f] = { noCSV: 0, inseridas: 0, ignoradas: 0, totalNoBanco: 0 }
 
+  // Primeira importação de uma fatura: guarda o que a projeção esperava dela, antes
+  // de gravar, para comparar com o importado no fim (ver lib/comparacaoPrevisao.ts).
+  const previsoes = await capturarPrevisoes(supabase, cartao, mesesNoArquivo)
+
   // Decide e grava o lote inteiro de uma vez: as decisões saem de um contexto
   // pré-carregado (nenhuma ida ao banco por linha) e as escritas vão agrupadas em
   // poucos comandos — ver lib/conciliacao.ts.
@@ -195,6 +205,7 @@ async function salvarTransacoes(
   // recontagem, a validação de divergência e a sincronização de assinaturas.
   const importTs = Date.now()
   let assinaturasAtualizadas: AssinaturaSincronizada[] = []
+  let comparacaoPrevisao: ComparacaoPrevisaoFatura[] = []
 
   await Promise.all([
     notificarImportacao(supabase, 'sucesso', verdadeiramenteNovas, conflitos, cartao, nomeCartao, {
@@ -225,6 +236,9 @@ async function salvarTransacoes(
     sincronizarAssinaturasMoedaEstrangeira(supabase, cartao, mesesNoArquivo)
       .then(resultado => { assinaturasAtualizadas = resultado })
       .catch(err => console.error('[nubank/importar] Falha pós-import (assinaturas):', err)),
+
+    compararPrevisoes(supabase, previsoes)
+      .then(resultado => { comparacaoPrevisao = resultado }),
   ])
 
   return {
@@ -243,6 +257,7 @@ async function salvarTransacoes(
     estornosAplicados,
     estornosRegistrados,
     assinaturasAtualizadas,
+    comparacaoPrevisao,
     linhas,
   }
 }
@@ -378,6 +393,8 @@ export async function POST(req: NextRequest) {
     )
 
     console.log('[nubank/importar] logId:', logId, '| linhas coletadas:', linhas.length)
+
+    await salvarComparacaoNoLog(supabase, logId, importacaoPublica.comparacaoPrevisao)
 
     if (logId && linhas.length > 0) {
       try {
