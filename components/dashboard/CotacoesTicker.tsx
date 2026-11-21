@@ -12,19 +12,20 @@ function Item({ c }: { c: Cotacao }) {
     <span className="inline-flex items-baseline gap-1.5 text-xs whitespace-nowrap">
       <span className="font-bold text-gray-800 dark:text-gray-100">{c.nome}</span>
       <span className="num text-gray-700 dark:text-gray-300">{formatarCotacao(c)}</span>
+      {c.detalhe && <span className="text-gray-500 dark:text-gray-400">{c.detalhe}</span>}
       {v !== null && (
-        <span className={`num ${cor}`}>{seta}{Math.abs(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</span>
+        <span className={`num ${cor}`}>{seta}{Math.abs(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}% hoje</span>
       )}
     </span>
   )
 }
 
 /**
- * Faixa de cotações sob o topo do Dashboard: dólar, euro, Ibovespa, Selic,
- * CDI, IPCA, bitcoin e S&P 500, rolando em loop. Some se nada carregar.
+ * Faixa de cotações do Dashboard: dólar, Ibovespa, Selic e inflação, com
+ * nomes por extenso, rolando em loop. Some se nada carregar.
  */
 export default function CotacoesTicker() {
-  const dados = useJsonPublico<{ cotacoes: Cotacao[] }>('/api/mercado', 'dashboard:cotacoes', 15 * 60_000)
+  const dados = useJsonPublico<{ cotacoes: Cotacao[] }>('/api/mercado', 'dashboard:cotacoes-v2', 15 * 60_000)
   const cotacoes = dados?.cotacoes ?? []
   if (cotacoes.length === 0) return null
 
@@ -40,7 +41,7 @@ export default function CotacoesTicker() {
       aria-label="Cotações do dia"
       role="marquee"
     >
-      <div className="ticker-track flex w-max pl-4" style={{ '--ticker-s': `${Math.max(24, cotacoes.length * 5)}s` } as React.CSSProperties}>
+      <div className="ticker-track flex w-max pl-4" style={{ '--ticker-s': `${Math.max(24, cotacoes.length * 7)}s` } as React.CSSProperties}>
         {lista(false)}
         {lista(true)}
       </div>

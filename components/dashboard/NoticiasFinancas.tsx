@@ -7,11 +7,11 @@ import CarrosselRotativo from './CarrosselRotativo'
 import { useJsonPublico } from './useJsonPublico'
 
 /**
- * Card de notícias de finanças (InfoMoney, Valor, g1 Economia) que troca de
+ * Card de notícias de finanças pessoais (InfoMoney, Valor, g1 Economia) que troca de
  * manchete sozinho. Toque na manchete abre a matéria. Some se o feed não carregar.
  */
 export default function NoticiasFinancas() {
-  const dados = useJsonPublico<{ noticias: Noticia[] }>('/api/noticias', 'dashboard:noticias', 30 * 60_000)
+  const dados = useJsonPublico<{ noticias: Noticia[] }>('/api/noticias', 'dashboard:noticias-v2', 30 * 60_000)
   const noticias = useMemo(() => (dados?.noticias ?? []).slice(0, 8), [dados])
 
   const itens = useMemo(() => noticias.map(n => ({

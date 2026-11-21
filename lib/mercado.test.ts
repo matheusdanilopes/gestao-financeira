@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  parseAwesome, parseBcb, parseYahoo, parseRss, mesclarNoticias, tempoRelativo, formatarCotacao,
+  parseAwesome, parseBcb, parseYahoo, parseRss, mesclarNoticias, tempoRelativo, formatarCotacao, ehFinancasPessoais,
 } from '@/lib/mercado'
 
 test('parseAwesome lê bid e pctChange e ignora pares ausentes', () => {
@@ -53,4 +53,16 @@ test('tempoRelativo e formatarCotacao', () => {
   assert.equal(tempoRelativo(null, agora), '')
   assert.equal(formatarCotacao({ nome: 'SELIC', valor: 10.75, formato: 'taxa', variacao: null }), '10,75%')
   assert.equal(formatarCotacao({ nome: 'USD', valor: 5.4213, formato: 'brl', variacao: 0 }), 'R$ 5,42')
+  assert.equal(formatarCotacao({ nome: 'Ibovespa', valor: 128402.4, formato: 'pontos', variacao: 0 }), '128.402 pts')
+})
+
+test('ehFinancasPessoais aceita temas do bolso e recusa o resto', () => {
+  assert.equal(ehFinancasPessoais('Restituição do Imposto de Renda: lote sai na sexta'), true)
+  assert.equal(ehFinancasPessoais('Juros do cartão de crédito sobem em outubro'), true)
+  assert.equal(ehFinancasPessoais('13º salário: primeira parcela até 30 de novembro'), true)
+  assert.equal(ehFinancasPessoais('FGTS: saque-aniversário muda em 2027'), true)
+  assert.equal(ehFinancasPessoais('Petrobras anuncia nova diretoria'), false)
+  assert.equal(ehFinancasPessoais('Eleições: candidato lidera pesquisa'), false)
+  // "mei" como palavra inteira, não dentro de "meio"
+  assert.equal(ehFinancasPessoais('Meio ambiente: COP termina sem acordo'), false)
 })
