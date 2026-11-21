@@ -815,9 +815,9 @@ export default function Dashboard() {
             <Icon className="w-[18px] h-[18px]" aria-hidden />
           </span>
           <div className="min-w-0 flex-1">
-            <p className={`${rotulo} pr-14 truncate`}>{titulo}</p>
-            <div className="mt-1 text-[17px] font-bold leading-tight truncate">{valor}</div>
-            {sub && <div className="mt-0.5 text-xs text-white/75 leading-snug truncate">{sub}</div>}
+            <p className={`${rotulo} pr-14 leading-snug`}>{titulo}</p>
+            <div className="mt-1 text-[17px] font-bold leading-tight break-words">{valor}</div>
+            {sub && <div className="mt-0.5 text-xs text-white/75 leading-snug break-words">{sub}</div>}
             {opts.progresso !== undefined && (
               <div className="mt-1.5 h-1 bg-white/20 rounded-full overflow-hidden">
                 <div className="h-full bg-white/80 rounded-full" style={{ width: `${Math.round(Math.min(Math.max(opts.progresso, 0), 1) * 100)}%` }} />
@@ -850,7 +850,7 @@ export default function Dashboard() {
             </span>
             <span className="min-w-0">
               <span className={`block ${rotulo}`}>Receita</span>
-              <span className="block mt-1 text-[15px] font-bold num whitespace-nowrap truncate">{mascarar(resumoCaixa.receitaTotal)}</span>
+              <span className="block mt-1 text-[15px] font-bold num whitespace-nowrap">{mascarar(resumoCaixa.receitaTotal)}</span>
             </span>
           </Link>
           <Link href="/financas?tab=despesas" className="flex items-center gap-2 min-w-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
@@ -859,7 +859,7 @@ export default function Dashboard() {
             </span>
             <span className="min-w-0">
               <span className={`block ${rotulo}`}>Gastos</span>
-              <span className="block mt-1 text-[15px] font-bold num whitespace-nowrap truncate">{mascarar(resumoCaixa.totalGastosDespesas)}</span>
+              <span className="block mt-1 text-[15px] font-bold num whitespace-nowrap">{mascarar(resumoCaixa.totalGastosDespesas)}</span>
             </span>
           </Link>
         </div>
@@ -884,16 +884,16 @@ export default function Dashboard() {
               <span key={r} className="min-w-0">
                 <span className="flex items-center gap-1.5 text-[11px] font-medium text-white/80 leading-none">
                   <span className={`w-2 h-2 rounded-full shrink-0 ring-1 ring-white/40 ${estiloResponsavel(r).ponto}`} aria-hidden="true" />
-                  <span className="truncate">{r}</span>
+                  <span className="break-words">{r}</span>
                 </span>
-                <span className={`block mt-px text-[15px] num whitespace-nowrap truncate ${total === 0 ? 'text-white/55' : ''}`}>{mascarar(total)}</span>
+                <span className={`block mt-px text-[15px] num whitespace-nowrap ${total === 0 ? 'text-white/55' : ''}`}>{mascarar(total)}</span>
               </span>
             )
           })}
         </span>,
         <>
           <span className="num">{mascarar(ativ.totalJanela)}</span> em <span className="num">{ativ.comprasJanela}</span> {ativ.comprasJanela === 1 ? 'compra' : 'compras'}
-          {ritmo !== null && Math.abs(ritmo) >= 5 && <> · {variacao(ritmo)} vs. a média</>}
+          {ritmo !== null && Math.abs(ritmo) >= 5 && <> · {variacao(ritmo)} vs. média</>}
         </>,
         { href: '/compras', iconeSoEmTelaLarga: true }))
     }
@@ -1090,6 +1090,7 @@ export default function Dashboard() {
                 intervaloMs={6000}
                 rotulo="Destaques do mês"
                 pontosNoTopo
+                alturaDoMaior
                 className="mt-3 bg-white/10 rounded-xl px-3 py-2"
               />
             </div>

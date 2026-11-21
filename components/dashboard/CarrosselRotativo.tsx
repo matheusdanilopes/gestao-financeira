@@ -22,6 +22,11 @@ interface Props {
   rotulo: string
   /** Bolinhas no canto superior direito, em vez de uma linha abaixo do item. */
   pontosNoTopo?: boolean
+  /**
+   * Reserva a altura do item mais alto (todos ficam empilhados, só o atual
+   * visível): nenhum texto precisa ser cortado e a página não pula na troca.
+   */
+  alturaDoMaior?: boolean
   className?: string
 }
 
@@ -45,7 +50,7 @@ function usePrefereMenosMovimento(): boolean {
  * Com "reduzir movimento" no sistema ele não gira — só troca na mão.
  */
 export default function CarrosselRotativo({
-  itens, intervaloMs = 6000, tone = 'default', expansivel = false, rotulo, pontosNoTopo = false, className = '',
+  itens, intervaloMs = 6000, tone = 'default', expansivel = false, rotulo, pontosNoTopo = false, alturaDoMaior = false, className = '',
 }: Props) {
   const [indice, setIndice] = useState(0)
   const [pausado, setPausado] = useState(false)
@@ -156,9 +161,25 @@ export default function CarrosselRotativo({
           Ver tudo <ChevronDown className="w-3.5 h-3.5" />
         </span>
       )}
-      <div key={itens[atual].chave} className="carrossel-slide-enter" aria-live={girando ? 'off' : 'polite'}>
-        {itens[atual].conteudo}
-      </div>
+      {alturaDoMaior ? (
+        <div className="grid" aria-live={girando ? 'off' : 'polite'}>
+          {itens.map((it, i) => (
+            <div
+              key={i === atual ? `${it.chave}:ativo` : it.chave}
+              style={{ gridArea: '1 / 1' }}
+              className={i === atual ? 'carrossel-slide-enter' : 'invisible'}
+              aria-hidden={i === atual ? undefined : true}
+              inert={i === atual ? undefined : true}
+            >
+              {it.conteudo}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div key={itens[atual].chave} className="carrossel-slide-enter" aria-live={girando ? 'off' : 'polite'}>
+          {itens[atual].conteudo}
+        </div>
+      )}
       {total > 1 && (
         <div className={pontosNoTopo ? 'absolute right-3 top-2.5 flex gap-1' : 'flex justify-center gap-1.5 mt-2'}>
           {itens.map((it, i) => (
