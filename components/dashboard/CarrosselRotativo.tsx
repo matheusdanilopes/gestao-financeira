@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, Pause } from 'lucide-react'
 
 export interface ItemCarrossel {
   chave: string
@@ -22,6 +22,11 @@ interface Props {
   rotulo: string
   /** Bolinhas no canto superior direito, em vez de uma linha abaixo do item. */
   pontosNoTopo?: boolean
+  /**
+   * Reserva a altura do item mais alto (todos ficam empilhados, só o atual
+   * visível): nenhum texto precisa ser cortado e a página não pula na troca.
+   */
+  alturaDoMaior?: boolean
   className?: string
 }
 
@@ -45,7 +50,7 @@ function usePrefereMenosMovimento(): boolean {
  * Com "reduzir movimento" no sistema ele não gira — só troca na mão.
  */
 export default function CarrosselRotativo({
-  itens, intervaloMs = 6000, tone = 'default', expansivel = false, rotulo, pontosNoTopo = false, className = '',
+  itens, intervaloMs = 6000, tone = 'default', expansivel = false, rotulo, pontosNoTopo = false, alturaDoMaior = false, className = '',
 }: Props) {
   const [indice, setIndice] = useState(0)
   const [pausado, setPausado] = useState(false)
@@ -103,7 +108,8 @@ export default function CarrosselRotativo({
   }
   const onClick = (e: React.MouseEvent) => {
     if (expansivel) return
-    // Links e botões dentro do item continuam funcionando; o resto pausa.
+    // Links e botões dentro do item continuam funcionando; o resto pausa até
+    // o próximo toque (a bolinha atual vira o ícone de pausa).
     if ((e.target as HTMLElement).closest('a,button')) return
     setPausado(p => !p)
   }
@@ -142,10 +148,10 @@ export default function CarrosselRotativo({
 
   return (
     <div
-      className={`relative overflow-hidden select-none touch-pan-y cursor-pointer ${className}`}
+      className={`relative overflow-hidden select-none touch-pan-y cursor-pointer transition-shadow ${pausado && inverse ? 'ring-1 ring-inset ring-white/50' : ''} ${className}`}
       role="region"
       aria-roledescription="carrossel"
-      aria-label={rotulo}
+      aria-label={pausado ? `${rotulo} (pausado — toque para continuar)` : rotulo}
       onPointerDown={onPointerDown}
       onPointerUp={onPointerUp}
       onClickCapture={onClickCapture}
@@ -156,22 +162,45 @@ export default function CarrosselRotativo({
           Ver tudo <ChevronDown className="w-3.5 h-3.5" />
         </span>
       )}
-      <div key={itens[atual].chave} className="carrossel-slide-enter" aria-live={girando ? 'off' : 'polite'}>
-        {itens[atual].conteudo}
-      </div>
+      {alturaDoMaior ? (
+        <div className="grid" aria-live={girando ? 'off' : 'polite'}>
+          {itens.map((it, i) => (
+            <div
+              key={i === atual ? `${it.chave}:ativo` : it.chave}
+              style={{ gridArea: '1 / 1' }}
+              className={i === atual ? 'carrossel-slide-enter' : 'invisible'}
+              aria-hidden={i === atual ? undefined : true}
+              inert={i === atual ? undefined : true}
+            >
+              {it.conteudo}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div key={itens[atual].chave} className="carrossel-slide-enter" aria-live={girando ? 'off' : 'polite'}>
+          {itens[atual].conteudo}
+        </div>
+      )}
       {total > 1 && (
         <div className={pontosNoTopo ? 'absolute right-3 top-2.5 flex gap-1' : 'flex justify-center gap-1.5 mt-2'}>
           {itens.map((it, i) => (
-            <button
-              key={it.chave}
-              type="button"
-              data-carrossel-dot
-              aria-label={`Item ${i + 1} de ${total}`}
-              aria-current={i === atual || undefined}
-              onClick={e => { e.stopPropagation(); irPara(i) }}
-              className={`h-1.5 rounded-full transition-all duration-300 ${i === atual ? `w-4 ${corDotAtivo}` : `w-1.5 ${corDot}`}
-                          focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400`}
-            />
+            // Pausado, a bolinha do item atual vira o ícone de pausa
+            pausado && i === atual ? (
+              <span key={it.chave} className={`-my-1 flex items-center ${inverse ? 'text-white' : 'text-primary-600 dark:text-primary-300'}`} aria-hidden="true">
+                <Pause className="w-3.5 h-3.5" fill="currentColor" strokeWidth={0} />
+              </span>
+            ) : (
+              <button
+                key={it.chave}
+                type="button"
+                data-carrossel-dot
+                aria-label={`Item ${i + 1} de ${total}`}
+                aria-current={i === atual || undefined}
+                onClick={e => { e.stopPropagation(); irPara(i) }}
+                className={`h-1.5 rounded-full transition-all duration-300 ${i === atual ? `w-4 ${corDotAtivo}` : `w-1.5 ${corDot}`}
+                            focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400`}
+              />
+            )
           ))}
         </div>
       )}
