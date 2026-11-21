@@ -9,7 +9,11 @@ import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
 import { classificarTipoGasto, comporValorFatura, somarValorFatura, type TipoGasto } from '@/lib/composicaoFatura'
 import { type ReservaFatura, type BaixaReserva } from '@/lib/reservasFatura'
 import { calcularPendentesFatura, type AssinaturaPendenteRow } from '@/lib/pendentesFatura'
-import { BarChart2, BarChart3, CalendarRange, CreditCard, PiggyBank, Layers, Scale, TrendingUp, TrendingDown, LineChart, Activity, Eye, EyeOff, ShoppingCart, ShoppingBasket } from 'lucide-react'
+import {
+  resumirAtividadeRecente, inicioHistoricoRecente,
+  type AtividadeRecente, type TransacaoRecenteRow,
+} from '@/lib/atividadeRecente'
+import { BarChart2, BarChart3, CalendarRange, CreditCard, PiggyBank, Layers, Scale, TrendingUp, TrendingDown, LineChart, Activity, Eye, EyeOff, ShoppingCart, ShoppingBasket, Users, CalendarClock, Gauge, Receipt, Hourglass, Home, Clock } from 'lucide-react'
 import { criarIconeFin } from '@/components/chat/IconeFin'
 import { ptBR } from 'date-fns/locale'
 import { useMes } from '@/components/MesProvider'
@@ -161,6 +165,26 @@ interface DashboardData {
   resumoCaixa: ResumoCaixaState
   investimentos: { id: string; descricao: string; percentual: number; aportado: number }[]
   dataFechamentoNubank: string | null
+  /** Só no mês corrente: gastos dos últimos dias pela data da compra. */
+  atividadeRecente: AtividadeRecente | null
+}
+
+/**
+ * Compras dos últimos 30 dias pela data da compra (todos os cartões). No schema
+ * legado a coluna é 'data' — mesmo fallback de lib/conciliacao.ts. Falha vira
+ * null: os destaques só deixam de mostrar esses insights.
+ */
+async function carregarAtividadeRecente(): Promise<AtividadeRecente | null> {
+  const desde = inicioHistoricoRecente()
+  const colunas = 'valor, responsavel, descricao, status, parcela_atual, total_parcelas'
+  const atual = await supabase.from('transacoes_nubank').select(`data_compra, ${colunas}`).gte('data_compra', desde)
+  let rows = atual.data as TransacaoRecenteRow[] | null
+  if (atual.error?.message?.includes('data_compra')) {
+    const legado = await supabase.from('transacoes_nubank').select(`data, ${colunas}`).gte('data', desde)
+    rows = (legado.data as (Omit<TransacaoRecenteRow, 'data_compra'> & { data: string })[] | null)
+      ?.map(({ data, ...r }) => ({ ...r, data_compra: data })) ?? null
+  }
+  return rows ? resumirAtividadeRecente(rows) : null
 }
 
 
@@ -168,6 +192,11 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
   const primeiroDia = startOfMonth(mes)
   const mesRef = format(primeiroDia, 'yyyy-MM-dd')
   const mesRefFatura = format(startOfMonth(addMonths(mes, 1)), 'yyyy-MM-dd')
+
+  // Em paralelo com as demais consultas; só no mês corrente (usa a data de hoje).
+  const atividadeRecentePromise = format(mes, 'yyyy-MM') === format(new Date(), 'yyyy-MM')
+    ? carregarAtividadeRecente().catch(() => null)
+    : Promise.resolve(null)
 
   const [
     { data: todasTransacoesFatura, error: erroTransacoesFatura },
@@ -474,6 +503,7 @@ async function carregarDados(mes: Date): Promise<DashboardData> {
     },
     investimentos: (invData || []).map(i => ({ ...i, aportado: aportadoMap[i.id] || 0 })),
     dataFechamentoNubank,
+    atividadeRecente: await atividadeRecentePromise,
   }
 }
 
@@ -519,6 +549,7 @@ export default function Dashboard() {
     resumoCaixa: RESUMO_INICIAL,
     investimentos: [],
     dataFechamentoNubank: null,
+    atividadeRecente: null,
   })
 
   const [seletorAberto, setSeletorAberto] = useState(false)
@@ -590,7 +621,7 @@ export default function Dashboard() {
     [mesAtual],
   )
 
-  const { fatura, resumoCaixa, investimentos, dataFechamentoNubank } = dados
+  const { fatura, resumoCaixa, investimentos, dataFechamentoNubank, atividadeRecente } = dados
 
   const applyData = useCallback((data: unknown) => {
     setDados(data as DashboardData)
@@ -602,7 +633,7 @@ export default function Dashboard() {
   )
 
   const { status, isOnline } = useGlobalSync({
-    cacheKey: `dashboard-v4:${format(mesAtual, 'yyyy-MM')}`,
+    cacheKey: `dashboard-v5:${format(mesAtual, 'yyyy-MM')}`,
     tables: ['transacoes_nubank', 'planejamento', 'investimentos', 'investimentos_aportes', 'reservas_fatura', 'reservas_fatura_baixas'],
     fetcher,
     onData: applyData,
@@ -613,7 +644,7 @@ export default function Dashboard() {
     if (!isOnline) return
 
     const prefetch = async (mes: Date) => {
-      const storageKey = `datasync:dashboard-v4:${format(mes, 'yyyy-MM')}`
+      const storageKey = `datasync:dashboard-v5:${format(mes, 'yyyy-MM')}`
       if (localStorage.getItem(storageKey)) return
       try {
         const data = await carregarDados(mes)
@@ -769,63 +800,147 @@ export default function Dashboard() {
   }, [blocosPrincipal, fatura.cartoesExtras, fatura.totaisPorResponsavel, mascarar, abrirComposicaoFatura, abrirDetalhesProjecao])
 
   // ── Destaques do topo: giram sob o saldo. Só entram os que têm dado no mês ──
+  // Todos com a mesma altura (ícone + título, valor, detalhe) para o topo não
+  // "pular" a cada troca; o detalhe ganha linha própria em vez de ser cortado.
   const destaquesTopo = useMemo<ItemCarrossel[]>(() => {
     const rotulo = 'text-[10.5px] uppercase tracking-wide font-semibold text-white/70 leading-none'
-    const destaque = (chave: string, titulo: string, valor: React.ReactNode, sub?: React.ReactNode): ItemCarrossel => ({
-      chave,
-      conteudo: (
-        <div className="min-h-[38px] pr-12">
-          <p className={rotulo}>{titulo}</p>
-          <p className="mt-1.5 flex items-baseline gap-2 min-w-0 leading-tight">
-            <span className="text-[15px] font-bold whitespace-nowrap shrink-0">{valor}</span>
-            {sub && <span className="text-xs text-white/75 truncate">{sub}</span>}
-          </p>
+    type Icone = React.ComponentType<{ className?: string; 'aria-hidden'?: boolean }>
+    const destaque = (
+      chave: string, Icon: Icone, titulo: string, valor: React.ReactNode,
+      sub?: React.ReactNode, opts: { progresso?: number; href?: string } = {},
+    ): ItemCarrossel => {
+      const corpo = (
+        <div className="flex items-start gap-3 min-h-[66px]">
+          <span className="mt-0.5 w-9 h-9 shrink-0 rounded-xl bg-white/15 flex items-center justify-center">
+            <Icon className="w-[18px] h-[18px]" aria-hidden />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className={`${rotulo} pr-14 truncate`}>{titulo}</p>
+            <div className="mt-1 text-[17px] font-bold leading-tight truncate">{valor}</div>
+            {sub && <div className="mt-0.5 text-xs text-white/75 leading-snug truncate">{sub}</div>}
+            {opts.progresso !== undefined && (
+              <div className="mt-1.5 h-1 bg-white/20 rounded-full overflow-hidden">
+                <div className="h-full bg-white/80 rounded-full" style={{ width: `${Math.round(Math.min(Math.max(opts.progresso, 0), 1) * 100)}%` }} />
+              </div>
+            )}
+          </div>
         </div>
-      ),
-    })
+      )
+      return {
+        chave,
+        conteudo: opts.href ? (
+          <Link href={opts.href} className="block rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">{corpo}</Link>
+        ) : corpo,
+      }
+    }
+    const pct = (atual: number, base: number) => Math.round(((atual - base) / base) * 100)
+    const variacao = (p: number) => (
+      <span className={p > 0 ? 'text-red-200 font-semibold' : 'text-emerald-200 font-semibold'}>
+        {p > 0 ? '▲' : '▼'} <span className="num">{Math.abs(p)}%</span>
+      </span>
+    )
 
     const itens: ItemCarrossel[] = [{
       chave: 'receita-gastos',
       conteudo: (
-        <div className="grid grid-cols-2 gap-2 min-h-[38px] pr-12">
-          <Link href="/financas?tab=receitas" className="block min-w-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
-            <p className={`flex items-center gap-1 ${rotulo}`}>
-              <TrendingUp className="w-3 h-3 text-emerald-200" aria-hidden="true" />Receita
-            </p>
-            <p className="mt-1.5 text-[15px] font-bold num whitespace-nowrap">{mascarar(resumoCaixa.receitaTotal)}</p>
+        <div className="grid grid-cols-2 gap-2 min-h-[66px] pr-12 items-center">
+          <Link href="/financas?tab=receitas" className="flex items-center gap-2.5 min-w-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
+            <span className="w-9 h-9 shrink-0 rounded-xl bg-white/15 flex items-center justify-center">
+              <TrendingUp className="w-[18px] h-[18px] text-emerald-200" aria-hidden="true" />
+            </span>
+            <span className="min-w-0">
+              <span className={`block ${rotulo}`}>Receita</span>
+              <span className="block mt-1 text-[15px] font-bold num whitespace-nowrap">{mascarar(resumoCaixa.receitaTotal)}</span>
+            </span>
           </Link>
-          <Link href="/financas?tab=despesas" className="block min-w-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
-            <p className={`flex items-center gap-1 ${rotulo}`}>
-              <TrendingDown className="w-3 h-3 text-red-200" aria-hidden="true" />Gastos
-            </p>
-            <p className="mt-1.5 text-[15px] font-bold num whitespace-nowrap">{mascarar(resumoCaixa.totalGastosDespesas)}</p>
+          <Link href="/financas?tab=despesas" className="flex items-center gap-2.5 min-w-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
+            <span className="w-9 h-9 shrink-0 rounded-xl bg-white/15 flex items-center justify-center">
+              <TrendingDown className="w-[18px] h-[18px] text-red-200" aria-hidden="true" />
+            </span>
+            <span className="min-w-0">
+              <span className={`block ${rotulo}`}>Gastos</span>
+              <span className="block mt-1 text-[15px] font-bold num whitespace-nowrap">{mascarar(resumoCaixa.totalGastosDespesas)}</span>
+            </span>
           </Link>
         </div>
       ),
     }]
 
+    // Gasto de cada pessoa nos últimos dias (data da compra, todos os cartões)
+    const ativ = atividadeRecente
+    if (ativ && ativ.comprasJanela > 0) {
+      const ritmo = ativ.mediaDiariaAnterior > 0 ? pct(ativ.totalJanela / ativ.dias, ativ.mediaDiariaAnterior) : null
+      itens.push(destaque('ultimos-dias', Users, `Gastos dos últimos ${ativ.dias} dias`,
+        <span className={`grid gap-x-3 ${ativ.porPessoa.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          {ativ.porPessoa.slice(0, 2).map(p => (
+            <span key={p.responsavel} className="min-w-0">
+              <span className="flex items-center gap-1.5 text-[11px] font-medium text-white/80 leading-none">
+                <span className={`w-2 h-2 rounded-full shrink-0 ring-1 ring-white/40 ${estiloResponsavel(p.responsavel).ponto}`} aria-hidden="true" />
+                <span className="truncate">{p.responsavel}</span>
+              </span>
+              <span className="block mt-px num whitespace-nowrap">{mascarar(p.total)}</span>
+            </span>
+          ))}
+        </span>,
+        <>
+          <span className="num">{mascarar(ativ.totalJanela)}</span> em <span className="num">{ativ.comprasJanela}</span> {ativ.comprasJanela === 1 ? 'compra' : 'compras'}
+          {ritmo !== null && Math.abs(ritmo) >= 5 && <> · {variacao(ritmo)} vs. sua média</>}
+        </>,
+        { href: '/compras' }))
+    }
+
+    const ehMesCorrente = format(mesAtual, 'yyyy-MM') === format(new Date(), 'yyyy-MM')
     if (dataFechamentoNubank) {
       const d = new Date(dataFechamentoNubank + 'T12:00:00')
-      const dias = differenceInCalendarDays(d, startOfDay(new Date()))
+      const hoje = startOfDay(new Date())
+      const dias = differenceInCalendarDays(d, hoje)
       if (dias >= 0 && dias <= 45) {
+        const ciclo = Math.max(differenceInCalendarDays(d, subMonths(d, 1)), 1)
         const texto = dias === 0 ? 'Fecha hoje' : dias === 1 ? 'Fecha amanhã' : `Faltam ${dias} dias`
-        itens.push(destaque('fechamento', 'Fechamento da fatura', texto,
-          `NuBank fecha em ${format(d, 'dd/MM')} · ${format(d, 'EEEE', { locale: ptBR })}`))
+        itens.push(destaque('fechamento', CalendarClock, 'Fechamento da fatura', texto,
+          `NuBank fecha ${format(d, "EEEE, dd/MM", { locale: ptBR })}`,
+          { progresso: (ciclo - dias) / ciclo }))
+
+        // Quanto dá para gastar por dia até o fechamento sem ficar no vermelho
+        if (ehMesCorrente && dias > 0 && resumoCaixa.sobraLiquida > 0 && resumoCaixa.receitaTotal > 0) {
+          itens.push(destaque('por-dia', Gauge, 'Dá para gastar por dia',
+            <><span className="num">{mascarar(resumoCaixa.sobraLiquida / dias)}</span><span className="text-sm font-semibold text-white/75">/dia</span></>,
+            `por ${dias} ${dias === 1 ? 'dia' : 'dias'}, até o fechamento, sem ficar no vermelho`))
+        }
       }
+    }
+
+    if (ativ && ativ.totalSemana > 0) {
+      const p = ativ.totalSemanaAnterior > 0 ? pct(ativ.totalSemana, ativ.totalSemanaAnterior) : null
+      itens.push(destaque('semana', Activity, 'Gastos nos últimos 7 dias',
+        <span className="num">{mascarar(ativ.totalSemana)}</span>,
+        p !== null
+          ? <>{variacao(p)} vs. 7 dias anteriores (<span className="num">{mascarar(ativ.totalSemanaAnterior)}</span>)</>
+          : 'sem compras nos 7 dias anteriores',
+        { href: '/compras' }))
+    }
+
+    if (ativ?.maiorCompraSemana) {
+      const m = ativ.maiorCompraSemana
+      itens.push(destaque('maior-compra', Receipt, 'Maior compra da semana',
+        <span className="num">{mascarar(m.valor)}</span>,
+        `${m.descricao} · ${m.responsavel} · ${format(new Date(m.data + 'T12:00:00'), 'dd/MM')}`,
+        { href: '/compras' }))
     }
 
     const metaInvest = resumoCaixa.sobraLiquida > 0
       ? investimentos.reduce((a, i) => a + resumoCaixa.sobraLiquida * i.percentual / 100, 0)
       : 0
     if (investimentos.length > 0 && metaInvest > 0) {
-      const pct = Math.round((totalInvestido / metaInvest) * 100)
-      itens.push(destaque('investimentos', 'Investimentos',
-        pct >= 100 ? 'Meta do mês atingida' : <><span className="num">{pct}%</span> da meta do mês</>,
-        <>Aportado <span className="num">{mascarar(totalInvestido)}</span> de <span className="num">{mascarar(metaInvest)}</span></>))
+      const p = Math.round((totalInvestido / metaInvest) * 100)
+      itens.push(destaque('investimentos', PiggyBank, 'Investimentos',
+        p >= 100 ? 'Meta do mês atingida' : <><span className="num">{p}%</span> da meta do mês</>,
+        <>Aportado <span className="num">{mascarar(totalInvestido)}</span> de <span className="num">{mascarar(metaInvest)}</span></>,
+        { progresso: totalInvestido / metaInvest }))
     }
 
     if (resumoCaixa.pendentesNaFatura > 0) {
-      itens.push(destaque('a-cair', 'Ainda vai cair na fatura',
+      itens.push(destaque('a-cair', Clock, 'Ainda vai cair na fatura',
         <span className="num">{mascarar(resumoCaixa.pendentesNaFatura)}</span>,
         'assinaturas e compras previstas'))
     }
@@ -833,20 +948,20 @@ export default function Dashboard() {
     const ultimas = fatura.principalBlocks.flatMap(b => b.projecaoItens).filter(i => i.total_parcelas > 1 && i.parcela_atual === i.total_parcelas)
     if (ultimas.length > 0) {
       const libera = ultimas.reduce((a, i) => a + i.valor, 0)
-      itens.push(destaque('parcelas-fim',
+      itens.push(destaque('parcelas-fim', Hourglass,
         'Parcelas no fim',
         `${ultimas.length} ${ultimas.length === 1 ? 'parcela termina' : 'parcelas terminam'} este mês`,
-        <>liberam <span className="num">{mascarar(libera)}</span>/mês</>))
+        <>liberam <span className="num">{mascarar(libera)}</span>/mês a partir do próximo</>))
     }
 
     if (resumoCaixa.contasFixas > 0) {
-      itens.push(destaque('contas-fixas', 'Contas fixas do mês',
+      itens.push(destaque('contas-fixas', Home, 'Contas fixas do mês',
         <span className="num">{mascarar(resumoCaixa.contasFixas)}</span>,
         resumoCaixa.extras > 0 ? <>mais <span className="num">{mascarar(resumoCaixa.extras)}</span> em despesas extras</> : undefined))
     }
 
     return itens
-  }, [resumoCaixa, dataFechamentoNubank, investimentos, totalInvestido, fatura.principalBlocks, mascarar])
+  }, [resumoCaixa, dataFechamentoNubank, atividadeRecente, mesAtual, investimentos, totalInvestido, fatura.principalBlocks, mascarar])
 
   const hora = new Date().getHours()
   const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
