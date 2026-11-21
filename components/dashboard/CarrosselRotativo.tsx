@@ -20,6 +20,8 @@ interface Props {
    */
   expansivel?: boolean
   rotulo: string
+  /** Bolinhas no canto superior direito, em vez de uma linha abaixo do item. */
+  pontosNoTopo?: boolean
   className?: string
 }
 
@@ -43,7 +45,7 @@ function usePrefereMenosMovimento(): boolean {
  * Com "reduzir movimento" no sistema ele não gira — só troca na mão.
  */
 export default function CarrosselRotativo({
-  itens, intervaloMs = 6000, tone = 'default', expansivel = false, rotulo, className = '',
+  itens, intervaloMs = 6000, tone = 'default', expansivel = false, rotulo, pontosNoTopo = false, className = '',
 }: Props) {
   const [indice, setIndice] = useState(0)
   const [pausado, setPausado] = useState(false)
@@ -158,7 +160,7 @@ export default function CarrosselRotativo({
         {itens[atual].conteudo}
       </div>
       {total > 1 && (
-        <div className="flex justify-center gap-1.5 mt-2">
+        <div className={pontosNoTopo ? 'absolute right-3 top-2.5 flex gap-1' : 'flex justify-center gap-1.5 mt-2'}>
           {itens.map((it, i) => (
             <button
               key={it.chave}

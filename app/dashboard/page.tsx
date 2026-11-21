@@ -774,10 +774,12 @@ export default function Dashboard() {
     const destaque = (chave: string, titulo: string, valor: React.ReactNode, sub?: React.ReactNode): ItemCarrossel => ({
       chave,
       conteudo: (
-        <div className="min-h-[52px]">
+        <div className="min-h-[38px] pr-12">
           <p className={rotulo}>{titulo}</p>
-          <p className="mt-1.5 text-[16px] font-bold leading-tight">{valor}</p>
-          {sub && <p className="mt-0.5 text-xs text-white/80 leading-snug">{sub}</p>}
+          <p className="mt-1.5 flex items-baseline gap-2 min-w-0 leading-tight">
+            <span className="text-[15px] font-bold whitespace-nowrap shrink-0">{valor}</span>
+            {sub && <span className="text-xs text-white/75 truncate">{sub}</span>}
+          </p>
         </div>
       ),
     })
@@ -785,7 +787,7 @@ export default function Dashboard() {
     const itens: ItemCarrossel[] = [{
       chave: 'receita-gastos',
       conteudo: (
-        <div className="grid grid-cols-2 gap-2 min-h-[52px]">
+        <div className="grid grid-cols-2 gap-2 min-h-[38px] pr-12">
           <Link href="/financas?tab=receitas" className="block min-w-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
             <p className={`flex items-center gap-1 ${rotulo}`}>
               <TrendingUp className="w-3 h-3 text-emerald-200" aria-hidden="true" />Receita
@@ -825,7 +827,7 @@ export default function Dashboard() {
     if (resumoCaixa.pendentesNaFatura > 0) {
       itens.push(destaque('a-cair', 'Ainda vai cair na fatura',
         <span className="num">{mascarar(resumoCaixa.pendentesNaFatura)}</span>,
-        'assinaturas e compras previstas, já descontadas do saldo'))
+        'assinaturas e compras previstas'))
     }
 
     const ultimas = fatura.principalBlocks.flatMap(b => b.projecaoItens).filter(i => i.total_parcelas > 1 && i.parcela_atual === i.total_parcelas)
@@ -834,7 +836,7 @@ export default function Dashboard() {
       itens.push(destaque('parcelas-fim',
         'Parcelas no fim',
         `${ultimas.length} ${ultimas.length === 1 ? 'parcela termina' : 'parcelas terminam'} este mês`,
-        <>liberam <span className="num">{mascarar(libera)}</span> por mês a partir do próximo</>))
+        <>liberam <span className="num">{mascarar(libera)}</span>/mês</>))
     }
 
     if (resumoCaixa.contasFixas > 0) {
@@ -862,7 +864,7 @@ export default function Dashboard() {
 
       {/* ── Topo colorido: saldo do mês ── */}
       <header data-page-header className="bg-primary-600 dark:bg-primary-900 text-white px-5 md:px-6 lg:px-8
-                         pt-[calc(1rem+var(--safe-top))] pb-10 lg:pt-6 lg:pb-8 lg:mt-4 lg:mx-8 lg:rounded-3xl">
+                         pt-[calc(1rem+var(--safe-top))] pb-9 lg:pt-6 lg:pb-8 lg:mt-4 lg:mx-8 lg:rounded-3xl">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h1 className="truncate text-base leading-tight">
@@ -941,16 +943,20 @@ export default function Dashboard() {
                 )}
               </p>
 
-              <div className="mt-3 h-1.5 w-full bg-white/20 rounded-full overflow-hidden">
-                <div
-                  key={resumoCaixa.percentualComprometimento}
-                  className={`h-full rounded-full bar-enter ${comprometimentoBarColor}`}
-                  style={{ '--bar-w': `${Math.min(resumoCaixa.percentualComprometimento, 100)}%` } as React.CSSProperties}
-                />
+              {/* Barra e % na mesma linha: o topo fica mais baixo e a fatura
+                  de quem está logado aparece sem rolar */}
+              <div className="mt-2.5 flex items-center gap-3">
+                <div className="flex-1 h-1.5 bg-white/20 rounded-full overflow-hidden">
+                  <div
+                    key={resumoCaixa.percentualComprometimento}
+                    className={`h-full rounded-full bar-enter ${comprometimentoBarColor}`}
+                    style={{ '--bar-w': `${Math.min(resumoCaixa.percentualComprometimento, 100)}%` } as React.CSSProperties}
+                  />
+                </div>
+                <p className="shrink-0 text-xs text-white/85 leading-none">
+                  <span className="font-semibold num">{formatDecimal(resumoCaixa.percentualComprometimento)}%</span> da renda
+                </p>
               </div>
-              <p className="mt-2 text-[13px] text-white/85 leading-snug">
-                <span className="font-semibold num">{formatDecimal(resumoCaixa.percentualComprometimento)}%</span> da renda comprometida
-              </p>
 
               {/* Destaques do mês: troca sozinho (receita e gastos, fechamento,
                   investimentos, o que ainda vai cair…). Toque pausa. */}
@@ -959,7 +965,8 @@ export default function Dashboard() {
                 itens={destaquesTopo}
                 intervaloMs={6000}
                 rotulo="Destaques do mês"
-                className="mt-3 bg-white/10 rounded-xl px-3 pt-2.5 pb-2"
+                pontosNoTopo
+                className="mt-3 bg-white/10 rounded-xl px-3 py-2"
               />
             </div>
           )}
@@ -969,11 +976,6 @@ export default function Dashboard() {
       {/* ── Folha de conteúdo sobreposta ao topo ── */}
       <div className="-mt-6 lg:mt-0 rounded-t-3xl lg:rounded-none bg-gray-50 pt-5 lg:pt-6">
       <div className="page-content">
-
-        {/* Cotações do dia rolando — some se as fontes não responderem */}
-        <div className="mb-3">
-          <CotacoesTicker />
-        </div>
 
         {/* Abas com pílula deslizante */}
         <div className="relative grid grid-cols-2 bg-gray-100 rounded-full p-1 mb-3 lg:max-w-xs">
@@ -1052,8 +1054,8 @@ export default function Dashboard() {
             ) : (
               <div className="content-enter">
                 {/* Total */}
-                <div className="mb-4 pb-4 border-b border-gray-100">
-                  <p className="text-xs font-medium text-gray-500 mb-1.5">Total atual</p>
+                <div className="mb-3 pb-3 border-b border-gray-100 flex items-baseline justify-between gap-3 flex-wrap">
+                  <p className="text-xs font-medium text-gray-500">Total atual</p>
                   {(() => {
                     const totalExibido = fatura.totalRealizado > 0 ? fatura.totalRealizado : totalProjecaoParcelas
                     const totalStr = mascarar(totalExibido)
@@ -1061,8 +1063,8 @@ export default function Dashboard() {
                     const intPart = commaIdx >= 0 ? totalStr.slice(0, commaIdx) : totalStr
                     const decPart = commaIdx >= 0 ? totalStr.slice(commaIdx) : ''
                     return (
-                      <>
-                        <p className="text-3xl font-bold text-gray-900 num leading-none">
+                      <div className="text-right">
+                        <p className="text-2xl font-bold text-gray-900 num leading-none">
                           {intPart}<span className="text-gray-300">{decPart}</span>
                         </p>
                         {fatura.totalRealizado === 0 && totalProjecaoParcelas > 0 && (
@@ -1074,7 +1076,7 @@ export default function Dashboard() {
                             soma das parcelas previstas
                           </button>
                         )}
-                      </>
+                      </div>
                     )
                   })()}
                 </div>
@@ -1102,7 +1104,9 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* ── Notícias de finanças (somem se os feeds não responderem) ── */}
+          {/* ── Cotações do dia rolando e notícias (somem se as fontes não
+                 responderem). Ficam abaixo da fatura para ela caber na 1ª tela ── */}
+          <CotacoesTicker />
           <NoticiasFinancas />
 
 
