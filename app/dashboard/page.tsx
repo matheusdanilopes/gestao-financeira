@@ -843,23 +843,23 @@ export default function Dashboard() {
     const itens: ItemCarrossel[] = [{
       chave: 'receita-gastos',
       conteudo: (
-        <div className="grid grid-cols-2 gap-2 min-h-[66px] pr-12 items-center">
-          <Link href="/financas?tab=receitas" className="flex items-center gap-2.5 min-w-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
-            <span className="w-9 h-9 shrink-0 rounded-xl bg-white/15 flex items-center justify-center">
-              <TrendingUp className="w-[18px] h-[18px] text-emerald-200" aria-hidden="true" />
+        <div className="grid grid-cols-2 gap-3 min-h-[66px] pt-3 items-center">
+          <Link href="/financas?tab=receitas" className="flex items-center gap-2 min-w-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
+            <span className="w-8 h-8 shrink-0 rounded-lg bg-white/15 hidden min-[360px]:flex items-center justify-center">
+              <TrendingUp className="w-4 h-4 text-emerald-200" aria-hidden="true" />
             </span>
             <span className="min-w-0">
               <span className={`block ${rotulo}`}>Receita</span>
-              <span className="block mt-1 text-[15px] font-bold num whitespace-nowrap">{mascarar(resumoCaixa.receitaTotal)}</span>
+              <span className="block mt-1 text-[15px] font-bold num whitespace-nowrap truncate">{mascarar(resumoCaixa.receitaTotal)}</span>
             </span>
           </Link>
-          <Link href="/financas?tab=despesas" className="flex items-center gap-2.5 min-w-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
-            <span className="w-9 h-9 shrink-0 rounded-xl bg-white/15 flex items-center justify-center">
-              <TrendingDown className="w-[18px] h-[18px] text-red-200" aria-hidden="true" />
+          <Link href="/financas?tab=despesas" className="flex items-center gap-2 min-w-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
+            <span className="w-8 h-8 shrink-0 rounded-lg bg-white/15 hidden min-[360px]:flex items-center justify-center">
+              <TrendingDown className="w-4 h-4 text-red-200" aria-hidden="true" />
             </span>
             <span className="min-w-0">
               <span className={`block ${rotulo}`}>Gastos</span>
-              <span className="block mt-1 text-[15px] font-bold num whitespace-nowrap">{mascarar(resumoCaixa.totalGastosDespesas)}</span>
+              <span className="block mt-1 text-[15px] font-bold num whitespace-nowrap truncate">{mascarar(resumoCaixa.totalGastosDespesas)}</span>
             </span>
           </Link>
         </div>
