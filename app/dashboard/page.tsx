@@ -807,7 +807,7 @@ export default function Dashboard() {
     type Icone = React.ComponentType<{ className?: string; 'aria-hidden'?: boolean }>
     const destaque = (
       chave: string, Icon: Icone, titulo: string, valor: React.ReactNode,
-      sub?: React.ReactNode, opts: { progresso?: number; href?: string; iconeSoEmTelaLarga?: boolean } = {},
+      sub?: React.ReactNode, opts: { progresso?: number; iconeSoEmTelaLarga?: boolean } = {},
     ): ItemCarrossel => {
       const corpo = (
         <div className="flex items-start gap-3 min-h-[66px]">
@@ -828,9 +828,7 @@ export default function Dashboard() {
       )
       return {
         chave,
-        conteudo: opts.href ? (
-          <Link href={opts.href} className="block rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">{corpo}</Link>
-        ) : corpo,
+        conteudo: corpo,
       }
     }
     const pct = (atual: number, base: number) => Math.round(((atual - base) / base) * 100)
@@ -844,7 +842,7 @@ export default function Dashboard() {
       chave: 'receita-gastos',
       conteudo: (
         <div className="grid grid-cols-2 gap-3 min-h-[66px] pt-3 items-center">
-          <Link href="/financas?tab=receitas" className="flex items-center gap-2 min-w-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
+          <div className="flex items-center gap-2 min-w-0">
             <span className="w-8 h-8 shrink-0 rounded-lg bg-white/15 hidden min-[360px]:flex items-center justify-center">
               <TrendingUp className="w-4 h-4 text-emerald-200" aria-hidden="true" />
             </span>
@@ -852,8 +850,8 @@ export default function Dashboard() {
               <span className={`block ${rotulo}`}>Receita</span>
               <span className="block mt-1 text-[15px] font-bold num whitespace-nowrap">{mascarar(resumoCaixa.receitaTotal)}</span>
             </span>
-          </Link>
-          <Link href="/financas?tab=despesas" className="flex items-center gap-2 min-w-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
+          </div>
+          <div className="flex items-center gap-2 min-w-0">
             <span className="w-8 h-8 shrink-0 rounded-lg bg-white/15 hidden min-[360px]:flex items-center justify-center">
               <TrendingDown className="w-4 h-4 text-red-200" aria-hidden="true" />
             </span>
@@ -861,7 +859,7 @@ export default function Dashboard() {
               <span className={`block ${rotulo}`}>Gastos</span>
               <span className="block mt-1 text-[15px] font-bold num whitespace-nowrap">{mascarar(resumoCaixa.totalGastosDespesas)}</span>
             </span>
-          </Link>
+          </div>
         </div>
       ),
     }]
@@ -895,7 +893,7 @@ export default function Dashboard() {
           <span className="num">{mascarar(ativ.totalJanela)}</span> em <span className="num">{ativ.comprasJanela}</span> {ativ.comprasJanela === 1 ? 'compra' : 'compras'}
           {ritmo !== null && Math.abs(ritmo) >= 5 && <> · {variacao(ritmo)} vs. média</>}
         </>,
-        { href: '/compras', iconeSoEmTelaLarga: true }))
+        { iconeSoEmTelaLarga: true }))
     }
 
     const ehMesCorrente = format(mesAtual, 'yyyy-MM') === format(new Date(), 'yyyy-MM')
@@ -925,16 +923,14 @@ export default function Dashboard() {
         <span className="num">{mascarar(ativ.totalSemana)}</span>,
         p !== null
           ? <>{variacao(p)} vs. 7 dias anteriores (<span className="num">{mascarar(ativ.totalSemanaAnterior)}</span>)</>
-          : 'sem compras nos 7 dias anteriores',
-        { href: '/compras' }))
+          : 'sem compras nos 7 dias anteriores'))
     }
 
     if (ativ?.maiorCompraSemana) {
       const m = ativ.maiorCompraSemana
       itens.push(destaque('maior-compra', Receipt, 'Maior compra da semana',
         <span className="num">{mascarar(m.valor)}</span>,
-        `${m.descricao} · ${m.responsavel} · ${format(new Date(m.data + 'T12:00:00'), 'dd/MM')}`,
-        { href: '/compras' }))
+        `${m.descricao} · ${m.responsavel} · ${format(new Date(m.data + 'T12:00:00'), 'dd/MM')}`))
     }
 
     const metaInvest = resumoCaixa.sobraLiquida > 0
@@ -1083,7 +1079,8 @@ export default function Dashboard() {
               </div>
 
               {/* Destaques do mês: troca sozinho (receita e gastos, fechamento,
-                  investimentos, o que ainda vai cair…). Toque pausa. */}
+                  investimentos, o que ainda vai cair…). Toque pausa até tocar
+                  de novo — por isso os destaques não abrem outras telas. */}
               <CarrosselRotativo
                 tone="inverse"
                 itens={destaquesTopo}
