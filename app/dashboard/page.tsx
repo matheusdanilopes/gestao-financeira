@@ -107,7 +107,7 @@ import {
   type PlanejamentoSaldoRow, type TransacaoSaldoRow,
 } from '@/lib/faturaEfetiva'
 import { cartaoLabelsDePlanejamento } from '@/lib/cartaoLabels'
-import { estiloResponsavel, ordenarResponsaveis } from '@/lib/responsavelStyle'
+import { estiloResponsavel, ordenarResponsaveis, RESPONSAVEIS } from '@/lib/responsavelStyle'
 import CarrosselRotativo, { type ItemCarrossel } from '@/components/dashboard/CarrosselRotativo'
 import CotacoesTicker from '@/components/dashboard/CotacoesTicker'
 import NoticiasFinancas from '@/components/dashboard/NoticiasFinancas'
@@ -807,11 +807,11 @@ export default function Dashboard() {
     type Icone = React.ComponentType<{ className?: string; 'aria-hidden'?: boolean }>
     const destaque = (
       chave: string, Icon: Icone, titulo: string, valor: React.ReactNode,
-      sub?: React.ReactNode, opts: { progresso?: number; href?: string } = {},
+      sub?: React.ReactNode, opts: { progresso?: number; href?: string; iconeSoEmTelaLarga?: boolean } = {},
     ): ItemCarrossel => {
       const corpo = (
         <div className="flex items-start gap-3 min-h-[66px]">
-          <span className="mt-0.5 w-9 h-9 shrink-0 rounded-xl bg-white/15 flex items-center justify-center">
+          <span className={`mt-0.5 w-9 h-9 shrink-0 rounded-xl bg-white/15 items-center justify-center ${opts.iconeSoEmTelaLarga ? 'hidden min-[400px]:flex' : 'flex'}`}>
             <Icon className="w-[18px] h-[18px]" aria-hidden />
           </span>
           <div className="min-w-0 flex-1">
@@ -870,23 +870,32 @@ export default function Dashboard() {
     const ativ = atividadeRecente
     if (ativ && ativ.comprasJanela > 0) {
       const ritmo = ativ.mediaDiariaAnterior > 0 ? pct(ativ.totalJanela / ativ.dias, ativ.mediaDiariaAnterior) : null
+      // Todos aparecem (quem não comprou fica com R$ 0), quem está logado primeiro
+      const totais = new Map(ativ.porPessoa.map(p => [p.responsavel, p.total]))
+      const pessoas = ordenarResponsaveis(
+        [...new Set<string>([...RESPONSAVEIS, ...totais.keys()])],
+        isMatheus ? 'Matheus' : 'Jeniffer',
+      ).slice(0, 3)
       itens.push(destaque('ultimos-dias', Users, `Gastos dos últimos ${ativ.dias} dias`,
-        <span className={`grid gap-x-3 ${ativ.porPessoa.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-          {ativ.porPessoa.slice(0, 2).map(p => (
-            <span key={p.responsavel} className="min-w-0">
-              <span className="flex items-center gap-1.5 text-[11px] font-medium text-white/80 leading-none">
-                <span className={`w-2 h-2 rounded-full shrink-0 ring-1 ring-white/40 ${estiloResponsavel(p.responsavel).ponto}`} aria-hidden="true" />
-                <span className="truncate">{p.responsavel}</span>
+        <span className="grid grid-cols-3 gap-x-2">
+          {pessoas.map(r => {
+            const total = totais.get(r) ?? 0
+            return (
+              <span key={r} className="min-w-0">
+                <span className="flex items-center gap-1.5 text-[11px] font-medium text-white/80 leading-none">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ring-1 ring-white/40 ${estiloResponsavel(r).ponto}`} aria-hidden="true" />
+                  <span className="truncate">{r}</span>
+                </span>
+                <span className={`block mt-px text-[15px] num whitespace-nowrap truncate ${total === 0 ? 'text-white/55' : ''}`}>{mascarar(total)}</span>
               </span>
-              <span className="block mt-px num whitespace-nowrap">{mascarar(p.total)}</span>
-            </span>
-          ))}
+            )
+          })}
         </span>,
         <>
           <span className="num">{mascarar(ativ.totalJanela)}</span> em <span className="num">{ativ.comprasJanela}</span> {ativ.comprasJanela === 1 ? 'compra' : 'compras'}
-          {ritmo !== null && Math.abs(ritmo) >= 5 && <> · {variacao(ritmo)} vs. sua média</>}
+          {ritmo !== null && Math.abs(ritmo) >= 5 && <> · {variacao(ritmo)} vs. a média</>}
         </>,
-        { href: '/compras' }))
+        { href: '/compras', iconeSoEmTelaLarga: true }))
     }
 
     const ehMesCorrente = format(mesAtual, 'yyyy-MM') === format(new Date(), 'yyyy-MM')
@@ -961,7 +970,7 @@ export default function Dashboard() {
     }
 
     return itens
-  }, [resumoCaixa, dataFechamentoNubank, atividadeRecente, mesAtual, investimentos, totalInvestido, fatura.principalBlocks, mascarar])
+  }, [resumoCaixa, dataFechamentoNubank, atividadeRecente, isMatheus, mesAtual, investimentos, totalInvestido, fatura.principalBlocks, mascarar])
 
   const hora = new Date().getHours()
   const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
