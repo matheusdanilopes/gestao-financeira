@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
-import { format, startOfMonth, addMonths, subMonths } from 'date-fns'
+import { format, startOfMonth, addMonths, subMonths, startOfDay, differenceInCalendarDays } from 'date-fns'
 import { calcularDataFechamentoDaFatura } from '@/lib/fatura'
 import { classificarTipoGasto, comporValorFatura, somarValorFatura, type TipoGasto } from '@/lib/composicaoFatura'
 import { type ReservaFatura, type BaixaReserva } from '@/lib/reservasFatura'
@@ -104,6 +104,9 @@ import {
 } from '@/lib/faturaEfetiva'
 import { cartaoLabelsDePlanejamento } from '@/lib/cartaoLabels'
 import { estiloResponsavel, ordenarResponsaveis } from '@/lib/responsavelStyle'
+import CarrosselRotativo, { type ItemCarrossel } from '@/components/dashboard/CarrosselRotativo'
+import CotacoesTicker from '@/components/dashboard/CotacoesTicker'
+import NoticiasFinancas from '@/components/dashboard/NoticiasFinancas'
 import BlocoFaturaPrincipal, {
   type BlocoPrincipal, type ProjecaoItem, type ComposicaoGastos, type AssinDivergente,
 } from '@/components/BlocoFaturaPrincipal'
@@ -705,6 +708,146 @@ export default function Dashboard() {
     [fatura.principalBlocks]
   )
 
+  // ── Fatura: o bloco de quem está logado fica fixo; o resto gira ──
+  const blocoUsuario = blocosPrincipal[0] ?? null
+  const itensFaturaRotativos = useMemo<ItemCarrossel[]>(() => {
+    const itens: ItemCarrossel[] = blocosPrincipal.slice(1).map(bloco => ({
+      chave: `bloco-${bloco.responsavel}`,
+      conteudo: (
+        <BlocoFaturaPrincipal bloco={bloco} onComposicao={abrirComposicaoFatura} onProjecao={abrirDetalhesProjecao} />
+      ),
+    }))
+    if (fatura.cartoesExtras.length > 0) {
+      itens.push({
+        chave: 'outros-cartoes',
+        conteudo: (
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-2">Outros cartões</p>
+            <div className="space-y-2">
+              {fatura.cartoesExtras.map((card) => (
+                <div key={card.tipo} className="flex items-center justify-between py-2 px-3 bg-white dark:bg-white/5 rounded-xl">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${estiloResponsavel(card.responsavelDono).ponto}`} />
+                    <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{card.label}</span>
+                  </div>
+                  <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 num shrink-0">
+                    {mascarar(card.atual)} <span className="font-normal text-gray-400">/ {card.previsto > 0 ? mascarar(card.previsto) : '–'}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ),
+      })
+    }
+    if (fatura.totaisPorResponsavel.length > 0) {
+      itens.push({
+        chave: 'totais',
+        conteudo: (
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-2">Total por pessoa · todos os cartões</p>
+            <div className="grid grid-cols-2 gap-2">
+              {fatura.totaisPorResponsavel.map((t) => {
+                const cor = estiloResponsavel(t.responsavel)
+                return (
+                  <div key={t.responsavel} className={`${cor.tileFundo} rounded-2xl p-3`}>
+                    <div className="flex items-center gap-1.5 mb-1.5 min-w-0">
+                      <div className={`w-2 h-2 rounded-full shrink-0 ${cor.ponto}`} />
+                      <span className={`text-[11px] font-semibold truncate ${cor.tileTexto}`}>{t.responsavel} total</span>
+                    </div>
+                    <p className="text-xl font-bold text-gray-900 num">{mascarar(t.atual)}</p>
+                    <p className="text-[11px] text-gray-400 num mt-0.5">de {mascarar(t.previsto)}</p>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ),
+      })
+    }
+    return itens
+  }, [blocosPrincipal, fatura.cartoesExtras, fatura.totaisPorResponsavel, mascarar, abrirComposicaoFatura, abrirDetalhesProjecao])
+
+  // ── Destaques do topo: giram sob o saldo. Só entram os que têm dado no mês ──
+  const destaquesTopo = useMemo<ItemCarrossel[]>(() => {
+    const rotulo = 'text-[10.5px] uppercase tracking-wide font-semibold text-white/70 leading-none'
+    const destaque = (chave: string, titulo: string, valor: React.ReactNode, sub?: React.ReactNode): ItemCarrossel => ({
+      chave,
+      conteudo: (
+        <div className="min-h-[38px] pr-12">
+          <p className={rotulo}>{titulo}</p>
+          <p className="mt-1.5 flex items-baseline gap-2 min-w-0 leading-tight">
+            <span className="text-[15px] font-bold whitespace-nowrap shrink-0">{valor}</span>
+            {sub && <span className="text-xs text-white/75 truncate">{sub}</span>}
+          </p>
+        </div>
+      ),
+    })
+
+    const itens: ItemCarrossel[] = [{
+      chave: 'receita-gastos',
+      conteudo: (
+        <div className="grid grid-cols-2 gap-2 min-h-[38px] pr-12">
+          <Link href="/financas?tab=receitas" className="block min-w-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
+            <p className={`flex items-center gap-1 ${rotulo}`}>
+              <TrendingUp className="w-3 h-3 text-emerald-200" aria-hidden="true" />Receita
+            </p>
+            <p className="mt-1.5 text-[15px] font-bold num whitespace-nowrap">{mascarar(resumoCaixa.receitaTotal)}</p>
+          </Link>
+          <Link href="/financas?tab=despesas" className="block min-w-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
+            <p className={`flex items-center gap-1 ${rotulo}`}>
+              <TrendingDown className="w-3 h-3 text-red-200" aria-hidden="true" />Gastos
+            </p>
+            <p className="mt-1.5 text-[15px] font-bold num whitespace-nowrap">{mascarar(resumoCaixa.totalGastosDespesas)}</p>
+          </Link>
+        </div>
+      ),
+    }]
+
+    if (dataFechamentoNubank) {
+      const d = new Date(dataFechamentoNubank + 'T12:00:00')
+      const dias = differenceInCalendarDays(d, startOfDay(new Date()))
+      if (dias >= 0 && dias <= 45) {
+        const texto = dias === 0 ? 'Fecha hoje' : dias === 1 ? 'Fecha amanhã' : `Faltam ${dias} dias`
+        itens.push(destaque('fechamento', 'Fechamento da fatura', texto,
+          `NuBank fecha em ${format(d, 'dd/MM')} · ${format(d, 'EEEE', { locale: ptBR })}`))
+      }
+    }
+
+    const metaInvest = resumoCaixa.sobraLiquida > 0
+      ? investimentos.reduce((a, i) => a + resumoCaixa.sobraLiquida * i.percentual / 100, 0)
+      : 0
+    if (investimentos.length > 0 && metaInvest > 0) {
+      const pct = Math.round((totalInvestido / metaInvest) * 100)
+      itens.push(destaque('investimentos', 'Investimentos',
+        pct >= 100 ? 'Meta do mês atingida' : <><span className="num">{pct}%</span> da meta do mês</>,
+        <>Aportado <span className="num">{mascarar(totalInvestido)}</span> de <span className="num">{mascarar(metaInvest)}</span></>))
+    }
+
+    if (resumoCaixa.pendentesNaFatura > 0) {
+      itens.push(destaque('a-cair', 'Ainda vai cair na fatura',
+        <span className="num">{mascarar(resumoCaixa.pendentesNaFatura)}</span>,
+        'assinaturas e compras previstas'))
+    }
+
+    const ultimas = fatura.principalBlocks.flatMap(b => b.projecaoItens).filter(i => i.total_parcelas > 1 && i.parcela_atual === i.total_parcelas)
+    if (ultimas.length > 0) {
+      const libera = ultimas.reduce((a, i) => a + i.valor, 0)
+      itens.push(destaque('parcelas-fim',
+        'Parcelas no fim',
+        `${ultimas.length} ${ultimas.length === 1 ? 'parcela termina' : 'parcelas terminam'} este mês`,
+        <>liberam <span className="num">{mascarar(libera)}</span>/mês</>))
+    }
+
+    if (resumoCaixa.contasFixas > 0) {
+      itens.push(destaque('contas-fixas', 'Contas fixas do mês',
+        <span className="num">{mascarar(resumoCaixa.contasFixas)}</span>,
+        resumoCaixa.extras > 0 ? <>mais <span className="num">{mascarar(resumoCaixa.extras)}</span> em despesas extras</> : undefined))
+    }
+
+    return itens
+  }, [resumoCaixa, dataFechamentoNubank, investimentos, totalInvestido, fatura.principalBlocks, mascarar])
+
   const hora = new Date().getHours()
   const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
 
@@ -721,7 +864,7 @@ export default function Dashboard() {
 
       {/* ── Topo colorido: saldo do mês ── */}
       <header data-page-header className="bg-primary-600 dark:bg-primary-900 text-white px-5 md:px-6 lg:px-8
-                         pt-[calc(1rem+var(--safe-top))] pb-10 lg:pt-6 lg:pb-8 lg:mt-4 lg:mx-8 lg:rounded-3xl">
+                         pt-[calc(1rem+var(--safe-top))] pb-9 lg:pt-6 lg:pb-8 lg:mt-4 lg:mx-8 lg:rounded-3xl">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h1 className="truncate text-base leading-tight">
@@ -800,36 +943,31 @@ export default function Dashboard() {
                 )}
               </p>
 
-              <div className="mt-3 h-1.5 w-full bg-white/20 rounded-full overflow-hidden">
-                <div
-                  key={resumoCaixa.percentualComprometimento}
-                  className={`h-full rounded-full bar-enter ${comprometimentoBarColor}`}
-                  style={{ '--bar-w': `${Math.min(resumoCaixa.percentualComprometimento, 100)}%` } as React.CSSProperties}
-                />
+              {/* Barra e % na mesma linha: o topo fica mais baixo e a fatura
+                  de quem está logado aparece sem rolar */}
+              <div className="mt-2.5 flex items-center gap-3">
+                <div className="flex-1 h-1.5 bg-white/20 rounded-full overflow-hidden">
+                  <div
+                    key={resumoCaixa.percentualComprometimento}
+                    className={`h-full rounded-full bar-enter ${comprometimentoBarColor}`}
+                    style={{ '--bar-w': `${Math.min(resumoCaixa.percentualComprometimento, 100)}%` } as React.CSSProperties}
+                  />
+                </div>
+                <p className="shrink-0 text-xs text-white/85 leading-none">
+                  <span className="font-semibold num">{formatDecimal(resumoCaixa.percentualComprometimento)}%</span> da renda
+                </p>
               </div>
-              <p className="mt-2 text-[13px] text-white/85 leading-snug">
-                <span className="font-semibold num">{formatDecimal(resumoCaixa.percentualComprometimento)}%</span> da renda comprometida
-              </p>
 
-              {/* Cards clicáveis: Receita → aba Receitas, Gastos → aba Despesas.
-                  Rótulo em cima e valor embaixo: o valor ocupa a largura toda do
-                  card e cabe com centavos, sem cortar com reticências */}
-              <div className="grid grid-cols-2 gap-2 mt-3">
-                <Link href="/financas?tab=receitas" className="block bg-white/10 rounded-xl px-3 py-2 min-w-0 tap-scale focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
-                  <p className="flex items-center gap-1 text-[11px] text-white/75 leading-none">
-                    <TrendingUp className="w-3 h-3 text-emerald-200" aria-hidden="true" />
-                    Receita
-                  </p>
-                  <p key={resumoCaixa.receitaTotal} className="mt-1 text-[15px] font-bold num value-update whitespace-nowrap">{mascarar(resumoCaixa.receitaTotal)}</p>
-                </Link>
-                <Link href="/financas?tab=despesas" className="block bg-white/10 rounded-xl px-3 py-2 min-w-0 tap-scale focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
-                  <p className="flex items-center gap-1 text-[11px] text-white/75 leading-none">
-                    <TrendingDown className="w-3 h-3 text-red-200" aria-hidden="true" />
-                    Gastos
-                  </p>
-                  <p key={resumoCaixa.totalGastosDespesas} className="mt-1 text-[15px] font-bold num value-update whitespace-nowrap">{mascarar(resumoCaixa.totalGastosDespesas)}</p>
-                </Link>
-              </div>
+              {/* Destaques do mês: troca sozinho (receita e gastos, fechamento,
+                  investimentos, o que ainda vai cair…). Toque pausa. */}
+              <CarrosselRotativo
+                tone="inverse"
+                itens={destaquesTopo}
+                intervaloMs={6000}
+                rotulo="Destaques do mês"
+                pontosNoTopo
+                className="mt-3 bg-white/10 rounded-xl px-3 py-2"
+              />
             </div>
           )}
         </div>
@@ -916,8 +1054,8 @@ export default function Dashboard() {
             ) : (
               <div className="content-enter">
                 {/* Total */}
-                <div className="mb-4 pb-4 border-b border-gray-100">
-                  <p className="text-xs font-medium text-gray-500 mb-1.5">Total atual</p>
+                <div className="mb-3 pb-3 border-b border-gray-100 flex items-baseline justify-between gap-3 flex-wrap">
+                  <p className="text-xs font-medium text-gray-500">Total atual</p>
                   {(() => {
                     const totalExibido = fatura.totalRealizado > 0 ? fatura.totalRealizado : totalProjecaoParcelas
                     const totalStr = mascarar(totalExibido)
@@ -925,8 +1063,8 @@ export default function Dashboard() {
                     const intPart = commaIdx >= 0 ? totalStr.slice(0, commaIdx) : totalStr
                     const decPart = commaIdx >= 0 ? totalStr.slice(commaIdx) : ''
                     return (
-                      <>
-                        <p className="text-3xl font-bold text-gray-900 num leading-none">
+                      <div className="text-right">
+                        <p className="text-2xl font-bold text-gray-900 num leading-none">
                           {intPart}<span className="text-gray-300">{decPart}</span>
                         </p>
                         {fatura.totalRealizado === 0 && totalProjecaoParcelas > 0 && (
@@ -938,69 +1076,38 @@ export default function Dashboard() {
                             soma das parcelas previstas
                           </button>
                         )}
-                      </>
+                      </div>
                     )
                   })()}
                 </div>
 
-                {/* Um bloco por cartão adicional do principal — a lista vem dos dados,
-                    então adicionar/remover uma despesa adiciona/remove um bloco. */}
-                {blocosPrincipal.map((bloco, i) => (
-                  <React.Fragment key={bloco.responsavel}>
-                    {i > 0 && <div className="border-t border-gray-100 my-2" />}
-                    <BlocoFaturaPrincipal
-                      bloco={bloco}
-                      onComposicao={abrirComposicaoFatura}
-                      onProjecao={abrirDetalhesProjecao}
-                    />
-                  </React.Fragment>
-                ))}
-
-                {/* Outros cartões — uma linha por cartão: uma despesa nova sobe o
-                    total da linha em vez de criar uma linha nova. */}
-                {(fatura.cartoesExtras.length > 0 || fatura.totaisPorResponsavel.length > 0) && (
-                  <>
-                    {fatura.cartoesExtras.length > 0 && (
-                      <>
-                        <div className="border-t border-gray-100 mt-4 mb-3" />
-                        <p className="text-xs font-medium text-gray-500 mb-2">Outros cartões</p>
-                        <div className="space-y-2 mb-4">
-                          {fatura.cartoesExtras.map((card) => (
-                            <div key={card.tipo} className="flex items-center justify-between py-2.5 px-3 bg-gray-50 dark:bg-white/5 rounded-xl">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <div className={`w-2 h-2 rounded-full shrink-0 ${estiloResponsavel(card.responsavelDono).ponto}`} />
-                                <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{card.label}</span>
-                              </div>
-                              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 num shrink-0">
-                                {mascarar(card.atual)} <span className="font-normal text-gray-400">/ {card.previsto > 0 ? mascarar(card.previsto) : '–'}</span>
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </>
-                    )}
-                    {fatura.totaisPorResponsavel.length > 0 && (
-                      <div className="grid grid-cols-2 gap-2">
-                        {fatura.totaisPorResponsavel.map((t) => {
-                          const cor = estiloResponsavel(t.responsavel)
-                          return (
-                            <div key={t.responsavel} className={`${cor.tileFundo} rounded-2xl p-3`}>
-                              <div className="flex items-center gap-1.5 mb-1.5 min-w-0">
-                                <div className={`w-2 h-2 rounded-full shrink-0 ${cor.ponto}`} />
-                                <span className={`text-[11px] font-semibold truncate ${cor.tileTexto}`}>{t.responsavel} total</span>
-                              </div>
-                              <p className="text-xl font-bold text-gray-900 num">{mascarar(t.atual)}</p>
-                              <p className="text-[11px] text-gray-400 num mt-0.5">de {mascarar(t.previsto)}</p>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </>
+                {/* Fixo: a fatura de quem está logado (primeiro bloco). O resto —
+                    outras pessoas, outros cartões e totais — gira num carrossel;
+                    tocar nele abre tudo de uma vez. */}
+                {blocoUsuario && (
+                  <BlocoFaturaPrincipal
+                    bloco={blocoUsuario}
+                    onComposicao={abrirComposicaoFatura}
+                    onProjecao={abrirDetalhesProjecao}
+                  />
+                )}
+                {itensFaturaRotativos.length > 0 && (
+                  <CarrosselRotativo
+                    expansivel
+                    itens={itensFaturaRotativos}
+                    intervaloMs={5000}
+                    rotulo="Demais faturas"
+                    className="mt-3 bg-gray-50 dark:bg-white/5 rounded-2xl p-3"
+                  />
                 )}
               </div>
             )}
           </div>
+
+          {/* ── Cotações do dia rolando e notícias (somem se as fontes não
+                 responderem). Ficam abaixo da fatura para ela caber na 1ª tela ── */}
+          <CotacoesTicker />
+          <NoticiasFinancas />
 
 
           {/* ── 3. Investimentos ── */}

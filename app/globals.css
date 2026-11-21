@@ -935,3 +935,36 @@ html {
   30%, 60% { transform: rotate(-8deg); }
   75%      { transform: rotate(0deg); }
 }
+
+/* ─── Dashboard dinâmico: carrossel, faixa de cotações ──────────────────── */
+@keyframes carrossel-in {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.carrossel-slide-enter { animation: carrossel-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* Linha fina que mostra o tempo até a próxima troca do carrossel */
+@keyframes carrossel-progresso { from { width: 0%; } to { width: 100%; } }
+.carrossel-progresso { animation: carrossel-progresso var(--carrossel-ms, 6000ms) linear forwards; }
+
+/* Faixa de cotações: o conteúdo vem duplicado e anda metade da largura, em loop */
+@keyframes ticker-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.ticker-track { animation: ticker-scroll var(--ticker-s, 40s) linear infinite; }
+.ticker:hover .ticker-track,
+.ticker:active .ticker-track { animation-play-state: paused; }
+.ticker-mask {
+  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+}
+
+/* Valor "a cair" pulsa de leve: ainda vai entrar na fatura */
+@keyframes pulso-suave { 50% { opacity: 0.55; } }
+.pulso-suave { animation: pulso-suave 2.4s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Sem rolagem automática: a faixa vira uma linha que se rola com o dedo */
+  .ticker-track { animation: none !important; }
+  .ticker { overflow-x: auto !important; }
+  .ticker-dup { display: none; }
+  .pulso-suave, .carrossel-progresso { animation: none !important; }
+}
