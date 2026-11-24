@@ -8,7 +8,8 @@ import {
   aplicarResponsavelDeParcelaAnterior,
 } from '@/lib/conciliacao'
 import { validarDivergenciaFatura } from '@/lib/validacaoFatura'
-import { corrigirComprasDaViradaNaPrimeiraImportacao } from '@/lib/faturaVirada'
+import { corrigirFaturaPeloFechamentoReal } from '@/lib/faturaVirada'
+import { extrairFaturaDoArquivo, aplicarFaturaDoArquivo } from '@/lib/faturaArquivo'
 import { sincronizarAssinaturasMoedaEstrangeira, AssinaturaSincronizada } from '@/lib/assinaturasSync'
 import { LinhaValidacaoInsert, linhaDeTransacao, linhaDeEstorno } from '@/lib/importValidacao'
 import { capturarPrevisoes, compararPrevisoes, salvarComparacaoNoLog } from '@/lib/comparacaoPrevisao'
@@ -76,14 +77,14 @@ export async function POST(req: NextRequest) {
     const transacoesNormais = transacoes.filter(t => !t.is_estorno)
     const estornos = transacoes.filter(t => t.is_estorno)
 
-    // Os dois ajustes pré-importação mexem em campos diferentes das mesmas linhas
-    // (responsavel × projeto_fatura) e não dependem um do outro — rodam juntos.
-    // O segundo corrige, só na primeira importação de cada fatura, as compras dos 2
-    // últimos dias do ciclo que a fórmula colocou na fatura errada em relação ao
-    // fechamento real cadastrado — ver lib/faturaVirada.ts.
+    // Fatura das linhas: quando o nome do arquivo diz qual é (ex.: "Nubank_2027-01-01.csv"),
+    // ela vale para todas — inclusive as já gravadas, que a conciliação move (ver
+    // lib/faturaArquivo.ts). Sem isso, estimativa por data + fechamento real cadastrado.
+    // Mexe só em projeto_fatura; o ajuste de responsável mexe só em responsavel — rodam juntos.
+    const faturaAutoritativa = aplicarFaturaDoArquivo(transacoes, extrairFaturaDoArquivo(file.name))
     const [origensResponsavel] = await Promise.all([
       aplicarResponsavelDeParcelaAnterior(supabase, transacoes),
-      corrigirComprasDaViradaNaPrimeiraImportacao(supabase, transacoesNormais, cartao, diaVencimento, ajusteFechamento),
+      faturaAutoritativa ? Promise.resolve() : corrigirFaturaPeloFechamentoReal(supabase, transacoes, cartao),
     ])
 
     if (transacoesNormais.length === 0 && estornos.length === 0) {
@@ -119,7 +120,7 @@ export async function POST(req: NextRequest) {
     // Decide e grava o lote inteiro de uma vez: as decisões saem de um contexto
     // pré-carregado (nenhuma ida ao banco por linha) e as escritas vão agrupadas
     // em poucos comandos — ver lib/conciliacao.ts.
-    const resultados = await conciliarLote(supabase, transacoesNormais, 'csv')
+    const resultados = await conciliarLote(supabase, transacoesNormais, 'csv', { faturaAutoritativa })
 
     transacoesNormais.forEach((item, indice) => {
       const stats = faturaStats[item.projeto_fatura]

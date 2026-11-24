@@ -194,13 +194,15 @@ export async function PATCH(
       return NextResponse.json({ linha: atualizada })
     }
 
-    // --- conciliada -> conciliacao_desfeita (restaura status/valor_final da transação pendente original) ---
+    // --- conciliada -> conciliacao_desfeita (restaura status/valor/valor_final da transação pendente original) ---
     if (linha.decisao === 'conciliada' && acaoPedida === 'reverter') {
       const estadoAnterior = linha.estado_anterior as EstadoAnteriorConciliacao | null
       if (!linha.transacao_id || !estadoAnterior) {
         return NextResponse.json({ error: 'Não há estado anterior registrado para desfazer esta conciliação.' }, { status: 409 })
       }
       const restauracao: Record<string, unknown> = { status: estadoAnterior.status, valor_final: estadoAnterior.valor_final }
+      // A conciliação também sobrescreve `valor` (ver lib/conciliacao.ts) — volta o anterior.
+      if (estadoAnterior.valor != null) restauracao.valor = estadoAnterior.valor
       if (estadoAnterior.data_compra && estadoAnterior.projeto_fatura) {
         restauracao.data_compra = estadoAnterior.data_compra
         restauracao.projeto_fatura = estadoAnterior.projeto_fatura
@@ -228,7 +230,7 @@ export async function PATCH(
       }
       const dadosLinha = linha.dados_linha as { valor?: number; data_compra?: string; projeto_fatura?: string }
       const valorConciliado = dadosLinha.valor ?? linha.valor ?? 0
-      const reaplicacao: Record<string, unknown> = { status: 'CONCILIADO', valor_final: valorConciliado }
+      const reaplicacao: Record<string, unknown> = { status: 'CONCILIADO', valor: valorConciliado, valor_final: valorConciliado }
       // Só reaplica data_compra/projeto_fatura se a conciliação original também tiver
       // corrigido a fatura (estado_anterior guardou os valores prévios nesse caso).
       if (estadoAnterior?.data_compra && dadosLinha.data_compra && dadosLinha.projeto_fatura) {

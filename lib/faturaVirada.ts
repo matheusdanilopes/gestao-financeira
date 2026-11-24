@@ -1,79 +1,88 @@
 import { SupabaseClient } from '@supabase/supabase-js'
+import { format } from 'date-fns'
 import { TransacaoNubank } from '@/lib/csvparser'
-import { estaNosUltimosDoisDiasDoCiclo, proximaFatura } from '@/lib/fatura'
+import { proximaFatura } from '@/lib/fatura'
+
+function faturaAnterior(mesReferenciaISO: string): string {
+  const [ano, mes] = mesReferenciaISO.split('-').map(Number)
+  return format(new Date(ano, mes - 2, 1), 'yyyy-MM-dd')
+}
 
 /**
- * Corrige, apenas na PRIMEIRA importação de cada fatura, as compras dos 2
- * últimos dias do ciclo que a fórmula colocou na fatura errada em relação ao
- * fechamento real cadastrado manualmente (Configurações → Faturas). É
- * exatamente a janela em que o NuBank pode fechar 1-2 dias antes do
- * estimado e "migrar" uma compra do último dia para a fatura seguinte,
- * gerando divergência entre o valor do NuBank e o do app.
+ * Corrige a fatura das compras NOVAS (ainda não gravadas) usando o fechamento real
+ * cadastrado manualmente (Configurações → Faturas), quando ele difere do
+ * fechamento estimado pela fórmula:
  *
- * Só corrige quando as três condições valem para a transação:
- * - é a PRIMEIRA importação daquela fatura (nenhuma transação prévia no
- *   banco com esse projeto_fatura + cartao) — reimportações não voltam a
- *   mexer na classificação, mesmo que o usuário reimporte o mesmo extrato;
- * - a compra caiu nos 2 últimos dias do ciclo calculado pela fórmula;
- * - existe uma data de fechamento real cadastrada para essa fatura e a
- *   compra já bateu (ou passou) esse fechamento — só então ela migra para a
- *   fatura seguinte.
+ * - fechamento real da fatura F cadastrado e a compra é de F mas foi feita no dia
+ *   do fechamento real ou depois → vai para a fatura seguinte;
+ * - fechamento real da fatura anterior a F cadastrado e a compra foi feita antes
+ *   dele → volta para a fatura anterior (fechamento real depois do estimado).
  *
- * Muda apenas `projeto_fatura` nos objetos passados (mutação in-place, os
- * mesmos objetos referenciados pelo array `transacoes` do chamador);
- * `data_compra` e o hash de deduplicação não são tocados.
+ * Só vale para compras que ainda não existem no banco (pelo hash): as já gravadas
+ * mantêm a fatura em que estão — reimportar o mesmo extrato não desfaz ajustes
+ * manuais. Antes valia só na "primeira importação" da fatura, o que nunca
+ * acontecia com importações incrementais (a fatura já tinha lançamentos).
  *
- * Precisa ser chamada ANTES do lote ser inserido no banco (a contagem de
- * "primeira importação" reflete o estado atual da tabela).
+ * É o caminho de reserva: quando o arquivo diz a fatura (ver lib/faturaArquivo.ts),
+ * ela é usada no lugar desta estimativa por data.
+ *
+ * Muda apenas `projeto_fatura` nos objetos passados (in-place). Precisa ser
+ * chamada ANTES do lote ser gravado.
  */
-export async function corrigirComprasDaViradaNaPrimeiraImportacao(
+export async function corrigirFaturaPeloFechamentoReal(
   supabase: SupabaseClient,
   transacoes: TransacaoNubank[],
-  cartao: string,
-  diaVencimento: number,
-  ajusteFechamento: number
+  cartao: string
 ): Promise<void> {
-  const candidatas = transacoes.filter(
-    t =>
-      !t.is_estorno &&
-      estaNosUltimosDoisDiasDoCiclo(new Date(t.data_compra + 'T12:00:00'), t.projeto_fatura, diaVencimento, ajusteFechamento)
-  )
-  if (candidatas.length === 0) return
+  const compras = transacoes.filter(t => !t.is_estorno)
+  if (compras.length === 0) return
 
-  const faturasCandidatas = [...new Set(candidatas.map(t => t.projeto_fatura))]
+  const faturas = new Set<string>()
+  for (const t of compras) {
+    faturas.add(t.projeto_fatura)
+    faturas.add(faturaAnterior(t.projeto_fatura))
+  }
 
   const { data: faturasRegistradas } = await supabase
     .from('faturas')
     .select('mes_referencia, data_fechamento')
     .eq('cartao', cartao)
-    .in('mes_referencia', faturasCandidatas)
-  const fechamentosRegistrados = new Map<string, string>(
+    .in('mes_referencia', [...faturas])
+  const fechamentoReal = new Map<string, string>(
     (faturasRegistradas ?? []).map(
       (f: { mes_referencia: string; data_fechamento: string }): [string, string] => [f.mes_referencia, f.data_fechamento]
     )
   )
-  if (fechamentosRegistrados.size === 0) return
+  if (fechamentoReal.size === 0) return
 
-  const faturasPrimeiraImportacao = new Set<string>()
-  await Promise.all(
-    faturasCandidatas
-      .filter(fatura => fechamentosRegistrados.has(fatura))
-      .map(async fatura => {
-        const { count } = await supabase
-          .from('transacoes_nubank')
-          .select('*', { count: 'exact', head: true })
-          .eq('projeto_fatura', fatura)
-          .eq('cartao', cartao)
-        if ((count ?? 0) === 0) faturasPrimeiraImportacao.add(fatura)
-      })
+  const candidatas = compras.filter(t =>
+    fechamentoReal.has(t.projeto_fatura) || fechamentoReal.has(faturaAnterior(t.projeto_fatura))
   )
-  if (faturasPrimeiraImportacao.size === 0) return
+  if (candidatas.length === 0) return
+
+  // Em lotes: muitos hashes num só `.in()` estouram o tamanho da URL (ver lib/conciliacao.ts).
+  const hashes = [...new Set(candidatas.map(t => t.hash_linha))]
+  const jaGravadas = new Set<string>()
+  for (let i = 0; i < hashes.length; i += 100) {
+    const { data: existentes, error } = await supabase
+      .from('transacoes_nubank')
+      .select('hash_linha')
+      .in('hash_linha', hashes.slice(i, i + 100))
+    // Sem saber o que já está gravado, não mexe em nada.
+    if (error) return
+    for (const r of (existentes ?? []) as Array<{ hash_linha: string }>) jaGravadas.add(r.hash_linha)
+  }
 
   for (const t of candidatas) {
-    if (!faturasPrimeiraImportacao.has(t.projeto_fatura)) continue
-    const fechamentoReal = fechamentosRegistrados.get(t.projeto_fatura)
-    if (fechamentoReal && t.data_compra >= fechamentoReal) {
-      t.projeto_fatura = proximaFatura(t.projeto_fatura)
+    if (jaGravadas.has(t.hash_linha)) continue
+    const fatura = t.projeto_fatura
+    const fechamentoDaFatura = fechamentoReal.get(fatura)
+    const fechamentoDaAnterior = fechamentoReal.get(faturaAnterior(fatura))
+
+    if (fechamentoDaFatura && t.data_compra >= fechamentoDaFatura) {
+      t.projeto_fatura = proximaFatura(fatura)
+    } else if (fechamentoDaAnterior && t.data_compra < fechamentoDaAnterior) {
+      t.projeto_fatura = faturaAnterior(fatura)
     }
   }
 }

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/serverAuth'
 import { processarCSV } from '@/lib/csvparser'
+import { corrigirFaturaPeloFechamentoReal } from '@/lib/faturaVirada'
+import { extrairFaturaDoArquivo, aplicarFaturaDoArquivo } from '@/lib/faturaArquivo'
 import { notificarImportacao } from '@/lib/pushImportacao'
 import {
   conciliarLote,
@@ -32,7 +34,16 @@ export async function POST(req: NextRequest) {
 
     const csvText = await file.text()
     const transacoes = processarCSV(csvText, diaVencimento, ajusteFechamento)
-    const origensResponsavel = await aplicarResponsavelDeParcelaAnterior(supabase, transacoes)
+
+    // Fatura das linhas: quando o nome do arquivo diz qual é (ex.: "Nubank_2027-01-01.csv"),
+    // ela vale para todas — inclusive as já gravadas, que a conciliação move (ver
+    // lib/faturaArquivo.ts). Sem isso, estimativa por data + fechamento real cadastrado.
+    // Mexe só em projeto_fatura; o ajuste de responsável mexe só em responsavel — rodam juntos.
+    const faturaAutoritativa = aplicarFaturaDoArquivo(transacoes, extrairFaturaDoArquivo(file.name))
+    const [origensResponsavel] = await Promise.all([
+      aplicarResponsavelDeParcelaAnterior(supabase, transacoes),
+      faturaAutoritativa ? Promise.resolve() : corrigirFaturaPeloFechamentoReal(supabase, transacoes, 'nubank'),
+    ])
 
     const transacoesNormais = transacoes.filter(t => !t.is_estorno)
     const estornos = transacoes.filter(t => t.is_estorno)
@@ -70,7 +81,7 @@ export async function POST(req: NextRequest) {
     // Decide e grava o lote inteiro de uma vez: as decisões saem de um contexto
     // pré-carregado (nenhuma ida ao banco por linha) e as escritas vão agrupadas
     // em poucos comandos — ver lib/conciliacao.ts.
-    const resultados = await conciliarLote(supabase, transacoesNormais, 'csv')
+    const resultados = await conciliarLote(supabase, transacoesNormais, 'csv', { faturaAutoritativa })
 
     transacoesNormais.forEach((item, indice) => {
       const stats = faturaStats[item.projeto_fatura]
