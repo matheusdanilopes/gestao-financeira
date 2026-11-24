@@ -1,7 +1,8 @@
 import { SupabaseClient } from '@supabase/supabase-js'
-import { TransacaoNubank, normalizarDescricaoParaHash } from '@/lib/csvparser'
+import { TransacaoNubank } from '@/lib/csvparser'
 import { descricoesParecidas, normalizarDescricaoSemParcela } from '@/lib/descricaoSimilaridade'
 import { formatBRL } from '@/lib/format'
+import { compraDoEstorno, estornoTemEstabelecimento, estornosParecidos } from '@/lib/estornoDescricao'
 
 function adicionarDias(dataISO: string, dias: number): string {
   const d = new Date(dataISO + 'T12:00:00')
@@ -19,6 +20,8 @@ export interface RegistroConflitante {
   valor: number
   data_compra: string
   status: string
+  /** Fatura em que o registro está (só carregada no dedupe por hash). */
+  projeto_fatura?: string
 }
 
 export interface ResultadoConciliacao {
@@ -93,11 +96,34 @@ interface ContextoConciliacao {
    * um arquivo "engolida" por outra, de dias antes, importada em outro arquivo.
    */
   coberturaPorCartao: Map<string, { inicio: string; fim: string }>
+  /**
+   * A fatura das linhas veio do próprio arquivo (ex.: "Nubank_2027-01-01.csv" — ver
+   * lib/faturaArquivo.ts), não da estimativa por data. Aí ela é a verdade também para
+   * as compras já gravadas: uma linha reconhecida pelo hash que está em outra fatura
+   * é movida para a do arquivo.
+   */
+  faturaAutoritativa: boolean
+}
+
+interface EstornoExistente {
+  id: string
+  descricao: string
+  valor: number
+  data_compra: string
+  conciliacao_ref: string | null
 }
 
 interface ContextoEstorno {
   hashIndex: Map<string, RegistroConflitante>
   candidatosPorCartao: Map<string, RegistroConflitante[]>
+  /**
+   * Estornos já gravados na janela do lote. O NuBank descreve o mesmo estorno de
+   * formas diferentes ('Estorno de compra (iFood)' pela API, 'Estorno de "Ifd*Loja"
+   * (iFood)' no extrato), então o hash não basta para reconhecer o já registrado.
+   */
+  estornosPorCartao: Map<string, EstornoExistente[]>
+  /** Estornos existentes já casados com alguma linha deste lote (regra 1 pra 1). */
+  estornosReivindicados: Set<string>
 }
 
 function agruparPorCartao(itens: TransacaoNubank[]): Map<string, TransacaoNubank[]> {
@@ -132,14 +158,14 @@ async function buscarHashesEmLote(
 
     const { data, error } = await supabase
       .from('transacoes_nubank')
-      .select('id, descricao, valor, data_compra, status, hash_linha')
+      .select('id, descricao, valor, data_compra, status, hash_linha, projeto_fatura')
       .in('hash_linha', lote)
 
     let rows: Array<RegistroConflitante & { hash_linha: string }>
     if (error?.message?.includes('data_compra')) {
       const legado = await supabase
         .from('transacoes_nubank')
-        .select('id, descricao, valor, data, status, hash_linha')
+        .select('id, descricao, valor, data, status, hash_linha, projeto_fatura')
         .in('hash_linha', lote)
       if (legado.error) throw new Error('Erro ao verificar duplicatas por hash: ' + legado.error.message)
       rows = (legado.data ?? []).map(r => ({ ...r, data_compra: r.data }))
@@ -157,6 +183,7 @@ async function buscarHashesEmLote(
         valor: row.valor,
         data_compra: row.data_compra,
         status: row.status,
+        projeto_fatura: row.projeto_fatura,
       })
     }
   }
@@ -178,7 +205,7 @@ async function construirContextoConciliacao(
 ): Promise<ContextoConciliacao> {
   const candidatosPorCartao = new Map<string, TransacaoMatch[]>()
   if (transacoesNormais.length === 0) {
-    return { hashIndex: new Map(), candidatosPorCartao, reivindicados: new Set(), coberturaPorCartao: new Map() }
+    return { hashIndex: new Map(), candidatosPorCartao, reivindicados: new Set(), coberturaPorCartao: new Map(), faturaAutoritativa: false }
   }
 
   const hashIndex = await buscarHashesEmLote(supabase, transacoesNormais.map(t => t.hash_linha))
@@ -222,7 +249,7 @@ async function construirContextoConciliacao(
     candidatosPorCartao.set(cartao, rows)
   }
 
-  return { hashIndex, candidatosPorCartao, reivindicados, coberturaPorCartao }
+  return { hashIndex, candidatosPorCartao, reivindicados, coberturaPorCartao, faturaAutoritativa: false }
 }
 
 /**
@@ -238,11 +265,17 @@ async function construirContextoEstornos(
   estornos: TransacaoNubank[]
 ): Promise<ContextoEstorno> {
   const candidatosPorCartao = new Map<string, RegistroConflitante[]>()
+  const estornosPorCartao = new Map<string, EstornoExistente[]>()
+  const estornosReivindicados = new Set<string>()
   if (estornos.length === 0) {
-    return { hashIndex: new Map(), candidatosPorCartao }
+    return { hashIndex: new Map(), candidatosPorCartao, estornosPorCartao, estornosReivindicados }
   }
 
   const hashIndex = await buscarHashesEmLote(supabase, estornos.map(e => e.hash_linha))
+  for (const e of estornos) {
+    const existente = hashIndex.get(e.hash_linha)
+    if (existente) estornosReivindicados.add(existente.id)
+  }
 
   for (const [cartao, itens] of agruparPorCartao(estornos)) {
     const datas = itens.map(i => i.data_compra).sort()
@@ -270,9 +303,19 @@ async function construirContextoEstornos(
       : data ?? []
 
     candidatosPorCartao.set(cartao, rows)
+
+    const { data: existentes, error: erroExistentes } = await supabase
+      .from('transacoes_nubank')
+      .select('id, descricao, valor, data_compra, conciliacao_ref')
+      .eq('cartao', cartao)
+      .eq('is_estorno', true)
+      .gte('data_compra', dataInicio)
+      .lte('data_compra', dataFim)
+    if (erroExistentes) console.error('[conciliacao] falha ao carregar estornos existentes:', erroExistentes.message)
+    estornosPorCartao.set(cartao, (existentes ?? []) as EstornoExistente[])
   }
 
-  return { hashIndex, candidatosPorCartao }
+  return { hashIndex, candidatosPorCartao, estornosPorCartao, estornosReivindicados }
 }
 
 function diasEntre(a: string, b: string): number {
@@ -751,10 +794,21 @@ function planejarTransacao(
   const hashMatch = contexto.hashIndex.get(item.hash_linha) ?? null
   if (hashMatch) {
     console.log(`[conciliacao] ignorado (hash duplicado) hash=${item.hash_linha.slice(0, 12)} desc="${item.descricao}" data=${item.data_compra} valor=${item.valor}`)
-    return {
-      tipo: 'final',
-      resultado: { acao: 'ignorado', inseriu: false, matchExistenteId: hashMatch.id, registroConflitante: hashMatch },
+    const resultado: ResultadoConciliacao = { acao: 'ignorado', inseriu: false, matchExistenteId: hashMatch.id, registroConflitante: hashMatch }
+
+    // Mesma linha já gravada, mas em outra fatura: quando o arquivo diz a fatura, ele
+    // manda (ex.: compra importada aos poucos em dezembro que o NuBank lançou em janeiro).
+    const moverDeFatura =
+      contexto.faturaAutoritativa &&
+      !!hashMatch.projeto_fatura &&
+      hashMatch.projeto_fatura !== item.projeto_fatura &&
+      !hashMatch.id.startsWith(REF_PENDENTE)
+    if (moverDeFatura) {
+      console.log(`[conciliacao] fatura corrigida pelo arquivo: ${hashMatch.projeto_fatura} → ${item.projeto_fatura} desc="${item.descricao}"`)
+      atualizarCandidato(contexto, cartao, hashMatch.id, { projeto_fatura: item.projeto_fatura })
+      return { tipo: 'atualizar', alvo: hashMatch.id, patch: { projeto_fatura: item.projeto_fatura }, resultado }
     }
+    return { tipo: 'final', resultado }
   }
 
   // 2. Buscar match por nome (LOWER estrito) + data (±3 dias), só entre registros que
@@ -775,8 +829,10 @@ function planejarTransacao(
       contexto.reivindicados.add(match.id)
 
       // Match completo (nome + data + valor dentro da tolerância): a fonte mais recente
-      // (CSV ou API) é autoridade sobre o valor final da compra — atualiza valor_final
-      // e marca como CONCILIADO em ambos os casos.
+      // (CSV ou API) é autoridade sobre o valor da compra — atualiza `valor` e
+      // `valor_final` e marca como CONCILIADO em ambos os casos. Antes só valor_final
+      // mudava, mas telas e totais leem `valor`: a diferença de centavos que o NuBank
+      // aplica na 1ª parcela (ex.: R$ 57,13 → R$ 57,18) ficava para sempre na fatura do app.
       //
       // Além disso, o NuBank às vezes revisa a data de uma compra já importada entre uma
       // exportação e outra (ex.: uma compra do dia 24 aparece como dia 25 numa reimportação
@@ -786,7 +842,7 @@ function planejarTransacao(
       // fatura antiga — sem isso o valor da fatura no app diverge do NuBank exatamente
       // nesse tipo de compra de virada.
       const faturaMudou = item.projeto_fatura !== match.projeto_fatura
-      const atualizacao: Record<string, unknown> = { valor_final: item.valor, status: 'CONCILIADO' }
+      const atualizacao: Record<string, unknown> = { valor: item.valor, valor_final: item.valor, status: 'CONCILIADO' }
       if (faturaMudou) {
         atualizacao.data_compra = item.data_compra
         atualizacao.projeto_fatura = item.projeto_fatura
@@ -806,6 +862,7 @@ function planejarTransacao(
 
       atualizarCandidato(contexto, cartao, match.id, {
         status: 'CONCILIADO',
+        valor: item.valor,
         valor_final: item.valor,
         ...(faturaMudou ? { data_compra: item.data_compra, projeto_fatura: item.projeto_fatura } : {}),
       })
@@ -823,7 +880,7 @@ function planejarTransacao(
       // relatório, mas sem gastar um round-trip para reescrever os mesmos valores.
       // A tabela não tem trigger nem coluna de atualização, então o estado final é
       // idêntico com ou sem esse UPDATE.
-      const jaEstaAssim = !faturaMudou && match.status === 'CONCILIADO' && match.valor_final === item.valor
+      const jaEstaAssim = !faturaMudou && match.status === 'CONCILIADO' && match.valor === item.valor && match.valor_final === item.valor
       if (jaEstaAssim) return { tipo: 'final', resultado }
 
       return { tipo: 'atualizar', alvo: match.id, patch: atualizacao, resultado }
@@ -917,7 +974,8 @@ function temCorrespondenciaExata(contexto: ContextoConciliacao, item: TransacaoN
 export async function conciliarLote(
   supabase: SupabaseClient,
   transacoesNormais: TransacaoNubank[],
-  origem: OrigemImportacao
+  origem: OrigemImportacao,
+  opcoes: { faturaAutoritativa?: boolean } = {}
 ): Promise<ResultadoConciliacao[]> {
   if (transacoesNormais.length === 0) return []
 
@@ -925,6 +983,7 @@ export async function conciliarLote(
     construirContextoConciliacao(supabase, transacoesNormais),
     carregarConflitosPendentes(supabase),
   ])
+  contexto.faturaAutoritativa = opcoes.faturaAutoritativa ?? false
 
   const plano = novoPlano()
   // Regra 1 pra 1 (ver ContextoConciliacao.reivindicados): as linhas com correspondência
@@ -1082,6 +1141,8 @@ interface PlanoEstorno {
   pendencia: InsercaoPendente | null
   original: RegistroConflitante | null
   resultado: ResultadoEstorno
+  /** Estorno já gravado com outra descrição: completa o registro existente em vez de duplicar. */
+  atualizarExistente?: { id: string; patch: Record<string, unknown> }
 }
 
 /**
@@ -1103,15 +1164,8 @@ function planejarEstorno(
     return { estorno, pendencia: null, original: null, resultado: { acao: 'ignorado', inseriu: false, registroConflitante: hashMatch } }
   }
 
-  // 2. Busca transação original: normaliza descrição do estorno para extrair nome do lojista.
-  //    NuBank usa dois formatos: "Estorno de Loja X" e "Estorno de compra (Loja X 2x de 12x)".
-  const descNorm = estorno.descricao
-    .replace(/^estorno\s+de\s+compra\s*\(/i, '') // "Estorno de compra (Loja..." → "Loja..."
-    .replace(/^estorno\s+de\s+/i, '')             // "Estorno de Loja..." → "Loja..."
-    .replace(/\s*\d+x\s+de\s+\d+x\s*\)?$/i, '')  // remove sufixo de parcela "2x de 12x)"
-    .replace(/\)$/, '')                            // remove parêntese final residual
-    .trim()
-  const descOriginal = normalizarDescricaoParaHash(descNorm)
+  // 2. Busca a compra original pelo estabelecimento extraído da descrição do estorno
+  //    (formatos do NuBank em lib/estornoDescricao.ts), ±30 dias e R$ 0,05.
   const dataInicio = adicionarDias(estorno.data_compra, -30)
   const dataFim    = adicionarDias(estorno.data_compra, 30)
 
@@ -1122,9 +1176,50 @@ function planejarEstorno(
     c.status !== 'ESTORNADO' &&
     c.data_compra >= dataInicio &&
     c.data_compra <= dataFim &&
-    normalizarDescricaoParaHash(c.descricao) === descOriginal &&
+    compraDoEstorno(estorno.descricao, c.descricao) &&
     Math.abs(c.valor - estorno.valor) <= 0.05
   ) ?? null
+
+  // 2b. O mesmo estorno já gravado com outra descrição (ex.: 'Estorno de compra (iFood)'
+  //     vindo antes pela API): mesmo valor, até 3 dias e descrições compatíveis. Não grava
+  //     de novo; completa o existente com a descrição mais específica (e o hash dela, para a
+  //     próxima reimportação casar direto) e com a compra original, se ele ainda não tinha.
+  const existente = (contexto.estornosPorCartao.get(cartaoEstorno) ?? []).find(e =>
+    !contexto.estornosReivindicados.has(e.id) &&
+    Math.abs(e.valor - estorno.valor) <= 0.01 &&
+    diasEntre(e.data_compra, estorno.data_compra) <= 3 &&
+    estornosParecidos(e.descricao, estorno.descricao)
+  )
+  if (existente) {
+    contexto.estornosReivindicados.add(existente.id)
+    contexto.hashIndex.set(estorno.hash_linha, {
+      id: existente.id, descricao: existente.descricao, valor: existente.valor, data_compra: existente.data_compra, status: 'ESTORNO',
+    })
+
+    const patch: Record<string, unknown> = {}
+    if (estornoTemEstabelecimento(estorno.descricao) && !estornoTemEstabelecimento(existente.descricao)) {
+      patch.descricao = estorno.descricao
+      patch.hash_linha = estorno.hash_linha
+    }
+    const vincularOriginal = !existente.conciliacao_ref && original
+    if (vincularOriginal) {
+      patch.conciliacao_ref = original.id
+      atualizarCandidatoEstorno(contexto, cartaoEstorno, original.id, { status: 'ESTORNADO' })
+    }
+
+    console.log(`[conciliacao] estorno já registrado como "${existente.descricao}" (id=${existente.id}) — ignorando "${estorno.descricao}"`)
+    return {
+      estorno,
+      pendencia: null,
+      original: vincularOriginal ? original : null,
+      resultado: {
+        acao: 'ignorado',
+        inseriu: false,
+        registroConflitante: { id: existente.id, descricao: existente.descricao, valor: existente.valor, data_compra: existente.data_compra, status: 'ESTORNO' },
+      },
+      atualizarExistente: Object.keys(patch).length > 0 ? { id: existente.id, patch } : undefined,
+    }
+  }
 
   // 3. Planeja o registro do estorno
   const { occurrence_index: _oi, ...base } = estorno as TransacaoNubank & { occurrence_index?: number }
@@ -1194,8 +1289,14 @@ export async function conciliarEstornosLote(
 
   const idsOriginais: string[] = []
   const notificacoes: Record<string, unknown>[] = []
+  const atualizacoesExistentes: Array<{ id: string; patch: Record<string, unknown> }> = []
 
   for (const p of planos) {
+    if (p.atualizarExistente) {
+      atualizacoesExistentes.push(p.atualizarExistente)
+      // Estorno que já estava gravado sem a compra original e agora foi vinculado a ela.
+      if (p.original) idsOriginais.push(p.original.id)
+    }
     if (!p.pendencia) continue
 
     // Insert recusado = hash duplicado (dois estornos idênticos no mesmo arquivo):
@@ -1227,6 +1328,7 @@ export async function conciliarEstornosLote(
 
   await Promise.all([
     atualizarRegistros(supabase, idsOriginais, { status: 'ESTORNADO' }),
+    ...atualizacoesExistentes.map(a => atualizarRegistros(supabase, [a.id], a.patch)),
     notificacoes.length > 0
       ? supabase.from('notificacoes').insert(notificacoes).then(() => undefined)
       : Promise.resolve(),

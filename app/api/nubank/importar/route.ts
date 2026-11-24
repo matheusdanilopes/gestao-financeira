@@ -14,7 +14,8 @@ import {
   aplicarResponsavelDeParcelaAnterior,
 } from '@/lib/conciliacao'
 import { validarDivergenciaFatura } from '@/lib/validacaoFatura'
-import { corrigirComprasDaViradaNaPrimeiraImportacao } from '@/lib/faturaVirada'
+import { corrigirFaturaPeloFechamentoReal } from '@/lib/faturaVirada'
+import { extrairFaturaDoArquivo, aplicarFaturaDoArquivo } from '@/lib/faturaArquivo'
 import { sincronizarAssinaturasMoedaEstrangeira, AssinaturaSincronizada } from '@/lib/assinaturasSync'
 import { LinhaValidacaoInsert, linhaDeTransacao, linhaDeEstorno } from '@/lib/importValidacao'
 import {
@@ -103,20 +104,19 @@ async function salvarTransacoes(
   transacoes: TransacaoNubank[],
   cartao: string = 'nubank',
   nomeCartao?: string,
-  diaVencimento: number = 10,
-  ajusteFechamento: number = 0
+  faturaDoArquivo: string | null = null
 ) {
   const transacoesNormais = transacoes.filter(t => !t.is_estorno)
   const estornos = transacoes.filter(t => t.is_estorno)
 
-  // Os dois ajustes pré-importação mexem em campos diferentes das mesmas linhas
-  // (responsavel × projeto_fatura) e não dependem um do outro — rodam juntos.
-  // O segundo corrige, só na primeira importação de cada fatura, as compras dos 2
-  // últimos dias do ciclo que a fórmula colocou na fatura errada em relação ao
-  // fechamento real cadastrado — ver lib/faturaVirada.ts.
+  // Fatura das linhas: quando o arquivo diz qual é (ex.: "Nubank_2027-01-01.csv"), ela
+  // vale para todas — inclusive as já gravadas, que a conciliação move (ver
+  // lib/faturaArquivo.ts). Sem isso, estimativa por data + fechamento real cadastrado.
+  // Mexe só em projeto_fatura; o ajuste de responsável mexe só em responsavel — rodam juntos.
+  const faturaAutoritativa = aplicarFaturaDoArquivo(transacoes, faturaDoArquivo)
   const [origensResponsavel] = await Promise.all([
     aplicarResponsavelDeParcelaAnterior(supabase, transacoes),
-    corrigirComprasDaViradaNaPrimeiraImportacao(supabase, transacoesNormais, cartao, diaVencimento, ajusteFechamento),
+    faturaAutoritativa ? Promise.resolve() : corrigirFaturaPeloFechamentoReal(supabase, transacoes, cartao),
   ])
 
   let novosMatheus = 0
@@ -143,7 +143,7 @@ async function salvarTransacoes(
   // Decide e grava o lote inteiro de uma vez: as decisões saem de um contexto
   // pré-carregado (nenhuma ida ao banco por linha) e as escritas vão agrupadas em
   // poucos comandos — ver lib/conciliacao.ts.
-  const resultados = await conciliarLote(supabase, transacoesNormais, 'api')
+  const resultados = await conciliarLote(supabase, transacoesNormais, 'api', { faturaAutoritativa })
 
   transacoesNormais.forEach((item, indice) => {
     const stats = faturaStats[item.projeto_fatura]
@@ -310,6 +310,7 @@ export async function POST(req: NextRequest) {
 
     const contentType = req.headers.get('content-type') ?? ''
     let transacoes: TransacaoNubank[]
+    let faturaDoArquivo: string | null = null
 
     if (contentType.includes('multipart/form-data')) {
       const formData = await req.formData()
@@ -332,6 +333,8 @@ export async function POST(req: NextRequest) {
       }
       const csvText = await file.text()
       transacoes = processarCSV(csvText, diaVencimento, ajusteFechamento, cartao)
+      const faturaField = formData.get('fatura')
+      faturaDoArquivo = extrairFaturaDoArquivo(typeof faturaField === 'string' && faturaField ? faturaField : file.name)
     } else {
       let body: Record<string, unknown>
       try {
@@ -352,6 +355,12 @@ export async function POST(req: NextRequest) {
         }
         cartao = body.cartao
       }
+
+      // Fatura do extrato: campo "fatura" ('yyyy-MM' ou 'yyyy-MM-dd') ou o nome do arquivo
+      // ("arquivo"/"nomeArquivo", ex.: "Nubank_2027-01-01.csv") — ver lib/faturaArquivo.ts.
+      const indicacaoFatura = [body?.fatura, body?.arquivo, body?.nomeArquivo]
+        .find((v): v is string => typeof v === 'string' && v.length > 0)
+      faturaDoArquivo = extrairFaturaDoArquivo(indicacaoFatura)
 
       if (typeof body?.csv === 'string') {
         transacoes = processarCSV(body.csv, diaVencimento, ajusteFechamento, cartao)
@@ -379,7 +388,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: msg }, { status: 422 })
     }
 
-    const resultadoImportacao = await salvarTransacoes(supabase, transacoes, cartao, nomeCartao, diaVencimento, ajusteFechamento)
+    const resultadoImportacao = await salvarTransacoes(supabase, transacoes, cartao, nomeCartao, faturaDoArquivo)
 
     // purchaseDates e linhas são excluídos da resposta pública propositalmente: purchaseDates
     // só é usado pelo push (já disparado em background dentro de salvarTransacoes); linhas
