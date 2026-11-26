@@ -50,7 +50,17 @@ export function transacoesDoCartao<T extends TransacaoSaldoRow>(transacoes: T[],
   return transacoes.filter(t => t.cartao === alvo)
 }
 
+/**
+ * Receita do mês: o valor recebido quando a receita foi marcada como recebida
+ * (`pago` + `valor_real`), senão o previsto. Antes era sempre o previsto, e um
+ * salário que caiu diferente do planejado deixava o saldo fora da conta real.
+ */
 export function calcularReceitaTotal(plan: PlanejamentoSaldoRow[]): number {
+  return plan.filter(p => ehLinhaDeReceita(p.item)).reduce((acc, p) => acc + (p.pago ? realizadoDe(p) : previstoDe(p)), 0)
+}
+
+/** Receita só pelo planejado — base do saldo previsto. */
+function calcularReceitaPrevista(plan: PlanejamentoSaldoRow[]): number {
   return plan.filter(p => ehLinhaDeReceita(p.item)).reduce((acc, p) => acc + previstoDe(p), 0)
 }
 
@@ -198,7 +208,7 @@ export function calcularResumoSaldo(
     totalGastos,
     totalGastosDespesas,
     saldo: receitaTotal - totalGastos,
-    saldoPrevisto: receitaTotal - calcularTotalPlanejado(plan),
+    saldoPrevisto: calcularReceitaPrevista(plan) - calcularTotalPlanejado(plan),
     temLancamentosEfetivos,
   }
 }
